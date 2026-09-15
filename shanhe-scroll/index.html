@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>山河岁月 · 可走入的历史长卷</title>
+<style>
+  :root{
+    --paper:#efe7d8;
+    --paper-deep:#e5dac6;
+    --ink:#2e2a24;
+    --ink-soft:#6b6357;
+    --seal:#9d2933;
+    --gold:#b08a41;
+    --line:#c9bda6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Songti SC","STSong","Source Han Serif SC","Noto Serif CJK SC",serif;
+    overflow:hidden;
+    /* 宣纸纤维质感：程序化，无外部贴图 */
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(160,140,110,.05) 0 2px, transparent 2px),
+      radial-gradient(circle at 70% 60%, rgba(160,140,110,.04) 0 3px, transparent 3px),
+      radial-gradient(circle at 45% 85%, rgba(160,140,110,.05) 0 2px, transparent 2px);
+    background-size:37px 37px, 53px 53px, 41px 41px;
+  }
+
+  /* ---------- 顶栏 ---------- */
+  #topbar{
+    position:fixed;top:0;left:0;right:0;height:46px;z-index:60;
+    display:flex;align-items:center;gap:14px;padding:0 16px;
+    background:linear-gradient(var(--paper),rgba(239,231,216,.92));
+    border-bottom:1px solid var(--line);
+  }
+  .seal{
+    width:18px;height:18px;background:var(--seal);color:#fff;
+    display:grid;place-items:center;font-size:11px;border-radius:2px;
+  }
+  #title{font-size:15px;letter-spacing:.22em}
+  #score{
+    font-size:12px;color:var(--seal);border:1px solid var(--seal);
+    border-radius:11px;padding:1px 10px;letter-spacing:.1em;
+  }
+  #rank{font-size:12px;color:var(--ink-soft);letter-spacing:.1em}
+  #crumb{font-size:12px;color:var(--ink-soft);letter-spacing:.08em}
+  #tools{margin-left:auto;display:flex;gap:6px}
+  .tbtn{
+    font:inherit;font-size:12px;letter-spacing:.08em;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+    padding:3px 10px;border-radius:2px;transition:.2s;
+  }
+  .tbtn:hover{border-color:var(--seal);color:var(--seal)}
+
+  /* ---------- 时间轴 ---------- */
+  #scroll{
+    position:absolute;top:46px;left:0;right:0;bottom:0;
+    overflow-x:auto;overflow-y:hidden;
+  }
+  #rail{position:relative;height:100%;min-width:100%;display:flex;align-items:center}
+  /* 背景年份水印大字 */
+  .watermark{
+    position:absolute;top:50%;transform:translateY(-58%);
+    font-size:190px;color:rgba(110,95,70,.07);letter-spacing:.1em;
+    pointer-events:none;user-select:none;white-space:nowrap;
+  }
+  .chapter{
+    position:relative;display:flex;align-items:center;
+    padding:0 60px;height:100%;
+  }
+  /* 竖排章节名 */
+  .chapter-title{
+    writing-mode:vertical-rl;text-orientation:upright;
+    font-size:22px;letter-spacing:.32em;line-height:1.4;
+    display:flex;align-items:center;gap:14px;margin-right:52px;
+  }
+  .chapter-title .num{
+    writing-mode:horizontal-tb;background:var(--seal);color:#fff;
+    font-size:12px;padding:3px 5px;align-self:flex-start;border-radius:2px;
+  }
+  .chapter-title .yr{
+    font-size:11px;color:var(--ink-soft);letter-spacing:.24em;
+  }
+  .nodes{position:relative;display:flex;align-items:center;gap:130px;padding:0 40px}
+  /* 主轴线 */
+  .nodes::before{
+    content:"";position:absolute;left:-40px;right:-40px;top:50%;
+    height:1px;background:linear-gradient(90deg,transparent,var(--seal) 12%,var(--seal) 88%,transparent);
+    opacity:.55;
+  }
+  .node{
+    position:relative;width:22px;height:22px;cursor:pointer;
+    display:grid;place-items:center;
+  }
+  .dot{
+    width:9px;height:9px;border-radius:50%;background:var(--seal);
+    transition:.25s;box-shadow:0 0 0 0 rgba(157,41,51,.35);
+  }
+  .node:hover .dot{transform:scale(1.45)}
+  .node.visited .dot{background:var(--gold)}
+  .node.current .dot{
+    background:var(--gold);
+    box-shadow:0 0 0 7px rgba(176,138,65,.18);
+  }
+  .node-label{
+    position:absolute;top:26px;left:50%;transform:translateX(-50%);
+    white-space:nowrap;font-size:12.5px;letter-spacing:.12em;
+  }
+  .node-year{
+    position:absolute;top:44px;left:50%;transform:translateX(-50%);
+    white-space:nowrap;font-size:10px;color:var(--ink-soft);letter-spacing:.16em;
+  }
+
+  /* ---------- 史料卡片 ---------- */
+  /* 卡片：头和「走入场景」固定，只有正文滚动
+     —— 原来整卡 overflow-y:auto，内容一长按钮就沉到滚动区外面够不着 */
+  #card{
+    position:fixed;z-index:70;width:390px;
+    background:var(--paper);border:1px solid var(--line);
+    box-shadow:0 18px 48px rgba(60,45,25,.22);
+    padding:0;display:none;flex-direction:column;overflow:hidden;
+  }
+  #card.show{display:flex;animation:rise .32s ease}
+  #card-scroll{overflow-y:auto;flex:1 1 auto;min-height:0}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .card-hd{
+    display:flex;align-items:center;gap:9px;flex:none;
+    padding:14px 16px 10px;border-bottom:1px solid var(--line);
+  }
+  .card-hd h3{font-size:15px;letter-spacing:.14em;font-weight:normal;color:var(--seal)}
+  .card-close{
+    margin-left:auto;cursor:pointer;color:var(--ink-soft);font-size:16px;
+    background:none;border:none;line-height:1;
+  }
+  .card-meta{
+    padding:8px 16px 0;font-size:11px;color:var(--ink-soft);letter-spacing:.1em;
+  }
+  .card-body{padding:10px 16px 14px;font-size:13px;line-height:2.05;text-align:justify}
+  .card-sig{
+    margin:0 16px 14px;padding:11px 13px;background:rgba(157,41,51,.05);
+    border-left:2px solid var(--seal);font-size:12.5px;line-height:1.95;
+  }
+  .card-sig .lbl{display:block;color:var(--seal);font-size:11px;letter-spacing:.2em;margin-bottom:5px}
+  .card-act{
+    padding:12px 16px 14px;display:flex;gap:8px;flex:none;
+    border-top:1px solid var(--line);background:var(--paper);
+  }
+  .btn{
+    font:inherit;font-size:12.5px;letter-spacing:.14em;cursor:pointer;
+    padding:7px 16px;border-radius:2px;transition:.2s;border:1px solid var(--seal);
+  }
+  .btn-solid{background:var(--seal);color:#fff}
+  .btn-solid:hover{background:#84212a}
+  .btn-ghost{background:transparent;color:var(--seal)}
+  .btn-ghost:hover{background:rgba(157,41,51,.07)}
+
+  /* ---------- 沉浸场景 ---------- */
+  #scene{
+    position:fixed;inset:46px 0 0 0;z-index:80;display:none;
+    background:var(--paper);
+  }
+  #scene.show{display:block}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+  #gl.dragging{cursor:grabbing}
+  /* 关键视觉手法：场景下缘渐隐到宣纸，文字落在纸上 */
+  /* 渐隐遮罩：文字区必须够实，否则浅色调全景图上小字读不出来
+     （深色图看不出问题，虎门那张浅灰海面暴露了它） */
+  #veil{
+    position:absolute;left:0;right:0;bottom:0;height:56%;pointer-events:none;
+    transition:opacity .35s ease;
+    background:linear-gradient(to bottom,
+      rgba(239,231,216,0) 0%,
+      rgba(239,231,216,.55) 14%,
+      rgba(239,231,216,.9) 30%,
+      var(--paper) 44%);
+  }
+  #scene-ui{
+    position:absolute;left:0;right:0;bottom:0;height:50%;
+    overflow-y:auto;padding:0 0 22px;transition:opacity .35s ease;
+  }
+  /* 收起面板 = 全屏看图 */
+  #scene.folded #veil,
+  #scene.folded #scene-ui{opacity:0;pointer-events:none}
+  .scene-inner{max-width:660px;margin:0 auto;padding:0 24px}
+  #scene-caption{
+    text-align:center;font-size:12px;color:var(--ink-soft);
+    letter-spacing:.16em;margin-bottom:14px;
+  }
+  #quiz-q{
+    text-align:center;color:var(--seal);font-size:14.5px;
+    letter-spacing:.14em;margin-bottom:12px;
+  }
+  .opt{
+    display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;
+    background:rgba(255,255,255,.42);border:1px solid var(--line);
+    padding:9px 13px;margin-bottom:7px;cursor:pointer;
+    font:inherit;font-size:12.5px;line-height:1.85;color:var(--ink);
+    transition:.2s;border-radius:2px;
+  }
+  .opt:hover:not(:disabled){border-color:var(--seal);background:rgba(255,255,255,.75)}
+  .opt:disabled{cursor:default;opacity:.72}
+  .opt .k{
+    flex:none;width:19px;height:19px;display:grid;place-items:center;
+    border:1px solid var(--ink-soft);font-size:11px;border-radius:2px;
+  }
+  .opt.right{border-color:var(--gold);background:rgba(176,138,65,.14);opacity:1}
+  .opt.right .k{border-color:var(--gold);background:var(--gold);color:#fff}
+  .opt.wrong{border-color:var(--seal);background:rgba(157,41,51,.08);opacity:1}
+  .opt.wrong .k{border-color:var(--seal);background:var(--seal);color:#fff}
+  #verdict{
+    display:none;margin-top:14px;padding:13px 15px;font-size:12.5px;line-height:2;
+    background:rgba(176,138,65,.09);border-left:2px solid var(--gold);
+  }
+  #verdict.show{display:block;animation:rise .3s ease}
+  #verdict .lbl{display:block;color:var(--gold);font-size:11px;letter-spacing:.2em;margin-bottom:6px}
+  #verdict .hint{display:block;margin-top:9px;color:var(--ink-soft);font-size:11.5px}
+  #scene-next{display:none;margin:18px auto 0}
+  #scene-next.show{display:block}
+  /* 场景右上按钮 */
+  #scene-tools{position:absolute;top:14px;right:16px;display:flex;gap:7px;z-index:5}
+  .sbtn{
+    font:inherit;font-size:12px;letter-spacing:.1em;cursor:pointer;
+    background:rgba(239,231,216,.86);border:1px solid var(--line);
+    color:var(--ink);padding:4px 12px;border-radius:2px;transition:.2s;
+  }
+  .sbtn:hover{border-color:var(--seal);color:var(--seal)}
+  .sbtn.active{background:var(--seal);color:#fff;border-color:var(--seal)}
+  #scene-hint{
+    position:absolute;top:14px;left:16px;z-index:5;
+    font-size:11px;color:rgba(239,231,216,.8);letter-spacing:.14em;
+    text-shadow:0 1px 6px rgba(0,0,0,.6);
+  }
+  #fallback-note{
+    position:absolute;bottom:calc(58% + 8px);left:16px;z-index:5;
+    font-size:10.5px;color:rgba(239,231,216,.75);letter-spacing:.1em;
+    text-shadow:0 1px 6px rgba(0,0,0,.6);display:none;
+  }
+
+  /* ---------- 结算 ---------- */
+  #finale{
+    position:fixed;inset:0;z-index:90;display:none;
+    background:var(--paper);place-items:center;
+  }
+  #finale.show{display:grid}
+  .finale-inner{text-align:center;max-width:460px;padding:24px}
+  .finale-inner .big{
+    font-size:34px;letter-spacing:.3em;color:var(--seal);margin-bottom:18px;
+  }
+  .finale-inner .num{font-size:15px;letter-spacing:.2em;margin-bottom:8px}
+  .finale-inner .rk{font-size:13px;color:var(--ink-soft);letter-spacing:.24em;margin-bottom:26px}
+  .finale-inner p{font-size:13px;line-height:2.1;color:var(--ink-soft);margin-bottom:24px;text-align:justify}
+
+  /* ---------- 首屏引导 ---------- */
+  #hint{
+    position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:55;
+    background:rgba(239,231,216,.96);border:1px solid var(--line);
+    padding:9px 18px;font-size:12.5px;letter-spacing:.1em;color:var(--ink-soft);
+    display:flex;align-items:center;gap:8px;animation:rise .5s ease;
+    box-shadow:0 6px 20px rgba(60,45,25,.09);
+  }
+  #hint.gone{display:none}
+  #hint .d{width:9px;height:9px;border-radius:50%;background:var(--seal);flex:none}
+  #hint b{color:var(--seal);font-weight:normal}
+  /* 未访问节点的呼吸提示，点过任意节点后停止 */
+  @keyframes beckon{
+    0%,100%{box-shadow:0 0 0 0 rgba(157,41,51,.5)}
+    50%{box-shadow:0 0 0 10px rgba(157,41,51,0)}
+  }
+  .node.beckon .dot{animation:beckon 1.8s ease-out infinite}
+
+  ::-webkit-scrollbar{height:7px;width:7px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="seal">卷</div>
+  <div id="title">山河岁月</div>
+  <div id="score">0 分</div>
+  <div id="rank">初览山河</div>
+  <div id="crumb"></div>
+  <div id="tools">
+    <button class="tbtn" id="btn-tour">▶ 直接看场景</button>
+    <button class="tbtn" id="btn-reset">重新开卷</button>
+  </div>
+</div>
+
+<div id="hint"><span class="d"></span>点时间轴上的红点展开史料，再点 <b>走入场景</b> 环视四周　·　或直接按右上角 <b>▶ 直接看场景</b></div>
+<div id="scroll"><div id="rail"></div></div>
+
+<div id="card">
+  <div class="card-hd">
+    <div class="seal" id="card-seal">一</div>
+    <h3 id="card-title"></h3>
+    <button class="card-close" id="card-close">×</button>
+  </div>
+  <div id="card-scroll">
+    <div class="card-meta" id="card-meta"></div>
+    <div class="card-body" id="card-body"></div>
+    <div class="card-sig"><span class="lbl">历史意义</span><span id="card-sig"></span></div>
+  </div>
+  <div class="card-act">
+    <button class="btn btn-solid" id="card-enter">走入场景</button>
+    <button class="btn btn-ghost" id="card-skip">继续前行</button>
+  </div>
+</div>
+
+<div id="scene">
+  <canvas id="gl"></canvas>
+  <div id="scene-hint">按住拖动 · 环视四周</div>
+  <div id="fallback-note">程序化天幕（此节点全景图缺失）</div>
+  <div id="scene-tools">
+    <button class="sbtn active" id="btn-in">走入场景</button>
+    <button class="sbtn" id="btn-far">视角远眺</button>
+    <button class="sbtn" id="btn-fold">收起面板</button>
+    <button class="sbtn" id="btn-exit">退出</button>
+  </div>
+  <div id="veil"></div>
+  <div id="scene-ui"><div class="scene-inner">
+    <div id="scene-caption"></div>
+    <div id="quiz-q"></div>
+    <div id="opts"></div>
+    <div id="verdict"><span class="lbl">史料依据</span><span id="verdict-text"></span><span class="hint" id="verdict-hint"></span></div>
+    <button class="btn btn-solid" id="scene-next">继续前行</button>
+  </div></div>
+</div>
+
+<div id="finale"><div class="finale-inner">
+  <div class="big">卷终</div>
+  <div class="num" id="fin-score"></div>
+  <div class="rk" id="fin-rank"></div>
+  <p>从虎门海滩到南湖船舱，中间隔着八十二年。这条线索的意义不在某一次胜负，
+     而在于中国人用了将近一个世纪去回答同一个问题：路在哪里。</p>
+  <button class="btn btn-ghost" id="fin-again">重新开卷</button>
+</div></div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { META, CHAPTERS, TITLES } from './data/timeline.js';
+
+/* ============================================================
+   1. 状态
+   ============================================================ */
+const FLAT = CHAPTERS.flatMap(c => c.nodes.map(n => ({ ...n, chapter: c })));
+let score = 0;
+let cur = null;               // 当前节点
+const visited = new Set();
+
+const $ = id => document.getElementById(id);
+const CN = ['一','二','三','四','五','六','七','八','九','十'];
+
+function rankOf(s){
+  let r = TITLES[0].name;
+  for (const t of TITLES) if (s >= t.min) r = t.name;
+  return r;
+}
+function refreshScore(){
+  $('score').textContent = score + ' 分';
+  $('rank').textContent = rankOf(score);
+}
+
+/* ============================================================
+   2. 时间轴渲染
+   ============================================================ */
+function buildRail(){
+  const rail = $('rail');
+  rail.innerHTML = '';
+
+  const wm = document.createElement('div');
+  wm.className = 'watermark';
+  wm.style.left = '320px';
+  wm.textContent = META.yearFrom + ' — ' + META.yearTo;
+  rail.appendChild(wm);
+
+  CHAPTERS.forEach((ch, ci) => {
+    const sec = document.createElement('div');
+    sec.className = 'chapter';
+
+    const t = document.createElement('div');
+    t.className = 'chapter-title';
+    t.innerHTML =
+      `<span class="num">${CN[ci] || ci + 1}</span>` +
+      `<span>${ch.title}</span>` +
+      `<span class="yr">${ch.yearLabel}</span>`;
+    sec.appendChild(t);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'nodes';
+    ch.nodes.forEach(n => {
+      n.chapter = ch;                       // 反向引用，卡片面包屑要用
+      const el = document.createElement('div');
+      el.className = 'node';
+      el.dataset.id = n.id;
+      el.innerHTML =
+        `<span class="dot"></span>` +
+        `<span class="node-label">${n.name}</span>` +
+        `<span class="node-year">${n.year}</span>`;
+      el.addEventListener('click', () => openCard(n, el));
+      wrap.appendChild(el);
+    });
+    sec.appendChild(wrap);
+    rail.appendChild(sec);
+  });
+
+  // 第一个节点呼吸提示，告诉用户"从这里点进去"
+  const first = rail.querySelector('.node');
+  if (first) first.classList.add('beckon');
+}
+
+/* ============================================================
+   3. 史料卡片
+   ============================================================ */
+function openCard(node, el){
+  cur = node;
+  dismissHint();
+  document.querySelectorAll('.node').forEach(x => x.classList.remove('current'));
+  el.classList.add('current');
+
+  $('crumb').textContent = node.chapter.title + ' · ' + node.name;
+  $('card-title').textContent = node.name;
+  $('card-meta').textContent = node.card.dateline + '　|　' + node.card.place;
+  $('card-body').textContent = node.card.body;
+  $('card-sig').textContent = node.card.significance;
+
+  const r = el.getBoundingClientRect();
+  const c = $('card');
+  c.classList.add('show');
+
+  // 横向：贴着节点放，但不越出视口
+  let left = r.left + 30;
+  if (left + 390 > innerWidth - 16) left = r.left - 390 - 30;
+  if (left < 16) left = 16;
+  c.style.left = left + 'px';
+
+  // 纵向：不再用硬编码的"假设卡片高 420"（窗口一矮就估错）。
+  // 先按节点位置放，再用视口实测值封顶高度 —— 无论内容多长、窗口多小，
+  // 卡片都完整落在视口内，超出的部分由 #card-scroll 内部滚动。
+  const TOP_MIN = 56, GAP = 16;
+  let top = Math.max(TOP_MIN, r.top - 60);
+  const avail = innerHeight - top - GAP;
+  if (avail < 260) top = Math.max(TOP_MIN, innerHeight - 260 - GAP);   // 太挤就整体上移
+  c.style.top = top + 'px';
+  c.style.maxHeight = (innerHeight - top - GAP) + 'px';
+}
+$('card-close').onclick = () => $('card').classList.remove('show');
+$('card-skip').onclick = () => { markVisited(); $('card').classList.remove('show'); };
+$('card-enter').onclick = () => { $('card').classList.remove('show'); enterScene(cur); };
+
+function markVisited(){
+  if (!cur) return;
+  visited.add(cur.id);
+  const el = document.querySelector(`.node[data-id="${cur.id}"]`);
+  if (el) el.classList.add('visited');
+  if (visited.size === FLAT.length) showFinale();
+}
+
+/* ============================================================
+   4. 沉浸场景 —— 这是「走进去」的全部秘密
+      360° 等距柱状全景图 → 贴在球体内壁 → 相机置于球心旋转
+   ============================================================ */
+// preserveDrawingBuffer: 让画面可被 toDataURL 截取（分享场景截图用）
+const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias:true, preserveDrawingBuffer:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene3d = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 1100);
+
+// 球体：半径 500，法线翻转 —— 于是我们站在球「里面」
+const sphereGeo = new THREE.SphereGeometry(500, 64, 40);
+sphereGeo.scale(-1, 1, 1);
+const sphereMat = new THREE.MeshBasicMaterial();
+const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+scene3d.add(sphere);
+
+// 相机朝向（球坐标）
+let lon = 0, lat = 0, targetFov = 72;
+let drag = false, dragX = 0, dragY = 0, dragLon = 0, dragLat = 0;
+let idle = true;   // 无操作时缓慢自转，让画面「活着」
+
+const cv = $('gl');
+cv.addEventListener('pointerdown', e => {
+  drag = true; idle = false; cv.classList.add('dragging');
+  dragX = e.clientX; dragY = e.clientY; dragLon = lon; dragLat = lat;
+});
+addEventListener('pointermove', e => {
+  if (!drag) return;
+  lon = dragLon - (e.clientX - dragX) * 0.14;
+  lat = Math.max(-72, Math.min(72, dragLat + (e.clientY - dragY) * 0.14));
+});
+addEventListener('pointerup', () => { drag = false; cv.classList.remove('dragging'); });
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  targetFov = Math.max(38, Math.min(96, targetFov + e.deltaY * 0.045));
+}, { passive:false });
+
+// 「走入场景 / 视角远眺」= 改视场角，正是原作那两个按钮做的事
+$('btn-in').onclick  = () => { targetFov = 55; setActive('btn-in'); };
+$('btn-far').onclick = () => { targetFov = 92; setActive('btn-far'); };
+$('btn-exit').onclick = () => exitScene();
+
+// 收起面板 = 全屏看图（图被文字挡住大半是这个布局的固有代价，给个开关）
+$('btn-fold').onclick = () => {
+  const folded = $('scene').classList.toggle('folded');
+  $('btn-fold').textContent = folded ? '展开面板' : '收起面板';
+  $('btn-fold').classList.toggle('active', folded);
+};
+function setActive(id){
+  ['btn-in','btn-far'].forEach(x => $(x).classList.toggle('active', x === id));
+}
+
+/** 全景图缺失时的程序化降级天幕：不用任何外部素材也能跑起来 */
+function proceduralPanorama(tone){
+  const c = document.createElement('canvas');
+  c.width = 2048; c.height = 1024;
+  const g = c.getContext('2d');
+
+  // 天 → 地 的竖直渐变
+  const sky = g.createLinearGradient(0, 0, 0, 1024);
+  sky.addColorStop(0,    tone[0]);
+  sky.addColorStop(0.46, tone[1]);
+  sky.addColorStop(0.52, tone[2]);
+  sky.addColorStop(1,    tone[0]);
+  g.fillStyle = sky; g.fillRect(0, 0, 2048, 1024);
+
+  // 地平线附近的远山剪影（正弦叠加，左右接缝天然连续）
+  g.fillStyle = 'rgba(0,0,0,.34)';
+  g.beginPath(); g.moveTo(0, 1024);
+  for (let x = 0; x <= 2048; x++){
+    const t = x / 2048 * Math.PI * 2;
+    const y = 512 + Math.sin(t * 3) * 26 + Math.sin(t * 7 + 1.3) * 15 + Math.sin(t * 13) * 7;
+    g.lineTo(x, y);
+  }
+  g.lineTo(2048, 1024); g.closePath(); g.fill();
+
+  // 雾气带
+  const fog = g.createLinearGradient(0, 430, 0, 620);
+  fog.addColorStop(0, 'rgba(255,255,255,0)');
+  fog.addColorStop(.5, 'rgba(255,255,255,.14)');
+  fog.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = fog; g.fillRect(0, 430, 2048, 190);
+
+  // 零星光点
+  for (let i = 0; i < 90; i++){
+    const x = Math.random() * 2048, y = 500 + Math.random() * 90;
+    g.fillStyle = `rgba(255,214,150,${0.12 + Math.random() * 0.3})`;
+    g.beginPath(); g.arc(x, y, 1 + Math.random() * 2, 0, 7); g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const loader = new THREE.TextureLoader();
+function loadPanorama(node){
+  const fb = () => {
+    sphereMat.map = proceduralPanorama(node.fallbackTone || ['#1c2430','#465a68','#93a8b2']);
+    sphereMat.needsUpdate = true;
+    $('fallback-note').style.display = 'block';
+  };
+  if (!node.panorama) return fb();
+  loader.load(
+    'panoramas/' + node.panorama,
+    tex => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      sphereMat.map = tex;
+      sphereMat.needsUpdate = true;
+      $('fallback-note').style.display = 'none';
+    },
+    undefined,
+    fb                       // 404 → 静默降级，不炸
+  );
+}
+
+function enterScene(node){
+  cur = node;
+  $('scene').classList.remove('folded');
+  $('btn-fold').textContent = '收起面板';
+  $('btn-fold').classList.remove('active');
+  $('crumb').textContent = node.chapter.title + ' · ' + node.name;
+  loadPanorama(node);
+  lon = 0; lat = 0; targetFov = 72; camera.fov = 96; idle = true;
+  $('scene-caption').textContent = node.sceneCaption || '';
+  buildQuiz(node);
+  $('scene').classList.add('show');
+  resize();
+}
+function exitScene(){
+  $('scene').classList.remove('show');
+  markVisited();
+}
+
+/* ---------- 抉择题 ---------- */
+function buildQuiz(node){
+  const q = node.quiz;
+  $('quiz-q').textContent = q.question;
+  $('verdict').classList.remove('show');
+  $('scene-next').classList.remove('show');
+  const box = $('opts');
+  box.innerHTML = '';
+
+  q.options.forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'opt';
+    b.innerHTML = `<span class="k">${o.key}</span><span>${o.text}</span>`;
+    b.onclick = () => {
+      const right = o.key === q.answer;
+      score += right ? node.score.correct : node.score.wrong;
+      refreshScore();
+      [...box.children].forEach((el, i) => {
+        el.disabled = true;
+        const k = q.options[i].key;
+        if (k === q.answer) el.classList.add('right');
+        else if (k === o.key) el.classList.add('wrong');
+      });
+      $('verdict-text').textContent = q.verdict;
+      $('verdict-hint').textContent = right ? '' : (q.hint || '');
+      $('verdict').classList.add('show');
+      $('scene-next').classList.add('show');
+    };
+    box.appendChild(b);
+  });
+}
+$('scene-next').onclick = () => exitScene();
+
+/* ---------- 渲染循环 ---------- */
+function resize(){
+  const w = innerWidth, h = innerHeight - 46;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+function tick(){
+  requestAnimationFrame(tick);
+  if (!$('scene').classList.contains('show')) return;
+
+  if (idle && !drag) lon += 0.022;            // 无操作时缓慢环视
+  camera.fov += (targetFov - camera.fov) * 0.07;
+  camera.updateProjectionMatrix();
+
+  // 球坐标 → 注视点
+  const phi   = THREE.MathUtils.degToRad(90 - lat);
+  const theta = THREE.MathUtils.degToRad(lon);
+  camera.lookAt(
+    500 * Math.sin(phi) * Math.cos(theta),
+    500 * Math.cos(phi),
+    500 * Math.sin(phi) * Math.sin(theta)
+  );
+  renderer.render(scene3d, camera);
+}
+tick();
+
+/* ============================================================
+   5. 结算 / 重置
+   ============================================================ */
+function showFinale(){
+  $('fin-score').textContent = '共得 ' + score + ' 分';
+  $('fin-rank').textContent = rankOf(score);
+  $('finale').classList.add('show');
+}
+function reset(){
+  score = 0; visited.clear(); cur = null;
+  refreshScore();
+  $('crumb').textContent = '';
+  $('finale').classList.remove('show');
+  $('scene').classList.remove('show');
+  $('card').classList.remove('show');
+  $('hint').classList.remove('gone');
+  buildRail();
+}
+function dismissHint(){
+  $('hint').classList.add('gone');
+  document.querySelectorAll('.node.beckon').forEach(n => n.classList.remove('beckon'));
+}
+
+// 「直接看场景」：跳过两层点击，一键进第一个有全景图的节点
+$('btn-tour').onclick = () => {
+  const target = FLAT.find(n => n.panorama) || FLAT[0];
+  const real = CHAPTERS.flatMap(c => c.nodes).find(n => n.id === target.id);
+  dismissHint();
+  $('card').classList.remove('show');
+  enterScene(real);
+};
+
+$('btn-reset').onclick = reset;
+$('fin-again').onclick = reset;
+
+/* ---------- 启动 ---------- */
+$('title').textContent = META.title;
+buildRail();
+refreshScore();
+resize();
+</script>
+</body>
+</html>

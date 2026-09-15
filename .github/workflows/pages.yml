@@ -1,0 +1,54 @@
+name: Build and publish playground
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check aju game and navigation
+        working-directory: aju-guangzhou-ride
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
+      - name: Assemble _site
+        run: |
+          mkdir -p _site/aju _site/shanhe
+          cp index.html _site/index.html
+
+          # 阿橘：build.py 把源码内联成一个离线 HTML
+          cd aju-guangzhou-ride
+          python3 build.py
+          cp '阿橘的广州慢游.html' ../_site/aju/index.html
+          cp vendor/THREE-LICENSE.txt ../_site/aju/THREE-LICENSE.txt
+          cd ..
+
+          # 山河卷：纯静态，原样搬（不带文档截图和本地启动脚本）
+          cp shanhe-scroll/index.html _site/shanhe/index.html
+          cp -R shanhe-scroll/data shanhe-scroll/panoramas shanhe-scroll/vendor _site/shanhe/
+
+      - name: Show what will be published
+        run: find _site -type f | sort
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

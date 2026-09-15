@@ -1,0 +1,21 @@
+# Publish only game source and reproducible checks; keep local work evidence private.
+*
+!/.gitignore
+!/index.html
+!/src/
+!/src/core.js
+!/src/game.js
+!/src/style.css
+!/vendor/
+!/vendor/three.min.js
+!/vendor/THREE-LICENSE.txt
+!/build.py
+!/README.md
+!/README_CN.md
+!/THIRD_PARTY_NOTICES.md
+!/tests/
+!/tests/core.test.cjs
+!/tests/routes.test.cjs
+!/.github/
+!/.github/workflows/
+!/.github/workflows/pages.yml

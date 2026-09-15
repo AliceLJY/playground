@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>playground · 小试AI 的玩具架</title>
+<style>
+  :root {
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --card: #ffffff;
+    --bg: #faf9f7;
+    --accent: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8e6e3; --muted: #9ca3af; --line: #2d3138;
+      --card: #1c1f24; --bg: #141619; --accent: #f59e0b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 3rem 1.25rem 4rem;
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.7 -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { margin-bottom: 2.5rem; }
+  h1 { font-size: 1.75rem; margin: 0 0 .4rem; letter-spacing: .02em; }
+  .sub { color: var(--muted); font-size: .95rem; margin: 0; }
+  .grid { display: grid; gap: 1rem; }
+  a.card {
+    display: block; padding: 1.25rem 1.4rem;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    text-decoration: none; color: inherit;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  a.card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .name { font-size: 1.15rem; font-weight: 600; margin: 0 0 .35rem; }
+  .name .en { font-weight: 400; color: var(--muted); font-size: .9rem; margin-left: .5rem; }
+  .desc { margin: 0 0 .6rem; color: var(--ink); font-size: .95rem; }
+  .meta { margin: 0; color: var(--muted); font-size: .82rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>playground</h1>
+    <p class="sub">小试AI 的玩具架 · 做着玩的小东西都放这儿</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="aju/">
+      <p class="name">阿橘的广州骑游<span class="en">aju-guangzhou-ride</span></p>
+      <p class="desc">橘猫骑车穿过广州，三花挑战与风格街区探索。键盘操作，单文件离线可玩。</p>
+      <p class="meta">Three.js · 纯前端 · 打包成一个 HTML</p>
+    </a>
+
+    <a class="card" href="shanhe/">
+      <p class="name">山河卷<span class="en">shanhe-scroll</span></p>
+      <p class="desc">可以走进去的历史长卷。宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场。</p>
+      <p class="meta">Three.js 全景球 · 换一个数据文件就能换题材</p>
+    </a>
+  </div>
+
+  <footer>
+    源码在 <a href="https://github.com/AliceLJY/playground">GitHub</a>。
+  </footer>
+</div>
+</body>
+</html>

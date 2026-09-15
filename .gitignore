@@ -1,0 +1,4 @@
+# aju 的构建产物（每次 CI 现生成）
+aju-guangzhou-ride/阿橘的广州慢游.html
+_site/
+.DS_Store
