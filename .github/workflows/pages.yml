@@ -35,9 +35,18 @@ jobs:
           node --check src/race-game.js
           node --test tests/*.test.cjs
 
+      - name: Check Rooftop Splash
+        working-directory: rooftop-splash
+        run: |
+          node --check src/arena.js
+          node --check src/core.js
+          node --check src/world.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Assemble _site
         run: |
-          mkdir -p _site/aju _site/shanhe _site/xiaoju-racing
+          mkdir -p _site/aju _site/shanhe _site/xiaoju-racing _site/rooftop-splash
           cp index.html _site/index.html
 
           # 阿橘：build.py 把源码内联成一个离线 HTML
@@ -57,6 +66,11 @@ jobs:
           # 山河卷：纯静态，原样搬（不带文档截图和本地启动脚本）
           cp shanhe-scroll/index.html _site/shanhe/index.html
           cp -R shanhe-scroll/data shanhe-scroll/panoramas shanhe-scroll/vendor _site/shanhe/
+
+          # 天台水枪：独立规则与场景，单文件离线发布
+          python3 rooftop-splash/build.py
+          cp 'rooftop-splash/天台水枪大战.html' _site/rooftop-splash/index.html
+          cp rooftop-splash/vendor/THREE-LICENSE.txt _site/rooftop-splash/THREE-LICENSE.txt
 
       - name: Show what will be published
         run: find _site -type f | sort

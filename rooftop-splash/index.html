@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#244e56"><meta name="description" content="夏日天台，蓝橙两队。用水枪穿梭掩体，与电脑队友一起赢下三分钟的清凉对战。">
+<title>天台水枪大战 · Rooftop Splash</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%2326aebd'/%3E%3Cpath d='M32 10C22 25 15 32 15 42a17 17 0 0034 0c0-10-7-17-17-32' fill='%23fff2cd'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<canvas id="view" aria-label="天台水枪大战三维游戏画面"></canvas>
+<div id="menu" class="screen">
+  <header class="topline"><a href="../">← 玩具架</a><span>SUMMER CLUB / 01</span><span class="edition">单人游玩 · 电脑团队对战</span></header>
+  <main class="menu-card">
+    <div class="eyebrow"><span class="sun-icon">☀</span> 今天，去天台玩水。</div>
+    <h1>天台<br><span>水枪大战<span class="title-dot">。</span></span></h1>
+    <p class="english-title">ROOFTOP SPLASH</p>
+    <p class="intro">穿过晾衣绳，躲进水箱后。<br>和队友一起，把对面淋个痛快。</p>
+    <div class="setting-label">加入哪一队</div>
+    <div class="team-picker" role="group" aria-label="选择队伍"><button class="team blue selected" data-team="0" aria-pressed="true"><span>01</span>海盐蓝队<i>BLUE</i></button><button class="team orange" data-team="1" aria-pressed="false"><span>02</span>橘子橙队<i>ORANGE</i></button></div>
+    <div class="settings-grid">
+      <label>对战规模<select id="size"><option value="3">3 对 3</option><option value="4" selected>4 对 4</option><option value="6">6 对 6</option></select></label>
+      <label>获胜分数<select id="target"><option value="15">15 分 · 快玩</option><option value="30" selected>30 分 · 标准</option><option value="50">50 分 · 尽兴</option></select></label>
+      <label>电脑难度<select id="difficulty"><option value="easy">轻松</option><option value="normal" selected>普通</option><option value="hard">挑战</option></select></label>
+      <label>起手水枪<select id="weapon"><option value="0">泡泡连发</option><option value="1">高压水炮</option><option value="2">口袋水枪</option></select></label>
+    </div>
+    <button id="start" class="primary">开 场，降 温 <span>↗</span></button>
+    <p class="start-note" id="start-note">点击后进入游戏 · Esc 随时暂停</p>
+  </main>
+  <aside class="postcard"><span>23° N / 夏日晴</span><strong>楼下是城市。<br>楼上，是夏天。</strong><div>3 分钟一局 <b>·</b> 打湿后 3 秒归队</div></aside>
+  <footer class="menu-footer"><span><kbd>WASD</kbd> 移动 <kbd>鼠标</kbd> 瞄准 / 开火 <kbd>R</kbd> 补水</span><button id="help-open">完整操作 ↗</button></footer>
+</div>
+<div id="hud" hidden>
+  <div class="scorebar"><span class="blue-score"><small>海盐蓝队</small><b id="blue-score">0</b></span><span class="timer"><b id="timer">03:00</b><small id="goal">先到 30 分</small></span><span class="orange-score"><b id="orange-score">0</b><small>橘子橙队</small></span></div>
+  <div class="radar-wrap"><canvas id="radar" width="152" height="192" aria-label="队友位置小地图"></canvas><span>ROOFTOP / 夏日天台</span></div>
+  <div class="hud-top-right"><button id="sound" aria-label="关闭声音">声音 开</button><button id="pause-button">暂停 Ⅱ</button></div>
+  <div id="feed" aria-live="polite"></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div><div id="hitmarker">×</div><div id="scope" hidden></div><div id="wet-flash"></div>
+  <div id="hint" role="status"></div>
+  <div class="bottom-hud"><div class="health-box"><span>干爽值 <b id="health">100</b></span><div class="health-track"><i id="health-fill"></i></div><small id="personal">打湿 0 · 归队 0</small></div><div class="weapon-box"><span id="weapon-name">泡泡连发</span><div><b id="ammo">28</b><span id="capacity">/ 28</span></div><small id="reload-note">R 补水 · 1 / 2 / 3 换枪</small></div></div>
+  <div id="weapon-strip"><span data-slot="0">1 泡泡连发</span><span data-slot="1">2 高压水炮</span><span data-slot="2">3 口袋水枪</span><span id="bomb-count">G 水球 × 2</span></div>
+  <div id="respawn" hidden><strong>湿透啦！</strong><span id="respawn-time">3 秒后重新加入</span></div>
+  <div id="touch-controls"><div id="joystick" aria-label="拖动移动"><i></i></div><div id="look-zone" aria-label="拖动转动视角"></div><div class="touch-actions"><button id="touch-jump">跳</button><button id="touch-reload">补水</button><button id="touch-switch">换枪</button><button id="touch-bomb">水球</button><button id="touch-aim">瞄准</button><button id="touch-fire">开火</button></div></div>
+  <div id="orientation-tip">横屏更好玩</div>
+</div>
+<div id="pause" class="overlay" hidden><section class="panel"><span class="eyebrow">TAKE A BREATHER</span><h2>歇一口气。</h2><p id="pause-note">比赛暂停了，大家都在等你。</p><label class="range-label">瞄准灵敏度<input id="sensitivity" type="range" min="0.3" max="2" step="0.1" value="1"></label><button id="resume" class="primary">继续玩 ↗</button><button id="restart" class="secondary">重新开一局</button><button id="exit" class="text-button">回到天台入口</button></section></div>
+<div id="results" class="overlay" hidden><section class="panel result-panel"><span class="eyebrow">AFTER THE SPLASH</span><h2 id="result-title">这一局，清凉！</h2><div id="result-score"></div><p id="result-note"></p><div id="result-table"></div><button id="again" class="primary">再来一场 ↗</button><button id="back" class="text-button">回到天台入口</button></section></div>
+<div id="scoreboard" class="overlay" hidden><section class="panel"><h2>天台战报</h2><div id="live-table"></div><p>松开 Tab 返回</p></section></div>
+<div id="help" class="overlay" hidden><section class="panel help-panel"><span class="eyebrow">HOW TO SPLASH</span><h2>玩水，很简单。</h2><p>把对手的干爽值降到 0，队伍得 1 分。先到目标分数获胜；3 分钟结束时比分高的一队获胜。打湿后 3 秒自动归队，出生保护 2.4 秒，开火会提前解除。</p><dl><dt>W A S D / 方向键</dt><dd>移动；Shift 快跑；空格跳跃；C 蹲下</dd><dt>鼠标左键 / 右键</dt><dd>开火 / 按住瞄准，高压水炮可以放大</dd><dt>1 / 2 / 3 · Q / 滚轮</dt><dd>选择三把水枪 / 轮换水枪</dd><dt>R · G</dt><dd>补水 / 扔水球；每次归队补充两颗</dd><dt>Tab · Esc</dt><dd>查看计分板 / 暂停</dd></dl><p class="touch-help">触屏：左手摇杆移动，右手拖动画面转头，右侧按钮开火、补水、跳跃。横屏视野更好。</p><button id="help-close" class="primary">知道啦 ↗</button></section></div>
+<div id="error" class="overlay" hidden><section class="panel"><h2>天台暂时没打开</h2><p id="error-text"></p><button onclick="location.reload()" class="primary">重新打开</button></section></div>
+<script src="vendor/three.min.js"></script><script src="src/arena.js"></script><script src="src/core.js"></script><script src="src/world.js"></script><script src="src/game.js"></script>
+</body></html>
