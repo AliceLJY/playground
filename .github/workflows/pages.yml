@@ -26,9 +26,18 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Xiaoju Racing
+        working-directory: xiaoju-racing
+        run: |
+          node --check src/race-core.js
+          node --check src/race-cat.js
+          node --check src/race-world.js
+          node --check src/race-game.js
+          node --test tests/*.test.cjs
+
       - name: Assemble _site
         run: |
-          mkdir -p _site/aju _site/shanhe
+          mkdir -p _site/aju _site/shanhe _site/xiaoju-racing
           cp index.html _site/index.html
 
           # 阿橘：build.py 把源码内联成一个离线 HTML
@@ -36,6 +45,13 @@ jobs:
           python3 build.py
           cp '阿橘的广州慢游.html' ../_site/aju/index.html
           cp vendor/THREE-LICENSE.txt ../_site/aju/THREE-LICENSE.txt
+          cd ..
+
+          # 小橘飞车：独立竞速项目，离线单文件发布
+          cd xiaoju-racing
+          python3 build.py
+          cp '小橘飞车.html' ../_site/xiaoju-racing/index.html
+          cp vendor/THREE-LICENSE.txt ../_site/xiaoju-racing/THREE-LICENSE.txt
           cd ..
 
           # 山河卷：纯静态，原样搬（不带文档截图和本地启动脚本）
