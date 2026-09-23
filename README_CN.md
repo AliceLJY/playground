@@ -6,6 +6,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
+| [小橘飞车 · 珠江杯](xiaoju-racing/) · [玩](https://aliceljy.github.io/playground/xiaoju-racing/) | 毛茸茸的小橘与五只猫同场竞速，漂移蓄气、氮气冲线 | Three.js，程序化毛发，单文件离线可玩 |
 | [阿橘的广州骑游](aju-guangzhou-ride/) · [玩](https://aliceljy.github.io/playground/aju/) | 橘猫骑车穿过广州，三花挑战与风格街区探索 | Three.js，打包成单个离线 HTML |
 | [山河卷](shanhe-scroll/) · [玩](https://aliceljy.github.io/playground/shanhe/) | 可以走进去的历史长卷：宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场 | Three.js 全景球，换一个数据文件就能换题材 |
 

@@ -6,6 +6,7 @@ Small things built for fun. One repo, one subfolder each, one Pages site.
 
 | Toy | What it is | Stack |
 |---|---|---|
+| [Xiaoju Racing](xiaoju-racing/) · [play](https://aliceljy.github.io/playground/xiaoju-racing/) | A furry orange tabby races five cats through a Guangzhou-inspired circuit, with drifting and nitro | Three.js, procedural fur and standalone offline HTML |
 | [阿橘的广州骑游](aju-guangzhou-ride/) · [play](https://aliceljy.github.io/playground/aju/) | An orange cat bikes across Guangzhou — calico challenges and neighbourhood exploration | Three.js, packed into a single offline HTML |
 | [山河卷](shanhe-scroll/) · [play](https://aliceljy.github.io/playground/shanhe/) | A historical scroll you can step into: a paper timeline opens exhibit cards, each card walks you into a 360° panorama | Three.js panorama sphere, swap one data file to change the subject |
 
