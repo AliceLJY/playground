@@ -13,6 +13,8 @@ Small things built for fun. One repo, one subfolder each, one Pages site.
 
 ## Adding a new toy
 
+Start with the [production and acceptance guide](AGENTS.md) and write a one-page spec in the toy's own folder.
+
 1. Drop it in its own folder at the repo root.
 2. Add a build step to `.github/workflows/pages.yml` that copies its static output into `_site/<name>/`.
 3. Add a card to the root `index.html`.
