@@ -495,8 +495,8 @@ function step(s,input,dt){
 }
 
 // ---- autopilot: presses keys like a player who watches every telegraph ---------------------
-// opts.human: press timing drawn from a normal distribution (mean .13 s before the hit, sd .09 s),
-// which lands roughly 55% perfect, 35% plain blocks and 10% late presses.
+// opts.human: press timing drawn from a normal distribution (mean opts.lead, default .13 s before the hit;
+// sd opts.sd, default .09 s), which lands roughly 60% perfect, 30% plain blocks and 10% late presses.
 function autopilot(s,opts={}){
   const p=s.player,ap=s.ap||(s.ap={holdUntil:-1,last:-9,swing:-9,plan:{},rand:rng(s.seed*7919+13)});
   const input={left:false,right:false,blockDown:false,blockPressed:false,attackPressed:false,dodgePressed:false};
@@ -508,7 +508,7 @@ function autopilot(s,opts={}){
     if(st.unblockable){if(tth<=.2&&p.state!=='dodge'){input.dodgePressed=true;const away=-sign(e.x-p.x)||-p.face;input[away>0?'right':'left']=true;}}
     else{
       const key=e.id+':'+e.moveT+':'+e.move.strikes.indexOf(st);
-      if(ap.plan[key]===undefined){let lead=.06;if(opts.human){const g=Math.sqrt(-2*Math.log(1-ap.rand()))*Math.cos(2*Math.PI*ap.rand());lead=clamp(.13+.09*g,-.06,.38);}ap.plan[key]=lead;}
+      if(ap.plan[key]===undefined){let lead=.06;if(opts.human){const g=Math.sqrt(-2*Math.log(1-ap.rand()))*Math.cos(2*Math.PI*ap.rand());lead=clamp((opts.lead??.13)+(opts.sd??.09)*g,-.06,.38);}ap.plan[key]=lead;}
       const lead=ap.plan[key];
       if(tth<=lead&&s.time-ap.last>.3&&canGuard(p)&&(p.state!=='parry'||p.face!==from)){input.blockPressed=true;ap.last=s.time;ap.holdUntil=s.time+Math.max(0,tth)+.1;}
     }
