@@ -95,7 +95,7 @@ Draw calls include the shadow pass.
 - Readings: the same patch of living-room floor reads 161 in oak and 92 in walnut; at night the rooms read 75 against 21 outside.
 - Phone portrait: the whole plan shows, the library is a strip along the bottom, a tap on a card adds a piece; in 3D nothing overflows, the walk button is on screen, the joystick appears and moves the walker 1.14 m.
 - No page errors and no outside requests in the 11 fixed views, the visitor run or the phone run.
-- Live: to be filled in after this version is deployed
+- Live: after commit `376482b` was deployed on 2026-10-03, the live page is 1,232,473 bytes and its SHA-256 matches the local bundle; the same acceptance run against the live address passes 31 of 31, with no errors, no outside requests and 58 fps minimum through the walk.
 
 **Screenshots read**: the 2D plan (oak, walnut, mid-drag, edited, phone portrait), overview, plan view, four rooms, cut, walk, night, real sun, walnut, two frames of the house growing, one frame of the door opening and two phone 3D shots were each looked at. Problems found that way and fixed: white walls rendering grey (fill light set too low for physical light units, and the tone curve crushed whites), thin light leaks along wall tops and beside windows, the house too small and labels overlapping on a portrait screen, the toolbar covering the hint text.
 
