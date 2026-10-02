@@ -256,6 +256,52 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.close();
   }
 
+  // 5. the screen changes size after the page has loaded: a foldable opened or closed, a phone turned
+  {
+    const cases = [['unfolded -> folded', [840, 930], [384, 880]], ['folded -> unfolded', [384, 880], [840, 930]], ['portrait -> landscape', [390, 844], [844, 390]]];
+    const plan2 = [], view3 = [];
+    let zoomed = null;
+    for (const [name, a, b] of cases) {
+      const { ctx, page } = await open('', { viewport: { width: a[0], height: a[1] }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+      const m2 = () => page.evaluate(() => {
+        const r = document.querySelector('#plan').getBoundingClientRect(), w = document.querySelector('#gWalls').getBoundingClientRect();
+        return { inside: w.left >= r.left - 1 && w.top >= r.top - 1 && w.right <= r.right + 1 && w.bottom <= r.bottom + 1, fill: Math.max(w.width / r.width, w.height / r.height) };
+      });
+      await page.waitForTimeout(300);
+      await page.setViewportSize({ width: b[0], height: b[1] }); await page.waitForTimeout(500);
+      const after = await m2();
+      plan2.push({ name, ...after, ok: after.inside && after.fill >= 0.5 });
+      if (name === 'unfolded -> folded') {
+        await page.screenshot({ path: shot('resize-folded-plan') });
+        // a view the reader has zoomed is not thrown away: what was in the middle stays in the middle
+        await page.tap('[data-p2="fit"]'); await page.evaluate(() => { const t = document.querySelector('#top'); t.scrollLeft = 0; });
+        await page.evaluate(() => { document.querySelector('[data-p2="zoomIn"]').click(); document.querySelector('[data-p2="zoomIn"]').click(); });
+        const mid = () => page.evaluate(() => { const v = window.__house.plan.view(), svg = document.querySelector('#plan'); return { s: v.s, cx: v.x0 + svg.clientWidth / 2 / v.s, cy: v.y0 + svg.clientHeight / 2 / v.s, user: !!v.user }; });
+        const z0 = await mid();
+        await page.setViewportSize({ width: a[0], height: a[1] }); await page.waitForTimeout(500);
+        const z1 = await mid();
+        zoomed = { z0, z1, drift: Math.hypot(z1.cx - z0.cx, z1.cy - z0.cy) };
+        await page.setViewportSize({ width: b[0], height: b[1] }); await page.waitForTimeout(300);
+        await page.tap('[data-p2="fit"]');
+      }
+      await page.setViewportSize({ width: a[0], height: a[1] }); await page.waitForTimeout(300);
+      await page.evaluate(() => document.querySelector('[data-mode="3d"]').click());
+      await until(page, () => !window.__house.probe().growing, 8000);
+      await page.setViewportSize({ width: b[0], height: b[1] }); await page.waitForTimeout(1200);
+      const q = await page.evaluate(() => window.__house.screenBox());
+      const w = q.x1 - q.x0, h = q.y1 - q.y0;
+      view3.push({ name, w, h, ok: q.x0 >= 0.02 && q.x1 <= 0.98 && q.y0 >= 0.02 && q.y1 <= 0.98 && Math.max(w, h) >= 0.45 });
+      if (name === 'unfolded -> folded') await page.screenshot({ path: shot('resize-folded-hero') });
+      await ctx.close();
+    }
+    check('SPEC 12 resize: the plan is fitted again when the screen changes after loading', plan2.every((c) => c.ok),
+      plan2.map((c) => `${c.name}: inside ${c.inside}, fills ${(c.fill * 100).toFixed(0)}%`).join('; '));
+    check('SPEC 12 resize: a plan the reader has zoomed keeps its middle and is not reset', zoomed && zoomed.z0.user && zoomed.drift < 5 && zoomed.z1.s > zoomed.z0.s,
+      `middle moved ${zoomed.drift.toFixed(1)} mm; scale ${zoomed.z0.s.toFixed(4)} -> ${zoomed.z1.s.toFixed(4)} px per mm on the larger screen`);
+    check('SPEC 12 resize: the whole-house 3D view is framed again', view3.every((c) => c.ok),
+      view3.map((c) => `${c.name}: ${(c.w * 100).toFixed(0)}% x ${(c.h * 100).toFixed(0)}% of the screen`).join('; '));
+  }
+
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
   const failed = report.checks.filter((c) => !c.pass);
   console.log(`\n${report.checks.length - failed.length}/${report.checks.length} checks passed; browser ${report.browser}; GPU ${report.runs[0].gpu}`);

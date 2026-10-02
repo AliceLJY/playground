@@ -516,6 +516,14 @@ function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+  // A whole-house view is framed for the window it was set in. When the window changes (a phone is turned, a foldable
+  // is opened, an in-app browser settles after loading) it is framed again; a view the reader has orbited is left alone.
+  if (!S.mode2d && S.mode === 'orbit' && S.view && C.VIEWS[S.view].fit) {
+    const to = fitted(C.VIEWS[S.view]);
+    if (grow) { grow.from = fitted(C.VIEWS.top); grow.to = to; }
+    else if (tween) { if (!tween.fn) tween.to = to; }
+    else setPose(S.auto ? { ...to, az: currentPose().az } : to);
+  }
   invalidate();
 }
 new ResizeObserver(resize).observe(canvas);
