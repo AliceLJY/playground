@@ -94,6 +94,14 @@ jobs:
       - name: Check 3D exhibits
         run: node --check floorplan/share.js
 
+      - name: Check and bundle Floor Plan Walk-in
+        working-directory: floorplan-walk
+        run: |
+          for f in src/*.js data/house.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+
       - name: Assemble 3D exhibits
         run: |
           # 机械沙虫：源码与打包在作者的提示词素材库，这里只放打好的单文件，原样发布
@@ -103,6 +111,9 @@ jobs:
           # 户型图：出片工程里的手机页成品（页面、打包脚本、四张产物图），原样发布
           cp floorplan/index.html floorplan/share.js floorplan/THREE-LICENSE.txt _site/floorplan/
           cp -R floorplan/assets _site/floorplan/
+          # 走进户型图：同一套房子摆满家具、能走进去；上一步已打成单文件
+          mkdir -p _site/floorplan-walk
+          cp floorplan-walk/dist/index.html _site/floorplan-walk/index.html
 
       - name: Show what will be published
         run: find _site -type f | sort
