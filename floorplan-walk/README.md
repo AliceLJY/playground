@@ -74,7 +74,7 @@ CI runs the same three steps and publishes `dist/index.html` under `floorplan-wa
 
 **Automated tests**: `node --test tests/*.test.cjs`, 13 of 13 pass. After writing them, door collision, wall collision, wall snapping and furniture blocking the walk were each broken once on purpose; the matching test failed every time.
 
-**Browser**: `tools/browser-check.cjs` against the bundled `dist/index.html`, 31 of 31 checks pass.
+**Browser**: `tools/browser-check.cjs` against the bundled `dist/index.html`, 34 of 34 checks pass.
 
 | Scene | Viewport / pixel ratio | Render buffer | Draw calls / triangles |
 |---|---|---|---|
@@ -95,8 +95,11 @@ Draw calls include the shadow pass.
 - Readings: the same patch of living-room floor reads 161 in oak and 92 in walnut; at night the rooms read 75 against 21 outside.
 - Phone portrait: the whole plan shows, the library is a strip along the bottom, a tap on a card adds a piece; in 3D nothing overflows, the walk button is on screen, the joystick appears and moves the walker 1.14 m.
 - No page errors and no outside requests in the 11 fixed views, the visitor run or the phone run.
-- Live: after commit `376482b` was deployed on 2026-10-03, the live page is 1,232,473 bytes and its SHA-256 matches the local bundle; the same acceptance run against the live address passes 31 of 31, with no errors, no outside requests and 58 fps minimum through the walk.
+- Screen size changing after the page has loaded (added after Alice reported that on her phone the page "looks right at first, then becomes very large once everything has loaded"; see below): opening a foldable, closing it, and turning a phone to landscape. The plan is fitted again each time (81% / 81% / 73% of the sheet, the whole house inside); the 3D overview is framed again (88%×33% / 83%×54% / 39%×61% of the screen, margins on all sides); a plan the reader had zoomed keeps its middle (0.0 mm drift). Before the fix the same three cases gave a plan at 178%, 37% and 102% of the sheet and a 3D view at 172%, 42% and 19% of the screen width.
+- Live: to be filled in after this version is deployed
 
 **Screenshots read**: the 2D plan (oak, walnut, mid-drag, edited, phone portrait), overview, plan view, four rooms, cut, walk, night, real sun, walnut, two frames of the house growing, one frame of the door opening and two phone 3D shots were each looked at. Problems found that way and fixed: white walls rendering grey (fill light set too low for physical light units, and the tone curve crushed whites), thin light leaks along wall tops and beside windows, the house too small and labels overlapping on a portrait screen, the toolbar covering the hint text.
+
+**One thing not reproduced on a real device**: Alice opened the page on her phone and said it looks right at first, then becomes very large once everything has loaded. A headless browser at seven phone and foldable sizes did not show it. What does reproduce reliably is a related fault, the page not adapting when the screen size changes after loading; that is fixed and is acceptance item 12. Whether it is what she saw will only be known when she opens the page again.
 
 **Not verified**: touch feel on a real phone, above all dragging a card up from the bottom strip (the phone run only taps a card); pinch zoom; auto-orbit and replay were checked to move and to finish, not watched frame by frame; the night scene has one ceiling lamp per room, so the large living room stays dim.

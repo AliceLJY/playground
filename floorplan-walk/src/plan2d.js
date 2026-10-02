@@ -263,6 +263,7 @@ export function createPlan2D({ getStyle, onChange }) {
     const nice = [500, 1000, 2000, 5000, 10000].find((v) => v * view.s >= 60) || 10000;
     $('#sbBar').style.width = nice * view.s + 'px';
     $('#sbText').textContent = `${nice / 1000} m`;
+    view.W = W; view.H = H;
     renderSel();
   }
   function fit() {
@@ -270,12 +271,27 @@ export function createPlan2D({ getStyle, onChange }) {
     if (!W || !H) return;
     view.s = Math.min(W / BOUNDS.w, H / BOUNDS.h);
     view.x0 = BOUNDS.x - (W / view.s - BOUNDS.w) / 2; view.y0 = BOUNDS.y - (H / view.s - BOUNDS.h) / 2;
+    view.user = false;
+    applyView();
+  }
+  // The stage changes size when a phone is turned, a foldable is opened or an in-app browser settles after loading.
+  // Until the reader has zoomed or panned, the plan is simply fitted again; after that, what was in the middle stays
+  // in the middle and the zoom follows the stage.
+  function onResize() {
+    const W = svg.clientWidth, H = svg.clientHeight;
+    if (!W || !H) return;
+    if (!view.fitted || !view.user || !view.W || !view.H) { fit(); view.fitted = true; return; }
+    if (W !== view.W || H !== view.H) {
+      const cx = view.x0 + view.W / 2 / view.s, cy = view.y0 + view.H / 2 / view.s;
+      view.s = Math.max(0.006, Math.min(1, view.s * Math.min(W / view.W, H / view.H)));
+      view.x0 = cx - W / 2 / view.s; view.y0 = cy - H / 2 / view.s;
+    }
     applyView();
   }
   function zoomAt(ns, mx, my) {
     ns = Math.max(0.006, Math.min(1, ns));
     const px = view.x0 + mx / view.s, py = view.y0 + my / view.s;
-    view.s = ns; view.x0 = px - mx / ns; view.y0 = py - my / ns; applyView();
+    view.s = ns; view.x0 = px - mx / ns; view.y0 = py - my / ns; view.user = true; applyView();
   }
   function toMM(e) { const r = svg.getBoundingClientRect(); return { x: view.x0 + (e.clientX - r.left) / view.s, y: view.y0 + (e.clientY - r.top) / view.s }; }
   const toScreen = (x, y) => { const r = svg.getBoundingClientRect(); return [r.left + (x - view.x0) * view.s, r.top + (y - view.y0) * view.s]; };
@@ -313,7 +329,7 @@ export function createPlan2D({ getStyle, onChange }) {
     if (pinch) {
       if (touches.size < 2) return;
       const { d, c } = pinchInfo(), ns = Math.max(0.006, Math.min(1, (pinch.s * d) / pinch.d));
-      view.s = ns; view.x0 = pinch.px - c[0] / ns; view.y0 = pinch.py - c[1] / ns; applyView();
+      view.s = ns; view.x0 = pinch.px - c[0] / ns; view.y0 = pinch.py - c[1] / ns; view.user = true; applyView();
       return;
     }
     if (!drag) return;
@@ -321,7 +337,7 @@ export function createPlan2D({ getStyle, onChange }) {
     if (drag.kind === 'pan') {
       if (!drag.moved && !far) return;
       drag.moved = true; svg.classList.add('panning');
-      view.x0 = drag.x0 - (e.clientX - drag.sx) / view.s; view.y0 = drag.y0 - (e.clientY - drag.sy) / view.s; applyView(); return;
+      view.x0 = drag.x0 - (e.clientX - drag.sx) / view.s; view.y0 = drag.y0 - (e.clientY - drag.sy) / view.s; view.user = true; applyView(); return;
     }
     const f = getF(drag.id); if (!f) return;
     if (!drag.moved && !far) return;                 // a tap on a piece must not nudge it
@@ -373,7 +389,7 @@ export function createPlan2D({ getStyle, onChange }) {
     else if (k === 'reset' || k === 'clear') act(k);
     else if (k in ui.layers) { ui.layers[k] = !ui.layers[k]; $('#gDims').setAttribute('display', ui.layers.dims ? 'inline' : 'none'); $('#gLabels').setAttribute('display', ui.layers.labels ? 'inline' : 'none'); renderAll(); }
   }));
-  new ResizeObserver(() => { if (svg.clientWidth) { if (!view.fitted) { fit(); view.fitted = true; } else applyView(); } }).observe(svg);
+  new ResizeObserver(onResize).observe(svg);
 
   // Keys while the plan is showing. Returns true when the key was used.
   function handleKey(e) {
