@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>户型图 · 三维小样</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0e0e12; color: #efece6; font-family: "PingFang SC", "Hiragino Sans GB", sans-serif; -webkit-font-smoothing: antialiased; }
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  @media (min-width: 640px) { body { max-width: 560px; margin: 0 auto; } }
+  header { padding: 58px 18px 10px; }
+  .kick { font: 600 11px/1 "SF Mono", Menlo, monospace; letter-spacing: 3px; color: #e2663a; }
+  .top { display: flex; align-items: baseline; justify-content: space-between; margin-top: 8px; }
+  #title { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  #area { font: 700 20px/1 "SF Mono", Menlo, monospace; color: #ff9a6a; }
+  .src { margin-top: 6px; font-size: 11px; color: #8a867f; }
+  nav { display: flex; gap: 6px; margin: 10px 14px 0; background: #1b1b21; border-radius: 12px; padding: 4px; }
+  nav button { flex: 1; border: 0; background: transparent; color: #a9a49b; font: 600 14px/1 "PingFang SC", sans-serif; padding: 10px 0; border-radius: 9px; }
+  nav button.on { background: #efece6; color: #16161b; }
+  main { flex: 1; position: relative; margin: 12px 14px 0; }
+  .pane { display: none; }
+  .pane.on { display: block; }
+  #c3d { width: 100%; height: 330px; display: block; border-radius: 14px; background: #16161b; }
+  .hint { margin: 8px 2px 0; font-size: 12px; color: #8a867f; }
+  .rooms { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .chip { display: flex; justify-content: space-between; background: #1b1b21; border-radius: 10px; padding: 9px 11px; font-size: 13px; }
+  .chip span { font: 600 12px/1.4 "SF Mono", Menlo, monospace; color: #ff9a6a; }
+  .card { background: #1b1b21; border-radius: 14px; overflow: hidden; }
+  .card img { width: 100%; display: block; }
+  .cap { padding: 9px 12px 11px; font-size: 12px; color: #a9a49b; line-height: 1.5; }
+  .cap b { color: #efece6; font-size: 13px; }
+  .renders { display: flex; flex-direction: column; gap: 10px; }
+  .srow { display: grid; grid-template-columns: 58px 1fr 52px; align-items: center; gap: 8px; font-size: 13px; margin-top: 7px; }
+  .srow i { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #fee090, #d73027); min-width: 2px; }
+  .srow span { font: 600 12px/1 "SF Mono", Menlo, monospace; color: #ff9a6a; text-align: right; }
+  #sunmeta { font-size: 11px; color: #8a867f; margin-top: 8px; }
+  .rule { font-size: 11px; line-height: 1.5; color: #b8b2a8; margin: 10px 2px 6px; }
+  footer { padding: 14px 18px 26px; font-size: 11px; color: #6a665f; text-align: center; }
+  footer a { color: #a9a49b; }
+</style>
+</head>
+<body>
+<header>
+  <div class="kick">FLOOR PLAN · 3D SAMPLE</div>
+  <div class="top"><div id="title"></div><div id="area"></div></div>
+  <div class="src">房间面积合计 · 数据：plan.json / furniture.json / sun.json</div>
+</header>
+<nav>
+  <button id="tab-three" class="on">三维</button>
+  <button id="tab-plan">平面</button>
+  <button id="tab-render">效果图</button>
+  <button id="tab-sun">日照</button>
+</nav>
+<main>
+  <section class="pane on" id="pane-three">
+    <canvas id="c3d"></canvas>
+    <div class="hint">拖动旋转 · 双指或滚轮缩放（简化体块，家具位置与尺寸来自 furniture.json）</div>
+    <div class="rooms" id="rooms"></div>
+  </section>
+  <section class="pane" id="pane-plan">
+    <div class="card"><img src="assets/plan-A01.png" alt="首层平面图"><div class="cap"><b>首层平面图 A-01 · 1:100</b><br>由 plan-A01-v2.dxf 读回渲染，尺寸单位 mm</div></div>
+  </section>
+  <section class="pane" id="pane-render">
+    <div class="renders">
+      <div class="card"><img src="assets/render-oak.jpg" alt="橡木"><div class="cap"><b>客餐厅 · 橡木</b> · 路径追踪 256 采样</div></div>
+      <div class="card"><img src="assets/render-walnut.jpg" alt="胡桃木"><div class="cap"><b>客餐厅 · 胡桃木</b> · 同一机位，只换材质</div></div>
+    </div>
+  </section>
+  <section class="pane" id="pane-sun">
+    <div class="card"><img src="assets/sun.png" alt="日照热力图"><div class="cap"><b>地面每点直射时长</b>（单点最长 <span id="sunmax"></span> 小时；无色 = 全天没有直射）</div></div>
+    <div class="rule">下面各房间：地面被直射 ≥ 0.5 ㎡ 的时长。光斑会在地上移动，所以房间时长比任一点都长</div>
+    <div id="sunlist"></div>
+    <div id="sunmeta"></div>
+  </section>
+</main>
+<footer><a href="../">playground</a> · 从一张公有领域户型图读出来的 · <a href="https://github.com/AliceLJY/playground/tree/main/floorplan">怎么做的</a></footer>
+<script src="share.js"></script>
+</body>
+</html>
