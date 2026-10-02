@@ -82,9 +82,9 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs ./browser-check http://1
 
 把最后一个参数前的地址换成 `http://127.0.0.1:8917/%E7%81%AF%E5%BD%B1%E5%AE%88%E5%A4%9C.html` 就是验打包后的单文件。
 
-## 录一段实况视频（可选，不进 CI）
+## 录一段实况视频
 
-`tools/record.cjs` 在页面加载前接管时钟：每拍一帧，游戏正好前进 1/60 秒，CSS 动画跟着同一个时钟走。游戏的 AudioContext 换成离线版本，`currentTime` 也跟着这个时钟，所以每个声音都落在引发它的那一帧上，录出来的帧率和机器快慢无关。截图是全范围 BT.601 的 JPEG，脚本显式转成有限范围 BT.709 并写好标签。需要本机已有 Playwright、Google Chrome 和 ffmpeg，本仓不安装它们。
+这一步可选，不进 CI。`tools/record.cjs` 在页面加载前接管时钟：每拍一帧，游戏正好前进 1/60 秒，CSS 动画跟着同一个时钟走。游戏的 AudioContext 换成离线版本，`currentTime` 也跟着这个时钟，所以每个声音都落在引发它的那一帧上，录出来的帧率和机器快慢无关。截图是全范围 BT.601 的 JPEG，脚本显式转成有限范围 BT.709 并写好标签。需要本机已有 Playwright、Google Chrome 和 ffmpeg，本仓不安装它们。
 
 ```bash
 cd shadow-gong
