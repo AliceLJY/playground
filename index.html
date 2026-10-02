@@ -29,6 +29,9 @@
   header { margin-bottom: 2.5rem; }
   h1 { font-size: 1.75rem; margin: 0 0 .4rem; letter-spacing: .02em; }
   .sub { color: var(--muted); font-size: .95rem; margin: 0; }
+  .shelf { margin: 2.75rem 0 1rem; font-size: 1rem; font-weight: 600; letter-spacing: .04em; }
+  .shelf:first-of-type { margin-top: 0; }
+  .shelf .note { margin-left: .6rem; font-weight: 400; color: var(--muted); font-size: .85rem; letter-spacing: 0; }
   .grid { display: grid; gap: 1rem; }
   a.card {
     display: block; padding: 1.25rem 1.4rem;
@@ -52,6 +55,7 @@
     <p class="sub">小试AI 的玩具架 · 做着玩的小东西都放这儿</p>
   </header>
 
+  <h2 class="shelf">小游戏<span class="note">上手玩</span></h2>
   <div class="grid">
     <a class="card" href="shadow-gong/">
       <p class="name">灯影守夜<span class="en">shadow-gong</span></p>
@@ -75,6 +79,21 @@
       <p class="name">阿橘的广州骑游<span class="en">aju-guangzhou-ride</span></p>
       <p class="desc">橘猫骑车穿过广州，三花挑战与风格街区探索。键盘操作，单文件离线可玩。</p>
       <p class="meta">Three.js · 纯前端 · 打包成一个 HTML</p>
+    </a>
+  </div>
+
+  <h2 class="shelf">3D 展页<span class="note">转着看</span></h2>
+  <div class="grid">
+    <a class="card" href="sandworm/">
+      <p class="name">机械沙虫<span class="en">sandworm</span></p>
+      <p class="desc">一份虚构的工程设计档案：一条在沙漠地下掘进的机械沙虫。转着看、切六个机位，开 X 光看埋在沙里的部分，把装甲拆开看里面。</p>
+      <p class="meta">Three.js · 程序化建模 · 键鼠与触屏 · 单文件离线可看</p>
+    </a>
+
+    <a class="card" href="floorplan/">
+      <p class="name">户型图 · 三维小样<span class="en">floorplan</span></p>
+      <p class="desc">从一张公有领域的户型图读出墙、门窗和房间，拉成能转的三维模型，再配上 CAD 平面图、两套光追效果图和冬至日照。</p>
+      <p class="meta">Three.js · 手机竖屏页 · 四个标签</p>
     </a>
 
     <a class="card" href="shanhe/">

@@ -91,6 +91,19 @@ jobs:
           cp 'shadow-gong/灯影守夜.html' _site/shadow-gong/index.html
           cp shadow-gong/vendor/THREE-LICENSE.txt _site/shadow-gong/THREE-LICENSE.txt
 
+      - name: Check 3D exhibits
+        run: node --check floorplan/share.js
+
+      - name: Assemble 3D exhibits
+        run: |
+          # 机械沙虫：源码与打包在作者的提示词素材库，这里只放打好的单文件，原样发布
+          mkdir -p _site/sandworm _site/floorplan
+          cp sandworm/sandworm.html _site/sandworm/index.html
+          cp sandworm/THREE-LICENSE.txt _site/sandworm/THREE-LICENSE.txt
+          # 户型图：出片工程里的手机页成品（页面、打包脚本、四张产物图），原样发布
+          cp floorplan/index.html floorplan/share.js floorplan/THREE-LICENSE.txt _site/floorplan/
+          cp -R floorplan/assets _site/floorplan/
+
       - name: Show what will be published
         run: find _site -type f | sort
 
