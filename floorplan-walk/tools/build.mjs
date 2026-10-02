@@ -20,7 +20,8 @@ const threeLicense = readFileSync(path.join(root, 'node_modules/three/LICENSE'),
 const notice = `<!--\nBundles Three.js (MIT):\n${threeLicense}\n\nFurniture kit ported from wy51ai/floorplan-3d (MIT, Copyright (c) 2026 wuyi). See THIRD_PARTY_NOTICES.md in the source folder.\n-->\n`;
 // function replacers: a plain string would let "$&" and friends inside the bundle be read as replacement patterns
 const html = template.replace('<head>', () => '<head>\n' + notice).replace(marker, () => '<script>\n' + js + '\n</script>');
-if (/<script[^>]+src=|<link[^>]+href=/.test(html)) throw new Error('the page must not load anything from outside itself');
+// an empty data: icon is allowed; it stops the browser asking the server for /favicon.ico
+if (/<script[^>]+src=|<link[^>]+href="(?!data:)/.test(html)) throw new Error('the page must not load anything from outside itself');
 mkdirSync(path.join(root, 'dist'), { recursive: true });
 writeFileSync(path.join(root, 'dist/index.html'), html);
 console.log('dist/index.html', Buffer.byteLength(html), 'bytes', createHash('sha256').update(html).digest('hex').slice(0, 16));
