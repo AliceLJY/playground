@@ -1,7 +1,9 @@
 // Frame-exact gameplay recording for 灯影守夜, run by hand (not part of CI or the build).
 // Needs an existing Playwright install, Google Chrome and ffmpeg; this repository installs none of them.
 //   python3 -m http.server 8917 --bind 127.0.0.1          (inside shadow-gong/)
-//   NODE_PATH="$(npm root -g)" node tools/record.cjs <output.mp4> [--seed N] [--seconds S] [--size 1920x1080] [--base URL]
+//   NODE_PATH="$(npm root -g)" node tools/record.cjs <output.mp4> [--seed N] [--seconds S] [--size 1920x1080] [--dpr 1] [--base URL]
+// --size is the CSS viewport and --dpr the pixel ratio; the video is size × dpr. For a 1080×1920 vertical cut use
+// --size 540x960 --dpr 2, which puts the game in its own phone portrait layout instead of shrinking the landscape one.
 // The page's clock is taken over before it loads: every video frame advances the game by exactly 1/60 s,
 // CSS animations are stepped on the same clock, and the game's AudioContext is swapped for an offline one
 // whose currentTime follows that clock, so every sound lands on the frame that caused it.
@@ -11,7 +13,7 @@ const fs=require('fs'),path=require('path'),os=require('os');
 
 const args=process.argv.slice(2),flag=(name,def)=>{const i=args.indexOf('--'+name);return i>=0?args[i+1]:def;};
 const out=args.find(a=>a.endsWith('.mp4'));if(!out){console.error('usage: record.cjs <output.mp4> [--seed N] [--seconds S]');process.exit(2);}
-const seed=+flag('seed',19),limit=+flag('seconds',0),[W,H]=flag('size','1920x1080').split('x').map(Number);
+const seed=+flag('seed',19),limit=+flag('seconds',0),[W,H]=flag('size','1920x1080').split('x').map(Number),DPR=+flag('dpr',1);
 const base=flag('base','http://127.0.0.1:8917/index.html'),FPS=60,FRAME=1000/FPS;
 const work=fs.mkdtempSync(path.join(os.tmpdir(),'shadow-gong-rec-')),videoOnly=path.join(work,'video.mp4'),wav=path.join(work,'audio.wav');
 
@@ -51,7 +53,7 @@ function takeOverClock(){
 
 (async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
-  const ctx=await browser.newContext({viewport:{width:W,height:H},deviceScaleFactor:1});
+  const ctx=await browser.newContext({viewport:{width:W,height:H},deviceScaleFactor:DPR});
   await ctx.addInitScript(takeOverClock);
   const page=await ctx.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
