@@ -44,6 +44,17 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Shadow Gong
+        working-directory: shadow-gong
+        run: |
+          node --check src/stage.js
+          node --check src/rig.js
+          node --check src/core.js
+          node --check src/audio.js
+          node --check src/world.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Assemble _site
         run: |
           mkdir -p _site/aju _site/shanhe _site/xiaoju-racing _site/rooftop-splash
@@ -71,6 +82,14 @@ jobs:
           python3 rooftop-splash/build.py
           cp 'rooftop-splash/天台水枪大战.html' _site/rooftop-splash/index.html
           cp rooftop-splash/vendor/THREE-LICENSE.txt _site/rooftop-splash/THREE-LICENSE.txt
+
+      - name: Assemble Shadow Gong
+        run: |
+          # 灯影守夜：独立弹反玩法，单文件离线发布
+          mkdir -p _site/shadow-gong
+          python3 shadow-gong/build.py
+          cp 'shadow-gong/灯影守夜.html' _site/shadow-gong/index.html
+          cp shadow-gong/vendor/THREE-LICENSE.txt _site/shadow-gong/THREE-LICENSE.txt
 
       - name: Show what will be published
         run: find _site -type f | sort

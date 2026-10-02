@@ -6,6 +6,7 @@ Small things built for fun. One repo, one subfolder each, one Pages site.
 
 | Toy | What it is | Stack |
 |---|---|---|
+| [Shadow Gong](shadow-gong/) · [play](https://aliceljy.github.io/playground/shadow-gong/) | A parry duel on a shadow-puppet screen after the show: block the moment a blade lights up, and a perfect timing rings the gong and slows time before the finishing blow | Three.js 2.5D, procedural puppets and synthesised sound, keyboard/mouse and touch, standalone offline HTML |
 | [Rooftop Splash](rooftop-splash/) · [play](https://aliceljy.github.io/playground/rooftop-splash/) | A first-person rooftop water fight with bot teams, three blasters, water balloons and respawns | Three.js, procedural scenery, keyboard/mouse and touch, standalone offline HTML |
 | [Xiaoju Racing](xiaoju-racing/) · [play](https://aliceljy.github.io/playground/xiaoju-racing/) | A furry orange tabby races five cats through a Guangzhou-inspired circuit, with drifting and nitro | Three.js, procedural fur and standalone offline HTML |
 | [阿橘的广州骑游](aju-guangzhou-ride/) · [play](https://aliceljy.github.io/playground/aju/) | An orange cat bikes across Guangzhou — calico challenges and neighbourhood exploration | Three.js, packed into a single offline HTML |
