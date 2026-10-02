@@ -1,0 +1,194 @@
+// Browser acceptance for the walk-in exhibit, run by hand (not part of CI or the build).
+// Needs an existing Playwright install and Google Chrome; this repository installs neither.
+//   node tools/build.mjs
+//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [page-url]
+// Without a URL it opens dist/index.html from disk. Writes screenshots and report.json into <output-dir>.
+const { chromium } = require('playwright');
+const fs = require('fs'), path = require('path');
+const out = process.argv[2] || 'browser-check';
+const base = process.argv[3] || 'file://' + path.resolve(__dirname, '../dist/index.html');
+fs.mkdirSync(out, { recursive: true });
+const shot = (name) => path.join(out, name + '.png');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+(async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const report = { base, browser: browser.version(), runs: [], checks: [] };
+  const check = (name, pass, detail) => { report.checks.push({ name, pass: !!pass, detail }); console.log((pass ? 'PASS ' : 'FAIL ') + name + ' — ' + detail); };
+  async function open(query, options = {}) {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, ...options });
+    const page = await ctx.newPage(), errors = [], external = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    page.on('request', (r) => { const u = r.url(); if (u.split('?')[0] !== base.split('?')[0] && !u.startsWith('data:') && !u.startsWith('blob:')) external.push(u); });
+    await page.goto(base + query);
+    await page.waitForFunction(() => window.__house && window.__house.ready, null, { polling: 100, timeout: 30000 });
+    return { ctx, page, errors, external };
+  }
+  const probe = (page) => page.evaluate(() => ({ ...window.__house.probe(), gpu: (() => { const gl = document.createElement('canvas').getContext('webgl'); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; })() }));
+  const until = async (page, fn, ms, arg) => { try { await page.waitForFunction(fn, arg, { polling: 100, timeout: ms }); return true; } catch { return false; } };
+
+  // 1. fixed views: one screenshot and one set of numbers each
+  const views = [['hero', '?view=hero'], ['top', '?view=top'], ['living', '?view=living'], ['kitchen', '?view=kitchen'], ['family', '?view=family'], ['entry', '?view=entry'],
+    ['cut', '?view=cut'], ['walk', '?view=walk'], ['night', '?view=hero&night=1'], ['sun-1000', '?view=hero&minute=600'], ['walnut', '?view=hero&style=walnut']];
+  let allErrors = 0, allExternal = 0, maxCalls = 0;
+  for (const [name, query] of views) {
+    const { ctx, page, errors, external } = await open(query);
+    await page.waitForTimeout(500);
+    const p = await probe(page), box = await page.evaluate(() => window.__house.screenBox());
+    await page.screenshot({ path: shot('view-' + name) });
+    report.runs.push({ name, query, viewport: '1280x720', dpr: p.dpr, buffer: p.buffer, calls: p.calls, triangles: p.triangles, gpu: p.gpu, box, errors, external });
+    allErrors += errors.length; allExternal += external.length; maxCalls = Math.max(maxCalls, p.calls);
+    if (name === 'hero' || name === 'top') {
+      const w = box.x1 - box.x0;
+      check(`SPEC 5 ${name}: house width on screen`, w >= 0.45 && w <= 0.9 && box.x0 >= 0.02 && box.x1 <= 0.98 && box.y0 >= 0.02 && box.y1 <= 0.98, `${(w * 100).toFixed(1)}% of the viewport, box ${[box.x0, box.y0, box.x1, box.y1].map((v) => v.toFixed(3))}`);
+    }
+    await ctx.close();
+  }
+  check('SPEC 8 fixed views: no page errors, no outside requests', allErrors === 0 && allExternal === 0, `${allErrors} errors, ${allExternal} outside requests over ${views.length} views`);
+  check('SPEC 9 fixed views: draw calls per frame (shadow pass included)', maxCalls <= 700, `highest ${maxCalls}, budget 700`);
+
+  // 2. readings from the canvas
+  {
+    const { ctx, page } = await open('?view=living&labels=0');
+    const rect = [0.52, 0.52, 0.66, 0.62];                         // a patch of living-room floor clear of furniture
+    const oak = await page.evaluate((r) => window.__house.luma(...r), rect);
+    await page.evaluate(() => window.__house.setStyle('walnut'));
+    const walnut = await page.evaluate((r) => window.__house.luma(...r), rect);
+    check('SPEC 6 style: walnut floor reads darker than oak', walnut < oak * 0.7, `oak ${oak.toFixed(1)}, walnut ${walnut.toFixed(1)} (display values 0-255)`);
+    await ctx.close();
+  }
+  {
+    const { ctx, page } = await open('?view=hero&labels=0');
+    const inside = [0.42, 0.42, 0.58, 0.58], outside = [0.02, 0.3, 0.12, 0.5];
+    const day = await page.evaluate(([a, b]) => [window.__house.luma(...a), window.__house.luma(...b)], [inside, outside]);
+    await page.evaluate(() => window.__house.setNight(true));
+    const night = await page.evaluate(([a, b]) => [window.__house.luma(...a), window.__house.luma(...b)], [inside, outside]);
+    check('SPEC 7 night: rooms glow against a dark ground', night[0] > night[1] * 2 && night[1] < day[1] * 0.3, `inside/outside by day ${day.map((v) => v.toFixed(0))}, by night ${night.map((v) => v.toFixed(0))}`);
+    await ctx.close();
+  }
+
+  // 3. what a visitor gets: no parameters, pixel ratio 2, real clicks and keys, everything in real time
+  {
+    const { ctx, page, errors, external } = await open('', { deviceScaleFactor: 2 });
+    const t0 = Date.now();
+    await page.waitForTimeout(1500); await page.screenshot({ path: shot('default-grow-1.5s') });
+    await page.waitForTimeout(1500); await page.screenshot({ path: shot('default-grow-3.0s') });
+    const grown = await until(page, () => !window.__house.probe().growing, 8000);
+    const growMs = Date.now() - t0;
+    await page.waitForTimeout(300); await page.screenshot({ path: shot('default-after-grow') });
+    check('SPEC 8 default: the opening build finishes', grown && growMs < 8000, `${(growMs / 1000).toFixed(1)} s after ready`);
+    await page.keyboard.press('3');
+    await until(page, () => !window.__house.probe().tweening, 4000);
+    const afterKey = await probe(page);
+    check('SPEC 5 default: key 3 switches to the living room', afterKey.view === 'living', `view is ${afterKey.view}`);
+    // walk in with the button; the tour plays by itself
+    await page.click('[data-act="walk"]');
+    const fps = [];
+    let doorShot = false, doorAtCross = null, prevZ = null;
+    const doorZ = await page.evaluate(() => window.__house.core.DOORS.find((d) => d.id === 'o20').cz);
+    const tWalk = Date.now();
+    while (Date.now() - tWalk < 30000) {
+      const p = await probe(page);
+      if (p.fps) fps.push(p.fps);
+      const k = p.doors[5];                                                      // o20, the front door
+      if (!doorShot && k > 0.5 && k < 1) { await page.screenshot({ path: shot('default-door-opening') }); doorShot = true; }
+      if (prevZ !== null && prevZ > doorZ && p.walk.z <= doorZ && doorAtCross === null) doorAtCross = k;
+      prevZ = p.walk.z;
+      if (p.mode === 'walk' && !p.tweening && !(await page.evaluate(() => window.__house.state.touring)) && Date.now() - tWalk > 4000) break;
+      await sleep(120);
+    }
+    await page.waitForTimeout(1200);
+    const end = await probe(page);
+    await page.screenshot({ path: shot('default-walk-end') });
+    const want = await page.evaluate(() => { const C = window.__house.core, r = C.ROUTES.tour[C.ROUTES.tour.length - 1]; return [C.toX(r[0]), C.toZ(r[1])]; });
+    const off = Math.hypot(end.walk.x - want[0], end.walk.z - want[1]);
+    check('SPEC 3 default: the tour walks in through the front door to the living room', off < 0.3 && doorAtCross !== null && doorAtCross >= 0.75, `ended ${off.toFixed(2)} m from the last waypoint; front door ${doorAtCross === null ? 'never crossed' : (doorAtCross * 100).toFixed(0) + '% open when crossed'}; ${((Date.now() - tWalk) / 1000).toFixed(1)} s`);
+    fps.sort((a, b) => a - b);
+    check('SPEC 9 default: frame rate while walking', fps.length > 5 && fps[0] >= 30, `min ${fps[0]}, median ${fps[Math.floor(fps.length / 2)]} over ${fps.length} samples, buffer ${end.buffer.join('x')}`);
+    // take over with the keyboard
+    await page.keyboard.down('KeyS'); await page.waitForTimeout(900); await page.keyboard.up('KeyS');
+    const moved = await probe(page);
+    const dist = Math.hypot(moved.walk.x - end.walk.x, moved.walk.z - end.walk.z);
+    check('SPEC 4 default: S walks backwards', dist > 0.6 && dist < 1.8, `moved ${dist.toFixed(2)} m in 0.9 s`);
+    await page.mouse.move(640, 300); await page.mouse.down(); await page.mouse.move(760, 300, { steps: 6 }); await page.mouse.up();
+    const turned = await probe(page);
+    check('SPEC 4 default: dragging turns the head', Math.abs(turned.walk.yaw - moved.walk.yaw) > 0.3, `yaw changed by ${(turned.walk.yaw - moved.walk.yaw).toFixed(2)} rad`);
+    await page.keyboard.press('n'); await page.waitForTimeout(400); await page.screenshot({ path: shot('default-walk-night') });
+    await page.keyboard.press('n');
+    await page.keyboard.press('Escape');
+    await until(page, () => !window.__house.probe().tweening, 4000);
+    const back = await probe(page);
+    check('SPEC 4 default: Esc leaves the walk', back.mode === 'orbit', `mode is ${back.mode}`);
+    // orbit by dragging, then a slider move switches to the real sun
+    await page.mouse.move(640, 300); await page.mouse.down(); await page.mouse.move(540, 280, { steps: 6 }); await page.mouse.up();
+    await page.evaluate(() => { const s = document.getElementById('sun'); s.value = '900'; s.dispatchEvent(new Event('input', { bubbles: true })); });
+    await page.waitForTimeout(600);
+    const sun = await page.evaluate(() => ({ light: window.__house.state.light, clock: document.getElementById('clock').textContent }));
+    await page.screenshot({ path: shot('default-sun-1500') });
+    check('SPEC 7 default: moving the slider switches to the real sun', sun.light === 'sun' && sun.clock === '15:00', `light ${sun.light}, clock ${sun.clock}`);
+    await page.keyboard.press('x'); await page.keyboard.press('c'); await page.waitForTimeout(500);
+    await page.screenshot({ path: shot('default-cut-walnut') });
+    const st = await page.evaluate(() => ({ cut: window.__house.state.cut, style: window.__house.state.style }));
+    check('SPEC 6 default: X cuts the walls and C swaps the wood', st.cut && st.style === 'walnut', JSON.stringify(st));
+    // auto-orbit turns the camera by itself; replay runs the opening again and hands control back
+    await page.keyboard.press('x'); await page.keyboard.press('1');
+    await until(page, () => !window.__house.probe().tweening, 4000);
+    const camAz = () => page.evaluate(() => { const c = window.__house.dev.camera.position; return Math.atan2(c.x, c.z); });
+    await page.keyboard.press('o');
+    const az0 = await camAz(); await page.waitForTimeout(1500); const az1 = await camAz();
+    const autoOn = await page.evaluate(() => window.__house.state.auto);
+    await page.screenshot({ path: shot('default-auto-orbit') });
+    check('SPEC 5 default: O starts the auto-orbit', autoOn && Math.abs(az1 - az0) > 0.05, `auto ${autoOn}, camera turned ${(az1 - az0).toFixed(3)} rad in 1.5 s`);
+    await page.keyboard.press('g');
+    await page.waitForTimeout(300);
+    const replaying = await page.evaluate(() => ({ growing: window.__house.probe().growing, auto: window.__house.state.auto }));
+    const replayDone = await until(page, () => !window.__house.probe().growing, 8000);
+    const after = await page.evaluate(() => ({ view: window.__house.state.view, box: window.__house.screenBox() }));
+    check('SPEC 8 default: G replays the opening and ends on the overview', replaying.growing && !replaying.auto && replayDone && after.view === 'hero' && after.box.x1 - after.box.x0 > 0.45, `growing ${replaying.growing}, finished ${replayDone}, view ${after.view}, width ${((after.box.x1 - after.box.x0) * 100).toFixed(1)}%`);
+    report.runs.push({ name: 'default', viewport: '1280x720', dpr: end.dpr, buffer: end.buffer, fps, errors, external });
+    check('SPEC 8 default: no page errors, no outside requests', errors.length === 0 && external.length === 0, `${errors.length} errors ${JSON.stringify(errors.slice(0, 3))}, ${external.length} outside requests`);
+    await ctx.close();
+  }
+
+  // 4. phone, portrait, touch
+  {
+    const { ctx, page, errors, external } = await open('', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+    await until(page, () => !window.__house.probe().growing, 8000);
+    await page.waitForTimeout(300); await page.screenshot({ path: shot('phone-hero') });
+    const lay = await page.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const walkBtn = document.querySelector('[data-act="walk"]').getBoundingClientRect();
+      return { scrollW: document.documentElement.scrollWidth, innerW: innerWidth, bar: [r('bar').left, r('bar').right, r('bar').bottom], walkBtn: [walkBtn.left, walkBtn.right], box: window.__house.screenBox(), buffer: window.__house.probe().buffer };
+    });
+    check('SPEC 10 phone: nothing overflows and the walk button is on screen', lay.scrollW <= lay.innerW && lay.bar[0] >= 0 && lay.bar[1] <= lay.innerW && lay.bar[2] <= 844 && lay.walkBtn[0] >= 0 && lay.walkBtn[1] <= lay.innerW,
+      `page width ${lay.scrollW}/${lay.innerW}, toolbar ${lay.bar.map((v) => v.toFixed(0))}, walk button ${lay.walkBtn.map((v) => v.toFixed(0))}`);
+    const w = lay.box.x1 - lay.box.x0;
+    check('SPEC 5 phone: the house fits the narrow screen', w >= 0.55 && lay.box.x0 >= 0.02 && lay.box.x1 <= 0.98, `${(w * 100).toFixed(1)}% of the width, buffer ${lay.buffer.join('x')}`);
+    await page.tap('[data-act="walk"]');
+    await page.waitForTimeout(1800);
+    const tWalk = Date.now();
+    while (Date.now() - tWalk < 30000) { if (!(await page.evaluate(() => window.__house.state.touring)) && Date.now() - tWalk > 3000) break; await sleep(200); }
+    await page.waitForTimeout(1000); await page.screenshot({ path: shot('phone-walk-end') });
+    const p0 = await probe(page);
+    const joy = await page.evaluate(() => { const r = document.getElementById('joy').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, getComputedStyle(document.getElementById('joy')).display]; });
+    // push the stick up for a second (touch drag through CDP)
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: joy[0], y: joy[1] }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: joy[0], y: joy[1] + 40 }] });
+    await page.waitForTimeout(900);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const p1 = await probe(page);
+    const dist = Math.hypot(p1.walk.x - p0.walk.x, p1.walk.z - p0.walk.z);
+    check('SPEC 10 phone: the joystick shows and moves the walker', joy[2] === 'block' && dist > 0.4, `joystick display ${joy[2]}, moved ${dist.toFixed(2)} m`);
+    report.runs.push({ name: 'phone', viewport: '390x844', dpr: p1.dpr, buffer: p1.buffer, calls: p1.calls, errors, external });
+    check('SPEC 8 phone: no page errors, no outside requests', errors.length === 0 && external.length === 0, `${errors.length} errors, ${external.length} outside requests`);
+    await ctx.close();
+  }
+
+  fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
+  const failed = report.checks.filter((c) => !c.pass);
+  console.log(`\n${report.checks.length - failed.length}/${report.checks.length} checks passed; browser ${report.browser}; GPU ${report.runs[0].gpu}`);
+  await browser.close();
+  process.exit(failed.length ? 1 : 0);
+})();

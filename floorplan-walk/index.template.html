@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>走进户型图 · Floorplan Walk-in</title>
+<style>
+  :root { --paper:#f3efe8; --ink:#2b2824; --soft:#6f675b; --line:rgba(43,40,36,.16); --accent:#b5653a; --panel:rgba(250,247,241,.88); }
+  body.night { --ink:#efe9de; --soft:#a9a294; --line:rgba(239,233,222,.18); --panel:rgba(24,28,38,.8); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; overflow:hidden; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif; -webkit-tap-highlight-color:transparent; }
+  body.night { background:#10151f; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .room { position:absolute; left:0; top:0; padding:3px 8px 4px; border-radius:6px; background:var(--panel); border:1px solid var(--line);
+    font-size:12px; line-height:1.25; text-align:center; white-space:nowrap; opacity:0; transition:opacity .25s; will-change:transform; }
+  .room b { display:block; font-weight:600; }
+  .room span { color:var(--soft); font-variant-numeric:tabular-nums; font-size:11px; }
+  header { position:fixed; left:14px; top:12px; pointer-events:none; max-width:min(500px,70vw); padding:8px 12px 9px; border-radius:12px;
+    background:var(--panel); border:1px solid var(--line); }
+  body.walking header p, body.walking #credit { display:none; }
+  header h1 { margin:0; font-size:22px; font-weight:700; letter-spacing:.02em; }
+  header h1 small { font-size:11px; font-weight:500; color:var(--soft); letter-spacing:.16em; margin-left:10px; }
+  header p { margin:5px 0 0; font-size:12.5px; color:var(--soft); line-height:1.5; }
+  #fps { position:fixed; right:14px; top:12px; font-size:11px; color:var(--soft); font-variant-numeric:tabular-nums; display:none; }
+  body.debug #fps { display:block; }
+  #bar { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center;
+    width:max-content; max-width:calc(100vw - 20px); }
+  #tools { display:flex; gap:8px; max-width:100%; justify-content:center; }
+  .row { display:flex; gap:6px; align-items:center; padding:6px; border-radius:12px; background:var(--panel); border:1px solid var(--line);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); max-width:100%; overflow-x:auto; scrollbar-width:none; }
+  .row::-webkit-scrollbar { display:none; }
+  .sep { width:1px; align-self:stretch; background:var(--line); margin:2px 3px; flex:none; }
+  button { appearance:none; border:1px solid transparent; background:transparent; color:var(--ink); font:inherit; font-size:13px; padding:7px 11px;
+    border-radius:8px; cursor:pointer; white-space:nowrap; flex:none; }
+  button:hover { background:rgba(127,120,105,.14); }
+  button.on { background:var(--ink); color:var(--paper); }
+  body.night button.on { color:#10151f; }
+  button.go { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  button.go.on { background:var(--accent); color:#fff; }
+  button kbd { font:inherit; font-size:10px; opacity:.5; margin-left:5px; }
+  #sunrow { gap:10px; padding:6px 12px 6px 6px; }
+  #clock { font-variant-numeric:tabular-nums; font-weight:600; font-size:13px; min-width:48px; text-align:center; flex:none; }
+  #sun { width:min(300px,38vw); accent-color:var(--accent); }
+  #sunmeta { font-size:11px; color:var(--soft); flex:none; }
+  #hint { font-size:11.5px; color:var(--soft); text-align:center; padding:3px 12px; border-radius:999px; background:var(--panel); border:1px solid var(--line); }
+  #credit { position:fixed; right:16px; top:14px; font-size:10.5px; color:var(--soft); text-align:right; line-height:1.5; }
+  body.debug #credit { top:30px; }
+  #credit a { color:inherit; }
+  #joy { position:fixed; left:22px; bottom:150px; width:112px; height:112px; border-radius:50%; background:var(--panel); border:1px solid var(--line);
+    display:none; touch-action:none; }
+  #joy i { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; background:var(--ink); opacity:.55; }
+  .walkonly { display:none; }
+  body.walking .walkonly { display:inline-block; }
+  body.walking .orbitonly { display:none !important; }
+  @media (pointer:coarse) { body.walking #joy { display:block; } button kbd { display:none; } }
+  @media (max-width:860px) {
+    header { left:10px; top:10px; max-width:calc(100vw - 20px); }
+    header h1 { font-size:18px; } header h1 small { display:none; } header p { font-size:11.5px; }
+    header { padding:7px 11px 8px; }
+    #credit { display:none; }
+    #hint { font-size:10.5px; }
+    #bar { bottom:10px; gap:6px; }
+    button { padding:8px 10px; }
+    #sunmeta { display:none; }
+    #sun { width:44vw; }
+    #tools { flex-direction:column-reverse; gap:6px; align-items:center; }
+    .room { font-size:10.5px; padding:2px 6px 3px; }
+    .room span { display:none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+<header>
+  <h1>走进户型图<small>FLOORPLAN · WALK-IN</small></h1>
+  <p>一张公有领域的户型图，读出墙和门窗，摆满家具。转着看，或者从入户门走进去。</p>
+</header>
+<div id="fps"></div>
+<div id="credit">家具套件移植自 <a href="https://github.com/wy51ai/floorplan-3d" target="_blank" rel="noopener">floorplan-3d</a>（MIT）<br>户型图 Wikimedia Commons · 公有领域</div>
+<div id="joy"><i></i></div>
+<div id="bar">
+  <div id="hint"></div>
+  <div class="row" id="sunrow">
+    <button data-act="sunmode">真实日照<kbd>R</kbd></button><span id="clock">示意光</span>
+    <input id="sun" type="range" step="5" aria-label="时间">
+    <span id="sunmeta"></span>
+  </div>
+  <div id="tools">
+  <div class="row orbitonly" id="views">
+    <button class="orbitonly" data-view="hero">鸟瞰<kbd>1</kbd></button>
+    <button class="orbitonly" data-view="top">平面<kbd>2</kbd></button>
+    <button class="orbitonly" data-view="living">客餐厅<kbd>3</kbd></button>
+    <button class="orbitonly" data-view="kitchen">厨房<kbd>4</kbd></button>
+    <button class="orbitonly" data-view="family">家庭室<kbd>5</kbd></button>
+    <button class="orbitonly" data-view="entry">门厅<kbd>6</kbd></button>
+    <button class="orbitonly" data-act="auto">环绕<kbd>O</kbd></button>
+  </div>
+  <div class="row" id="acts">
+    <button class="go" data-act="walk"><span class="orbitonly">走进去</span><span class="walkonly">退出漫游</span><kbd>F</kbd></button>
+    <button class="walkonly" data-act="tour">带我走<kbd>T</kbd></button>
+    <span class="sep"></span>
+    <button class="orbitonly" data-act="cut">剖切<kbd>X</kbd></button>
+    <button data-act="night">夜景<kbd>N</kbd></button>
+    <button data-act="style">换木色 · <span id="styleName">橡木</span><kbd>C</kbd></button>
+    <button class="orbitonly" data-act="labels">标注<kbd>L</kbd></button>
+    <button class="orbitonly" data-act="grow">重播<kbd>G</kbd></button>
+  </div>
+  </div>
+</div>
+<!--BUNDLE-->
+</body>
+</html>

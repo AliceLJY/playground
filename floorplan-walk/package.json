@@ -1,0 +1,14 @@
+{
+  "name": "floorplan-walk",
+  "private": true,
+  "type": "module",
+  "description": "Walk-in exhibit of a floor plan read from one image. Build: npm ci && node tools/build.mjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
