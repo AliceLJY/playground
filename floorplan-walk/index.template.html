@@ -6,83 +6,217 @@
 <title>走进户型图 · Floorplan Walk-in</title>
 <link rel="icon" href="data:,">
 <style>
-  :root { --paper:#f3efe8; --ink:#2b2824; --soft:#6f675b; --line:rgba(43,40,36,.16); --accent:#b5653a; --panel:rgba(250,247,241,.88); }
-  body.night { --ink:#efe9de; --soft:#a9a294; --line:rgba(239,233,222,.18); --panel:rgba(24,28,38,.8); }
+  /* The panel, library-card and table styles of the 2D editor follow wy51ai/floorplan-3d (MIT); see THIRD_PARTY_NOTICES.md. */
+  :root { --paper:#f3efe8; --sheet:#f7f4ee; --ink:#2b2824; --soft:#8a8174; --line:#e3dccf; --accent:#b5653a; --accent-soft:#f3e3d8;
+    --panel:#fffdf9; --glass:rgba(250,247,241,.9); --toph:50px; }
+  body.night.m3d { --ink:#efe9de; --soft:#a9a294; --line:rgba(239,233,222,.18); --panel:#1b202b; --glass:rgba(24,28,38,.82); --accent-soft:#3a2a22; }
   * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; overflow:hidden; background:var(--paper); color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif; -webkit-tap-highlight-color:transparent; }
-  body.night { background:#10151f; }
+  html,body { margin:0; height:100%; overflow:hidden; background:var(--paper); color:var(--ink); overscroll-behavior:none;
+    font:13px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent; -webkit-text-size-adjust:100%; -webkit-user-select:none; user-select:none; }
+  body.night.m3d { background:#10151f; }
+  input { -webkit-user-select:text; user-select:text; }
+  button,input { font:inherit; color:inherit; }
+  body.m2d .only3d, body.m3d .only2d { display:none !important; }
+
+  /* ---------- top bar ---------- */
+  #top { position:fixed; left:0; right:0; top:0; z-index:8; display:flex; align-items:center; gap:6px 10px; padding:8px 14px; min-height:50px;
+    background:var(--panel); border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none; }
+  #top::-webkit-scrollbar { display:none; }
+  .brand { display:flex; flex-direction:column; margin-right:6px; line-height:1.25; flex:none; }
+  .brand b { font-size:15px; letter-spacing:.5px; }
+  .brand span { color:var(--soft); font-size:12px; }
+  .grp { display:flex; align-items:center; gap:2px; padding:2px; border:1px solid var(--line); border-radius:8px; background:var(--panel); flex:none; }
+  .btn, .row button { appearance:none; border:0; background:transparent; padding:5px 9px; border-radius:6px; cursor:pointer; white-space:nowrap; flex:none; }
+  .btn:hover, .row button:hover { background:rgba(127,120,105,.14); }
+  .btn.on, .row button.on { background:var(--ink); color:var(--panel); }
+  .btn.chip.on { background:var(--accent-soft); color:var(--accent); }
+  .btn.danger { color:#b3372a; }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .seg { position:relative; padding:3px; }
+  .seg .btn { position:relative; z-index:1; width:78px; transition:color .4s; }
+  .seg .btn:hover { background:transparent; }
+  .seg .pill { position:absolute; left:3px; top:3px; bottom:3px; width:78px; border-radius:6px; background:var(--accent);
+    box-shadow:0 2px 6px rgba(181,101,58,.35); transition:transform .45s cubic-bezier(.65,0,.35,1); }
+  body.m3d .seg .pill { transform:translateX(80px); }
+  body.m2d .seg .btn[data-mode="2d"], body.m3d .seg .btn[data-mode="3d"] { color:#fff; }
+  .spacer { flex:1; }
+  #count2d { color:var(--soft); font-size:12px; flex:none; font-variant-numeric:tabular-nums; }
+  #credit { font-size:10.5px; color:var(--soft); text-align:right; line-height:1.45; flex:none; }
+  #credit a, #panel a { color:inherit; }
+  @media (max-width:1560px) { #credit { display:none; } }
+
+  /* ---------- 2D plan ---------- */
+  #app2d { position:fixed; left:0; right:0; top:var(--toph); bottom:0; z-index:6; display:grid; grid-template-columns:236px minmax(0,1fr) 280px; background:var(--paper); }
+  aside { background:var(--panel); overflow:auto; border-right:1px solid var(--line); }
+  aside#panelwrap { border-right:0; border-left:1px solid var(--line); }
+  #lib h4 { margin:0; padding:12px 14px 6px; font-size:12px; color:var(--soft); font-weight:600; letter-spacing:1px; position:sticky; top:0; z-index:1; background:var(--panel); }
+  .lib-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:0 10px 6px; }
+  .item { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 4px 6px; border:1px solid var(--line); border-radius:8px; background:#fff;
+    cursor:grab; touch-action:pan-y; transition:border-color .15s, transform .15s; }
+  .item.dragging { border-color:var(--accent); opacity:.5; }
+  @media (hover:hover) { .item:hover { border-color:var(--accent); transform:translateY(-1px); } }
+  .item svg { width:56px; height:44px; }
+  .item b { font-weight:500; font-size:12px; }
+  .item small { color:var(--soft); font-size:11px; }
+  .hint { padding:10px 14px 16px; color:var(--soft); font-size:12px; }
+  #ghost { position:fixed; left:0; top:0; z-index:30; pointer-events:none; opacity:.8; transform:translate(-50%,-50%); filter:drop-shadow(0 4px 10px rgba(40,30,20,.3)); }
+  #ghost svg { width:100%; height:100%; display:block; overflow:visible; }
+  #stage2d { position:relative; overflow:hidden; background:var(--sheet); }
+  #plan { width:100%; height:100%; display:block; touch-action:none; cursor:default; }
+  #plan.panning { cursor:grabbing; }
+  #plan .wall, #plan .room { pointer-events:none; }
+  #plan .furn { cursor:move; }
+  @media (hover:hover) { #plan .furn:hover { filter:drop-shadow(0 0 2px rgba(181,101,58,.7)); } }
+  [data-handle] { cursor:pointer; } [data-handle=size] { cursor:nwse-resize; }
+  .scalebar { position:absolute; left:14px; bottom:12px; background:rgba(255,253,249,.92); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; pointer-events:none; }
+  .scalebar .bar { height:6px; border:1.5px solid var(--ink); border-top:0; margin-top:3px; }
+  #fab { position:absolute; left:50%; bottom:16px; transform:translate(-50%,12px); display:flex; align-items:center; gap:4px; padding:5px; background:rgba(255,253,249,.97);
+    border:1px solid var(--line); border-radius:14px; box-shadow:0 8px 26px rgba(40,30,20,.16); z-index:4; opacity:0; visibility:hidden;
+    transition:opacity .2s, transform .2s, visibility 0s linear .2s; max-width:calc(100% - 24px); }
+  #fab.show { opacity:1; visibility:visible; transform:translate(-50%,0); transition:opacity .2s, transform .2s; }
+  #fab .name { padding:0 8px 0 6px; font-weight:600; max-width:9em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #fab .sep { width:1px; align-self:stretch; margin:4px 2px; background:var(--line); }
+  #panel section { padding:12px 16px; border-bottom:1px solid var(--line); }
+  #panel h3 { margin:0 0 8px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  td { padding:4px 2px; border-bottom:1px dashed #eee6d9; } td.r { text-align:right; }
+  .total { display:flex; justify-content:space-between; margin-top:8px; font-size:14px; } .total b { color:var(--accent); }
+  .muted { color:var(--soft); font-size:12px; }
+  .form { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .form label { display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--soft); }
+  .form label.full { grid-column:1/-1; }
+  .form input { border:1px solid var(--line); border-radius:6px; padding:5px 7px; background:#fff; width:100%; color:var(--ink); }
+  .form input[type=color] { padding:2px; height:30px; }
+  .actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .actions .btn { border:1px solid var(--line); background:#fff; }
+  .kbd { display:grid; grid-template-columns:auto 1fr; gap:3px 10px; font-size:12px; color:var(--soft); }
+  kbd { font:11px ui-monospace,Menlo,monospace; background:#f2ece2; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 5px; color:var(--ink); }
+  .big { font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+  .stats div { background:#faf6ef; border-radius:8px; padding:8px; } .stats small { display:block; color:var(--soft); font-size:11px; }
+  #toast { position:fixed; left:50%; bottom:130px; transform:translateX(-50%) translateY(20px); background:#2b2824; color:#fff; padding:8px 16px; border-radius:8px;
+    opacity:0; transition:.25s; pointer-events:none; z-index:20; white-space:nowrap; }
+  #toast.show { opacity:1; transform:translateX(-50%); }
+
+  /* ---------- 3D scene ---------- */
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
   #labels { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
-  .room { position:absolute; left:0; top:0; padding:3px 8px 4px; border-radius:6px; background:var(--panel); border:1px solid var(--line);
+  .room3 { position:absolute; left:0; top:0; padding:3px 8px 4px; border-radius:6px; background:var(--glass); border:1px solid var(--line);
     font-size:12px; line-height:1.25; text-align:center; white-space:nowrap; opacity:0; transition:opacity .25s; will-change:transform; }
-  .room b { display:block; font-weight:600; }
-  .room span { color:var(--soft); font-variant-numeric:tabular-nums; font-size:11px; }
-  header { position:fixed; left:14px; top:12px; pointer-events:none; max-width:min(500px,70vw); padding:8px 12px 9px; border-radius:12px;
-    background:var(--panel); border:1px solid var(--line); }
-  body.walking header p, body.walking #credit { display:none; }
-  header h1 { margin:0; font-size:22px; font-weight:700; letter-spacing:.02em; }
-  header h1 small { font-size:11px; font-weight:500; color:var(--soft); letter-spacing:.16em; margin-left:10px; }
-  header p { margin:5px 0 0; font-size:12.5px; color:var(--soft); line-height:1.5; }
-  #fps { position:fixed; right:14px; top:12px; font-size:11px; color:var(--soft); font-variant-numeric:tabular-nums; display:none; }
+  .room3 b { display:block; font-weight:600; }
+  .room3 span { color:var(--soft); font-variant-numeric:tabular-nums; font-size:11px; }
+  #fps { position:fixed; right:14px; top:calc(var(--toph) + 8px); font-size:11px; color:var(--soft); font-variant-numeric:tabular-nums; display:none; z-index:3; }
   body.debug #fps { display:block; }
   #bar { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center;
-    width:max-content; max-width:calc(100vw - 20px); }
+    width:max-content; max-width:calc(100vw - 20px); z-index:3; }
   #tools { display:flex; gap:8px; max-width:100%; justify-content:center; }
-  .row { display:flex; gap:6px; align-items:center; padding:6px; border-radius:12px; background:var(--panel); border:1px solid var(--line);
+  .row { display:flex; gap:6px; align-items:center; padding:6px; border-radius:12px; background:var(--glass); border:1px solid var(--line);
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); max-width:100%; overflow-x:auto; scrollbar-width:none; }
   .row::-webkit-scrollbar { display:none; }
+  .row button { font-size:13px; padding:7px 11px; border-radius:8px; border:1px solid transparent; }
   .sep { width:1px; align-self:stretch; background:var(--line); margin:2px 3px; flex:none; }
-  button { appearance:none; border:1px solid transparent; background:transparent; color:var(--ink); font:inherit; font-size:13px; padding:7px 11px;
-    border-radius:8px; cursor:pointer; white-space:nowrap; flex:none; }
-  button:hover { background:rgba(127,120,105,.14); }
-  button.on { background:var(--ink); color:var(--paper); }
-  body.night button.on { color:#10151f; }
-  button.go { border-color:var(--accent); color:var(--accent); font-weight:600; }
-  button.go.on { background:var(--accent); color:#fff; }
-  button kbd { font:inherit; font-size:10px; opacity:.5; margin-left:5px; }
+  .row button.go { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .row button.go.on { background:var(--accent); color:#fff; }
+  .row button kbd, #top kbd { font:inherit; font-size:10px; opacity:.5; margin-left:5px; background:none; border:0; padding:0; color:inherit; }
   #sunrow { gap:10px; padding:6px 12px 6px 6px; }
   #clock { font-variant-numeric:tabular-nums; font-weight:600; font-size:13px; min-width:48px; text-align:center; flex:none; }
   #sun { width:min(300px,38vw); accent-color:var(--accent); }
   #sunmeta { font-size:11px; color:var(--soft); flex:none; }
-  #hint { font-size:11.5px; color:var(--soft); text-align:center; padding:3px 12px; border-radius:999px; background:var(--panel); border:1px solid var(--line); }
-  #credit { position:fixed; right:16px; top:14px; font-size:10.5px; color:var(--soft); text-align:right; line-height:1.5; }
-  body.debug #credit { top:30px; }
-  #credit a { color:inherit; }
-  #joy { position:fixed; left:22px; bottom:150px; width:112px; height:112px; border-radius:50%; background:var(--panel); border:1px solid var(--line);
-    display:none; touch-action:none; }
+  #hint { font-size:11.5px; color:var(--soft); text-align:center; padding:3px 12px; border-radius:999px; background:var(--glass); border:1px solid var(--line); }
+  #joy { position:fixed; left:22px; bottom:150px; width:112px; height:112px; border-radius:50%; background:var(--glass); border:1px solid var(--line); display:none; touch-action:none; z-index:3; }
   #joy i { position:absolute; left:50%; top:50%; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%; background:var(--ink); opacity:.55; }
   .walkonly { display:none; }
   body.walking .walkonly { display:inline-block; }
   body.walking .orbitonly { display:none !important; }
-  @media (pointer:coarse) { body.walking #joy { display:block; } button kbd { display:none; } }
-  @media (max-width:860px) {
-    header { left:10px; top:10px; max-width:calc(100vw - 20px); }
-    header h1 { font-size:18px; } header h1 small { display:none; } header p { font-size:11.5px; }
-    header { padding:7px 11px 8px; }
-    #credit { display:none; }
-    #hint { font-size:10.5px; }
+  @media (pointer:coarse) {
+    body.walking.m3d #joy { display:block; }
+    .row button kbd, #top kbd { display:none; }
+    .btn { padding:8px 12px; min-height:36px; }
+    .seg .btn, .seg .pill { width:84px; } body.m3d .seg .pill { transform:translateX(86px); }
+    #fab .btn { min-height:40px; }
+  }
+  @media (max-width:900px) {
+    #top { padding:6px 10px; gap:6px; }
+    .brand span, #credit, #sunmeta, #count2d { display:none; }
+    /* the library becomes a strip along the bottom; the side panel gives way to the floating bar */
+    #app2d { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) 112px; }
+    #panelwrap { display:none; }
+    #libwrap { grid-row:2; border-right:0; border-top:1px solid var(--line); overflow-x:auto; overflow-y:hidden; }
+    #lib { display:flex; align-items:stretch; height:100%; padding:6px 6px; gap:6px; width:max-content; }
+    #lib h4 { position:static; writing-mode:vertical-rl; padding:4px 2px; letter-spacing:2px; align-self:center; }
+    .lib-grid { display:flex; gap:6px; padding:0; }
+    .item { width:78px; flex:none; touch-action:pan-x; padding:6px 2px 4px; }
+    .item svg { width:48px; height:36px; }
+    .hint { display:none; }
+    #stage2d { grid-row:1; }
+    #fab { bottom:10px; }
     #bar { bottom:10px; gap:6px; }
-    button { padding:8px 10px; }
-    #sunmeta { display:none; }
+    .row button { padding:8px 10px; }
     #sun { width:44vw; }
     #tools { flex-direction:column-reverse; gap:6px; align-items:center; }
-    .room { font-size:10.5px; padding:2px 6px 3px; }
-    .room span { display:none; }
+    .room3 { font-size:10.5px; padding:2px 6px 3px; }
+    .room3 span { display:none; }
   }
 </style>
 </head>
-<body>
+<body class="m2d">
 <canvas id="c"></canvas>
-<div id="labels"></div>
-<header>
-  <h1>走进户型图<small>FLOORPLAN · WALK-IN</small></h1>
-  <p>一张公有领域的户型图，读出墙和门窗，摆满家具。转着看，或者从入户门走进去。</p>
-</header>
-<div id="fps"></div>
-<div id="credit">家具套件移植自 <a href="https://github.com/wy51ai/floorplan-3d" target="_blank" rel="noopener">floorplan-3d</a>（MIT）<br>户型图 Wikimedia Commons · 公有领域</div>
+<div id="labels" class="only3d"></div>
+
+<div id="top">
+  <div class="brand"><b>走进户型图</b><span id="subtitle"></span></div>
+  <div class="grp seg" title="切换 2D / 3D (T)">
+    <span class="pill"></span>
+    <button class="btn" data-mode="2d">2D 平面</button>
+    <button class="btn" data-mode="3d">3D 场景</button>
+  </div>
+  <div class="grp only2d">
+    <button class="btn" data-p2="undo" title="撤销 (Ctrl+Z)">撤销</button>
+    <button class="btn" data-p2="redo" title="重做 (Ctrl+Shift+Z)">重做</button>
+    <button class="btn danger" data-p2="clear" title="清空所有家具（可撤销）">清空布置</button>
+    <button class="btn" data-p2="reset" title="恢复成图纸上的布置（可撤销）">恢复原样</button>
+  </div>
+  <div class="grp only2d">
+    <button class="btn" data-p2="zoomOut" title="缩小">−</button>
+    <button class="btn" data-p2="zoomIn" title="放大">＋</button>
+    <button class="btn" data-p2="fit" title="适应窗口 (F)">适应</button>
+  </div>
+  <div class="grp only2d">
+    <button class="btn chip on" data-p2="dims">尺寸</button>
+    <button class="btn chip on" data-p2="labels">房间</button>
+    <button class="btn chip on" data-p2="furn">家具</button>
+    <button class="btn chip on" data-p2="wallSnap" title="拖动家具时贴墙吸附">贴墙吸附</button>
+  </div>
+  <div class="grp"><button class="btn" data-act="style">换木色 · <span id="styleName">橡木</span><kbd>C</kbd></button></div>
+  <span class="spacer"></span>
+  <span id="count2d" class="only2d"></span>
+  <div id="credit">家具图例与模型移植自 <a href="https://github.com/wy51ai/floorplan-3d" target="_blank" rel="noopener">floorplan-3d</a>（MIT）<br>户型图 Wikimedia Commons · 公有领域</div>
+</div>
+
+<div id="app2d" class="only2d">
+  <aside id="libwrap"><div id="lib"></div></aside>
+  <main id="stage2d">
+    <svg id="plan" font-family="-apple-system,'PingFang SC','Microsoft YaHei',sans-serif">
+      <defs id="defs"></defs>
+      <g id="gRooms"></g>
+      <g id="gFurn"></g>
+      <g id="gWalls"></g>
+      <g id="gOpen" pointer-events="none"></g>
+      <g id="gLabels" pointer-events="none"></g>
+      <g id="gDims" pointer-events="none"></g>
+      <g id="gSel"></g>
+    </svg>
+    <div class="scalebar"><span id="sbText">1 m</span><div class="bar" id="sbBar"></div></div>
+    <div id="fab"></div>
+  </main>
+  <aside id="panelwrap"><div id="panel"></div></aside>
+</div>
+<div id="toast"></div>
+
+<div id="fps" class="only3d"></div>
 <div id="joy"><i></i></div>
-<div id="bar">
+<div id="bar" class="only3d">
   <div id="hint"></div>
   <div class="row" id="sunrow">
     <button data-act="sunmode">真实日照<kbd>R</kbd></button><span id="clock">示意光</span>
@@ -105,7 +239,6 @@
     <span class="sep"></span>
     <button class="orbitonly" data-act="cut">剖切<kbd>X</kbd></button>
     <button data-act="night">夜景<kbd>N</kbd></button>
-    <button data-act="style">换木色 · <span id="styleName">橡木</span><kbd>C</kbd></button>
     <button class="orbitonly" data-act="labels">标注<kbd>L</kbd></button>
     <button class="orbitonly" data-act="grow">重播<kbd>G</kbd></button>
   </div>

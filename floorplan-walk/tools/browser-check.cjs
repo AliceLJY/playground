@@ -71,13 +71,72 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // 3. what a visitor gets: no parameters, pixel ratio 2, real clicks and keys, everything in real time
   {
     const { ctx, page, errors, external } = await open('', { deviceScaleFactor: 2 });
+    // 3a. it opens on the 2D plan: furniture library on the left, the plan in the middle, editing with real mouse and keys
+    const layout = () => page.evaluate(() => window.__house.plan.layout());
+    const first = await page.evaluate(() => { const p = window.__house.probe(); const st = document.getElementById('stage2d').getBoundingClientRect(), walls = document.getElementById('gWalls').getBoundingClientRect();
+      return { mode2d: p.mode2d, pieces: p.pieces, cards: document.querySelectorAll('#lib .item').length, fits: walls.left >= st.left && walls.right <= st.right && walls.top >= st.top && walls.bottom <= st.bottom, share: walls.width / st.width }; });
+    await page.screenshot({ path: shot('plan-open') });
+    check('SPEC 11 plan: the page opens on the 2D plan with the library and the whole house in view', first.mode2d && first.pieces === 41 && first.cards === 63 && first.fits && first.share > 0.6,
+      `2D ${first.mode2d}, ${first.pieces} pieces, ${first.cards} library cards, house fits ${first.fits} and takes ${(first.share * 100).toFixed(0)}% of the stage width`);
+    const MMPX = await page.evaluate(() => window.__house.core.MM);
+    const spot = [600 * MMPX, 480 * MMPX];                                              // a spot in the family room, off the tour route
+    const card = await page.locator('#lib .item').first().boundingBox();
+    const drop = await page.evaluate((w) => window.__house.plan.toScreen(w[0], w[1]), spot);
+    await page.mouse.move(card.x + card.width / 2, card.y + 20); await page.mouse.down();
+    await page.mouse.move(card.x + card.width / 2 + 30, card.y + 40, { steps: 3 }); await page.mouse.move(drop[0], drop[1], { steps: 12 });
+    await page.screenshot({ path: shot('plan-dragging') });
+    await page.mouse.up();
+    let L = await layout();
+    const bed = L[L.length - 1];
+    check('SPEC 11 plan: dragging a library card onto the plan adds that piece where it was dropped', L.length === 42 && bed.type === 'bed' && Math.hypot(bed.cx - spot[0], bed.cy - spot[1]) < 30 && bed.cx % 10 === 0,
+      `${L.length} pieces; new ${bed.type} at ${bed.cx},${bed.cy} mm, ${Math.hypot(bed.cx - spot[0], bed.cy - spot[1]).toFixed(0)} mm from the drop point`);
+    const at = await page.evaluate((id) => window.__house.plan.screenOf(id), bed.id);
+    const sPx = await page.evaluate(() => window.__house.plan.view().s);
+    await page.mouse.move(at[0], at[1]); await page.mouse.down(); await page.mouse.move(at[0] - 40, at[1] + 20, { steps: 6 }); await page.mouse.up();
+    await page.keyboard.press('r');
+    await page.keyboard.press('ArrowRight');
+    L = await layout();
+    const nudged = L.find((f) => f.id === bed.id);
+    check('SPEC 11 plan: a piece can be dragged, turned with R and nudged with the arrow keys', Math.abs(nudged.cx - (bed.cx - 40 / sPx + 10)) < 310 && Math.abs(nudged.cy - (bed.cy + 20 / sPx)) < 310 && nudged.rot === 90 && nudged.cx !== bed.cx,
+      `moved from ${bed.cx},${bed.cy} to ${nudged.cx},${nudged.cy} (dragged ${(40 / sPx).toFixed(0)} mm left, ${(20 / sPx).toFixed(0)} mm down, wall snap may adjust), rot ${nudged.rot}`);
+    // the two handles on a selected piece: the square resizes, the dot turns
+    const handle = (q) => page.evaluate((sel) => { const r = [...document.querySelectorAll(sel)].pop().getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, q);
+    const hs = await handle('#gSel [data-handle="size"]');
+    await page.mouse.move(hs[0], hs[1]); await page.mouse.down(); await page.mouse.move(hs[0] + 30, hs[1] + 30, { steps: 5 }); await page.mouse.up();
+    const sized = (await layout()).find((f) => f.id === bed.id);
+    const hr = await handle('#gSel [data-handle="rot"]'), ctr = await page.evaluate((id) => window.__house.plan.screenOf(id), bed.id);
+    await page.mouse.move(hr[0], hr[1]); await page.mouse.down(); await page.mouse.move(ctr[0], ctr[1] + 120, { steps: 8 }); await page.mouse.up();
+    const turned2 = (await layout()).find((f) => f.id === bed.id);
+    await page.screenshot({ path: shot('plan-handles') });
+    check('SPEC 11 plan: the square handle resizes a piece and the dot handle turns it', (sized.w !== nudged.w || sized.d !== nudged.d) && sized.w >= 100 && sized.d >= 100 && sized.w % 10 === 0 && turned2.rot === 180,
+      `size ${nudged.w}x${nudged.d} -> ${sized.w}x${sized.d} mm; dot dragged to straight below the piece: rot ${nudged.rot} -> ${turned2.rot}`);
+    await page.keyboard.press('Control+d'); const n1 = (await layout()).length;
+    await page.keyboard.press('Delete'); const n2 = (await layout()).length;
+    await page.keyboard.press('Control+z'); const n3 = (await layout()).length;
+    await page.keyboard.press('Control+z'); const n4 = (await layout()).length;
+    check('SPEC 11 plan: duplicate, delete and undo', n1 === 43 && n2 === 42 && n3 === 43 && n4 === 42, `pieces after duplicate ${n1}, delete ${n2}, undo ${n3}, undo again ${n4}`);
+    const fillOf = () => page.evaluate(() => ({ floor: document.querySelector('#gRooms .room[data-room="客餐厅"]').getAttribute('fill'), sofa: document.querySelector('#gFurn .furn rect').getAttribute('fill') }));
+    const oak2d = await fillOf();
+    await page.keyboard.press('c');
+    const walnut2d = await fillOf();
+    await page.screenshot({ path: shot('plan-walnut') });
+    await page.keyboard.press('c');
+    check('SPEC 6 plan: C swaps the wood on the plan too', oak2d.floor === 'url(#m-wood)' && walnut2d.floor === 'url(#m-walnut)' && oak2d.sofa !== walnut2d.sofa, `floor ${oak2d.floor} -> ${walnut2d.floor}, first piece ${oak2d.sofa} -> ${walnut2d.sofa}`);
+    await page.reload();
+    await page.waitForFunction(() => window.__house && window.__house.ready, null, { polling: 100, timeout: 30000 });
+    const kept = await layout();
+    check('SPEC 11 plan: the layout survives a reload', kept.length === 42 && kept.some((f) => f.id === bed.id && f.rot === 180), `${kept.length} pieces after reload, the added bed ${kept.some((f) => f.id === bed.id) ? 'is there' : 'is gone'}`);
+    await page.screenshot({ path: shot('plan-edited') });
+    // 3b. over to 3D: the house grows out of the plan with the edited layout
+    await page.click('[data-mode="3d"]');
     const t0 = Date.now();
     await page.waitForTimeout(1500); await page.screenshot({ path: shot('default-grow-1.5s') });
     await page.waitForTimeout(1500); await page.screenshot({ path: shot('default-grow-3.0s') });
     const grown = await until(page, () => !window.__house.probe().growing, 8000);
     const growMs = Date.now() - t0;
     await page.waitForTimeout(300); await page.screenshot({ path: shot('default-after-grow') });
-    check('SPEC 8 default: the opening build finishes', grown && growMs < 8000, `${(growMs / 1000).toFixed(1)} s after ready`);
+    const built = await probe(page);
+    check('SPEC 8 default: switching to 3D grows the house from the edited plan', grown && growMs < 8000 && !built.mode2d && built.built === built.pieces + 1 && built.pieces === 42, `${(growMs / 1000).toFixed(1)} s; ${built.pieces} pieces on the plan, ${built.built} built in 3D (the fireplace is the extra one)`);
     await page.keyboard.press('3');
     await until(page, () => !window.__house.probe().tweening, 4000);
     const afterKey = await probe(page);
@@ -146,6 +205,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const replayDone = await until(page, () => !window.__house.probe().growing, 8000);
     const after = await page.evaluate(() => ({ view: window.__house.state.view, box: window.__house.screenBox() }));
     check('SPEC 8 default: G replays the opening and ends on the overview', replaying.growing && !replaying.auto && replayDone && after.view === 'hero' && after.box.x1 - after.box.x0 > 0.45, `growing ${replaying.growing}, finished ${replayDone}, view ${after.view}, width ${((after.box.x1 - after.box.x0) * 100).toFixed(1)}%`);
+    await page.keyboard.press('t'); await page.waitForTimeout(300);
+    const back2d = await probe(page);
+    check('SPEC 11 default: T returns to the plan', back2d.mode2d, `2D ${back2d.mode2d}`);
     report.runs.push({ name: 'default', viewport: '1280x720', dpr: end.dpr, buffer: end.buffer, fps, errors, external });
     check('SPEC 8 default: no page errors, no outside requests', errors.length === 0 && external.length === 0, `${errors.length} errors ${JSON.stringify(errors.slice(0, 3))}, ${external.length} outside requests`);
     await ctx.close();
@@ -154,6 +216,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // 4. phone, portrait, touch
   {
     const { ctx, page, errors, external } = await open('', { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+    await page.screenshot({ path: shot('phone-plan') });
+    const p2 = await page.evaluate(() => { const lib = document.getElementById('libwrap').getBoundingClientRect(), st = document.getElementById('stage2d').getBoundingClientRect(), walls = document.getElementById('gWalls').getBoundingClientRect();
+      return { scrollW: document.documentElement.scrollWidth, lib: [lib.top, lib.bottom], stage: [st.top, st.bottom], fits: walls.left >= 0 && walls.right <= innerWidth && walls.top >= st.top && walls.bottom <= st.bottom, n: window.__house.plan.layout().length }; });
+    await page.tap('#lib .item >> nth=2');
+    const p2n = await page.evaluate(() => window.__house.plan.layout().length);
+    check('SPEC 10 phone: the plan fits, the library is a strip along the bottom, a tap on a card adds the piece', p2.scrollW <= 390 && p2.fits && p2.lib[1] <= 844 && p2.lib[0] >= p2.stage[1] - 1 && p2n === p2.n + 1,
+      `page width ${p2.scrollW}, house fits ${p2.fits}, library strip ${p2.lib.map((v) => v.toFixed(0))}, pieces ${p2.n} -> ${p2n}`);
+    await page.tap('[data-mode="3d"]');
     await until(page, () => !window.__house.probe().growing, 8000);
     await page.waitForTimeout(300); await page.screenshot({ path: shot('phone-hero') });
     const lay = await page.evaluate(() => {

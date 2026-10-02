@@ -13,41 +13,100 @@ test('data: 8 rooms, 263.1 m2 in total, 37 furniture pieces and 16 stair treads 
   assert.strictEqual(C.house.furniture.filter((f) => f.type === 'stair').length, 16);
 });
 
-test('furniture: every piece maps to a builder that exists, with a plausible size (SPEC 2)', async () => {
+test('layout: the default layout has every plan piece once, each with a builder, a plausible size and a colour (SPEC 2)', async () => {
   const [C, K, X] = await load();
-  for (const style of Object.keys(C.STYLES)) {
-    const specs = C.furnitureSpecs(style);
-    assert.strictEqual(specs.filter((s) => !s.decor && !s.stair).length, 37);
-    for (const s of specs) {
-      assert.ok(s.type, `${s.id} (${s.plan}) has no builder`);
-      const known = s.type.startsWith('x:') ? X.EXTRA_TYPES.includes(s.type) : K.KIT_TYPES.includes(s.type);
-      assert.ok(known, `${s.id}: builder "${s.type}" does not exist`);
-      if (s.stair) continue;
-      assert.ok(s.w >= 250 && s.w <= 5000 && s.d >= 250 && s.d <= 3200, `${s.id} ${s.type} is ${s.w} x ${s.d} mm, outside 250-5000 x 250-3200`);
-      assert.match(s.color, /^#[0-9a-f]{6}$/i, `${s.id} colour ${s.color}`);
-    }
+  const L = C.defaultLayout();
+  assert.strictEqual(L.filter((i) => i.id.startsWith('f')).length, 36, 'plan pieces without the fireplace, which is built in');
+  assert.strictEqual(L.filter((i) => i.id.startsWith('d')).length, 5, 'decor pieces');
+  assert.ok(L.findIndex((i) => i.type !== 'rug') === 2, 'the two rugs come first so everything else is drawn over them');
+  for (const style of Object.keys(C.STYLES)) for (const s of C.furnitureSpecs(style, L)) {
+    const known = s.type.startsWith('x:') ? X.EXTRA_TYPES.includes(s.type) : K.KIT_TYPES.includes(s.type);
+    assert.ok(known, `${s.id}: builder "${s.type}" does not exist`);
+    assert.ok(s.w >= 250 && s.w <= 5000 && s.d >= 250 && s.d <= 3200, `${s.id} ${s.type} is ${s.w} x ${s.d} mm, outside 250-5000 x 250-3200`);
+    assert.match(s.color, /^#[0-9a-f]{6}$/i, `${s.id} colour ${s.color}`);
+  }
+  assert.strictEqual(C.furnitureSpecs('oak', L).filter((s) => s.fixed).length, 1, 'the fireplace is the one fixed piece');
+});
+
+test('layout: every library entry can be built in 3D (SPEC 11)', async () => {
+  const [C, K, X] = await load();
+  const S = await import('../src/symbols.js');
+  const types = S.LIB.flatMap((c) => c.items.map((i) => i[0]));
+  assert.strictEqual(types.length, 60);
+  for (const t of types) assert.ok(K.KIT_TYPES.includes(t), `library type "${t}" has no 3D builder`);
+  for (const t of [...new Set(types), ...X.EXTRA_TYPES.filter((x) => x !== 'x:stair')]) {
+    const svg = S.symbol(t, 1200, 800, '#cccccc');
+    assert.ok(typeof svg === 'string' && svg.length > 20, `no 2D symbol for "${t}"`);
+    assert.match(C.itemColor({ type: t }, 'walnut'), /^#[0-9a-f]{6}$/i, `no colour for "${t}"`);
   }
 });
 
-test('furniture: kitchen counters back onto a wall and keep wall cabinets off the windows (SPEC 2)', async () => {
+test('layout: kitchen counters back onto a wall and keep wall cabinets off the windows, wherever they are put (SPEC 2)', async () => {
   const [C] = await load();
-  const counters = C.furnitureSpecs('oak').filter((s) => s.plan === 'counter');
+  const counters = C.defaultLayout().filter((i) => i.type === 'counter');
   assert.strictEqual(counters.length, 4);
-  const byX = (px) => counters.find((s) => Math.abs(s.seedx - px) < 3);
-  const west = byX(51), north = byX(77), south = byX(116), pen = byX(160);
-  assert.deepStrictEqual([west.back, north.back, south.back, pen.back], ['w', 'n', 's', null]);
-  assert.strictEqual(west.opts.upper, false, 'the west run has two windows behind it: no wall cabinets');
-  assert.strictEqual(north.opts.upper, true);
-  assert.strictEqual(south.opts.upper, true);
-  assert.strictEqual(pen.opts.upper, false, 'the peninsula stands free: no wall cabinets');
+  const at = (px) => counters.find((i) => Math.abs(i.cx / C.MM - px) < 3);
+  const west = at(51), north = at(76.5), south = at(116), pen = at(159.5);
+  assert.deepStrictEqual([west.rot, north.rot, south.rot, pen.rot], [270, 0, 180, 180]);
+  assert.strictEqual(C.counterOpts(west).upper, false, 'the west run has two windows behind it: no wall cabinets');
+  assert.strictEqual(C.counterOpts(north).upper, true);
+  assert.strictEqual(C.counterOpts(south).upper, true);
+  assert.strictEqual(C.counterOpts(pen).upper, false, 'the peninsula stands free: no wall cabinets');
+  // drag the south run into the middle of the living room: it no longer touches a wall, so the wall cabinets go
+  assert.strictEqual(C.counterOpts({ ...south, cx: 500 * C.MM, cy: 300 * C.MM }).upper, false);
 });
 
-test('style: oak and walnut give different colours to the same pieces (SPEC 6)', async () => {
+test('layout: rotation on the plan and in 3D agree, and bounding boxes follow it (SPEC 11)', async () => {
   const [C] = await load();
-  const oak = C.furnitureSpecs('oak'), walnut = C.furnitureSpecs('walnut');
-  const changed = oak.filter((s, i) => !s.stair && s.color !== walnut[i].color).length;
+  const sofa = { id: 't', type: 'sofa', cx: 15000, cy: 9000, w: 2400, d: 900, rot: 90 };
+  assert.deepStrictEqual(C.aabb(sofa), { hw: 450, hh: 1200 });
+  const [spec] = C.furnitureSpecs('oak', [sofa]);
+  assert.ok(Math.abs(spec.yaw + Math.PI / 2) < 1e-9, 'rot 90 on the plan (back to the east) is yaw -90 degrees in 3D');
+  assert.ok(Math.abs(spec.rect[2] - spec.rect[0] - 0.9) < 1e-9 && Math.abs(spec.rect[3] - spec.rect[1] - 2.4) < 1e-9, `world box ${spec.rect}`);
+  assert.strictEqual(C.norm(-90), 270);
+});
+
+test('snapping: a dragged piece lands flush on a wall face nearby and on the 10 mm grid elsewhere (SPEC 11)', async () => {
+  const [C] = await load();
+  const sofa = C.defaultLayout().find((i) => i.type === 'sofa' && i.rot === 0);      // backs onto the north wall of the living room
+  const { hh } = C.aabb(sofa);
+  const flush = C.snapMove(sofa, sofa.cx, sofa.cy, 600)[1];           // it stands about 0.47 m off the wall on the plan
+  const wallFace = flush - hh;
+  // "solid" here is a wall or a window: windows stand a few centimetres proud of the wall and count as faces too
+  const solid = (xmm, ymm) => C.inWallPx(xmm / C.MM, ymm / C.MM) || C.house.openings.some((o) => o.kind === 'window' && xmm / C.MM >= o.rect_px[0] && xmm / C.MM <= o.rect_px[2] && ymm / C.MM >= o.rect_px[1] && ymm / C.MM <= o.rect_px[3]);
+  const xs = [-0.9, -0.5, 0, 0.5, 0.9].map((k) => sofa.cx + k * sofa.w / 2);
+  assert.ok(xs.some((x) => solid(x, wallFace - 40)), `nothing solid behind the snapped back edge at y=${wallFace.toFixed(0)}`);
+  assert.ok(xs.every((x) => !solid(x, wallFace + 40)), `the snapped piece overlaps something solid at y=${wallFace.toFixed(0)}`);
+  assert.strictEqual(C.snapMove(sofa, sofa.cx + 3, wallFace + hh + 90, 150)[1], flush, '90 mm off the wall snaps back onto it');
+  assert.deepStrictEqual(C.snapMove(sofa, 15003, 8504, 150), [15000, 8500], 'in the open it only rounds to the grid');
+  assert.deepStrictEqual(C.snapMove(sofa, sofa.cx + 3, wallFace + hh + 90, 150, false), [Math.round((sofa.cx + 3) / 10) * 10, Math.round((wallFace + hh + 90) / 10) * 10], 'wall snap off');
+});
+
+test('layout and walking: furniture moved onto the route blocks it, and moving it away clears it (SPEC 11)', async () => {
+  const [C] = await load();
+  const base = C.defaultLayout();
+  try {
+    C.setLayout(base);
+    assert.ok(C.autopilot('tour').done);
+    // a wardrobe pushed against the hall side of the double door: the tour's waypoint in front of that door is now inside it
+    C.setLayout([...base, { id: 'w', type: 'wardrobe', cx: 348.5 * C.MM, cy: 385 * C.MM, w: 2400, d: 600, rot: 0 }]);
+    const blockedRun = C.autopilot('tour', { maxT: 30 });
+    assert.ok(!blockedRun.done && blockedRun.reached <= 3, `the tour should not get past the wardrobe (done ${blockedRun.done}, reached waypoint ${blockedRun.reached})`);
+    assert.ok(blockedRun.crossings.every((c) => c.id !== 'o17'), 'it must not have gone through the double door');
+    // chairs are not solid: one in the same spot does not stop anyone
+    C.setLayout([...base, { id: 'c', type: 'chair', cx: 348.5 * C.MM, cy: 385 * C.MM, w: 450, d: 480, rot: 0 }]);
+    assert.ok(C.autopilot('tour').done);
+  } finally { C.setLayout(base); }
+});
+
+test('style: oak and walnut recolour the same layout without moving anything (SPEC 6)', async () => {
+  const [C] = await load();
+  const L = C.defaultLayout(), oak = C.furnitureSpecs('oak', L), walnut = C.furnitureSpecs('walnut', L);
+  const changed = oak.filter((s, i) => s.color !== walnut[i].color).length;
   assert.ok(changed >= 30, `only ${changed} pieces change colour between styles, expected at least 30`);
   oak.forEach((s, i) => assert.deepStrictEqual([s.x, s.z, s.w, s.d, s.yaw], [walnut[i].x, walnut[i].z, walnut[i].w, walnut[i].d, walnut[i].yaw], `${s.id} moved between styles`));
+  const mine = { id: 'm', type: 'sofa', cx: 1, cy: 1, w: 2000, d: 900, rot: 0, color: '#123456' };
+  assert.strictEqual(C.itemColor(mine, 'oak'), '#123456'); assert.strictEqual(C.itemColor(mine, 'walnut'), '#123456', 'a colour picked by hand stays');
 });
 
 test('walking: each route arrives, never touches a wall, never sticks, and its doors are open when crossed (SPEC 3)', async () => {
