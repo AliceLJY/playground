@@ -57,35 +57,61 @@ export const STYLES = {
     floor: { base: [196, 160, 118], dark: [170, 132, 92], light: [214, 184, 146], seed: 7 },
     wall: '#f3f0ea', door: '#d8bf9a', baseboard: '#f1eee8', frame: '#f4f3f0',
     sofa: '#b7c4b0', sofa2: '#c3cbd6', armchair: '#d6b99a', chair: '#cfc6b8', wood: '#e2cfb4', cabinet: '#efe6d8',
-    counter: '#e9e5de', rug: '#d9cbb8', tv: '#e2cfb4', shelf: '#e2cfb4', appliance: '#e6ebee', vanity: '#eef1f3', plant: '#a9c39b', lamp: '#3d3a34',
+    counter: '#e9e5de', rug: '#d9cbb8', tv: '#e2cfb4', shelf: '#e2cfb4', appliance: '#e6ebee', vanity: '#eef1f3', plant: '#a9c39b', lamp: '#3d3a34', bed: '#c9d6df',
   },
   walnut: {
     zh: '胡桃木', en: 'WALNUT',
     floor: { base: [104, 70, 48], dark: [80, 52, 36], light: [128, 88, 60], seed: 7 },
     wall: '#eee6db', door: '#5e3f2b', baseboard: '#5b3b27', frame: '#3a3a38',
     sofa: '#6f7884', sofa2: '#8a8173', armchair: '#8a5a44', chair: '#5c4a3d', wood: '#7a563c', cabinet: '#5b4333',
-    counter: '#4f463e', rug: '#8c7b6a', tv: '#4a372a', shelf: '#6b4a34', appliance: '#c9ced3', vanity: '#5b4333', plant: '#9dbb8c', lamp: '#2b2a28',
+    counter: '#4f463e', rug: '#8c7b6a', tv: '#4a372a', shelf: '#6b4a34', appliance: '#c9ced3', vanity: '#5b4333', plant: '#9dbb8c', lamp: '#2b2a28', bed: '#7d8794',
   },
 };
 
 // ---------------- furniture layout ----------------
-// Plan type -> kit type. "x:" entries are built by extras.js (pieces the upstream kit does not have).
+// The layout is a plain list: the 2D plan edits it and the 3D scene reads it. Units are millimetres with the origin at the
+// top-left of the plan image, x east and y south. rot is degrees clockwise; at 0 the back of a piece faces north.
+export const MM = M * 1000;                                   // millimetres per plan pixel
+const mmX = (mm) => mm / 1000 - CX * M, mmZ = (mm) => mm / 1000 - CY * M;   // plan millimetres to world metres
+export const norm = (a) => ((Math.round(a) % 360) + 360) % 360;
+const round10 = (v) => Math.round(v / 10) * 10;
+
+// Plan type -> builder. "x:" builders live in extras.js (pieces the upstream kit does not have).
 export const TYPE_MAP = {
   sofa: 'sofa', armchair: 'armchair', chair: 'chair', table_round: 'roundtable', table_oval: 'x:ovaltable', coffee_round: 'x:roundcoffee',
   sideboard: 'cabinet', cabinet: 'cabinet', washer: 'washer', toilet: 'toilet', vanity: 'vanity', tv_unit: 'tvstand',
   counter: 'counter', island: 'island', shelf: 'bookshelf', plant: 'plant', plant_small: 'plant', fireplace: 'x:fireplace', stair: 'x:stair',
 };
-const COLOR_KEY = {
-  sofa: 'sofa', armchair: 'armchair', chair: 'chair', table_round: 'wood', table_oval: 'wood', coffee_round: 'wood', sideboard: 'cabinet',
-  cabinet: 'cabinet', washer: 'appliance', toilet: null, vanity: 'vanity', tv_unit: 'tv', counter: 'counter', island: 'counter', shelf: 'shelf',
-  plant: 'plant', plant_small: 'plant',
+export const NAMES = {
+  sofa: '沙发', armchair: '单人沙发', chair: '椅子', roundtable: '圆餐桌', 'x:ovaltable': '椭圆餐桌', 'x:roundcoffee': '圆茶几', cabinet: '边柜',
+  washer: '洗衣机', dryer: '烘干机', toilet: '马桶', vanity: '浴室柜', tvstand: '电视柜', counter: '橱柜台面', island: '岛台', bookshelf: '书架',
+  plant: '绿植', rug: '地毯', floorlamp: '落地灯', ksink: '水槽', 'x:pendant': '吊灯', 'x:fireplace': '壁炉',
 };
-export const YAW = { n: 0, s: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 };   // the back of a piece (-z) turned towards that side
-// Pieces a walker cannot pass through. Chairs and plants are left out so nobody gets stuck between them.
-const SOLID = new Set(['sofa', 'armchair', 'table_round', 'table_oval', 'coffee_round', 'sideboard', 'cabinet', 'washer', 'toilet', 'vanity',
-  'tv_unit', 'counter', 'island', 'shelf', 'fireplace']);
+// Which palette entry colours a piece. Types not listed keep one fixed colour in every style.
+const PALETTE_KEY = {
+  sofa: 'sofa', cornersofa: 'sofa', armchair: 'armchair', beanbag: 'armchair', chair: 'chair', officechair: 'chair', barstool: 'chair',
+  table: 'wood', roundtable: 'wood', 'x:ovaltable': 'wood', coffeetable: 'wood', 'x:roundcoffee': 'wood', sidetable: 'wood', desk: 'wood',
+  dresser: 'wood', nightstand: 'wood', crib: 'wood', wardrobe: 'cabinet', cabinet: 'cabinet', shoecab: 'cabinet', ovencol: 'cabinet',
+  bookshelf: 'shelf', counter: 'counter', island: 'counter', washer: 'appliance', dryer: 'appliance', fridge: 'appliance', dishwasher: 'appliance',
+  vanity: 'vanity', tvstand: 'tv', rug: 'rug', plant: 'plant', floorlamp: 'lamp', 'x:pendant': 'lamp', bed: 'bed',
+};
+const FIXED_COLOR = {
+  toilet: '#ffffff', bathtub: '#eef3f6', shower: '#e4edf2', ksink: '#e1e6ea', stove: '#dcdcdc', tv: '#1d1d1f', piano: '#1f1d1b', treadmill: '#3a3a3c',
+  aircon: '#f6f7f8', acwall: '#f6f7f8', purifier: '#f4f4f2', waterheater: '#f4f4f2', baycushion: '#e7dccd', 'x:fireplace': '#d9d3c8',
+};
+export function itemColor(item, styleKey) {
+  if (item.color) return item.color;
+  const st = STYLES[styleKey], key = PALETTE_KEY[item.type];
+  if (key) return (item.tone === 2 && st[key + '2']) || st[key];
+  return FIXED_COLOR[item.type] || '#dddddd';
+}
+// Pieces a walker cannot pass through. Chairs, plants and other small things are left out so nobody gets stuck between them.
+const SOLID = new Set(['sofa', 'cornersofa', 'armchair', 'table', 'roundtable', 'x:ovaltable', 'coffeetable', 'x:roundcoffee', 'cabinet', 'shoecab',
+  'wardrobe', 'washer', 'dryer', 'toilet', 'vanity', 'tvstand', 'counter', 'island', 'bookshelf', 'bed', 'crib', 'desk', 'dresser', 'nightstand',
+  'fridge', 'bathtub', 'shower', 'piano', 'treadmill', 'dishwasher', 'ovencol', 'aircon', 'x:fireplace']);
 
 const SIDES = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] };
+const ROT = { n: 0, e: 90, s: 180, w: 270 };
 function sideTouchesWall(rect, side, reach = 7) {
   const [x0, y0, x1, y1] = rect, [dx, dy] = SIDES[side];
   const mx = dx ? (dx < 0 ? x0 : x1) : (x0 + x1) / 2, my = dy ? (dy < 0 ? y0 : y1) : (y0 + y1) / 2;
@@ -93,14 +119,13 @@ function sideTouchesWall(rect, side, reach = 7) {
   return inWallPx(px, py) || house.openings.some((o) => o.kind === 'window' && inRect(px, py, o.rect_px)) || !insideFootprintPx(px, py);
 }
 // Which side a piece backs onto, for the pieces the plan gives no direction for: the long side that touches a wall.
-export function inferBack(item) {
-  if (item.back) return item.back;
-  const [x0, y0, x1, y1] = item.rect_px, w = x1 - x0, h = y1 - y0;
+export function inferBack(src) {
+  if (src.back) return src.back;
+  const [x0, y0, x1, y1] = src.rect_px, w = x1 - x0, h = y1 - y0;
   const order = w >= h * 1.3 ? ['n', 's'] : h >= w * 1.3 ? ['w', 'e'] : ['n', 'w', 's', 'e'];
-  return order.find((s) => sideTouchesWall(item.rect_px, s)) || null;
+  return order.find((s) => sideTouchesWall(src.rect_px, s)) || null;
 }
 function windowBehind(rect, back) {
-  if (!back) return false;
   const [x0, y0, x1, y1] = rect;
   return house.openings.some((o) => {
     if (o.kind !== 'window') return false;
@@ -113,53 +138,103 @@ function windowBehind(rect, back) {
     return near && b1 > y0 && b0 < y1;
   });
 }
+// Half extents of a piece's bounding box on the plan, taking its rotation into account.
+export function aabb(item) {
+  const a = (item.rot * Math.PI) / 180, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+  const tidy = (v) => Math.round(v * 100) / 100;            // cos(90 deg) is not exactly 0; keep the noise out of snapped positions
+  return { hw: tidy((item.w / 2) * c + (item.d / 2) * s), hh: tidy((item.w / 2) * s + (item.d / 2) * c) };
+}
+const backSide = (item) => ({ 0: 'n', 90: 'e', 180: 's', 270: 'w' })[norm(item.rot)] || null;
+// A kitchen counter gets wall cabinets and a backsplash only where its back really meets a wall, and never across a window.
+export function counterOpts(item) {
+  const { hw, hh } = aabb(item), rect = [(item.cx - hw) / MM, (item.cy - hh) / MM, (item.cx + hw) / MM, (item.cy + hh) / MM], back = backSide(item);
+  const ok = !!back && sideTouchesWall(rect, back) && !windowBehind(rect, back);
+  return { upper: ok, splash: ok };
+}
 
 // Things the plan does not draw but a lived-in room has. Positions are in plan pixels, chosen by eye against the plan.
 const DECOR = [
-  { type: 'rug', rect_px: [600, 188, 698, 270], back: 'n', colorKey: 'rug' },                 // under the living-room coffee table
-  { type: 'rug', rect_px: [566, 448, 618, 528], back: 'w', colorKey: 'rug' },                 // family room, between armchairs and TV
-  { type: 'floorlamp', rect_px: [557, 150, 571, 164], back: null, colorKey: 'lamp' },         // behind the living-room armchair
-  { type: 'ksink', rect_px: [146, 261, 172, 276], back: 's', colorKey: null },                // double sink drawn on the peninsula
-  { type: 'x:pendant', rect_px: [376, 247, 404, 275], back: null, colorKey: 'lamp' },         // over the dining table
+  { type: 'rug', rect_px: [600, 188, 698, 270], back: 'n' },                 // under the living-room coffee table
+  { type: 'rug', rect_px: [566, 448, 618, 528], back: 'w' },                 // family room, between armchairs and TV
+  { type: 'floorlamp', rect_px: [557, 150, 571, 164], back: null },          // behind the living-room armchair
+  { type: 'ksink', rect_px: [146, 261, 172, 276], back: 's' },               // double sink drawn on the peninsula
+  { type: 'x:pendant', rect_px: [376, 247, 404, 275], back: null },          // over the dining table
 ];
+function fromPlan(src, id, decor) {
+  const [x0, y0, x1, y1] = src.rect_px, fw = (x1 - x0) * MM, fd = (y1 - y0) * MM;
+  const back = decor ? src.back : inferBack(src), type = decor ? src.type : TYPE_MAP[src.type];
+  const longX = fw >= fd, along = back ? back === 'n' || back === 's' : longX;
+  let w = along ? fw : fd, d = along ? fd : fw;
+  let rot = back ? ROT[back] : longX ? 0 : 270;
+  if (src.type === 'counter' && !back) rot = longX ? 180 : 270;      // peninsula: doors face the room, not the run it joins
+  if (src.type === 'coffee_round') { w *= 0.72; d *= 0.72; }
+  if (src.type === 'table_oval') { w *= 0.94; d *= 0.94; }
+  return { id, type, name: NAMES[type] || type, cx: round10(((x0 + x1) / 2) * MM), cy: round10(((y0 + y1) / 2) * MM), w: round10(w), d: round10(d), rot };
+}
+// The furniture as the plan draws it, plus the few decor pieces above. Rugs come first so everything else is drawn over them.
+export function defaultLayout() {
+  const items = [];
+  let washers = 0, sofas = 0;
+  house.furniture.forEach((f, i) => {
+    if (f.type === 'stair' || f.type === 'fireplace') return;
+    const it = fromPlan(f, 'f' + i, false);
+    if (f.type === 'washer' && washers++ === 1) { it.type = 'dryer'; it.name = NAMES.dryer; }
+    if (f.type === 'sofa' && sofas++ % 2 === 1) it.tone = 2;
+    items.push(it);
+  });
+  DECOR.forEach((f, i) => items.push(fromPlan(f, 'd' + i, true)));
+  return items.sort((p, q) => (q.type === 'rug') - (p.type === 'rug'));
+}
+// Built into the house, so not part of the editable layout: the fireplace (and the staircase, which is drawn from the plan data).
+export const FIREPLACE = fromPlan(house.furniture.find((f) => f.type === 'fireplace'), 'fireplace', false);
+export const STAIRS_PX = house.furniture.filter((f) => f.type === 'stair').map((f) => f.rect_px);
 
-// One spec per piece: where it stands, how big it is and what colour, independent of any 3D library.
-export function furnitureSpecs(styleKey = 'oak') {
-  const st = STYLES[styleKey];
-  const specs = [];
-  let washers = 0;
-  const push = (item, i, decor) => {
-    const [x0, y0, x1, y1] = item.rect_px;
-    const fw = (x1 - x0) * M, fd = (y1 - y0) * M;
-    let back = decor ? item.back : inferBack(item);
-    let type = decor ? item.type : TYPE_MAP[item.type];
-    if (item.type === 'washer' && washers++ === 1) type = 'dryer';
-    const longX = fw >= fd;
-    const along = back ? back === 'n' || back === 's' : longX;
-    let w = along ? fw : fd, d = along ? fd : fw;
-    let yaw = back ? YAW[back] : longX ? 0 : Math.PI / 2;
-    const opts = {};
-    if (item.type === 'counter') {
-      const blocked = windowBehind(item.rect_px, back);
-      opts.upper = !!back && !blocked;
-      opts.splash = !!back && !blocked;
-      if (!back) yaw = longX ? Math.PI : Math.PI / 2;   // peninsula: doors face the room, not the run it joins
-    }
-    if (item.type === 'coffee_round') { w *= 0.72; d *= 0.72; }
-    if (item.type === 'table_oval') { w *= 0.94; d *= 0.94; }
-    const key = decor ? item.colorKey : COLOR_KEY[item.type];
-    let color = key ? st[key] : '#ffffff';
-    if (item.type === 'sofa' && i % 2 === 0) color = st.sofa2;
-    specs.push({
-      id: (decor ? 'd' : 'f') + i, plan: item.type, type, w: Math.round(w * 1000), d: Math.round(d * 1000), color,
-      x: toX((x0 + x1) / 2), z: toZ((y0 + y1) / 2), yaw, back, h: item.h || 0, opts,
-      seedx: Math.round((x0 + x1) / 2), seedy: Math.round((y0 + y1) / 2),
-      rect: [toX(x0), toZ(y0), toX(x1), toZ(y1)], solid: !decor && SOLID.has(item.type), decor: !!decor, stair: item.type === 'stair',
-    });
+let currentLayout = defaultLayout();
+let furnBoxes = [];
+export const getLayout = () => currentLayout;
+const worldRect = (item, pad = 0) => { const { hw, hh } = aabb(item); return [mmX(item.cx - hw) + pad, mmZ(item.cy - hh) + pad, mmX(item.cx + hw) - pad, mmZ(item.cy + hh) - pad]; };
+// Make a layout the current one: the 3D scene is built from it and solid pieces in it block the walker.
+export function setLayout(layout) {
+  currentLayout = layout;
+  furnBoxes = layout.filter((it) => SOLID.has(it.type)).map((it) => worldRect(it, 0.05));
+}
+// One spec per piece for the 3D builder: world position in metres, size in millimetres, resolved colour.
+export function furnitureSpecs(styleKey = 'oak', layout = currentLayout) {
+  return [...layout, FIREPLACE].map((item) => ({
+    id: item.id, type: item.type, w: item.w, d: item.d, color: itemColor(item, styleKey),
+    x: mmX(item.cx), z: mmZ(item.cy), yaw: (-item.rot * Math.PI) / 180,
+    opts: item.type === 'counter' ? counterOpts(item) : {},
+    seedx: Math.round(item.cx / MM), seedy: Math.round(item.cy / MM), rect: worldRect(item), solid: SOLID.has(item.type), fixed: item === FIREPLACE,
+  }));
+}
+
+// Wall faces a dragged piece can snap to: axis-aligned wall edges and window edges, in millimetres.
+const SNAP = (() => {
+  const v = [], h = [];
+  const edge = (x0, y0, x1, y1) => {
+    if (Math.abs(x1 - x0) < 0.6 && Math.abs(y1 - y0) >= 6) v.push([x0 * MM, Math.min(y0, y1) * MM, Math.max(y0, y1) * MM]);
+    else if (Math.abs(y1 - y0) < 0.6 && Math.abs(x1 - x0) >= 6) h.push([y0 * MM, Math.min(x0, x1) * MM, Math.max(x0, x1) * MM]);
   };
-  house.furniture.forEach((it, i) => push(it, i, false));
-  DECOR.forEach((it, i) => push(it, i, true));
-  return specs;
+  const ring = (poly) => poly.forEach(([x, y], i) => { const [x2, y2] = poly[(i + 1) % poly.length]; edge(x, y, x2, y2); });
+  for (const w of house.walls) { ring(w.outer); w.holes.forEach(ring); }
+  for (const o of house.openings) if (o.kind === 'window') { const [x0, y0, x1, y1] = o.rect_px; ring([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]); }
+  return { v, h };
+})();
+// Where a dragged piece lands: on the 10 mm grid, or flush against a wall face when one is within tol millimetres.
+export function snapMove(item, cx, cy, tol = 150, wallSnap = true) {
+  let nx = round10(cx), ny = round10(cy);
+  if (!wallSnap) return [nx, ny];
+  const { hw, hh } = aabb(item);
+  let bx = tol, by = tol;
+  for (const [x, y0, y1] of SNAP.v) {
+    if (y1 < cy - hh || y0 > cy + hh) continue;
+    for (const c of [x + hw, x - hw]) if (Math.abs(c - cx) < bx) { bx = Math.abs(c - cx); nx = c; }
+  }
+  for (const [y, x0, x1] of SNAP.h) {
+    if (x1 < cx - hw || x0 > cx + hw) continue;
+    for (const c of [y + hh, y - hh]) if (Math.abs(c - cy) < by) { by = Math.abs(c - cy); ny = c; }
+  }
+  return [Math.round(nx), Math.round(ny)];           // wall faces are not on the grid; whole millimetres keep the numbers readable
 }
 
 // ---------------- doors ----------------
@@ -229,7 +304,7 @@ function distSeg(x, z, [ax, az, bx, bz]) {
   return Math.hypot(x - (ax + t * dx), z - (az + t * dz));
 }
 const rectBox = ([x0, y0, x1, y1]) => [toX(x0), toZ(y0), toX(x1), toZ(y1)];
-export const COLLIDERS = (() => {
+const STATIC = (() => {
   const segs = [], boxes = [];
   const ring = (poly) => poly.forEach(([x, y], i) => { const [x2, y2] = poly[(i + 1) % poly.length]; segs.push([toX(x), toZ(y), toX(x2), toZ(y2)]); });
   for (const w of house.walls) { ring(w.outer); w.holes.forEach(ring); }
@@ -237,19 +312,17 @@ export const COLLIDERS = (() => {
   for (const o of house.openings) if (o.kind === 'window') boxes.push(rectBox(o.rect_px));
   for (const d of house.doors) if (d.glazed) boxes.push(rectBox(d.rect_px));
   for (const d of DOORS) for (const p of d.panels_px) boxes.push(rectBox(p));
-  const st = house.furniture.filter((f) => f.type === 'stair');
-  if (st.length) boxes.push(rectBox([Math.min(...st.map((s) => s.rect_px[0])), Math.min(...st.map((s) => s.rect_px[1])), Math.max(...st.map((s) => s.rect_px[2])), Math.max(...st.map((s) => s.rect_px[3]))]));
-  for (const f of house.furniture) if (SOLID.has(f.type)) {
-    const b = rectBox(f.rect_px), pad = 0.05;
-    boxes.push([b[0] + pad, b[1] + pad, b[2] - pad, b[3] - pad]);
-  }
+  if (STAIRS_PX.length) boxes.push(rectBox([Math.min(...STAIRS_PX.map((r) => r[0])), Math.min(...STAIRS_PX.map((r) => r[1])), Math.max(...STAIRS_PX.map((r) => r[2])), Math.max(...STAIRS_PX.map((r) => r[3]))]));
+  boxes.push(worldRect(FIREPLACE, 0.05));
   return { segs, boxes };
 })();
-export const wallClearance = (x, z) => COLLIDERS.segs.reduce((m, s) => Math.min(m, distSeg(x, z, s)), Infinity);
+setLayout(currentLayout);
+export const COLLIDERS = { get segs() { return STATIC.segs; }, get boxes() { return STATIC.boxes.concat(furnBoxes); } };
+export const wallClearance = (x, z) => STATIC.segs.reduce((m, s) => Math.min(m, distSeg(x, z, s)), Infinity);
 export function blocked(x, z, doors, r = WALK_R) {
   if (Math.abs(x) > 40 || Math.abs(z) > 40) return true;
-  for (const s of COLLIDERS.segs) if (distSeg(x, z, s) < r) return true;
-  for (const [x0, z0, x1, z1] of COLLIDERS.boxes) {
+  for (const s of STATIC.segs) if (distSeg(x, z, s) < r) return true;
+  for (const list of [STATIC.boxes, furnBoxes]) for (const [x0, z0, x1, z1] of list) {
     const dx = x - Math.max(x0, Math.min(x, x1)), dz = z - Math.max(z0, Math.min(z, z1));
     if (dx * dx + dz * dz < r * r) return true;
   }

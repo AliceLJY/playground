@@ -1,5 +1,6 @@
-// Walk-in exhibit: orbit the furnished house, switch preset views, walk in through the front door,
-// drag the sun through a winter day, cut the walls down, swap the wood tone, replay the build from the plan.
+// Walk-in exhibit. It opens on the 2D plan, where furniture is dragged in from a library (plan2d.js). Switching to 3D
+// builds the house from that layout: orbit it, switch preset views, walk in through the front door, drag the sun through
+// a winter day, cut the walls down, swap the wood tone, replay the build from the plan.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -9,6 +10,7 @@ import * as C from './core.js';
 import { createKit } from './kit.js';
 import { buildExtra, buildStairs } from './extras.js';
 import { buildHouse } from './house.js';
+import { createPlan2D } from './plan2d.js';
 import planUrl from '../assets/floorplan.jpg';
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +19,7 @@ const COARSE = matchMedia('(pointer:coarse)').matches;
 const canvas = $('c');
 
 // light: 'studio' is a fixed high key light for looking at the model; 'sun' is the real winter-solstice sun at S.minute.
-const S = { mode: 'orbit', view: 'hero', style: 'oak', light: 'studio', cut: false, night: false, labels: true, auto: false, minute: 10 * 60, touring: false };
+const S = { mode2d: true, mode: 'orbit', view: 'hero', style: 'oak', light: 'studio', cut: false, night: false, labels: true, auto: false, minute: 10 * 60, touring: false };
 
 // ---------------- renderer, scene, light ----------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -45,6 +47,11 @@ const pm = new THREE.PMREMGenerator(renderer);
 const envTex = pm.fromScene(new RoomEnvironment(), 0.04).texture;
 pm.dispose();
 const kit = createKit(THREE, RoundedBoxGeometry, { envTex });
+
+// The 2D plan owns the furniture layout; every edit there marks the 3D furniture as stale.
+let furnDirty = false;
+const plan = createPlan2D({ getStyle: () => S.style, onChange: (layout) => { C.setLayout(layout); furnDirty = true; } });
+C.setLayout(plan.layout());
 
 const H = buildHouse();
 scene.add(H.group);
@@ -203,6 +210,8 @@ function setStyle(key) {
   S.style = key;
   H.setStyle(key);
   buildFurniture(key);
+  furnDirty = false;
+  plan.restyle();
   syncButtons();
   invalidate(true);
 }
@@ -230,6 +239,28 @@ function setView(name, { instant = false } = {}) {
   markView(name);
   invalidate();
 }
+
+// ---------------- 2D plan <-> 3D scene ----------------
+function setMode2D(on, { instant = false } = {}) {
+  if (S.mode2d === on) return;
+  S.mode2d = on;
+  document.body.classList.toggle('m2d', on); document.body.classList.toggle('m3d', !on);
+  if (on) {
+    if (S.mode === 'walk') exitWalk({ instant: true });
+    if (grow) endGrow();
+    tween = null;
+    if (S.auto) setAuto(false);
+    plan.shown();
+  } else {
+    if (furnDirty) { buildFurniture(S.style); furnDirty = false; }
+    resize();
+    if (instant) setPose(fitted(C.VIEWS.hero)); else startGrow();     // the house grows out of the plan just left
+    invalidate(true);
+  }
+}
+document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode2D(b.dataset.mode === '2d')));
+new ResizeObserver(() => document.documentElement.style.setProperty('--toph', $('top').offsetHeight + 'px')).observe($('top'));
+$('subtitle').textContent = `首层 · ${C.house.rooms.length} 个房间 · ${C.house.rooms.reduce((a, r) => a + r.area_m2, 0).toFixed(1)} m² · 尺寸单位 mm`;
 
 // ---------------- growing out of the plan ----------------
 const GROW_T = 4.8;
@@ -337,6 +368,7 @@ function exitWalk({ instant = false } = {}) {
 }
 function startTour(name) {
   walk.route = { pts: C.ROUTES[name].map(([px, py]) => [C.toX(px), C.toZ(py)]), i: 0, end: name === 'tour' ? LOOK_AT : null };
+  walk.stuck = 0; walk.routeT = 0;
   walk.look = null;
   S.touring = true;
   syncButtons();
@@ -370,7 +402,12 @@ function stepWalkMode(dt) {
     if (Math.abs(Math.atan2(Math.sin(want - walk.yaw), Math.cos(want - walk.yaw))) < 0.004) walk.look = null;
     moving = true;
   }
-  if (vx || vz) { C.stepWalk(walk, vx, vz, dt, doors); moving = true; }
+  if (vx || vz) {
+    const went = C.stepWalk(walk, vx, vz, dt, doors);
+    moving = true;
+    // furniture moved onto the route: give up instead of pushing against it for ever
+    if (walk.route) { walk.routeT += dt; walk.stuck = went < C.WALK_SPEED * dt * 0.2 ? (walk.stuck || 0) + dt : 0; if (walk.stuck > 1.2 || walk.routeT > 40) stopTour(); }
+  }
   const before = doors.map((d) => d.k);
   C.stepDoors(doors, walk.x, walk.z, dt);
   if (doors.some((d, i) => d.k !== before[i])) { H.setDoors(doors); renderer.shadowMap.needsUpdate = true; moving = true; }
@@ -387,7 +424,7 @@ function lookBy(dx, dy) {
 // ---------------- labels ----------------
 const labelEls = C.house.rooms.map((r) => {
   const el = document.createElement('div');
-  el.className = 'room';
+  el.className = 'room3';
   el.innerHTML = `<b>${r.name_zh}</b><span>${r.area_m2.toFixed(1)} ㎡</span>`;
   $('labels').appendChild(el);
   return { el, v: new THREE.Vector3(C.toX(r.center_px[0]), 0.4, C.toZ(r.center_px[1])) };
@@ -412,7 +449,7 @@ function syncButtons() {
   $('styleName').textContent = C.STYLES[S.style].zh;
   $('hint').textContent = S.mode === 'walk'
     ? (COARSE ? '左下摇杆走动 · 拖动画面转头 · 走近门会自己开' : 'W A S D 走动 · 拖动画面转头 · Shift 快走 · 走近门会自己开 · Esc 退出')
-    : (COARSE ? '单指转动 · 双指缩放' : '拖动旋转 · 滚轮缩放 · 数字键 1–6 切机位');
+    : (COARSE ? '单指转动 · 双指缩放 · 回 2D 平面可以摆家具' : '拖动旋转 · 滚轮缩放 · 数字键 1–6 切机位 · T 回 2D 平面摆家具');
 }
 const ACTS = {
   walk: () => (S.mode === 'walk' ? exitWalk() : enterWalk()),
@@ -434,9 +471,18 @@ $('sun').addEventListener('input', (e) => { if (S.night) setNight(false); S.minu
 $('sunmeta').textContent = `${C.house.sun.place} · ${C.house.sun.date_zh}（假设）· 日出 ${C.house.sun.sunrise} · 日落 ${C.house.sun.sunset}`;
 
 addEventListener('keydown', (e) => {
-  if (e.target.matches('input,select,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.matches('input,select,textarea') || e.altKey) return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (S.mode2d) {                                   // on the plan: T goes to 3D, C swaps the wood, the rest edits furniture
+    if (!mod && e.code === 'KeyT') return setMode2D(false);
+    if (!mod && e.code === 'KeyC') return ACTS.style();
+    plan.handleKey(e);
+    return;
+  }
+  if (mod) return;
   keys[e.code] = true;
   if (e.repeat) return;
+  if (e.code === 'KeyT' && S.mode !== 'walk') return setMode2D(true);
   const digit = /^Digit([1-6])$/.exec(e.code);
   if (digit) return setView(C.VIEW_KEYS[+digit[1] - 1]);
   const map = { KeyF: 'walk', KeyX: 'cut', KeyN: 'night', KeyC: 'style', KeyL: 'labels', KeyO: 'auto', KeyG: 'grow', KeyT: 'tour', KeyR: 'sunmode' };
@@ -481,6 +527,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (S.mode2d) return;
   let active = false;
   if (grow) {
     grow.t += dt;
@@ -511,7 +558,7 @@ function frame(now) {
 // ---------------- hooks for checks and recording ----------------
 function renderNow() { renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera); updateLabels(); metrics.calls = renderer.info.render.calls; metrics.triangles = renderer.info.render.triangles; }
 window.__house = {
-  ready: false, state: S, metrics, core: C, dev: { sun, hemi, H, camera, walk, lamps, renderNow, placeWalkCamera },
+  ready: false, state: S, metrics, core: C, plan, to3d: (o) => setMode2D(false, o), to2d: () => setMode2D(true), dev: { sun, hemi, H, camera, walk, lamps, renderNow, placeWalkCamera },
   setView: (n, o) => { setView(n, o); renderNow(); }, setMinute: (m) => { setMinute(m); renderNow(); }, setNight: (b) => { setNight(b); renderNow(); },
   setLight: (m) => { setLight(m); renderNow(); }, setStyle: (k) => { setStyle(k); renderNow(); }, setCut: (b) => { setCut(b); renderNow(); }, setLabels: (b) => { setLabels(b); renderNow(); },
   grow: startGrow, enterWalk, exitWalk, startTour,
@@ -525,7 +572,7 @@ window.__house = {
     H.setDoors(doors); placeWalkCamera(); renderNow();
     return { done: log.done, t: log.t, minClear: log.minClear, crossings: log.crossings };
   },
-  probe: () => ({ mode: S.mode, view: S.view, walk: { x: walk.x, z: walk.z, yaw: walk.yaw }, doors: doors.map((d) => d.k), dpr: DPR,
+  probe: () => ({ mode2d: S.mode2d, pieces: plan.layout().length, built: items.length, mode: S.mode, view: S.view, walk: { x: walk.x, z: walk.z, yaw: walk.yaw }, doors: doors.map((d) => d.k), dpr: DPR,
     buffer: [renderer.domElement.width, renderer.domElement.height], growing: !!grow, tweening: !!tween, ...metrics }),
   // Where the house sits on screen: bounding box of the footprint corners as fractions of the viewport.
   screenBox() {
@@ -560,12 +607,15 @@ new THREE.TextureLoader().load(planUrl, (tex) => {
   if (Q.get('night') === '1') setNight(true);
   if (Q.get('labels') === '0') setLabels(false);
   if (Q.get('debug') === '1') document.body.classList.add('debug');
+  // Any ?view= goes straight to that 3D state; without it the page opens on the 2D plan.
   const view = Q.get('view');
   setPose(fitted(C.VIEWS.hero));
-  if (view === 'walk') window.__house.walkTo('tour');
-  else if (view === 'cut') { setCut(true); setView('hero', { instant: true }); }
-  else if (view && C.VIEWS[view]) setView(view, { instant: true });
-  else if (view !== 'still') startGrow();
+  if (view && view !== '2d') {
+    setMode2D(false, { instant: true });
+    if (view === 'walk') window.__house.walkTo('tour');
+    else if (view === 'cut') { setCut(true); setView('hero', { instant: true }); }
+    else if (C.VIEWS[view]) setView(view, { instant: true });
+  } else plan.shown();
   syncButtons();
   renderNow();
   requestAnimationFrame(frame);
