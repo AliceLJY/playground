@@ -77,6 +77,7 @@ Draw calls include the shadow pass.
 - Readings: the same patch of living-room floor reads 161 in oak and 92 in walnut; at night the rooms read 75 against 21 outside.
 - Phone portrait: no horizontal overflow, the walk button is on the first screen, the joystick appears and moves the walker 1.14 m.
 - No page errors and no outside requests in the 11 fixed views, the visitor run or the phone run.
+- Live: the published page is byte-identical to the local bundle (SHA-256 starts `5e5a57a4a8df5371`, 1,183,201 bytes), and the same checks run against the live address pass 22 of 22. The first live run recorded one 404 from the browser looking for a site icon; it went away once the page declared an empty icon.
 
 **Screenshots read**: overview, plan, four rooms, cut, walk, night, real sun, walnut, two frames of the opening, one frame of the door opening and two phone shots were each looked at. Problems found that way and fixed: white walls rendering grey (fill light set too low for physical light units, and the tone curve crushed whites), thin light leaks along wall tops and beside windows, the house too small and labels overlapping on a portrait screen, the toolbar covering the hint text.
 
