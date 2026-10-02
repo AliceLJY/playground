@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#140C09"><meta name="description" content="散场后的皮影戏幕上，举着小铜锣守住幕后的油灯：兵器一透光变亮就格挡，卡准了锣声一响、时间慢半拍。">
+<title>灯影守夜 · Shadow Gong</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23140C09'/%3E%3Ccircle cx='32' cy='34' r='19' fill='%23D9A441' stroke='%23F4C27A' stroke-width='3'/%3E%3Ccircle cx='32' cy='34' r='6' fill='%23F7DB93'/%3E%3Cpath d='M28 9h8l-2 7h-4z' fill='%23C4462C'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<canvas id="view" aria-label="灯影守夜的皮影戏幕画面"></canvas>
+<div id="menu" class="screen">
+  <header class="topline"><a href="../">← 玩具架</a><span>散场后 · 加演一出</span></header>
+  <main class="ticket">
+    <section class="ticket-main">
+      <p class="eyebrow">今夜加演 · 皮影戏幕</p>
+      <h1>灯影守夜</h1>
+      <p class="en">SHADOW GONG</p>
+      <p class="intro">戏散了，幕后那盏油灯还亮着。扑灯蛾、剪刀精、偷油鼠王轮番上幕——兵器一透光变亮，就举锣挡回去。</p>
+      <button id="start" class="primary">开 锣</button>
+      <p class="note" id="start-note">一局三五分钟 · Esc 暂停 · 手机横屏更好玩</p>
+    </section>
+    <aside class="stub">
+      <span class="stub-no">No. 0001 · 座位随意</span>
+      <dl class="keys desk-keys">
+        <dt>格挡</dt><dd>K · 空格 · 鼠标右键</dd>
+        <dt>攻击 · 处决</dt><dd>J · 鼠标左键</dd>
+        <dt>闪避</dt><dd>L · Shift</dd>
+        <dt>走位</dt><dd>A D · ← →</dd>
+      </dl>
+      <dl class="keys touch-keys">
+        <dt>格挡</dt><dd>右下大圆「锣」</dd>
+        <dt>攻击 · 处决</dt><dd>「槌」</dd>
+        <dt>闪避</dt><dd>「闪」</dd>
+        <dt>走位</dt><dd>左下 ◀ ▶</dd>
+      </dl>
+      <p class="stub-rule">按下那一刻才算数：看见白光再按一下，别一直按住，也别连按。红光挡不住，闪开。</p>
+    </aside>
+  </main>
+</div>
+<div id="hud" hidden>
+  <div class="vitals">
+    <div class="vital"><span class="label">灯油</span><div class="bar oil"><i id="oil"></i></div></div>
+    <div class="vital"><span class="label">架势</span><div class="bar posture"><i id="posture"></i></div></div>
+    <div id="chain" class="chain"></div>
+  </div>
+  <div id="plate" class="plate"><small id="plate-title">开锣</small><b id="plate-name">灯影守夜</b></div>
+  <div class="hud-right"><button id="sound" aria-label="关闭声音">声音 开</button><button id="pause-button" aria-label="暂停">歇</button></div>
+  <div id="boss" class="boss" hidden><div class="boss-name">偷油鼠王<span id="boss-marks"></span></div><div class="bar boss-posture"><i id="boss-posture"></i></div></div>
+  <div id="hint" class="hint" role="status"></div>
+  <div id="call" class="call" aria-live="polite"></div>
+  <div id="touch" class="touch">
+    <div class="pad-left"><button data-key="left" aria-label="向左走">◀</button><button data-key="right" aria-label="向右走">▶</button></div>
+    <div class="pad-right"><button data-key="dodge" class="small">闪</button><button data-key="attack" class="mid">槌</button><button data-key="block" class="big">锣</button></div>
+  </div>
+  <div id="orientation" class="orientation">横过来更好玩</div>
+</div>
+<div id="pause" class="overlay" hidden><section class="panel"><p class="eyebrow">中场歇一歇</p><h2>灯还亮着。</h2><button id="resume" class="primary">接着演</button><button id="restart" class="secondary">从头开锣</button><button id="exit" class="text">回到戏票</button></section></div>
+<div id="result" class="overlay" hidden><section class="panel"><p class="eyebrow" id="result-eyebrow">散场</p><h2 id="result-title">灯守住了。</h2><div id="result-stats" class="stats"></div><button id="again" class="primary">再演一场</button><button id="back" class="text">回到戏票</button></section></div>
+<div id="error" class="overlay" hidden><section class="panel"><h2>戏幕没点亮</h2><p id="error-text"></p><button onclick="location.reload()" class="primary">再试一次</button></section></div>
+<script src="vendor/three.min.js"></script><script src="src/stage.js"></script><script src="src/rig.js"></script><script src="src/core.js"></script><script src="src/audio.js"></script><script src="src/world.js"></script><script src="src/game.js"></script>
+</body></html>
