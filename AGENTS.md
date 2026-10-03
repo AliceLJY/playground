@@ -55,6 +55,8 @@
 - 人形角色动作：Mixamo 动捕、行进动作的根运动、按速度匹配步态；用时间扭曲把出手帧对齐玩法命中窗。
 - 格挡或弹反：先做按下时间戳、刀尖预警、命中窗与朝向判定，再用顿帧和慢动作反馈命中；参数由本玩意规格确定。
 - 验收做法参考 `shadow-gong/` 的测试与源码，复现步骤和实测记录见 `shadow-gong/VERIFICATION.md`。
+- 海面、水下、天空和钓鱼玩法：[tidewater](https://github.com/dgreenheck/tidewater/tree/4811ba4)，固定 `4811ba4`，MIT。作者自写的 WebGPU+WGSL 引擎，不是 three.js，规模远大于本仓的玩意，只取局部算法或玩法参数（例如按水域、深度、时段咬钩，拉力保持在绿区的搏鱼）；搬代码要保留版权和许可声明，第三方素材另见它的 `CREDITS.md`。
+- 竞速漂移和骑行：[riba2534/claude-opus-5-5-demo](https://github.com/riba2534/claude-opus-5-5-demo/tree/54adc1f) 里的 QQ 飞车和鹈鹕骑车，固定 `54adc1f`。仓库没有许可证，只看线上页面和 README，不搬代码。可借「开发前先用脚本生成赛道俯视图，检查弯道和交叉点」（其 `README.md:60`）。小橘飞车已经有漂移、小喷和氮气，取用前先和现有实现对照。
 
 ## 6. 保持小规模与诚实交付
 
