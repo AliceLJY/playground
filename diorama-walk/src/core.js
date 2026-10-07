@@ -1,0 +1,634 @@
+// 微缩街角·走进去 — pure logic, no three.js. Node tests import this file directly; the page renders what it computes.
+// Units: metres. World origin at the centre of the base top, +y up, +z towards the street. Yaw 0 looks along -z.
+
+// ---------------- small maths ----------------
+export const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+export const clamp01 = (v) => clamp(v, 0, 1);
+export const lerp = (a, b, k) => a + (b - a) * k;
+export const smooth = (a, b, t) => { const k = clamp01((t - a) / (b - a)); return k * k * (3 - 2 * k); };
+export const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+export const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+export const lerpAngle = (a, b, k) => a + wrapAngle(b - a) * k;
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export function rng(seed) {                      // mulberry32: the same seed gives the same rain everywhere
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+export function invEaseInOut(e) {                 // inverse of easeInOut by bisection (monotonic)
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (easeInOut(m) < e) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+
+// ---------------- palette (sRGB hex, SPEC 配色) ----------------
+export const COLORS = {
+  sky: '#0E1420', baseSide: '#1B2230', street: '#2A2F38', sidewalk: '#3A3F48',
+  storeWall: '#C9CED6', nextWall: '#8A6F5A', glass: '#9FC4D8', storeLight: '#FFF4E0', nextLight: '#FFB46B',
+  freezer: '#DDF3FF', vending: '#F2F7FF', lamp: '#FFC27A', rain: '#A9C4DD', accent: '#E8B04A',
+};
+export const GLASS_OPACITY = 0.25, RAIN_OPACITY = 0.35;
+// Colours the spec leaves open (furniture, floors, roofs). Greys and browns that sit between the spec colours.
+export const EXTRA_COLORS = {
+  storeRoof: '#AAB0B9', nextRoof: '#6C5747', storeFloor: '#C7CBD1', storeGrid: '#8D949E', nextFloor: '#5E4B3D',
+  shelf: '#8B94A1', shelfBoard: '#B7BEC8', freezerBody: '#A9B2BE', counter: '#7D8591', dark: '#11151D', mat: '#3A4252',
+  frame: '#2B313B', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
+  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E',
+};
+
+// ---------------- layout (SPEC 尺度与布局) ----------------
+export const BASE = { half: 13, thick: 0.6 };
+export const WALK_BOX = BASE.half - 1.5;         // walkable square: base inset 1.5 m
+export const ROAD = { z0: 3.5, z1: 10.5 };        // 7 m street
+export const SIDEWALK_H = 0.12;                  // pavement and shop floors stand 0.12 above the road
+export const FACADE_Z = 0.5;                     // shop fronts; the 3 m pavement runs from here to the road
+export const WALL_T = 0.2;
+export const DOOR_H = 2.3;
+export const EYE_H = 1.6;
+export const R = 0.25;                           // walker radius
+export const WALK_SPEED = 1.3, RUN_SPEED = 2.6;
+export const groundAt = (x, z) => (z > ROAD.z0 && z < ROAD.z1 ? 0 : SIDEWALK_H);
+
+export const STORE = { id: 'store', name: '便利店', x0: -3, x1: 9, z0: -8.5, z1: FACADE_Z, h: 3.6, door: { cx: 5.0, w: 1.8 } };
+export const NEXT = { id: 'next', name: '隔壁小店', x0: -9, x1: -3, z0: -7.5, z1: FACADE_Z, h: 3.4, door: { cx: -6.0, w: 1.2 } };
+export const BUILDINGS = [STORE, NEXT];
+
+// Doors: proximity opening, frame-rate independent (SPEC 里面怎么走 / 碰撞)
+export const DOOR_NEAR = 2.2, DOOR_SPEED = 1.6, DOOR_PASS = 0.75;
+export const DOORS = BUILDINGS.map((b) => ({
+  id: b.id, cx: b.door.cx, cz: b.z1 - WALL_T / 2, w: b.door.w,
+  x0: b.door.cx - b.door.w / 2, x1: b.door.cx + b.door.w / 2, z0: b.z1 - WALL_T, z1: b.z1,
+}));
+export const newDoors = () => DOORS.map(() => ({ k: 0, want: 0 }));
+
+const B3 = (id, kind, x0, y0, z0, x1, y1, z1, extra = {}) => ({ id, kind, x0, y0, z0, x1, y1, z1, ...extra });
+
+// Every solid as a 3D box. Walls are split at the door openings; the closed door leaves are their own box.
+// "lift" marks the parts that are hidden while the camera rises out of that building (roof, fascia, lintel).
+const STATIC_SOLIDS = (() => {
+  const S = [], T = WALL_T;
+  for (const b of BUILDINGS) {
+    const d = DOORS.find((q) => q.id === b.id);
+    S.push(B3(b.id + ':back', 'wall', b.x0, 0, b.z0, b.x1, b.h, b.z0 + T));
+    S.push(B3(b.id + ':west', 'wall', b.x0, 0, b.z0, b.x0 + T, b.h, b.z1));
+    S.push(B3(b.id + ':east', 'wall', b.x1 - T, 0, b.z0, b.x1, b.h, b.z1));
+    S.push(B3(b.id + ':front-l', 'wall', b.x0 + T, 0, b.z1 - T, d.x0, b.h, b.z1));
+    S.push(B3(b.id + ':front-r', 'wall', d.x1, 0, b.z1 - T, b.x1 - T, b.h, b.z1));
+    S.push(B3(b.id + ':lintel', 'wall', d.x0, SIDEWALK_H + DOOR_H, b.z1 - T, d.x1, b.h, b.z1, { lift: b.id }));
+    S.push(B3(b.id + ':roof', 'roof', b.x0, b.h - 0.2, b.z0, b.x1, b.h, b.z1, { lift: b.id }));
+  }
+  const F = SIDEWALK_H;
+  // convenience store: three shelf rows (5 x 0.6 x 1.5), freezers on the back wall (7 x 0.7 x 2.0), till (2.4 x 0.6 x 1.0)
+  for (const cx of [-1.2, 0.8, 2.8]) S.push(B3('shelf@' + cx, 'furniture', cx - 0.3, F, -6.2, cx + 0.3, F + 1.5, -1.2));
+  S.push(B3('freezer', 'furniture', -2.0, F, -8.3, 5.0, F + 2.0, -7.6));
+  S.push(B3('counter', 'furniture', 7.0, F, -3.8, 7.6, F + 1.0, -1.4));
+  S.push(B3('backdoor-leaf', 'furniture', 6.0, F, -8.3, 6.77, F + 2.1, -7.66));   // half-open staff door, for show
+  // the shop next door: one bar and four stools
+  S.push(B3('bar', 'furniture', -8.4, F, -5.2, -4.0, F + 1.05, -4.6));
+  for (const cx of [-7.6, -6.7, -5.8, -4.9]) S.push(B3('stool@' + cx, 'furniture', cx - 0.2, F, -4.2, cx + 0.2, F + 0.7, -3.8));
+  S.push(B3('kitchen-shelf', 'furniture', -8.6, F, -7.3, -5.0, F + 1.8, -6.9));
+  // street furniture: vending machine (0.9 x 0.7 x 1.83) right of the store door, lamp (4.5 m), bench
+  S.push(B3('vending', 'furniture', 6.5, F, FACADE_Z, 7.4, F + 1.83, FACADE_Z + 0.7));
+  S.push(B3('lamp', 'furniture', -1.65, F, 2.95, -1.35, F + 4.5, 3.25));     // pole base; the lantern on top is no wider than 0.4
+  S.push(B3('bench', 'furniture', 0.2, F, FACADE_Z + 0.12, 1.8, F + 0.45, FACADE_Z + 0.57));
+  // low fences close the gaps beside the shops, so the walkable street ends at the shop fronts
+  S.push(B3('fence-e', 'furniture', STORE.x1, F, FACADE_Z - 0.15, BASE.half, F + 1.0, FACADE_Z + 0.05));
+  S.push(B3('fence-w', 'furniture', -BASE.half, F, FACADE_Z - 0.15, NEXT.x0, F + 1.0, FACADE_Z + 0.05));
+  return S;
+})();
+export const LAMP = { x: -1.5, z: 3.1, top: SIDEWALK_H + 4.5 };
+const DOOR_SOLIDS = DOORS.map((d, i) => B3(d.id + ':door', 'door', d.x0, SIDEWALK_H, d.z0, d.x1, SIDEWALK_H + DOOR_H, d.z1, { door: i }));
+
+// All solids, with door leaves marked active while they still block (opening below DOOR_PASS).
+export function solids(doors = newDoors()) {
+  return STATIC_SOLIDS.concat(DOOR_SOLIDS.map((s) => ({ ...s, active: doors[s.door].k < DOOR_PASS })));
+}
+// 2D boxes [x0, z0, x1, z1] that stop a walker: anything overlapping the body height above the floor.
+const BODY = [SIDEWALK_H + 0.02, SIDEWALK_H + 1.9];
+const STATIC_WALK = STATIC_SOLIDS.filter((s) => s.y1 > BODY[0] && s.y0 < BODY[1]).map((s) => [s.x0, s.z0, s.x1, s.z1]);
+export function walkBoxes(doors) {
+  const out = STATIC_WALK.slice();
+  DOOR_SOLIDS.forEach((s) => { if (!doors || doors[s.door].k < DOOR_PASS) out.push([s.x0, s.z0, s.x1, s.z1]); });
+  return out;
+}
+export const buildingAt = (x, z, front = 0) => BUILDINGS.find((b) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 + front) || null;
+export const insideInterior = (x, z) => BUILDINGS.some((b) => x > b.x0 + WALL_T && x < b.x1 - WALL_T && z > b.z0 + WALL_T && z < b.z1 - WALL_T);
+// Outdoor walkable area (pavement, street, far kerb) inside the walkable square; landings always end here.
+export const OUTDOOR = { x0: -WALK_BOX, x1: WALK_BOX, z0: FACADE_Z, z1: WALK_BOX };
+
+// ---------------- collision ----------------
+export function boxDist(x, z, b) {
+  const dx = x - clamp(x, b[0], b[2]), dz = z - clamp(z, b[1], b[3]);
+  return Math.hypot(dx, dz);
+}
+// Circle against boxes: push out along the shortest way. A few passes settle corners.
+export function resolveCircle(p, boxes, r = R) {
+  const lim = WALK_BOX - r;
+  for (let it = 0; it < 6; it++) {
+    let moved = false;
+    for (const b of boxes) {
+      const qx = clamp(p.x, b[0], b[2]), qz = clamp(p.z, b[1], b[3]);
+      const dx = p.x - qx, dz = p.z - qz, d2 = dx * dx + dz * dz;
+      if (d2 >= r * r - 1e-12) continue;
+      moved = true;
+      if (d2 > 1e-14) { const d = Math.sqrt(d2), k = (r - d) / d; p.x += dx * k; p.z += dz * k; }
+      else {                                   // centre inside the box: leave by the nearest side
+        const l = p.x - b[0], rr = b[2] - p.x, t = p.z - b[1], bo = b[3] - p.z, m = Math.min(l, rr, t, bo);
+        if (m === l) p.x = b[0] - r; else if (m === rr) p.x = b[2] + r; else if (m === t) p.z = b[1] - r; else p.z = b[3] + r;
+      }
+    }
+    const cx = clamp(p.x, -lim, lim), cz = clamp(p.z, -lim, lim);
+    if (cx !== p.x || cz !== p.z) { p.x = cx; p.z = cz; moved = true; }
+    if (!moved) break;
+  }
+}
+// Move by (dx, dz) in small sub-steps (no tunnelling through 0.2 m walls). Records the path for the doors.
+export function moveCircle(p, dx, dz, boxes, dt, path) {
+  const len = Math.hypot(dx, dz), n = Math.max(1, Math.ceil(len / 0.05));
+  const x0 = p.x, z0 = p.z;
+  for (let i = 0; i < n; i++) {
+    const ax = p.x, az = p.z;
+    p.x += dx / n; p.z += dz / n;
+    resolveCircle(p, boxes);
+    if (path) path.push([ax, az, p.x, p.z, dt / n]);
+  }
+  return Math.hypot(p.x - x0, p.z - z0);
+}
+
+// ---------------- doors ----------------
+// Open while the walker is within DOOR_NEAR of the door centre. The walker moves in straight lines within a
+// (sub)step, so the time spent inside the radius is solved exactly: the opening never depends on the step size.
+function ramp(st, open, t) { if (t > 0) st.k = clamp01(st.k + (open ? 1 : -1) * DOOR_SPEED * t); }
+export function doorSegment(st, d, x0, z0, x1, z1, dt) {
+  const ax = x0 - d.cx, az = z0 - d.cz, bx = x1 - x0, bz = z1 - z0, R2 = DOOR_NEAR * DOOR_NEAR;
+  const A = bx * bx + bz * bz, B = 2 * (ax * bx + az * bz), Cc = ax * ax + az * az - R2;
+  let ta = 1, tb = 1;
+  if (A < 1e-14) { if (Cc < 0) { ta = 0; tb = 1; } }
+  else {
+    const disc = B * B - 4 * A * Cc;
+    if (disc > 0) { const q = Math.sqrt(disc); ta = clamp01((-B - q) / (2 * A)); tb = clamp01((-B + q) / (2 * A)); }
+  }
+  ramp(st, false, ta * dt); ramp(st, true, (tb - ta) * dt); ramp(st, false, (1 - tb) * dt);
+  st.want = Math.hypot(x1 - d.cx, z1 - d.cz) < DOOR_NEAR ? 1 : 0;
+}
+export function stepDoorsPath(doors, path) { for (const [x0, z0, x1, z1, dt] of path) DOORS.forEach((d, i) => doorSegment(doors[i], d, x0, z0, x1, z1, dt)); }
+export function closeDoors(doors, dt) { doors.forEach((st) => { st.want = 0; ramp(st, false, dt); }); }
+
+// ---------------- camera maths ----------------
+export function basis(yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const f = [-sy * cp, sp, -cy * cp], r = [cy, 0, -sy];
+  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  return { f, r, u };
+}
+// Screen position in [0, 1] from the top-left, and depth along the view direction.
+export function project(cam, fov, aspect, p) {
+  const { f, r, u } = basis(cam.yaw, cam.pitch);
+  const d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], zc = dot(d, f), t = Math.tan((fov * Math.PI) / 360);
+  return { x: 0.5 + dot(d, r) / (zc * t * aspect) / 2, y: 0.5 - dot(d, u) / (zc * t) / 2, depth: zc };
+}
+export function screenRay(cam, fov, aspect, sx, sy) {
+  const { f, r, u } = basis(cam.yaw, cam.pitch), t = Math.tan((fov * Math.PI) / 360);
+  const nx = (2 * sx - 1) * t * aspect, ny = (1 - 2 * sy) * t;
+  const d = [f[0] + r[0] * nx + u[0] * ny, f[1] + r[1] * nx + u[1] * ny, f[2] + r[2] * nx + u[2] * ny], L = Math.hypot(...d);
+  return { o: [cam.x, cam.y, cam.z], d: d.map((v) => v / L) };
+}
+export function rayBox(o, d, b) {
+  let t0 = 0, t1 = Infinity;
+  const ax = [[o[0], d[0], b.x0, b.x1], [o[1], d[1], b.y0, b.y1], [o[2], d[2], b.z0, b.z1]];
+  for (const [oi, di, lo, hi] of ax) {
+    if (Math.abs(di) < 1e-12) { if (oi < lo || oi > hi) return Infinity; continue; }
+    let ta = (lo - oi) / di, tb = (hi - oi) / di;
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+    if (t0 > t1) return Infinity;
+  }
+  return t0;
+}
+export const orbitCamera = (o) => {
+  const sp = Math.sin(o.phi);
+  return { x: o.cx + o.r * sp * Math.sin(o.theta), y: o.cy + o.r * Math.cos(o.phi), z: o.cz + o.r * sp * Math.cos(o.theta), yaw: o.theta, pitch: -(Math.PI / 2 - o.phi) };
+};
+
+// ---------------- the one progress value s (SPEC 构图与过渡) ----------------
+export const MAP = {
+  fov: (s) => 35 + 30 * smooth(0.3, 1, s),
+  tilt: (s) => 1 - smooth(0.2, 0.75, s),
+  fog: (s) => 0.035 * smooth(0.35, 1, s),
+  rainMix: (s) => smooth(0.4, 0.9, s),            // 0: rain in a box over the base, 1: a 12 m cylinder round the camera
+  groundAlpha: (s) => smooth(0.5, 0.75, s),       // the 200 x 200 street-coloured ground, only after s = 0.5
+  baseSides: (s) => s <= 0.8,
+  lowpass: (s) => 600 * Math.pow(4000 / 600, clamp01(s)),
+  volume: (s) => 0.15 + 0.35 * clamp01(s),
+};
+export function looks(s) {
+  return { s, fov: MAP.fov(s), tilt: MAP.tilt(s), fog: MAP.fog(s), rainMix: MAP.rainMix(s), groundAlpha: MAP.groundAlpha(s),
+    baseSides: MAP.baseSides(s), lowpass: MAP.lowpass(s), volume: MAP.volume(s) };
+}
+export const S_PER_Z = 0.3, Z_ENTER = 0.85, R_IN = 14;   // manual zoom: s = 0.3 z, radius hero -> 14 m, auto entry at z >= 0.85
+export const ENTER_TIME = 1.4, EXIT_TIME = 1.2;
+export const rOf = (z, rHero) => rHero * Math.pow(R_IN / rHero, z);
+export const zOf = (r, rHero) => Math.log(r / rHero) / Math.log(R_IN / rHero);
+
+// ---------------- framing (SPEC: hero) ----------------
+export const HERO = { theta: 0.42, phi: 0.96, center: [2.2, 0.6, 5.0], fov: 35 };   // centre pulled towards the camera so the model sits mid-frame
+export const PHI_RANGE = [0.45, 1.2];
+const corners = (b) => { const o = []; for (const x of [b.x0, b.x1]) for (const y of [b.y0, b.y1]) for (const z of [b.z0, b.z1]) o.push([x, y, z]); return o; };
+export const BASE_BOX = { x0: -BASE.half, y0: -BASE.thick, z0: -BASE.half, x1: BASE.half, y1: 0, z1: BASE.half };
+const BASE_PTS = corners(BASE_BOX);
+const MODEL_PTS = BASE_PTS.concat(...STATIC_SOLIDS.map(corners), corners({ x0: LAMP.x - 0.2, x1: LAMP.x + 0.2, y0: 0, y1: LAMP.top, z0: LAMP.z - 0.2, z1: LAMP.z + 0.2 }));
+export function screenBoxOf(cam, fov, aspect, pts) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of pts) { const q = project(cam, fov, aspect, p); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+export const boxesAt = (cam, fov, aspect) => ({ base: screenBoxOf(cam, fov, aspect, BASE_PTS), model: screenBoxOf(cam, fov, aspect, MODEL_PTS) });
+export const heroOrbitAt = (r) => ({ cx: HERO.center[0], cy: HERO.center[1], cz: HERO.center[2], r, theta: HERO.theta, phi: HERO.phi });
+// Landscape: the base box takes 70% of the width. Portrait (aspect < 0.8): fit by width. Then back off until the whole
+// model (roofs and lamp included) keeps at least 4% from every edge.
+export function heroRadius(aspect) {
+  const target = aspect < 0.8 ? 0.82 : 0.7, margin = 0.04;
+  const at = (r) => boxesAt(orbitCamera(heroOrbitAt(r)), HERO.fov, aspect);
+  let lo = 5, hi = 4000;
+  for (let i = 0; i < 80; i++) { const m = Math.sqrt(lo * hi); if (at(m).base.w > target) lo = m; else hi = m; }
+  let r = hi;
+  const fits = (b) => b.model.x0 >= margin && b.model.y0 >= margin && b.model.x1 <= 1 - margin && b.model.y1 <= 1 - margin;
+  for (let i = 0; i < 400 && !fits(at(r)); i++) r *= 1.01;
+  return r;
+}
+
+// ---------------- aiming, landing, path ----------------
+export const AIMS = {
+  door: [STORE.door.cx, SIDEWALK_H + 1.2, STORE.z1],
+  street: [1.0, 0, 6.8],
+  roof: [(STORE.x0 + STORE.x1) / 2, STORE.h, (STORE.z0 + STORE.z1) / 2],
+};
+export function aimPoint(aim) {
+  if (typeof aim === 'string') { if (!AIMS[aim]) throw new Error('unknown aim ' + aim); return AIMS[aim].slice(); }
+  const b = buildingAt(aim.x, aim.z);
+  return [aim.x, b ? b.h : groundAt(aim.x, aim.z), aim.z];
+}
+// First thing the aiming ray meets: a building (its box from the ground to the roof) or the ground.
+export function aimHit(o, d) {
+  let best = { kind: 'none', t: Infinity };
+  for (const b of BUILDINGS) {
+    const t = rayBox(o, d, { x0: b.x0, x1: b.x1, y0: 0, y1: b.h, z0: b.z0, z1: b.z1 });
+    if (t < best.t) best = { kind: 'building', b, t };
+  }
+  if (d[1] < -1e-6) {
+    let t = (SIDEWALK_H - o[1]) / d[1];
+    if (groundAt(o[0] + d[0] * t, o[2] + d[2] * t) === 0) t = -o[1] / d[1];
+    if (t > 0 && t < best.t) {
+      const x = o[0] + d[0] * t, z = o[2] + d[2] * t, b = buildingAt(x, z);
+      best = b ? { kind: 'building', b, t } : { kind: 'ground', x, z, t };
+    }
+  }
+  return best;
+}
+// Push a point until it is at least `clear` from every solid (doors counted shut), staying outdoors.
+export function pushClear(x, z, clear = 0.4) {
+  const boxes = walkBoxes(null), p = { x, z };
+  for (let it = 0; it < 12; it++) {
+    let moved = false;
+    for (const b of boxes) {
+      const qx = clamp(p.x, b[0], b[2]), qz = clamp(p.z, b[1], b[3]), dx = p.x - qx, dz = p.z - qz, d = Math.hypot(dx, dz);
+      if (d >= clear - 1e-9) continue;
+      moved = true;
+      if (d > 1e-9) { p.x = qx + (dx / d) * clear; p.z = qz + (dz / d) * clear; }
+      else {
+        const l = p.x - b[0], rr = b[2] - p.x, t = p.z - b[1], bo = b[3] - p.z, m = Math.min(l, rr, t, bo);
+        if (m === l) p.x = b[0] - clear; else if (m === rr) p.x = b[2] + clear; else if (m === t) p.z = b[1] - clear; else p.z = b[3] + clear;
+      }
+    }
+    const cx = clamp(p.x, OUTDOOR.x0 + clear, OUTDOOR.x1 - clear), cz = clamp(p.z, OUTDOOR.z0 + clear, OUTDOOR.z1 - clear);
+    if (cx !== p.x || cz !== p.z) { p.x = cx; p.z = cz; moved = true; }
+    if (!moved) break;
+  }
+  return [p.x, p.z];
+}
+export const doorLanding = (b) => ({ x: b.door.cx, z: b.z1 + 1.2, yaw: 0, building: b.id });   // 1.2 m out, facing the door (-z)
+export function landingFor(hit, yaw) {
+  if (hit.kind === 'building') return doorLanding(hit.b);
+  const gx = hit.kind === 'ground' ? hit.x : 0, gz = hit.kind === 'ground' ? hit.z : 6.8;
+  const [x, z] = pushClear(clamp(gx, OUTDOOR.x0, OUTDOOR.x1), clamp(gz, OUTDOOR.z0, OUTDOOR.z1), 0.4);
+  return { x, z, yaw, building: null };
+}
+export const bez = (p0, p1, p2, t) => [0, 1, 2].map((i) => (1 - t) * (1 - t) * p0[i] + 2 * t * (1 - t) * p1[i] + t * t * p2[i]);
+// Is a camera point clear of every solid by `margin`, and above the ground? `skipLift` names a building whose
+// roof, fascia and lintel are hidden (rising out of it).
+export function cameraClear(p, margin = 0.1, skipLift = null, doors = null) {
+  if (p[1] < groundAt(p[0], p[2]) + margin) return false;
+  for (const s of solids(doors || newDoors())) {
+    if (s.kind === 'door' && (!s.active || DOORS[s.door].id === skipLift)) continue;
+    if (skipLift && s.lift === skipLift) continue;
+    if (p[0] > s.x0 - margin && p[0] < s.x1 + margin && p[1] > s.y0 - margin && p[1] < s.y1 + margin && p[2] > s.z0 - margin && p[2] < s.z1 + margin) return false;
+  }
+  return true;
+}
+// The control point sits straight above the ground end at max(start height, 8 m). If that curve would still touch a
+// solid (possible when it sweeps low over a roof edge next to the landing), it is raised until the curve is clear.
+export const PATH_SAMPLES = 160;
+export function controlHeight(P0, P2, skipLift = null) {
+  let h = Math.max(P0[1], 8);
+  for (let tries = 0; tries < 16; tries++) {
+    const P1 = [P2[0], h, P2[2]];
+    let ok = true;
+    for (let i = 1; i < PATH_SAMPLES && ok; i++) ok = cameraClear(bez(P0, P1, P2, i / PATH_SAMPLES), 0.1, skipLift);
+    if (ok) return { h, raised: tries > 0 };
+    h *= 1.2;
+  }
+  return { h, raised: true };
+}
+// Camera along a transition. er = 0 at the orbit end, 1 at the ground end (entering runs it forwards, leaving backwards).
+export function pathPose(tr, er) {
+  const p = bez(tr.P0, tr.P1, tr.P2, er);
+  return { x: p[0], y: p[1], z: p[2], yaw: lerpAngle(tr.yawO, tr.yawG, smooth(0, 0.9, er)), pitch: lerp(tr.pitchO, tr.pitchG, smooth(0.25, 1, er)) };
+}
+
+// ---------------- the simulation ----------------
+export const DT_VIEW = 1 / 60;
+export function createSim({ aspect = 16 / 9 } = {}) {
+  const S = {
+    aspect, rHero: heroRadius(aspect), mode: 'orbit', t: 0, rainT: 0, auto: true,
+    orbit: null, z: 0, s: 0, cam: null, trans: null, trigger: null, lift: null, landing: null,
+    player: { x: 0, z: 0, eyeY: EYE_H, yaw: 0, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null },
+    doors: newDoors(), entries: 0, exits: 0, raised: 0,
+  };
+  S.orbit = heroOrbitAt(rOf(0, S.rHero));
+
+  function refresh() {
+    if (S.mode === 'orbit') { S.s = S_PER_Z * S.z; S.cam = orbitCamera(S.orbit); }
+    else if (S.mode === 'walk') { S.s = 1; const p = S.player; S.cam = { x: p.x, y: p.eyeY, z: p.z, yaw: p.yaw, pitch: p.pitch }; }
+    else {
+      const tr = S.trans, e = easeInOut(clamp01(tr.tau / tr.dur)), er = tr.kind === 'enter' ? e : 1 - e;
+      S.s = tr.s0 + (1 - tr.s0) * er;
+      S.cam = pathPose(tr, er);
+    }
+  }
+  const fovNow = () => MAP.fov(S.s);
+  function setAspect(a) {
+    if (Math.abs(a - S.aspect) < 1e-9) return;
+    S.aspect = a; S.rHero = heroRadius(a);
+    if (S.mode === 'orbit') S.orbit.r = rOf(S.z, S.rHero);
+    refresh();
+  }
+  // Keep the orbit centre over the model: the further out, the closer to the hero centre (at z = 0 it is the hero centre).
+  function clampCentre(o, z) {
+    const lim = 12 * clamp01(z / Z_ENTER), dx = o.cx - HERO.center[0], dz = o.cz - HERO.center[2], d = Math.hypot(dx, dz);
+    if (d > lim) { const k = lim / d; o.cx = HERO.center[0] + dx * k; o.cz = HERO.center[2] + dz * k; }
+    o.cy = clamp(o.cy, 0, HERO.center[1]);
+  }
+  function rotate(dTheta, dPhi) {
+    if (S.mode !== 'orbit') return;
+    S.orbit.theta += dTheta; S.orbit.phi = clamp(S.orbit.phi + dPhi, PHI_RANGE[0], PHI_RANGE[1]);
+    refresh();
+  }
+  // Zoom by `factor` on the radius towards the point under the screen position (sx, sy): a homothety about that
+  // point keeps it under the finger. Zooming in to z >= 0.85 starts the automatic entry aimed through (sx, sy).
+  function zoomAt(factor, sx = 0.5, sy = 0.5) {
+    if (S.mode !== 'orbit') return false;
+    const ray = screenRay(S.cam, fovNow(), S.aspect, sx, sy);
+    const hit = aimHit(ray.o, ray.d);
+    const P = hit.kind === 'none' ? [S.orbit.cx, 0, S.orbit.cz] : ray.o.map((v, i) => v + ray.d[i] * hit.t);
+    const z1 = clamp(zOf(S.orbit.r * factor, S.rHero), 0, 1), r1 = rOf(z1, S.rHero), k = r1 / S.orbit.r;
+    S.orbit.cx = P[0] + (S.orbit.cx - P[0]) * k; S.orbit.cy = P[1] + (S.orbit.cy - P[1]) * k; S.orbit.cz = P[2] + (S.orbit.cz - P[2]) * k;
+    S.orbit.r = r1; S.z = z1; clampCentre(S.orbit, z1);
+    refresh();
+    if (factor < 1 && S.z >= Z_ENTER - 1e-9) { startEnter(screenRay(S.cam, fovNow(), S.aspect, sx, sy)); return true; }
+    return false;
+  }
+  function startEnter(ray) {
+    const hit = aimHit(ray.o, ray.d), L = landingFor(hit, S.orbit.theta), cam = orbitCamera(S.orbit);
+    S.trigger = { orbit: { ...S.orbit }, z: S.z, s: S_PER_Z * S.z, hit: hit.kind === 'building' ? 'building:' + hit.b.id : hit.kind };
+    const P0 = [cam.x, cam.y, cam.z], P2 = [L.x, groundAt(L.x, L.z) + EYE_H, L.z], ch = controlHeight(P0, P2, null);
+    if (ch.raised) S.raised++;
+    S.trans = { kind: 'enter', tau: 0, dur: ENTER_TIME, P0, P1: [L.x, ch.h, L.z], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG: L.yaw, pitchG: 0, s0: S.trigger.s, raised: ch.raised };
+    S.landing = L; S.lift = null; S.mode = 'entering'; S.entries++;
+    refresh();
+  }
+  // Programmatic entry: zoom towards the aim point (same homothety the fingers make) up to the threshold, then enter.
+  function enter(aim) {
+    if (S.mode !== 'orbit') return false;
+    const P = aimPoint(aim);
+    if (S.z < Z_ENTER) {
+      const r1 = rOf(Z_ENTER, S.rHero), k = r1 / S.orbit.r;
+      S.orbit.cx = P[0] + (S.orbit.cx - P[0]) * k; S.orbit.cy = P[1] + (S.orbit.cy - P[1]) * k; S.orbit.cz = P[2] + (S.orbit.cz - P[2]) * k;
+      S.orbit.r = r1; S.z = Z_ENTER; clampCentre(S.orbit, S.z); refresh();
+    }
+    const o = [S.cam.x, S.cam.y, S.cam.z], d = P.map((v, i) => v - o[i]), L = Math.hypot(...d);
+    startEnter({ o, d: d.map((v) => v / L) });
+    return true;
+  }
+  function exit() {
+    if (S.mode !== 'walk') return false;
+    const p = S.player, cam = orbitCamera(S.trigger.orbit), b = buildingAt(p.x, p.z, 0.15);   // inside, or in the doorway
+    S.lift = b ? b.id : null;
+    const P0 = [cam.x, cam.y, cam.z], P2 = [p.x, p.eyeY, p.z], ch = controlHeight(P0, P2, S.lift);
+    if (ch.raised) S.raised++;
+    S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [p.x, ch.h, p.z], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG: p.yaw, pitchG: p.pitch, s0: S.trigger.s, raised: ch.raised };
+    p.route = null; p.input = [0, 0]; p.look = null;
+    S.mode = 'exiting'; S.exits++;
+    refresh();
+    return true;
+  }
+  function finish() {
+    const tr = S.trans;
+    if (tr.kind === 'enter') {
+      const L = S.landing, p = S.player;
+      Object.assign(p, { x: L.x, z: L.z, eyeY: groundAt(L.x, L.z) + EYE_H, yaw: L.yaw, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null });
+      S.mode = 'walk';
+    } else {
+      S.orbit = { ...S.trigger.orbit }; S.z = S.trigger.z; S.mode = 'orbit'; S.lift = null;
+    }
+    S.trans = null;
+  }
+  // One walking step. Route legs carry their leftover time to the next leg, so the position at a given time does not
+  // depend on the step size (for unobstructed legs).
+  function stepWalk(dt) {
+    const p = S.player, boxes = walkBoxes(S.doors), path = [];
+    if (p.input[0] || p.input[1]) {
+      p.route = null;
+      moveCircle(p, p.input[0] * dt, p.input[1] * dt, boxes, dt, path);
+    } else if (p.route) {
+      let left = dt, guard = 0;
+      while (left > 1e-12 && p.route && guard++ < 16) {
+        const [tx, tz] = p.route[p.ri], dx = tx - p.x, dz = tz - p.z, dist = Math.hypot(dx, dz);
+        if (dist < 1e-6) { if (++p.ri >= p.route.length) p.route = null; continue; }
+        const tLeg = Math.min(left, dist / WALK_SPEED), want = WALK_SPEED * tLeg;
+        const got = moveCircle(p, (dx / dist) * want, (dz / dist) * want, boxes, tLeg, path);
+        left -= tLeg;
+        if (got < want * 0.3) { p.stuck += tLeg; if (p.stuck >= 1) { p.route = null; break; } }
+        else p.stuck = 0;
+        if (Math.hypot(tx - p.x, tz - p.z) < 1e-4) { p.x = tx; p.z = tz; if (++p.ri >= p.route.length) p.route = null; }
+      }
+      if (left > 1e-12) path.push([p.x, p.z, p.x, p.z, left]);
+    }
+    const used = path.reduce((a, q) => a + q[4], 0);
+    if (dt - used > 1e-12) path.push([p.x, p.z, p.x, p.z, dt - used]);
+    stepDoorsPath(S.doors, path);
+    if (p.look) {
+      const k = 1 - Math.exp(-dt * 5);
+      p.yaw = lerpAngle(p.yaw, p.look.yaw, k); p.pitch = lerp(p.pitch, p.look.pitch, k);
+      if (Math.abs(wrapAngle(p.look.yaw - p.yaw)) < 0.003 && Math.abs(p.look.pitch - p.pitch) < 0.003) { p.yaw = p.look.yaw; p.pitch = p.look.pitch; p.look = null; }
+    }
+    const target = groundAt(p.x, p.z) + EYE_H;
+    p.eyeY = target + (p.eyeY - target) * Math.exp(-dt / 0.1);
+  }
+  function update(dt) {
+    S.t += dt; S.rainT += dt;
+    if (S.mode === 'walk') stepWalk(dt);
+    else {
+      // Doors close outside walk mode. Rising out of a doorway, that door waits until the camera is above it.
+      S.doors.forEach((st, i) => { if (!(S.mode === 'exiting' && S.lift === DOORS[i].id && S.cam.y < SIDEWALK_H + DOOR_H + 0.3)) closeDoors([st], dt); });
+      if (S.trans) { S.trans.tau = Math.min(S.trans.dur, S.trans.tau + dt); if (S.trans.tau >= S.trans.dur - 1e-9) finish(); }
+    }
+    refresh();
+  }
+  // Run an entry or exit forward to the moment s reaches `target` exactly (used for the fixed s = 0.5 view).
+  function advanceToS(target, dt = DT_VIEW) {
+    for (let i = 0; i < 1000 && S.mode === 'entering'; i++) {
+      const tr = S.trans, eNeed = (target - tr.s0) / (1 - tr.s0), tauNeed = tr.dur * invEaseInOut(eNeed);
+      if (tr.tau + dt >= tauNeed) { const rest = tauNeed - tr.tau; S.t += rest; S.rainT += rest; closeDoors(S.doors, rest); tr.tau = tauNeed; refresh(); return; }
+      update(dt);
+    }
+  }
+  const walkTo = (x, z) => walkRoute([[x, z]]);
+  function walkRoute(pts) {
+    if (S.mode !== 'walk' || !pts.length) return false;
+    const lim = WALK_BOX - R;
+    Object.assign(S.player, { route: pts.map(([x, z]) => [clamp(x, -lim, lim), clamp(z, -lim, lim)]), ri: 0, stuck: 0 });
+    return true;
+  }
+  function drive(vx, vz) { S.player.input = [vx, vz]; if (vx || vz) S.player.route = null; }
+  function lookBy(dYaw, dPitch) {
+    if (S.mode !== 'walk') return;
+    const p = S.player; p.look = null; p.yaw += dYaw; p.pitch = clamp(p.pitch + dPitch, -1.2, 1.2); refresh();
+  }
+  function lookAt(x, y, z) {
+    const p = S.player, dx = x - p.x, dz = z - p.z;
+    p.look = { yaw: p.yaw + wrapAngle(Math.atan2(-dx, -dz) - p.yaw), pitch: clamp(Math.atan2(y - p.eyeY, Math.hypot(dx, dz)), -1.2, 1.2) };
+  }
+  function place(x, z, yaw = S.player.yaw) {     // test hook: put the walker somewhere (walk mode only)
+    if (S.mode !== 'walk') return false;
+    Object.assign(S.player, { x, z, yaw, eyeY: groundAt(x, z) + EYE_H, route: null, input: [0, 0], look: null, stuck: 0 });
+    refresh(); return true;
+  }
+  function snapshot() {
+    const L = looks(S.s), p = S.player, c = S.cam;
+    return {
+      mode: S.mode, s: S.s, z: S.z, t: S.t, rainT: S.rainT, aspect: S.aspect, rHero: S.rHero,
+      orbit: { ...S.orbit }, cam: { ...c }, eye: c.y - groundAt(c.x, c.z),
+      fov: L.fov, tilt: L.tilt, fog: L.fog, rainMix: L.rainMix, groundAlpha: L.groundAlpha, baseSides: L.baseSides, lowpass: L.lowpass, volume: L.volume,
+      doors: S.doors.map((d, i) => ({ id: DOORS[i].id, k: d.k, want: d.want })),
+      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, stuck: p.stuck },
+      trigger: S.trigger && { orbit: { ...S.trigger.orbit }, z: S.trigger.z, s: S.trigger.s, hit: S.trigger.hit },
+      landing: S.landing && { ...S.landing }, lift: S.lift, entries: S.entries, exits: S.exits, raised: S.raised,
+      transition: S.trans && { kind: S.trans.kind, tau: S.trans.tau, dur: S.trans.dur, raised: S.trans.raised },
+    };
+  }
+  refresh();
+  return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow };
+}
+
+// ---------------- fixed views (SPEC 固定机位): produced by running the simulation, then frozen ----------------
+export const VIEW_SCRIPTS = {
+  hero: { rainT: 2.0 },
+  mid: { aim: 'door', s: 0.5 },
+  door: { aim: 'door' },
+  inside: { aim: 'door', route: [[5.0, -0.6], [6.2, -2.3]], look: [1.5, 1.25, -7.95] },          // by the till, looking at the freezers
+  next: { aim: { x: -6.0, z: -3.5 }, route: [[-6.0, -0.6], [-6.0, -2.2]], look: [-6.3, 0.95, -5.6] }, // inside the shop next door, facing the bar
+};
+export function runView(sim, view, aimOverride) {
+  const v = VIEW_SCRIPTS[view];
+  if (!v) return false;
+  const until = (pred, maxT = 60) => { for (let t = 0; t < maxT && !pred(); t += DT_VIEW) sim.update(DT_VIEW); };
+  if (v.rainT != null) { sim.S.rainT = v.rainT; sim.refresh(); return true; }
+  sim.enter(aimOverride || v.aim);
+  if (v.s != null) { sim.advanceToS(v.s); return true; }
+  until(() => sim.S.mode === 'walk');
+  if (v.route) { sim.walkRoute(v.route); until(() => !sim.S.player.route); }
+  if (v.look) { sim.lookAt(...v.look); until(() => !sim.S.player.look); }
+  return true;
+}
+
+// ---------------- what the page draws (boxes per material; door leaves and the rest are built in main.js) ----------------
+export function visualBoxes() {
+  const V = [], F = SIDEWALK_H, T = WALL_T;
+  const add = (mat, x0, y0, z0, x1, y1, z1) => V.push({ mat, x0, y0, z0, x1, y1, z1 });
+  add('sidewalk', -BASE.half, 0, -BASE.half, BASE.half, F, ROAD.z0);                 // pavement, back lot, under the shops
+  add('sidewalk', -BASE.half, 0, ROAD.z1, BASE.half, F, BASE.half);                  // far kerb
+  for (let i = 0; i < 6; i++) add('stripe', 0.4 + i * 0.75, 0, 4.0, 0.85 + i * 0.75, 0.012, 10.0);   // zebra crossing
+  for (const b of BUILDINGS) {
+    const d = DOORS.find((q) => q.id === b.id), wall = b.id === 'store' ? 'storeWall' : 'nextWall', top = b.h - 0.2;
+    add(wall, b.x0, 0, b.z0, b.x1, top, b.z0 + T);
+    add(wall, b.x0, 0, b.z0 + T, b.x0 + T, top, b.z1);
+    add(wall, b.x1 - T, 0, b.z0 + T, b.x1, top, b.z1);
+    add(b.id + 'Roof', b.x0, top, b.z0, b.x1, b.h, b.z1);
+    add(b.id + 'Floor', b.x0 + T, F, b.z0 + T, b.x1 - T, F + 0.006, b.z1 - T);
+    if (b.id === 'store') {                         // whole front glazed up to 2.8 m, fascia above
+      add(wall + ':upper', b.x0 + T, 2.8, b.z1 - T, b.x1 - T, top, b.z1);
+      add(wall, b.x0 + T, 0, b.z1 - T, b.x1 - T, F + 0.06, b.z1);                    // kerb under the glass
+      add('glass', b.x0 + T, F + 0.06, b.z1 - 0.07, d.x0, 2.8, b.z1 - 0.03);
+      add('glass', d.x1, F + 0.06, b.z1 - 0.07, b.x1 - T, 2.8, b.z1 - 0.03);
+      add('glass', d.x0, F + DOOR_H, b.z1 - 0.07, d.x1, 2.8, b.z1 - 0.03);         // transom over the door
+      for (const x of [b.x0 + T, -0.3, 2.0, d.x0, d.x1, 7.4, b.x1 - T]) add('frame', x - 0.04, F, b.z1 - 0.1, x + 0.04, 2.8, b.z1);
+      add('frame', d.x0, F + DOOR_H - 0.04, b.z1 - 0.1, d.x1, F + DOOR_H + 0.04, b.z1);
+      add('sign', d.cx - 1.5, 2.95, b.z1, d.cx + 1.5, 3.3, b.z1 + 0.06);
+    } else {                                        // timber front with one window right of the door
+      add(wall + ':upper', b.x0 + T, F + DOOR_H, b.z1 - T, b.x1 - T, top, b.z1);
+      add(wall, b.x0 + T, 0, b.z1 - T, d.x0, F + DOOR_H, b.z1);
+      add(wall, d.x1, 0, b.z1 - T, -5.1, F + DOOR_H, b.z1);
+      add(wall, -3.5, 0, b.z1 - T, b.x1 - T, F + DOOR_H, b.z1);
+      add(wall, -5.1, 0, b.z1 - T, -3.5, 0.95, b.z1);
+      add('glass', -5.1, 0.95, b.z1 - 0.12, -3.5, F + DOOR_H, b.z1 - 0.08);
+      add('sign2', d.cx - 0.8, 2.55, b.z1, d.cx + 0.8, 2.9, b.z1 + 0.05);
+    }
+  }
+  // store interior
+  for (const cx of [-1.2, 0.8, 2.8]) {
+    add('shelf', cx - 0.3, F, -6.2, cx + 0.3, F + 1.5, -1.2);
+    for (const y of [0.45, 0.85, 1.25]) add('shelfBoard', cx - 0.32, F + y, -6.2, cx + 0.32, F + y + 0.03, -1.2);
+  }
+  add('freezerBody', -2.0, F, -8.3, 5.0, F + 2.0, -7.6);
+  add('freezer', -1.9, F + 0.25, -7.6, 4.9, F + 1.85, -7.58);
+  for (let i = 1; i < 5; i++) add('frame', -2.0 + i * 1.4 - 0.03, F + 0.25, -7.6, -2.0 + i * 1.4 + 0.03, F + 1.85, -7.56);
+  add('counter', 7.0, F, -3.8, 7.6, F + 1.0, -1.4);
+  add('dark', 6.0, F, -8.3, 7.05, F + 2.15, -8.28);                                  // staff doorway
+  add('shelf', 6.0, F, -8.3, 6.77, F + 2.1, -7.66);                                  // its leaf, half open (box stand-in)
+  add('mat', DOORS[0].x0, F, -1.0, DOORS[0].x1, F + 0.012, FACADE_Z - T);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) add('storeLightPanel', -1.6 + i * 2.9, STORE.h - 0.27, -6.6 + j * 2.6, -0.4 + i * 2.9, STORE.h - 0.2, -6.25 + j * 2.6);
+  // next door
+  add('bar', -8.4, F, -5.2, -4.0, F + 1.05, -4.6);
+  for (const cx of [-7.6, -6.7, -5.8, -4.9]) add('stool', cx - 0.2, F, -4.2, cx + 0.2, F + 0.7, -3.8);
+  add('shelf2', -8.6, F, -7.3, -5.0, F + 1.8, -6.9);
+  add('nextLightPanel', -7.6, NEXT.h - 0.27, -5.6, -4.4, NEXT.h - 0.2, -5.3);
+  add('nextLightPanel', -6.8, NEXT.h - 0.27, -2.4, -5.2, NEXT.h - 0.2, -2.1);
+  // street
+  add('vendBody', 6.5, F, FACADE_Z, 7.4, F + 1.83, FACADE_Z + 0.7);
+  add('vending', 6.58, F + 0.55, FACADE_Z + 0.7, 7.32, F + 1.75, FACADE_Z + 0.72);
+  add('pole', LAMP.x - 0.06, F, LAMP.z - 0.06, LAMP.x + 0.06, LAMP.top - 0.3, LAMP.z + 0.06);
+  add('pole', LAMP.x - 0.15, F, LAMP.z - 0.15, LAMP.x + 0.15, F + 0.3, LAMP.z + 0.15);
+  add('lamp', LAMP.x - 0.2, LAMP.top - 0.3, LAMP.z - 0.2, LAMP.x + 0.2, LAMP.top, LAMP.z + 0.2);
+  add('bench', 0.2, F + 0.38, FACADE_Z + 0.12, 1.8, F + 0.45, FACADE_Z + 0.57);
+  for (const x of [0.3, 1.6]) add('bench', x, F, FACADE_Z + 0.15, x + 0.1, F + 0.38, FACADE_Z + 0.54);
+  add('fence', STORE.x1, F, FACADE_Z - 0.15, BASE.half, F + 1.0, FACADE_Z + 0.05);
+  add('fence', -BASE.half, F, FACADE_Z - 0.15, NEXT.x0, F + 1.0, FACADE_Z + 0.05);
+  return V;
+}
+// Sliding door leaves: two per door, each half the opening, sliding sideways behind the fixed front.
+export function doorLeaves(doors) {
+  const out = [];
+  DOORS.forEach((d, i) => {
+    const half = d.w / 2, k = doors[i].k;
+    for (const side of [-1, 1]) {
+      const cx = d.cx + side * (half / 2 + half * k);
+      out.push({ door: i, side, x0: cx - half / 2, x1: cx + half / 2, y0: SIDEWALK_H, y1: SIDEWALK_H + DOOR_H, z0: d.z0 - 0.02, z1: d.z0 + 0.04 });
+    }
+  });
+  return out;
+}
+export const FLOOR_GRID = { x0: STORE.x0 + WALL_T, x1: STORE.x1 - WALL_T, z0: STORE.z0 + WALL_T, z1: STORE.z1 - WALL_T, step: 0.6, y: SIDEWALK_H + 0.008 };
