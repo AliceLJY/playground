@@ -334,3 +334,224 @@ test('fixed views come out of the simulation (SPEC 固定机位)', async () => {
   const hero = view('hero');
   assert.strictEqual(hero.mode, 'orbit'); assert.strictEqual(hero.s, 0); assert.strictEqual(hero.rainT, 2);
 });
+
+// ---------------- 惊吓版 (SPEC 惊吓版, H2–H5, H7, H8) ----------------
+const hist = (sim, e, visit) => sim.horror().history.filter((x) => x.e === e && (visit == null || x.visit === visit));
+
+test('H2: the figure only disappears while the shop is dark, above the roofs, on every visit', async () => {
+  const C = await load();
+  for (const dt of [1 / 30, 1 / 60, 1 / 120]) {
+    const sim = C.createSim({ aspect: 16 / 9 });
+    for (let visit = 1; visit <= 2; visit++) {
+      const before = sim.horror().figure;
+      assert.ok(before, `visit ${visit} starts with the figure at ${before}`);
+      sim.enter('door');
+      let prev = { fig: sim.horror().figure, light: sim.levels().light }, removed = null;
+      for (let i = 0; i < 400 && sim.S.mode !== 'walk'; i++) {
+        sim.update(dt);
+        const now = { fig: sim.horror().figure, light: sim.levels().light };
+        if (prev.fig && !now.fig) removed = { light: now.light, prevLight: prev.light, camY: sim.S.cam.y };
+        assert.ok(!(prev.fig && prev.light === 1 && !now.fig && now.light === 1), 'gone from one lit frame to the next lit frame');
+        prev = now;
+      }
+      const tE0 = sim.horror().fired.E0;
+      assert.ok(removed, `visit ${visit}: figure removed during the descent (dt ${dt})`);
+      assert.ok(removed.light <= 0.05 && removed.prevLight <= 0.05, `removal frame lit at ${removed.light}`);
+      assert.ok(removed.camY > C.STORE.h, `camera still above the roof (${removed.camY.toFixed(2)} m)`);
+      const h = sim.horror(), dark = h.e0;
+      assert.ok(tE0 > dark.start && tE0 < dark.end && dark.end - dark.start <= 0.35 + 1e-9, 'E0 inside a 0.35 s blackout');
+      if (visit === 1) {                             // make the second visit start with the figure behind the glass (E5)
+        sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route, 30, dt); run(sim, () => sim.S.t >= sim.horror().e2.t0 + C.E2_TOTAL, 5, dt);
+        sim.walkRoute(C.SCARE_PLAN.out); run(sim, () => !sim.S.player.route, 30, dt);
+        sim.exit(); run(sim, () => sim.S.mode === 'orbit', 5, dt);
+        assert.strictEqual(sim.horror().figure, 'window');
+      }
+    }
+  }
+});
+
+test('H3: freezers go dark one by one, both hums stop for 1.6 s, once per visit', async () => {
+  const C = await load();
+  const sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute(C.SCARE_PLAN.aisle);
+  const offAt = [null, null, null, null, null];
+  let humOff = null, humOn = null, t2 = null;
+  for (let i = 0; i < 3000; i++) {
+    sim.update(1 / 120);
+    const L = sim.levels(), h = sim.horror(), t = sim.S.t;
+    if (h.e2 && t2 == null) t2 = h.e2.t0;
+    L.freezer.forEach((v, k) => { if (v === 0 && offAt[k] == null) offAt[k] = t; });
+    if (L.hum === 0 && humOff == null) humOff = t;
+    if (humOff != null && L.hum === 1 && humOn == null) { humOn = t; assert.ok(L.freezer.every((v) => v === 1), 'freezers back together with the sound'); }
+    if (humOff != null) { assert.ok(L.hum === 1 || (L.audio.fluor === 0 && L.audio.freezer === 0), 'both hum gains are zero in the silence'); }
+    if (humOn != null && !sim.S.player.route) break;
+  }
+  assert.ok(t2 != null && offAt.every((v) => v != null), `E2 fired at ${t2}`);
+  const order = offAt.slice().sort((a, b) => a - b), span = order[4] - order[0];
+  assert.ok(span <= 1.2 && span > 0.3, `one by one over ${span.toFixed(3)} s`);
+  assert.ok(Math.abs(humOn - humOff - 1.6) <= 0.1, `silence ${(humOn - humOff).toFixed(3)} s`);
+  // back into the aisle in the same visit: nothing again
+  sim.walkTo(4.2, -4.0); run(sim, () => !sim.S.player.route); sim.walkTo(4.2, -6.6); run(sim, () => !sim.S.player.route);
+  assert.strictEqual(hist(sim, 'E2', 1).length, 1, 'E2 once per visit');
+});
+
+test('H4: the door opens by itself only after E2, when out of sight and at least 5 m away', async () => {
+  const C = await load();
+  // (a) far away, door behind you, but no E2 yet: nothing
+  let sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute([[5.0, -0.6], [6.4, -5.0]]); run(sim, () => !sim.S.player.route);
+  run(sim, () => false, 4);
+  assert.strictEqual(sim.horror().fired.E3, null, 'no E3 without E2');
+  // (b) after E2, looking straight at the door: nothing until you turn away
+  sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+  sim.lookAt(5.0, 1.3, 0.4); run(sim, () => !sim.S.player.look, 4);         // turn to face the door during the freezer blackout
+  run(sim, () => sim.S.t >= sim.horror().e2.t0 + C.E2_TOTAL + 1.0, 6);
+  assert.strictEqual(sim.horror().fired.E3, null, 'door in view: no E3');
+  // (b2) door out of sight but only 3.4 m away: still nothing
+  sim.walkTo(4.6, -3.0); run(sim, () => !sim.S.player.route);
+  sim.lookAt(4.6, 1.6, -9.0); run(sim, () => !sim.S.player.look, 4); run(sim, () => false, 2);
+  assert.strictEqual(sim.horror().fired.E3, null, 'out of sight but closer than 5 m: no E3');
+  // (c) walk away (door behind you): E3 fires past 5 m; door to 1.0, holds 1.2 s, back to 0; one bell; nothing at the door
+  const solidsBefore = JSON.stringify(sim.S && C.solids(C.newDoors()).map((b) => b.id));
+  sim.walkTo(4.6, -6.2);
+  const ks = []; let t3 = null;
+  for (let i = 0; i < 1200; i++) {
+    sim.update(1 / 120);
+    const h = sim.horror();
+    if (h.fired.E3 != null && t3 == null) t3 = h.fired.E3;
+    if (t3 != null) { ks.push([sim.S.t - t3, sim.S.doors[0].k]); assert.ok(!h.figure && !h.scare, 'nothing appears'); }
+    if (t3 != null && sim.S.t > t3 + 3) break;
+  }
+  assert.ok(t3 != null, 'E3 fired after turning away');
+  const p = sim.S.player, d = Math.hypot(p.x - 5.0, p.z - 0.4);
+  assert.ok(d >= 5, `${d.toFixed(2)} m from the door`);
+  const full = ks.filter(([, k]) => k === 1), tFull0 = full[0][0], tFull1 = full[full.length - 1][0];
+  assert.ok(Math.abs(tFull1 - tFull0 - 1.2) <= 1 / 120 + 1e-9, `held open ${(tFull1 - tFull0).toFixed(3)} s`);
+  assert.strictEqual(ks[ks.length - 1][1], 0, 'closed again');
+  const bells = sim.horror().sounds.filter((x) => x.kind === 'bell' && x.t >= t3 - 1e-9 && x.t <= t3 + 3);
+  assert.strictEqual(bells.length, 1, `bells during E3: ${bells.length}`);
+  assert.ok(Math.abs(bells[0].t - t3) < 1e-9, 'the bell rings as it starts to open');
+  assert.strictEqual(JSON.stringify(C.solids(C.newDoors()).map((b) => b.id)), solidsBefore, 'no new solid at the door');
+});
+
+test('H5: staff door scare only after E3; figure 0.25 s, slam within 0.12 s, small shake, one vibration, loud bang', async () => {
+  const C = await load();
+  // (a) straight to the staff door after E2, before E3 (door still in view): no E4
+  let sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+  sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4);
+  sim.walkTo(...C.SCARE_PLAN.near); run(sim, () => !sim.S.player.route); sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4);
+  run(sim, () => false, 1);
+  assert.strictEqual(sim.horror().fired.E4, null, `no E4 before E3 (E3 ${sim.horror().fired.E3})`);
+  // (b) the full visit
+  sim = C.createSim({ aspect: 16 / 9 });
+  C.playScare(sim, { upTo: 'scare', after: 0 });
+  const h = sim.horror(), t4 = h.fired.E4, p = sim.S.player;
+  assert.ok(t4 != null && h.fired.E3 != null && t4 > h.e3.closedAt, 'E4 after E3 is over');
+  assert.ok(Math.hypot(p.x - C.BACKDOOR.cx, p.z - C.BACKDOOR.cz) <= 1.6, 'within 1.6 m');
+  const q = C.project(sim.S.cam, sim.fov(), sim.S.aspect, [C.BACKDOOR.cx, C.SIDEWALK_H + C.BACKDOOR.h / 2, C.BACKDOOR.cz]);
+  assert.ok(Math.abs(q.x - 0.5) <= 1 / 6 + 0.01, `door at ${q.x.toFixed(3)} of the width`);
+  const walker = { x: p.x, z: p.z };
+  const tl = [];
+  for (let i = 0; i < 240; i++) { sim.update(1 / 240); const L = sim.levels(); tl.push({ t: sim.S.t - t4, back: L.back, scare: L.scare, shake: Math.hypot(...L.shake), dark: L.darken }); }
+  const seen = tl.filter((x) => x.scare), lastWide = tl.filter((x) => Math.abs(x.back - C.BACKDOOR.wide) < 1e-9).pop(), firstShut = tl.find((x) => x.back === 0);
+  assert.ok(Math.abs(lastWide.t - 0.25) <= 0.05, `figure shown ${lastWide.t.toFixed(3)} s before the slam`);
+  assert.ok(firstShut.t - lastWide.t <= 0.12 + 1 / 240 + 1e-9, `slam took ${(firstShut.t - lastWide.t).toFixed(3)} s`);
+  assert.ok(seen.length && seen[seen.length - 1].t <= firstShut.t + 1e-9, 'figure gone once the door is shut');
+  const shaking = tl.filter((x) => x.shake > 0), maxShake = Math.max(...tl.map((x) => x.shake));
+  assert.ok(maxShake <= 0.03 && shaking.length && shaking[shaking.length - 1].t - shaking[0].t <= 0.3, `shake ${maxShake.toFixed(4)} m over ${(shaking[shaking.length - 1].t - shaking[0].t).toFixed(3)} s`);
+  assert.ok(sim.S.player.x === walker.x && sim.S.player.z === walker.z, 'the walker did not move');
+  assert.ok(Math.abs(tl.filter((x) => x.dark).length / 240 - 0.1) <= 2 / 240, 'darkened for 0.1 s');
+  const v = sim.horror().vibes;
+  assert.strictEqual(v.length, 1); assert.deepStrictEqual(v[0].pattern, [90, 50, 140]);
+  const lv = C.audioLevels(1);
+  assert.ok(lv.slam / lv.base >= 3 && Math.abs(lv.bell / lv.base - 2) < 1e-9, `bang ${(lv.slam / lv.base).toFixed(2)}x, bell ${(lv.bell / lv.base).toFixed(2)}x the bed`);
+  const sounds = sim.horror().sounds.filter((x) => x.kind === 'slam' || x.kind === 'sting');
+  assert.ok(sounds.length === 2 && sounds.every((x) => Math.abs(x.t - (t4 + C.E4_BANG)) < 1e-9), 'bang and sting when the door hits');
+});
+
+test('H6 (logic): the figure goes behind the glass only where the camera cannot see it, or while the shop is dark', async () => {
+  const C = await load();
+  const cases = {                                     // where the exit starts from, and what the walker looks at
+    street: { route: C.SCARE_PLAN.out, look: [5.0, 1.6, 9.0] },
+    road: { route: [...C.SCARE_PLAN.out, [5.0, 7.0]], look: [5.0, 1.6, 0.0] },          // across the street, facing the shop
+    inside: { route: [[5.0, -0.6], [6.2, -2.3]], look: [1.5, 1.25, -7.95] },             // by the till: leaves through the lifted roof
+  };
+  const used = new Set();
+  for (const [name, c] of Object.entries(cases)) for (const dt of [1 / 30, 1 / 120]) {
+    const sim = C.createSim({ aspect: 16 / 9 }), S = sim.S;
+    C.playScare(sim, { upTo: 'E4', dt });
+    sim.walkRoute(c.route); run(sim, () => !S.player.route, 20, dt);
+    sim.lookAt(...c.look); run(sim, () => !S.player.look, 6, dt);
+    sim.exit();
+    let placed = null;
+    for (let t = 0; t < 5 && S.mode !== 'orbit'; t += dt) {
+      const before = sim.horror().figure;
+      sim.update(dt);
+      if (!before && sim.horror().figure === 'window') {
+        placed = { seen: C.pointsVisible(S.cam, sim.fov(), S.aspect, C.figurePoints('window'), S.lift), light: sim.levels().light, camY: S.cam.y, how: sim.horror().e5Dark ? 'dark' : 'unseen' };
+      }
+    }
+    assert.ok(placed, `${name}, dt ${dt}: E5 happened during the exit`);
+    assert.ok(!placed.seen || placed.light <= 0.05, `${name}, dt ${dt}: placed in view with the light at ${placed.light}`);
+    assert.ok(placed.camY > C.STORE.h, `${name}: above the roofs (${placed.camY.toFixed(2)} m)`);
+    assert.strictEqual(sim.horror().figure, 'window');
+    used.add(placed.how);
+  }
+  assert.deepStrictEqual([...used].sort(), ['dark', 'unseen'], `both ways of placing it were exercised: ${[...used]}`);
+  // a visit without E2 leaves nothing behind the glass
+  const sim = C.createSim({ aspect: 16 / 9 }), S = sim.S;
+  sim.enter('door'); run(sim, () => S.mode === 'walk', 10);
+  assert.strictEqual(sim.horror().figure, null);
+  sim.exit(); run(sim, () => S.mode === 'orbit', 5);
+  assert.strictEqual(sim.horror().fired.E5, null); assert.strictEqual(sim.horror().figure, null, 'no E2, no figure behind the glass');
+});
+
+test('H7: three visits in a row; each event once per visit; the figure comes and goes the same way', async () => {
+  const C = await load();
+  const sim = C.createSim({ aspect: 16 / 9 });
+  for (let visit = 1; visit <= 3; visit++) {
+    C.playScare(sim, { upTo: 'out' });
+    const h = sim.horror();
+    assert.strictEqual(h.visit, visit);
+    for (const e of ['E0', 'E2', 'E3', 'E4', 'E5']) assert.strictEqual(hist(sim, e, visit).length, 1, `visit ${visit}: ${e} ${hist(sim, e, visit).length} times`);
+    assert.strictEqual(h.figure, 'window', `visit ${visit} ends with the figure behind the glass`);
+    assert.strictEqual(sim.S.mode, 'orbit');
+  }
+});
+
+test('H8 (logic): calm version has no figure and no E0, E2-E5; the doorbell still rings', async () => {
+  const C = await load();
+  const sim = C.createSim({ aspect: 16 / 9, calm: true });
+  assert.strictEqual(sim.horror().figure, null);
+  C.playScare(sim, { upTo: 'out' });
+  const kinds = new Set(sim.horror().history.map((x) => x.e));
+  assert.deepStrictEqual([...kinds], ['E1'], `events in calm mode: ${[...kinds]}`);
+  assert.strictEqual(sim.horror().figure, null);
+  assert.strictEqual(sim.trigger('E4'), false, 'test trigger refuses in calm mode');
+});
+
+test('scare events happen at the same instants at 30 and 120 steps per second', async () => {
+  const C = await load();
+  const timed = (dt) => {
+    const sim = C.createSim({ aspect: 16 / 9 }), P = C.SCARE_PLAN, S = sim.S;
+    const plan = [[0, () => sim.enter('door')], [2, () => sim.walkRoute(P.aisle)], [13, () => sim.lookAt(...P.behind)], [15, () => sim.lookAt(...P.staff)],
+      [17, () => sim.walkTo(...P.near)], [19, () => sim.lookAt(...P.staff)], [21, () => sim.walkRoute(P.out)], [30, () => sim.exit()]];
+    let next = 0;
+    for (let i = 0; S.t < 33 - 1e-9; i++) {
+      while (next < plan.length && S.t >= plan[next][0] - 1e-9) plan[next++][1]();
+      sim.update(dt);
+    }
+    return sim.horror().history;
+  };
+  const a = timed(1 / 30), b = timed(1 / 120);
+  assert.deepStrictEqual(a.map((x) => x.e), b.map((x) => x.e), 'same events in the same order');
+  for (const e of ['E0', 'E2', 'E3', 'E4', 'E5']) assert.ok(a.some((x) => x.e === e), `${e} happened`);
+  const worst = Math.max(...a.map((x, i) => Math.abs(x.t - b[i].t)));
+  assert.ok(worst < 1e-6, `event times differ by up to ${worst}`);
+});
