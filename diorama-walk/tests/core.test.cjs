@@ -56,6 +56,15 @@ test('one progress s drives everything (SPEC 构图与过渡)', async () => {
   assert.ok(C.looks(0.6).groundAlpha > 0 && C.looks(1).groundAlpha === 1);
   assert.strictEqual(C.looks(0.8).baseSides, true); assert.strictEqual(C.looks(0.81).baseSides, false);
   assert.ok(near(L0.lowpass, 600, 1e-9) && near(L1.lowpass, 4000, 1e-6) && near(L0.volume, 0.15, 1e-12) && near(L1.volume, 0.5, 1e-12));
+  // rain: faint, low and sparse outside; spec opacity, tall cylinder and every streak inside
+  assert.deepStrictEqual([L0.rainOpacity, L0.rainHeight, L0.rainShown], [0.18, 6, 0.5]);
+  assert.deepStrictEqual([L1.rainOpacity, L1.rainHeight, L1.rainShown], [0.35, 9.5, 1]);
+  // inside field of view: 65 deg vertical in landscape; on tall screens at least 45 deg across, at most 85 deg vertical
+  for (const [a, v] of [[16 / 9, 65], [1, 65], [0.9, 65]]) assert.strictEqual(C.looks(1, a).fov, v, `aspect ${a.toFixed(2)}`);
+  const phone = C.looks(1, 390 / 844);
+  assert.ok(phone.fov > 65 && phone.fov <= 85 && near(C.hfov(phone.fov, 390 / 844), 45, 1e-9), `390x844: ${phone.fov.toFixed(1)} deg vertical, ${C.hfov(phone.fov, 390 / 844).toFixed(1)} across`);
+  assert.strictEqual(C.looks(1, 0.4).fov, 85, 'very tall screens stop at 85 deg vertical');
+  assert.strictEqual(C.looks(0, 390 / 844).fov, 35, 'outside stays at 35 deg');
   // manual zoom: s = 0.3 z, radius from hero to 14 m, entry at z >= 0.85
   const sim = C.createSim({ aspect: 16 / 9 });
   assert.ok(near(C.rOf(1, sim.S.rHero), 14, 1e-9));
@@ -87,25 +96,42 @@ test('three landings are right and the descent touches nothing (SPEC 1)', async 
     const bad = badFrames(C, frames);
     assert.strictEqual(bad.length, 0, `${key}: camera inside a solid on ${bad.length} frames, first ${JSON.stringify(bad[0])}`);
   }
-  // aiming at a roof: land 1.0-1.5 m outside that building's door, facing it
+  // aiming at a roof: land 2.4-2.8 m outside that building's door, facing it, still on the pavement
   for (const [key, b] of [['roof', C.STORE], ['next-roof', C.NEXT]]) {
     const st = results[key], d = Math.hypot(st.cam.x - b.door.cx, st.cam.z - b.z1);
-    assert.ok(d >= 1.0 && d <= 1.5, `${key}: ${d.toFixed(3)} m from the door`);
+    assert.ok(d >= 2.4 && d <= 2.8, `${key}: ${d.toFixed(3)} m from the door`);
+    assert.ok(st.cam.z < C.ROAD.z0 && C.groundAt(st.cam.x, st.cam.z) === C.SIDEWALK_H, `${key}: on the pavement (z=${st.cam.z})`);
     assert.ok(angDiff(st.cam.yaw, 0) < 0.2, `${key}: yaw ${st.cam.yaw}`);
   }
   const door = results.door;
-  assert.ok(near(door.cam.x, C.STORE.door.cx, 1e-9) && near(door.cam.z, C.STORE.z1 + 1.2, 1e-9), 'aiming at the door lands 1.2 m in front of it');
+  assert.ok(near(door.cam.x, C.STORE.door.cx, 1e-9) && near(door.cam.z, C.STORE.z1 + 2.6, 1e-9), 'aiming at the door lands 2.6 m in front of it');
   const street = results.street;
   assert.ok(street.cam.z > C.ROAD.z0 && street.cam.z < C.ROAD.z1, `street landing on the street (z=${street.cam.z.toFixed(2)})`);
+});
+
+test('the door is shut on landing and opens after about one step towards it (SPEC 落点, 门)', async () => {
+  const C = await load();
+  for (const aim of ['door', { x: -6, z: -3.5 }]) {
+    const sim = C.createSim({ aspect: 16 / 9 });
+    sim.enter(aim); run(sim, () => sim.S.mode === 'walk');
+    const i = aim === 'door' ? 0 : 1, d = C.DOORS[i], p = sim.S.player;
+    assert.ok(Math.hypot(p.x - d.cx, p.z - d.cz) > C.DOOR_NEAR, 'landing is beyond the opening distance');
+    run(sim, () => false, 1.0);
+    assert.strictEqual(sim.S.doors[i].k, 0, 'still shut after standing a second');
+    sim.walkTo(p.x, p.z - 0.7);                      // one step towards the door
+    run(sim, () => !sim.S.player.route, 3);
+    run(sim, () => false, 0.6);
+    assert.ok(sim.S.doors[i].k >= 0.75, `open after a step: k=${sim.S.doors[i].k.toFixed(2)}`);
+  }
 });
 
 test('landing rules: footprint goes to the door, outside is clamped, solids are kept 0.4 m away (SPEC 落点)', async () => {
   const C = await load();
   const down = (x, z) => C.aimHit([x, 30, z + 0.001], [0, -1, 0]);
   const L1 = C.landingFor(down(2, -4), 0);
-  assert.deepStrictEqual([L1.building, L1.x, L1.z, L1.yaw], ['store', 5, 1.7, 0], 'straight down on the store roof');
+  assert.deepStrictEqual([L1.building, L1.x, L1.z, L1.yaw], ['store', 5, 3.1, 0], 'straight down on the store roof');
   const L2 = C.landingFor(down(-7, -1), 0.3);
-  assert.deepStrictEqual([L2.building, L2.x, L2.z], ['next', -6, 1.7]);
+  assert.deepStrictEqual([L2.building, L2.x, L2.z], ['next', -6, 3.1]);
   const L3 = C.landingFor({ kind: 'ground', x: 12.7, z: 12.6 }, 0.3);
   assert.ok(L3.x <= 11.5 && L3.z <= 11.5, `clamped into the walkable square: ${L3.x}, ${L3.z}`);
   const L4 = C.landingFor({ kind: 'ground', x: 11, z: -6 }, 0);                 // back lot beside the store
@@ -298,7 +324,7 @@ test('fixed views come out of the simulation (SPEC 固定机位)', async () => {
   const mid = view('mid', 'door');
   assert.strictEqual(mid.mode, 'entering'); assert.ok(near(mid.s, 0.5, 1e-6), `mid s=${mid.s}`);
   const door = view('door');
-  assert.strictEqual(door.mode, 'walk'); assert.ok(near(door.cam.z, C.STORE.z1 + 1.2, 1e-9) && Math.abs(door.cam.yaw) < 1e-9);
+  assert.strictEqual(door.mode, 'walk'); assert.ok(near(door.cam.z, C.STORE.z1 + 2.6, 1e-9) && Math.abs(door.cam.yaw) < 1e-9);
   const inside = view('inside');
   assert.ok(C.buildingAt(inside.cam.x, inside.cam.z).id === 'store' && Math.hypot(inside.cam.x - 6.2, inside.cam.z + 2.3) < 0.05, 'by the till');
   const toFreezer = Math.atan2(-(1.5 - inside.cam.x), -(-7.95 - inside.cam.z));

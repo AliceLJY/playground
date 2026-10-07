@@ -37,7 +37,7 @@ export const EXTRA_COLORS = {
   storeRoof: '#AAB0B9', nextRoof: '#6C5747', storeFloor: '#C7CBD1', storeGrid: '#8D949E', nextFloor: '#5E4B3D',
   shelf: '#8B94A1', shelfBoard: '#B7BEC8', freezerBody: '#A9B2BE', counter: '#7D8591', dark: '#11151D', mat: '#3A4252',
   frame: '#2B313B', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
-  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E', storeCeiling: '#D2D6DC', ceilingGrid: '#8A919B',
+  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E', storeCeiling: '#D2D6DC', ceilingGrid: '#8A919B', signText: '#1E2532', sign2Text: '#3A2618',
 };
 
 // ---------------- layout (SPEC 尺度与布局) ----------------
@@ -92,7 +92,7 @@ const STATIC_SOLIDS = (() => {
   for (const cx of [-7.6, -6.7, -5.8, -4.9]) S.push(B3('stool@' + cx, 'furniture', cx - 0.2, F, -4.2, cx + 0.2, F + 0.7, -3.8));
   S.push(B3('kitchen-shelf', 'furniture', -8.6, F, -7.3, -5.0, F + 1.8, -6.9));
   // street furniture: vending machine (0.9 x 0.7 x 1.83) right of the store door, lamp (4.5 m), bench
-  S.push(B3('vending', 'furniture', 6.05, F, FACADE_Z, 6.95, F + 1.83, FACADE_Z + 0.7));   // right beside the door: in view on landing
+  S.push(B3('vending', 'furniture', 5.95, F, FACADE_Z, 6.85, F + 1.83, FACADE_Z + 0.7));   // right beside the door: in full view from the landing spot
   S.push(B3('lamp', 'furniture', -1.65, F, 2.95, -1.35, F + 4.5, 3.25));     // pole base; the lantern on top is no wider than 0.4
   S.push(B3('bench', 'furniture', 0.2, F, FACADE_Z + 0.12, 1.8, F + 0.45, FACADE_Z + 0.57));
   // low fences close the gaps beside the shops, so the walkable street ends at the shop fronts
@@ -215,19 +215,26 @@ export const orbitCamera = (o) => {
 };
 
 // ---------------- the one progress value s (SPEC 构图与过渡) ----------------
+// Inside: 65° vertical, but never narrower than 45° across (tall phones), and never more than 85° vertical.
+export const deg = (r) => (r * 180) / Math.PI, rad = (d) => (d * Math.PI) / 180;
+export const fovInside = (aspect) => clamp(deg(2 * Math.atan(Math.tan(rad(22.5)) / aspect)), 65, 85);
+export const hfov = (vfov, aspect) => deg(2 * Math.atan(Math.tan(rad(vfov) / 2) * aspect));
 export const MAP = {
-  fov: (s) => 35 + 30 * smooth(0.3, 1, s),
+  fov: (s, aspect = 16 / 9) => 35 + (fovInside(aspect) - 35) * smooth(0.3, 1, s),
   tilt: (s) => 1 - smooth(0.2, 0.75, s),
   fog: (s) => 0.035 * smooth(0.35, 1, s),
   rainMix: (s) => smooth(0.4, 0.9, s),            // 0: rain in a box over the base, 1: a 12 m cylinder round the camera
+  rainOpacity: (s) => lerp(0.18, 0.35, smooth(0.4, 0.9, s)),
+  rainHeight: (s) => lerp(6, 9.5, smooth(0.4, 0.9, s)),   // box 6 m over the base -> cylinder 9.5 m tall
+  rainShown: (s) => lerp(0.5, 1, smooth(0.4, 0.9, s)),    // share of the 2400 streaks drawn
   groundAlpha: (s) => smooth(0.5, 0.75, s),       // the 200 x 200 street-coloured ground, only after s = 0.5
   baseSides: (s) => s <= 0.8,
   lowpass: (s) => 600 * Math.pow(4000 / 600, clamp01(s)),
   volume: (s) => 0.15 + 0.35 * clamp01(s),
 };
-export function looks(s) {
-  return { s, fov: MAP.fov(s), tilt: MAP.tilt(s), fog: MAP.fog(s), rainMix: MAP.rainMix(s), groundAlpha: MAP.groundAlpha(s),
-    baseSides: MAP.baseSides(s), lowpass: MAP.lowpass(s), volume: MAP.volume(s) };
+export function looks(s, aspect = 16 / 9) {
+  return { s, fov: MAP.fov(s, aspect), tilt: MAP.tilt(s), fog: MAP.fog(s), rainMix: MAP.rainMix(s), rainOpacity: MAP.rainOpacity(s), rainHeight: MAP.rainHeight(s),
+    rainShown: MAP.rainShown(s), groundAlpha: MAP.groundAlpha(s), baseSides: MAP.baseSides(s), lowpass: MAP.lowpass(s), volume: MAP.volume(s) };
 }
 export const S_PER_Z = 0.3, Z_ENTER = 0.85, R_IN = 14;   // manual zoom: s = 0.3 z, radius hero -> 14 m, auto entry at z >= 0.85
 export const ENTER_TIME = 1.4, EXIT_TIME = 1.2;
@@ -247,6 +254,16 @@ export function screenBoxOf(cam, fov, aspect, pts) {
   return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
 }
 export const SCREEN_POINTS = { base: BASE_PTS, model: MODEL_PTS };
+// The tilt-shift focus follows the store front: the four corners of the facade, and the lit sign over the door.
+export const STOREFRONT = [[STORE.x0, SIDEWALK_H, STORE.z1], [STORE.x0, STORE.h, STORE.z1], [STORE.x1, SIDEWALK_H, STORE.z1], [STORE.x1, STORE.h, STORE.z1]];
+export const SIGN = { x0: STORE.door.cx - 1.5, x1: STORE.door.cx + 1.5, y0: 2.95, y1: 3.3, z: STORE.z1 + 0.075 };
+export const FOCUS_BAND = 0.1;                     // the clear band: focus line ± 10% of the screen height
+// Screen height (0 top, 1 bottom) of the focus line: middle of the projected store front, held in [0.15, 0.85].
+export function focusLine(cam, fov, aspect) {
+  let y0 = Infinity, y1 = -Infinity;
+  for (const p of STOREFRONT) { const q = project(cam, fov, aspect, p); if (q.depth < 0.1) return 0.5; y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+  return clamp((y0 + y1) / 2, 0.15, 0.85);
+}
 export const boxesAt = (cam, fov, aspect) => ({ base: screenBoxOf(cam, fov, aspect, BASE_PTS), model: screenBoxOf(cam, fov, aspect, MODEL_PTS) });
 export const heroOrbitAt = (r) => ({ cx: HERO.center[0], cy: HERO.center[1], cz: HERO.center[2], r, theta: HERO.theta, phi: HERO.phi });
 // Landscape: the base box takes 70% of the width. Portrait (aspect < 0.8): fit by width. Then back off until the whole
@@ -311,7 +328,8 @@ export function pushClear(x, z, clear = 0.4) {
   }
   return [p.x, p.z];
 }
-export const doorLanding = (b) => ({ x: b.door.cx, z: b.z1 + 1.2, yaw: 0, building: b.id });   // 1.2 m out, facing the door (-z)
+export const DOOR_LANDING = 2.6;                 // metres out from the door, on the kerb side of the pavement: the door is shut on landing
+export const doorLanding = (b) => ({ x: b.door.cx, z: b.z1 + DOOR_LANDING, yaw: 0, building: b.id });   // facing the door (-z)
 export function landingFor(hit, yaw) {
   if (hit.kind === 'building') return doorLanding(hit.b);
   const gx = hit.kind === 'ground' ? hit.x : 0, gz = hit.kind === 'ground' ? hit.z : 6.8;
@@ -370,7 +388,7 @@ export function createSim({ aspect = 16 / 9 } = {}) {
       S.cam = pathPose(tr, er);
     }
   }
-  const fovNow = () => MAP.fov(S.s);
+  const fovNow = () => MAP.fov(S.s, S.aspect);
   function setAspect(a) {
     if (Math.abs(a - S.aspect) < 1e-9) return;
     S.aspect = a; S.rHero = heroRadius(a);
@@ -519,11 +537,12 @@ export function createSim({ aspect = 16 / 9 } = {}) {
     refresh(); return true;
   }
   function snapshot() {
-    const L = looks(S.s), p = S.player, c = S.cam;
+    const L = looks(S.s, S.aspect), p = S.player, c = S.cam;
     return {
       mode: S.mode, s: S.s, z: S.z, t: S.t, rainT: S.rainT, aspect: S.aspect, rHero: S.rHero,
       orbit: { ...S.orbit }, cam: { ...c }, eye: c.y - groundAt(c.x, c.z),
-      fov: L.fov, tilt: L.tilt, fog: L.fog, rainMix: L.rainMix, groundAlpha: L.groundAlpha, baseSides: L.baseSides, lowpass: L.lowpass, volume: L.volume,
+      fov: L.fov, hfov: hfov(L.fov, S.aspect), tilt: L.tilt, fog: L.fog, rainMix: L.rainMix, rainOpacity: L.rainOpacity, rainHeight: L.rainHeight, rainShown: L.rainShown,
+      groundAlpha: L.groundAlpha, baseSides: L.baseSides, lowpass: L.lowpass, volume: L.volume,
       doors: S.doors.map((d, i) => ({ id: DOORS[i].id, k: d.k, want: d.want })),
       player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, stuck: p.stuck },
       trigger: S.trigger && { orbit: { ...S.trigger.orbit }, z: S.trigger.z, s: S.trigger.s, hit: S.trigger.hit },
@@ -579,6 +598,7 @@ export function visualBoxes() {
       for (const x of [b.x0 + T, -0.3, 2.0, d.x0, d.x1, 7.4, b.x1 - T]) add('frame', x - 0.025, F, b.z1 - 0.09, x + 0.025, 2.8, b.z1 - 0.01);
       add('frame', d.x0, F + DOOR_H - 0.025, b.z1 - 0.09, d.x1, F + DOOR_H + 0.025, b.z1 - 0.01);
       add('sign', d.cx - 1.5, 2.95, b.z1, d.cx + 1.5, 3.3, b.z1 + 0.06);
+      for (let i = 0; i < 4; i++) add('signText', d.cx - 1.225 + i * 0.65, 3.0, b.z1 + 0.06, d.cx - 0.725 + i * 0.65, 3.25, b.z1 + 0.075);   // four letter blocks
     } else {                                        // timber front with one window right of the door
       add(wall + ':upper', b.x0 + T, F + DOOR_H, b.z1 - T, b.x1 - T, top, b.z1);
       add(wall, b.x0 + T, 0, b.z1 - T, d.x0, F + DOOR_H, b.z1);
@@ -587,6 +607,7 @@ export function visualBoxes() {
       add(wall, -5.1, 0, b.z1 - T, -3.5, 0.95, b.z1);
       add('glass', -5.1, 0.95, b.z1 - 0.12, -3.5, F + DOOR_H, b.z1 - 0.08);
       add('sign2', d.cx - 0.8, 2.55, b.z1, d.cx + 0.8, 2.9, b.z1 + 0.05);
+      for (let i = 0; i < 2; i++) add('sign2Text', d.cx - 0.55 + i * 0.6, 2.6, b.z1 + 0.05, d.cx - 0.05 + i * 0.6, 2.85, b.z1 + 0.065);
     }
   }
   // store interior
@@ -610,9 +631,9 @@ export function visualBoxes() {
   add('nextLightPanel', -7.6, NEXT.h - 0.27, -5.6, -4.4, NEXT.h - 0.2, -5.3);
   add('nextLightPanel', -6.8, NEXT.h - 0.27, -2.4, -5.2, NEXT.h - 0.2, -2.1);
   // street
-  add('vendBody', 6.05, F, FACADE_Z, 6.95, F + 1.83, FACADE_Z + 0.7);
-  add('vending', 6.13, F + 0.55, FACADE_Z + 0.7, 6.87, F + 1.75, FACADE_Z + 0.72);
-  add('vending', 6.05, F + 1.45, FACADE_Z + 0.08, 6.04, F + 1.75, FACADE_Z + 0.62);   // lit strip on the side facing the door
+  add('vendBody', 5.95, F, FACADE_Z, 6.85, F + 1.83, FACADE_Z + 0.7);
+  add('vending', 6.03, F + 0.55, FACADE_Z + 0.7, 6.77, F + 1.75, FACADE_Z + 0.72);
+  add('vending', 5.94, F + 1.45, FACADE_Z + 0.08, 5.95, F + 1.75, FACADE_Z + 0.62);   // lit strip on the side facing the door
   add('pole', LAMP.x - 0.06, F, LAMP.z - 0.06, LAMP.x + 0.06, LAMP.top - 0.3, LAMP.z + 0.06);
   add('pole', LAMP.x - 0.15, F, LAMP.z - 0.15, LAMP.x + 0.15, F + 0.3, LAMP.z + 0.15);
   add('lamp', LAMP.x - 0.2, LAMP.top - 0.3, LAMP.z - 0.2, LAMP.x + 0.2, LAMP.top, LAMP.z + 0.2);

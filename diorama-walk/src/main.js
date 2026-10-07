@@ -18,7 +18,8 @@ const TILT = Q.get('tilt');                     // test override only: 'off' or 
 const COARSE = matchMedia('(pointer: coarse)').matches;
 // Tilt-shift runs three's two shaders twice: a fine pair, then a coarse pair 9x wider. The 9-tap kernel alone, spread wide,
 // copies thin lines (rain) into a comb of sharp ghosts; the fine pair fills the gaps so the blur is smooth.
-const TILT_K = [1.0, 9.0];                     // tap spacing = K·|0.5 - v| CSS pixels
+// The focus line follows the store front on screen; within ±FOCUS_BAND of it nothing is blurred.
+const TILT_K = [0.67, 6.0];                    // tap spacing = K·max(|focus - v| - band, 0) CSS pixels
 
 // ---------------- page ----------------
 document.head.insertAdjacentHTML('beforeend', `<style>
@@ -55,6 +56,7 @@ const MATS = {
   storeWall: lam(COL.storeWall), 'storeWall:upper': lam(COL.storeWall), storeRoof: lam(COL.storeRoof), storeFloor: lam(COL.storeFloor),
   nextWall: lam(COL.nextWall), 'nextWall:upper': lam(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lam(COL.nextFloor),
   glass: glassMat(), glassTransom: glassMat(), frame: lam(COL.frame), sign: glow(COL.storeLight), sign2: glow(COL.nextLight),
+  signText: glow(COL.signText), sign2Text: glow(COL.sign2Text),
   shelf: new THREE.MeshLambertMaterial({ color: COL.shelf, emissive: 0x262b33 }), shelfBoard: lam(COL.shelfBoard), freezerBody: lam(COL.freezerBody), freezer: glow(COL.freezer),
   storeCeiling: new THREE.MeshLambertMaterial({ color: COL.storeCeiling, emissive: 0x30343a }), counter: lam(COL.counter), dark: glow(COL.dark), mat: lam(COL.mat), storeLightPanel: glow(COL.storeLight), nextLightPanel: glow(COL.nextLight),
   bar: lam(COL.bar), stool: lam(COL.stool), shelf2: lam(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
@@ -121,7 +123,7 @@ const streetLamp = new THREE.PointLight(COL.lamp, 9, 14, 1.3);
 streetLamp.position.set(C.LAMP.x, C.LAMP.top - 0.45, C.LAMP.z + 0.3);
 scene.add(streetLamp);
 // what hides while you rise out of a building
-const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeWall:upper', 'glassTransom', 'sign', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'nextLightPanel'] };
+const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeWall:upper', 'glassTransom', 'sign', 'signText', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'sign2Text', 'nextLightPanel'] };
 
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
 const N_RAIN = 2400;
@@ -142,21 +144,22 @@ const rainMat = new THREE.ShaderMaterial({
   uniforms: {
     uTime: { value: 0 }, uMix: { value: 0 }, uCam: { value: new THREE.Vector3() }, uLen: { value: 0.35 },
     uA: { value: fp(C.STORE) }, uB: { value: fp(C.NEXT) }, uTops: { value: new THREE.Vector2(C.STORE.h, C.NEXT.h) },
-    uColor: { value: new THREE.Color(C.COLORS.rain) }, uOpacity: { value: C.RAIN_OPACITY },
+    uColor: { value: new THREE.Color(C.COLORS.rain) }, uOpacity: { value: C.RAIN_OPACITY }, uH: { value: 9.5 }, uShown: { value: 1 },
   },
   vertexShader: /* glsl */`
-    uniform float uTime, uMix, uLen; uniform vec3 uCam; uniform vec4 uA, uB; uniform vec2 uTops;
+    uniform float uTime, uMix, uLen, uH, uShown; uniform vec3 uCam; uniform vec4 uA, uB; uniform vec2 uTops;
     attribute vec4 seed; attribute float endp;
     bool inside(vec3 p) {
       return (p.x > uA.x && p.x < uA.z && p.z > uA.y && p.z < uA.w && p.y < uTops.x + 0.05)
           || (p.x > uB.x && p.x < uB.z && p.z > uB.y && p.z < uB.w && p.y < uTops.y + 0.05);
     }
     void main() {
-      float H = 9.5, speed = 7.5 * (0.85 + 0.3 * seed.w);
-      float y01 = fract(seed.z - uTime * speed / H);
-      vec3 inBox = vec3(-13.0 + 26.0 * seed.x, 0.2 + y01 * H, -13.0 + 26.0 * seed.y);
+      if (fract((seed.x + seed.y) * 43.758) > uShown) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }   // fewer streaks outside
+      float speed = 7.5 * (0.85 + 0.3 * seed.w);
+      float y01 = fract(seed.z - uTime * speed / 9.5);   // fixed cycle, so changing the height never makes streaks jump
+      vec3 inBox = vec3(-13.0 + 26.0 * seed.x, 0.2 + y01 * uH, -13.0 + 26.0 * seed.y);
       float a = seed.x * 6.2831853, r = 0.6 + 11.4 * sqrt(seed.y);
-      vec3 round = vec3(uCam.x + r * cos(a), uCam.y - 3.0 + y01 * H, uCam.z + r * sin(a));
+      vec3 round = vec3(uCam.x + r * cos(a), uCam.y - 3.0 + y01 * uH, uCam.z + r * sin(a));
       vec3 head = mix(inBox, round, uMix), tail = head - vec3(0.0, uLen, 0.0);
       if (inside(head) || inside(tail)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
       gl_Position = projectionMatrix * viewMatrix * vec4(endp < 0.5 ? head : tail, 1.0);
@@ -190,7 +193,13 @@ class MsaaRenderPass extends RenderPass {
 }
 const composer = new EffectComposer(renderer);
 composer.addPass(new MsaaRenderPass(scene, camera));
-const tiltPasses = TILT_K.map((k) => [new ShaderPass(HorizontalTiltShiftShader), new ShaderPass(VerticalTiltShiftShader), k]);
+// three's shader with one change: the blur weight is measured from the edge of the clear band instead of from the focus line.
+function banded(shader) {
+  const fs = shader.fragmentShader.replace('uniform float r;', 'uniform float r;\n\t\tuniform float band;').replace('abs( r - vUv.y )', 'max( abs( r - vUv.y ) - band, 0.0 )');
+  if (!fs.includes('uniform float band;') || !fs.includes('- band, 0.0 )')) throw new Error('tilt-shift shader changed upstream: ' + shader.name);
+  return { ...shader, name: shader.name + 'Banded', uniforms: { ...shader.uniforms, band: { value: C.FOCUS_BAND } }, fragmentShader: fs };
+}
+const tiltPasses = TILT_K.map((k) => [new ShaderPass(banded(HorizontalTiltShiftShader)), new ShaderPass(banded(VerticalTiltShiftShader)), k]);
 for (const [h, v] of tiltPasses) { composer.addPass(h); composer.addPass(v); }
 composer.addPass(new OutputPass());
 
@@ -231,9 +240,9 @@ const hints = {
   orbit: COARSE ? '单指拖动转 · <b>双指张开</b>放大，走进去' : '拖动旋转 · <b>滚轮往前</b>放大，走进去',
   walk: COARSE ? '拖动转头 · <b>轻点地面</b>走过去 · <b>双指捏合</b>出来' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>或 Esc 出来',
 };
-let hintNow = null;
+let hintNow = null, focusY = 0.5;
 function sync() {
-  const S = sim.S, L = C.looks(S.s), c = S.cam;
+  const S = sim.S, L = C.looks(S.s, S.aspect), c = S.cam;
   camera.position.set(c.x, c.y, c.z);
   camera.rotation.set(c.pitch, c.yaw, 0, 'YXZ');
   camera.fov = L.fov;
@@ -243,12 +252,14 @@ function sync() {
   camera.updateProjectionMatrix();
   scene.fog.density = L.fog;
   const t = TILT === 'off' ? 0 : TILT === 'on' ? 1 : L.tilt;
+  focusY = C.focusLine(c, L.fov, cssW / cssH);
   for (const [ph, pv, k] of tiltPasses) {
     ph.enabled = pv.enabled = t > 0.001;
     ph.uniforms.h.value = (t * k) / cssW; pv.uniforms.v.value = (t * k) / cssH;
-    ph.uniforms.r.value = pv.uniforms.r.value = 0.5;
+    ph.uniforms.r.value = pv.uniforms.r.value = 1 - focusY;          // shader v runs bottom-up
   }
   rainMat.uniforms.uTime.value = S.rainT; rainMat.uniforms.uMix.value = L.rainMix;
+  rainMat.uniforms.uOpacity.value = L.rainOpacity; rainMat.uniforms.uH.value = L.rainHeight; rainMat.uniforms.uShown.value = L.rainShown;
   rainMat.uniforms.uCam.value.copy(camera.position); rainMat.uniforms.uLen.value = C.lerp(0.35, 0.55, L.rainMix);
   bigGround.visible = L.groundAlpha > 0.001; bigGround.material.opacity = L.groundAlpha;
   baseSides.visible = L.baseSides;
@@ -382,7 +393,7 @@ window.__diorama = {
   info: () => {
     const n = frameTimes.length, span = n > 1 ? (frameTimes[n - 1] - frameTimes[0]) / 1000 : 0;
     return { calls: lastCalls, triangles: lastTris, dpr: renderer.getPixelRatio(), deviceDpr: window.devicePixelRatio, buffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
-      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, rainSegments: N_RAIN };
+      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
   },
   core: C,
 };
