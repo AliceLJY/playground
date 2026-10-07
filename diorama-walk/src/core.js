@@ -1056,7 +1056,7 @@ export const VIEW_SCRIPTS = {
   scare: {}, reveal: {},                                                                              // scripted by playScare
 };
 // A scripted visit for the scare version: freezers (E2), the door behind you (E3), the staff door (E4), then out (E5).
-export const SCARE_PLAN = { aisle: [[5.0, -0.6], [4.2, -6.5]], behind: [4.2, 1.6, 2.5], staff: [BACKDOOR.cx, SIDEWALK_H + 1.05, BACKDOOR.cz], near: [6.5, -6.85], out: [[5.0, -0.6], [5.0, 3.1]] };
+export const SCARE_PLAN = { aisle: [[5.0, -0.6], [4.2, -6.5]], behind: [4.2, 1.6, 2.5], staff: [BACKDOOR.cx, SIDEWALK_H + 1.05, BACKDOOR.cz], front: [6.6, -5.6], near: [6.5, -6.85], out: [[5.0, -0.6], [5.0, 3.1]] };
 export function playScare(sim, { dt = DT_VIEW, upTo = 'out', after = 0, aim = 'door' } = {}) {
   const S = sim.S, h = () => sim.horror(), until = (pred, maxT = 30) => { let t = 0; for (; t < maxT && !pred(); t += dt) sim.update(dt); return t; };
   const P = SCARE_PLAN, log = {};
@@ -1067,6 +1067,9 @@ export function playScare(sim, { dt = DT_VIEW, upTo = 'out', after = 0, aim = 'd
   if (upTo === 'reveal') { sim.walkRoute(P.out); until(() => !S.player.route, 20); sim.exit(); until(() => S.mode === 'orbit', 5); until(() => false, after); return log; }
   until(() => h().e3 && S.t >= h().e3.closedAt, 12);
   sim.lookAt(...P.behind); until(() => !S.player.look, 6);
+  sim.lookAt(...P.staff); until(() => !S.player.look, 6);
+  // round 6: come at the staff door from the front (E4 now catches you at 2.0 m; from the side the open leaf hides the doorway)
+  sim.walkTo(...P.front); until(() => !S.player.route, 6);
   sim.lookAt(...P.staff); until(() => !S.player.look, 6);
   sim.walkTo(...P.near); until(() => !S.player.route || !!h().e4, 6);
   S.player.route = null;                                     // stops where E4 caught it (round 6: from 2.0 m)

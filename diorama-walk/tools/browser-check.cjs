@@ -385,8 +385,9 @@ const isExternal = (u) => {
       walk(route) { D.walkRoute(route); H.until(() => !D.state().player.walking, 20); },
       look(p) { D.lookAt(...p); H.until(() => !D.state().player.looking, 6); },
       aisle() { H.walk(P.aisle); H.until(() => D.horror().e2 && D.state().t >= D.horror().e2.t0 + C.E2_TOTAL, 5); },
-      e3() { H.until(() => D.horror().e3 && D.state().t >= D.horror().e3.closedAt, 6); },
-      staff() { H.look(P.behind); H.look(P.staff); H.walk([P.near]); D.lookAt(...P.staff); H.until(() => !!D.horror().e4 || !D.state().player.looking, 6); },
+      e3() { H.until(() => D.horror().e3 && D.state().t >= D.horror().e3.closedAt, 12); },
+      // round 6: E4 catches the walker from 2.0 m on the way to the staff door; the scripted visit stops there
+      staff() { H.look(P.behind); H.look(P.staff); H.walk([P.front]); H.look(P.staff); D.walkRoute([P.near]); H.until(() => !D.state().player.walking || !!D.horror().e4, 20); D.stopWalk(); D.lookAt(...P.staff); H.until(() => !!D.horror().e4 || !D.state().player.looking, 6); },
       bang() { H.until(() => D.horror().e4 && D.state().t >= D.horror().e4.bang + 0.6, 6); },
       leave(route = P.out, look = null) { H.walk(route); if (look) H.look(look); D.exit(); H.until(() => D.state().mode === 'orbit', 5); },
     });
@@ -541,21 +542,25 @@ const isExternal = (u) => {
       `silence ${silence.toFixed(3)} s (1.6 +- 0.1) with the larger hum gain at ${r.worstGain} throughout; freezers back with the sound ${r.backTogether} (gains back to ${f2(r.restored && r.restored.fluor)}/${f2(r.restored && r.restored.freezer)}); E2 in this visit after going back into the aisle: ${r.again} time(s)`);
   }
 
-  // ---------- H4: the door opens by itself only after E2, out of sight and 5 m away; one chime; nobody there ----------
+  // ---------- H4 (round 6): the door opens by itself 3 s after E2 at the earliest, out of sight and >= 3 m away; one chime; nobody there ----------
   {
     const P = await open('?view=hero');
     await P.page.keyboard.press('Shift');          // first gesture: sound on, so the chime is logged as played
     await P.page.evaluate(helpers);
     const r = await P.page.evaluate(() => {
-      const D = window.__diorama, H = window.__H, C = D.core;
-      H.enter(); H.walk([[5.0, -0.6], [6.4, -5.0]]); H.until(() => false, 4);
-      const noE2 = D.horror().fired.E3;
+      const D = window.__diorama, H = window.__H, C = D.core, e2end = () => D.horror().e2.t0 + C.E2_TOTAL;
+      // (a) 3 m in with the door behind: nothing before E2 (12 s in the shop), then E3 exactly 3 s after E2 ends
+      H.enter(); H.walk([[5.0, -0.6], [5.0, -2.7]]);
+      H.until(() => D.horror().fired.E2 != null || D.horror().fired.E3 != null, 20);
+      const beforeE2 = { E2: D.horror().fired.E2, E3: D.horror().fired.E3 };
+      H.dt = 1 / 240; H.until(() => D.horror().fired.E3 != null, 8); H.dt = 1 / 60;
+      const a3 = D.horror().fired.E3 - e2end();
       H.leave([[5.0, -0.6], [5.0, 3.1]]);
-      H.enter(); D.walkRoute(C.SCARE_PLAN.aisle); H.until(() => !D.state().player.walking, 20);
-      H.look([5.0, 1.3, 0.4]); H.until(() => D.state().t >= D.horror().e2.t0 + C.E2_TOTAL + 1.0, 6);
-      const inView = D.horror().fired.E3;
-      H.walk([[4.6, -3.0]]); H.look([4.6, 1.6, -9.0]); H.until(() => false, 2);
-      const tooNear = D.horror().fired.E3;
+      // (c) door out of sight but 2.4 m away: nothing, not even 20 s after E2 (the 15 s fallback also needs 3 m)
+      H.enter(); H.walk([[5.0, -0.6], [4.6, -2.0]]); H.look([4.6, 1.6, -9.0]);
+      H.until(() => D.horror().fired.E2 != null, 20); H.until(() => D.state().t >= e2end() + 20, 25);
+      const near = { E3: D.horror().fired.E3, dist: Math.hypot(D.state().player.x - 5.0, D.state().player.z - 0.4) };
+      // (d) walk away with the door behind: E3 as soon as 3 m is passed
       const ids0 = D.solids().map((s) => s.id).join(','), bells0 = (D.audioLog() || []).filter((x) => x.kind === 'bell').length;
       H.dt = 1 / 120;
       const ks = []; let t3 = null, at3 = null, appeared = false;
@@ -564,19 +569,19 @@ const isExternal = (u) => {
         if (h.fired.E3 != null && t3 == null) {
           t3 = h.fired.E3;
           const c = st.cam, f = C.basis(c.yaw, c.pitch).f, d = [5.0 - c.x, 1.6 - c.y, 0.4 - c.z], L = Math.hypot(...d);
-          at3 = { dist: Math.hypot(st.player.x - 5.0, st.player.z - 0.4), angle: (Math.acos((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L) * 180) / Math.PI, need: st.hfov / 2 + 10 };
+          at3 = { dist: Math.hypot(st.player.x - 5.0, st.player.z - 0.4), angle: (Math.acos((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L) * 180) / Math.PI, need: st.hfov / 2 + 10, inView: h.e3.inView };
         }
         if (t3 != null) { ks.push([st.t - t3, st.doors[0].k]); if (h.figure || h.scare || i.figures.counterOrWindow || i.figures.backroom) appeared = true; }
       };
       D.walkTo(4.6, -6.2); H.until(() => t3 != null && D.state().t > t3 + 3, 12); H.each = null;
-      return { noE2, inView, tooNear, t3, at3, ks, appeared, sameSolids: D.solids().map((s) => s.id).join(',') === ids0, bells: (D.audioLog() || []).filter((x) => x.kind === 'bell').length - bells0, audio: D.info().audio };
+      return { beforeE2, a3, near, t3, at3, ks, appeared, sameSolids: D.solids().map((s) => s.id).join(',') === ids0, bells: (D.audioLog() || []).filter((x) => x.kind === 'bell').length - bells0, audio: D.info().audio };
     });
     await P.close();
     report.h4 = { ...r, ks: undefined };
     const full = r.ks.filter(([, k]) => k === 1), held = full.length ? full[full.length - 1][0] - full[0][0] : 0, peak = Math.max(...r.ks.map(([, k]) => k)), endK = r.ks.length ? r.ks[r.ks.length - 1][1] : null;
-    check('H4', 'the door opens by itself only after E2, out of sight and >= 5 m away',
-      r.noE2 === null && r.inView === null && r.tooNear === null && r.t3 != null && r.at3.dist >= 5 && r.at3.angle > r.at3.need && peak === 1 && Math.abs(held - 1.2) <= 1 / 120 + 1e-9 && endK === 0 && r.bells === 1 && !r.appeared && r.sameSolids,
-      `before E2 (far, door behind): E3 ${r.noE2}; after E2 looking at the door: ${r.inView}; after E2, door out of sight but 3.4 m away: ${r.tooNear}; walking away: E3 at ${f2(r.t3)} s, ${f2(r.at3 && r.at3.dist)} m from the door, door ${f1(r.at3 && r.at3.angle)} deg off the view line (needs > ${f1(r.at3 && r.at3.need)}); ` +
+    check('H4', 'the door opens by itself 3 s after E2 at the earliest, out of sight and >= 3 m away (round 6)',
+      r.beforeE2.E2 != null && r.beforeE2.E3 === null && Math.abs(r.a3 - 3) <= 1 / 240 + 1e-9 && r.near.E3 === null && r.near.dist < 3 && r.t3 != null && r.at3.dist >= 3 && r.at3.dist < 3.05 && r.at3.angle > r.at3.need && r.at3.inView === false && peak === 1 && Math.abs(held - 1.2) <= 1 / 120 + 1e-9 && endK === 0 && r.bells === 1 && !r.appeared && r.sameSolids,
+      `3 m in, door behind: E2 at ${f2(r.beforeE2.E2)} s with E3 ${r.beforeE2.E3} before it, then E3 ${r.a3.toFixed(4)} s after E2 ended (3); door out of sight but ${f2(r.near.dist)} m away: E3 ${r.near.E3} 20 s after E2; walking away: E3 at ${f2(r.t3)} s, ${f2(r.at3 && r.at3.dist)} m from the door, door ${f1(r.at3 && r.at3.angle)} deg off the view line (needs > ${f1(r.at3 && r.at3.need)}); ` +
       `opens to ${peak}, held fully open ${held.toFixed(3)} s, ends at ${endK}; chimes played during it ${r.bells} (sound ${r.audio}); anything appeared ${r.appeared}; solids unchanged ${r.sameSolids}`);
   }
 
@@ -588,20 +593,24 @@ const isExternal = (u) => {
     await P.page.evaluate(() => { window.__vib = []; Object.defineProperty(navigator, 'vibrate', { configurable: true, value: (p) => { window.__vib.push({ p: Array.from(p), t: window.__diorama.state().t }); return true; } }); });
     const r = await P.page.evaluate(() => {
       const D = window.__diorama, H = window.__H, C = D.core, B = C.BACKDOOR, S = C.SCARE_PLAN;
-      H.enter(); H.walk([[5.0, -0.6], [6.5, -3.5], S.near]);                                // past the till to the staff door, never through the freezer aisle
-      H.look(S.staff); H.until(() => false, 3);
-      const early = { E2: D.horror().fired.E2, E3: D.horror().fired.E3, E4: D.horror().fired.E4, back: D.info().leaf, dist: Math.hypot(D.state().player.x - B.cx, D.state().player.z - B.cz) };
+      H.enter(); H.walk([[5.0, -0.6], [6.5, -3.5], S.near]);                                // past the till to the staff door, looking at it
+      H.look(S.staff); H.until(() => D.horror().fired.E3 != null, 20); H.until(() => false, 3);
+      const early = { E2: D.horror().fired.E2, E3: D.horror().fired.E3, E4: D.horror().fired.E4, wide: D.horror().wideAt, back: D.info().leaf, dist: Math.hypot(D.state().player.x - B.cx, D.state().player.z - B.cz) };
       H.leave();
-      H.enter(); H.aisle(); H.e3(); H.look(S.behind); H.look(S.staff); H.walk([S.near]);
-      D.lookAt(...S.staff);
-      H.dt = 1 / 240; let at4 = null; const tl = [], log0 = (D.audioLog() || []).length, vib0 = window.__vib.length;
+      H.enter(); H.aisle(); H.e3(); H.look(S.behind); H.look(S.staff); H.walk([S.front]); H.look(S.staff);
+      H.dt = 1 / 240; let at4 = null, seenAt = null; const tl = [], log0 = (D.audioLog() || []).length, vib0 = window.__vib.length;
+      D.walkRoute([S.near]);
       H.each = (st) => {
         const h = D.horror(), i = D.info();
-        if (h.fired.E4 != null && !at4) { const q = D.toScreen(B.cx, C.SIDEWALK_H + B.h / 2, B.cz); at4 = { t4: h.fired.E4, E3: h.fired.E3, e3end: h.e3.closedAt, dist: Math.hypot(st.player.x - B.cx, st.player.z - B.cz), hinge: Math.hypot(st.player.x - B.hx, st.player.z - B.hz), sx: q[0] / innerWidth, px: st.player.x, pz: st.player.z, camY: st.cam.y }; }
+        if (h.fired.E4 != null && !at4) {
+          D.stopWalk();
+          seenAt = st.t; const q = D.toScreen(B.cx, C.SIDEWALK_H + B.h / 2, B.cz); at4 = { t4: h.fired.E4, E3: h.fired.E3, e3end: h.e3.closedAt, dist: Math.hypot(st.player.x - B.cx, st.player.z - B.cz), hinge: Math.hypot(st.player.x - B.hx, st.player.z - B.hz), sx: q[0] / innerWidth, px: st.player.x, pz: st.player.z, camY: st.cam.y }; }
         if (at4) tl.push({ t: st.t - at4.t4, leaf: i.leaf, fig: i.figures.backroom, shake: Math.hypot(i.camera[0] - st.cam.x, i.camera[1] - st.cam.y, i.camera[2] - st.cam.z), dark: i.darkOverlay, px: st.player.x, pz: st.player.z, camX: st.cam.x, camY: st.cam.y, camZ: st.cam.z });
       };
+      H.until(() => at4 && D.state().t >= at4.t4 + 0.12, 8);
+      const seen = D.visibility(C.figurePoints('backroom')).filter((x) => x.inFrustum && !x.blockedBy).length;   // information only
       H.until(() => at4 && D.state().t >= at4.t4 + 1.0, 8); H.each = null;
-      return { early, at4, tl, log: (D.audioLog() || []).slice(log0), allLog: D.audioLog() || [], vib: window.__vib.slice(vib0), audio: D.info().audio, wide: B.wide, bang: C.E4_BANG };
+      return { early, at4, seen, tl, log: (D.audioLog() || []).slice(log0), allLog: D.audioLog() || [], vib: window.__vib.slice(vib0), audio: D.info().audio, wide: B.wide, bang: C.E4_BANG };
     });
     await P.close();
     // the same scare with no navigator.vibrate at all (iOS, desktop Safari): must pass silently
@@ -627,8 +636,8 @@ const isExternal = (u) => {
     const okVib = v.length === 1 && JSON.stringify(v[0].p) === '[90,50,140]' && Math.abs(v[0].t - a.t4 - r.bang) <= 1 / 240 + 1e-9;
     const okSound = slam.length === 1 && sting.length === 1 && slam[0].peak / slam[0].base >= 3 && sting[0].length <= 0.6 && bells.length > 0 && bells.every((b) => Math.abs(b.peak / b.base - 2) < 1e-6) && r.audio === 'running';
     check('H5', 'staff-door scare: only after E3, figure 0.25 s, slam <= 0.12 s, small shake, one vibration, loud bang',
-      r.early.E2 === null && r.early.E3 === null && r.early.E4 === null && r.early.dist <= 1.6 && a.t4 != null && a.E3 != null && a.t4 > a.e3end && a.dist <= 1.6 && Math.abs(a.sx - 0.5) <= 1 / 6 + 0.01 && okTiming && maxShake <= 0.03 && shakeSpan <= 0.3 && walkerMoved === 0 && simCamMoved < 1e-9 && Math.abs(darkened.length / 240 - 0.1) <= 2 / 240 && okVib && okSound && noVib.E4 != null && noVibErrors === 0,
-      `standing ${f2(r.early.dist)} m from the staff door and looking at it without having been down the freezer aisle: E2 ${r.early.E2}, E3 ${r.early.E3}, E4 ${r.early.E4}, door at ${f1(r.early.back * 180 / Math.PI)} deg; in the full visit E4 at ${f2(a.t4)} s, after E3 (${f2(a.E3)} s, door shut again at ${f2(a.e3end)} s); walker ${f2(a.dist)} m from the door (${f2(a.hinge)} m from the hinge), door centre at ${f2(a.sx)} of the width; ` +
+      r.early.E2 != null && r.early.E3 != null && r.early.E4 === null && r.early.wide === null && r.early.dist <= 2.0 && a.t4 != null && a.E3 != null && a.t4 > a.e3end && a.dist <= 2.0 && a.hinge >= 1.3 && Math.abs(a.sx - 0.5) <= 1 / 4 + 0.01 && okTiming && maxShake <= 0.03 && shakeSpan <= 0.3 && walkerMoved === 0 && simCamMoved < 1e-9 && Math.abs(darkened.length / 240 - 0.1) <= 2 / 240 && okVib && okSound && noVib.E4 != null && noVibErrors === 0,
+      `standing ${f2(r.early.dist)} m from the staff door and looking at it (E2 ${f2(r.early.E2)} s and E3 ${f2(r.early.E3)} s came meanwhile; the staff door never left the view): wide ${r.early.wide}, E4 ${r.early.E4}, door at ${f1(r.early.back * 180 / Math.PI)} deg; in the full visit E4 at ${f2(a.t4)} s, after E3 (${f2(a.E3)} s, door shut again at ${f2(a.e3end)} s); walker ${f2(a.dist)} m from the door (${f2(a.hinge)} m from the hinge), door centre at ${f2(a.sx)} of the width, figure points in sight at E4+0.12 s ${r.seen}/5 (information only); ` +
       `drawn: figure in the gap until ${f2(shown.length ? shown[shown.length - 1].t : null)} s, leaf wide until ${f2(lastWide && lastWide.t)} s (0.25 +- 0.05), shut at ${f2(firstShut && firstShut.t)} s -> slam ${firstShut && lastWide ? (firstShut.t - lastWide.t).toFixed(3) : 'n/a'} s (<= 0.12); ` +
       `drawn camera shake up to ${maxShake.toFixed(4)} m over ${shakeSpan.toFixed(3)} s, walker moved ${walkerMoved} m, simulation camera moved ${simCamMoved.toExponential(1)} m; dark overlay on for ${(darkened.length / 240).toFixed(3)} s; ` +
       `navigator.vibrate (recorder) called ${v.length} time(s): ${v.map((x) => JSON.stringify(x.p) + ' at E4+' + (x.t - a.t4).toFixed(3) + ' s').join(', ')} (bang at E4+${r.bang.toFixed(3)} s); ` +
@@ -1153,11 +1162,154 @@ const isExternal = (u) => {
     await P.close();
   }
 
+  // ======================= 第六轮：电脑转身、惊吓好找 (SPEC 电脑转身与惊吓好找, K1 K2 F1 F4 F5) =======================
+  // ---------- K1: real keyboard turning ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.evaluate(helpers);
+    await page.evaluate(() => { const H = window.__H; H.enter(); H.walk([[5.0, -0.6], [4.6, -3.2]]); });
+    const rows = [];
+    const held = async (key, hz, secs) => {
+      await page.evaluate(() => window.__diorama.place(4.6, -3.2, 0));    // the same spot each time, facing the back of the shop
+      const a = await state(page);
+      await page.keyboard.down(key);
+      const b = await page.evaluate(([dt, n]) => window.__diorama.keyStep(dt, n), [1 / hz, Math.round(secs * hz)]);
+      await page.keyboard.up(key);
+      await page.evaluate(() => window.__diorama.keyStep(1 / 60, 1));
+      const sideways = (b.player.x - a.player.x) * Math.cos(a.player.yaw) - (b.player.z - a.player.z) * Math.sin(a.player.yaw);
+      return { key, hz, dyaw: b.player.yaw - a.player.yaw, moved: Math.hypot(b.player.x - a.player.x, b.player.z - a.player.z), sideways };
+    };
+    for (const key of ['ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE']) for (const hz of [30, 120]) rows.push({ ...(await held(key, hz, 1)), want: key === 'ArrowLeft' || key === 'KeyQ' ? 2 : -2 });
+    const side = [];
+    for (const key of ['KeyA', 'KeyD']) for (const hz of [30, 120]) side.push({ ...(await held(key, hz, 0.5)), sign: key === 'KeyA' ? -1 : 1 });
+    const shiftTurn = await (async () => { await page.keyboard.down('ShiftLeft'); const r = await held('ArrowLeft', 60, 1); await page.keyboard.up('ShiftLeft'); return r; })();
+    // real time: the page's own loop, ArrowLeft held for one second
+    await page.evaluate(() => window.__diorama.auto(true)); await page.waitForTimeout(300);
+    const r0 = await state(page);
+    await page.keyboard.down('ArrowLeft'); await page.waitForTimeout(1000); await page.keyboard.up('ArrowLeft'); await page.waitForTimeout(200);
+    const r1 = await state(page);
+    await page.evaluate(() => window.__diorama.auto(false));
+    await page.evaluate(() => window.__diorama.ui(true)); await page.screenshot({ path: shot('K1-turned') });
+    await P.close();
+    const live = { dyaw: r1.player.yaw - r0.player.yaw, moved: Math.hypot(r1.player.x - r0.player.x, r1.player.z - r0.player.z), simT: r1.t - r0.t };
+    report.k1 = { rows, side, shiftTurn, live };
+    check('K1', 'turning keys: <- -> and Q E turn 2.0 rad/s in place at any step rate; A D step sideways without turning (real keyboard)',
+      rows.every((x) => Math.abs(x.dyaw - x.want) <= 0.1 && x.moved === 0) && Math.max(...rows.map((x) => Math.abs(x.dyaw - x.want))) < 1e-9 &&
+      side.every((x) => x.dyaw === 0 && x.sign * x.sideways > 0.6) && Math.abs(shiftTurn.dyaw - 2) < 1e-9 && Math.abs(live.dyaw - 2) <= 0.1 && live.moved === 0,
+      `held 1 s through the page's key handling: ${rows.map((x) => `${x.key}@${x.hz}/s ${x.dyaw.toFixed(4)} rad, moved ${x.moved}`).join('; ')}; Shift+ArrowLeft ${shiftTurn.dyaw.toFixed(4)} rad; ` +
+      `A/D 0.5 s: ${side.map((x) => `${x.key}@${x.hz}/s ${x.sideways.toFixed(3)} m sideways, yaw change ${x.dyaw}`).join('; ')}; ` +
+      `real time (page loop, ArrowLeft held 1000 ms): ${live.dyaw.toFixed(3)} rad over ${live.simT.toFixed(3)} s of simulation (incl. 0.2 s after release), moved ${live.moved}`);
+  }
+
+  // ---------- K2: hints ----------
+  {
+    const R5_TOUCH = { inside: '左边摇杆走 · 右边拖动转头 · 捏合看整间店', street: '左边摇杆走 · 右边拖动转头 · 捏合出来' };
+    const read = async (touch) => {
+      const P = await open('?view=hero', touch ? { width: 390, height: 844, dpr: 3, touch: true } : {});
+      await P.page.evaluate(helpers);
+      const r = await P.page.evaluate(() => {
+        const D = window.__diorama, H = window.__H, el = document.getElementById('hint'), txt = () => el.textContent;
+        H.enter(); const street = txt(); H.walk([[5.0, -0.6], [4.6, -3.2]]); const inside = txt();
+        return { street, inside, fits: el.scrollWidth <= el.clientWidth + 1, sw: el.scrollWidth, cw: el.clientWidth };
+      });
+      if (!touch) { await P.page.evaluate(() => window.__diorama.ui(true)); await P.page.screenshot({ path: shot('K2-hint-mouse') }); }
+      await P.close();
+      return r;
+    };
+    const mouse = await read(false), touch = await read(true);
+    report.k2 = { mouse, touch };
+    check('K2', 'hints: the mouse hint in the shop has "← → 转身"; the touch hints are as in round 5',
+      mouse.inside === 'W S 前后 · A D 横移 · ← → 转身 · 拖动也能转 · 滚轮往后看整间店' && mouse.inside.includes('← → 转身') && mouse.fits && touch.inside === R5_TOUCH.inside && touch.street === R5_TOUCH.street,
+      `mouse, in the shop: "${mouse.inside}" (fits in one line at 1280 px: ${mouse.fits}, ${mouse.sw}/${mouse.cw} px); mouse, on the pavement: "${mouse.street}"; touch: "${touch.inside}" / "${touch.street}"`);
+  }
+
+  // ---------- F1: a first-visit wanderer, three seeds, in the page ----------
+  const wand = [];
+  for (const seed of [1, 2, 3]) {
+    const P = await open('?view=hero');
+    await P.page.keyboard.press('KeyX');            // first gesture: sound on (a key that does nothing else)
+    const r = await P.page.evaluate((seed) => window.__diorama.wander({ seed, maxT: 90 }), seed);
+    const h = await P.page.evaluate(() => { const h = window.__diorama.horror(); return { history: h.history, wide: h.wideAt }; });
+    const log = await P.page.evaluate(() => window.__diorama.audioLog());
+    // not part of the pass condition: is the figure in the staff doorway actually in sight 0.12 s after E4 (drawn meshes, the open leaf included)?
+    const seen = await P.page.evaluate(() => {
+      const D = window.__diorama, C = D.core, h = D.horror(); if (!h.e4) return null;
+      D.step(1 / 240, Math.max(0, Math.round((h.e4.t0 + 0.12 - D.state().t) * 240)));
+      const v = D.visibility(C.figurePoints('backroom')), st = D.state();
+      return { n: v.filter((x) => x.inFrustum && !x.blockedBy).length, by: [...new Set(v.filter((x) => x.blockedBy).map((x) => x.blockedBy))], at: [st.player.x, st.player.z] };
+    });
+    await P.page.screenshot({ path: shot(`F1-seed${seed}-E4`) });
+    const at = (e) => { const x = h.history.find((y) => y.e === e); return x ? x.t - r.t0 : null; };
+    wand.push({ seed, T: [at('E2'), at('E3'), at('E4')], ran: r.t, wide: h.wide == null ? null : h.wide - r.t0, phases: r.log.filter((e) => e.phase !== 'heard').map((e) => e.phase + '@' + (e.t - r.t0).toFixed(1)).join(' '), heard: r.log.filter((e) => e.phase === 'heard').map((e) => e.kind + '@' + (e.t - r.t0).toFixed(1)).join(' '), knocks: (log || []).filter((x) => x.kind === 'knock'), seen, errors: P.errors.length });
+    await P.close();
+  }
+  report.f1 = wand;
+  check('F1', 'a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s (seeds 1, 2, 3, in the page)',
+    wand.every((x) => x.T.every((v) => v != null) && x.T[0] < x.T[1] && x.T[1] < x.T[2] && x.T[2] <= 90 && x.errors === 0),
+    wand.map((x) => `seed ${x.seed}: E2 ${f2(x.T[0])} s, E3 ${f2(x.T[1])} s, staff door wide ${f2(x.wide)} s, E4 ${f2(x.T[2])} s (phases ${x.phases}; heard ${x.heard || 'nothing'}; knocks played ${x.knocks.length}; at E4+0.12 s standing at (${x.seen ? x.seen.at.map((v) => v.toFixed(2)).join(', ') : 'n/a'}), figure points in sight ${x.seen ? x.seen.n : 'n/a'}/5${x.seen && x.seen.by.length ? ', blocked by ' + x.seen.by.join('/') : ''} — information only)`).join(' | '));
+  // pictures from seed 1: the first panel blink, the moment the first knock plays, E4
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(() => window.__diorama.wander({ seed: 1, stop: 'E2' }));
+    await page.evaluate(() => { const D = window.__diorama, t0 = D.horror().e2.t0; D.step(1 / 240, Math.max(0, Math.round((t0 + 0.05 - D.state().t) * 240))); });
+    const blink = await page.evaluate(() => ({ panel: window.__diorama.info().panel, t: window.__diorama.state().t - window.__diorama.horror().e2.t0 }));
+    await page.evaluate(() => window.__diorama.ui(true)); await page.screenshot({ path: shot('F1-E2-blink') });
+    await page.evaluate(() => { const D = window.__diorama; D.step(1 / 240, Math.round(0.1 * 240)); });
+    const lit = await page.evaluate(() => ({ panel: window.__diorama.info().panel, t: window.__diorama.state().t - window.__diorama.horror().e2.t0 }));
+    await page.screenshot({ path: shot('F1-E2-between') });
+    await page.evaluate(() => window.__diorama.wander({ resume: true, stop: 'E4' }));
+    await page.screenshot({ path: shot('F1-E4') });
+    await P.close();
+    report.f1Pictures = { blink, lit };
+    console.log(`        F1 pictures (seed 1, paused at E2 for them): panels at E2+${blink.t.toFixed(3)} s: level ${blink.panel.level}, lamps ${blink.panel.lamp}, colour ${blink.panel.color}; at E2+${lit.t.toFixed(3)} s: level ${lit.panel.level}, lamps ${lit.panel.lamp}, colour ${lit.panel.color}`);
+  }
+
+  // ---------- F4: knocking, read from the played gain plan ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(helpers);
+    const r = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core;
+      H.enter(); H.aisle(); H.e3();
+      const before = (D.audioLog() || []).filter((x) => x.kind === 'knock').length;
+      H.look(C.SCARE_PLAN.behind); H.until(() => D.horror().wideAt != null, 6);
+      const wide = D.horror().wideAt;
+      H.until(() => false, 45);
+      const k45 = (D.audioLog() || []).filter((x) => x.kind === 'knock');
+      H.staff(); const t4 = D.horror().fired.E4; H.until(() => false, 15);
+      const all = (D.audioLog() || []).filter((x) => x.kind === 'knock');
+      return { before, wide, k45, t4, after: all.filter((x) => x.simT > t4).length, total: all.length, audio: D.info().audio, door: [C.BACKDOOR.cx, C.BACKDOOR.cz] };
+    });
+    await P.close();
+    const Q = await open('?view=hero&calm=1');
+    await Q.page.keyboard.press('KeyX');
+    await Q.page.evaluate(() => window.__diorama.wander({ seed: 1, maxT: 90 }));
+    const calm = await Q.page.evaluate(() => ({ knocks: (window.__diorama.audioLog() || []).filter((x) => x.kind === 'knock').length, bells: (window.__diorama.audioLog() || []).filter((x) => x.kind === 'bell').length, audio: window.__diorama.info().audio }));
+    await Q.close();
+    const k = r.k45, gaps = k.slice(1).map((x, i) => x.simT - k[i].simT), steps = k.slice(1).map((x, i) => x.peak / k[i].peak), mults = k.map((x) => x.peak / x.base);
+    const growOk = k.slice(1).every((x, i) => Math.abs(x.peak / x.base - Math.min(2.5, (k[i].peak / k[i].base) * 1.2)) < 1e-6);
+    const posOk = k.every((x) => Math.hypot(x.panner.x - r.door[0], x.panner.z - r.door[1]) <= 0.5 && x.panner.z < r.door[1] && x.panner.model === 'HRTF');
+    report.f4 = { ...r, k45: k.map((x) => ({ simT: x.simT, peak: x.peak, base: x.base, mult: x.mult, panner: x.panner })), calm };
+    check('F4', 'knocks: start when the staff door is wide, every 6 +- 0.2 s, +20% each up to 2.5x the bed, placed at the staff door; none after E4; none in calm',
+      r.audio === 'running' && r.before === 0 && k.length >= 7 && Math.abs(k[0].simT - r.wide - 0.3) < 1e-6 && gaps.every((g) => Math.abs(g - 6) <= 0.2) && growOk && Math.max(...mults) <= 2.5 + 1e-9 && Math.abs(Math.max(...mults) - 2.5) < 1e-9 && Math.abs(mults[0] - 1) < 1e-9 && posOk && r.t4 != null && r.after === 0 && calm.knocks === 0 && calm.bells > 0,
+      `sound ${r.audio}; knocks before the staff door went wide: ${r.before}; door wide at ${f2(r.wide)} s, first knock played at +${k.length ? (k[0].simT - r.wide).toFixed(3) : 'n/a'} s; ${k.length} knocks in 45 s, gaps ${gaps.map((g) => g.toFixed(3)).join(' ')} s; ` +
+      `played peaks ${mults.map((m) => m.toFixed(3)).join(' ')}x the bed (each / previous ${steps.map((x) => x.toFixed(3)).join(' ')}); PannerNode ${k.length ? k[0].panner.model + ' ' + k[0].panner.distance : 'n/a'} at (${k.length ? [k[0].panner.x, k[0].panner.y, k[0].panner.z].map((v) => v.toFixed(2)).join(', ') : 'n/a'}), staff door centre (${r.door.join(', ')}); ` +
+      `E4 at ${f2(r.t4)} s, knocks after it ${r.after}; calm (wanderer 90 s): ${calm.knocks} knocks, ${calm.bells} chimes (sound ${calm.audio})`);
+  }
+
   // ---------- SPEC 9: clean start ----------
   check(9, 'clean start: no errors, no outside requests', allErrors.length === 0 && allExternal.length === 0,
     `${loads} page loads: ${allErrors.length} errors/warnings, ${allExternal.length} outside requests${allErrors.length ? ' — ' + allErrors.slice(0, 4).join(' ; ') : ''}${allExternal.length ? ' — ' + allExternal.slice(0, 4).join(' ; ') : ''}`);
 
   finishR9();
+  {
+    const ids = ['1', '1b', '2', '3', '4', '5', '6', '7', '8', '9', 'P', 'D', ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => 'H' + i), ...Array.from({ length: 13 }, (_, i) => 'R' + (i + 1))];
+    const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));
+    check('F5', 'regressions: H1-H8 (round-6 thresholds), R1-R13, items 1-9, 1b, performance, player default',
+      rows.every((c) => c && c.pass), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !rows[i] || !rows[i].pass).join(',') || 'none failing'})`);
+  }
   report.gpu = gpu; report.calls = calls; report.errors = allErrors; report.external = allExternal;
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
   const failed = report.checks.filter((c) => !c.pass).length;

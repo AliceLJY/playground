@@ -503,7 +503,8 @@ test('H5: staff door scare only after E3; figure 0.25 s, slam within 0.12 s, sma
   C.playScare(sim, { upTo: 'scare', after: 0 });
   const h = sim.horror(), t4 = h.fired.E4, p = sim.S.player;
   assert.ok(t4 != null && h.fired.E3 != null && t4 > h.e3.closedAt, 'E4 after E3 is over');
-  assert.ok(Math.hypot(p.x - C.BACKDOOR.cx, p.z - C.BACKDOOR.cz) <= 2.0, 'within 2.0 m');
+  const d4 = Math.hypot(p.x - C.BACKDOOR.cx, p.z - C.BACKDOOR.cz);
+  assert.ok(d4 <= 2.0 && d4 >= 1.98, `E4 caught the walker ${d4.toFixed(3)} m from the staff door, walking toward it (fires from 2.0 m)`);
   assert.ok(Math.hypot(p.x - C.BACKDOOR.hx, p.z - C.BACKDOOR.hz) >= 1.3, 'clear of the hinge');
   const q = C.project(sim.S.cam, sim.fov(), sim.S.aspect, [C.BACKDOOR.cx, C.SIDEWALK_H + C.BACKDOOR.h / 2, C.BACKDOOR.cz]);
   assert.ok(Math.abs(q.x - 0.5) <= 1 / 4 + 0.01, `door at ${q.x.toFixed(3)} of the width`);
@@ -967,6 +968,8 @@ test('F2: E2 fires on 4 m walked in the shop, within 3 m of the freezer wall, or
   let e2 = sim.horror().e2;
   assert.deepStrictEqual(e2.why, { walk: true, wall: false, time: false }, `walk: ${JSON.stringify(e2)}`);
   assert.ok(e2.walked >= E.walk && e2.walked < E.walk + 0.02, `walked ${e2.walked.toFixed(3)} m`);
+  // 4 m counted from the doorway (z 0.3): 2.7 m in, then 1.3 m back out toward the door -> z -1.1
+  assert.ok(Math.abs(sim.S.player.z - -1.1) < 0.02, `E2 at z ${sim.S.player.z.toFixed(3)} (4 m inside the shop is z -1.1)`);
   // 3 m from the freezer wall: put inside (a jump is not walking), then 1.4 m toward the back
   sim = visit([[7.5, -5.6]], [7.5, -4.0, 0]);
   e2 = sim.horror().e2;
@@ -1058,4 +1061,31 @@ test('F4: knocks behind the wide staff door every 6 s, 20% louder each time up t
   for (let t = 0; t < 90; t += 1 / 60) w.step(1 / 60);
   assert.strictEqual(calm.horror().sounds.filter((x) => x.kind === 'knock').length, 0, 'calm: no knock');
   assert.ok(calm.horror().sounds.some((x) => x.kind === 'bell'), 'calm: the doorbell still rings');
+});
+
+test('E4 (round 6): fires within 2.0 m with the staff door anywhere in the middle half of the view, not beyond', async () => {
+  const C = await load(), B = C.BACKDOOR, door = [B.cx, C.SIDEWALK_H + B.h / 2, B.cz];
+  const ready = () => {                            // a visit up to the staff door going wide (looking back at the shop door)
+    const sim = C.createSim({ aspect: 16 / 9 }), h = () => sim.horror();
+    sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+    sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+    run(sim, () => h().e3 && sim.S.t >= h().e3.closedAt, 15);
+    sim.lookAt(...C.SCARE_PLAN.behind); run(sim, () => h().wideAt != null, 6);
+    return sim;
+  };
+  const at = (d, qx) => {                          // stand d m from the door (25 deg off its axis, clear of the hinge), door at qx of the width
+    const sim = ready(), th = (25 * Math.PI) / 180, x = B.cx + d * Math.sin(th), z = B.cz + d * Math.cos(th);
+    const toDoor = Math.atan2(-(B.cx - x), -(B.cz - z));
+    let lo = -0.9, hi = 0.9;
+    for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; sim.place(x, z, toDoor + mid); const q = C.project(sim.S.cam, sim.fov(), sim.S.aspect, door); if (q.x < qx) lo = mid; else hi = mid; }
+    sim.place(x, z, toDoor + (lo + hi) / 2);
+    const q = C.project(sim.S.cam, sim.fov(), sim.S.aspect, door);
+    sim.update(1 / 240);
+    return { fired: sim.horror().fired.E4 != null, qx: q.x, hinge: Math.hypot(x - B.hx, z - B.hz) };
+  };
+  for (const [d, qx, want] of [[1.95, 0.5, true], [2.05, 0.5, false], [1.8, 0.72, true], [1.8, 0.28, true], [1.8, 0.77, false], [1.8, 0.23, false]]) {
+    const r = at(d, qx);
+    assert.ok(Math.abs(r.qx - qx) < 1e-3 && r.hinge >= 1.3, `setup: door at ${r.qx.toFixed(3)}, ${r.hinge.toFixed(2)} m from the hinge`);
+    assert.strictEqual(r.fired, want, `${d} m, door at ${qx} of the width: E4 ${r.fired}`);
+  }
 });
