@@ -33,11 +33,13 @@ test('layout matches the spec sizes (SPEC 尺度与布局)', async () => {
   assert.ok(s.door.cx > (s.x0 + s.x1) / 2, 'store door right of centre');
   const all = C.solids(), by = (p) => all.filter((b) => b.id.startsWith(p));
   const dims = (b) => [+(b.x1 - b.x0).toFixed(3), +(b.y1 - b.y0).toFixed(3), +(b.z1 - b.z0).toFixed(3)];
-  const shelves = by('shelf@').sort((a, b) => a.x0 - b.x0);
-  assert.strictEqual(shelves.length, 3);
-  for (const b of shelves) assert.deepStrictEqual(dims(b).slice().sort((p, q) => p - q), [0.6, 1.5, 5]);
-  for (let i = 1; i < 3; i++) assert.ok(shelves[i].x0 - shelves[i - 1].x1 >= 1.2, 'aisle between shelf rows >= 1.2 m');
-  assert.deepStrictEqual(dims(by('freezer')[0]), [7, 2, 0.7]);
+  // round 8 (A3): tall wooden shelves (1.9 m) making three aisles 0.9-1.1 m wide; a chest freezer on the back wall
+  const shelves = by('shelf-').filter((b) => b.id !== 'shelf-e').sort((a, b) => a.x0 - b.x0);
+  assert.strictEqual(shelves.length, 4);
+  for (const b of shelves) assert.ok(near(b.y1 - b.y0, 1.9, 1e-9) && near(b.z1 - b.z0, 5, 1e-9), `${b.id}: 1.9 m high, 5 m long`);
+  for (let i = 1; i < 4; i++) { const w = shelves[i].x0 - shelves[i - 1].x1; assert.ok(w >= 0.9 - 1e-9 && w <= 1.1 + 1e-9, `aisle ${i}: ${w.toFixed(2)} m wide`); }
+  assert.deepStrictEqual(C.GROCERY.aisles.map((a) => +(a.x1 - a.x0).toFixed(2)), [0.95, 1, 1.05]);
+  assert.deepStrictEqual(dims(by('chest')[0]), [3.8, 0.9, 0.75]);
   assert.deepStrictEqual(dims(by('counter')[0]).slice().sort((p, q) => p - q), [0.6, 1, 2.4]);
   assert.deepStrictEqual(dims(by('vending')[0]), [0.9, 1.83, 0.7]);
   assert.ok(near(by('lamp')[0].y1 - C.SIDEWALK_H, 4.5, 1e-9), 'lamp 4.5 m');
@@ -286,7 +288,7 @@ test('the staff door does not swing wide while the walker stands in its sweep (�
   const sim = C.createSim({ aspect: 16 / 9 });
   sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
   sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
-  run(sim, () => sim.horror().e3 && sim.S.t >= sim.horror().e3.closedAt, 8);
+  run(sim, () => sim.S.t >= C.scareReady(sim.horror()), 25);
   sim.walkTo(6.42, -7.3); run(sim, () => !sim.S.player.route);           // beside the staff door, in its sweep, facing away from it
   sim.lookAt(6.42, 1.6, 0.0); run(sim, () => !sim.S.player.look, 4); run(sim, () => false, 2);
   const p = sim.S.player;
@@ -313,10 +315,10 @@ test('a tap into a wall slides along it, and gives up one second after it is stu
   }
   assert.ok(!sim.S.player.route, 'the walk ended');
   assert.ok(Math.abs(t - lastMove - 1) < 0.05, `stopped ${(t - lastMove).toFixed(3)} s after the last movement`);
-  assert.ok(near(sim.S.player.z, -7.6 + C.R, 1e-3), `stands against the freezer front (z=${sim.S.player.z.toFixed(3)})`);
+  assert.ok(near(sim.S.player.z, -7.55 + C.R, 1e-3), `stands against the chest freezer (z=${sim.S.player.z.toFixed(3)})`);
   // at an angle into the east wall: slides along it instead of stopping at the first touch
-  sim.place(7.5, -4.2);
-  sim.walkTo(12, -7.0);
+  sim.place(8.0, -1.0);                             // round 8: the clear stretch of the east wall, between the till and the tall shelf
+  sim.walkTo(12, -3.2);
   let touched = null;
   for (t = 0; t < 20 && sim.S.player.route; t += DT) {
     sim.update(DT);
@@ -407,28 +409,32 @@ test('H2: the figure only disappears while the shop is dark, above the roofs, on
   }
 });
 
-test('H3: freezers go dark one by one, both hums stop for 1.6 s, once per visit', async () => {
+test('H3 (round 8): the tube blinks twice, the bulbs and the tube go out one by one, the TV goes black and the hum stops for 1.6 s, once per visit', async () => {
   const C = await load();
   const sim = C.createSim({ aspect: 16 / 9 });
   sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
   sim.walkRoute(C.SCARE_PLAN.aisle);
-  const offAt = [null, null, null, null, null];
-  let humOff = null, humOn = null, t2 = null;
+  const offAt = [null, null, null];             // bulb 1, bulb 2, tube (the tube's last going out, after its blinks)
+  let humOff = null, humOn = null, t2 = null, tvOff = null;
   for (let i = 0; i < 3000; i++) {
     sim.update(1 / 120);
     const L = sim.levels(), h = sim.horror(), t = sim.S.t;
     if (h.e2 && t2 == null) t2 = h.e2.t0;
-    L.freezer.forEach((v, k) => { if (v === 0 && offAt[k] == null) offAt[k] = t; });
+    if (t2 != null) {
+      if (L.bulbs[0] === 0 && offAt[0] == null) offAt[0] = t;
+      if (L.bulbs[1] === 0 && offAt[1] == null) offAt[1] = t;
+      if (t >= t2 + C.HORROR.e2.seq && L.tube === 0 && offAt[2] == null) offAt[2] = t;
+      if (L.tv.snow === 0 && tvOff == null) tvOff = t;
+    }
     if (L.hum === 0 && humOff == null) humOff = t;
-    if (humOff != null && L.hum === 1 && humOn == null) { humOn = t; assert.ok(L.freezer.every((v) => v === 1), 'freezers back together with the sound'); }
-    if (humOff != null) { assert.ok(L.hum === 1 || (L.audio.fluor === 0 && L.audio.freezer === 0), 'both hum gains are zero in the silence'); }
+    if (humOff != null && L.hum === 1 && humOn == null) { humOn = t; assert.ok(L.bulbs.every((v) => v === 1) && L.tv.snow === 1, 'lights and TV back together with the sound'); }
+    if (humOff != null && L.hum === 0) assert.ok(L.audio.buzz === 0 && L.audio.snow === 0 && L.audio.freezer === 0 && L.audio.rain > 0, 'only the rain in the silence');
     if (humOn != null && !sim.S.player.route) break;
   }
   assert.ok(t2 != null && offAt.every((v) => v != null), `E2 fired at ${t2}`);
-  const order = offAt.slice().sort((a, b) => a - b), span = order[4] - order[0];
-  assert.ok(span <= 1.2 && span > 0.3, `one by one over ${span.toFixed(3)} s`);
+  assert.ok(offAt[0] < offAt[1] && offAt[1] < offAt[2] && offAt[2] <= tvOff + 1e-9 && Math.abs(tvOff - humOff) < 1 / 120 + 1e-9, `in order: ${offAt.map((v) => (v - t2).toFixed(3)).join(' ')}, TV ${(tvOff - t2).toFixed(3)}, hum ${(humOff - t2).toFixed(3)}`);
   assert.ok(Math.abs(humOn - humOff - 1.6) <= 0.1, `silence ${(humOn - humOff).toFixed(3)} s`);
-  // back into the aisle in the same visit: nothing again
+  // back into the shop in the same visit: nothing again
   sim.walkTo(4.2, -4.0); run(sim, () => !sim.S.player.route); sim.walkTo(4.2, -6.6); run(sim, () => !sim.S.player.route);
   assert.strictEqual(hist(sim, 'E2', 1).length, 1, 'E2 once per visit');
 });
@@ -498,10 +504,11 @@ test('H5: staff door scare only after E3; figure 0.25 s, slam within 0.12 s, sma
   run(sim, () => false, 1);
   assert.ok(sim.horror().fired.E3 != null && sim.horror().wideAt === null, 'E3 happened, the staff door never left the view');
   assert.strictEqual(sim.horror().fired.E4, null, 'no E4 while the door is still the way it was');
-  // round 7: from the right of the doorway the figure would be in sight past the half-open leaf; still no E4 while the door is not wide
+  // round 7 asked this from the right of the doorway, where the figure showed past the half-open leaf; since round 8 the leaf opens
+  // into the back room and at half open it covers the figure from everywhere in the shop, so the wide door is needed twice over
   sim.walkTo(7.3, -6.8); run(sim, () => !sim.S.player.route); sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4); run(sim, () => false, 2);
   const pr = sim.S.player, past = C.figureSightlines(sim.S.cam, sim.fov(), sim.S.aspect, sim.levels().back).filter(Boolean).length;
-  assert.ok(Math.hypot(pr.x - C.BACKDOOR.cx, pr.z - C.BACKDOOR.cz) <= 2.0 && Math.abs(sim.levels().back - C.BACKDOOR.half) < 1e-9 && past >= 1, `setup: ${past} figure points in sight past the half-open leaf`);
+  assert.ok(Math.hypot(pr.x - C.BACKDOOR.cx, pr.z - C.BACKDOOR.cz) <= 2.0 && Math.abs(sim.levels().back - C.BACKDOOR.half) < 1e-9 && past === 0, `setup: ${past} figure points in sight past the half-open leaf (0 since round 8)`);
   assert.ok(sim.horror().wideAt === null && sim.horror().fired.E4 === null, 'the staff door never went wide: no E4 even with the figure in sight');
   // (b) the full visit
   sim = C.createSim({ aspect: 16 / 9 });
@@ -597,10 +604,11 @@ test('scare events happen at the same instants at 30 and 120 steps per second', 
   const C = await load();
   const timed = (dt) => {
     const sim = C.createSim({ aspect: 16 / 9 }), P = C.SCARE_PLAN, S = sim.S;
-    const plan = [[0, () => sim.enter('door')], [2, () => sim.walkRoute(P.aisle)], [15, () => sim.lookAt(...P.behind)], [17.5, () => sim.lookAt(...P.staff)],
-      [19, () => sim.walkTo(...P.near)], [21, () => sim.lookAt(...P.staff)], [23, () => sim.walkRoute(P.out)], [32, () => sim.exit()]];
+    // round 8: the dog comes in with E3 (about 12.1 s) and is gone with the door shut about 11.3 s later
+    const plan = [[0, () => sim.enter('door')], [2, () => sim.walkRoute(P.aisle)], [24, () => sim.lookAt(...P.behind)], [26.5, () => sim.lookAt(...P.staff)],
+      [28, () => sim.walkTo(...P.front)], [31, () => sim.lookAt(...P.staff)], [32.5, () => sim.walkTo(...P.near)], [35, () => sim.walkRoute(P.out)], [44, () => sim.exit()]];
     let next = 0;
-    for (let i = 0; S.t < 35 - 1e-9; i++) {
+    for (let i = 0; S.t < 47 - 1e-9; i++) {
       while (next < plan.length && S.t >= plan[next][0] - 1e-9) plan[next++][1]();
       sim.update(dt);
     }
@@ -942,12 +950,12 @@ test('K1 (logic): the turning keys turn 2.0 rad/s in place at any step rate; the
   assert.ok(Math.abs(a.S.player.yaw - b.S.player.yaw) < 1e-9 && Math.abs(a.S.cam.yaw - b.S.cam.yaw) < 1e-9, 'same yaw at 30 and 120 steps/s');
 });
 
-test('F1 (round 7): a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s and sees the figure (6 seeds, 3 landings; phone, fold and desk)', async () => {
+test('F1 (round 7): a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s and sees the figure (6 seeds, 3 different landings in turn; phone, fold and desk)', async () => {
   const C = await load();
   // it must not read when or where the scares happen: only its own pose, the shop outline and entrance, being stuck, and the sounds that played
   const src = C.createWanderer.toString();
   for (const bad of ['HORROR', 'BACKDOOR', 'DOOR0', 'DOORS', 'SCARE_PLAN', 'wideAt', 'fired', '.done', 'history', '.e2', '.e3', '.e4', 'E2_', 'E4_', 'trigger', 'levels(', 'figure', 'Sightlines']) assert.ok(!src.includes(bad), `wanderer reads ${bad}`);
-  const RUNS = [[1, 'door'], [2, 'street'], [3, 'roof'], [4, 'door'], [5, 'door'], [6, 'door']];   // seeds 4-6: the round-6 trial, landing at the door
+  const RUNS = [[1, 'door'], [2, 'street'], [3, 'next'], [4, 'door'], [5, 'street'], [6, 'next']];   // round 8: three different starts, in turn
   const out = [], lands = {};
   for (const [name, asp] of [['desk', 16 / 9], ['phone', 390 / 844], ['fold', 880 / 920]]) for (const [seed, aim] of RUNS) {
     const sim = C.createSim({ aspect: asp }), w = C.createWanderer(sim, seed, { aim }), dt = 1 / 60;
@@ -960,27 +968,25 @@ test('F1 (round 7): a wanderer that knows nothing of the triggers meets E2, E3, 
     assert.ok(T.every((x) => x != null) && T[0] < T[1] && T[1] < T[2] && T[2] <= 90, `${name} seed ${seed} stuck: ${JSON.stringify({ T, wide: h.wideAt, phase: w.phase, at: [sim.S.player.x, sim.S.player.z], log: w.log.slice(-6) })}`);
     assert.ok(h.e4.seen >= 1 && seen12 >= 1, `${name} seed ${seed}: figure points in sight ${h.e4.seen} at E4, ${seen12} at E4+0.12 s`);
   }
-  assert.ok(Math.hypot(lands.door[0] - lands.street[0], lands.door[1] - lands.street[1]) > 3, 'the street landing starts somewhere else');
+  for (const [a, b] of [['door', 'street'], ['door', 'next'], ['street', 'next']]) assert.ok(Math.hypot(lands[a][0] - lands[b][0], lands[a][1] - lands[b][1]) > 3, `the ${a} and ${b} landings are more than 3 m apart`);
   console.log('F1 ' + out.join('\nF1 '));
 });
 
-test('E4 sight lines (round 7): the open leaf and the back wall hide the figure, the doorway shows it', async () => {
+test('E4 sight lines (round 8): the staff door opens into the back room, so only the back wall hides the figure; half open, the leaf covers it', async () => {
   const C = await load(), B = C.BACKDOOR, wide = B.wide, door = [B.cx, C.SIDEWALK_H + B.h / 2, B.cz];
   const cam = (x, z) => { const y = C.SIDEWALK_H + 1.6, dx = door[0] - x, dz = door[2] - z; return { x, y, z, yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(door[1] - y, Math.hypot(dx, dz)) }; };
   const n = (x, z, a = wide) => C.figureSightlines(cam(x, z), 65, 16 / 9, a).filter(Boolean).length;
   assert.strictEqual(n(6.54, -6.30), 5, 'straight in front: all five');
-  assert.strictEqual(n(5.83, -6.43), 0, 'left front (round-6 seed 2): the open leaf is in the way');
+  assert.strictEqual(n(5.83, -6.43), 5, 'left front (round-6 seed 2, hidden by the leaf then): all five now');
   assert.strictEqual(n(4.75, -7.35), 0, 'far left, close to the wall (round-6 seed 1): the back wall is in the way');
-  assert.ok(n(5.83, -6.43, -Math.PI / 2) > 0, 'the same spot with the leaf swung out of the way (into the back room): the leaf was what hid it');
-  // the leaf is a rotated box, not the axis-aligned collision box: a sight line that passes the leaf's tip but crosses its bounding box is not blocked
-  const o = [6.30, C.SIDEWALK_H + 1.0, -7.60], tip = [B.hx + Math.cos(wide) * B.w, B.hz + Math.sin(wide) * B.w];
-  assert.ok(C.leafHit(o, [0, 0, -1], wide) === Infinity && C.leafHit([tip[0] - 0.05, o[1], -7.0], [0, 0, -1], wide) < Infinity, 'leaf hit test follows the turned leaf');
-  // just beside the hinge the leaf is far back: from (6.03, -7.0) straight back the ray meets its face about 1.0 m along (z -8.0); its bounding box would stop it at 0.30 m
-  const near = C.leafHit([6.03, o[1], -7.0], [0, 0, -1], wide);
-  assert.ok(near > 0.9 && near < 1.1, `leaf met ${near.toFixed(3)} m along (the turned leaf, not its bounding box at 0.30 m)`);
+  assert.ok(n(6.54, -6.30, B.half) === 0 && n(5.83, -6.43, B.half) === 0, 'half open, the leaf (in the back room) covers the figure');
+  // the leaf is a turned thin box, not its axis-aligned box: just beside the hinge a ray straight back meets it about 1.75 m on
+  // (z -8.75), where the bounding box (from z -8.28) would already stop it at 1.28 m; past its far edge the ray misses
+  const y = C.SIDEWALK_H + 1.0, at = C.leafHit([6.10, y, -7.0], [0, 0, -1], wide);
+  assert.ok(at > 1.6 && at < 1.9 && C.leafHit([6.30, y, -7.0], [0, 0, -1], wide) === Infinity, `leaf met ${at.toFixed(3)} m along`);
+  assert.ok(C.backdoorBox(wide)[3] <= B.hz + 0.02 + 1e-9, 'the leaf box is behind the back wall line (it opens away from the shop)');
 });
-
-test('F2: E2 fires on 4 m walked in the shop, within 3 m of the freezer wall, or 12 s in the shop, each on its own; once a visit; two panel blinks first', async () => {
+test('F2: E2 fires on 4 m walked in the shop, within 3 m of the freezer wall, or 12 s in the shop, each on its own; once a visit; two tube blinks first (round 8)', async () => {
   const C = await load(), E = C.HORROR.e2, back = C.STORE.z0 + C.WALL_T;
   const visit = (route, place, wait) => {
     const sim = C.createSim({ aspect: 16 / 9 });
@@ -1010,25 +1016,24 @@ test('F2: E2 fires on 4 m walked in the shop, within 3 m of the freezer wall, or
   // once a visit: keep walking to the back wall for a while
   sim.walkRoute([[5.0, -6.0], [3.5, -7.0], [5.0, -1.0], [5.0, -6.5]]); run(sim, () => !sim.S.player.route, 30);
   assert.strictEqual(hist(sim, 'E2').length, 1, 'E2 once');
-  // the panels: off 0-0.1 s and 0.2-0.3 s; then the freezers one by one from 0.4 s, 0.12 s apart; hums off from 0.88 s for 1.6 s
+  // round 8: the tube off 0-0.1 s and 0.2-0.3 s (its own random flicker set aside); then bulb 1, bulb 2 and the tube out at
+  // 0.40, 0.55 and 0.70 s; the TV black and the hum off at 0.85 s for 1.6 s
   sim = visit([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4]]);
   const t0 = sim.horror().e2.t0, tl = [];
-  for (let i = 0; i < 3 / (1 / 240); i++) { const L = sim.levels(); tl.push({ t: sim.S.t - t0, panel: L.panel, fr: L.freezer.slice(), hum: L.hum }); sim.update(1 / 240); }
+  for (let i = 0; i < 3 / (1 / 240); i++) { const L = sim.levels(); tl.push({ t: sim.S.t - t0, own: C.tubeFlickerOff(sim.S.t), tube: L.tube, b: L.bulbs.slice(), tv: L.tv.snow, hum: L.hum }); sim.update(1 / 240); }
   const offRuns = []; let cur = null;
-  for (const x of tl) { if (x.panel === 0 && !cur) cur = [x.t, x.t]; else if (x.panel === 0) cur[1] = x.t; else if (cur) { offRuns.push(cur); cur = null; } }
-  assert.strictEqual(offRuns.length, 2, `panel blinks: ${JSON.stringify(offRuns)}`);
+  for (const x of tl.filter((y) => y.t < E.seq)) { const off = x.tube === 0 && !x.own; if (off && !cur) cur = [x.t, x.t]; else if (off) cur[1] = x.t; else if (cur) { offRuns.push(cur); cur = null; } }
+  assert.strictEqual(offRuns.length, 2, `tube blinks: ${JSON.stringify(offRuns)}`);
   for (const [k, [a, b]] of offRuns.entries()) {
     assert.ok(Math.abs(a - E.blinks[k][0]) <= 1 / 240 + 1e-9 && Math.abs(b + 1 / 240 - E.blinks[k][1]) <= 1 / 240 + 1e-9, `blink ${k}: ${a.toFixed(4)}-${(b + 1 / 240).toFixed(4)}`);
     assert.ok(Math.abs(b + 1 / 240 - a - 0.1) <= 1 / 240 + 1e-9, 'each off 0.1 s');
   }
-  assert.ok(tl.filter((x) => x.t < 0.3).every((x) => x.fr.every((f) => f === 1) && x.hum === 1), 'freezers and hums stay on during the blinks');
-  for (let i = 4; i >= 0; i--) {
-    const off = tl.find((x) => x.fr[i] === 0).t;
-    assert.ok(Math.abs(off - (E.seq + (4 - i) * E.step)) <= 1 / 240 + 1e-9, `freezer ${i} off at ${off.toFixed(4)}`);
-  }
-  const humOff = tl.find((x) => x.hum === 0).t, humOn = tl.find((x) => x.t > humOff && x.hum === 1).t;
-  assert.ok(Math.abs(humOff - C.E2_DARK) <= 1 / 240 + 1e-9 && Math.abs(humOn - humOff - E.silence) <= 1 / 240 + 1e-9, `hums off ${humOff.toFixed(3)} for ${(humOn - humOff).toFixed(3)} s`);
-  assert.ok(tl.filter((x) => x.t >= C.E2_TOTAL + 1e-9).every((x) => x.panel === 1 && x.fr.every((f) => f === 1) && x.hum === 1), 'all back after');
+  assert.ok(tl.filter((x) => x.t < E.seq).every((x) => x.b.every((v) => v === 1) && x.tv === 1 && x.hum === 1), 'bulbs, TV and hum stay on during the blinks');
+  const offB = (k) => tl.find((x) => x.b[k] === 0).t, offT = tl.find((x) => x.t >= E.seq + 2 * E.step - 1e-9 && x.tube === 0 && tl.filter((y) => y.t >= x.t && y.t < C.E2_TOTAL - 0.01).every((y) => y.tube === 0)).t;
+  for (const [name, at, want] of [['bulb 1', offB(0), E.seq], ['bulb 2', offB(1), E.seq + E.step], ['tube', offT, E.seq + 2 * E.step]]) assert.ok(Math.abs(at - want) <= 1 / 240 + 1e-9, `${name} out at ${at.toFixed(4)} (${want})`);
+  const tvOff = tl.find((x) => x.tv === 0).t, humOff = tl.find((x) => x.hum === 0).t, humOn = tl.find((x) => x.t > humOff && x.hum === 1).t;
+  assert.ok(Math.abs(tvOff - C.E2_DARK) <= 1 / 240 + 1e-9 && Math.abs(humOff - C.E2_DARK) <= 1 / 240 + 1e-9 && Math.abs(humOn - humOff - E.silence) <= 1 / 240 + 1e-9, `TV ${tvOff.toFixed(3)}, hum off ${humOff.toFixed(3)} for ${(humOn - humOff).toFixed(3)} s`);
+  assert.ok(tl.filter((x) => x.t >= C.E2_TOTAL + 1e-9).every((x) => (x.tube === 1 || x.own) && x.b.every((v) => v === 1) && x.tv === 1 && x.hum === 1), 'all back after');
 });
 
 test('F3: looking at the door from 3 m or more, E3 opens it in view 15 s after E2 ends: open, hold, shut, one bell', async () => {
@@ -1058,7 +1063,7 @@ test('F4: knocks behind the wide staff door every 6 s, 20% louder each time up t
   const sim = C.createSim({ aspect: 16 / 9 }), S = sim.S, h = () => sim.horror();
   sim.enter('door'); run(sim, () => S.mode === 'walk');
   sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !S.player.route);
-  run(sim, () => h().e3 && S.t >= h().e3.closedAt, 15);
+  run(sim, () => S.t >= C.scareReady(h()), 30);
   assert.strictEqual(h().sounds.filter((x) => x.kind === 'knock').length, 0, 'no knock before the staff door goes wide');
   sim.lookAt(...C.SCARE_PLAN.behind); run(sim, () => h().wideAt != null, 6);
   const wide = h().wideAt;
@@ -1097,7 +1102,7 @@ test('E4 (round 6): fires within 2.0 m with the staff door anywhere in the middl
     const sim = C.createSim({ aspect: 16 / 9 }), h = () => sim.horror();
     sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
     sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
-    run(sim, () => h().e3 && sim.S.t >= h().e3.closedAt, 15);
+    run(sim, () => sim.S.t >= C.scareReady(h()), 30);
     sim.lookAt(...C.SCARE_PLAN.behind); run(sim, () => h().wideAt != null, 6);
     return sim;
   };

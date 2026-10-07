@@ -34,10 +34,15 @@ export const COLORS = {
 export const GLASS_OPACITY = 0.25, RAIN_OPACITY = 0.35;
 // Colours the spec leaves open (furniture, floors, roofs). Greys and browns that sit between the spec colours.
 export const EXTRA_COLORS = {
-  storeRoof: '#AAB0B9', nextRoof: '#6C5747', storeFloor: '#C7CBD1', storeGrid: '#8D949E', nextFloor: '#5E4B3D',
-  shelf: '#8B94A1', shelfBoard: '#B7BEC8', freezerBody: '#A9B2BE', counter: '#7D8591', dark: '#11151D', mat: '#3A4252',
-  frame: '#2B313B', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
-  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E', storeCeiling: '#D2D6DC', ceilingGrid: '#8A919B', signText: '#1E2532', sign2Text: '#3A2618', annex: '#1C2028', annexFloor: '#15181F', backGlow: '#2C3B44',
+  storeRoof: '#7E776C', nextRoof: '#6C5747', storeFloor: '#7A7062', storeGrid: '#5C5449', nextFloor: '#5E4B3D', storeWall: '#5E574C',
+  shelf: '#5A4632', shelfBoard: '#6E5640', freezerBody: '#A9B2BE', counter: '#4E3D2E', dark: '#11151D', mat: '#2E2A26',
+  frame: '#9AA0A6', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
+  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E', storeCeiling: '#2C2925', ceilingGrid: '#36322D', signText: '#2A1E14', sign2Text: '#3A2618', annex: '#1C2028', annexFloor: '#15181F', backGlow: '#2C3B44',
+  // round 8: the old grocery (SPEC 老旧杂货店的深夜氛围). Interior surfaces are dark on purpose: the bulbs make the light pools.
+  storeFacade: '#4A3A2C', goods: '#7B6A4E', goods2: '#5E6B5A', goods3: '#8A5A44', box: '#8A6A45', hang: '#76603F', cord: '#1A1816',
+  chest: '#8E9196', chestLid: '#A7ABB0', oldCounter: '#4E3D2E', tvBody: '#262629', register: '#4A4D52', alu: '#9AA0A6',
+  oldSign: '#CDBB92', oldSignText: '#2A1E14', awning: '#666B70', windowGlass: '#C9B27A', backDoor: '#5B4330', puddle: '#FFB45A',
+  bulb: '#FFB45A', tube: '#CFE8E4', dog: '#4A3324', dogDark: '#2E2018', nextDark: '#2A2622',
 };
 
 // ---------------- layout (SPEC 尺度与布局) ----------------
@@ -53,9 +58,12 @@ export const R = 0.25;                           // walker radius
 export const WALK_SPEED = 1.3, RUN_SPEED = 2.6;
 export const groundAt = (x, z) => (z > ROAD.z0 && z < ROAD.z1 ? 0 : SIDEWALK_H);
 
-export const STORE = { id: 'store', name: '便利店', x0: -3, x1: 9, z0: -8.5, z1: FACADE_Z, h: 3.6, door: { cx: 5.0, w: 1.8 } };
+export const STORE = { id: 'store', name: '杂货店', x0: -3, x1: 9, z0: -8.5, z1: FACADE_Z, h: 3.6, door: { cx: 5.0, w: 1.8 } };
 export const NEXT = { id: 'next', name: '隔壁小店', x0: -9, x1: -3, z0: -7.5, z1: FACADE_Z, h: 3.4, door: { cx: -6.0, w: 1.2 } };
 export const BUILDINGS = [STORE, NEXT];
+// round 8: the grocery front is wood with one small dirty window in front of the till, and a tin awning over the door
+export const WINDOW = { x0: 6.8, x1: 8.7, y0: SIDEWALK_H + 0.55, y1: 2.6, opacity: 0.35 };
+export const AWNING = { x0: 3.7, x1: 6.3, z0: FACADE_Z, z1: FACADE_Z + 1.1, y: 2.6 };
 export const ANNEX = { x0: 5.75, x1: 7.25, z0: -9.9, z1: -8.5, h: 2.5, t: 0.15 };   // the back room behind the staff door (惊吓版)
 const annexBoxes = () => { const A = ANNEX; return [['annex-w', A.x0, 0, A.z0, A.x0 + A.t, A.h, A.z1], ['annex-e', A.x1 - A.t, 0, A.z0, A.x1, A.h, A.z1], ['annex-back', A.x0, 0, A.z0, A.x1, A.h, A.z0 + A.t], ['annex-roof', A.x0, A.h - A.t, A.z0, A.x1, A.h, A.z1]]; };
 
@@ -67,6 +75,30 @@ export const DOORS = BUILDINGS.map((b) => ({
 }));
 export const newDoors = () => DOORS.map(() => ({ k: 0, want: 0 }));
 
+// The grocery's furniture (round 8). Heights are above the shop floor. The three aisles are the gaps between the wall shelf
+// and the three freestanding rows: 0.95, 1.00 and 1.05 m wide, each 5 m deep, open at both ends.
+export const GROCERY = (() => {
+  const rows = [['shelf-w', -2.8, -2.25], ['shelf-a', -1.3, -0.75], ['shelf-b', 0.25, 0.8], ['shelf-c', 1.85, 2.4]];
+  const zFront = -1.5, zEnd = -6.5, h = 1.9;
+  const shelves = rows.map(([id, x0, x1]) => ({ id, x0, x1, z0: zEnd, z1: zFront, h })).concat([{ id: 'shelf-e', x0: 8.25, x1: 8.8, z0: -5.6, z1: -3.4, h }]);
+  const aisles = rows.slice(1).map(([, x0], i) => ({ i, x0: rows[i][2], x1: x0, cx: (rows[i][2] + x0) / 2, zFront, zEnd }));
+  return {
+    shelves, aisles, shelfH: h,
+    solids: [                                         // [id, x0, y0, z0, x1, y1, z1], y above the floor
+      ['chest', -2.4, 0, -8.3, 1.4, 0.9, -7.55],      // chest freezer on the back wall
+      ['counter', 7.0, 0, -3.0, 7.6, 1.0, -0.6],      // the old till, near the small window
+      ['tv', 7.08, 1.0, -2.72, 7.5, 1.42, -2.22],     // old television on the till, screen facing the shop
+      ['register', 7.12, 1.0, -1.5, 7.48, 1.24, -1.1],
+      ['box-1', 3.0, 0, -4.6, 3.6, 0.6, -4.0], ['box-2', 3.05, 0.6, -4.55, 3.5, 1.0, -4.1],
+      ['box-3', -2.7, 0, -0.6, -2.0, 0.7, 0.15], ['box-4', 8.1, 0, -7.4, 8.75, 0.55, -6.7], ['box-5', 2.6, 0, -7.9, 3.2, 0.45, -7.3],
+      ['box-out-1', 3.0, 0, FACADE_Z + 0.1, 3.7, 0.55, FACADE_Z + 0.7], ['box-out-2', 3.1, 0.55, FACADE_Z + 0.15, 3.55, 0.85, FACADE_Z + 0.6],   // by the door, outside
+    ],
+    tv: { x: 7.075, z0: -2.66, z1: -2.28, y0: SIDEWALK_H + 1.05, y1: SIDEWALK_H + 1.37 },   // the screen, facing -x
+    bulbs: [[7.45, 2.75, -1.55], [-0.25, 2.75, -4.0]],                                         // over the till, over the middle aisle
+    tube: { x0: 3.0, x1: 4.2, z: -2.8, y: 3.25 },
+    hang: [[-0.25, -3.0], [1.33, -5.2], [3.3, -1.1], [-1.78, -5.6], [5.6, -4.8]],               // strings of goods hanging from the ceiling
+  };
+})();
 const B3 = (id, kind, x0, y0, z0, x1, y1, z1, extra = {}) => ({ id, kind, x0, y0, z0, x1, y1, z1, ...extra });
 
 // Every solid as a 3D box. Walls are split at the door openings; the closed door leaves are their own box.
@@ -84,10 +116,11 @@ const STATIC_SOLIDS = (() => {
     S.push(B3(b.id + ':roof', 'roof', b.x0, b.h - 0.2, b.z0, b.x1, b.h, b.z1, { lift: b.id }));
   }
   const F = SIDEWALK_H;
-  // convenience store: three shelf rows (5 x 0.6 x 1.5), freezers on the back wall (7 x 0.7 x 2.0), till (2.4 x 0.6 x 1.0)
-  for (const cx of [-1.2, 0.8, 2.8]) S.push(B3('shelf@' + cx, 'furniture', cx - 0.3, F, -6.2, cx + 0.3, F + 1.5, -1.2));
-  S.push(B3('freezer', 'furniture', -2.0, F, -8.3, 5.0, F + 2.0, -7.6));
-  S.push(B3('counter', 'furniture', 7.0, F, -3.0, 7.6, F + 1.0, -0.6));          // till near the glass: the figure behind it shows from outside
+  // the grocery (round 8): tall wooden shelves (1.9 m) making three narrow aisles, a chest freezer on the back wall, the old
+  // till with a television and a cash register on it, cardboard boxes on the floor
+  for (const sh of GROCERY.shelves) S.push(B3(sh.id, 'furniture', sh.x0, F, sh.z0, sh.x1, F + sh.h, sh.z1));
+  for (const [id, x0, y0, z0, x1, y1, z1] of GROCERY.solids) S.push(B3(id, 'furniture', x0, F + y0, z0, x1, F + y1, z1));
+  S.push(B3('awning', 'roof', AWNING.x0, AWNING.y - 0.12, AWNING.z0, AWNING.x1, AWNING.y + 0.05, AWNING.z1, { lift: 'store' }));   // above head height
   // the back room behind the staff door (dim, cannot be entered: the back wall's box still closes the doorway)
   for (const [id, a, b, c, d, e, f] of annexBoxes()) S.push(B3(id, 'wall', a, b, c, d, e, f));
   // the shop next door: one bar and four stools
@@ -121,12 +154,14 @@ export function walkBoxes(doors, backAngle = BACKDOOR.half) {
   out.push(backdoorBox(backAngle));
   return out;
 }
-// The staff door on the store's back wall: hinged at x 6.0, swings into the store. Half open (35 deg) normally; the
-// scare version opens it wide (80 deg) and slams it shut. Its box is the axis-aligned box of the leaf.
-export const BACKDOOR = { hx: 6.0, hz: -8.3, w: 1.0, h: 2.1, half: (35 * Math.PI) / 180, wide: (80 * Math.PI) / 180, cx: 6.5, cz: -8.3 };
+// The staff door on the store's back wall: hinged at x 6.0. Half open (35 deg) normally; the scare version opens it wide
+// (80 deg) and slams it shut. Round 8: an old wooden door that swings into the back room (dir -1, towards -z), so from
+// anywhere in the shop the leaf never stands in front of the doorway. Its box is the axis-aligned box of the leaf.
+export const BACKDOOR = { hx: 6.0, hz: -8.3, w: 1.0, h: 2.1, half: (35 * Math.PI) / 180, wide: (80 * Math.PI) / 180, cx: 6.5, cz: -8.3, dir: -1 };
+export const leafAngle = (angle) => BACKDOOR.dir * angle;     // the leaf's world angle about the hinge (+ = into the shop)
 export function backdoorBox(angle) {
-  const ex = BACKDOOR.hx + Math.cos(angle) * BACKDOOR.w, ez = BACKDOOR.hz + Math.sin(angle) * BACKDOOR.w;
-  return [Math.min(BACKDOOR.hx, ex) - 0.02, BACKDOOR.hz, Math.max(BACKDOOR.hx, ex) + 0.02, Math.max(BACKDOOR.hz + 0.04, ez + 0.02)];
+  const a = leafAngle(angle), ex = BACKDOOR.hx + Math.cos(a) * BACKDOOR.w, ez = BACKDOOR.hz + Math.sin(a) * BACKDOOR.w;
+  return [Math.min(BACKDOOR.hx, ex) - 0.02, Math.min(BACKDOOR.hz, ez) - 0.02, Math.max(BACKDOOR.hx, ex) + 0.02, Math.max(BACKDOOR.hz, ez) + 0.02];
 }
 export const buildingAt = (x, z, front = 0) => BUILDINGS.find((b) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 + front) || null;
 export const insideInterior = (x, z) => BUILDINGS.some((b) => x > b.x0 + WALL_T && x < b.x1 - WALL_T && z > b.z0 + WALL_T && z < b.z1 - WALL_T);
@@ -187,13 +222,14 @@ export function doorSegment(st, d, x0, z0, x1, z1, dt, t0 = 0, ov = null, onOpen
     const disc = B * B - 4 * A * Cc;
     if (disc > 0) { const q = Math.sqrt(disc); ta = clamp01((-B - q) / (2 * A)); tb = clamp01((-B + q) / (2 * A)); }
   }
+  const wins = !ov ? [] : Array.isArray(ov[0]) ? ov : [ov];   // one interval or a list of them (round 8: E3, then the dog leaving)
   const cuts = [0, ta * dt, tb * dt, dt];
-  if (ov) for (const c of [ov[0] - t0, ov[1] - t0]) if (c > 0 && c < dt) cuts.push(c);
+  for (const w of wins) for (const c of [w[0] - t0, w[1] - t0]) if (c > 0 && c < dt) cuts.push(c);
   cuts.sort((a, b) => a - b);
   for (let i = 0; i + 1 < cuts.length; i++) {
     const a = cuts[i], b = cuts[i + 1];
     if (b - a <= 1e-12) continue;
-    const m = (a + b) / 2, want = (m > ta * dt && m < tb * dt) || (ov && t0 + m >= ov[0] && t0 + m < ov[1]) ? 1 : 0;
+    const m = (a + b) / 2, want = (m > ta * dt && m < tb * dt) || wins.some((w) => t0 + m >= w[0] && t0 + m < w[1]) ? 1 : 0;
     if (want && !st.want && onOpen) onOpen(t0 + a);
     st.want = want;
     ramp(st, !!want, b - a);
@@ -314,6 +350,7 @@ export const AIMS = {
   door: [STORE.door.cx, SIDEWALK_H + 1.2, STORE.z1],
   street: [1.0, 0, 6.8],
   roof: [(STORE.x0 + STORE.x1) / 2, STORE.h, (STORE.z0 + STORE.z1) / 2],
+  next: [NEXT.door.cx, SIDEWALK_H + 1.2, NEXT.z1],          // round 8: the shop next door (lands outside its door)
 };
 export function aimPoint(aim) {
   if (typeof aim === 'string') { if (!AIMS[aim]) throw new Error('unknown aim ' + aim); return AIMS[aim].slice(); }
@@ -408,12 +445,14 @@ export const HORROR = {
   figure: { h: 1.7, bodyR: 0.19, headR: 0.12, color: '#0A0C10' },
   spots: {
     counter: { x: 8.2, z: -0.9, yaw: Math.atan2(8.2 - 5.0, -0.9 - FACADE_Z) },                    // behind the till, facing the door
-    window: { x: STORE.door.cx - STORE.door.w / 2 - 0.5, z: FACADE_Z - 0.05 - 0.4, yaw: Math.PI },    // left of the door, 0.4 m behind the glass, facing the street
+    window: { x: 7.9, z: FACADE_Z - WALL_T - 0.35, yaw: Math.PI },                                   // round 8: behind the small window, facing the street
     backroom: { x: 6.55, z: -9.0, yaw: Math.PI },                                                  // in the staff doorway, facing into the store
   },
   e0: { delay: 0.2, dark: 0.35, level: 0.03 },
   // round 6: E2 on any of 4 m walked in the shop / within 3 m of the freezer wall / 12 s in the shop; the ceiling panels blink twice first
-  e2: { walk: 4, wall: 3, time: 12, blinks: [[0, 0.1], [0.2, 0.3]], seq: 0.4, sections: 5, step: 0.12, silence: 1.6 },
+  // round 8: the tube blinks twice, then bulb 1, bulb 2 and the tube go out one by one, the television goes black and the
+  // chest freezer stops humming: 1.6 s of silence (rain only), then everything back
+  e2: { walk: 4, wall: 3, time: 12, blinks: [[0, 0.1], [0.2, 0.3]], seq: 0.4, step: 0.15, lights: 3, silence: 1.6 },
   // round 6: 3 s after E2, door out of view and >= 3 m away; after 15 s it opens in view (still >= 3 m away)
   e3: { dist: 3, wait: 3, fallback: 15, extra: (10 * Math.PI) / 180, hold: 1.2 },
   // round 6: within 2.0 m, door in the middle half of the view, >= 1.3 m from the hinge
@@ -421,24 +460,71 @@ export const HORROR = {
   // round 6: knocking behind the staff door once it is wide: first 0.3 s after, then every 6 s, 20% louder each time, at most 2.5x the base
   knock: { delay: 0.3, every: 6, first: 1.0, grow: 1.2, max: 2.5, pos: [BACKDOOR.cx, SIDEWALK_H + 1.2, BACKDOOR.cz - 0.3] },   // just behind the staff door
   e5: { above: 0.2 },
+  // round 8, P1: after E2, at the mouth of an aisle looking down it (its far end in the middle third of the view): a figure at
+  // the far end, appearing as the tube flickers and gone at the next flicker 0.6 s later (that flicker is added for it)
+  p1: { show: 0.6, ahead: 1.0, inside: 0.5, middle: 1 / 6, back: 0.35 },
+  // round 8, P2: after E2, within 2.5 m of the television and looking at it: 0.8 s of black screen with a figure behind you on it
+  p2: { dist: 2.5, middle: 1 / 6, black: 0.8 },
 };
-export const E2_DARK = HORROR.e2.seq + (HORROR.e2.sections - 1) * HORROR.e2.step;     // last freezer section off: the silence starts (after the blinks)
+// The fluorescent tube's flicker (round 8): irregular, from a fixed seed. Flickers start 0.4-6 s apart, each 1-3 blinks of
+// 0.07 s off with 0.08 s on between them (so one flicker always ends before the next can start).
+export const TUBE = { seed: 20261008, gap: [0.4, 6], count: [1, 3], off: 0.07, on: 0.08, horizon: 7200 };
+export const TUBE_EVENTS = (() => {
+  const r = rng(TUBE.seed), ev = [];
+  for (let t = lerp(TUBE.gap[0], TUBE.gap[1], r()); t < TUBE.horizon; t += lerp(TUBE.gap[0], TUBE.gap[1], r())) ev.push({ t, n: TUBE.count[0] + Math.floor(r() * (TUBE.count[1] - TUBE.count[0] + 1)) });
+  return ev;
+})();
+const flickerIndex = (t) => { let lo = 0, hi = TUBE_EVENTS.length - 1; if (t < TUBE_EVENTS[0].t) return -1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (TUBE_EVENTS[m].t <= t) lo = m; else hi = m - 1; } return lo; };
+export function tubeFlickerOff(t) {                 // the tube's own flicker: true while a blink has it off
+  const i = flickerIndex(t); if (i < 0) return false;
+  const e = TUBE_EVENTS[i], u = t - e.t, per = TUBE.off + TUBE.on, k = Math.floor(u / per);
+  return k < e.n && u - k * per < TUBE.off;
+}
+export const nextFlicker = (t) => { const i = flickerIndex(t - 1e-9) + 1; return i < TUBE_EVENTS.length ? TUBE_EVENTS[i].t : Infinity; };   // the next flicker starting at or after t
+// The stray dog (round 8 追加, D1-D4): comes in with E3, shakes off the rain, walks 2-3 m in, growls at the staff door,
+// whimpers and runs out; in the calm version it sniffs about wagging its tail and trots out. Footprint 0.8 x 0.32 m; it
+// keeps out of solids as a circle of 0.43 m and at least 1.2 m from the walker; it never blocks the walker.
+export const DOG = { len: 0.8, wid: 0.32, r: 0.43, start: [STORE.door.cx, FACADE_Z + 1.2], inside: [STORE.door.cx, FACADE_Z - WALL_T - 0.5], away: [STORE.door.cx, FACADE_Z + 1.6],
+  enter: 1.2, shake: 1.0, walk: 0.8, walkDist: 2.5, turn: 3.0, growl: 3.0, whimper: 0.5, run: 3.0, sniff: 2.0, trot: 2.0, keep: 1.2, flee: 2.0, step: 0.3, hold: 0.3 };
+export const E2_DARK = HORROR.e2.seq + HORROR.e2.lights * HORROR.e2.step;     // television black and the hum off: the silence starts
 export const E2_TOTAL = E2_DARK + HORROR.e2.silence;                   // everything back on
 export const E4_BANG = HORROR.e4.reveal + HORROR.e4.slam;              // the door hits the frame
-// Sound levels: rain plus both hums is the base; the doorbell about 2x, the bang about 4x (SPEC 声音).
-export const AUDIO = { fluor: 0.05, freezer: 0.06, bell: 2, slam: 4, sting: 1.6 };
-export function audioLevels(s, hum = 1) {
-  const inside = smooth(0.6, 1, s), rain = MAP.volume(s), base = rain + (AUDIO.fluor + AUDIO.freezer) * inside;
-  return { rain, fluor: AUDIO.fluor * inside * hum, freezer: AUDIO.freezer * inside * hum, base, bell: AUDIO.bell * base, slam: AUDIO.slam * base, sting: AUDIO.sting * base };
+// Sound levels (round 8): the rain (with the rain on the tin awning), the tube's buzz, the television's snow (louder near the
+// till) and the chest freezer's hum are the base; the hanging bell about 2x, the bang about 4x. In the E2 silence only the
+// rain is left. `st`: { hum, tube, tv } on/off (0-1) and the walker's distances to the television and the awning.
+export const AUDIO = { buzz: 0.04, snow: 0.05, freezer: 0.06, awning: 0.05, bell: 2, slam: 4, sting: 1.6, paw: 0.5, shake: 0.9, growl: 1.4, whimper: 1.0 };
+export const snowNear = (d) => clamp(1 - (d - 0.8) / 5, 0.15, 1);           // television snow: full within 0.8 m, 15% from 5.8 m
+export const awningNear = (d) => clamp(1 - d / 9, 0.2, 1);                  // rain on the awning: loudest under it
+export function audioLevels(s, st = {}) {
+  const { hum = 1, tube = 1, tv = 1, dTv = 4, dAwning = 4 } = typeof st === 'number' ? { hum: st } : st;
+  const inside = smooth(0.6, 1, s), rain = MAP.volume(s), awning = AUDIO.awning * awningNear(dAwning) * Math.max(inside, 0.4);
+  const buzz = AUDIO.buzz * inside * tube, snow = AUDIO.snow * inside * tv * snowNear(dTv), freezer = AUDIO.freezer * inside * hum;
+  const base = rain + awning + buzz + snow + freezer;
+  return { rain, awning, buzz, snow, freezer, fluor: buzz, base, bell: AUDIO.bell * base, slam: AUDIO.slam * base, sting: AUDIO.sting * base };
 }
 const DOOR0_EYE = [STORE.door.cx, SIDEWALK_H + DOOR_H / 2, FACADE_Z - WALL_T / 2];
 const doorSound = (i) => [DOORS[i].cx, SIDEWALK_H + DOOR_H - 0.1, DOORS[i].cz];   // where a door chime comes from
 const BACKDOOR_C = [BACKDOOR.cx, SIDEWALK_H + BACKDOOR.h / 2, BACKDOOR.cz];
-// Opaque boxes for "can the camera see this point": every solid except the glazed store front, plus its fascia and kerb.
-const OCCLUDERS = STATIC_SOLIDS.filter((b) => !['store:front-l', 'store:front-r', 'store:lintel'].includes(b.id))
-  .concat([B3('store:fascia', STORE.x0, 2.8, STORE.z1 - WALL_T, STORE.x1, STORE.h, STORE.z1, { lift: 'store' }), B3('store:kerb', STORE.x0, 0, STORE.z1 - WALL_T, STORE.x1, SIDEWALK_H + 0.06, STORE.z1)]);
-export const figurePoints = (spot) => { const F = SIDEWALK_H, f = HORROR.figure, p = HORROR.spots[spot];
+// Opaque boxes for "can the camera see this point" (round 8, rebuilt for the wooden front): every solid, with the grocery
+// front cut into its wooden pieces around the glass door and the small window (the collision walls are whole), and the
+// awning. Glass is never an occluder. (Round 3's fascia and kerb boxes passed their coordinates one place off — B3 without
+// its `kind` — and so occluded nothing; the wooden pieces replace them.)
+export const FRONT_PIECES = (() => {
+  const F = SIDEWALK_H, z0 = STORE.z1 - WALL_T, z1 = STORE.z1, d = STORE.door, dx0 = d.cx - d.w / 2, dx1 = d.cx + d.w / 2, top = STORE.h, W = WINDOW;
+  return [
+    B3('store:front-left', 'wall', STORE.x0 + WALL_T, 0, z0, dx0, 2.8, z1),
+    B3('store:front-mid', 'wall', dx1, 0, z0, W.x0, 2.8, z1),
+    B3('store:front-right', 'wall', W.x1, 0, z0, STORE.x1 - WALL_T, 2.8, z1),
+    B3('store:front-sill', 'wall', W.x0, 0, z0, W.x1, W.y0, z1),
+    B3('store:front-head', 'wall', W.x0, W.y1, z0, W.x1, 2.8, z1),
+    B3('store:lintel', 'wall', dx0, F + DOOR_H, z0, dx1, 2.8, z1, { lift: 'store' }),
+    B3('store:front-upper', 'wall', STORE.x0 + WALL_T, 2.8, z0, STORE.x1 - WALL_T, top, z1, { lift: 'store' }),
+  ];
+})();
+const OCCLUDERS = STATIC_SOLIDS.filter((b) => !['store:front-l', 'store:front-r', 'store:lintel'].includes(b.id)).concat(FRONT_PIECES);
+export const figurePointsAt = (p) => { const F = SIDEWALK_H, f = HORROR.figure;
   return [[p.x, F + 0.85, p.z], [p.x, F + f.h - 0.02, p.z], [p.x, F + 0.1, p.z], [p.x - f.bodyR, F + 0.85, p.z], [p.x + f.bodyR, F + 0.85, p.z]]; };
+export const figurePoints = (spot) => figurePointsAt(HORROR.spots[spot]);
 // Is any of these points on screen and not behind an opaque box? `skip` names a lifted building (roof hidden).
 export function pointsVisible(cam, fov, aspect, pts, skip = null) {
   for (const q of pts) {
@@ -453,31 +539,57 @@ export function pointsVisible(cam, fov, aspect, pts, skip = null) {
 // solid (furniture, walls; glass not counted) with the back wall opened at the staff doorway the way the page draws it
 // (its collision box closes the doorway), plus the staff door leaf as a thin box turned to its current angle about the hinge.
 const LEAF_T = 0.04;                              // leaf thickness, as drawn
-const SIGHT = OCCLUDERS.filter((b) => !['store:back', 'store:fascia', 'store:kerb'].includes(b.id)).concat([   // fascia and kerb face the street
+const SIGHT = OCCLUDERS.filter((b) => b.id !== 'store:back').concat([   // the back wall, opened at the staff doorway
   B3('store:back-l', 'wall', STORE.x0, 0, STORE.z0, BACKDOOR.hx, STORE.h - 0.2, STORE.z0 + WALL_T),
   B3('store:back-r', 'wall', BACKDOOR.hx + BACKDOOR.w, 0, STORE.z0, STORE.x1, STORE.h - 0.2, STORE.z0 + WALL_T),
   B3('store:back-top', 'wall', BACKDOOR.hx, SIDEWALK_H + BACKDOOR.h + 0.02, STORE.z0, BACKDOOR.hx + BACKDOOR.w, STORE.h - 0.2, STORE.z0 + WALL_T)]);
 // Distance along a ray to the staff door leaf at `angle` (Infinity if missed): the ray in the leaf's own frame (x along
 // the leaf from the hinge, z across it), then the usual slab test.
 export function leafHit(o, u, angle) {
-  const c = Math.cos(angle), s = Math.sin(angle), dx = o[0] - BACKDOOR.hx, dz = o[2] - BACKDOOR.hz;
+  const c = Math.cos(leafAngle(angle)), s = Math.sin(leafAngle(angle)), dx = o[0] - BACKDOOR.hx, dz = o[2] - BACKDOOR.hz;
   const lo = [dx * c + dz * s, o[1] - SIDEWALK_H, -dx * s + dz * c], lu = [u[0] * c + u[2] * s, u[1], -u[0] * s + u[2] * c];
   return rayBox(lo, lu, { x0: 0, x1: BACKDOOR.w, y0: 0, y1: BACKDOOR.h, z0: -LEAF_T / 2, z1: LEAF_T / 2 });
 }
-// One flag per sample point of the figure in the staff doorway: on screen and nothing in between.
-export function figureSightlines(cam, fov, aspect, backAngle) {
+// One flag per sample point: on screen and nothing in between (the staff door leaf at its current angle included).
+export function sightlines(cam, fov, aspect, pts, backAngle) {
   const o = [cam.x, cam.y, cam.z];
-  return figurePoints('backroom').map((q) => {
+  return pts.map((q) => {
     const pr = project(cam, fov, aspect, q);
     if (pr.depth < 0.05 || pr.x < 0 || pr.x > 1 || pr.y < 0 || pr.y > 1) return false;
     const d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]], L = Math.hypot(...d), u = d.map((v) => v / L);
     return !SIGHT.some((b) => rayBox(o, u, b) < L - 0.05) && !(leafHit(o, u, backAngle) < L - 0.05);
   });
 }
+export const figureSightlines = (cam, fov, aspect, backAngle) => sightlines(cam, fov, aspect, figurePoints('backroom'), backAngle);
+// P1: where the figure stands in an aisle (its far end, facing the mouth), and which aisle the walker is looking down.
+export const aisleSpot = (a) => ({ x: a.cx, z: a.zEnd + HORROR.p1.back, yaw: Math.PI });
+export function aisleLook(P, backAngle = BACKDOOR.half) {
+  for (const a of GROCERY.aisles) {
+    if (Math.abs(P.x - a.cx) > (a.x1 - a.x0) / 2 || P.z > a.zFront + HORROR.p1.ahead || P.z < a.zFront - HORROR.p1.inside) continue;
+    const q = project(P.cam, P.fov, P.aspect, [a.cx, SIDEWALK_H + 1.2, a.zEnd]);
+    if (!(q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.p1.middle && q.y > 0 && q.y < 1)) continue;
+    if (sightlines(P.cam, P.fov, P.aspect, figurePointsAt(aisleSpot(a)), backAngle).some(Boolean)) return a.i;
+  }
+  return -1;
+}
+// P2: is the walker within 2.5 m of the television, in front of its screen and looking at it?
+export const TV_CENTRE = [GROCERY.tv.x, (GROCERY.tv.y0 + GROCERY.tv.y1) / 2, (GROCERY.tv.z0 + GROCERY.tv.z1) / 2];
+export function tvLook(P, backAngle = BACKDOOR.half) {
+  const c = TV_CENTRE;
+  if (P.x >= c[0] - 0.05 || Math.hypot(P.x - c[0], P.z - c[2]) > HORROR.p2.dist) return false;
+  const q = project(P.cam, P.fov, P.aspect, c);
+  if (!(q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.p2.middle && q.y > 0 && q.y < 1)) return false;
+  return sightlines(P.cam, P.fov, P.aspect, [c], backAngle)[0];
+}
+// Where on the black screen the figure behind the walker shows (0 = the viewer's left edge): beside the walker's own
+// reflection, which sits where the walker stands along the screen.
+export const tvReflectU = (x, z) => clamp((z - GROCERY.tv.z0) / (GROCERY.tv.z1 - GROCERY.tv.z0) + 0.12, 0.2, 0.8);
 const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], L = Math.hypot(...d); return Math.acos(clamp((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L, -1, 1)); };
 function createHorror(S, calm) {
-  const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null });
-  const H = { calm, visit: 0, figure: calm ? null : 'counter', fired: blank(), done: { E2: false, E3: false, E4: false }, e0: null, e2: null, e3: null, e4: null, wideAt: null, e5Plan: null, e5Dark: null,
+  const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null, P1: null, P2: null });
+  const fresh = () => ({ E2: false, E3: false, E4: false, P1: false, P2: false, dog: false });
+  const H = { calm, visit: 0, figure: calm ? null : 'counter', fired: blank(), done: fresh(), e0: null, e2: null, e3: null, e4: null, wideAt: null, e5Plan: null, e5Dark: null,
+    c2: null, c3: null, p1: null, p1arm: null, p2: null, dog: null, lastP: null,
     walked: 0, inside: 0, last: null, knock: null, sounds: [], vibes: [], history: [] };
   const fire = (name, t) => { H.fired[name] = t; H.history.push({ e: name, t, visit: H.visit }); };
   const backAngle = (t) => {
@@ -486,9 +598,19 @@ function createHorror(S, calm) {
   };
   const dark = (b, t) => b && t >= b.start && t < b.end;
   const light = (t) => (dark(H.e0, t) || dark(H.e5Dark, t) ? HORROR.e0.level : 1);
-  const freezer = (t) => [0, 1, 2, 3, 4].map((i) => (H.e2 && t >= H.e2.t0 + HORROR.e2.seq + (4 - i) * HORROR.e2.step && t < H.e2.t0 + E2_TOTAL ? 0 : 1) * light(t));
-  const panel = (t) => (H.e2 && HORROR.e2.blinks.some(([a, b]) => t >= H.e2.t0 + a && t < H.e2.t0 + b) ? 0 : 1) * light(t);   // ceiling panels: two blinks
-  const hum = (t) => (H.e2 && t >= H.e2.t0 + E2_DARK && t < H.e2.t0 + E2_TOTAL ? 0 : 1);
+  // round 8 lights: two bulbs and the tube; E2 puts them out one by one (after two tube blinks), the tube also flickers on
+  // its own and once more for P1; the television's snow and the freezer's hum stop in the E2 silence
+  const e2Off = (i, t) => !!(H.e2 && t >= H.e2.t0 + HORROR.e2.seq + i * HORROR.e2.step && t < H.e2.t0 + E2_TOTAL);
+  const e2Blink = (t) => !!(H.e2 && HORROR.e2.blinks.some(([a, b]) => t >= H.e2.t0 + a && t < H.e2.t0 + b));
+  const p1Blink = (t) => !!(H.p1 && t >= H.p1.t1 && t < H.p1.t1 + TUBE.off);
+  const silent = (t) => !!(H.e2 && t >= H.e2.t0 + E2_DARK && t < H.e2.t0 + E2_TOTAL);
+  const bulbs = (t) => [0, 1].map((i) => (e2Off(i, t) ? 0 : 1) * light(t));
+  const tubeOff = (t) => e2Off(2, t) || e2Blink(t) || tubeFlickerOff(t) || p1Blink(t);
+  const tube = (t) => (tubeOff(t) ? 0 : 1) * light(t);
+  const hum = (t) => (silent(t) ? 0 : 1);
+  const p2On = (t) => !!(H.p2 && t >= H.p2.t0 && t < H.p2.t1);
+  const tv = (t) => ({ snow: silent(t) || p2On(t) ? 0 : 1, reflect: p2On(t), u: H.p2 ? H.p2.u : 0.5, level: light(t) });
+  const aisleFigure = (t) => (H.p1 && t >= H.p1.t0 && t < H.p1.t1 ? H.p1.aisle : null);
   const scare = (t) => !!(H.e4 && t >= H.e4.t0 && t < H.e4.t0 + E4_BANG);
   const shake = (t) => {
     const u = H.e4 ? t - H.e4.t0 - E4_BANG : -1;
@@ -497,20 +619,132 @@ function createHorror(S, calm) {
     return [a * Math.sin(2 * Math.PI * 26 * u), 0.6 * a * Math.sin(2 * Math.PI * 33 * u + 1.3), 0];
   };
   const darken = (t) => { const u = H.e4 ? t - H.e4.t0 - E4_BANG : -1; return u >= 0 && u < HORROR.e4.darken ? 1 : 0; };
+  // the store door opening by itself (E3; in the calm version the same moment opens it for the dog, without an E3)
   const startE3 = (t, k0, inView = false) => {
-    const holdEnd = t + (1 - k0) / DOOR_SPEED + HORROR.e3.hold;
-    H.e3 = { t0: t, k0, holdEnd, closedAt: holdEnd + 1 / DOOR_SPEED, inView }; H.done.E3 = true; fire('E3', t);
+    const holdEnd = t + (1 - k0) / DOOR_SPEED + HORROR.e3.hold, w = { t0: t, k0, holdEnd, closedAt: holdEnd + 1 / DOOR_SPEED, inView };
+    if (H.calm) H.c3 = w; else { H.e3 = w; H.done.E3 = true; fire('E3', t); }
+    startDog(t);
   };
   const startE4 = (t, seen = null) => {
     H.e4 = { t0: t, bang: t + E4_BANG, seen }; H.done.E4 = true; fire('E4', t);
     H.sounds.push({ kind: 'slam', t: t + E4_BANG, pos: BACKDOOR_C.slice() }, { kind: 'sting', t: t + E4_BANG, pos: BACKDOOR_C.slice() });
     H.vibes.push({ t: t + E4_BANG, pattern: HORROR.e4.vibrate.slice() });
   };
+  // ---------------- the dog ----------------
+  const door3 = () => H.e3 || H.c3;
+  // the store door's openness from the scripted openings alone (the walker can only open it further): for the dog's collisions
+  const doorK = (t) => {
+    let k = 0;
+    const w = door3();
+    if (w && t >= w.t0) k = t <= w.holdEnd ? Math.min(1, w.k0 + DOOR_SPEED * (t - w.t0)) : Math.max(0, 1 - DOOR_SPEED * (t - w.holdEnd));
+    const d = H.dog;
+    if (d && d.exitOpen !== null && t >= d.exitOpen) {
+      const end = d.exitEnd === null ? Infinity : d.exitEnd;
+      k = Math.max(k, t <= end ? Math.min(1, d.exitK0 + DOOR_SPEED * (t - d.exitOpen)) : Math.max(0, 1 - DOOR_SPEED * (t - end)));
+    }
+    return k;
+  };
+  const dogBoxes = (t) => { const b = STATIC_WALK.slice(); if (doorK(t) < DOOR_PASS) { const d = DOORS[0]; b.push([d.x0, d.z0, d.x1, d.z1]); } return b; };
+  const dogClear = (x, z, r = DOG.r) => STATIC_WALK.every((b) => boxDist(x, z, b) >= r);
+  const toYaw = (dx, dz) => Math.atan2(-dx, -dz);
+  const doorYaw = (d) => toYaw(BACKDOOR.cx - d.x, BACKDOOR.cz - d.z);
+  function startDog(t) {
+    H.dog = { t0: t, phase: 'enter', pt: t, x: DOG.start[0], z: DOG.start[1], yaw: 0, dist: 0, nextPaw: t + 0.12, stop: null, exitOpen: null, exitK0: 0, exitEnd: null, closedAt: null, goneAt: null,
+      log: [{ phase: 'enter', t, x: DOG.start[0], z: DOG.start[1] }], calm: H.calm, minGap: Infinity };
+    H.done.dog = true;
+  }
+  const dogPhase = (d, ph, t) => { d.phase = ph; d.pt = t; d.log.push({ phase: ph, t, x: d.x, z: d.z }); };
+  const dogSound = (d, kind, t, extra = {}) => H.sounds.push({ kind, t, pos: [d.x, SIDEWALK_H + 0.4, d.z], ...extra });
+  // 2-3 m into the shop from just inside the door, as far from the walker as it can, on a clear straight line
+  function chooseStop(d) {
+    const w = H.lastP || [d.x, d.z - 10];
+    let best = null;
+    for (const th of [0, 0.35, -0.35, 0.6, -0.6]) {
+      const x = d.x + DOG.walkDist * Math.sin(th), z = d.z - DOG.walkDist * Math.cos(th);
+      let ok = true;
+      for (let k = 1; k <= 10 && ok; k++) ok = dogClear(d.x + (x - d.x) * k / 10, d.z + (z - d.z) * k / 10);
+      if (!ok) continue;
+      const score = Math.min(3, Math.hypot(x - w[0], z - w[1])) - 0.2 * Math.abs(th);
+      if (!best || score > best.score) best = { x, z, score };
+    }
+    return best ? [best.x, best.z] : [d.x, d.z - DOG.walkDist];
+  }
+  function openExit(d, t) { d.exitOpen = t; d.exitK0 = doorK(t); }
+  function dogStep(t) {
+    const d = H.dog;
+    if (!d || d.goneAt !== null) return;
+    const dt = HORROR.tick, calmDog = d.calm;
+    let target = null, sp = 0, lockYaw = null;
+    const near = (p, e = 0.06) => Math.hypot(p[0] - d.x, p[1] - d.z) < e;
+    switch (d.phase) {
+      case 'enter':
+        target = DOG.inside; sp = DOG.enter;
+        if (near(DOG.inside)) { dogPhase(d, 'shake', t); dogSound(d, 'shake', t); }
+        break;
+      case 'shake':
+        if (t - d.pt >= DOG.shake) { d.stop = chooseStop(d); dogPhase(d, 'walk', t); }
+        break;
+      case 'walk':
+        target = d.stop; sp = DOG.walk;
+        if (near(d.stop)) dogPhase(d, 'turn', t);
+        break;
+      case 'turn': {
+        const want = doorYaw(d), err = wrapAngle(want - d.yaw), step = DOG.turn * dt;
+        d.yaw = Math.abs(err) <= step ? want : d.yaw + Math.sign(err) * step;
+        lockYaw = d.yaw;
+        if (Math.abs(wrapAngle(want - d.yaw)) < 1e-6) { dogPhase(d, calmDog ? 'sniff' : 'growl', t); if (!calmDog) dogSound(d, 'growl', t, { dur: DOG.growl }); }
+        break;
+      }
+      case 'growl':
+        lockYaw = doorYaw(d);
+        if (t - d.pt >= DOG.growl) { dogPhase(d, 'whimper', t); dogSound(d, 'whimper', t); openExit(d, t); }
+        break;
+      case 'whimper':
+        lockYaw = doorYaw(d);
+        if (t - d.pt >= DOG.whimper) dogPhase(d, 'out', t);
+        break;
+      case 'sniff':
+        if (t - d.pt >= DOG.sniff) { openExit(d, t); dogPhase(d, 'out', t); }
+        break;
+      case 'out':
+        sp = calmDog ? DOG.trot : DOG.run;
+        if (!d.lined && near(DOG.inside, 0.15)) d.lined = true;   // first back to just inside the door, then straight out
+        target = d.lined ? DOG.away : DOG.inside;
+        if (d.exitEnd === null && d.z > FACADE_Z + DOG.r + 0.05) { d.exitEnd = t + DOG.hold; d.closedAt = d.exitEnd + 1 / DOOR_SPEED; }
+        if (near(DOG.away, 0.08)) { d.goneAt = t; d.log.push({ phase: 'gone', t, x: d.x, z: d.z }); return; }
+        break;
+    }
+    // where it wants to go, bent away from the walker when closer than 2 m (and straight away inside 1.2 m)
+    let vx = 0, vz = 0;
+    if (target) { const dx = target[0] - d.x, dz = target[1] - d.z, L = Math.hypot(dx, dz); if (L > 1e-9) { const v = Math.min(sp, L / dt); vx = (dx / L) * v; vz = (dz / L) * v; } }
+    const w = H.lastP;
+    if (w) {
+      const ex = d.x - w[0], ez = d.z - w[1], de = Math.hypot(ex, ez);
+      d.minGap = Math.min(d.minGap, de);
+      if (de < DOG.flee && de > 1e-6) { const k = clamp((DOG.flee - de) / (DOG.flee - DOG.keep), 0, 1); vx = vx * (1 - k) + (ex / de) * DOG.run * k; vz = vz * (1 - k) + (ez / de) * DOG.run * k; }
+    }
+    if (vx || vz) {
+      const p = { x: d.x + vx * dt, z: d.z + vz * dt };
+      resolveCircle(p, dogBoxes(t), DOG.r);
+      const mx = p.x - d.x, mz = p.z - d.z, moved = Math.hypot(mx, mz);
+      d.x = p.x; d.z = p.z; d.dist += moved;
+      if (lockYaw === null && moved > 1e-5) { const want = toYaw(mx, mz), err = wrapAngle(want - d.yaw), step = 8 * dt; d.yaw += Math.abs(err) <= step ? err : Math.sign(err) * step; }
+      if (moved > 1e-5 && t >= d.nextPaw && d.phase !== 'growl' && d.phase !== 'whimper') { dogSound(d, 'paw', t); d.nextPaw = t + (moved / dt > 1.5 ? 0.14 : 0.28); }
+    }
+    if (lockYaw !== null) d.yaw = lockYaw;
+  }
+  const dogView = (t) => {
+    const d = H.dog;
+    if (!d || d.goneAt !== null) return null;
+    const ph = d.phase, u = t - d.pt;
+    return { x: d.x, z: d.z, yaw: d.yaw, phase: ph, legs: d.dist / 0.32 * Math.PI, crouch: ph === 'growl' ? Math.min(1, u / 0.3) : ph === 'whimper' ? 0.6 : 0,
+      tail: ph === 'growl' || ph === 'whimper' || (ph === 'out' && !d.calm) ? 'tuck' : d.calm ? 'wag' : 'up', shake: ph === 'shake' ? u : null, sniff: ph === 'sniff', calm: d.calm };
+  };
   function evalAt(t, P, kAt) {
     if (H.e0 && !H.e0.done && t >= H.e0.removeAt - 1e-9) { H.figure = null; H.e0.done = true; fire('E0', H.e0.removeAt); }
-    if (H.calm) return;
     if (P.mode !== 'walk') H.last = null;
     if (P.mode === 'walk') {
+      H.lastP = [P.x, P.z];
       const e2 = HORROR.e2, inStore = insideInterior(P.x, P.z) && buildingAt(P.x, P.z) === STORE;
       if (inStore) {
         const d = H.last ? Math.hypot(P.x - H.last[0], P.z - H.last[1]) : 0;
@@ -518,26 +752,49 @@ function createHorror(S, calm) {
         H.inside += HORROR.tick;
       }
       H.last = [P.x, P.z];
-      if (!H.done.E2 && inStore) {
+      const t2 = H.calm ? H.c2 : H.e2 && H.e2.t0;    // the calm version keeps the same clock for the dog, without E2 itself
+      if ((t2 === null || t2 === undefined) && inStore) {
         const why = { walk: H.walked >= e2.walk, wall: P.z - (STORE.z0 + WALL_T) <= e2.wall, time: H.inside >= e2.time - 1e-9 };
-        if (why.walk || why.wall || why.time) { H.e2 = { t0: t, why, walked: H.walked, inside: H.inside }; H.done.E2 = true; fire('E2', t); }
+        if (why.walk || why.wall || why.time) {
+          if (H.calm) H.c2 = t;
+          else { H.e2 = { t0: t, why, walked: H.walked, inside: H.inside }; H.done.E2 = true; fire('E2', t); }
+        }
       }
-      const e2end = H.e2 ? H.e2.t0 + E2_TOTAL : Infinity;
-      if (H.e2 && !H.done.E3 && t >= e2end + HORROR.e3.wait - 1e-9 && Math.hypot(P.x - DOOR0_EYE[0], P.z - DOOR0_EYE[2]) >= HORROR.e3.dist) {
+      const s2 = H.calm ? H.c2 : H.e2 && H.e2.t0, e2end = s2 !== null && s2 !== undefined ? s2 + E2_TOTAL : Infinity;
+      if (e2end < Infinity && !door3() && t >= e2end + HORROR.e3.wait - 1e-9 && Math.hypot(P.x - DOOR0_EYE[0], P.z - DOOR0_EYE[2]) >= HORROR.e3.dist) {
         const unseen = angleTo(P.cam, DOOR0_EYE) > rad(P.hfov / 2) + HORROR.e3.extra;
         if (unseen || t >= e2end + HORROR.e3.fallback - 1e-9) startE3(t, kAt(t), !unseen);
       }
-      // the staff door swings wide unseen, and never into the walker: out of view, and the walker outside its sweep
-      if (H.e3 && H.wideAt === null && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra
-        && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) { H.wideAt = t; H.knock = { next: t + HORROR.knock.delay, mult: HORROR.knock.first }; }
-      if (H.wideAt !== null && !H.done.E4 && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
-        const q = project(P.cam, P.fov, P.aspect, BACKDOOR_C);
-        if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.e4.middle && q.y > 0 && q.y < 1) {
-          const seen = figureSightlines(P.cam, P.fov, P.aspect, backAngle(t)).filter(Boolean).length;   // round 7: the figure must be in sight
-          if (seen >= HORROR.e4.seen) startE4(t, seen);
+      if (!H.calm) {
+        // P1: down an aisle, at the next tube flicker (it must still be looking down the same aisle then)
+        if (H.e2 && !H.done.P1 && t >= e2end - 1e-9) {
+          const a = aisleLook(P, backAngle(t));
+          if (H.p1arm) {
+            if (t >= H.p1arm.at - 1e-9) {
+              if (a === H.p1arm.aisle) { H.p1 = { t0: H.p1arm.at, t1: H.p1arm.at + HORROR.p1.show, aisle: a }; H.done.P1 = true; fire('P1', H.p1arm.at); }
+              H.p1arm = null;
+            } else if (a !== H.p1arm.aisle) H.p1arm = null;
+          } else if (a >= 0) H.p1arm = { aisle: a, at: nextFlicker(t) };
+        }
+        // P2: the television goes black with a figure behind you on it
+        if (H.e2 && !H.done.P2 && t >= e2end - 1e-9 && tvLook(P, backAngle(t))) {
+          H.p2 = { t0: t, t1: t + HORROR.p2.black, u: tvReflectU(P.x, P.z) }; H.done.P2 = true; fire('P2', t);
+        }
+        // the staff door swings wide unseen, never into the walker, and only once the dog has gone and the door is shut
+        const dogGone = !H.dog || (H.dog.closedAt !== null && t >= H.dog.closedAt - 1e-9);
+        if (H.e3 && H.wideAt === null && dogGone && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra
+          && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) { H.wideAt = t; H.knock = { next: t + HORROR.knock.delay, mult: HORROR.knock.first }; }
+        if (H.wideAt !== null && !H.done.E4 && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
+          const q = project(P.cam, P.fov, P.aspect, BACKDOOR_C);
+          if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.e4.middle && q.y > 0 && q.y < 1) {
+            const seen = figureSightlines(P.cam, P.fov, P.aspect, backAngle(t)).filter(Boolean).length;   // round 7: the figure must be in sight
+            if (seen >= HORROR.e4.seen) startE4(t, seen);
+          }
         }
       }
     }
+    dogStep(t);
+    if (H.calm) return;
     // knocking behind the wide staff door until E4 (stops when the visit ends)
     while (H.knock && !H.done.E4 && t >= H.knock.next - 1e-9) {
       H.sounds.push({ kind: 'knock', t: H.knock.next, mult: H.knock.mult, pos: HORROR.knock.pos.slice() });
@@ -552,18 +809,19 @@ function createHorror(S, calm) {
     if (H.e5Dark && !H.e5Dark.done && t >= H.e5Dark.placeAt - 1e-9) { H.figure = 'window'; H.e5Dark.done = true; fire('E5', H.e5Dark.placeAt); }
   }
   return {
-    H, backAngle, light, freezer, panel, hum, scare, shake, darken,
+    H, backAngle, light, bulbs, tube, tv, hum, aisleFigure, dogView, doorK, scare, shake, darken,
     onEnterStart(t) {
-      H.visit++; H.fired = blank(); H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Plan = null; H.e5Dark = null;
+      H.visit++; H.fired = blank(); H.done = fresh(); H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Plan = null; H.e5Dark = null;
+      H.c2 = H.c3 = null; H.p1 = H.p1arm = H.p2 = null; H.dog = null;
       H.walked = 0; H.inside = 0; H.last = null; H.knock = null;
       H.e0 = !H.calm && H.figure ? { start: t + HORROR.e0.delay, end: t + HORROR.e0.delay + HORROR.e0.dark, removeAt: t + HORROR.e0.delay + HORROR.e0.dark / 2, done: false } : null;
     },
     // The exit path is fixed once it starts, so E5 looks ahead along it on the same tick grid: the first tick above the
-    // roofs at which the camera cannot see the spot behind the glass. If the camera sees that spot all the way up
+    // roofs at which the camera cannot see the spot behind the window. If the camera sees that spot all the way up
     // (leaving while facing the shop from across the street), the shop lights cut for 0.35 s at the first tick above the
     // roofs, as in E0, and the figure is placed in the dark.
     onExitStart(t0, poseAt, dur) {
-      H.e5Plan = null; H.e5Dark = null; H.knock = null;
+      H.e5Plan = null; H.e5Dark = null; H.knock = null; H.dog = null; H.p1arm = null;
       if (H.calm || !H.done.E2 || !poseAt) return;
       let firstAbove = null;
       for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t0 + dur + 1e-9; k++) {
@@ -574,9 +832,15 @@ function createHorror(S, calm) {
       }
       if (firstAbove !== null) H.e5Plan = { at: firstAbove, dark: true, done: false };
     },
-    onExitFinish() { H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; },
+    onExitFinish() { H.done = fresh(); H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.c2 = H.c3 = null; H.p1 = H.p2 = null; },
     advance(t0, t1, poseAt, kAt) { for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t1 + 1e-9; k++) { const t = k * HORROR.tick; evalAt(t, poseAt(Math.min(t, t1)), kAt); } },
-    doorOverride: () => (H.e3 ? [H.e3.t0, H.e3.holdEnd] : null),
+    // the store door's scripted openings: E3 (or the calm version's same moment for the dog), then once more for the dog leaving
+    doorOverride: () => {
+      const w = door3(), out = [];
+      if (w) out.push([w.t0, w.holdEnd]);
+      if (H.dog && H.dog.exitOpen !== null) out.push([H.dog.exitOpen, H.dog.exitEnd === null ? Infinity : H.dog.exitEnd]);
+      return out.length ? out : null;
+    },
     onDoorOpen(i, t) { H.sounds.push({ kind: 'bell', t, door: DOORS[i].id, pos: doorSound(i) }); fire('E1', t); },
     trigger(name, t, k0 = 0) {
       if (name === 'E1') { H.sounds.push({ kind: 'bell', t, door: 'store', pos: doorSound(0) }); fire('E1', t); return true; }
@@ -589,8 +853,11 @@ function createHorror(S, calm) {
       return false;
     },
     snapshot(t) {
-      return { visit: H.visit, fired: { ...H.fired }, figure: H.figure, calm: H.calm, scare: scare(t), light: light(t), freezer: freezer(t), panel: panel(t), hum: hum(t), walked: H.walked, inside: H.inside, knock: H.knock && { ...H.knock }, back: (backAngle(t) * 180) / Math.PI,
+      return { visit: H.visit, fired: { ...H.fired }, figure: H.figure, calm: H.calm, scare: scare(t), light: light(t), bulbs: bulbs(t), tube: tube(t), tv: tv(t), hum: hum(t), aisle: aisleFigure(t),
+        walked: H.walked, inside: H.inside, knock: H.knock && { ...H.knock }, back: (backAngle(t) * 180) / Math.PI,
         shake: shake(t), darken: darken(t), done: { ...H.done }, wideAt: H.wideAt, e5Plan: H.e5Plan && { ...H.e5Plan }, e5Dark: H.e5Dark && { ...H.e5Dark }, e0: H.e0 && { ...H.e0 }, e2: H.e2 && { ...H.e2 }, e3: H.e3 && { ...H.e3 }, e4: H.e4 && { ...H.e4 },
+        c2: H.c2, c3: H.c3 && { ...H.c3 }, p1: H.p1 && { ...H.p1 }, p1arm: H.p1arm && { ...H.p1arm }, p2: H.p2 && { ...H.p2 },
+        dog: H.dog && { ...H.dog, log: H.dog.log.map((x) => ({ ...x })), stop: H.dog.stop && H.dog.stop.slice() }, dogView: dogView(t),
         sounds: H.sounds.map((x) => ({ ...x })), vibes: H.vibes.map((x) => ({ ...x, pattern: x.pattern.slice() })), history: H.history.map((x) => ({ ...x })) };
     },
   };
@@ -985,7 +1252,12 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   }
   const horror = () => HZ.snapshot(S.t);
   const trigger = (name) => { const ok = HZ.trigger(name, S.t, S.doors[0].k); refresh(); return ok; };
-  const levels = () => ({ light: HZ.light(S.t), freezer: HZ.freezer(S.t), panel: HZ.panel(S.t), hum: HZ.hum(S.t), back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, HZ.hum(S.t)) });
+  const soundState = () => {
+    const c = S.cam, tv = HZ.tv(S.t), tube = HZ.tube(S.t);
+    return { hum: HZ.hum(S.t) * HZ.light(S.t), tube: tube > 0 ? 1 : 0, tv: tv.snow * tv.level, dTv: Math.hypot(c.x - TV_CENTRE[0], c.z - TV_CENTRE[2]), dAwning: Math.hypot(c.x - (AWNING.x0 + AWNING.x1) / 2, c.z - (AWNING.z0 + AWNING.z1) / 2) };
+  };
+  const levels = () => ({ light: HZ.light(S.t), bulbs: HZ.bulbs(S.t), tube: HZ.tube(S.t), tv: HZ.tv(S.t), hum: HZ.hum(S.t), aisle: HZ.aisleFigure(S.t), dog: HZ.dogView(S.t), door: HZ.doorK(S.t),
+    back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, soundState()) });
   refresh();
   return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, turn, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels,
     looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd };
@@ -1083,6 +1355,8 @@ export const VIEW_SCRIPTS = {
   room: { aim: 'door', route: [[5.0, -0.6], [6.2, -2.3]], look: [1.5, 1.25, -7.95], room: true },     // by the till, then pinch: the whole shop from above
   scare: {}, reveal: {},                                                                              // scripted by playScare
 };
+// When the staff door may go wide (round 8): E3's door shut again, and the dog gone with the door shut behind it.
+export const scareReady = (h) => (!h.e3 ? Infinity : Math.max(h.e3.closedAt, !h.dog ? 0 : h.dog.closedAt === null ? Infinity : h.dog.closedAt));
 // A scripted visit for the scare version: freezers (E2), the door behind you (E3), the staff door (E4), then out (E5).
 export const SCARE_PLAN = { aisle: [[5.0, -0.6], [4.2, -6.5]], behind: [4.2, 1.6, 2.5], staff: [BACKDOOR.cx, SIDEWALK_H + 1.05, BACKDOOR.cz], front: [6.6, -5.6], near: [6.5, -6.85], out: [[5.0, -0.6], [5.0, 3.1]] };
 export function playScare(sim, { dt = DT_VIEW, upTo = 'out', after = 0, aim = 'door' } = {}) {
@@ -1093,7 +1367,7 @@ export function playScare(sim, { dt = DT_VIEW, upTo = 'out', after = 0, aim = 'd
   until(() => h().e2 && S.t >= h().e2.t0 + E2_TOTAL, 5);
   if (upTo === 'E2') { until(() => false, after); return log; }
   if (upTo === 'reveal') { sim.walkRoute(P.out); until(() => !S.player.route, 20); sim.exit(); until(() => S.mode === 'orbit', 5); until(() => false, after); return log; }
-  until(() => h().e3 && S.t >= h().e3.closedAt, 12);
+  until(() => S.t >= scareReady(h()), 25);           // round 8: after the dog has gone
   sim.lookAt(...P.behind); until(() => !S.player.look, 6);
   sim.lookAt(...P.staff); until(() => !S.player.look, 6);
   // round 6: come at the staff door from the front (E4 now catches you at 2.0 m; from the side the open leaf hides the doorway)
@@ -1267,16 +1541,19 @@ export function visualBoxes() {
     add(wall, b.x1 - T, 0, b.z0 + T, b.x1, top, b.z1);
     add(b.id + 'Roof', b.x0, top, b.z0, b.x1, b.h, b.z1);
     add(b.id + 'Floor', b.x0 + T, F, b.z0 + T, b.x1 - T, F + 0.006, b.z1 - T);
-    if (b.id === 'store') {                         // whole front glazed up to 2.8 m, fascia above
-      add(wall + ':upper', b.x0 + T, 2.8, b.z1 - T, b.x1 - T, top, b.z1);
-      add(wall, b.x0 + T, 0, b.z1 - T, b.x1 - T, F + 0.06, b.z1);                    // kerb under the glass
-      add('glass', b.x0 + T, F + 0.06, b.z1 - 0.07, d.x0, 2.8, b.z1 - 0.03);
-      add('glass', d.x1, F + 0.06, b.z1 - 0.07, b.x1 - T, 2.8, b.z1 - 0.03);
-      add('glassTransom', d.x0, F + DOOR_H, b.z1 - 0.07, d.x1, 2.8, b.z1 - 0.03);  // transom over the door (lifts with the fascia)
-      for (const x of [b.x0 + T, -0.3, 2.0, d.x0, d.x1, 7.4, b.x1 - T]) add('frame', x - 0.025, F, b.z1 - 0.09, x + 0.025, 2.8, b.z1 - 0.01);
-      add('frame', d.x0, F + DOOR_H - 0.025, b.z1 - 0.09, d.x1, F + DOOR_H + 0.025, b.z1 - 0.01);
-      add('sign', d.cx - 1.5, 2.95, b.z1, d.cx + 1.5, 3.3, b.z1 + 0.06);
-      for (let i = 0; i < 4; i++) add('signText', d.cx - 1.225 + i * 0.65, 3.0, b.z1 + 0.06, d.cx - 0.725 + i * 0.65, 3.25, b.z1 + 0.075);   // four letter blocks
+    if (b.id === 'store') {                         // round 8: wooden front, the glass door, one small window, a hand-painted sign, a tin awning
+      const W = WINDOW, A = AWNING;
+      for (const pc of FRONT_PIECES) add(pc.id === 'store:front-upper' ? 'storeFacade:upper' : 'storeFacade', pc.x0, pc.y0, pc.z0, pc.x1, pc.y1, pc.z1);
+      add('windowGlass', W.x0, W.y0, b.z1 - 0.12, W.x1, W.y1, b.z1 - 0.08);
+      for (const x of [W.x0, (W.x0 + W.x1) / 2, W.x1]) add('frame', x - 0.03, W.y0, b.z1 - 0.13, x + 0.03, W.y1, b.z1 - 0.07);
+      for (const y of [W.y0, W.y1]) add('frame', W.x0, y - 0.03, b.z1 - 0.13, W.x1, y + 0.03, b.z1 - 0.07);
+      for (const x of [d.x0, d.x1]) add('frame', x - 0.03, F, b.z1 - 0.09, x + 0.03, F + DOOR_H, b.z1 - 0.01);       // aluminium door frame
+      add('frame', d.x0, F + DOOR_H - 0.03, b.z1 - 0.09, d.x1, F + DOOR_H + 0.03, b.z1 - 0.01);
+      add('sign', d.cx - 1.25, 2.86, b.z1, d.cx + 1.25, 3.3, b.z1 + 0.06);
+      for (let i = 0; i < 4; i++) add('signText', d.cx - 1.05 + i * 0.56, 2.93 + (i % 2) * 0.03, b.z1 + 0.06, d.cx - 0.6 + i * 0.56, 3.2 - ((i + 1) % 2) * 0.02, b.z1 + 0.075);   // four brush-stroke blocks
+      add('awning', A.x0, A.y, A.z0, A.x1, A.y + 0.04, A.z1);                                                       // tin sheet
+      add('awning', A.x0, A.y - 0.1, A.z1 - 0.04, A.x1, A.y + 0.04, A.z1);                                          // its front lip
+      for (const x of [A.x0 + 0.1, A.x1 - 0.1]) add('awning', x - 0.02, A.y - 0.5, b.z1, x + 0.02, A.y, b.z1 + 0.04);   // brackets
     } else {                                        // timber front with one window right of the door
       add(wall + ':upper', b.x0 + T, F + DOOR_H, b.z1 - T, b.x1 - T, top, b.z1);
       add(wall, b.x0 + T, 0, b.z1 - T, d.x0, F + DOOR_H, b.z1);
@@ -1288,22 +1565,45 @@ export function visualBoxes() {
       for (let i = 0; i < 2; i++) add('sign2Text', d.cx - 0.55 + i * 0.6, 2.6, b.z1 + 0.05, d.cx - 0.05 + i * 0.6, 2.85, b.z1 + 0.065);
     }
   }
-  // store interior
-  for (const cx of [-1.2, 0.8, 2.8]) {
-    add('shelf', cx - 0.3, F, -6.2, cx + 0.3, F + 1.5, -1.2);
-    for (const y of [0.45, 0.85, 1.25]) add('shelfBoard', cx - 0.32, F + y, -6.2, cx + 0.32, F + y + 0.03, -1.2);
+  // the grocery's inside (round 8): wooden shelves crammed with goods, chest freezer, old till with a television and a register,
+  // cardboard boxes, strings of goods hanging from the ceiling
+  const rnd = rng(8808);
+  for (const sh of GROCERY.shelves) {
+    const faces = sh.id === 'shelf-w' ? [1] : sh.id === 'shelf-e' ? [-1] : [-1, 1], cx = (sh.x0 + sh.x1) / 2;
+    add('shelf', sh.x0, F, sh.z0, sh.x1, F + sh.h, sh.z0 + 0.04); add('shelf', sh.x0, F, sh.z1 - 0.04, sh.x1, F + sh.h, sh.z1);   // end panels
+    if (faces.length === 2) add('shelf', cx - 0.02, F, sh.z0, cx + 0.02, F + sh.h, sh.z1);                                   // back board
+    else add('shelf', faces[0] > 0 ? sh.x0 : sh.x1 - 0.04, F, sh.z0, faces[0] > 0 ? sh.x0 + 0.04 : sh.x1, F + sh.h, sh.z1);
+    const ys = [0.06, 0.5, 0.94, 1.38];
+    for (const y of ys.concat([sh.h - 0.04])) add('shelfBoard', sh.x0, F + y, sh.z0, sh.x1, F + y + 0.04, sh.z1);
+    for (const y of ys) for (const f of faces) {
+      const xa = f > 0 ? (faces.length === 2 ? cx + 0.03 : sh.x0 + 0.06) : sh.x0 + 0.03, xb = f > 0 ? sh.x1 - 0.03 : (faces.length === 2 ? cx - 0.03 : sh.x1 - 0.06);
+      for (let z = sh.z0 + 0.08; z < sh.z1 - 0.12;) {
+        const w = 0.12 + rnd() * 0.3, hgt = 0.12 + rnd() * 0.26, gap = rnd() < 0.18 ? 0.15 + rnd() * 0.25 : 0.02;
+        if (z + w > sh.z1 - 0.08) break;
+        add(['goods', 'goods2', 'goods3'][Math.floor(rnd() * 3)], xa, F + y + 0.04, z, xb - rnd() * 0.08, F + y + 0.04 + hgt, z + w);
+        z += w + gap;
+      }
+    }
   }
-  add('freezerBody', -2.0, F, -8.3, 5.0, F + 2.0, -7.6);
-  for (let i = 0; i < 5; i++) add('freezer' + i, -2.0 + i * 1.4 + 0.05, F + 0.25, -7.6, -2.0 + (i + 1) * 1.4 - 0.05, F + 1.85, -7.58);   // five doors, dimmed one by one in E2
-  for (let i = 1; i < 5; i++) add('frame', -2.0 + i * 1.4 - 0.03, F + 0.25, -7.6, -2.0 + i * 1.4 + 0.03, F + 1.85, -7.56);
-  add('counter', 7.0, F, -3.0, 7.6, F + 1.0, -0.6);
+  const G = Object.fromEntries(GROCERY.solids.map(([id, ...r]) => [id, r]));
+  { const [x0, , z0, x1, , z1] = G.chest; add('freezerBody', x0, F, z0, x1, F + 0.85, z1); add('chestLid', x0 + 0.03, F + 0.85, z0 + 0.03, x1 - 0.03, F + 0.9, z1 - 0.03); }
+  { const [x0, , z0, x1, y1, z1] = G.counter; add('counter', x0, F, z0, x1, F + y1, z1); }
+  { const [x0, y0, z0, x1, y1, z1] = G.tv; add('tvBody', x0, F + y0, z0, x1, F + y1, z1); }
+  { const [x0, y0, z0, x1, y1, z1] = G.register; add('register', x0, F + y0, z0, x1, F + y1, z1); }
+  for (const [id, x0, y0, z0, x1, y1, z1] of GROCERY.solids) if (id.startsWith('box')) add('box', x0, F + y0, z0, x1, F + y1, z1);
+  const ceil = STORE.h - 0.21;
+  for (const [x, z] of GROCERY.hang) {
+    add('hang', x - 0.16, 2.3, z - 0.12, x + 0.16, 2.72, z + 0.12);
+    add('cord', x - 0.006, 2.72, z - 0.006, x + 0.006, ceil, z + 0.006);
+  }
+  for (const [x, y, z] of GROCERY.bulbs) add('cord', x - 0.006, y + 0.05, z - 0.006, x + 0.006, ceil, z + 0.006);   // flex cords of the two bulbs
+  { const T = GROCERY.tube; for (const x of [T.x0 + 0.1, T.x1 - 0.1]) add('cord', x - 0.008, T.y + 0.02, T.z - 0.008, x + 0.008, ceil, T.z + 0.008); }
   // the back room seen through the staff door: dark walls, one dim cold panel to silhouette whoever stands there
   for (const [, a, b, c, d2, e, f] of annexBoxes()) add('annex', a, b, c, d2, e, f);
   add('annexFloor', 5.9, F, -9.75, 7.1, F + 0.006, -8.5);
   add('backGlow', 5.95, F + 0.25, -9.749, 7.05, F + 2.15, -9.74);
   add('mat', DOORS[0].x0, F, -1.0, DOORS[0].x1, F + 0.012, FACADE_Z - T);
-  add('storeCeiling', STORE.x0 + T, STORE.h - 0.212, STORE.z0 + T, STORE.x1 - T, STORE.h - 0.202, STORE.z1 - T);   // light ceiling under the roof slab
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) add('storeLightPanel', -1.6 + i * 2.9, STORE.h - 0.27, -6.6 + j * 2.6, -0.4 + i * 2.9, STORE.h - 0.2, -6.25 + j * 2.6);
+  add('storeCeiling', STORE.x0 + T, STORE.h - 0.212, STORE.z0 + T, STORE.x1 - T, STORE.h - 0.202, STORE.z1 - T);   // dark ceiling under the roof slab
   // next door
   add('bar', -8.4, F, -5.2, -4.0, F + 1.05, -4.6);
   for (const cx of [-7.6, -6.7, -5.8, -4.9]) add('stool', cx - 0.2, F, -4.2, cx + 0.2, F + 0.7, -3.8);
