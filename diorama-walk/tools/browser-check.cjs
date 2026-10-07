@@ -1225,28 +1225,29 @@ const isExternal = (u) => {
 
   // ---------- F1: a first-visit wanderer, three seeds, in the page ----------
   const wand = [];
-  for (const seed of [1, 2, 3]) {
+  for (const [seed, aim] of [[1, 'door'], [2, 'street'], [3, 'roof']]) {   // round 7: three landings
     const P = await open('?view=hero');
     await P.page.keyboard.press('KeyX');            // first gesture: sound on (a key that does nothing else)
-    const r = await P.page.evaluate((seed) => window.__diorama.wander({ seed, maxT: 90 }), seed);
+    const r = await P.page.evaluate(([seed, aim]) => window.__diorama.wander({ seed, aim, maxT: 90 }), [seed, aim]);
     const h = await P.page.evaluate(() => { const h = window.__diorama.horror(); return { history: h.history, wide: h.wideAt }; });
     const log = await P.page.evaluate(() => window.__diorama.audioLog());
-    // not part of the pass condition: is the figure in the staff doorway actually in sight 0.12 s after E4 (drawn meshes, the open leaf included)?
+    // round 7, part of the pass condition: is the figure in the staff doorway in sight 0.12 s after E4 (drawn meshes, the open leaf included)?
     const seen = await P.page.evaluate(() => {
       const D = window.__diorama, C = D.core, h = D.horror(); if (!h.e4) return null;
       D.step(1 / 240, Math.max(0, Math.round((h.e4.t0 + 0.12 - D.state().t) * 240)));
       const v = D.visibility(C.figurePoints('backroom')), st = D.state();
-      return { n: v.filter((x) => x.inFrustum && !x.blockedBy).length, by: [...new Set(v.filter((x) => x.blockedBy).map((x) => x.blockedBy))], at: [st.player.x, st.player.z] };
+      return { n: v.filter((x) => x.inFrustum && !x.blockedBy).length, by: [...new Set(v.filter((x) => x.blockedBy).map((x) => x.blockedBy))], at: [st.player.x, st.player.z], core: h.e4.seen };
     });
     await P.page.screenshot({ path: shot(`F1-seed${seed}-E4`) });
     const at = (e) => { const x = h.history.find((y) => y.e === e); return x ? x.t - r.t0 : null; };
-    wand.push({ seed, T: [at('E2'), at('E3'), at('E4')], ran: r.t, wide: h.wide == null ? null : h.wide - r.t0, phases: r.log.filter((e) => e.phase !== 'heard').map((e) => e.phase + '@' + (e.t - r.t0).toFixed(1)).join(' '), heard: r.log.filter((e) => e.phase === 'heard').map((e) => e.kind + '@' + (e.t - r.t0).toFixed(1)).join(' '), knocks: (log || []).filter((x) => x.kind === 'knock'), seen, errors: P.errors.length });
+    const land = r.log.find((e) => e.phase === 'enter');
+    wand.push({ seed, aim, land: land ? [land.x, land.z] : null, T: [at('E2'), at('E3'), at('E4')], ran: r.t, wide: h.wide == null ? null : h.wide - r.t0, phases: r.log.filter((e) => e.phase !== 'heard').map((e) => e.phase + '@' + (e.t - r.t0).toFixed(1)).join(' '), heard: r.log.filter((e) => e.phase === 'heard').map((e) => e.kind + '@' + (e.t - r.t0).toFixed(1)).join(' '), knocks: (log || []).filter((x) => x.kind === 'knock'), seen, errors: P.errors.length });
     await P.close();
   }
   report.f1 = wand;
-  check('F1', 'a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s (seeds 1, 2, 3, in the page)',
-    wand.every((x) => x.T.every((v) => v != null) && x.T[0] < x.T[1] && x.T[1] < x.T[2] && x.T[2] <= 90 && x.errors === 0),
-    wand.map((x) => `seed ${x.seed}: E2 ${f2(x.T[0])} s, E3 ${f2(x.T[1])} s, staff door wide ${f2(x.wide)} s, E4 ${f2(x.T[2])} s (phases ${x.phases}; heard ${x.heard || 'nothing'}; knocks played ${x.knocks.length}; at E4+0.12 s standing at (${x.seen ? x.seen.at.map((v) => v.toFixed(2)).join(', ') : 'n/a'}), figure points in sight ${x.seen ? x.seen.n : 'n/a'}/5${x.seen && x.seen.by.length ? ', blocked by ' + x.seen.by.join('/') : ''} — information only)`).join(' | '));
+  check('F1', 'a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s and sees the figure (seeds 1-3 landing at the door, street, roof; in the page)',
+    wand.every((x) => x.T.every((v) => v != null) && x.T[0] < x.T[1] && x.T[1] < x.T[2] && x.T[2] <= 90 && x.errors === 0 && x.seen && x.seen.n >= 1),
+    wand.map((x) => `seed ${x.seed} (aim ${x.aim}, landed ${x.land ? x.land.map((v) => v.toFixed(1)).join(',') : 'n/a'}): E2 ${f2(x.T[0])} s, E3 ${f2(x.T[1])} s, staff door wide ${f2(x.wide)} s, E4 ${f2(x.T[2])} s (phases ${x.phases}; heard ${x.heard || 'nothing'}; knocks played ${x.knocks.length}; at E4+0.12 s standing at (${x.seen ? x.seen.at.map((v) => v.toFixed(2)).join(', ') : 'n/a'}), figure points in sight ${x.seen ? x.seen.n : 'n/a'}/5 drawn (needs >= 1)${x.seen && x.seen.by.length ? ', the rest blocked by ' + x.seen.by.join('/') : ''}, ${x.seen ? x.seen.core : 'n/a'}/5 by the logic at E4)`).join(' | '));
   // pictures from seed 1: the first panel blink, the moment the first knock plays, E4
   {
     const P = await open('?view=hero'), page = P.page;
@@ -1263,6 +1264,31 @@ const isExternal = (u) => {
     await P.close();
     report.f1Pictures = { blink, lit };
     console.log(`        F1 pictures (seed 1, paused at E2 for them): panels at E2+${blink.t.toFixed(3)} s: level ${blink.panel.level}, lamps ${blink.panel.lamp}, colour ${blink.panel.color}; at E2+${lit.t.toFixed(3)} s: level ${lit.panel.level}, lamps ${lit.panel.lamp}, colour ${lit.panel.color}`);
+  }
+
+  // ---------- V1 (round 7): the logic's sight lines to the figure agree with rays against the drawn meshes ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.evaluate(helpers);
+    const r = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, B = C.BACKDOOR, pts = C.figurePoints('backroom');
+      H.enter(); H.aisle(); H.e3(); H.look(C.SCARE_PLAN.behind); H.until(() => D.horror().wideAt != null, 6); H.until(() => D.levels().back >= B.wide - 1e-9, 3);
+      const rows = [];
+      for (const x of [4.8, 5.3, 5.8, 6.2, 6.5, 6.8, 7.2, 7.7, 8.2]) for (const z of [-6.0, -6.6, -7.2]) {
+        const dx = B.cx - x, dz = B.cz - z;
+        D.place(x, z, Math.atan2(-dx, -dz));
+        const st = D.state(), logic = C.figureSightlines(st.cam, st.fov, st.aspect, D.levels().back), drawn = D.visibility(pts).map((v) => v.inFrustum && !v.blockedBy);
+        rows.push({ x, z, logic: logic.filter(Boolean).length, drawn: drawn.filter(Boolean).length, same: logic.filter((v, i) => v === drawn[i]).length });
+      }
+      return { rows, back: D.levels().back, E4: D.horror().fired.E4 };
+    });
+    await P.close();
+    const anyAgree = r.rows.filter((x) => (x.logic > 0) === (x.drawn > 0)).length, ptAgree = r.rows.reduce((a, x) => a + x.same, 0);
+    report.v1 = r;
+    check('V1', 'E4 figure-in-sight test: the logic (boxes + turned leaf) agrees with rays against the drawn meshes',
+      Math.abs(r.back - 1.3962634) < 1e-6 && r.E4 === null && anyAgree === r.rows.length && ptAgree >= r.rows.length * 5 - 2,
+      `staff door wide (${(r.back * 180 / Math.PI).toFixed(0)} deg), ${r.rows.length} spots inside the shop facing it: "at least one point in sight" agrees on ${anyAgree}/${r.rows.length}, single points on ${ptAgree}/${r.rows.length * 5}; ` +
+      r.rows.map((x) => `(${x.x}, ${x.z}) ${x.logic}/${x.drawn}`).join(' '));
   }
 
   // ---------- F4: knocking, read from the played gain plan ----------

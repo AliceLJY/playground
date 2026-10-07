@@ -507,9 +507,9 @@ window.__diorama = {
   // the first-visit wanderer (core.createWanderer), its keys fed through the page's key handling; quarter of a second per frame
   // the first-visit wanderer (core.createWanderer), its keys fed through the page's key handling, a quarter of a second per
   // frame. `stop` names an event to pause at (the same wanderer carries on with resume: true); otherwise it runs to E4 or maxT.
-  wander: ({ seed = 1, maxT = 90, chunk = 0.25, stop = 'E4', resume = false } = {}) => new Promise((resolve) => {
+  wander: ({ seed = 1, aim = 'door', maxT = 90, chunk = 0.25, stop = 'E4', resume = false } = {}) => new Promise((resolve) => {
     sim.S.auto = false;
-    if (!resume || !wanderRun) wanderRun = { w: C.createWanderer(sim, seed), t0: sim.S.t };
+    if (!resume || !wanderRun) wanderRun = { w: C.createWanderer(sim, seed, { aim }), t0: sim.S.t };
     const { w, t0 } = wanderRun, dt = 1 / 60, map = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', turnL: 'ArrowLeft', turnR: 'ArrowRight', run: 'ShiftLeft' };
     const tick = () => {
       for (let i = 0; i < Math.round(chunk / dt); i++) {
