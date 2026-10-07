@@ -175,15 +175,16 @@ const rainMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false,
   uniforms: {
     uTime: { value: 0 }, uMix: { value: 0 }, uCam: { value: new THREE.Vector3() }, uLen: { value: 0.35 },
-    uA: { value: fp(C.STORE) }, uB: { value: fp(C.NEXT) }, uTops: { value: new THREE.Vector2(C.STORE.h, C.NEXT.h) },
+    uA: { value: fp(C.STORE) }, uB: { value: fp(C.NEXT) }, uC: { value: fp(C.ANNEX) }, uTops: { value: new THREE.Vector3(C.STORE.h, C.NEXT.h, C.ANNEX.h) },
     uColor: { value: new THREE.Color(C.COLORS.rain) }, uOpacity: { value: C.RAIN_OPACITY }, uH: { value: 9.5 }, uShown: { value: 1 },
   },
   vertexShader: /* glsl */`
-    uniform float uTime, uMix, uLen, uH, uShown; uniform vec3 uCam; uniform vec4 uA, uB; uniform vec2 uTops;
+    uniform float uTime, uMix, uLen, uH, uShown; uniform vec3 uCam; uniform vec4 uA, uB, uC; uniform vec3 uTops;
     attribute vec4 seed; attribute float endp;
     bool inside(vec3 p) {
       return (p.x > uA.x && p.x < uA.z && p.z > uA.y && p.z < uA.w && p.y < uTops.x + 0.05)
-          || (p.x > uB.x && p.x < uB.z && p.z > uB.y && p.z < uB.w && p.y < uTops.y + 0.05);
+          || (p.x > uB.x && p.x < uB.z && p.z > uB.y && p.z < uB.w && p.y < uTops.y + 0.05)
+          || (p.x > uC.x && p.x < uC.z && p.z > uC.y && p.z < uC.w && p.y < uTops.z + 0.05);   // no rain in the back room
     }
     void main() {
       if (fract((seed.x + seed.y) * 43.758) > uShown) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }   // fewer streaks outside

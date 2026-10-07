@@ -56,6 +56,8 @@ export const groundAt = (x, z) => (z > ROAD.z0 && z < ROAD.z1 ? 0 : SIDEWALK_H);
 export const STORE = { id: 'store', name: '便利店', x0: -3, x1: 9, z0: -8.5, z1: FACADE_Z, h: 3.6, door: { cx: 5.0, w: 1.8 } };
 export const NEXT = { id: 'next', name: '隔壁小店', x0: -9, x1: -3, z0: -7.5, z1: FACADE_Z, h: 3.4, door: { cx: -6.0, w: 1.2 } };
 export const BUILDINGS = [STORE, NEXT];
+export const ANNEX = { x0: 5.75, x1: 7.25, z0: -9.9, z1: -8.5, h: 2.5, t: 0.15 };   // the back room behind the staff door (惊吓版)
+const annexBoxes = () => { const A = ANNEX; return [['annex-w', A.x0, 0, A.z0, A.x0 + A.t, A.h, A.z1], ['annex-e', A.x1 - A.t, 0, A.z0, A.x1, A.h, A.z1], ['annex-back', A.x0, 0, A.z0, A.x1, A.h, A.z0 + A.t], ['annex-roof', A.x0, A.h - A.t, A.z0, A.x1, A.h, A.z1]]; };
 
 // Doors: proximity opening, frame-rate independent (SPEC 里面怎么走 / 碰撞)
 export const DOOR_NEAR = 2.2, DOOR_SPEED = 1.6, DOOR_PASS = 0.75;
@@ -87,8 +89,7 @@ const STATIC_SOLIDS = (() => {
   S.push(B3('freezer', 'furniture', -2.0, F, -8.3, 5.0, F + 2.0, -7.6));
   S.push(B3('counter', 'furniture', 7.0, F, -3.0, 7.6, F + 1.0, -0.6));          // till near the glass: the figure behind it shows from outside
   // the back room behind the staff door (dim, cannot be entered: the back wall's box still closes the doorway)
-  for (const [id, a, b, c, d, e, f] of [['annex-w', 5.75, 0, -9.9, 5.9, 2.5, -8.5], ['annex-e', 7.1, 0, -9.9, 7.25, 2.5, -8.5], ['annex-back', 5.75, 0, -9.9, 7.25, 2.5, -9.75], ['annex-roof', 5.75, 2.35, -9.9, 7.25, 2.5, -8.5]])
-    S.push(B3(id, 'wall', a, b, c, d, e, f));
+  for (const [id, a, b, c, d, e, f] of annexBoxes()) S.push(B3(id, 'wall', a, b, c, d, e, f));
   // the shop next door: one bar and four stools
   S.push(B3('bar', 'furniture', -8.4, F, -5.2, -4.0, F + 1.05, -4.6));
   for (const cx of [-7.6, -6.7, -5.8, -4.9]) S.push(B3('stool@' + cx, 'furniture', cx - 0.2, F, -4.2, cx + 0.2, F + 0.7, -3.8));
@@ -855,7 +856,7 @@ export function visualBoxes() {
   for (let i = 1; i < 5; i++) add('frame', -2.0 + i * 1.4 - 0.03, F + 0.25, -7.6, -2.0 + i * 1.4 + 0.03, F + 1.85, -7.56);
   add('counter', 7.0, F, -3.0, 7.6, F + 1.0, -0.6);
   // the back room seen through the staff door: dark walls, one dim cold panel to silhouette whoever stands there
-  for (const [a, b, c, d2, e, f] of [[5.75, 0, -9.9, 5.9, 2.5, -8.5], [7.1, 0, -9.9, 7.25, 2.5, -8.5], [5.75, 0, -9.9, 7.25, 2.5, -9.75], [5.75, 2.35, -9.9, 7.25, 2.5, -8.5]]) add('annex', a, b, c, d2, e, f);
+  for (const [, a, b, c, d2, e, f] of annexBoxes()) add('annex', a, b, c, d2, e, f);
   add('annexFloor', 5.9, F, -9.75, 7.1, F + 0.006, -8.5);
   add('backGlow', 5.95, F + 0.25, -9.749, 7.05, F + 2.15, -9.74);
   add('mat', DOORS[0].x0, F, -1.0, DOORS[0].x1, F + 0.012, FACADE_Z - T);
