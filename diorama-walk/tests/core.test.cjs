@@ -252,12 +252,49 @@ test('running into walls and shelves never goes through (SPEC 5)', async () => {
     for (let t = 0; t < 10; t += DT) {
       sim.update(DT);
       const p = sim.S.player;
-      worst = Math.max(worst, ...C.walkBoxes(sim.S.doors).map((b) => C.R - C.boxDist(p.x, p.z, b)));
+      worst = Math.max(worst, ...C.walkBoxes(sim.S.doors, sim.levels().back).map((b) => C.R - C.boxDist(p.x, p.z, b)));
       out = Math.max(out, Math.abs(p.x) - C.WALK_BOX, Math.abs(p.z) - C.WALK_BOX);
     }
     assert.ok(worst < 1e-3, `from (${x}, ${z}) heading ${d * 45}deg: overlapped a solid by ${worst.toFixed(4)} m`);
     assert.ok(out <= 0, `from (${x}, ${z}) heading ${d * 45}deg: left the walkable square by ${out}`);
   }
+});
+
+test('one long session of running about (the scare events fire on the way): never inside a solid, the staff door included (SPEC 5, 惊吓版)', async () => {
+  const C = await load();
+  const sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  let worst = 0, where = '';
+  for (const [x, z] of [[0.0, -3.5], [4.5, -5.0], [6.4, -2.6], [6.45, -7.35], [5.4, -7.6]]) for (let d = 0; d < 8; d++) {
+    sim.place(x, z);
+    const a = (d / 8) * Math.PI * 2;
+    sim.drive(Math.cos(a) * C.RUN_SPEED, Math.sin(a) * C.RUN_SPEED);
+    for (let t = 0; t < 10; t += DT) {
+      sim.update(DT);
+      const p = sim.S.player, o = Math.max(...C.walkBoxes(sim.S.doors, sim.levels().back).map((b) => C.R - C.boxDist(p.x, p.z, b)));
+      if (o > worst) { worst = o; where = `from (${x}, ${z}) heading ${d * 45}deg at (${p.x.toFixed(2)}, ${p.z.toFixed(2)}), staff door ${(sim.levels().back * 180 / Math.PI).toFixed(0)}deg`; }
+    }
+    sim.drive(0, 0);
+  }
+  const f = sim.horror().fired;
+  assert.ok(f.E2 != null && f.E3 != null && f.E4 != null, `the scare events happened on the way: ${JSON.stringify(f)}`);
+  assert.ok(worst < 1e-3, `overlapped a solid by ${worst.toFixed(4)} m ${where}`);
+});
+
+test('the staff door does not swing wide while the walker stands in its sweep (惊吓版 E4)', async () => {
+  const C = await load();
+  const sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+  run(sim, () => sim.horror().e3 && sim.S.t >= sim.horror().e3.closedAt, 8);
+  sim.walkTo(6.42, -7.3); run(sim, () => !sim.S.player.route);           // beside the staff door, in its sweep, facing away from it
+  sim.lookAt(6.42, 1.6, 0.0); run(sim, () => !sim.S.player.look, 4); run(sim, () => false, 2);
+  const p = sim.S.player;
+  assert.ok(Math.hypot(p.x - C.BACKDOOR.hx, p.z - C.BACKDOOR.hz) < C.HORROR.e4.hingeClear, 'standing in the sweep');
+  assert.strictEqual(sim.horror().wideAt, null, 'door stays half open while you stand in its way');
+  sim.walkTo(5.0, -5.0); run(sim, () => !sim.S.player.route); run(sim, () => false, 1);
+  assert.ok(sim.horror().wideAt != null, 'and swings wide once you are clear and not looking');
+  assert.ok(Math.max(...C.walkBoxes(sim.S.doors, sim.levels().back).map((b) => C.R - C.boxDist(sim.S.player.x, sim.S.player.z, b))) < 1e-3);
 });
 
 test('a tap into a wall slides along it, and gives up one second after it is stuck (SPEC 里面怎么走)', async () => {
@@ -440,14 +477,24 @@ test('H4: the door opens by itself only after E2, when out of sight and at least
 
 test('H5: staff door scare only after E3; figure 0.25 s, slam within 0.12 s, small shake, one vibration, loud bang', async () => {
   const C = await load();
-  // (a) straight to the staff door after E2, before E3 (door still in view): no E4
+  // (a1) straight to the staff door past the till, never through the freezer aisle: no E2, so no E3, no E4, door stays half open
   let sim = C.createSim({ aspect: 16 / 9 });
   sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute([[5.0, -0.6], [6.5, -3.5], C.SCARE_PLAN.near]); run(sim, () => !sim.S.player.route);
+  sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4); run(sim, () => false, 3);
+  const f1 = sim.horror().fired, p1 = sim.S.player;
+  assert.ok(Math.hypot(p1.x - C.BACKDOOR.cx, p1.z - C.BACKDOOR.cz) <= 1.6, 'standing at the staff door');
+  assert.ok(f1.E2 === null && f1.E3 === null && f1.E4 === null && sim.horror().wideAt === null, `no E4 before E3: ${JSON.stringify(f1)}`);
+  // (a2) after E2 and E3, but the staff door was in view the whole time after E3: it never changed, so no E4
+  sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
   sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+  run(sim, () => sim.horror().fired.E3 != null, 4);
   sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4);
   sim.walkTo(...C.SCARE_PLAN.near); run(sim, () => !sim.S.player.route); sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4);
   run(sim, () => false, 1);
-  assert.strictEqual(sim.horror().fired.E4, null, `no E4 before E3 (E3 ${sim.horror().fired.E3})`);
+  assert.ok(sim.horror().fired.E3 != null && sim.horror().wideAt === null, 'E3 happened, the staff door never left the view');
+  assert.strictEqual(sim.horror().fired.E4, null, 'no E4 while the door is still the way it was');
   // (b) the full visit
   sim = C.createSim({ aspect: 16 / 9 });
   C.playScare(sim, { upTo: 'scare', after: 0 });
