@@ -46,23 +46,33 @@ const isExternal = (u) => {
 
   // Laplacian variance in horizontal bands of a PNG, computed in a blank page (no extra Node dependencies).
   const calc = await (await browser.newContext()).newPage();
-  async function bands(png) {
-    return calc.evaluate(async (b64) => {
+  async function bands(png, fy = 0.5, rect = null, cropTo = null) {
+    const res = await calc.evaluate(async ({ b64, fy, rect, crop }) => {
       const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
       const W = img.naturalWidth, H = img.naturalHeight, c = document.createElement('canvas'); c.width = W; c.height = H;
       const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, W, H).data, Y = new Float32Array(W * H);
       for (let i = 0; i < W * H; i++) Y[i] = 0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2];
-      const band = (a, b) => {
+      const area = (x0, y0, x1, y1) => {
         let n = 0, s = 0, s2 = 0;
-        for (let y = Math.max(1, Math.floor(a * H)); y < Math.min(H - 1, Math.floor(b * H)); y++) for (let x = 1; x < W - 1; x++) {
+        for (let y = Math.max(1, Math.floor(y0 * H)); y < Math.min(H - 1, Math.ceil(y1 * H)); y++) for (let x = Math.max(1, Math.floor(x0 * W)); x < Math.min(W - 1, Math.ceil(x1 * W)); x++) {
           const i = y * W + x, v = Y[i - 1] + Y[i + 1] + Y[i - W] + Y[i + W] - 4 * Y[i]; s += v; s2 += v * v; n++;
         }
         const m = s / n; return s2 / n - m * m;
       };
-      const top = band(0, 0.2), mid = band(0.4, 0.6), bottom = band(0.8, 1);
-      return { W, H, top, mid, bottom, rTop: top / mid, rBottom: bottom / mid };
-    }, png.toString('base64'));
+      const top = area(0, 0, 1, 0.2), band = area(0, fy - 0.1, 1, fy + 0.1), bottom = area(0, 0.8, 1, 1), sign = rect ? area(...rect) : null;
+      let cropPng = null;
+      if (crop && rect) {                            // the sign, 6x with hard pixels, so its edges can be judged by eye
+        const [x0, y0, x1, y1] = [rect[0] - 0.02, rect[1] - 0.03, rect[2] + 0.02, rect[3] + 0.03].map((v, i) => Math.round(v * (i % 2 ? H : W)));
+        const k = 6, o = document.createElement('canvas'); o.width = (x1 - x0) * k; o.height = (y1 - y0) * k;
+        const og = o.getContext('2d'); og.imageSmoothingEnabled = false; og.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, o.width, o.height);
+        cropPng = o.toDataURL('image/png').split(',')[1];
+      }
+      return { W, H, fy, top, band, bottom, sign, rTop: top / band, rBottom: bottom / band, cropPng };
+    }, { b64: png.toString('base64'), fy, rect, crop: !!cropTo });
+    if (cropTo && res.cropPng) fs.writeFileSync(cropTo, Buffer.from(res.cropPng, 'base64'));
+    delete res.cropPng;
+    return res;
   }
 
   // ---------- fixed views: screenshots as a visitor sees them ----------
@@ -116,8 +126,9 @@ const isExternal = (u) => {
       det.push(`${aim}: eye ${f3(L.eye)} m, pitch ${f3(L.cam.pitch)}, tilt ${L.tilt}, fog ${f3(L.fog)}, ${r.n} frames, inside a solid on ${r.bad.length} (${[...new Set(r.bad)].join(',') || '-'}), land (${f3(L.cam.x)}, ${f3(L.cam.z)})`);
     }
     const roof = res.roof.last, dDoor = Math.hypot(roof.cam.x - 5.0, roof.cam.z - 0.5), yawDev = Math.abs(Math.atan2(Math.sin(roof.cam.yaw), Math.cos(roof.cam.yaw)));
-    det.push(`roof -> ${dDoor.toFixed(3)} m outside the store door, yaw off by ${yawDev.toFixed(3)} rad`);
-    check(1, 'three landings right, no camera inside a solid (+0.1 m)', ok && dDoor >= 1.0 && dDoor <= 1.5 && yawDev < 0.2, det.join(' | '));
+    const onPavement = roof.cam.z < 3.5 && roof.eye > 1.58;
+    det.push(`roof -> ${dDoor.toFixed(3)} m outside the store door (pavement ${onPavement}), yaw off by ${yawDev.toFixed(3)} rad, door openness on landing ${roof.doors[0].k}`);
+    check(1, 'three landings right, no camera inside a solid (+0.1 m)', ok && dDoor >= 2.4 && dDoor <= 2.8 && onPavement && yawDev < 0.2 && roof.doors[0].k === 0, det.join(' | '));
   }
 
   // ---------- SPEC 2: leaving returns to the orbit of the moment of entry ----------
@@ -262,20 +273,63 @@ const isExternal = (u) => {
     check(6, 'hero framing', ok, det.join(' | '));
   }
 
-  // ---------- SPEC 7: tilt-shift present outside, gone inside (Laplacian variance of bands) ----------
+  // ---------- SPEC 7: tilt-shift present outside (clear band on the store front), gone inside ----------
   {
     const m = {};
     for (const [name, q] of [['hero', '?view=hero'], ['inside', '?view=inside'], ['hero-tilt-off', '?view=hero&tilt=off'], ['inside-tilt-on', '?view=inside&tilt=on']]) {
       const P = await open(q);
       await P.page.evaluate(() => window.__diorama.ui(false));
       await P.page.waitForTimeout(300);
-      m[name] = await bands(await P.page.screenshot());
+      const g = await P.page.evaluate(() => { const D = window.__diorama, S = D.core.SIGN, a = D.toScreen(S.x0, S.y1, S.z), b = D.toScreen(S.x1, S.y0, S.z), w = innerWidth, h = innerHeight;
+        return { fy: D.info().focusY, rect: [Math.min(a[0], b[0]) / w, Math.min(a[1], b[1]) / h, Math.max(a[0], b[0]) / w, Math.max(a[1], b[1]) / h] }; });
+      const hero = name.startsWith('hero');
+      m[name] = await bands(await P.page.screenshot(), g.fy, hero ? g.rect : null, name === 'hero' ? shot('hero-sign-6x') : null);
+      m[name].rect = hero ? g.rect : null;
       await P.close();
     }
+    const heroOk = (r) => r.rTop < 0.1 && r.rBottom < 0.1, insideOk = (r) => r.rTop > 0.8 && r.rBottom > 0.8;
+    const signKeep = m.hero.sign / m['hero-tilt-off'].sign;
     const r = (k) => `${m[k].rTop.toFixed(3)}/${m[k].rBottom.toFixed(3)}`;
-    check(7, 'tilt-shift: top/bottom bands vs middle band', m.hero.rTop < 0.5 && m.hero.rBottom < 0.5 && m.inside.rTop > 0.8 && m.inside.rBottom > 0.8,
-      `hero top/mid ${r('hero')} (< 0.5 each), inside ${r('inside')} (> 0.8 each); controls: hero with tilt forced off ${r('hero-tilt-off')}, inside with tilt forced on ${r('inside-tilt-on')}; variances hero ${['top', 'mid', 'bottom'].map((k) => m.hero[k].toFixed(1)).join('/')}, inside ${['top', 'mid', 'bottom'].map((k) => m.inside[k].toFixed(1)).join('/')}`);
+    check(7, 'tilt-shift: top/bottom 20% bands vs the 20% clear band on the store front',
+      heroOk(m.hero) && insideOk(m.inside) && !heroOk(m['hero-tilt-off']) && !insideOk(m['inside-tilt-on']) && signKeep >= 0.8,
+      `clear band centred at ${(m.hero.fy * 100).toFixed(1)}% of the height (store front); hero top/band ${r('hero')} (< 0.1 each); inside (band at ${(m.inside.fy * 100).toFixed(0)}%) ${r('inside')} (> 0.8 each); ` +
+      `controls that must fail: hero with tilt forced off ${r('hero-tilt-off')} -> ${heroOk(m['hero-tilt-off']) ? 'PASSES (bad)' : 'fails'}, inside with tilt forced on ${r('inside-tilt-on')} -> ${insideOk(m['inside-tilt-on']) ? 'PASSES (bad)' : 'fails'}; ` +
+      `sign region keeps ${(signKeep * 100).toFixed(1)}% of its unblurred detail (>= 80%); variances hero ${['top', 'band', 'bottom'].map((k) => m.hero[k].toFixed(1)).join('/')}, inside ${['top', 'band', 'bottom'].map((k) => m.inside[k].toFixed(1)).join('/')}`);
     report.sharpness = m;
+  }
+
+  // ---------- landing view (SPEC 落点): door shut, whole door and the vending machine in view ----------
+  {
+    const out = {};
+    for (const [name, opt] of [['landscape', {}], ['portrait', { width: 390, height: 844, dpr: 3, touch: true }]]) {
+      const P = await open('?view=door', opt);
+      out[name] = await P.page.evaluate(() => {
+        const D = window.__diorama, C = D.core, w = innerWidth, h = innerHeight;
+        const corners = (b) => { const o = []; for (const x of [b.x0, b.x1]) for (const y of [b.y0, b.y1]) for (const z of [b.z0, b.z1]) o.push(D.toScreen(x, y, z)); return o; };
+        const on = (p) => p[0] >= -0.5 && p[0] <= w + 0.5 && p[1] >= -0.5 && p[1] <= h + 0.5;
+        const share = (pts) => { const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+          return (Math.max(0, Math.min(x1, w) - Math.max(x0, 0)) * Math.max(0, Math.min(y1, h) - Math.max(y0, 0))) / ((x1 - x0) * (y1 - y0)); };
+        const vs = C.solids().find((s) => s.id === 'vending'), vend = corners(vs), d = C.DOORS[0];
+        const panel = corners({ x0: vs.x0 + 0.08, x1: vs.x1 - 0.08, y0: C.SIDEWALK_H + 0.55, y1: C.SIDEWALK_H + 1.75, z0: vs.z1, z1: vs.z1 });   // the lit front
+        const door = corners({ x0: d.x0, x1: d.x1, y0: C.SIDEWALK_H, y1: C.SIDEWALK_H + C.DOOR_H, z0: C.STORE.z1, z1: C.STORE.z1 });
+        const S = C.SIGN, sign = corners({ x0: S.x0, x1: S.x1, y0: S.y0, y1: S.y1, z0: S.z, z1: S.z });
+        const st = D.state(), k0 = st.doors[0].k;
+        D.step(1 / 60, 60); const kIdle = D.state().doors[0].k;          // stand still for a second
+        D.walkTo(st.player.x, st.player.z - 0.7);                       // one step towards the door
+        for (let i = 0; i < 240 && D.state().player.walking; i++) D.step(1 / 60, 1);
+        D.step(1 / 60, 36);
+        const lowest = Math.max(...vend.map((p) => p[1])) / h;            // how far below the frame the machine's foot reaches (1 = bottom edge)
+        return { dist: st.player.z - C.STORE.z1, fov: D.info().fov, hfov: D.info().hfov, vendAll: vend.every(on), vendShare: share(vend), panelAll: panel.every(on), lowest, doorAll: door.every(on), signShare: share(sign), k0, kIdle, kStep: D.state().doors[0].k };
+      });
+      await P.close();
+    }
+    const L = out.landscape, Pt = out.portrait;
+    // A level view at 1.6 m with 65 deg vertical cannot hold anything nearer than 2.5 m at ground level: the machine's foot, 1.9 m away, is cut by the
+    // bottom edge wherever it stands against the facade. The check asks for its whole lit front; how much of the body shows is reported.
+    check('1b', 'landing view: door shut, whole door, sign and vending machine in view', L.doorAll && L.panelAll && L.signShare > 0 && Pt.doorAll && Pt.vendShare > 0 && L.k0 === 0 && L.kIdle === 0 && L.kStep >= 0.75,
+      `landed ${L.dist.toFixed(2)} m out; landscape (${L.fov.toFixed(0)} deg vertical): whole door ${L.doorAll}, vending machine lit front fully in frame ${L.panelAll}, ${(L.vendShare * 100).toFixed(0)}% of its box in frame (all corners ${L.vendAll}; its foot reaches ${(L.lowest * 100).toFixed(0)}% of the frame height), sign ${(L.signShare * 100).toFixed(0)}% in frame; ` +
+      `portrait 390x844 (${Pt.fov.toFixed(1)} deg vertical, ${Pt.hfov.toFixed(1)} across): whole door ${Pt.doorAll}, vending machine ${(Pt.vendShare * 100).toFixed(0)}% of its box in frame; door openness on landing ${L.k0}, after standing 1 s ${L.kIdle}, after one 0.7 m step ${L.kStep.toFixed(2)}`);
+    report.landingView = out;
   }
 
   // ---------- SPEC 8: phone portrait with touch: spread to enter, tap to walk, pinch to leave ----------
@@ -292,7 +346,7 @@ const isExternal = (u) => {
     await touch('touchEnd', []);
     const entering = await until(page, () => window.__diorama.state().mode !== 'orbit', 3000);
     const inside = await until(page, () => window.__diorama.state().mode === 'walk', 6000);
-    const landed = await state(page);
+    const landed = await state(page), fovIn = await info(page);
     await page.screenshot({ path: shot('phone-landed') });
     // one short tap on the floor ahead
     const p0 = landed.player;
@@ -309,8 +363,8 @@ const isExternal = (u) => {
     const back = await until(page, () => window.__diorama.state().mode === 'orbit', 5000);
     const fin = await state(page), i8 = await info(page);
     report.phone = { overflow, door, landed: landed.cam, moved, i: i8 };
-    check(8, 'phone portrait 390x844 with touch', overflow.sw <= overflow.cw && overflow.bw <= overflow.cw && entering && inside && walking && moved > 0.5 && leaving && back,
-      `no horizontal overflow (scrollWidth ${overflow.sw} <= ${overflow.cw}); spread over the door -> entering ${entering}, standing inside ${inside} at (${f3(landed.cam.x)}, ${f3(landed.cam.z)}) eye ${f3(landed.eye)}; ` +
+    check(8, 'phone portrait 390x844 with touch', overflow.sw <= overflow.cw && overflow.bw <= overflow.cw && entering && inside && walking && moved > 0.5 && leaving && back && fovIn.hfov >= 45 - 1e-6 && fovIn.fov <= 85,
+      `no horizontal overflow (scrollWidth ${overflow.sw} <= ${overflow.cw}); spread over the door -> entering ${entering}, standing inside ${inside} at (${f3(landed.cam.x)}, ${f3(landed.cam.z)}) eye ${f3(landed.eye)}, view ${fovIn.fov.toFixed(1)} deg vertical / ${fovIn.hfov.toFixed(1)} deg across; ` +
       `tap -> walking ${walking}, moved ${moved.toFixed(2)} m to (${f3(p1.x)}, ${f3(p1.z)}); pinch -> leaving ${leaving}, back outside ${back} (s ${f3(fin.s)}); renderer pixel ratio ${i8.dpr} on a 3x device`);
     await P.close();
   }
