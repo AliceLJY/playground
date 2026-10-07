@@ -460,7 +460,7 @@ window.__diorama = {
   exit: () => { const ok = sim.exit(); sync(); return ok; },
   walkTo: (x, z) => sim.walkTo(x, z),
   step: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) sim.update(dt); sync(); return sim.snapshot(); },
-  solids: () => C.solids(sim.S.doors),
+  solids: () => C.solids(sim.S.doors, sim.levels().back),   // the staff door where it really is
   screenBox: () => { sync(); return { ...screenBoxOf(C.SCREEN_POINTS.base), model: screenBoxOf(C.SCREEN_POINTS.model) }; },
   // extra hooks used by tools/browser-check.cjs
   walkRoute: (p) => sim.walkRoute(p),
@@ -475,7 +475,13 @@ window.__diorama = {
   info: () => {
     const n = frameTimes.length, span = n > 1 ? (frameTimes[n - 1] - frameTimes[0]) / 1000 : 0;
     return { calls: lastCalls, triangles: lastTris, dpr: renderer.getPixelRatio(), deviceDpr: window.devicePixelRatio, buffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
-      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
+      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0,
+      // what is actually drawn for the scare version: shop light and glow relative to normal, the figures, the staff door, the dark overlay
+      shop: { lamp: storeLamps[0].intensity / 5.5, glow: MATS.storeCeiling.emissive.r / baseEmissive.get(MATS.storeCeiling).r,
+        freezers: [0, 1, 2, 3, 4].map((i) => MATS['freezer' + i].color.r / baseColor.get(MATS['freezer' + i]).r) },
+      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, color: '#' + figMat.color.getHexString() }, leaf: -leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
+      camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
+      audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
   },
   core: C,
   horror: () => { const h = sim.horror(); return { ...h, figure: h.figure }; },
@@ -483,6 +489,7 @@ window.__diorama = {
   levels: () => sim.levels(),
   audioLog: () => (audio && audio.log ? audio.log.slice() : null),
   hideFigure: (on) => { figureHidden = !!on; sync(); },
+  figureMask: (on) => { figMat.color.set(on ? '#ffffff' : C.HORROR.figure.color); sync(); },   // paint the figure white to find its pixels
   // Can the camera see these points? Frustum, then a ray against every opaque mesh (glass, rain, lines and the figures skipped).
   visibility: (pts) => {
     sync(); camera.updateMatrixWorld();

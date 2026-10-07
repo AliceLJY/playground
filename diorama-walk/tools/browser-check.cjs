@@ -1,4 +1,4 @@
-// Browser acceptance for 微缩街角·走进去: SPEC 验收条目 1-9, the performance budget and the player-default configuration.
+// Browser acceptance for 微缩街角·走进去: SPEC 验收条目 1-9, the scare version H1-H8, the performance budget and the player-default configuration.
 // Run by hand; needs an existing Playwright install and Google Chrome (this folder installs neither).
 //   node tools/build.mjs
 //   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <out-dir> [page-url] [--shots <dir>]
@@ -76,7 +76,7 @@ const isExternal = (u) => {
   }
 
   // ---------- fixed views: screenshots as a visitor sees them ----------
-  const views = [['hero', '?view=hero'], ['mid-aim-door', '?view=mid&aim=door'], ['door', '?view=door'], ['inside', '?view=inside'], ['next', '?view=next']];
+  const views = [['hero', '?view=hero'], ['mid-aim-door', '?view=mid&aim=door'], ['door', '?view=door'], ['inside', '?view=inside'], ['next', '?view=next'], ['scare', '?view=scare'], ['reveal', '?view=reveal']];
   let gpu = '', calls = {};
   for (const [name, q] of views) {
     const P = await open(q);
@@ -84,15 +84,17 @@ const isExternal = (u) => {
     const i = await info(P.page), st = await state(P.page);
     gpu = i.gpu; calls[name] = i.calls;
     await P.page.screenshot({ path: shot(name) });
-    report.runs.push({ name, query: q, viewport: '1280x720', dpr: i.dpr, buffer: i.buffer, calls: i.calls, triangles: i.triangles, s: st.s, mode: st.mode, cam: st.cam, eye: st.eye, doors: st.doors });
+    const hz = await P.page.evaluate(() => { const h = window.__diorama.horror(); return { fired: h.fired, figure: h.figure, scare: h.scare, drawn: window.__diorama.info().figures, leaf: window.__diorama.info().leaf }; });
+    report.runs.push({ name, query: q, viewport: '1280x720', dpr: i.dpr, buffer: i.buffer, calls: i.calls, triangles: i.triangles, s: st.s, mode: st.mode, cam: st.cam, eye: st.eye, doors: st.doors, horror: hz });
     await P.close();
   }
-  for (const [name, q] of [['phone-hero', '?view=hero'], ['phone-inside', '?view=inside']]) {
+  for (const [name, q] of [['phone-hero', '?view=hero'], ['phone-inside', '?view=inside'], ['phone-scare', '?view=scare'], ['phone-reveal', '?view=reveal']]) {
     const P = await open(q, { width: 390, height: 844, dpr: 3, touch: true });
     await P.page.waitForTimeout(500);
     const i = await info(P.page);
     await P.page.screenshot({ path: shot(name) });
-    report.runs.push({ name, query: q, viewport: '390x844', deviceDpr: 3, dpr: i.dpr, buffer: i.buffer, calls: i.calls });
+    const hz = await P.page.evaluate(() => { const h = window.__diorama.horror(); return { fired: h.fired, figure: h.figure, scare: h.scare, drawn: window.__diorama.info().figures, leaf: window.__diorama.info().leaf }; });
+    report.runs.push({ name, query: q, viewport: '390x844', deviceDpr: 3, dpr: i.dpr, buffer: i.buffer, calls: i.calls, horror: hz });
     await P.close();
   }
 
@@ -369,10 +371,354 @@ const isExternal = (u) => {
     await P.close();
   }
 
+  // ======================= 惊吓版 H1–H8 (SPEC 惊吓版) =======================
+  const f1 = (v) => (v == null ? 'n/a' : v.toFixed(1)), f2 = (v) => (v == null ? 'n/a' : v.toFixed(2));
+  // Page-side helpers: the scripted visit of core.playScare, driven through the page hooks one step at a time; `each` sees every step.
+  const helpers = () => {
+    const D = window.__diorama, C = D.core, P = C.SCARE_PLAN;
+    const H = (window.__H = {
+      dt: 1 / 60, each: null,
+      step() { const st = D.step(H.dt, 1); if (H.each) H.each(st); return st; },
+      until(pred, maxT = 30) { let t = 0; for (; t < maxT && !pred(); t += H.dt) H.step(); return t; },
+      enter(aim = 'door') { D.enter(aim); H.until(() => D.state().mode === 'walk', 10); },
+      walk(route) { D.walkRoute(route); H.until(() => !D.state().player.walking, 20); },
+      look(p) { D.lookAt(...p); H.until(() => !D.state().player.looking, 6); },
+      aisle() { H.walk(P.aisle); H.until(() => D.horror().e2 && D.state().t >= D.horror().e2.t0 + C.E2_TOTAL, 5); },
+      e3() { H.until(() => D.horror().e3 && D.state().t >= D.horror().e3.closedAt, 6); },
+      staff() { H.look(P.behind); H.look(P.staff); H.walk([P.near]); D.lookAt(...P.staff); H.until(() => !!D.horror().e4 || !D.state().player.looking, 6); },
+      bang() { H.until(() => D.horror().e4 && D.state().t >= D.horror().e4.bang + 0.6, 6); },
+      leave(route = P.out, look = null) { H.walk(route); if (look) H.look(look); D.exit(); H.until(() => D.state().mode === 'orbit', 5); },
+    });
+  };
+  // Silhouette contrast from three drawings of the same frozen frame: as is, without the figure, with the figure painted white.
+  // White-minus-hidden > 20 finds the figure's own pixels (eroded by 1 px against the blur at the edges); their mean luminance
+  // as drawn is compared with the same pixels drawn without it, which is what stands right behind it.
+  async function silhouette(page, cropTo) {
+    await page.evaluate(() => window.__diorama.ui(false)); await page.waitForTimeout(300);
+    const normal = await page.screenshot();
+    await page.evaluate(() => window.__diorama.hideFigure(true)); await page.waitForTimeout(300);
+    const hidden = await page.screenshot();
+    await page.evaluate(() => { window.__diorama.hideFigure(false); window.__diorama.figureMask(true); }); await page.waitForTimeout(300);
+    const white = await page.screenshot();
+    await page.evaluate(() => window.__diorama.figureMask(false)); await page.waitForTimeout(150);
+    const r = await calc.evaluate(async ({ a, b, c, crop }) => {
+      const load = async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+        const g = cv.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0); return { img, d: g.getImageData(0, 0, cv.width, cv.height) }; };
+      const N = await load(a), Hd = await load(b), Wt = await load(c), W = N.d.width, H = N.d.height;
+      const Y = (o, i) => 0.299 * o.d.data[4 * i] + 0.587 * o.d.data[4 * i + 1] + 0.114 * o.d.data[4 * i + 2];
+      const m = new Uint8Array(W * H); let raw = 0, changed = 0;
+      for (let i = 0; i < W * H; i++) { if (Y(Wt, i) - Y(Hd, i) > 20) { m[i] = 1; raw++; } if (Math.abs(Y(N, i) - Y(Hd, i)) > 2) changed++; }
+      let n = 0, sn = 0, sh = 0, x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x; if (!(m[i] && m[i - 1] && m[i + 1] && m[i - W] && m[i + W])) continue;
+        n++; sn += Y(N, i); sh += Y(Hd, i); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      }
+      let cropPng = null;
+      if (crop && n) {                               // as drawn (left) and without the figure (right), 4x with hard pixels
+        const pad = Math.max(16, Math.round((y1 - y0) * 0.8)), cx0 = Math.max(0, x0 - pad), cy0 = Math.max(0, y0 - pad), cx1 = Math.min(W, x1 + pad), cy1 = Math.min(H, y1 + pad), k = 4, w = cx1 - cx0, h = cy1 - cy0;
+        const o = document.createElement('canvas'); o.width = (2 * w + 3) * k; o.height = h * k; const og = o.getContext('2d'); og.imageSmoothingEnabled = false;
+        og.fillStyle = '#ffffff'; og.fillRect(0, 0, o.width, o.height);
+        og.drawImage(N.img, cx0, cy0, w, h, 0, 0, w * k, h * k); og.drawImage(Hd.img, cx0, cy0, w, h, (w + 3) * k, 0, w * k, h * k);
+        cropPng = o.toDataURL('image/png').split(',')[1];
+      }
+      return { W, H, raw, core: n, changed, figure: n ? sn / n : null, behind: n ? sh / n : null, ratio: n ? sn / sh : null, box: n ? [x0 / W, y0 / H, (x1 + 1) / W, (y1 + 1) / H] : null, cropPng };
+    }, { a: normal.toString('base64'), b: hidden.toString('base64'), c: white.toString('base64'), crop: !!cropTo });
+    if (cropTo && r.cropPng) fs.writeFileSync(cropTo, Buffer.from(r.cropPng, 'base64'));
+    delete r.cropPng;
+    return r;
+  }
+  // Where the figure stands on screen, and whether the camera's ray to its centre is blocked by anything but glass.
+  const figureGeo = (page, spot) => page.evaluate((spot) => {
+    const D = window.__diorama, C = D.core, f = C.HORROR.figure, s = C.HORROR.spots[spot], F = C.SIDEWALK_H, w = innerWidth, h = innerHeight, box = [];
+    for (const x of [s.x - f.bodyR, s.x + f.bodyR]) for (const y of [F, F + f.h]) for (const z of [s.z - f.bodyR, s.z + f.bodyR]) box.push(D.toScreen(x, y, z));
+    const xs = box.map((p) => p[0] / w), ys = box.map((p) => p[1] / h);
+    return { figure: D.horror().figure, drawn: D.info().figures, inFrame: box.every(([x, y]) => x >= 0 && x <= w && y >= 0 && y <= h),
+      box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], ray: D.visibility([[s.x, F + f.h / 2, s.z]])[0] };
+  }, spot);
+  const boxTxt = (b) => b.map((v) => v.toFixed(3)).join(', ');
+
+  // ---------- H1: before going in, the figure behind the till reads as a silhouette ----------
+  {
+    const P = await open('?view=hero');
+    const g = await figureGeo(P.page, 'counter'), sil = await silhouette(P.page, shot('hero-figure-4x'));
+    await P.close();
+    const Q = await open('?view=hero&calm=1');
+    const gc = await figureGeo(Q.page, 'counter'), silc = await silhouette(Q.page, null);
+    await Q.close();
+    report.h1 = { g, sil, calm: { g: gc, sil: silc } };
+    check('H1', 'figure behind the till visible from outside, as a silhouette',
+      g.figure === 'counter' && g.drawn.counterOrWindow && g.inFrame && g.ray.inFrustum && !g.ray.blockedBy && sil.core >= 20 && sil.ratio <= 0.6 && gc.figure === null && !gc.drawn.counterOrWindow && silc.raw === 0,
+      `hero: figure '${g.figure}', drawn ${g.drawn.counterOrWindow} (colour ${g.drawn.color}); its box on screen ${g.inFrame} (${boxTxt(g.box)}); ray camera -> figure centre in view ${g.ray.inFrustum}, blocked by ${g.ray.blockedBy || 'nothing (glass not counted)'}; ` +
+      `${sil.core} figure pixels (white minus hidden > 20, eroded 1 px; ${sil.raw} before) mean luminance ${f1(sil.figure)} as drawn vs ${f1(sil.behind)} right behind it = ${sil.ratio == null ? 'n/a' : (sil.ratio * 100).toFixed(1) + '%'} (needs <= 60%, i.e. >= 40% darker); ` +
+      `calm=1: figure ${gc.figure}, drawn ${gc.drawn.counterOrWindow}, pixels changed by painting it white ${silc.raw}`);
+  }
+
+  // ---------- H2: the figure only disappears in the dark (frame by frame, read back from what is drawn) ----------
+  {
+    const P = await open('?view=hero');
+    await P.page.evaluate(helpers);
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H;
+      const descend = () => {
+        const i0 = D.info(), before = D.horror().figure;
+        let prev = { fig: i0.figures.counterOrWindow, lamp: i0.shop.lamp, glow: i0.shop.glow }, removal = null, litPop = 0, n = 0;
+        H.each = (st) => {
+          const i = D.info(), now = { fig: i.figures.counterOrWindow, lamp: i.shop.lamp, glow: i.shop.glow, fz: Math.max(...i.shop.freezers), camY: st.cam.y, t: st.t }; n++;
+          if (prev.fig && !now.fig) { removal = { ...now, frame: n, prevLamp: prev.lamp, prevGlow: prev.glow }; if (prev.lamp > 0.05 || now.lamp > 0.05) litPop++; }
+          prev = now;
+        };
+        H.enter(); H.each = null;
+        const h = D.horror();
+        return { before, removal, litPop, n, e0: h.e0, tE0: h.fired.E0 };
+      };
+      const first = descend();
+      H.aisle(); H.leave();                         // a visit with E2: the figure is now behind the glass
+      const second = descend();
+      return { first, second, roof: D.core.STORE.h };
+    });
+    await P.close();
+    // the same blackout as pixels: the shop front just before the lights cut, and at the removal frame
+    const Q = await open('?view=hero');
+    await Q.page.evaluate(helpers);
+    await Q.page.evaluate(() => window.__diorama.ui(false));
+    const front = () => Q.page.evaluate(() => { const D = window.__diorama, C = D.core, a = D.toScreen(C.STORE.x0 + 0.3, 2.6, C.STORE.z1), b = D.toScreen(C.STORE.x1 - 0.3, C.SIDEWALK_H + 0.2, C.STORE.z1);
+      return [Math.min(a[0], b[0]) / innerWidth, Math.min(a[1], b[1]) / innerHeight, Math.max(a[0], b[0]) / innerWidth, Math.max(a[1], b[1]) / innerHeight]; });
+    await Q.page.evaluate(() => { const D = window.__diorama, H = window.__H; D.enter('door'); H.until(() => D.state().t >= D.horror().e0.start - 1 / 60 - 1e-9, 2); });
+    await Q.page.waitForTimeout(250);
+    const ra = await front(), pa = await Q.page.screenshot({ path: shot('h2-before-blackout') });
+    await Q.page.evaluate(() => { const D = window.__diorama, H = window.__H; H.until(() => !D.info().figures.counterOrWindow, 1); });
+    await Q.page.waitForTimeout(250);
+    const rb = await front(), pb = await Q.page.screenshot({ path: shot('h2-removal-frame') });
+    await Q.close();
+    const mean = (png, rect) => calc.evaluate(async ({ b64, rect }) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const W = img.naturalWidth, H = img.naturalHeight, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, W, H).data; let s = 0, n = 0;
+      for (let y = Math.max(0, Math.floor(rect[1] * H)); y < Math.min(H, Math.ceil(rect[3] * H)); y++) for (let x = Math.max(0, Math.floor(rect[0] * W)); x < Math.min(W, Math.ceil(rect[2] * W)); x++) { const i = 4 * (y * W + x); s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; n++; }
+      return s / n; }, { b64: png.toString('base64'), rect });
+    const la = await mean(pa, ra), lb = await mean(pb, rb);
+    report.h2 = { ...r, frontLuminance: { before: la, removal: lb } };
+    const ok = (v) => v.removal && v.removal.lamp <= 0.05 && v.removal.glow <= 0.05 && v.removal.fz <= 0.05 && v.removal.prevLamp <= 0.05 && v.litPop === 0 && v.removal.camY > r.roof && v.e0.end - v.e0.start <= 0.35 + 1e-9;
+    const txt = (v, k) => `${k}: figure was '${v.before}', removed at frame ${v.removal && v.removal.frame} of ${v.n} in the descent: drawn shop lamps ${f2(v.removal && v.removal.lamp * 100)}% / glow ${f2(v.removal && v.removal.glow * 100)}% / freezers ${f2(v.removal && v.removal.fz * 100)}% of normal (previous frame lamps ${f2(v.removal && v.removal.prevLamp * 100)}%), camera ${f2(v.removal && v.removal.camY)} m (roof ${r.roof} m), blackout ${f2(v.e0.end - v.e0.start)} s; vanished from a lit frame ${v.litPop} times`;
+    check('H2', 'the figure disappears only while the shop is dark', ok(r.first) && ok(r.second) && lb < la,
+      `${txt(r.first, 'visit 1')} | ${txt(r.second, 'visit 2 (from behind the glass)')} | as pixels: shop front mean luminance ${f1(la)} just before the blackout -> ${f1(lb)} at the removal frame (h2-before-blackout.png, h2-removal-frame.png)`);
+  }
+
+  // ---------- H3: freezers go dark one by one, both hums stop for 1.6 s, once per visit ----------
+  {
+    const P = await open('?view=hero');
+    await P.page.evaluate(helpers);
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H;
+      H.enter(); H.dt = 1 / 120;
+      const off = [null, null, null, null, null], drawnOff = [null, null, null, null, null];
+      let humOff = null, humOn = null, worstGain = 0, t2 = null, backTogether = null, restored = null;
+      H.each = (st) => {
+        const L = D.levels(), i = D.info(), t = st.t, h = D.horror();
+        if (h.fired.E2 != null && t2 == null) t2 = h.fired.E2;
+        L.freezer.forEach((v, k) => { if (v === 0 && off[k] == null) off[k] = t; });
+        i.shop.freezers.forEach((v, k) => { if (v < 0.01 && drawnOff[k] == null) drawnOff[k] = t; });
+        if (L.hum === 0 && humOff == null) humOff = t;
+        if (humOff != null && humOn == null) {
+          if (L.hum === 1) { humOn = t; backTogether = i.shop.freezers.every((v) => v > 0.99); restored = { fluor: L.audio.fluor, freezer: L.audio.freezer }; }
+          else worstGain = Math.max(worstGain, L.audio.fluor, L.audio.freezer);
+        }
+      };
+      D.walkRoute(D.core.SCARE_PLAN.aisle);
+      H.until(() => humOn != null && !D.state().player.walking, 25);
+      H.each = null;
+      H.walk([[4.2, -4.0]]); H.walk([[4.2, -6.6]]); H.until(() => false, 1);      // out of the aisle and back in, same visit
+      const h = D.horror();
+      return { t2, off, drawnOff, humOff, humOn, worstGain, backTogether, restored, again: h.history.filter((x) => x.e === 'E2' && x.visit === h.visit).length };
+    });
+    await P.close();
+    report.h3 = r;
+    const offs = r.off.slice().sort((a, b) => a - b), span = offs[4] - offs[0], silence = r.humOn - r.humOff;
+    const drawnSpan = Math.max(...r.drawnOff) - Math.min(...r.drawnOff), order = r.off.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('>');
+    check('H3', 'freezers go dark one by one, hums silent 1.6 s, once per visit',
+      r.t2 != null && r.off.every((v) => v != null) && span <= 1.2 && Math.abs(silence - 1.6) <= 0.1 && r.worstGain === 0 && r.backTogether && r.again === 1 && r.drawnOff.every((v) => v != null),
+      `E2 at ${f2(r.t2)} s; sections off in order ${order} over ${span.toFixed(3)} s (<= 1.2), drawn freezer colours reached 0 over ${drawnSpan.toFixed(3)} s; ` +
+      `silence ${silence.toFixed(3)} s (1.6 +- 0.1) with the larger hum gain at ${r.worstGain} throughout; freezers back with the sound ${r.backTogether} (gains back to ${f2(r.restored && r.restored.fluor)}/${f2(r.restored && r.restored.freezer)}); E2 in this visit after going back into the aisle: ${r.again} time(s)`);
+  }
+
+  // ---------- H4: the door opens by itself only after E2, out of sight and 5 m away; one chime; nobody there ----------
+  {
+    const P = await open('?view=hero');
+    await P.page.keyboard.press('Shift');          // first gesture: sound on, so the chime is logged as played
+    await P.page.evaluate(helpers);
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core;
+      H.enter(); H.walk([[5.0, -0.6], [6.4, -5.0]]); H.until(() => false, 4);
+      const noE2 = D.horror().fired.E3;
+      H.leave([[5.0, -0.6], [5.0, 3.1]]);
+      H.enter(); D.walkRoute(C.SCARE_PLAN.aisle); H.until(() => !D.state().player.walking, 20);
+      H.look([5.0, 1.3, 0.4]); H.until(() => D.state().t >= D.horror().e2.t0 + C.E2_TOTAL + 1.0, 6);
+      const inView = D.horror().fired.E3;
+      H.walk([[4.6, -3.0]]); H.look([4.6, 1.6, -9.0]); H.until(() => false, 2);
+      const tooNear = D.horror().fired.E3;
+      const ids0 = D.solids().map((s) => s.id).join(','), bells0 = (D.audioLog() || []).filter((x) => x.kind === 'bell').length;
+      H.dt = 1 / 120;
+      const ks = []; let t3 = null, at3 = null, appeared = false;
+      H.each = (st) => {
+        const h = D.horror(), i = D.info();
+        if (h.fired.E3 != null && t3 == null) {
+          t3 = h.fired.E3;
+          const c = st.cam, f = C.basis(c.yaw, c.pitch).f, d = [5.0 - c.x, 1.6 - c.y, 0.4 - c.z], L = Math.hypot(...d);
+          at3 = { dist: Math.hypot(st.player.x - 5.0, st.player.z - 0.4), angle: (Math.acos((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L) * 180) / Math.PI, need: st.hfov / 2 + 10 };
+        }
+        if (t3 != null) { ks.push([st.t - t3, st.doors[0].k]); if (h.figure || h.scare || i.figures.counterOrWindow || i.figures.backroom) appeared = true; }
+      };
+      D.walkTo(4.6, -6.2); H.until(() => t3 != null && D.state().t > t3 + 3, 12); H.each = null;
+      return { noE2, inView, tooNear, t3, at3, ks, appeared, sameSolids: D.solids().map((s) => s.id).join(',') === ids0, bells: (D.audioLog() || []).filter((x) => x.kind === 'bell').length - bells0, audio: D.info().audio };
+    });
+    await P.close();
+    report.h4 = { ...r, ks: undefined };
+    const full = r.ks.filter(([, k]) => k === 1), held = full.length ? full[full.length - 1][0] - full[0][0] : 0, peak = Math.max(...r.ks.map(([, k]) => k)), endK = r.ks.length ? r.ks[r.ks.length - 1][1] : null;
+    check('H4', 'the door opens by itself only after E2, out of sight and >= 5 m away',
+      r.noE2 === null && r.inView === null && r.tooNear === null && r.t3 != null && r.at3.dist >= 5 && r.at3.angle > r.at3.need && peak === 1 && Math.abs(held - 1.2) <= 1 / 120 + 1e-9 && endK === 0 && r.bells === 1 && !r.appeared && r.sameSolids,
+      `before E2 (far, door behind): E3 ${r.noE2}; after E2 looking at the door: ${r.inView}; after E2, door out of sight but 3.4 m away: ${r.tooNear}; walking away: E3 at ${f2(r.t3)} s, ${f2(r.at3 && r.at3.dist)} m from the door, door ${f1(r.at3 && r.at3.angle)} deg off the view line (needs > ${f1(r.at3 && r.at3.need)}); ` +
+      `opens to ${peak}, held fully open ${held.toFixed(3)} s, ends at ${endK}; chimes played during it ${r.bells} (sound ${r.audio}); anything appeared ${r.appeared}; solids unchanged ${r.sameSolids}`);
+  }
+
+  // ---------- H5: the staff-door scare (vibration recorded, bang loudness from the played gain plan) ----------
+  {
+    const P = await open('?view=hero');
+    await P.page.keyboard.press('Shift');
+    await P.page.evaluate(helpers);
+    await P.page.evaluate(() => { window.__vib = []; Object.defineProperty(navigator, 'vibrate', { configurable: true, value: (p) => { window.__vib.push({ p: Array.from(p), t: window.__diorama.state().t }); return true; } }); });
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, B = C.BACKDOOR, S = C.SCARE_PLAN;
+      H.enter(); H.walk([[5.0, -0.6], [6.5, -3.5], S.near]);                                // past the till to the staff door, never through the freezer aisle
+      H.look(S.staff); H.until(() => false, 3);
+      const early = { E2: D.horror().fired.E2, E3: D.horror().fired.E3, E4: D.horror().fired.E4, back: D.info().leaf, dist: Math.hypot(D.state().player.x - B.cx, D.state().player.z - B.cz) };
+      H.leave();
+      H.enter(); H.aisle(); H.e3(); H.look(S.behind); H.look(S.staff); H.walk([S.near]);
+      D.lookAt(...S.staff);
+      H.dt = 1 / 240; let at4 = null; const tl = [], log0 = (D.audioLog() || []).length, vib0 = window.__vib.length;
+      H.each = (st) => {
+        const h = D.horror(), i = D.info();
+        if (h.fired.E4 != null && !at4) { const q = D.toScreen(B.cx, C.SIDEWALK_H + B.h / 2, B.cz); at4 = { t4: h.fired.E4, E3: h.fired.E3, e3end: h.e3.closedAt, dist: Math.hypot(st.player.x - B.cx, st.player.z - B.cz), hinge: Math.hypot(st.player.x - B.hx, st.player.z - B.hz), sx: q[0] / innerWidth, px: st.player.x, pz: st.player.z, camY: st.cam.y }; }
+        if (at4) tl.push({ t: st.t - at4.t4, leaf: i.leaf, fig: i.figures.backroom, shake: Math.hypot(i.camera[0] - st.cam.x, i.camera[1] - st.cam.y, i.camera[2] - st.cam.z), dark: i.darkOverlay, px: st.player.x, pz: st.player.z, camX: st.cam.x, camY: st.cam.y, camZ: st.cam.z });
+      };
+      H.until(() => at4 && D.state().t >= at4.t4 + 1.0, 8); H.each = null;
+      return { early, at4, tl, log: (D.audioLog() || []).slice(log0), allLog: D.audioLog() || [], vib: window.__vib.slice(vib0), audio: D.info().audio, wide: B.wide, bang: C.E4_BANG };
+    });
+    await P.close();
+    // the same scare with no navigator.vibrate at all (iOS, desktop Safari): must pass silently
+    const Q = await open('?view=hero');
+    await Q.page.evaluate(helpers);
+    const noVib = await Q.page.evaluate(() => {
+      Object.defineProperty(navigator, 'vibrate', { configurable: true, value: undefined });
+      const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.e3(); H.staff(); H.bang();
+      return { type: typeof navigator.vibrate, E4: D.horror().fired.E4 };
+    });
+    await Q.page.waitForTimeout(200);
+    const noVibErrors = Q.errors.length;
+    await Q.close();
+    const tl = r.tl, a = r.at4 || {};
+    const lastWide = tl.filter((x) => Math.abs(x.leaf - r.wide) < 1e-6).pop(), firstShut = tl.find((x) => Math.abs(x.leaf) < 1e-6 && x.t > 0.05);
+    const shown = tl.filter((x) => x.fig), shaking = tl.filter((x) => x.shake > 1e-9), darkened = tl.filter((x) => x.dark > 0);
+    const maxShake = Math.max(...tl.map((x) => x.shake)), shakeSpan = shaking.length ? shaking[shaking.length - 1].t - shaking[0].t + 1 / 240 : 0;
+    const walkerMoved = Math.max(...tl.map((x) => Math.hypot(x.px - a.px, x.pz - a.pz))), simCamMoved = Math.max(...tl.map((x) => Math.hypot(x.camX - tl[0].camX, x.camY - tl[0].camY, x.camZ - tl[0].camZ)));
+    const slam = r.log.filter((x) => x.kind === 'slam'), sting = r.log.filter((x) => x.kind === 'sting'), bells = r.allLog.filter((x) => x.kind === 'bell');
+    const v = r.vib;
+    report.h5 = { early: r.early, at4: r.at4, vib: v, log: r.log, bells: bells.length, audio: r.audio, noVib, noVibErrors, lastWide: lastWide && lastWide.t, firstShut: firstShut && firstShut.t, maxShake, shakeSpan, darkSpan: darkened.length / 240, walkerMoved, simCamMoved };
+    const okTiming = lastWide && firstShut && Math.abs(lastWide.t - 0.25) <= 0.05 && firstShut.t - lastWide.t <= 0.12 + 1 / 240 + 1e-9 && shown.length && shown[shown.length - 1].t <= firstShut.t + 1e-9;
+    const okVib = v.length === 1 && JSON.stringify(v[0].p) === '[90,50,140]' && Math.abs(v[0].t - a.t4 - r.bang) <= 1 / 240 + 1e-9;
+    const okSound = slam.length === 1 && sting.length === 1 && slam[0].peak / slam[0].base >= 3 && sting[0].length <= 0.6 && bells.length > 0 && bells.every((b) => Math.abs(b.peak / b.base - 2) < 1e-6) && r.audio === 'running';
+    check('H5', 'staff-door scare: only after E3, figure 0.25 s, slam <= 0.12 s, small shake, one vibration, loud bang',
+      r.early.E2 === null && r.early.E3 === null && r.early.E4 === null && r.early.dist <= 1.6 && a.t4 != null && a.E3 != null && a.t4 > a.e3end && a.dist <= 1.6 && Math.abs(a.sx - 0.5) <= 1 / 6 + 0.01 && okTiming && maxShake <= 0.03 && shakeSpan <= 0.3 && walkerMoved === 0 && simCamMoved < 1e-9 && Math.abs(darkened.length / 240 - 0.1) <= 2 / 240 && okVib && okSound && noVib.E4 != null && noVibErrors === 0,
+      `standing ${f2(r.early.dist)} m from the staff door and looking at it without having been down the freezer aisle: E2 ${r.early.E2}, E3 ${r.early.E3}, E4 ${r.early.E4}, door at ${f1(r.early.back * 180 / Math.PI)} deg; in the full visit E4 at ${f2(a.t4)} s, after E3 (${f2(a.E3)} s, door shut again at ${f2(a.e3end)} s); walker ${f2(a.dist)} m from the door (${f2(a.hinge)} m from the hinge), door centre at ${f2(a.sx)} of the width; ` +
+      `drawn: figure in the gap until ${f2(shown.length ? shown[shown.length - 1].t : null)} s, leaf wide until ${f2(lastWide && lastWide.t)} s (0.25 +- 0.05), shut at ${f2(firstShut && firstShut.t)} s -> slam ${firstShut && lastWide ? (firstShut.t - lastWide.t).toFixed(3) : 'n/a'} s (<= 0.12); ` +
+      `drawn camera shake up to ${maxShake.toFixed(4)} m over ${shakeSpan.toFixed(3)} s, walker moved ${walkerMoved} m, simulation camera moved ${simCamMoved.toExponential(1)} m; dark overlay on for ${(darkened.length / 240).toFixed(3)} s; ` +
+      `navigator.vibrate (recorder) called ${v.length} time(s): ${v.map((x) => JSON.stringify(x.p) + ' at E4+' + (x.t - a.t4).toFixed(3) + ' s').join(', ')} (bang at E4+${r.bang.toFixed(3)} s); ` +
+      `played gains (sound ${r.audio}): bang ${slam.length ? (slam[0].peak / slam[0].base).toFixed(2) : 'n/a'}x the bed (>= 3), sting ${sting.length ? sting[0].length.toFixed(3) : 'n/a'} s long (<= 0.6), ${bells.length} chimes at ${bells.length ? (bells[0].peak / bells[0].base).toFixed(2) : 'n/a'}x; ` +
+      `with navigator.vibrate removed: E4 at ${f2(noVib.E4)} s, ${noVibErrors} errors`);
+  }
+
+  // ---------- H6: coming out, the figure stands behind the glass; it was placed where the camera could not see it ----------
+  {
+    const P = await open('?view=reveal');
+    const g = await figureGeo(P.page, 'window'), sil = await silhouette(P.page, shot('reveal-figure-4x'));
+    const rev = await P.page.evaluate(() => ({ fired: window.__diorama.horror().fired, mode: window.__diorama.state().mode }));
+    await P.close();
+    const ways = {};
+    for (const way of ['street', 'inside', 'road', 'script']) {
+      const Q = await open('?view=hero');
+      await Q.page.evaluate(helpers);
+      ways[way] = await Q.page.evaluate((way) => {
+        const D = window.__diorama, H = window.__H, C = D.core, S = C.SCARE_PLAN;
+        const W = { street: [S.out, [5.0, 1.6, 9.0]], inside: [[[5.0, -0.6], [6.2, -2.3]], [1.5, 1.25, -7.95]], road: [[...S.out, [5.0, 7.0]], [5.0, 1.6, 0.0]], script: [S.out, null] }[way];
+        H.enter(); H.aisle(); H.e3(); H.staff(); H.bang();
+        H.walk(W[0]); if (W[1]) H.look(W[1]);
+        D.exit(); H.dt = 1 / 120;
+        let placed = null; const pts = C.figurePoints('window');
+        H.each = (st) => {
+          if (placed || D.horror().figure !== 'window') return;
+          const v = D.visibility(pts), i = D.info();
+          placed = { t: st.t, camY: st.cam.y, seen: v.filter((p) => p.inFrustum && !p.blockedBy).length, of: v.length, outOfView: v.filter((p) => !p.inFrustum).length,
+            blockedBy: [...new Set(v.map((p) => p.blockedBy).filter(Boolean))], lamp: i.shop.lamp, glow: i.shop.glow, how: D.horror().e5Dark ? 'dark' : 'unseen' };
+        };
+        H.until(() => D.state().mode === 'orbit', 5); H.each = null;
+        return { placed, figure: D.horror().figure, drawn: D.info().figures.counterOrWindow };
+      }, way);
+      await Q.close();
+    }
+    report.h6 = { g, sil, rev, ways };
+    const wayOk = (w) => w.placed && w.figure === 'window' && w.drawn && w.placed.camY > 3.6 && (w.placed.seen === 0 || (w.placed.lamp <= 0.05 && w.placed.glow <= 0.05));
+    const wayTxt = (k, w) => !w.placed ? `${k}: not placed` : `${k}: placed at camera ${w.placed.camY.toFixed(2)} m, ${w.placed.how === 'unseen' ? `unseen (of ${w.placed.of} figure points ${w.placed.outOfView} outside the view, the rest behind ${w.placed.blockedBy.join('/') || '-'})` : `in a blackout, shop lamps ${(w.placed.lamp * 100).toFixed(1)}% (${w.placed.seen}/${w.placed.of} figure points in view)`}`;
+    check('H6', 'coming out: figure behind the glass, placed where the camera could not see it',
+      g.figure === 'window' && g.drawn.counterOrWindow && g.inFrame && sil.core >= 20 && sil.ratio <= 0.6 && rev.fired.E2 != null && Object.values(ways).every(wayOk),
+      `reveal: figure '${g.figure}', drawn ${g.drawn.counterOrWindow}, box on screen ${g.inFrame} (${boxTxt(g.box)}), ray to its centre blocked by ${g.ray.blockedBy || 'nothing'}; ${sil.core} figure pixels mean ${f1(sil.figure)} vs ${f1(sil.behind)} behind = ${sil.ratio == null ? 'n/a' : (sil.ratio * 100).toFixed(1) + '%'} (<= 60%); ` +
+      Object.entries(ways).map(([k, w]) => wayTxt(k, w)).join('; ') + ` [unseen = what SPEC asks; blackout = the fallback when the spot stays in view all the way up, which needs a decision]`);
+  }
+
+  // ---------- H7: three visits in a row ----------
+  {
+    const P = await open('?view=hero');
+    await P.page.evaluate(helpers);
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, out = [];
+      for (let v = 1; v <= 3; v++) {
+        const startFig = D.horror().figure, i0 = D.info();
+        let prev = { fig: i0.figures.counterOrWindow, lamp: i0.shop.lamp }, removal = null, litPop = 0;
+        H.each = (st) => { const i = D.info(), now = { fig: i.figures.counterOrWindow, lamp: i.shop.lamp }; if (prev.fig && !now.fig) { removal = { lamp: now.lamp, prevLamp: prev.lamp, camY: st.cam.y }; if (prev.lamp > 0.05 || now.lamp > 0.05) litPop++; } prev = now; };
+        H.enter(); H.each = null;
+        H.aisle(); H.e3(); H.staff(); H.bang(); H.leave();
+        const h = D.horror(), count = (e) => h.history.filter((x) => x.e === e && x.visit === h.visit).length;
+        out.push({ visit: h.visit, startFig, removal, litPop, counts: Object.fromEntries(['E0', 'E1', 'E2', 'E3', 'E4', 'E5'].map((e) => [e, count(e)])), endFig: h.figure, mode: D.state().mode });
+      }
+      return out;
+    });
+    await P.close();
+    report.h7 = r;
+    const ok = r.length === 3 && r.every((v, i) => v.visit === i + 1 && ['E0', 'E2', 'E3', 'E4', 'E5'].every((e) => v.counts[e] === 1) && v.removal && v.removal.lamp <= 0.05 && v.litPop === 0 && v.endFig === 'window' && v.mode === 'orbit');
+    check('H7', 'three visits in a row, each event once per visit', ok,
+      r.map((v) => `visit ${v.visit}: starts with the figure at '${v.startFig}', removed with the lamps at ${f2(v.removal && v.removal.lamp * 100)}%, events ${Object.entries(v.counts).map(([e, n]) => `${e}x${n}`).join(' ')}, ends with the figure at '${v.endFig}' (${v.mode})`).join(' | '));
+  }
+
+  // ---------- H8: calm version ----------
+  {
+    const P = await open('?view=hero&calm=1');
+    await P.page.evaluate(helpers);
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, S = D.core.SCARE_PLAN; let drawn = 0, minLamp = 1, maxBack = 0;
+      H.each = (st) => { const i = D.info(); if (i.figures.counterOrWindow || i.figures.backroom) drawn++; minLamp = Math.min(minLamp, i.shop.lamp); maxBack = Math.max(maxBack, i.leaf); };
+      H.enter(); H.walk(S.aisle); H.until(() => false, 3); H.look(S.behind); H.until(() => false, 2); H.look(S.staff); H.walk([S.near]); H.look(S.staff); H.until(() => false, 2); H.leave();
+      H.each = null;
+      const h = D.horror();
+      return { calm: h.calm, kinds: [...new Set(h.history.map((x) => x.e))], E1: h.history.filter((x) => x.e === 'E1').length, figure: h.figure, drawn, minLamp, maxBack: (maxBack * 180) / Math.PI, trig: D.trigger('E4'), afterTrig: D.horror().fired.E4 };
+    });
+    await P.close();
+    report.h8 = r;
+    check('H8', 'calm=1: no figure, no E0 and E2-E5; the chime still rings', r.calm && r.kinds.length === 1 && r.kinds[0] === 'E1' && r.E1 >= 2 && r.figure === null && r.drawn === 0 && r.minLamp === 1 && r.trig === false && r.afterTrig === null,
+      `calm ${r.calm}; events in a full visit: ${r.kinds.join(',')} (${r.E1} chimes); figure ${r.figure}, drawn in ${r.drawn} frames; shop lamps never below ${(r.minLamp * 100).toFixed(0)}%; staff door at most ${r.maxBack.toFixed(0)} deg (stays half open); test trigger('E4') -> ${r.trig}, E4 ${r.afterTrig}; ` +
+      `the original items 1-9, performance and the player default are the other rows of this run`);
+  }
+
   // ---------- performance: draw calls and frame rate ----------
   {
     const perf = {};
-    for (const [name, q, dpr] of [['hero dpr1', '?view=hero', 1], ['hero dpr2', '?view=hero', 2], ['default dpr2', '', 2], ['inside dpr2', '?view=inside', 2]]) {
+    for (const [name, q, dpr] of [['hero dpr1', '?view=hero', 1], ['hero dpr2', '?view=hero', 2], ['default dpr2', '', 2], ['inside dpr2', '?view=inside', 2], ['scare dpr2', '?view=scare', 2]]) {
       const P = await open(q, { dpr });
       await P.page.waitForTimeout(1200);
       const fps = await P.page.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 181) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); }));

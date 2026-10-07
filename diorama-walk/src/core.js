@@ -481,7 +481,9 @@ function createHorror(S, calm) {
       if (!H.done.E2 && P.x > e2.x0 && P.x < e2.x1 && P.z > e2.z0 && P.z < e2.z1) { H.e2 = { t0: t }; H.done.E2 = true; fire('E2', t); }
       if (H.e2 && !H.done.E3 && t >= H.e2.t0 + E2_TOTAL - 1e-9 && Math.hypot(P.x - DOOR0_EYE[0], P.z - DOOR0_EYE[2]) >= HORROR.e3.dist
         && angleTo(P.cam, DOOR0_EYE) > rad(P.hfov / 2) + HORROR.e3.extra) startE3(t, kAt(t));
-      if (H.e3 && H.wideAt === null && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra) H.wideAt = t;
+      // the staff door swings wide unseen, and never into the walker: out of view, and the walker outside its sweep
+      if (H.e3 && H.wideAt === null && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra
+        && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) H.wideAt = t;
       if (H.wideAt !== null && !H.done.E4 && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
         const q = project(P.cam, P.fov, P.aspect, BACKDOOR_C);
         if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= 1 / 6 && q.y > 0 && q.y < 1) startE4(t);
@@ -743,7 +745,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
       fov: L.fov, hfov: hfov(L.fov, S.aspect), tilt: L.tilt, fog: L.fog, rainMix: L.rainMix, rainOpacity: L.rainOpacity, rainHeight: L.rainHeight, rainShown: L.rainShown,
       groundAlpha: L.groundAlpha, baseSides: L.baseSides, lowpass: L.lowpass, volume: L.volume,
       doors: S.doors.map((d, i) => ({ id: DOORS[i].id, k: d.k, want: d.want })),
-      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, stuck: p.stuck },
+      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, looking: !!p.look, stuck: p.stuck },
       trigger: S.trigger && { orbit: { ...S.trigger.orbit }, z: S.trigger.z, s: S.trigger.s, hit: S.trigger.hit },
       landing: S.landing && { ...S.landing }, lift: S.lift, entries: S.entries, exits: S.exits, raised: S.raised,
       transition: S.trans && { kind: S.trans.kind, tau: S.trans.tau, dur: S.trans.dur, raised: S.trans.raised },
