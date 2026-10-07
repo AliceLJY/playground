@@ -41,7 +41,7 @@ export const EXTRA_COLORS = {
   // round 8: the old grocery (SPEC 老旧杂货店的深夜氛围). Interior surfaces are dark on purpose: the bulbs make the light pools.
   storeFacade: '#4A3A2C', goods: '#7B6A4E', goods2: '#5E6B5A', goods3: '#8A5A44', box: '#8A6A45', hang: '#76603F', cord: '#1A1816',
   chest: '#8E9196', chestLid: '#A7ABB0', oldCounter: '#4E3D2E', tvBody: '#262629', register: '#4A4D52', alu: '#9AA0A6',
-  oldSign: '#CDBB92', oldSignText: '#2A1E14', awning: '#666B70', windowGlass: '#C9B27A', backDoor: '#5B4330', puddle: '#FFB45A',
+  oldSign: '#CDBB92', oldSignText: '#2A1E14', awning: '#666B70', windowGlass: '#85734A', backDoor: '#5B4330', puddle: '#FFB45A',
   bulb: '#FFB45A', tube: '#CFE8E4', dog: '#4A3324', dogDark: '#2E2018', nextDark: '#2A2622',
 };
 
@@ -483,8 +483,9 @@ export function tubeFlickerOff(t) {                 // the tube's own flicker: t
 export const nextFlicker = (t) => { const i = flickerIndex(t - 1e-9) + 1; return i < TUBE_EVENTS.length ? TUBE_EVENTS[i].t : Infinity; };   // the next flicker starting at or after t
 // The stray dog (round 8 追加, D1-D4): comes in with E3, shakes off the rain, walks 2-3 m in, growls at the staff door,
 // whimpers and runs out; in the calm version it sniffs about wagging its tail and trots out. Footprint 0.8 x 0.32 m; it
-// keeps out of solids as a circle of 0.43 m and at least 1.2 m from the walker; it never blocks the walker.
-export const DOG = { len: 0.8, wid: 0.32, r: 0.43, start: [STORE.door.cx, FACADE_Z + 1.2], inside: [STORE.door.cx, FACADE_Z - WALL_T - 0.5], away: [STORE.door.cx, FACADE_Z + 1.6],
+// keeps out of solids as a circle of 0.45 m (the footprint's half diagonal is 0.431 m, so a circle kept clear keeps the
+// footprint clear however it is turned) and at least 1.2 m from the walker; it never blocks the walker.
+export const DOG = { len: 0.8, wid: 0.32, r: 0.45, start: [STORE.door.cx, FACADE_Z + 1.2], inside: [STORE.door.cx, FACADE_Z - WALL_T - 0.5], away: [STORE.door.cx, FACADE_Z + 1.6],
   enter: 1.2, shake: 1.0, walk: 0.8, walkDist: 2.5, turn: 3.0, growl: 3.0, whimper: 0.5, run: 3.0, sniff: 2.0, trot: 2.0, keep: 1.2, flee: 2.0, giveUp: 1.8, step: 0.3, hold: 0.3 };
 export const E2_DARK = HORROR.e2.seq + HORROR.e2.lights * HORROR.e2.step;     // television black and the hum off: the silence starts
 export const E2_TOTAL = E2_DARK + HORROR.e2.silence;                   // everything back on
@@ -644,7 +645,14 @@ function createHorror(S, calm) {
     }
     return k;
   };
-  const dogBoxes = (t) => { const b = STATIC_WALK.slice(); if (doorK(t) < DOOR_PASS) { const d = DOORS[0]; b.push([d.x0, d.z0, d.x1, d.z1]); } return b; };
+  // walls, shelves, crates, the closed doorway, and the store door's two sliding leaves where the scripted opening has put them
+  // (the walker can only open it further)
+  const dogBoxes = (t) => {
+    const b = STATIC_WALK.slice(), k = doorK(t);
+    if (k < DOOR_PASS) { const d = DOORS[0]; b.push([d.x0, d.z0, d.x1, d.z1]); }
+    for (const l of doorLeaves(DOORS.map((_, i) => ({ k: i === 0 ? k : 1 })))) if (l.door === 0) b.push([l.x0, l.z0, l.x1, l.z1]);
+    return b;
+  };
   const dogClear = (x, z, r = DOG.r) => STATIC_WALK.every((b) => boxDist(x, z, b) >= r);
   const toYaw = (dx, dz) => Math.atan2(-dx, -dz);
   const doorYaw = (d) => toYaw(BACKDOOR.cx - d.x, BACKDOOR.cz - d.z);
@@ -736,6 +744,9 @@ function createHorror(S, calm) {
         }
         if (best) { const k = clamp((DOG.flee - de) / (DOG.flee - DOG.keep - 0.3), 0, 1); vx = vx * (1 - k) + best.ux * DOG.run * k; vz = vz * (1 - k) + best.uz * DOG.run * k; }
       }
+      // and within 1.6 m it never takes a step towards the walker: it goes round, or waits (a walker standing in the doorway
+      // keeps it in until they move)
+      if (de < DOG.keep + 0.4 && de > 1e-9) { const ux = ex / de, uz = ez / de, toward = -(vx * ux + vz * uz); if (toward > 0) { vx += toward * ux; vz += toward * uz; } }
     }
     if (vx || vz) {
       const p = { x: d.x + vx * dt, z: d.z + vz * dt };
