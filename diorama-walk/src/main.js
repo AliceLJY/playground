@@ -14,6 +14,7 @@ const Q = new URLSearchParams(location.search);
 const VIEW = C.VIEW_SCRIPTS[Q.get('view')] ? Q.get('view') : null;
 const AIM = ['door', 'street', 'roof'].includes(Q.get('aim')) ? Q.get('aim') : null;
 const DEBUG = Q.get('debug') === '1';
+const CALM = Q.get('calm') === '1';            // 安心版: no figure, no E0/E2-E5, doorbell only
 const TILT = Q.get('tilt');                     // test override only: 'off' or 'on'
 const COARSE = matchMedia('(pointer: coarse)').matches;
 // Tilt-shift runs three's two shaders twice: a fine pair, then a coarse pair 9x wider. The 9-tap kernel alone, spread wide,
@@ -29,12 +30,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:${C.COLORS.sky};oversc
 #hint b{color:${C.COLORS.accent};font-weight:600}
 #dbg{position:fixed;left:12px;top:10px;font:12px/1.45 ui-monospace,Menlo,monospace;color:${C.COLORS.accent};pointer-events:none;white-space:pre;text-shadow:0 1px 2px #000}
 body.noui #hint,body.noui #dbg{display:none}
+#dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
 </style>`);
 const canvas = document.createElement('canvas');
 canvas.id = 'c';
 document.body.prepend(canvas);
 const hintEl = document.createElement('div');
 hintEl.id = 'hint';
+const darkEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dark' }));
 document.body.appendChild(hintEl);
 const dbgEl = DEBUG ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 
@@ -61,6 +64,8 @@ const MATS = {
   storeCeiling: new THREE.MeshLambertMaterial({ color: COL.storeCeiling, emissive: 0x30343a }), counter: lam(COL.counter), dark: glow(COL.dark), mat: lam(COL.mat), storeLightPanel: glow(COL.storeLight), nextLightPanel: glow(COL.nextLight),
   bar: lam(COL.bar), stool: lam(COL.stool), shelf2: lam(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
   pole: lam(COL.pole), lamp: glow(COL.lamp), bench: lam(COL.bench), fence: lam(COL.fence),
+  annex: lam(COL.annex), annexFloor: lam(COL.annexFloor), backGlow: glow(COL.backGlow),
+  freezer0: glow(COL.freezer), freezer1: glow(COL.freezer), freezer2: glow(COL.freezer), freezer3: glow(COL.freezer), freezer4: glow(COL.freezer),
 };
 const boxGeo = (b) => new THREE.BoxGeometry(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0).translate((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.z0 + b.z1) / 2);
 const byMat = {};
@@ -91,7 +96,8 @@ function gridLines(x0, x1, z0, z1, step, y, color, alongZ = true, alongX = true)
   return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color }));
 }
 const G = C.FLOOR_GRID;
-scene.add(gridLines(G.x0, G.x1, G.z0, G.z1, G.step, G.y, COL.storeGrid));
+const floorGrid = gridLines(G.x0, G.x1, G.z0, G.z1, G.step, G.y, COL.storeGrid);
+scene.add(floorGrid);
 const ceilingGrid = gridLines(G.x0, G.x1, G.z0, G.z1, G.step, C.STORE.h - 0.215, COL.ceilingGrid);   // suspended-ceiling grid
 scene.add(ceilingGrid);
 scene.add(gridLines(C.NEXT.x0 + C.WALL_T, C.NEXT.x1 - C.WALL_T, C.NEXT.z0 + C.WALL_T, C.NEXT.z1 - C.WALL_T, 0.32, G.y, '#4A3B30', false, true));
@@ -111,8 +117,10 @@ scene.add(new THREE.HemisphereLight(0xb8c6e2, 0x2a3242, 2.7));
 const moon = new THREE.DirectionalLight(0xa8bddc, 0.55);
 moon.position.set(-10, 22, 14);
 scene.add(moon);
+const storeLamps = [];
 for (const [x, z] of [[0.6, -4.4], [5.6, -2.6]]) {           // two ceiling-height lamps light the store evenly
   const l = new THREE.PointLight(COL.storeLight, 5.5, 13, 1.15);
+  storeLamps.push(l);
   l.position.set(x, 2.7, z);
   scene.add(l);
 }
@@ -123,6 +131,30 @@ const streetLamp = new THREE.PointLight(COL.lamp, 9, 14, 1.3);
 streetLamp.position.set(C.LAMP.x, C.LAMP.top - 0.45, C.LAMP.z + 0.3);
 scene.add(streetLamp);
 // what hides while you rise out of a building
+// ---------------- the scare version: figure, staff door, what dims with the shop lights ----------------
+const figMat = new THREE.MeshBasicMaterial({ color: C.HORROR.figure.color });
+function makeFigure() {                             // faceless silhouette: capsule body (a little flattened front to back), round head
+  const f = C.HORROR.figure, g = new THREE.Group(), top = f.h - 2 * f.headR - 0.01;
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(f.bodyR, top - 2 * f.bodyR, 6, 16), figMat);
+  body.position.y = top / 2; body.scale.z = 0.72;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(f.headR, 18, 12), figMat);
+  head.position.y = top + 0.01 + f.headR;
+  g.add(body, head); g.visible = false; scene.add(g);
+  return g;
+}
+const figPersist = makeFigure(), figScare = makeFigure();
+let figureHidden = false;                           // test hook: render the same frame without the figure
+const placeFigure = (g, spot) => { const p = C.HORROR.spots[spot]; g.position.set(p.x, C.SIDEWALK_H, p.z); g.rotation.y = p.yaw; };
+const leafPivot = new THREE.Group();
+leafPivot.position.set(C.BACKDOOR.hx, C.SIDEWALK_H, C.BACKDOOR.hz);
+const leafMat = lam(COL.shelf);
+leafPivot.add(new THREE.Mesh(new THREE.BoxGeometry(C.BACKDOOR.w, C.BACKDOOR.h, 0.04).translate(C.BACKDOOR.w / 2, C.BACKDOOR.h / 2, 0), leafMat));
+scene.add(leafPivot);
+// The shop's own light: lamps, every glow inside, and the inside-only surfaces follow it (E0 and E5 blackouts).
+const DIM_COLOR = ['storeFloor', 'shelf', 'shelfBoard', 'freezerBody', 'counter', 'mat', 'storeLightPanel', 'sign', 'backGlow'].map((k) => MATS[k]).concat([leafMat, floorGrid.material, ceilingGrid.material]);
+const DIM_EMISSIVE = [MATS.storeCeiling, MATS.shelf];
+const baseColor = new Map(DIM_COLOR.concat(Object.keys(MATS).filter((k) => /^freezer\d$/.test(k)).map((k) => MATS[k])).map((m) => [m, m.color.clone()]));
+const baseEmissive = new Map(DIM_EMISSIVE.map((m) => [m, m.emissive.clone()]));
 const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeWall:upper', 'glassTransom', 'sign', 'signText', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'sign2Text', 'nextLightPanel'] };
 
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
@@ -204,7 +236,7 @@ for (const [h, v] of tiltPasses) { composer.addPass(h); composer.addPass(v); }
 composer.addPass(new OutputPass());
 
 // ---------------- simulation ----------------
-const sim = C.createSim({ aspect: innerWidth / Math.max(1, innerHeight) });
+const sim = C.createSim({ aspect: innerWidth / Math.max(1, innerHeight), calm: CALM });
 let cssW = 1, cssH = 1;
 function resize() {
   cssW = Math.max(1, innerWidth); cssH = Math.max(1, innerHeight);
@@ -217,7 +249,7 @@ function resize() {
 addEventListener('resize', resize);
 
 // ---------------- sound: WebAudio rain, only after the first touch or key ----------------
-let audio = null;
+let audio = null, vibePlayed = 0;
 function startAudio() {
   if (audio) return;
   try {
@@ -229,10 +261,41 @@ function startAudio() {
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600; lp.Q.value = 0.4;
     const g = ctx.createGain(); g.gain.value = 0;
-    src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start();
+    // master bus with a limiter, so the bang at 4x the bed never clips
+    const master = ctx.createGain(); master.gain.value = 0.4;
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -8; comp.knee.value = 4; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.25;
+    master.connect(comp); comp.connect(ctx.destination);
+    src.connect(lp); lp.connect(g); g.connect(master); src.start();
+    // fluorescent hum (120 Hz with an octave) and the freezer compressor drone (sawtooth 58 Hz, lowpassed)
+    const fluor = ctx.createGain(); fluor.gain.value = 0; fluor.connect(master);
+    for (const [f, a] of [[120, 1], [240, 0.4], [360, 0.15]]) { const o = ctx.createOscillator(); o.frequency.value = f; const og = ctx.createGain(); og.gain.value = a; o.connect(og); og.connect(fluor); o.start(); }
+    const freezer = ctx.createGain(); freezer.gain.value = 0; freezer.connect(master);
+    const fo = ctx.createOscillator(); fo.type = 'sawtooth'; fo.frequency.value = 58; const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 220; fo.connect(fl); fl.connect(freezer); fo.start();
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    audio = { ctx, lp, g };
+    audio = { ctx, lp, g, master, fluor, freezer, noise: buf, log: [], played: sim.S.t };
   } catch (e) { audio = { state: 'failed: ' + e.message }; }
+}
+
+// One-off sounds, all synthesised. Peaks come from core.audioLevels: bell about 2x the bed, bang about 4x.
+function playSound(kind, lv) {
+  const { ctx, master } = audio, t = ctx.currentTime, env = (peak, attack, decay) => { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay); g.connect(master); return g; };
+  const osc = (type, f, dest, start = t, stop = t + 1.5) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.connect(dest); o.start(start); o.stop(stop); return o; };
+  if (kind === 'bell') {                           // a plain two-tone chime: high then low, a major third apart
+    for (const [f, dt] of [[659.25, 0], [523.25, 0.42]]) {
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + dt); g.gain.linearRampToValueAtTime(lv.bell, t + dt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.95); g.connect(master);
+      osc('sine', f, g, t + dt, t + dt + 1.0); const h = ctx.createGain(); h.gain.value = 0.25; h.connect(g); osc('sine', f * 2, h, t + dt, t + dt + 1.0);
+    }
+    audio.log.push({ kind, at: t, peak: lv.bell, base: lv.base });
+  } else if (kind === 'slam') {                    // low thump falling 110 -> 38 Hz plus a short lowpassed noise burst
+    const g = env(lv.slam, 0.004, 0.45), o = osc('sine', 110, g, t, t + 0.6); o.frequency.exponentialRampToValueAtTime(38, t + 0.3);
+    const n = ctx.createBufferSource(); n.buffer = audio.noise; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200;
+    n.connect(f); f.connect(env(lv.slam * 0.6, 0.002, 0.3)); n.start(t, Math.random() * 1.5, 0.4);
+    audio.log.push({ kind, at: t, peak: lv.slam, base: lv.base });
+  } else if (kind === 'sting') {                   // one dissonant high cluster (a minor second), under 0.6 s
+    const g = env(lv.sting, 0.006, 0.5), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700; hp.connect(g);
+    osc('sawtooth', 1396.9, hp, t, t + 0.56); osc('sawtooth', 1479.98, hp, t, t + 0.56);
+    audio.log.push({ kind, at: t, peak: lv.sting, base: lv.base, length: 0.506 });
+  }
 }
 
 // ---------------- draw the simulation ----------------
@@ -278,7 +341,26 @@ function sync() {
     }
   }
   if (dbgDoors.length) dbgDoors.forEach((l, i) => { l.visible = S.doors[i].k < C.DOOR_PASS; });
-  if (audio && audio.ctx) { const now = audio.ctx.currentTime; audio.lp.frequency.setTargetAtTime(L.lowpass, now, 0.08); audio.g.gain.setTargetAtTime(L.volume, now, 0.08); }
+  // scare version: what the state machine says this instant
+  const V = sim.levels();
+  figPersist.visible = !figureHidden && !!V.figure; if (V.figure) placeFigure(figPersist, V.figure);
+  figScare.visible = !figureHidden && V.scare; if (V.scare) placeFigure(figScare, 'backroom');
+  leafPivot.rotation.y = -V.back;
+  for (const l of storeLamps) l.intensity = 5.5 * V.light;
+  for (const m of DIM_COLOR) m.color.copy(baseColor.get(m)).multiplyScalar(V.light);
+  for (const m of DIM_EMISSIVE) m.emissive.copy(baseEmissive.get(m)).multiplyScalar(V.light);
+  for (let i = 0; i < 5; i++) { const m = MATS['freezer' + i]; m.color.copy(baseColor.get(m)).multiplyScalar(V.freezer[i]); }
+  camera.position.x += V.shake[0]; camera.position.y += V.shake[1]; camera.position.z += V.shake[2];   // the picture shakes, the walker does not
+  darkEl.style.opacity = String(0.55 * V.darken);
+  for (const v of S.h.vibes) if (v.t > vibePlayed && v.t <= S.t) { try { if (typeof navigator.vibrate === 'function') navigator.vibrate(v.pattern); } catch { /* not allowed here */ } }
+  vibePlayed = Math.max(vibePlayed, S.t);
+  if (audio && audio.ctx) {
+    const now = audio.ctx.currentTime;
+    audio.lp.frequency.setTargetAtTime(L.lowpass, now, 0.08); audio.g.gain.setTargetAtTime(L.volume, now, 0.08);
+    audio.fluor.gain.setTargetAtTime(V.audio.fluor, now, 0.015); audio.freezer.gain.setTargetAtTime(V.audio.freezer, now, 0.015);
+    for (const ev of S.h.sounds) if (ev.t > audio.played && ev.t <= S.t) playSound(ev.kind, V.audio);
+    audio.played = Math.max(audio.played, S.t);
+  }
   const h = hints[S.mode] || '';
   if (h !== hintNow) { hintEl.innerHTML = h; hintNow = h; }
 }
@@ -396,6 +478,21 @@ window.__diorama = {
       css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
   },
   core: C,
+  horror: () => { const h = sim.horror(); return { ...h, figure: h.figure }; },
+  trigger: (name) => { const ok = sim.trigger(name); sync(); return ok; },
+  levels: () => sim.levels(),
+  audioLog: () => (audio && audio.log ? audio.log.slice() : null),
+  hideFigure: (on) => { figureHidden = !!on; sync(); },
+  // Can the camera see these points? Frustum, then a ray against every opaque mesh (glass, rain, lines and the figures skipped).
+  visibility: (pts) => {
+    sync(); camera.updateMatrixWorld();
+    const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const opaque = []; scene.traverse((o) => { if (o.isMesh && o.visible && !(o.material.transparent) && !o.parent?.isGroup || (o.isMesh && o.parent === leafPivot)) opaque.push(o); });
+    const solid = opaque.filter((o) => !figPersist.children.includes(o) && !figScare.children.includes(o) && o !== bigGround);
+    const rc = new THREE.Raycaster(), from = camera.position.clone();
+    return pts.map((p) => { const q = new THREE.Vector3(...p), dist = from.distanceTo(q); rc.set(from, q.clone().sub(from).normalize()); rc.far = dist - 0.05;
+      const hit = rc.intersectObjects(solid, false)[0]; return { inFrustum: fr.containsPoint(q), blockedBy: hit ? (Object.entries(MESH).find(([, m]) => m === hit.object) || ['other'])[0] : null }; });
+  },
 };
 
 resize();
