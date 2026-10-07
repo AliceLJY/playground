@@ -560,7 +560,7 @@ window.__diorama = {
   figureMask: (on) => { figMat.color.set(on ? '#ffffff' : C.HORROR.figure.color); sync(); },   // paint the figure white to find its pixels
   // Can the camera see these points? Frustum, then a ray against every opaque mesh (glass, rain, lines and the figures skipped).
   visibility: (pts) => {
-    sync(); camera.updateMatrixWorld();
+    sync(); scene.updateMatrixWorld(); camera.updateMatrixWorld();   // the staff door leaf moves in sync(): without the scene update its matrix is the last drawn frame's
     const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     const opaque = []; scene.traverse((o) => { if (o.isMesh && o.visible && !(o.material.transparent) && !o.parent?.isGroup || (o.isMesh && o.parent === leafPivot)) opaque.push(o); });
     const solid = opaque.filter((o) => !figPersist.children.includes(o) && !figScare.children.includes(o) && o !== bigGround);
