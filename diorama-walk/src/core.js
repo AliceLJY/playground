@@ -34,7 +34,7 @@ export const COLORS = {
 export const GLASS_OPACITY = 0.25, RAIN_OPACITY = 0.35;
 // Colours the spec leaves open (furniture, floors, roofs). Greys and browns that sit between the spec colours.
 export const EXTRA_COLORS = {
-  storeRoof: '#7E776C', nextRoof: '#6C5747', storeFloor: '#7A7062', storeGrid: '#5C5449', nextFloor: '#5E4B3D', storeWall: '#5E574C',
+  storeRoof: '#7E776C', nextRoof: '#6C5747', storeFloor: '#7A7062', storeGrid: '#5C5449', nextFloor: '#5E4B3D', storeWall: '#4A453D',
   shelf: '#5A4632', shelfBoard: '#6E5640', freezerBody: '#A9B2BE', counter: '#4E3D2E', dark: '#11151D', mat: '#2E2A26',
   frame: '#9AA0A6', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
   bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E', storeCeiling: '#2C2925', ceilingGrid: '#36322D', signText: '#2A1E14', sign2Text: '#3A2618', annex: '#1C2028', annexFloor: '#15181F', backGlow: '#2C3B44',
@@ -1604,7 +1604,7 @@ export function visualBoxes() {
   { const [x0, , z0, x1, y1, z1] = G.counter; add('counter', x0, F, z0, x1, F + y1, z1); }
   { const [x0, y0, z0, x1, y1, z1] = G.tv; add('tvBody', x0, F + y0, z0, x1, F + y1, z1); }
   { const [x0, y0, z0, x1, y1, z1] = G.register; add('register', x0, F + y0, z0, x1, F + y1, z1); }
-  for (const [id, x0, y0, z0, x1, y1, z1] of GROCERY.solids) if (id.startsWith('box')) add('box', x0, F + y0, z0, x1, F + y1, z1);
+  for (const [id, x0, y0, z0, x1, y1, z1] of GROCERY.solids) if (id.startsWith('box')) add(id.startsWith('box-out') ? 'boxOut' : 'box', x0, F + y0, z0, x1, F + y1, z1);
   const ceil = STORE.h - 0.21;
   for (const [x, z] of GROCERY.hang) {
     add('hang', x - 0.16, 2.3, z - 0.12, x + 0.16, 2.72, z + 0.12);
