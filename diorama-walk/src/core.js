@@ -819,7 +819,7 @@ export function visualBoxes() {
       add(wall, b.x0, 0, b.z0, BACKDOOR.hx, top, b.z0 + T);
       add(wall, BACKDOOR.hx + BACKDOOR.w, 0, b.z0, b.x1, top, b.z0 + T);
       add(wall, BACKDOOR.hx, F + BACKDOOR.h + 0.02, b.z0, BACKDOOR.hx + BACKDOOR.w, top, b.z0 + T);
-      add(wall, BACKDOOR.hx, 0, b.z0, BACKDOOR.hx + BACKDOOR.w, F, b.z0 + T);
+      add(wall, BACKDOOR.hx, 0, b.z0, BACKDOOR.hx + BACKDOOR.w, F + 0.006, b.z0 + T);   // sill flush with the floors (at F it z-fought the pavement top)
     } else add(wall, b.x0, 0, b.z0, b.x1, top, b.z0 + T);
     add(wall, b.x0, 0, b.z0 + T, b.x0 + T, top, b.z1);
     add(wall, b.x1 - T, 0, b.z0 + T, b.x1, top, b.z1);
