@@ -485,7 +485,7 @@ export const nextFlicker = (t) => { const i = flickerIndex(t - 1e-9) + 1; return
 // whimpers and runs out; in the calm version it sniffs about wagging its tail and trots out. Footprint 0.8 x 0.32 m; it
 // keeps out of solids as a circle of 0.43 m and at least 1.2 m from the walker; it never blocks the walker.
 export const DOG = { len: 0.8, wid: 0.32, r: 0.43, start: [STORE.door.cx, FACADE_Z + 1.2], inside: [STORE.door.cx, FACADE_Z - WALL_T - 0.5], away: [STORE.door.cx, FACADE_Z + 1.6],
-  enter: 1.2, shake: 1.0, walk: 0.8, walkDist: 2.5, turn: 3.0, growl: 3.0, whimper: 0.5, run: 3.0, sniff: 2.0, trot: 2.0, keep: 1.2, flee: 2.0, step: 0.3, hold: 0.3 };
+  enter: 1.2, shake: 1.0, walk: 0.8, walkDist: 2.5, turn: 3.0, growl: 3.0, whimper: 0.5, run: 3.0, sniff: 2.0, trot: 2.0, keep: 1.2, flee: 2.0, giveUp: 1.8, step: 0.3, hold: 0.3 };
 export const E2_DARK = HORROR.e2.seq + HORROR.e2.lights * HORROR.e2.step;     // television black and the hum off: the silence starts
 export const E2_TOTAL = E2_DARK + HORROR.e2.silence;                   // everything back on
 export const E4_BANG = HORROR.e4.reveal + HORROR.e4.slam;              // the door hits the frame
@@ -714,14 +714,28 @@ function createHorror(S, calm) {
         if (near(DOG.away, 0.08)) { d.goneAt = t; d.log.push({ phase: 'gone', t, x: d.x, z: d.z }); return; }
         break;
     }
-    // where it wants to go, bent away from the walker when closer than 2 m (and straight away inside 1.2 m)
+    // where it wants to go; a walker coming closer than 1.8 m makes it give up and leave, and closer than 2 m it runs: of 16
+    // directions, the clear one (0.5 m ahead) that puts the most room between them, leaning towards the way out
     let vx = 0, vz = 0;
     if (target) { const dx = target[0] - d.x, dz = target[1] - d.z, L = Math.hypot(dx, dz); if (L > 1e-9) { const v = Math.min(sp, L / dt); vx = (dx / L) * v; vz = (dz / L) * v; } }
     const w = H.lastP;
     if (w) {
       const ex = d.x - w[0], ez = d.z - w[1], de = Math.hypot(ex, ez);
       d.minGap = Math.min(d.minGap, de);
-      if (de < DOG.flee && de > 1e-6) { const k = clamp((DOG.flee - de) / (DOG.flee - DOG.keep), 0, 1); vx = vx * (1 - k) + (ex / de) * DOG.run * k; vz = vz * (1 - k) + (ez / de) * DOG.run * k; }
+      if (de < DOG.giveUp && ['enter', 'shake', 'walk', 'turn', 'growl', 'sniff'].includes(d.phase)) {
+        if (calmDog) { openExit(d, t); dogPhase(d, 'out', t); } else { dogPhase(d, 'whimper', t); dogSound(d, 'whimper', t); openExit(d, t); }
+      }
+      if (de < DOG.flee) {
+        const boxes = dogBoxes(t), out = d.lined || d.z > DOG.inside[1] ? DOG.away : DOG.inside, ox = out[0] - d.x, oz = out[1] - d.z, oL = Math.hypot(ox, oz) || 1;
+        let best = null;
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * 2 * Math.PI, ux = Math.cos(a), uz = Math.sin(a), q = { x: d.x + ux * 0.5, z: d.z + uz * 0.5 };
+          if (!boxes.every((b) => boxDist(q.x, q.z, b) >= DOG.r - 1e-9)) continue;
+          const score = Math.hypot(q.x - w[0], q.z - w[1]) + 0.6 * (ux * ox + uz * oz) / oL;
+          if (!best || score > best.score) best = { ux, uz, score };
+        }
+        if (best) { const k = clamp((DOG.flee - de) / (DOG.flee - DOG.keep - 0.3), 0, 1); vx = vx * (1 - k) + best.ux * DOG.run * k; vz = vz * (1 - k) + best.uz * DOG.run * k; }
+      }
     }
     if (vx || vz) {
       const p = { x: d.x + vx * dt, z: d.z + vz * dt };
