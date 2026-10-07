@@ -9,6 +9,7 @@ const argv = process.argv.slice(2);
 const out = argv[0] || 'browser-check';
 const base = argv[1] && !argv[1].startsWith('--') ? argv[1] : 'file://' + path.resolve(__dirname, '../dist/index.html');
 const shots = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : out;
+const baseline = argv.includes('--baseline') ? argv[argv.indexOf('--baseline') + 1] : null;   // round 8 A1: the round-7 inside.png
 fs.mkdirSync(out, { recursive: true }); fs.mkdirSync(shots, { recursive: true });
 const shot = (name) => path.join(shots, name + '.png');
 const f3 = (v) => (typeof v === 'number' ? v.toFixed(3) : String(v));
@@ -385,7 +386,7 @@ const isExternal = (u) => {
       walk(route) { D.walkRoute(route); H.until(() => !D.state().player.walking, 20); },
       look(p) { D.lookAt(...p); H.until(() => !D.state().player.looking, 6); },
       aisle() { H.walk(P.aisle); H.until(() => D.horror().e2 && D.state().t >= D.horror().e2.t0 + C.E2_TOTAL, 5); },
-      e3() { H.until(() => D.horror().e3 && D.state().t >= D.horror().e3.closedAt, 12); },
+      e3() { H.until(() => D.state().t >= C.scareReady(D.horror()), 25); },          // round 8: E3's door shut and the dog gone
       // round 6: E4 catches the walker from 2.0 m on the way to the staff door; the scripted visit stops there
       staff() { H.look(P.behind); H.look(P.staff); H.walk([P.front]); H.look(P.staff); D.walkRoute([P.near]); H.until(() => !D.state().player.walking || !!D.horror().e4, 20); D.stopWalk(); D.lookAt(...P.staff); H.until(() => !!D.horror().e4 || !D.state().player.looking, 6); },
       bang() { H.until(() => D.horror().e4 && D.state().t >= D.horror().e4.bang + 0.6, 6); },
@@ -505,41 +506,45 @@ const isExternal = (u) => {
       `${txt(r.first, 'visit 1')} | ${txt(r.second, 'visit 2 (from behind the glass)')} | as pixels: shop front mean luminance ${f1(la)} just before the blackout -> ${f1(lb)} at the removal frame (h2-before-blackout.png, h2-removal-frame.png)`);
   }
 
-  // ---------- H3: freezers go dark one by one, both hums stop for 1.6 s, once per visit ----------
+  // ---------- H3 (round 8): the tube blinks twice, bulbs and tube out one by one, TV black, hums silent 1.6 s, once per visit ----------
   {
     const P = await open('?view=hero');
     await P.page.evaluate(helpers);
     const r = await P.page.evaluate(() => {
-      const D = window.__diorama, H = window.__H;
+      const D = window.__diorama, H = window.__H, C = D.core;
       H.enter(); H.dt = 1 / 120;
-      const off = [null, null, null, null, null], drawnOff = [null, null, null, null, null];
-      let humOff = null, humOn = null, worstGain = 0, t2 = null, backTogether = null, restored = null;
+      const off = [null, null, null], drawnOff = [null, null, null];
+      let humOff = null, humOn = null, worstGain = 0, t2 = null, backTogether = null, restored = null, tvBlack = null;
       H.each = (st) => {
         const L = D.levels(), i = D.info(), t = st.t, h = D.horror();
         if (h.fired.E2 != null && t2 == null) t2 = h.fired.E2;
-        L.freezer.forEach((v, k) => { if (v === 0 && off[k] == null) off[k] = t; });
-        i.shop.freezers.forEach((v, k) => { if (v < 0.01 && drawnOff[k] == null) drawnOff[k] = t; });
+        if (t2 == null) return;
+        if (L.bulbs[0] === 0 && off[0] == null) off[0] = t; if (L.bulbs[1] === 0 && off[1] == null) off[1] = t;
+        if (t >= t2 + C.HORROR.e2.seq + 2 * C.HORROR.e2.step - 1e-9 && L.tube === 0 && off[2] == null) off[2] = t;
+        if (i.shop.bulbs[0] < 0.01 && drawnOff[0] == null) drawnOff[0] = t; if (i.shop.bulbs[1] < 0.01 && drawnOff[1] == null) drawnOff[1] = t;
+        if (t >= t2 + C.HORROR.e2.seq + 2 * C.HORROR.e2.step - 1e-9 && i.shop.tube < 0.01 && drawnOff[2] == null) drawnOff[2] = t;
+        if (i.shop.tv && !i.shop.tv.snow && tvBlack == null) tvBlack = t;
         if (L.hum === 0 && humOff == null) humOff = t;
         if (humOff != null && humOn == null) {
-          if (L.hum === 1) { humOn = t; backTogether = i.shop.freezers.every((v) => v > 0.99); restored = { fluor: L.audio.fluor, freezer: L.audio.freezer }; }
-          else worstGain = Math.max(worstGain, L.audio.fluor, L.audio.freezer);
+          if (L.hum === 1) { humOn = t; backTogether = i.shop.bulbs.every((v) => v > 0.99) && i.shop.tv.snow === 1; restored = { buzz: L.audio.buzz, snow: L.audio.snow, freezer: L.audio.freezer }; }
+          else worstGain = Math.max(worstGain, L.audio.buzz, L.audio.snow, L.audio.freezer);
         }
       };
-      D.walkRoute(D.core.SCARE_PLAN.aisle);
+      D.walkRoute(C.SCARE_PLAN.aisle);
       H.until(() => humOn != null && !D.state().player.walking, 25);
       H.each = null;
-      H.walk([[4.2, -4.0]]); H.walk([[4.2, -6.6]]); H.until(() => false, 1);      // out of the aisle and back in, same visit
+      H.walk([[4.2, -4.0]]); H.walk([[4.2, -6.6]]); H.until(() => false, 1);      // away and back towards the back wall, same visit
       const h = D.horror();
-      return { t2, off, drawnOff, humOff, humOn, worstGain, backTogether, restored, again: h.history.filter((x) => x.e === 'E2' && x.visit === h.visit).length };
+      return { t2, off, drawnOff, tvBlack, humOff, humOn, worstGain, backTogether, restored, again: h.history.filter((x) => x.e === 'E2' && x.visit === h.visit).length };
     });
     await P.close();
     report.h3 = r;
-    const offs = r.off.slice().sort((a, b) => a - b), span = offs[4] - offs[0], silence = r.humOn - r.humOff;
-    const drawnSpan = Math.max(...r.drawnOff) - Math.min(...r.drawnOff), order = r.off.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('>');
-    check('H3', 'freezers go dark one by one, hums silent 1.6 s, once per visit',
-      r.t2 != null && r.off.every((v) => v != null) && span <= 1.2 && Math.abs(silence - 1.6) <= 0.1 && r.worstGain === 0 && r.backTogether && r.again === 1 && r.drawnOff.every((v) => v != null),
-      `E2 at ${f2(r.t2)} s; sections off in order ${order} over ${span.toFixed(3)} s (<= 1.2), drawn freezer colours reached 0 over ${drawnSpan.toFixed(3)} s; ` +
-      `silence ${silence.toFixed(3)} s (1.6 +- 0.1) with the larger hum gain at ${r.worstGain} throughout; freezers back with the sound ${r.backTogether} (gains back to ${f2(r.restored && r.restored.fluor)}/${f2(r.restored && r.restored.freezer)}); E2 in this visit after going back into the aisle: ${r.again} time(s)`);
+    const silence = r.humOn - r.humOff, rel = (v) => (v == null ? 'n/a' : (v - r.t2).toFixed(3));
+    const inOrder = r.off.every((v) => v != null) && r.off[0] < r.off[1] && r.off[1] < r.off[2] && r.tvBlack != null && r.off[2] <= r.tvBlack + 1 / 120 + 1e-9;
+    check('H3', 'E2 (round 8): bulbs and the tube go out one by one, the TV goes black, hums silent 1.6 s, once per visit',
+      r.t2 != null && inOrder && r.drawnOff.every((v) => v != null) && Math.abs(silence - 1.6) <= 0.1 && r.worstGain === 0 && r.backTogether && r.again === 1,
+      `E2 at ${f2(r.t2)} s; bulb 1, bulb 2, tube out at +${rel(r.off[0])}, +${rel(r.off[1])}, +${rel(r.off[2])} s (drawn at +${rel(r.drawnOff[0])}, +${rel(r.drawnOff[1])}, +${rel(r.drawnOff[2])}), TV black at +${rel(r.tvBlack)} s; ` +
+      `silence ${silence.toFixed(3)} s (1.6 +- 0.1) with the largest of buzz/snow/freezer gains at ${r.worstGain} throughout; lights and TV back with the sound ${r.backTogether} (gains back to ${f3(r.restored && r.restored.buzz)}/${f3(r.restored && r.restored.snow)}/${f3(r.restored && r.restored.freezer)}); E2 again in this visit: ${r.again} time(s)`);
   }
 
   // ---------- H4 (round 6): the door opens by itself 3 s after E2 at the earliest, out of sight and >= 3 m away; one chime; nobody there ----------
@@ -870,11 +875,11 @@ const isExternal = (u) => {
     report.r4 = r4; report.r5 = r5;
     const ok4 = Object.entries(r4).every(([k, r]) => {
       const id = k.startsWith('next') ? 'next' : 'store', other = id === 'store' ? 'nextRoof' : 'storeRoof';
-      const off = id === 'store' ? r.drawn.storeRoof === 0 && r.drawn.storeCeiling === 0 && r.drawn.storeLightPanel === 0 && r.drawn.ceilingGrid === 0 : r.drawn.nextRoof === 0 && r.drawn.nextLightPanel === 0;
+      const off = id === 'store' ? r.drawn.storeRoof === 0 && r.drawn.storeCeiling === 0 && r.drawn.hang === 0 && r.drawn.bulbs === 0 && r.drawn.ceilingGrid === 0 : r.drawn.nextRoof === 0 && r.drawn.nextLightPanel === 0;
       return r.level === 'inside' && r.modeAfterPinch === 'rising' && r.mode === 'room' && !r.frames.modes.includes('exiting') && !r.frames.modes.includes('orbit') && r.frames.bad.length === 0 && off && r.drawn.annex === 1 && r.drawn[other] === 1 && r.inFrame;
     });
     check('R4', 'pinch inside a shop: the room view, roof and ceiling off, back room roof on, floor in frame, nothing crossed', ok4,
-      Object.entries(r4).map(([k, r]) => `${k}: level ${r.level}, pinch -> ${r.modeAfterPinch} -> ${r.mode} (modes on the way ${r.frames.modes.join(',')}), camera inside a solid on ${r.frames.bad.length} frames; drawn roof/ceiling/panels/grid ${k.startsWith('next') ? `${r.drawn.nextRoof}/-/${r.drawn.nextLightPanel}/-` : `${r.drawn.storeRoof}/${r.drawn.storeCeiling}/${r.drawn.storeLightPanel}/${r.drawn.ceilingGrid}`}, back room ${r.drawn.annex}, other shop roof ${k.startsWith('next') ? r.drawn.storeRoof : r.drawn.nextRoof}; floor corners ${r.corners.map(([x, y]) => `(${x.toFixed(2)},${y.toFixed(2)})`).join(' ')} all in frame ${r.inFrame}; hint「${r.hint}」`).join(' | '));
+      Object.entries(r4).map(([k, r]) => `${k}: level ${r.level}, pinch -> ${r.modeAfterPinch} -> ${r.mode} (modes on the way ${r.frames.modes.join(',')}), camera inside a solid on ${r.frames.bad.length} frames; drawn roof/ceiling/hanging goods/bulbs/grid ${k.startsWith('next') ? `${r.drawn.nextRoof}/-/${r.drawn.nextLightPanel}/-/-` : `${r.drawn.storeRoof}/${r.drawn.storeCeiling}/${r.drawn.hang}/${r.drawn.bulbs}/${r.drawn.ceilingGrid}`}, back room ${r.drawn.annex}, other shop roof ${k.startsWith('next') ? r.drawn.storeRoof : r.drawn.nextRoof}; floor corners ${r.corners.map(([x, y]) => `(${x.toFixed(2)},${y.toFixed(2)})`).join(' ')} all in frame ${r.inFrame}; hint「${r.hint}」`).join(' | '));
     const ok5 = Object.values(r5).every((r) => r.spreadMode === 'landing' && r.landFrames.bad.length === 0 && r.off <= 0.3 && Math.abs(r.eye - 1.6) <= 0.02 && Math.abs(r.pitch) < 0.05 && r.outMode === 'exiting' && r.outFrames.modes.every((m) => m === 'exiting' || m === 'orbit') && r.end.mode === 'orbit' && r.end.s === r.end.trigger.s && Math.abs(r.end.fog - r.fogAtEntry) < 1e-12 && r.drawn.storeRoof === 1 && r.drawn.storeCeiling === 1);
     check('R5', 'from the room view: spread lands on the aimed floor; pinch goes out like item 2, roofs back', ok5,
       Object.entries(r5).map(([k, r]) => `${k}: spread over (5.4, -4.6) -> ${r.spreadMode}, landed at (${f3(r.landed[0])}, ${f3(r.landed[1])}) ${r.off.toFixed(3)} m off, eye ${f3(r.eye)}, pitch ${f3(r.pitch)}, camera inside a solid on ${r.landFrames.bad.length} frames; pinch twice -> ${r.outMode} -> ${r.end.mode}: s ${f3(r.end.s)} = entry s ${f3(r.end.trigger.s)}, fog ${r.end.fog} = ${r.fogAtEntry}, roof drawn ${r.drawn.storeRoof}, ceiling ${r.drawn.storeCeiling}`).join(' | '));
@@ -1225,7 +1230,7 @@ const isExternal = (u) => {
 
   // ---------- F1: a first-visit wanderer, three seeds, in the page ----------
   const wand = [];
-  for (const [seed, aim] of [[1, 'door'], [2, 'street'], [3, 'roof']]) {   // round 7: three landings
+  for (const [seed, aim] of [[1, 'door'], [2, 'street'], [3, 'next']]) {   // round 8: three different landings (the shop next door's door third)
     const P = await open('?view=hero');
     await P.page.keyboard.press('KeyX');            // first gesture: sound on (a key that does nothing else)
     const r = await P.page.evaluate(([seed, aim]) => window.__diorama.wander({ seed, aim, maxT: 90 }), [seed, aim]);
@@ -1245,7 +1250,7 @@ const isExternal = (u) => {
     await P.close();
   }
   report.f1 = wand;
-  check('F1', 'a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s and sees the figure (seeds 1-3 landing at the door, street, roof; in the page)',
+  check('F1', 'a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s and sees the figure (seeds 1-3 landing at the store door, the street, the shop next door; in the page)',
     wand.every((x) => x.T.every((v) => v != null) && x.T[0] < x.T[1] && x.T[1] < x.T[2] && x.T[2] <= 90 && x.errors === 0 && x.seen && x.seen.n >= 1),
     wand.map((x) => `seed ${x.seed} (aim ${x.aim}, landed ${x.land ? x.land.map((v) => v.toFixed(1)).join(',') : 'n/a'}): E2 ${f2(x.T[0])} s, E3 ${f2(x.T[1])} s, staff door wide ${f2(x.wide)} s, E4 ${f2(x.T[2])} s (phases ${x.phases}; heard ${x.heard || 'nothing'}; knocks played ${x.knocks.length}; at E4+0.12 s standing at (${x.seen ? x.seen.at.map((v) => v.toFixed(2)).join(', ') : 'n/a'}), figure points in sight ${x.seen ? x.seen.n : 'n/a'}/5 drawn (needs >= 1)${x.seen && x.seen.by.length ? ', the rest blocked by ' + x.seen.by.join('/') : ''}, ${x.seen ? x.seen.core : 'n/a'}/5 by the logic at E4)`).join(' | '));
   // pictures from seed 1: the first panel blink, the moment the first knock plays, E4
@@ -1254,16 +1259,16 @@ const isExternal = (u) => {
     await page.keyboard.press('KeyX');
     await page.evaluate(() => window.__diorama.wander({ seed: 1, stop: 'E2' }));
     await page.evaluate(() => { const D = window.__diorama, t0 = D.horror().e2.t0; D.step(1 / 240, Math.max(0, Math.round((t0 + 0.05 - D.state().t) * 240))); });
-    const blink = await page.evaluate(() => ({ panel: window.__diorama.info().panel, t: window.__diorama.state().t - window.__diorama.horror().e2.t0 }));
+    const blink = await page.evaluate(() => ({ panel: { level: window.__diorama.levels().tube, lamp: window.__diorama.info().shop.tube, color: 'tube' }, t: window.__diorama.state().t - window.__diorama.horror().e2.t0 }));
     await page.evaluate(() => window.__diorama.ui(true)); await page.screenshot({ path: shot('F1-E2-blink') });
     await page.evaluate(() => { const D = window.__diorama; D.step(1 / 240, Math.round(0.1 * 240)); });
-    const lit = await page.evaluate(() => ({ panel: window.__diorama.info().panel, t: window.__diorama.state().t - window.__diorama.horror().e2.t0 }));
+    const lit = await page.evaluate(() => ({ panel: { level: window.__diorama.levels().tube, lamp: window.__diorama.info().shop.tube, color: 'tube' }, t: window.__diorama.state().t - window.__diorama.horror().e2.t0 }));
     await page.screenshot({ path: shot('F1-E2-between') });
     await page.evaluate(() => window.__diorama.wander({ resume: true, stop: 'E4' }));
     await page.screenshot({ path: shot('F1-E4') });
     await P.close();
     report.f1Pictures = { blink, lit };
-    console.log(`        F1 pictures (seed 1, paused at E2 for them): panels at E2+${blink.t.toFixed(3)} s: level ${blink.panel.level}, lamps ${blink.panel.lamp}, colour ${blink.panel.color}; at E2+${lit.t.toFixed(3)} s: level ${lit.panel.level}, lamps ${lit.panel.lamp}, colour ${lit.panel.color}`);
+    console.log(`        F1 pictures (seed 1, paused at E2 for them): tube at E2+${blink.t.toFixed(3)} s: level ${blink.panel.level}, lamps ${blink.panel.lamp}, colour ${blink.panel.color}; at E2+${lit.t.toFixed(3)} s: level ${lit.panel.level}, lamps ${lit.panel.lamp}, colour ${lit.panel.color}`);
   }
 
   // ---------- V1 (round 7): the logic's sight lines to the figure agree with rays against the drawn meshes ----------
@@ -1325,11 +1330,227 @@ const isExternal = (u) => {
       `E4 at ${f2(r.t4)} s, knocks after it ${r.after}; calm (wanderer 90 s): ${calm.knocks} knocks, ${calm.bells} chimes (sound ${calm.audio})`);
   }
 
+  // ======================= 第八轮：老旧杂货店 (SPEC 老旧杂货店的深夜氛围, A1 A5 A6 A7 A8) 与流浪狗 (D2-D4) =======================
+  async function lumStats(file) {                  // mean luminance, and the brightest 10% against the darkest 50%
+    return calc.evaluate(async (b64) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data, L = new Float32Array(d.length / 4);
+      for (let i = 0; i < L.length; i++) L[i] = 0.2126 * d[4 * i] + 0.7152 * d[4 * i + 1] + 0.0722 * d[4 * i + 2];
+      L.sort(); const n = L.length, sum = (a, b) => { let s = 0; for (let i = a; i < b; i++) s += L[i]; return s; };
+      return { mean: sum(0, n) / n, top: sum(Math.floor(n * 0.9), n) / (n - Math.floor(n * 0.9)), bottom: sum(0, Math.floor(n * 0.5)) / Math.floor(n * 0.5), max: L[n - 1] };
+    }, fs.readFileSync(file).toString('base64'));
+  }
+  // ---------- A1: the shop is dark now (the inside view against round 7's) ----------
+  {
+    const cur = await lumStats(shot('inside')), base = baseline ? await lumStats(baseline) : { mean: 152.46, recorded: true };
+    const ratio = cur.top / cur.bottom;
+    report.a1 = { cur, base, baseline };
+    check('A1', 'the shop is really dark: the inside view at <= 45% of round 7\'s brightness, bright 10% >= 6x the dark half, not black',
+      cur.mean <= 0.45 * base.mean && ratio >= 6 && cur.mean > 8 && cur.max > 120,
+      `inside view mean luminance ${cur.mean.toFixed(1)} vs round 7 ${base.mean.toFixed(1)} (${baseline ? 'measured from ' + path.basename(baseline) : 'recorded value'}) = ${(100 * cur.mean / base.mean).toFixed(1)}% (<= 45%); ` +
+      `brightest 10% ${cur.top.toFixed(1)} / darkest 50% ${cur.bottom.toFixed(1)} = ${ratio.toFixed(2)} (>= 6); brightest pixel ${cur.max.toFixed(0)} (not all black)`);
+  }
+
+  // ---------- A7: performance, one shadow-casting light, and the phone ----------
+  {
+    const meas = async (q, opt) => {
+      const P = await open(q, opt); await P.page.evaluate(() => window.__diorama.auto(true)); await P.page.waitForTimeout(2600);
+      const i = await info(P.page); await P.close(); return i;
+    };
+    const desk = await meas('?view=hero'), deskIn = await meas('?view=inside'), phone = await meas('?view=hero', { width: 390, height: 844, dpr: 3, touch: true }), phoneIn = await meas('?view=inside', { width: 390, height: 844, dpr: 3, touch: true });
+    report.a7 = { desk, deskIn, phone, phoneIn };
+    check('A7', 'performance: hero 1280x720 <= 150 draw calls and >= 50 fps; one shadow-casting light; 390x844 measured too',
+      desk.calls <= 150 && desk.fps >= 50 && deskIn.fps >= 50 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1 && phone.fps >= 30 && phoneIn.fps >= 30,
+      `hero 1280x720: ${desk.calls} draw calls, ${desk.fps.toFixed(1)} fps; inside 1280x720: ${deskIn.calls} calls, ${deskIn.fps.toFixed(1)} fps; lights on ${desk.shop.lights.n}, casting shadows ${desk.shop.lights.shadows}; ` +
+      `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)`);
+  }
+
+  // ---------- A5: P1 at the end of an aisle, P2 the black TV (in the page) ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.evaluate(helpers);
+    const p1 = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, A = C.GROCERY.aisles[1];
+      H.enter(); H.walk([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4]]);
+      H.until(() => D.horror().e2 && D.state().t >= D.horror().e2.t0 + C.E2_TOTAL, 10);
+      D.place(A.cx, A.zFront + 0.3, 0);
+      const t0 = D.state().t; H.dt = 1 / 240; let seen = null, on = [];
+      H.each = (st) => { const L = D.levels(), i = D.info(); if (i.figures.aisle) { on.push({ t: st.t, tube: L.tube }); if (!seen && st.t >= D.horror().p1.t0 + 0.1) seen = D.visibility(C.figurePointsAt(C.aisleSpot(A))).filter((v) => v.inFrustum && !v.blockedBy).length; } };
+      H.until(() => D.horror().p1 && D.state().t >= D.horror().p1.t0 + 0.12, 8); H.each = null;
+      const p = D.horror().p1;
+      return { p, t0, flickerStart: C.TUBE_EVENTS.some((e) => Math.abs(e.t - p.t0) < 1e-9), tubeAtStart: C.tubeFlickerOff(p.t0 + 0.01), seen, first: on.length ? on[0].t : null };
+    });
+    await page.evaluate(() => window.__diorama.ui(true)); await page.screenshot({ path: shot('A5-P1-aisle') });
+    const p1b = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, p = D.horror().p1; let last = null, offAtEnd = false;
+      H.each = (st) => { const L = D.levels(); if (D.info().figures.aisle) last = st.t; if (st.t >= p.t1 && st.t < p.t1 + 0.06 && L.tube === 0) offAtEnd = true; };
+      H.until(() => D.state().t >= p.t1 + 0.2, 2); H.each = null;
+      return { last, offAtEnd };
+    });
+    // P2: once the dog has been and gone, close to the TV and looking at it
+    const p2 = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core; H.dt = 1 / 60;
+      H.until(() => D.state().t >= C.scareReady(D.horror()) + 0.5, 30);
+      D.place(5.6, -2.47, -Math.PI / 2); H.dt = 1 / 240;
+      H.until(() => D.horror().p2 && D.state().t >= D.horror().p2.t0 + 0.2, 2);
+      const px = D.tvPixels(), i = D.info();
+      return { p: D.horror().p2, px, figures: i.figures, dog: i.dog, solids: D.solids().length };
+    });
+    await page.screenshot({ path: shot('A5-P2-tv') });
+    const p2b = await page.evaluate(() => { const D = window.__diorama, H = window.__H, p = D.horror().p2; let black = 0; H.dt = 1 / 240; H.each = () => { if (D.info().shop.tv && D.info().shop.tv.reflect) black++; }; H.until(() => D.state().t >= p.t1 + 0.2, 2); H.each = null; return { black: black / 240, after: D.tvPixels() }; });
+    await P.close();
+    const Q = await open('?view=hero&calm=1');
+    await Q.page.evaluate(helpers);
+    const calm = await Q.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, A = C.GROCERY.aisles[1];
+      H.enter(); H.walk([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4]]); H.until(() => false, 4);
+      D.place(A.cx, A.zFront + 0.3, 0); H.until(() => false, 8); D.place(5.6, -2.47, -Math.PI / 2); H.until(() => false, 2);
+      return { p1: D.horror().p1, p2: D.horror().p2, fired: D.horror().fired };
+    });
+    await Q.close();
+    report.a5 = { p1, p1b, p2: { ...p2, black: p2b.black }, calm };
+    const dur = p1b.last != null && p1.first != null ? p1b.last + 1 / 240 - p1.first : null;
+    check('A5', 'P1 at the aisle end for 0.6 s from a flicker to a flicker; P2 0.8 s of black screen with a figure on it, nothing behind you; none in calm',
+      p1.p && p1.flickerStart && p1.tubeAtStart && Math.abs(p1.first - p1.p.t0) <= 1 / 240 + 1e-9 && Math.abs(dur - 0.6) <= 2 / 240 && p1b.offAtEnd && p1.seen >= 1 &&
+      p2.p && p2.px.state.reflect && p2.px.figure < 0.5 * p2.px.around && p2.px.mean < 40 && !p2.figures.counterOrWindow && !p2.figures.backroom && !p2.figures.aisle && !p2.dog && Math.abs(p2b.black - 0.8) <= 2 / 240 && p2b.after.state.snow === 1 &&
+      calm.p1 === null && calm.p2 === null,
+      `P1: looking down aisle ${p1.p && p1.p.aisle} from ${f2(p1.t0)} s; the figure drawn from ${f3(p1.first)} s (a tube flicker starts at ${f3(p1.p && p1.p.t0)}: ${p1.flickerStart}, tube off then ${p1.tubeAtStart}) for ${dur == null ? 'n/a' : dur.toFixed(3)} s, the tube off again as it goes ${p1b.offAtEnd}; ${p1.seen}/5 of its points in sight (drawn meshes); ` +
+      `P2 at ${f2(p2.p && p2.p.t0)} s: screen mean ${p2.px.mean.toFixed(1)}, the figure ${p2.px.figure.toFixed(1)} against ${p2.px.around.toFixed(1)} around it, black with it for ${p2b.black.toFixed(3)} s, then snow ${p2b.after.state.snow === 1}; figures drawn ${JSON.stringify({ c: p2.figures.counterOrWindow, b: p2.figures.backroom, a: p2.figures.aisle })}, dog ${p2.dog ? 'in the shop' : 'gone'}; ` +
+      `calm: P1 ${calm.p1}, P2 ${calm.p2}`);
+  }
+
+  // ---------- A6: the sounds of the grocery (planned gains, and what the nodes play) ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(helpers);
+    const r = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, g = () => D.audioGains(), at = (x, z, yaw) => { D.place(x, z, yaw); H.until(() => false, 0.4); return g(); };
+      H.enter();
+      const near = at(6.55, -2.2, -Math.PI / 2), mid = at(4.0, -1.5, 0), far = at(-1.8, -0.9, 0), out = (() => { D.place(5.0, 2.6, 0); H.until(() => false, 0.4); return g(); })();
+      const bells = (D.audioLog() || []).filter((x) => x.kind === 'bell');
+      D.walkRoute([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4]]);
+      H.until(() => D.levels().hum === 0, 15); H.until(() => false, 0.3);
+      const quiet = g(); let tickled = 0;
+      H.until(() => D.levels().hum === 1, 3); H.until(() => false, 0.3);
+      const back = g(), log = D.audioLog() || [];
+      return { near, mid, far, out, quiet, back, bells: bells.map((b) => ({ peak: b.peak, base: b.base, voice: b.voice })), crackles: log.filter((x) => x.kind === 'crackle').length, audio: D.info().audio };
+    });
+    await P.close();
+    report.a6 = r;
+    const on = (G) => ['buzz', 'snow', 'freezer', 'awning', 'rain'].every((k) => G.planned[k] > 0 && G.nodes[k] > 0.001);
+    const qz = r.quiet;
+    check('A6', 'sounds: buzz, TV snow (nearer = louder), freezer, rain on the awning and the hanging bell all play; in the E2 silence only the rain',
+      r.audio === 'running' && on(r.mid) && r.near.planned.snow > r.mid.planned.snow && r.mid.planned.snow > r.far.planned.snow && r.bells.length > 0 && r.bells.every((b) => b.voice === 'hanging bell' && Math.abs(b.peak / b.base - 2) < 1e-6) &&
+      qz.planned.buzz === 0 && qz.planned.snow === 0 && qz.planned.freezer === 0 && qz.nodes.buzz < 0.002 && qz.nodes.snow < 0.002 && qz.nodes.freezer < 0.002 && qz.planned.rain > 0 && qz.planned.awning > 0 && on(r.back) && r.crackles > 0,
+      `sound ${r.audio}; in the shop: buzz ${f3(r.mid.planned.buzz)}, snow ${f3(r.mid.planned.snow)}, freezer ${f3(r.mid.planned.freezer)}, awning ${f3(r.mid.planned.awning)}, rain ${f3(r.mid.planned.rain)} (nodes ${Object.entries(r.mid.nodes).map(([k, v]) => k + ' ' + v.toFixed(3)).join(', ')}); ` +
+      `TV snow by distance: ${f3(r.near.planned.snow)} at the till, ${f3(r.mid.planned.snow)} mid-shop, ${f3(r.far.planned.snow)} by the far wall; awning ${f3(r.out.planned.awning)} under it outside vs ${f3(r.far.planned.awning)} at the far wall; ` +
+      `${r.bells.length} hanging-bell jingles at ${r.bells.length ? (r.bells[0].peak / r.bells[0].base).toFixed(2) : 'n/a'}x; tube crackles played ${r.crackles}; E2 silence: planned buzz/snow/freezer ${qz.planned.buzz}/${qz.planned.snow}/${qz.planned.freezer} (nodes ${qz.nodes.buzz.toFixed(4)}/${qz.nodes.snow.toFixed(4)}/${qz.nodes.freezer.toFixed(4)}), rain ${f3(qz.planned.rain)}, awning ${f3(qz.planned.awning)}; afterwards all back ${on(r.back)}`);
+  }
+
+  // ---------- D2-D4: the stray dog in the page ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(helpers);
+    const r = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, B = C.BACKDOOR;
+      const obb = (d, b) => {
+        const f = [-Math.sin(d.yaw), -Math.cos(d.yaw)], rr = [Math.cos(d.yaw), -Math.sin(d.yaw)], hl = C.DOG.len / 2, hw = C.DOG.wid / 2;
+        const pts = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, c]) => [d.x + f[0] * hl * a + rr[0] * hw * c, d.z + f[1] * hl * a + rr[1] * hw * c]), bp = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+        for (const ax of [[1, 0], [0, 1], f, rr]) { const pa = pts.map((p) => p[0] * ax[0] + p[1] * ax[1]), pb = bp.map((p) => p[0] * ax[0] + p[1] * ax[1]); if (Math.max(...pa) <= Math.min(...pb) + 1e-9 || Math.max(...pb) <= Math.min(...pa) + 1e-9) return false; }
+        return true;
+      };
+      H.enter(); H.walk(C.SCARE_PLAN.aisle);
+      H.dt = 1 / 120; const W = (window.__dogW = { e3: null, hits: 0, gap: Infinity, frames: 0, growl: [], first: null });
+      W.each = (st) => {
+        const h = D.horror(), d = h.dogView;
+        if (h.e3 && W.e3 === null) W.e3 = h.e3.t0;
+        if (!d) return;
+        W.frames++; W.gap = Math.min(W.gap, Math.hypot(d.x - st.player.x, d.z - st.player.z));
+        const boxes = D.solids().filter((s) => s.kind !== 'roof' && s.y1 > C.SIDEWALK_H + 0.05 && s.y0 < C.SIDEWALK_H + 0.6 && (s.kind !== 'door' || s.active)).map((s) => [s.x0, s.z0, s.x1, s.z1]);
+        for (const lf of C.doorLeaves(st.doors).filter((l) => l.door === 0)) boxes.push([lf.x0, lf.z0, lf.x1, lf.z1]);
+        const hit = boxes.find((b) => obb(d, b)); if (hit) { W.hits++; if (!W.first) W.first = { t: st.t, b: hit, d: { ...d } }; }
+        if (d.phase === 'growl') W.growl.push({ dev: Math.abs(C.wrapAngle(d.yaw - Math.atan2(-(B.cx - d.x), -(B.cz - d.z)))) * 180 / Math.PI, crouch: d.crouch, drawn: !!D.info().dog, t: st.t, x: d.x, z: d.z });
+      };
+      H.each = W.each;
+      H.until(() => D.horror().dogView && D.horror().dogView.phase === 'growl' && D.state().t >= D.horror().dog.log.find((x) => x.phase === 'growl').t + 1.2, 30);
+      const dv = D.horror().dogView;
+      D.place(dv.x - 2.0, dv.z - 0.8, 0); D.lookAt(dv.x, 0.45, dv.z); for (let i = 0; i < 30; i++) H.step();   // a side view of it growling (about 2.15 m away)
+      H.each = null;
+      const { e3, hits, gap, frames, growl, first } = W;
+      return { e3, dog0: D.horror().dog.t0, hits, gap, frames, growl, first, at: [dv.x, dv.z] };
+    });
+    await page.evaluate(() => window.__diorama.ui(true)); await page.screenshot({ path: shot('D3-dog-growl') });
+    const r2 = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core, W = window.__dogW; H.dt = 1 / 120; H.each = W.each;
+      H.until(() => D.horror().dog && D.horror().dog.closedAt !== null && D.state().t >= D.horror().dog.closedAt + 0.3, 20); H.each = null;
+      const watch = { hits: W.hits, gap: W.gap, frames: W.frames, first: W.first };
+      H.look(C.SCARE_PLAN.behind); H.until(() => D.horror().wideAt != null, 6); H.until(() => (D.audioLog() || []).some((x) => x.kind === 'knock'), 3);
+      const dog = D.horror().dog, log = D.audioLog() || [], kinds = log.filter((x) => ['paw', 'shake', 'growl', 'whimper', 'knock'].includes(x.kind)).map((x) => ({ kind: x.kind, t: x.simT, peak: x.peak, base: x.base }));
+      return { watch, log: dog.log.map((x) => x.phase + '@' + (x.t - dog.t0).toFixed(2)), goneAt: dog.goneAt - dog.t0, closedAt: dog.closedAt - dog.t0, t0: dog.t0, kinds, doorK: D.state().doors[0].k };
+    });
+    await P.close();
+    const Q = await open('?view=hero&calm=1');
+    await Q.page.keyboard.press('KeyX');
+    await Q.page.evaluate(helpers);
+    const c = await Q.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.walk(C.SCARE_PLAN.aisle);
+      H.until(() => D.horror().dogView && D.horror().dogView.phase === 'sniff' && D.state().t >= D.horror().dog.log.find((x) => x.phase === 'sniff').t + 0.6, 40);
+      const dv = D.horror().dogView; D.place(dv.x - 2.0, dv.z - 0.6, 0); D.lookAt(dv.x, 0.45, dv.z); for (let i = 0; i < 20; i++) D.step(1 / 240, 1);
+      return { tail: dv.tail, phase: dv.phase, drawn: !!D.info().dog };
+    });
+    await Q.page.screenshot({ path: shot('D4-calm-dog') });
+    const c2 = await Q.page.evaluate(() => { const D = window.__diorama, H = window.__H; H.until(() => D.horror().dog && D.horror().dog.goneAt !== null, 15); H.until(() => false, 20); return { kinds: (D.audioLog() || []).map((x) => x.kind), phases: D.horror().dog.log.map((x) => x.phase), dogs: D.horror().dog.t0 }; });
+    await Q.close();
+    report.dog = { r, r2, c, c2 };
+    const order = ['paw', 'shake', 'growl', 'whimper'].map((k) => { const x = r2.kinds.find((y) => y.kind === k); return x ? x.t : null; }), knock = r2.kinds.find((x) => x.kind === 'knock');
+    const maxDev = r.growl.length ? Math.max(...r.growl.map((g) => g.dev)) : null;
+    const wt = r2.watch;
+    check('D2', 'the dog: footprint never in a wall, shelf or door leaf, always >= 1.2 m from the walker (in the page)', wt.frames > 0 && wt.hits === 0 && wt.gap >= 1.2 && Math.abs(r.dog0 - r.e3) < 1e-9,
+      `dog came in with E3 (${f2(r.e3)} s, dog at ${f2(r.dog0)} s); ${wt.frames} frames from the door opening until it had shut behind the dog: footprint overlapping a wall, shelf, crate or door leaf on ${wt.hits}${wt.first ? ' (first ' + JSON.stringify(wt.first) + ')' : ''}, closest to the walker ${wt.gap.toFixed(2)} m`);
+    check('D3', 'growling at the staff door: head within 15 deg of it, body lowered; picture D3-dog-growl', r.growl.length > 0 && maxDev < 15 && r.growl.filter((g) => g.t - r.growl[0].t > 0.3).every((g) => g.crouch > 0.9 && g.drawn),
+      `${r.growl.length} growl frames, head at most ${maxDev == null ? 'n/a' : maxDev.toFixed(2)} deg off the staff door, crouched ${r.growl.length ? r.growl[r.growl.length - 1].crouch : 'n/a'}; standing at (${r.at.map((v) => v.toFixed(2)).join(', ')})`);
+    check('D4', 'dog sounds in order (paws, shake, growl, whimper), knocking only after it has gone; calm: no growl, tail wagging; once a visit',
+      order.every((v) => v != null) && order[0] < order[1] && order[1] < order[2] && order[2] < order[3] && knock && knock.t > r2.t0 + r2.closedAt && r2.doorK === 0 &&
+      c.tail === 'wag' && c.drawn && !c2.kinds.includes('growl') && !c2.kinds.includes('whimper') && c2.kinds.includes('paw') && c2.kinds.includes('shake') && c2.phases.join(',') === 'enter,shake,walk,turn,sniff,out,gone',
+      `phases ${r2.log.join(' ')}; door shut again at +${r2.closedAt.toFixed(2)} s (k ${r2.doorK}); first paw/shake/growl/whimper at +${order.map((v) => (v == null ? 'n/a' : (v - r2.t0).toFixed(2))).join('/')} s; first knock at +${knock ? (knock.t - r2.t0).toFixed(2) : 'n/a'} s; ` +
+      `calm: phases ${c2.phases.join(',')}, tail ${c.tail} while sniffing, sounds ${[...new Set(c2.kinds)].join(',')} (no growl, no whimper)`);
+  }
+
+  // ---------- pictures: dark, narrow, can't see it all (entrance, mid-aisle, at the TV, at the staff door) and the grocery from outside ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.evaluate(helpers);
+    const views = [['G-entrance', [5.0, -0.2], [2.0, 1.4, -5.0]], ['G-aisle', [0.8 + 0.525, -4.0], [1.33, 1.5, -7.5]], ['G-tv', [5.9, -2.4], [7.1, 1.3, -2.47]], ['G-backdoor', [6.3, -5.9], [6.5, 1.2, -8.6]]];
+    await page.evaluate(() => { const D = window.__diorama, H = window.__H; D.enter('door'); H.until(() => D.state().mode === 'walk', 10); });
+    for (const [name, [x, z], look] of views) {
+      await page.evaluate(([x, z, look]) => { const D = window.__diorama; D.place(x, z, 0); D.lookAt(...look); for (let i = 0; i < 120; i++) D.step(1 / 60, 1); }, [x, z, look]);
+      await page.evaluate(() => window.__diorama.ui(true)); await page.screenshot({ path: shot(name) });
+    }
+    await P.close();
+    const Q = await open('?view=hero');
+    await Q.page.evaluate(() => { const D = window.__diorama, C = D.core, q = D.toScreen(7.0, 1.6, 0.5); D.rotate(0.35, -0.1); const q2 = D.toScreen(6.2, 1.6, 0.5); D.zoomAt(0.45, q2[0] / innerWidth, q2[1] / innerHeight); });
+    await Q.page.waitForTimeout(400); await Q.page.screenshot({ path: shot('G-outside') });
+    await Q.close();
+    const lum = {};
+    for (const [name] of views.concat([['G-outside']])) lum[name] = await lumStats(shot(name));
+    report.pictures = lum;
+    console.log('        pictures: ' + Object.entries(lum).map(([k, v]) => `${k} mean ${v.mean.toFixed(1)}, bright 10% ${v.top.toFixed(0)} / dark half ${v.bottom.toFixed(1)}`).join('; '));
+  }
+
   // ---------- SPEC 9: clean start ----------
   check(9, 'clean start: no errors, no outside requests', allErrors.length === 0 && allExternal.length === 0,
     `${loads} page loads: ${allErrors.length} errors/warnings, ${allExternal.length} outside requests${allErrors.length ? ' — ' + allErrors.slice(0, 4).join(' ; ') : ''}${allExternal.length ? ' — ' + allExternal.slice(0, 4).join(' ; ') : ''}`);
 
   finishR9();
+  {
+    const ids = ['1', '1b', '2', '3', '4', '5', '6', '7', '8', '9', 'P', 'D', ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => 'H' + i), ...Array.from({ length: 13 }, (_, i) => 'R' + (i + 1)), 'K1', 'K2', 'F1', 'F4', 'V1'];
+    const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));
+    check('A8', 'regressions after the reskin: items 1-9, 1b, performance, player default, H1-H8, R1-R13, K1, K2, F1, F4, V1',
+      rows.every((c) => c && c.pass), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !rows[i] || !rows[i].pass).join(',') || 'none failing'})`);
+  }
   {
     const ids = ['1', '1b', '2', '3', '4', '5', '6', '7', '8', '9', 'P', 'D', ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => 'H' + i), ...Array.from({ length: 13 }, (_, i) => 'R' + (i + 1))];
     const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));

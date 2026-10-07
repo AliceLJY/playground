@@ -56,29 +56,48 @@ const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 600);
 camera.rotation.order = 'YXZ';
 
 const COL = { ...C.COLORS, ...C.EXTRA_COLORS };
+// Round 8: inside the grocery the sky light (hemisphere) and the moon reach only ~30% (SPEC 环境光压到约 30%); the bulbs and
+// the tube make the light. Done per material by scaling those two lights in three's lighting chunk.
+const INSIDE_AMBIENT = { value: 0.3 };
+function inside(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uAmb = INSIDE_AMBIENT;
+    const chunk = THREE.ShaderChunk.lights_fragment_begin
+      .replace('irradiance += getHemisphereLightIrradiance( hemisphereLights[ i ], geometryNormal );', 'irradiance += uAmb * getHemisphereLightIrradiance( hemisphereLights[ i ], geometryNormal );')
+      .replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= uAmb;');
+    if (!chunk.includes('uAmb * getHemisphere') || !chunk.includes('directLight.color *= uAmb')) throw new Error('lighting chunk changed upstream');
+    sh.fragmentShader = 'uniform float uAmb;\n' + sh.fragmentShader.replace('#include <lights_fragment_begin>', chunk);
+  };
+  mat.customProgramCacheKey = () => 'inside-ambient';
+  return mat;
+}
 const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+const lamIn = (c) => inside(lam(c));
 const glow = (c) => new THREE.MeshBasicMaterial({ color: c });
 const glassMat = () => new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: C.GLASS_OPACITY, depthWrite: false, side: THREE.DoubleSide });
 const MATS = {
   sidewalk: lam(COL.sidewalk), stripe: lam(COL.stripe),
-  storeWall: lam(COL.storeWall), 'storeWall:upper': lam(COL.storeWall), storeRoof: lam(COL.storeRoof), storeFloor: lam(COL.storeFloor),
-  nextWall: lam(COL.nextWall), 'nextWall:upper': lam(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lam(COL.nextFloor),
-  glass: glassMat(), glassTransom: glassMat(), frame: lam(COL.frame), sign: glow(COL.storeLight), sign2: glow(COL.nextLight),
-  signText: glow(COL.signText), sign2Text: glow(COL.sign2Text),
-  shelf: new THREE.MeshLambertMaterial({ color: COL.shelf, emissive: 0x262b33 }), shelfBoard: lam(COL.shelfBoard), freezerBody: lam(COL.freezerBody), freezer: glow(COL.freezer),
-  storeCeiling: new THREE.MeshLambertMaterial({ color: COL.storeCeiling, emissive: 0x30343a }), counter: lam(COL.counter), dark: glow(COL.dark), mat: lam(COL.mat), storeLightPanel: glow(COL.storeLight), nextLightPanel: glow(COL.nextLight),
-  bar: lam(COL.bar), stool: lam(COL.stool), shelf2: lam(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
+  storeWall: lamIn(COL.storeWall), storeRoof: lam(COL.storeRoof), storeFloor: lamIn(COL.storeFloor), storeFacade: lam(COL.storeFacade), 'storeFacade:upper': lam(COL.storeFacade),
+  nextWall: lamIn(COL.nextWall), 'nextWall:upper': lamIn(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lamIn(COL.nextFloor),
+  glass: glassMat(), windowGlass: new THREE.MeshLambertMaterial({ color: COL.windowGlass, transparent: true, opacity: C.WINDOW.opacity, depthWrite: false, side: THREE.DoubleSide }),
+  frame: lam(COL.frame), sign: lam(COL.oldSign), sign2: lam(COL.nextDark), signText: lam(COL.oldSignText), sign2Text: lam(COL.sign2Text), awning: lam(COL.awning),
+  shelf: lamIn(COL.shelf), shelfBoard: lamIn(COL.shelfBoard), goods: lamIn(COL.goods), goods2: lamIn(COL.goods2), goods3: lamIn(COL.goods3),
+  freezerBody: lamIn(COL.chest), chestLid: lamIn(COL.chestLid), counter: lamIn(COL.counter), tvBody: lamIn(COL.tvBody), register: lamIn(COL.register),
+  box: lamIn(COL.box), boxOut: lam(COL.box), hang: lamIn(COL.hang), cord: lamIn(COL.cord), storeCeiling: lamIn(COL.storeCeiling), dark: glow(COL.dark), mat: lamIn(COL.mat),
+  nextLightPanel: lam(COL.nextDark), bar: lamIn(COL.bar), stool: lamIn(COL.stool), shelf2: lamIn(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
   pole: lam(COL.pole), lamp: glow(COL.lamp), bench: lam(COL.bench), fence: lam(COL.fence),
-  annex: lam(COL.annex), annexFloor: lam(COL.annexFloor), backGlow: glow(COL.backGlow),
-  freezer0: glow(COL.freezer), freezer1: glow(COL.freezer), freezer2: glow(COL.freezer), freezer3: glow(COL.freezer), freezer4: glow(COL.freezer),
+  annex: lamIn(COL.annex), annexFloor: lamIn(COL.annexFloor), backGlow: glow(COL.backGlow),
 };
 const boxGeo = (b) => new THREE.BoxGeometry(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0).translate((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.z0 + b.z1) / 2);
 const byMat = {};
 for (const b of C.visualBoxes()) (byMat[b.mat] ||= []).push(boxGeo(b));
 const MESH = {};
+const CASTERS = ['shelf', 'shelfBoard', 'goods', 'goods2', 'goods3', 'box', 'counter', 'freezerBody', 'tvBody', 'register', 'hang'];   // what the one shadow-casting light draws
+const RECEIVERS = ['storeFloor', 'storeWall', 'shelf', 'shelfBoard', 'goods', 'goods2', 'goods3', 'box', 'counter', 'freezerBody', 'chestLid'];
 for (const [k, list] of Object.entries(byMat)) {
   if (!MATS[k]) throw new Error('no material for ' + k);
   MESH[k] = new THREE.Mesh(mergeGeometries(list), MATS[k]);
+  MESH[k].castShadow = CASTERS.includes(k); MESH[k].receiveShadow = RECEIVERS.includes(k);
   scene.add(MESH[k]);
 }
 // base: street-coloured top (the road is the base top itself) and dark sides that hide once you stand inside
@@ -92,7 +111,7 @@ const bigGround = new THREE.Mesh(new THREE.PlaneGeometry(200, 200).rotateX(-Math
   new THREE.MeshLambertMaterial({ color: COL.street, transparent: true, opacity: 0 }));
 bigGround.renderOrder = -1;
 scene.add(bigGround);
-// floor lines: tiles in the store, planks next door
+// floor lines: worn tiles in the grocery, planks next door
 function gridLines(x0, x1, z0, z1, step, y, color, alongZ = true, alongX = true) {
   const v = [];
   if (alongZ) for (let x = x0 + step; x < x1 - 1e-6; x += step) v.push(x, y, z0, x, y, z1);
@@ -103,10 +122,10 @@ function gridLines(x0, x1, z0, z1, step, y, color, alongZ = true, alongX = true)
 const G = C.FLOOR_GRID;
 const floorGrid = gridLines(G.x0, G.x1, G.z0, G.z1, G.step, G.y, COL.storeGrid);
 scene.add(floorGrid);
-const ceilingGrid = gridLines(G.x0, G.x1, G.z0, G.z1, G.step, C.STORE.h - 0.215, COL.ceilingGrid);   // suspended-ceiling grid
+const ceilingGrid = gridLines(G.x0, G.x1, G.z0, G.z1, 1.2, C.STORE.h - 0.215, COL.ceilingGrid);   // old ceiling boards
 scene.add(ceilingGrid);
-scene.add(gridLines(C.NEXT.x0 + C.WALL_T, C.NEXT.x1 - C.WALL_T, C.NEXT.z0 + C.WALL_T, C.NEXT.z1 - C.WALL_T, 0.32, G.y, '#4A3B30', false, true));
-// sliding door leaves: glass with a dark frame
+scene.add(gridLines(C.NEXT.x0 + C.WALL_T, C.NEXT.x1 - C.WALL_T, C.NEXT.z0 + C.WALL_T, C.NEXT.z1 - C.WALL_T, 0.32, G.y, '#3A2E25', false, true));
+// sliding door leaves: glass in an old aluminium frame
 const leafFrame = (w, h) => mergeGeometries([[w, 0.05, 0, h / 2 - 0.025], [w, 0.05, 0, -h / 2 + 0.025], [0.035, h, -w / 2 + 0.0175, 0], [0.035, h, w / 2 - 0.0175, 0]]
   .map(([bw, bh, x, y]) => new THREE.BoxGeometry(bw, bh, 0.05).translate(x, y, 0)));
 const leaves = C.doorLeaves(C.newDoors()).map((lf) => {
@@ -116,27 +135,70 @@ const leaves = C.doorLeaves(C.newDoors()).map((lf) => {
   scene.add(g);
   return g;
 });
-// lights: a dim night, warm shop interiors, one street lamp
-// The hemisphere light is set so flat ground reads close to its palette value (the palette is already a night palette).
+// lights: a dim night outside; inside the grocery two bare bulbs and one flickering tube (round 8). Only the bulb over the
+// aisles casts shadows (a spot pointing down, so one shadow pass); the bulb over the till and the tube do not.
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 scene.add(new THREE.HemisphereLight(0xb8c6e2, 0x2a3242, 2.7));
 const moon = new THREE.DirectionalLight(0xa8bddc, 0.55);
 moon.position.set(-10, 22, 14);
 scene.add(moon);
-const storeLamps = [];
-for (const [x, z] of [[0.6, -4.4], [5.6, -2.6]]) {           // two ceiling-height lamps light the store evenly
-  const l = new THREE.PointLight(COL.storeLight, 5.5, 13, 1.15);
-  storeLamps.push(l);
-  l.position.set(x, 2.7, z);
-  scene.add(l);
-}
-const nextLamp = new THREE.PointLight(COL.nextLight, 4.5, 9, 1.15);
-nextLamp.position.set(-6, 2.6, -3.4);
-scene.add(nextLamp);
+const LIGHT = { bulbTill: 20, bulbAisle: 28, tube: 18 };
+if (Q.get('lights')) Q.get('lights').split(',').map(Number).forEach((v, i) => { if (v >= 0) LIGHT[['bulbTill', 'bulbAisle', 'tube', 'amb'][i]] = v; });   // tuning only
+if (LIGHT.amb != null) INSIDE_AMBIENT.value = LIGHT.amb;
+const [B0, B1] = C.GROCERY.bulbs, TB = C.GROCERY.tube;
+const bulbTill = new THREE.PointLight(COL.bulb, LIGHT.bulbTill, 5.0, 2);
+bulbTill.position.set(B0[0], B0[1] - 0.06, B0[2]);
+scene.add(bulbTill);
+const bulbAisle = new THREE.SpotLight(COL.bulb, LIGHT.bulbAisle, 6.0, 1.15, 0.6, 2);
+bulbAisle.position.set(B1[0], B1[1] - 0.06, B1[2]);
+bulbAisle.target.position.set(B1[0], 0, B1[2]);
+bulbAisle.castShadow = true; bulbAisle.shadow.mapSize.set(1024, 1024); bulbAisle.shadow.bias = -0.0008; bulbAisle.shadow.camera.near = 0.3; bulbAisle.shadow.camera.far = 7.5;
+scene.add(bulbAisle, bulbAisle.target);
+const tubeLight = new THREE.PointLight(COL.tube, LIGHT.tube, 5.5, 2);
+tubeLight.position.set((TB.x0 + TB.x1) / 2, TB.y - 0.1, TB.z);
+scene.add(tubeLight);
 const streetLamp = new THREE.PointLight(COL.lamp, 9, 14, 1.3);
 streetLamp.position.set(C.LAMP.x, C.LAMP.top - 0.45, C.LAMP.z + 0.3);
 scene.add(streetLamp);
+// the bulbs, the tube and the old television themselves
+const bulbMat = [glow(COL.bulb), glow(COL.bulb)], tubeMat = glow(COL.tube);
+const bulbMeshes = C.GROCERY.bulbs.map(([x, y, z], i) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), bulbMat[i]); m.position.set(x, y, z); scene.add(m); return m; });
+const tubeMesh = new THREE.Mesh(new THREE.BoxGeometry(TB.x1 - TB.x0, 0.045, 0.045).translate((TB.x0 + TB.x1) / 2, TB.y, TB.z), tubeMat);
+scene.add(tubeMesh);
+const tvCanvas = document.createElement('canvas'); tvCanvas.width = 64; tvCanvas.height = 48;
+const tvCtx = tvCanvas.getContext('2d', { willReadFrequently: true }), tvTex = new THREE.CanvasTexture(tvCanvas);
+tvTex.magFilter = THREE.NearestFilter; tvTex.colorSpace = THREE.SRGBColorSpace;
+const tvMat = new THREE.MeshBasicMaterial({ map: tvTex, color: 0xffffff });
+const TVS = C.GROCERY.tv;
+const tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(TVS.z1 - TVS.z0, TVS.y1 - TVS.y0).rotateY(-Math.PI / 2).translate(TVS.x - 0.004, (TVS.y0 + TVS.y1) / 2, (TVS.z0 + TVS.z1) / 2), tvMat);
+scene.add(tvScreen);
+const tvRnd = C.rng(4242);
+let tvState = null;
+function drawTv(tv, t) {                           // snow: grey noise, cold-tinted; P2: black glass with the store behind you and a figure in it
+  const W = 64, Hh = 48, img = tvCtx.createImageData(W, Hh), d = img.data, lv = tv.level;
+  if (tv.reflect) {
+    const fx = Math.round(tv.u * W);
+    for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+      const i = 4 * (y * W + x), refl = 14 + 22 * (1 - y / Hh);         // the faint shop behind you, darker low down
+      const head = Math.hypot(x - fx, y - 12) < 4.2, body = Math.abs(x - fx) < 5 - (y < 18 ? 2 : 0) && y > 16;
+      const v = (head || body ? 3 : refl) * lv;
+      d[i] = v * 0.9; d[i + 1] = v; d[i + 2] = v * 1.15; d[i + 3] = 255;
+    }
+  } else if (tv.snow) {
+    for (let i = 0; i < W * Hh; i++) { const v = (60 + tvRnd() * 170) * lv; d[4 * i] = v * 0.85; d[4 * i + 1] = v * 0.95; d[4 * i + 2] = v; d[4 * i + 3] = 255; }
+  } else for (let i = 0; i < W * Hh; i++) { d[4 * i] = d[4 * i + 1] = d[4 * i + 2] = 2; d[4 * i + 3] = 255; }
+  tvCtx.putImageData(img, 0, 0); tvTex.needsUpdate = true;
+  tvState = { reflect: tv.reflect, snow: tv.snow, u: tv.u, t, level: lv };
+}
+// warm light from the little window on the wet pavement (the only lit window on the street)
+const puddleCanvas = document.createElement('canvas'); puddleCanvas.width = puddleCanvas.height = 64;
+{ const g = puddleCanvas.getContext('2d'), gr = g.createRadialGradient(32, 10, 2, 32, 22, 40); gr.addColorStop(0, 'rgba(255,180,90,0.55)'); gr.addColorStop(1, 'rgba(255,180,90,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+const puddleMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(puddleCanvas), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+const puddle = new THREE.Mesh(new THREE.PlaneGeometry(C.WINDOW.x1 - C.WINDOW.x0 + 1.2, 2.2).rotateX(-Math.PI / 2).translate((C.WINDOW.x0 + C.WINDOW.x1) / 2, C.SIDEWALK_H + 0.004, C.FACADE_Z + 1.1), puddleMat);
+scene.add(puddle);
 // what hides while you rise out of a building
-// ---------------- the scare version: figure, staff door, what dims with the shop lights ----------------
+// ---------------- the scare version: figures, staff door, the dog ----------------
 const figMat = new THREE.MeshBasicMaterial({ color: C.HORROR.figure.color });
 function makeFigure() {                             // faceless silhouette: capsule body (a little flattened front to back), round head
   const f = C.HORROR.figure, g = new THREE.Group(), top = f.h - 2 * f.headR - 0.01;
@@ -144,24 +206,45 @@ function makeFigure() {                             // faceless silhouette: caps
   body.position.y = top / 2; body.scale.z = 0.72;
   const head = new THREE.Mesh(new THREE.SphereGeometry(f.headR, 18, 12), figMat);
   head.position.y = top + 0.01 + f.headR;
+  body.castShadow = head.castShadow = true;
   g.add(body, head); g.visible = false; scene.add(g);
   return g;
 }
-const figPersist = makeFigure(), figScare = makeFigure();
+const figPersist = makeFigure(), figScare = makeFigure(), figAisle = makeFigure();
 let figureHidden = false;                           // test hook: render the same frame without the figure
-const placeFigure = (g, spot) => { const p = C.HORROR.spots[spot]; g.position.set(p.x, C.SIDEWALK_H, p.z); g.rotation.y = p.yaw; };
+const placeAt = (g, p) => { g.position.set(p.x, C.SIDEWALK_H, p.z); g.rotation.y = p.yaw; };
+const placeFigure = (g, spot) => placeAt(g, C.HORROR.spots[spot]);
 const leafPivot = new THREE.Group();
 leafPivot.position.set(C.BACKDOOR.hx, C.SIDEWALK_H, C.BACKDOOR.hz);
-const leafMat = lam(COL.shelf);
+const leafMat = lamIn(COL.backDoor);
 leafPivot.add(new THREE.Mesh(new THREE.BoxGeometry(C.BACKDOOR.w, C.BACKDOOR.h, 0.04).translate(C.BACKDOOR.w / 2, C.BACKDOOR.h / 2, 0), leafMat));
 scene.add(leafPivot);
-// The shop's own light: lamps, every glow inside, and the inside-only surfaces follow it (E0 and E5 blackouts).
-const DIM_COLOR = ['storeFloor', 'shelf', 'shelfBoard', 'freezerBody', 'counter', 'mat', 'storeLightPanel', 'sign', 'backGlow'].map((k) => MATS[k]).concat([leafMat, floorGrid.material, ceilingGrid.material]);
-const DIM_EMISSIVE = [MATS.storeCeiling, MATS.shelf];
-const baseColor = new Map(DIM_COLOR.concat(Object.keys(MATS).filter((k) => /^freezer\d$/.test(k)).map((k) => MATS[k])).map((m) => [m, m.color.clone()]));
-const baseEmissive = new Map(DIM_EMISSIVE.map((m) => [m, m.emissive.clone()]));
-const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeWall:upper', 'glassTransom', 'sign', 'signText', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'sign2Text', 'nextLightPanel'] };
-const ROOM_LIFT = { store: ['storeRoof', 'storeCeiling', 'storeLightPanel'], next: ['nextRoof', 'nextLightPanel'] };   // the room view: roof and ceiling off, walls and the back room's roof stay
+// the stray dog (round 8 追加): boxes for body, head, snout, ears, four legs and a tail; legs swing as it walks
+const dogMat = lamIn(COL.dog), dogDark = lamIn(COL.dogDark);
+const dog = new THREE.Group(), dogBody = new THREE.Group();
+const dbox = (w, h, l, x, y, z, m = dogMat) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, l), m); b.position.set(x, y, z); b.castShadow = true; return b; };
+dogBody.add(dbox(0.26, 0.24, 0.55, 0, 0.42, 0));                          // body (the dog faces -z in its own frame)
+const dogHead = new THREE.Group(); dogHead.position.set(0, 0.5, -0.3);
+dogHead.add(dbox(0.2, 0.18, 0.2, 0, 0.04, -0.06), dbox(0.11, 0.09, 0.12, 0, -0.01, -0.21, dogDark), dbox(0.05, 0.08, 0.04, -0.07, 0.15, -0.02, dogDark), dbox(0.05, 0.08, 0.04, 0.07, 0.15, -0.02, dogDark));
+dogBody.add(dogHead);
+const dogLegs = [[-0.09, -0.2], [0.09, -0.2], [-0.09, 0.2], [0.09, 0.2]].map(([x, z]) => { const p = new THREE.Group(); p.position.set(x, 0.33, z); p.add(dbox(0.07, 0.33, 0.07, 0, -0.165, 0)); dogBody.add(p); return p; });
+const dogTail = new THREE.Group(); dogTail.position.set(0, 0.5, 0.27); dogTail.add(dbox(0.04, 0.04, 0.24, 0, 0, 0.12)); dogBody.add(dogTail);
+dog.add(dogBody); dog.visible = false; scene.add(dog);
+let dogPose = null;
+function poseDog(v, t) {
+  dog.visible = !!v; dogPose = v ? { ...v } : null;
+  if (!v) return;
+  dog.position.set(v.x, C.SIDEWALK_H, v.z); dog.rotation.y = v.yaw;
+  const swing = ['enter', 'walk', 'out'].includes(v.phase) ? Math.sin(v.legs) * 0.45 : 0;
+  dogLegs.forEach((l, i) => { l.rotation.x = (i === 0 || i === 3 ? 1 : -1) * swing; });
+  dogBody.position.y = -0.1 * v.crouch; dogHead.position.y = 0.5 - 0.08 * v.crouch; dogHead.rotation.x = v.sniff ? 0.6 : -0.15 * v.crouch;
+  dogBody.rotation.z = v.shake !== null ? Math.sin(v.shake * 40) * 0.18 * Math.max(0, 1 - v.shake) : 0;
+  dogTail.rotation.x = v.tail === 'tuck' ? 1.1 : v.tail === 'wag' ? -0.5 : -0.35;
+  dogTail.rotation.y = v.tail === 'wag' ? Math.sin(t * 16) * 0.6 : 0;
+}
+// what follows the shop lights: the bulb and tube meshes (the bulbs and tube light their own way), and the window glow
+const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeFacade:upper', 'sign', 'signText', 'hang', 'cord'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'sign2Text', 'nextLightPanel'] };
+const ROOM_LIFT = { store: ['storeRoof', 'storeCeiling', 'hang', 'cord'], next: ['nextRoof', 'nextLightPanel'] };   // the room view: roof, ceiling and what hangs from it off; walls and the back room's roof stay
 
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
 const N_RAIN = 2400;
@@ -275,13 +358,19 @@ function startAudio() {
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -8; comp.knee.value = 4; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.25;
     master.connect(comp); comp.connect(ctx.destination);
     src.connect(lp); lp.connect(g); g.connect(master); src.start();
-    // fluorescent hum (120 Hz with an octave) and the freezer compressor drone (sawtooth 58 Hz, lowpassed)
-    const fluor = ctx.createGain(); fluor.gain.value = 0; fluor.connect(master);
-    for (const [f, a] of [[120, 1], [240, 0.4], [360, 0.15]]) { const o = ctx.createOscillator(); o.frequency.value = f; const og = ctx.createGain(); og.gain.value = a; o.connect(og); og.connect(fluor); o.start(); }
+    // round 8 beds: the tube's buzz (sawtooth 100 Hz through a bandpass), the television's snow (high-passed noise), the chest
+    // freezer's drone (sawtooth 58 Hz, lowpassed) and rain drumming on the tin awning (sparse clicks through a bandpass)
+    const buzz = ctx.createGain(); buzz.gain.value = 0; buzz.connect(master);
+    { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 100; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 600; bp.Q.value = 0.7; o.connect(bp); bp.connect(buzz); o.start(); }
+    const snow = ctx.createGain(); snow.gain.value = 0; snow.connect(master);
+    { const n = ctx.createBufferSource(); n.buffer = buf; n.loop = true; const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500; n.connect(hp); hp.connect(snow); n.start(0, 0.7); }
     const freezer = ctx.createGain(); freezer.gain.value = 0; freezer.connect(master);
     const fo = ctx.createOscillator(); fo.type = 'sawtooth'; fo.frequency.value = 58; const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 220; fo.connect(fl); fl.connect(freezer); fo.start();
+    const awning = ctx.createGain(); awning.gain.value = 0; awning.connect(master);
+    { const ab = ctx.createBuffer(1, len, ctx.sampleRate), ad = ab.getChannelData(0), r2 = C.rng(11); for (let i = 0; i < len; i++) ad[i] = r2() < 0.004 ? (r2() * 2 - 1) : ad[Math.max(0, i - 1)] * 0.86;
+      const n = ctx.createBufferSource(); n.buffer = ab; n.loop = true; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.9; n.connect(bp); bp.connect(awning); n.start(); }
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    audio = { ctx, lp, g, master, fluor, freezer, noise: buf, log: [], played: sim.S.t };
+    audio = { ctx, lp, g, master, buzz, snow, freezer, awning, noise: buf, log: [], played: sim.S.t, tubeWas: 1 };
   } catch (e) { audio = { state: 'failed: ' + e.message }; }
 }
 
@@ -298,12 +387,44 @@ const KNOCK = { gap: 0.17, panner: { model: 'HRTF', distance: 'inverse', ref: 3,
 function playSound(kind, lv, ev = {}) {
   const { ctx, master } = audio, t = ctx.currentTime, env = (peak, attack, decay) => { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay); g.connect(master); return g; };
   const osc = (type, f, dest, start = t, stop = t + 1.5) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.connect(dest); o.start(start); o.stop(stop); return o; };
-  if (kind === 'bell') {                           // a plain two-tone chime: high then low, a major third apart
-    for (const [f, dt] of [[659.25, 0], [523.25, 0.42]]) {
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + dt); g.gain.linearRampToValueAtTime(lv.bell, t + dt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.95); g.connect(master);
-      osc('sine', f, g, t + dt, t + dt + 1.0); const h = ctx.createGain(); h.gain.value = 0.25; h.connect(g); osc('sine', f * 2, h, t + dt, t + dt + 1.0);
+  const placed = (pos) => {                         // a PannerNode at a point in the shop (as for the knocking)
+    const pan = ctx.createPanner(), P = KNOCK.panner;
+    pan.panningModel = P.model; pan.distanceModel = P.distance; pan.refDistance = P.ref; pan.rolloffFactor = P.rolloff;
+    if (pan.positionX) { pan.positionX.value = pos[0]; pan.positionY.value = pos[1]; pan.positionZ.value = pos[2]; } else pan.setPosition(...pos);
+    pan.connect(master); return pan;
+  };
+  const noiseBurst = (dest, type, f, q, start, dur) => { const n = ctx.createBufferSource(); n.buffer = audio.noise; const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; n.connect(b); b.connect(dest); n.start(start, Math.random() * 1.2, dur); return b; };
+  if (kind === 'bell') {                           // round 8: a little hanging shop bell, jingling three times as the door swings
+    for (const [k, dt] of [[1, 0], [0.7, 0.11], [0.45, 0.24]]) for (const [f, a] of [[2093, 1], [2794, 0.6], [3729, 0.35]]) {
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + dt); g.gain.linearRampToValueAtTime(lv.bell * k * a * 0.6, t + dt + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.5); g.connect(master);
+      osc('sine', f * (1 + 0.004 * dt), g, t + dt, t + dt + 0.55);
     }
-    audio.log.push({ kind, at: t, peak: lv.bell, base: lv.base });
+    audio.log.push({ kind, at: t, simT: ev.t, peak: lv.bell, base: lv.base, voice: 'hanging bell' });
+  } else if (kind === 'crackle') {                 // the tube ticking as it flickers
+    const g = env(lv.base * 0.5, 0.002, 0.06); noiseBurst(g, 'highpass', 3000, 0.7, t, 0.08);
+    audio.log.push({ kind, at: t, simT: ev.t, peak: lv.base * 0.5, base: lv.base });
+  } else if (kind === 'paw') {                     // claws on the floor
+    const peak = lv.base * C.AUDIO.paw, pan = placed(ev.pos), g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035); g.connect(pan); noiseBurst(g, 'bandpass', 2400, 2.5, t, 0.05);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice() });
+  } else if (kind === 'shake') {                   // shaking the rain off: wet flapping noise, about 0.9 s
+    const peak = lv.base * C.AUDIO.shake, pan = placed(ev.pos), g = ctx.createGain(), am = ctx.createGain(), lfo = ctx.createOscillator();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.08); g.gain.setValueAtTime(peak, t + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(am.gain); am.gain.value = 0.5; lfo.start(t); lfo.stop(t + 0.95);
+    am.connect(g); g.connect(pan); noiseBurst(am, 'lowpass', 1800, 0.7, t, 0.95);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice() });
+  } else if (kind === 'growl') {                   // a low growl: low-passed noise and a 75 Hz buzz, swelling at about 4 Hz, for ev.dur s
+    const dur = ev.dur || 3, peak = lv.base * C.AUDIO.growl, pan = placed(ev.pos), g = ctx.createGain(), am = ctx.createGain(), lfo = ctx.createOscillator();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.25); g.gain.setValueAtTime(peak, t + dur - 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    lfo.frequency.value = 4.2; const lg = ctx.createGain(); lg.gain.value = 0.35; lfo.connect(lg); lg.connect(am.gain); am.gain.value = 0.65; lfo.start(t); lfo.stop(t + dur);
+    am.connect(g); g.connect(pan); noiseBurst(am, 'lowpass', 190, 1.2, t, dur); const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300; lp.connect(am); osc('sawtooth', 75, lp, t, t + dur);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice(), length: dur });
+  } else if (kind === 'whimper') {                 // one whimper: a sine falling 1100 -> 650 Hz with a little vibrato
+    const peak = lv.base * C.AUDIO.whimper, pan = placed(ev.pos), g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5); g.connect(pan);
+    const o = osc('sine', 1100, g, t, t + 0.52); o.frequency.exponentialRampToValueAtTime(650, t + 0.45);
+    const vib = ctx.createOscillator(), vg = ctx.createGain(); vib.frequency.value = 9; vg.gain.value = 25; vib.connect(vg); vg.connect(o.frequency); vib.start(t); vib.stop(t + 0.52);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice() });
   } else if (kind === 'slam') {                    // low thump falling 110 -> 38 Hz plus a short lowpassed noise burst
     const g = env(lv.slam, 0.004, 0.45), o = osc('sine', 110, g, t, t + 0.6); o.frequency.exponentialRampToValueAtTime(38, t + 0.3);
     const n = ctx.createBufferSource(); n.buffer = audio.noise; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200;
@@ -373,7 +494,7 @@ function sync() {
   const RF = sim.roofs();
   for (const b of C.BUILDINGS) {
     const { a, parts } = RF[b.id], on = parts === 'room' ? ROOM_LIFT[b.id] : LIFT[b.id];
-    if (b.id === 'store') ceilingGrid.visible = a > 0.5;
+    if (b.id === 'store') { ceilingGrid.visible = a > 0.5; const lit = on.includes('hang') ? a > 0.5 : true; for (const m of bulbMeshes) m.visible = lit; tubeMesh.visible = lit; }
     for (const k of LIFT[b.id]) setAlpha(k, on.includes(k) ? a : 1);
   }
   if (dbgDoors.length) dbgDoors.forEach((l, i) => { l.visible = S.doors[i].k < C.DOOR_PASS; });
@@ -381,11 +502,14 @@ function sync() {
   const V = sim.levels();
   figPersist.visible = !figureHidden && !!V.figure; if (V.figure) placeFigure(figPersist, V.figure);
   figScare.visible = !figureHidden && V.scare; if (V.scare) placeFigure(figScare, 'backroom');
-  leafPivot.rotation.y = -V.back;
-  for (const l of storeLamps) l.intensity = 5.5 * V.panel;          // the ceiling panels (V.panel includes the E0/E5 darkness; E2 blinks them twice)
-  for (const m of DIM_COLOR) m.color.copy(baseColor.get(m)).multiplyScalar(m === MATS.storeLightPanel ? V.panel : V.light);
-  for (const m of DIM_EMISSIVE) m.emissive.copy(baseEmissive.get(m)).multiplyScalar(V.light);
-  for (let i = 0; i < 5; i++) { const m = MATS['freezer' + i]; m.color.copy(baseColor.get(m)).multiplyScalar(V.freezer[i]); }
+  figAisle.visible = !figureHidden && V.aisle !== null; if (V.aisle !== null) placeAt(figAisle, C.aisleSpot(C.GROCERY.aisles[V.aisle]));
+  leafPivot.rotation.y = -C.leafAngle(V.back);
+  // round 8 lights: bulbs and tube (E0/E5 darkness, E2 one by one, the tube's flicker), the TV, the glow on the pavement
+  bulbTill.intensity = LIGHT.bulbTill * V.bulbs[0]; bulbAisle.intensity = LIGHT.bulbAisle * V.bulbs[1]; tubeLight.intensity = LIGHT.tube * V.tube;
+  bulbMat.forEach((m, i) => m.color.set(COL.bulb).multiplyScalar(0.15 + 0.85 * V.bulbs[i])); tubeMat.color.set(COL.tube).multiplyScalar(0.12 + 0.88 * V.tube);
+  if (!tvState || tvState.reflect !== V.tv.reflect || V.tv.snow || tvState.snow !== V.tv.snow || tvState.level !== V.tv.level) drawTv(V.tv, S.t);
+  puddleMat.opacity = 0.35 + 0.65 * V.bulbs[0];
+  poseDog(V.dog, S.t);
   camera.position.x += V.shake[0]; camera.position.y += V.shake[1]; camera.position.z += V.shake[2];   // the picture shakes, the walker does not
   darkEl.style.opacity = String(0.55 * V.darken);
   for (const v of S.h.vibes) if (v.t > vibePlayed && v.t <= S.t) { try { if (typeof navigator.vibrate === 'function') navigator.vibrate(v.pattern); } catch { /* not allowed here */ } }
@@ -393,7 +517,10 @@ function sync() {
   if (audio && audio.ctx) {
     const now = audio.ctx.currentTime;
     audio.lp.frequency.setTargetAtTime(L.lowpass, now, 0.08); audio.g.gain.setTargetAtTime(L.volume, now, 0.08);
-    audio.fluor.gain.setTargetAtTime(V.audio.fluor, now, 0.015); audio.freezer.gain.setTargetAtTime(V.audio.freezer, now, 0.015);
+    for (const k of ['buzz', 'snow', 'freezer', 'awning']) audio[k].gain.setTargetAtTime(V.audio[k], now, 0.015);
+    const tubeOn = V.tube > 0 ? 1 : 0;
+    if (tubeOn !== audio.tubeWas && S.mode !== 'orbit') playSound('crackle', V.audio, { t: S.t });   // the tube ticks as it flickers
+    audio.tubeWas = tubeOn;
     setListener(audio.ctx.listener, c);
     for (const ev of S.h.sounds) if (ev.t > audio.played && ev.t <= S.t) playSound(ev.kind, V.audio, ev);
     audio.played = Math.max(audio.played, S.t);
@@ -543,12 +670,15 @@ window.__diorama = {
     return { calls: lastCalls, triangles: lastTris, dpr: renderer.getPixelRatio(), deviceDpr: window.devicePixelRatio, buffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
       css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0,
       // what is actually drawn for the scare version: shop light and glow relative to normal, the figures, the staff door, the dark overlay
-      shop: { lamp: storeLamps[0].intensity / 5.5, glow: MATS.storeCeiling.emissive.r / baseEmissive.get(MATS.storeCeiling).r,
-        freezers: [0, 1, 2, 3, 4].map((i) => MATS['freezer' + i].color.r / baseColor.get(MATS['freezer' + i]).r) },
-      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, color: '#' + figMat.color.getHexString() }, leaf: -leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
+      // round 8: the grocery's lights as drawn (relative to full), the television, how many lights there are and how many cast shadows
+      shop: { bulbs: [bulbTill.intensity / LIGHT.bulbTill, bulbAisle.intensity / LIGHT.bulbAisle], tube: tubeLight.intensity / LIGHT.tube, tv: tvState && { ...tvState },
+        // the names the earlier checks read: shop lamps = the brighter bulb, glow = the TV screen, freezers -> the TV (one value)
+        lamp: Math.max(bulbTill.intensity / LIGHT.bulbTill, bulbAisle.intensity / LIGHT.bulbAisle), glow: tvState ? tvState.level : 1, freezers: [tvState ? tvState.level : 1],
+        lights: (() => { let n = 0, sh = 0; scene.traverse((o) => { if (o.isLight && o.visible && o.intensity > 0) { n++; if (o.castShadow) sh++; } }); return { n, shadows: sh }; })() },
+      dog: dog.visible ? { ...dogPose, drawn: true } : null,
+      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, color: '#' + figMat.color.getHexString() }, leaf: -leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
       camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
-      drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'storeLightPanel', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0 },
-      panel: { level: sim.levels().panel, lamp: storeLamps[0].intensity, color: '#' + MATS.storeLightPanel.color.getHexString() },
+      drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'hang', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0, bulbs: bulbMeshes[0].visible ? 1 : 0 },
       audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
   },
   core: C,
@@ -556,6 +686,15 @@ window.__diorama = {
   trigger: (name) => { const ok = sim.trigger(name); sync(); return ok; },
   levels: () => sim.levels(),
   audioLog: () => (audio && audio.log ? audio.log.slice() : null),
+  // round 8: the bed gains the simulation asks for now (A6), and what the nodes are actually set to
+  audioGains: () => { const V = sim.levels(), L = sim.looksNow(); return { planned: { rain: L.volume, ...V.audio }, nodes: audio && audio.ctx ? Object.fromEntries(['buzz', 'snow', 'freezer', 'awning'].map((k) => [k, audio[k].gain.value]).concat([['rain', audio.g.gain.value]])) : null }; },
+  // the television's screen as drawn (64 x 48): mean brightness, and in P2 the figure's pixels against the reflection around it
+  tvPixels: () => {
+    const d = tvCtx.getImageData(0, 0, 64, 48).data, lum = (i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    let all = 0, fig = 0, nf = 0, ring = 0, nr = 0; const fx = Math.round((tvState ? tvState.u : 0.5) * 64);
+    for (let y = 0; y < 48; y++) for (let x = 0; x < 64; x++) { const v = lum(4 * (y * 64 + x)); all += v; if (Math.abs(x - fx) <= 2 && y >= 22 && y <= 40) { fig += v; nf++; } else if (Math.abs(x - fx) >= 9 && Math.abs(x - fx) <= 14 && y >= 22 && y <= 40) { ring += v; nr++; } }
+    return { mean: all / (64 * 48), figure: fig / nf, around: ring / nr, state: tvState && { ...tvState } };
+  },
   hideFigure: (on) => { figureHidden = !!on; sync(); },
   figureMask: (on) => { figMat.color.set(on ? '#ffffff' : C.HORROR.figure.color); sync(); },   // paint the figure white to find its pixels
   // Can the camera see these points? Frustum, then a ray against every opaque mesh (glass, rain, lines and the figures skipped).
