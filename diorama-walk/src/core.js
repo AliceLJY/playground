@@ -92,7 +92,7 @@ const STATIC_SOLIDS = (() => {
   for (const cx of [-7.6, -6.7, -5.8, -4.9]) S.push(B3('stool@' + cx, 'furniture', cx - 0.2, F, -4.2, cx + 0.2, F + 0.7, -3.8));
   S.push(B3('kitchen-shelf', 'furniture', -8.6, F, -7.3, -5.0, F + 1.8, -6.9));
   // street furniture: vending machine (0.9 x 0.7 x 1.83) right of the store door, lamp (4.5 m), bench
-  S.push(B3('vending', 'furniture', 6.5, F, FACADE_Z, 7.4, F + 1.83, FACADE_Z + 0.7));
+  S.push(B3('vending', 'furniture', 6.05, F, FACADE_Z, 6.95, F + 1.83, FACADE_Z + 0.7));   // right beside the door: in view on landing
   S.push(B3('lamp', 'furniture', -1.65, F, 2.95, -1.35, F + 4.5, 3.25));     // pole base; the lantern on top is no wider than 0.4
   S.push(B3('bench', 'furniture', 0.2, F, FACADE_Z + 0.12, 1.8, F + 0.45, FACADE_Z + 0.57));
   // low fences close the gaps beside the shops, so the walkable street ends at the shop fronts
@@ -246,6 +246,7 @@ export function screenBoxOf(cam, fov, aspect, pts) {
   for (const p of pts) { const q = project(cam, fov, aspect, p); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
   return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
 }
+export const SCREEN_POINTS = { base: BASE_PTS, model: MODEL_PTS };
 export const boxesAt = (cam, fov, aspect) => ({ base: screenBoxOf(cam, fov, aspect, BASE_PTS), model: screenBoxOf(cam, fov, aspect, MODEL_PTS) });
 export const heroOrbitAt = (r) => ({ cx: HERO.center[0], cy: HERO.center[1], cz: HERO.center[2], r, theta: HERO.theta, phi: HERO.phi });
 // Landscape: the base box takes 70% of the width. Portrait (aspect < 0.8): fit by width. Then back off until the whole
@@ -574,9 +575,9 @@ export function visualBoxes() {
       add(wall, b.x0 + T, 0, b.z1 - T, b.x1 - T, F + 0.06, b.z1);                    // kerb under the glass
       add('glass', b.x0 + T, F + 0.06, b.z1 - 0.07, d.x0, 2.8, b.z1 - 0.03);
       add('glass', d.x1, F + 0.06, b.z1 - 0.07, b.x1 - T, 2.8, b.z1 - 0.03);
-      add('glass', d.x0, F + DOOR_H, b.z1 - 0.07, d.x1, 2.8, b.z1 - 0.03);         // transom over the door
-      for (const x of [b.x0 + T, -0.3, 2.0, d.x0, d.x1, 7.4, b.x1 - T]) add('frame', x - 0.04, F, b.z1 - 0.1, x + 0.04, 2.8, b.z1);
-      add('frame', d.x0, F + DOOR_H - 0.04, b.z1 - 0.1, d.x1, F + DOOR_H + 0.04, b.z1);
+      add('glassTransom', d.x0, F + DOOR_H, b.z1 - 0.07, d.x1, 2.8, b.z1 - 0.03);  // transom over the door (lifts with the fascia)
+      for (const x of [b.x0 + T, -0.3, 2.0, d.x0, d.x1, 7.4, b.x1 - T]) add('frame', x - 0.025, F, b.z1 - 0.09, x + 0.025, 2.8, b.z1 - 0.01);
+      add('frame', d.x0, F + DOOR_H - 0.025, b.z1 - 0.09, d.x1, F + DOOR_H + 0.025, b.z1 - 0.01);
       add('sign', d.cx - 1.5, 2.95, b.z1, d.cx + 1.5, 3.3, b.z1 + 0.06);
     } else {                                        // timber front with one window right of the door
       add(wall + ':upper', b.x0 + T, F + DOOR_H, b.z1 - T, b.x1 - T, top, b.z1);
@@ -608,8 +609,9 @@ export function visualBoxes() {
   add('nextLightPanel', -7.6, NEXT.h - 0.27, -5.6, -4.4, NEXT.h - 0.2, -5.3);
   add('nextLightPanel', -6.8, NEXT.h - 0.27, -2.4, -5.2, NEXT.h - 0.2, -2.1);
   // street
-  add('vendBody', 6.5, F, FACADE_Z, 7.4, F + 1.83, FACADE_Z + 0.7);
-  add('vending', 6.58, F + 0.55, FACADE_Z + 0.7, 7.32, F + 1.75, FACADE_Z + 0.72);
+  add('vendBody', 6.05, F, FACADE_Z, 6.95, F + 1.83, FACADE_Z + 0.7);
+  add('vending', 6.13, F + 0.55, FACADE_Z + 0.7, 6.87, F + 1.75, FACADE_Z + 0.72);
+  add('vending', 6.05, F + 1.45, FACADE_Z + 0.08, 6.04, F + 1.75, FACADE_Z + 0.62);   // lit strip on the side facing the door
   add('pole', LAMP.x - 0.06, F, LAMP.z - 0.06, LAMP.x + 0.06, LAMP.top - 0.3, LAMP.z + 0.06);
   add('pole', LAMP.x - 0.15, F, LAMP.z - 0.15, LAMP.x + 0.15, F + 0.3, LAMP.z + 0.15);
   add('lamp', LAMP.x - 0.2, LAMP.top - 0.3, LAMP.z - 0.2, LAMP.x + 0.2, LAMP.top, LAMP.z + 0.2);

@@ -1,0 +1,394 @@
+// 微缩街角·走进去 — rendering, input, sound. Everything that moves is decided in core.js; this file draws it.
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { HorizontalTiltShiftShader } from 'three/addons/shaders/HorizontalTiltShiftShader.js';
+import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftShader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import * as C from './core.js';
+
+const Q = new URLSearchParams(location.search);
+const VIEW = C.VIEW_SCRIPTS[Q.get('view')] ? Q.get('view') : null;
+const AIM = ['door', 'street', 'roof'].includes(Q.get('aim')) ? Q.get('aim') : null;
+const DEBUG = Q.get('debug') === '1';
+const TILT = Q.get('tilt');                     // test override only: 'off' or 'on'
+const COARSE = matchMedia('(pointer: coarse)').matches;
+const TILT_K = 10;                              // blur reach: taps spread up to 4·K·|0.5 - v| CSS pixels
+
+// ---------------- page ----------------
+document.head.insertAdjacentHTML('beforeend', `<style>
+html,body{margin:0;height:100%;overflow:hidden;background:${C.COLORS.sky};overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+#c{position:fixed;left:0;top:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+#hint{position:fixed;left:12px;bottom:calc(10px + env(safe-area-inset-bottom));max-width:calc(100% - 24px);font:12px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:rgba(214,222,234,.75);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+#hint b{color:${C.COLORS.accent};font-weight:600}
+#dbg{position:fixed;left:12px;top:10px;font:12px/1.45 ui-monospace,Menlo,monospace;color:${C.COLORS.accent};pointer-events:none;white-space:pre;text-shadow:0 1px 2px #000}
+body.noui #hint,body.noui #dbg{display:none}
+</style>`);
+const canvas = document.createElement('canvas');
+canvas.id = 'c';
+document.body.prepend(canvas);
+const hintEl = document.createElement('div');
+hintEl.id = 'hint';
+document.body.appendChild(hintEl);
+const dbgEl = DEBUG ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
+
+// ---------------- renderer, scene ----------------
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+renderer.info.autoReset = false;               // the composer renders several passes; count the whole frame
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(C.COLORS.sky);
+scene.fog = new THREE.FogExp2(C.COLORS.sky, 0);
+const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 600);
+camera.rotation.order = 'YXZ';
+
+const COL = { ...C.COLORS, ...C.EXTRA_COLORS };
+const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+const glow = (c) => new THREE.MeshBasicMaterial({ color: c });
+const glassMat = () => new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: C.GLASS_OPACITY, depthWrite: false, side: THREE.DoubleSide });
+const MATS = {
+  sidewalk: lam(COL.sidewalk), stripe: lam(COL.stripe),
+  storeWall: lam(COL.storeWall), 'storeWall:upper': lam(COL.storeWall), storeRoof: lam(COL.storeRoof), storeFloor: lam(COL.storeFloor),
+  nextWall: lam(COL.nextWall), 'nextWall:upper': lam(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lam(COL.nextFloor),
+  glass: glassMat(), glassTransom: glassMat(), frame: lam(COL.frame), sign: glow(COL.storeLight), sign2: glow(COL.nextLight),
+  shelf: new THREE.MeshLambertMaterial({ color: COL.shelf, emissive: 0x262b33 }), shelfBoard: lam(COL.shelfBoard), freezerBody: lam(COL.freezerBody), freezer: glow(COL.freezer),
+  counter: lam(COL.counter), dark: glow(COL.dark), mat: lam(COL.mat), storeLightPanel: glow(COL.storeLight), nextLightPanel: glow(COL.nextLight),
+  bar: lam(COL.bar), stool: lam(COL.stool), shelf2: lam(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
+  pole: lam(COL.pole), lamp: glow(COL.lamp), bench: lam(COL.bench), fence: lam(COL.fence),
+};
+const boxGeo = (b) => new THREE.BoxGeometry(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0).translate((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.z0 + b.z1) / 2);
+const byMat = {};
+for (const b of C.visualBoxes()) (byMat[b.mat] ||= []).push(boxGeo(b));
+const MESH = {};
+for (const [k, list] of Object.entries(byMat)) {
+  if (!MATS[k]) throw new Error('no material for ' + k);
+  MESH[k] = new THREE.Mesh(mergeGeometries(list), MATS[k]);
+  scene.add(MESH[k]);
+}
+// base: street-coloured top (the road is the base top itself) and dark sides that hide once you stand inside
+const H = C.BASE.half;
+const baseTop = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 2 * H).rotateX(-Math.PI / 2), lam(COL.street));
+scene.add(baseTop);
+const baseSides = new THREE.Mesh(new THREE.BoxGeometry(2 * H, C.BASE.thick, 2 * H).translate(0, -C.BASE.thick / 2 - 0.002, 0), lam(COL.baseSide));
+scene.add(baseSides);
+// the 200 x 200 street-coloured ground that fades in after s = 0.5
+const bigGround = new THREE.Mesh(new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2).translate(0, -0.03, 0),
+  new THREE.MeshLambertMaterial({ color: COL.street, transparent: true, opacity: 0 }));
+bigGround.renderOrder = -1;
+scene.add(bigGround);
+// floor lines: tiles in the store, planks next door
+function gridLines(x0, x1, z0, z1, step, y, color, alongZ = true, alongX = true) {
+  const v = [];
+  if (alongZ) for (let x = x0 + step; x < x1 - 1e-6; x += step) v.push(x, y, z0, x, y, z1);
+  if (alongX) for (let z = z0 + step; z < z1 - 1e-6; z += step) v.push(x0, y, z, x1, y, z);
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color }));
+}
+const G = C.FLOOR_GRID;
+scene.add(gridLines(G.x0, G.x1, G.z0, G.z1, G.step, G.y, COL.storeGrid));
+scene.add(gridLines(C.NEXT.x0 + C.WALL_T, C.NEXT.x1 - C.WALL_T, C.NEXT.z0 + C.WALL_T, C.NEXT.z1 - C.WALL_T, 0.32, G.y, '#4A3B30', false, true));
+// sliding door leaves: glass with a dark frame
+const leafFrame = (w, h) => mergeGeometries([[w, 0.05, 0, h / 2 - 0.025], [w, 0.05, 0, -h / 2 + 0.025], [0.035, h, -w / 2 + 0.0175, 0], [0.035, h, w / 2 - 0.0175, 0]]
+  .map(([bw, bh, x, y]) => new THREE.BoxGeometry(bw, bh, 0.05).translate(x, y, 0)));
+const leaves = C.doorLeaves(C.newDoors()).map((lf) => {
+  const w = lf.x1 - lf.x0, h = lf.y1 - lf.y0, g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, h - 0.05, 0.02), MATS.glass));
+  g.add(new THREE.Mesh(leafFrame(w, h), MATS.frame));
+  scene.add(g);
+  return g;
+});
+// lights: a dim night, warm shop interiors, one street lamp
+// The hemisphere light is set so flat ground reads close to its palette value (the palette is already a night palette).
+scene.add(new THREE.HemisphereLight(0xb8c6e2, 0x2a3242, 2.7));
+const moon = new THREE.DirectionalLight(0xa8bddc, 0.55);
+moon.position.set(-10, 22, 14);
+scene.add(moon);
+for (const [x, z] of [[0.6, -4.4], [5.6, -2.6]]) {           // two ceiling-height lamps light the store evenly
+  const l = new THREE.PointLight(COL.storeLight, 5.5, 13, 1.15);
+  l.position.set(x, 2.7, z);
+  scene.add(l);
+}
+const nextLamp = new THREE.PointLight(COL.nextLight, 4.5, 9, 1.15);
+nextLamp.position.set(-6, 2.6, -3.4);
+scene.add(nextLamp);
+const streetLamp = new THREE.PointLight(COL.lamp, 9, 14, 1.3);
+streetLamp.position.set(C.LAMP.x, C.LAMP.top - 0.45, C.LAMP.z + 0.3);
+scene.add(streetLamp);
+// what hides while you rise out of a building
+const LIFT = { store: ['storeRoof', 'storeWall:upper', 'glassTransom', 'sign', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'nextLightPanel'] };
+
+// ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
+const N_RAIN = 2400;
+const rainGeo = new THREE.BufferGeometry();
+{
+  const seed = new Float32Array(N_RAIN * 8), endp = new Float32Array(N_RAIN * 2), rnd = C.rng(20261007);
+  for (let i = 0; i < N_RAIN; i++) {
+    const s = [rnd(), rnd(), rnd(), rnd()];
+    for (let j = 0; j < 2; j++) { seed.set(s, (2 * i + j) * 4); endp[2 * i + j] = j; }
+  }
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N_RAIN * 6), 3));
+  rainGeo.setAttribute('seed', new THREE.BufferAttribute(seed, 4));
+  rainGeo.setAttribute('endp', new THREE.BufferAttribute(endp, 1));
+}
+const fp = (b) => new THREE.Vector4(b.x0, b.z0, b.x1, b.z1);
+const rainMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false,
+  uniforms: {
+    uTime: { value: 0 }, uMix: { value: 0 }, uCam: { value: new THREE.Vector3() }, uLen: { value: 0.35 },
+    uA: { value: fp(C.STORE) }, uB: { value: fp(C.NEXT) }, uTops: { value: new THREE.Vector2(C.STORE.h, C.NEXT.h) },
+    uColor: { value: new THREE.Color(C.COLORS.rain) }, uOpacity: { value: C.RAIN_OPACITY },
+  },
+  vertexShader: /* glsl */`
+    uniform float uTime, uMix, uLen; uniform vec3 uCam; uniform vec4 uA, uB; uniform vec2 uTops;
+    attribute vec4 seed; attribute float endp;
+    bool inside(vec3 p) {
+      return (p.x > uA.x && p.x < uA.z && p.z > uA.y && p.z < uA.w && p.y < uTops.x + 0.05)
+          || (p.x > uB.x && p.x < uB.z && p.z > uB.y && p.z < uB.w && p.y < uTops.y + 0.05);
+    }
+    void main() {
+      float H = 9.5, speed = 7.5 * (0.85 + 0.3 * seed.w);
+      float y01 = fract(seed.z - uTime * speed / H);
+      vec3 inBox = vec3(-13.0 + 26.0 * seed.x, 0.2 + y01 * H, -13.0 + 26.0 * seed.y);
+      float a = seed.x * 6.2831853, r = 0.6 + 11.4 * sqrt(seed.y);
+      vec3 round = vec3(uCam.x + r * cos(a), uCam.y - 3.0 + y01 * H, uCam.z + r * sin(a));
+      vec3 head = mix(inBox, round, uMix), tail = head - vec3(0.0, uLen, 0.0);
+      if (inside(head) || inside(tail)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+      gl_Position = projectionMatrix * viewMatrix * vec4(endp < 0.5 ? head : tail, 1.0);
+    }`,
+  fragmentShader: /* glsl */`
+    uniform vec3 uColor; uniform float uOpacity;
+    void main() { gl_FragColor = vec4(uColor, uOpacity); }`,
+});
+const rain = new THREE.LineSegments(rainGeo, rainMat);
+rain.frustumCulled = false;
+rain.renderOrder = 2;
+scene.add(rain);
+
+// ---------------- debug: solid boxes ----------------
+let dbgStatic = null, dbgDoors = [];
+if (DEBUG) {
+  const edges = (b) => new THREE.EdgesGeometry(boxGeo(b));
+  const all = C.solids();
+  dbgStatic = new THREE.LineSegments(mergeGeometries(all.filter((s) => s.kind !== 'door').map(edges)), new THREE.LineBasicMaterial({ color: 0xff5a5a }));
+  scene.add(dbgStatic);
+  dbgDoors = all.filter((s) => s.kind === 'door').map((s) => { const l = new THREE.LineSegments(edges(s), new THREE.LineBasicMaterial({ color: 0xffd23a })); scene.add(l); return l; });
+}
+
+// ---------------- post: tilt-shift (three's own shaders) ----------------
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+composer.addPass(new RenderPass(scene, camera));
+const tiltH = new ShaderPass(HorizontalTiltShiftShader), tiltV = new ShaderPass(VerticalTiltShiftShader);
+composer.addPass(tiltH);
+composer.addPass(tiltV);
+composer.addPass(new OutputPass());
+
+// ---------------- simulation ----------------
+const sim = C.createSim({ aspect: innerWidth / Math.max(1, innerHeight) });
+let cssW = 1, cssH = 1;
+function resize() {
+  cssW = Math.max(1, innerWidth); cssH = Math.max(1, innerHeight);
+  const pr = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(pr); renderer.setSize(cssW, cssH, false);
+  composer.setPixelRatio(pr); composer.setSize(cssW, cssH);
+  camera.aspect = cssW / cssH;
+  sim.setAspect(cssW / cssH);
+}
+addEventListener('resize', resize);
+
+// ---------------- sound: WebAudio rain, only after the first touch or key ----------------
+let audio = null;
+function startAudio() {
+  if (audio) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) { audio = { state: 'unsupported' }; return; }
+    const ctx = new Ctx(), len = Math.floor(ctx.sampleRate * 2), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0), rnd = C.rng(7);
+    let b = 0;
+    for (let i = 0; i < len; i++) { const w = rnd() * 2 - 1; b = 0.86 * b + 0.14 * w; d[i] = 0.6 * w + 0.9 * b; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600; lp.Q.value = 0.4;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    audio = { ctx, lp, g };
+  } catch (e) { audio = { state: 'failed: ' + e.message }; }
+}
+
+// ---------------- draw the simulation ----------------
+const hints = {
+  orbit: COARSE ? '单指拖动转 · <b>双指张开</b>放大，走进去' : '拖动旋转 · <b>滚轮往前</b>放大，走进去',
+  walk: COARSE ? '拖动转头 · <b>轻点地面</b>走过去 · <b>双指捏合</b>出来' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>或 Esc 出来',
+};
+let hintNow = null;
+function sync() {
+  const S = sim.S, L = C.looks(S.s), c = S.cam;
+  camera.position.set(c.x, c.y, c.z);
+  camera.rotation.set(c.pitch, c.yaw, 0, 'YXZ');
+  camera.fov = L.fov;
+  camera.near = C.clamp((c.y - C.groundAt(c.x, c.z)) * 0.02, 0.05, 2.5);
+  camera.far = Math.max(400, S.orbit.r * 3);
+  camera.aspect = cssW / cssH;
+  camera.updateProjectionMatrix();
+  scene.fog.density = L.fog;
+  const t = TILT === 'off' ? 0 : TILT === 'on' ? 1 : L.tilt;
+  tiltH.enabled = tiltV.enabled = t > 0.001;
+  tiltH.uniforms.h.value = (t * TILT_K) / cssW; tiltV.uniforms.v.value = (t * TILT_K) / cssH;
+  tiltH.uniforms.r.value = tiltV.uniforms.r.value = 0.5;
+  rainMat.uniforms.uTime.value = S.rainT; rainMat.uniforms.uMix.value = L.rainMix;
+  rainMat.uniforms.uCam.value.copy(camera.position); rainMat.uniforms.uLen.value = C.lerp(0.35, 0.55, L.rainMix);
+  bigGround.visible = L.groundAlpha > 0.001; bigGround.material.opacity = L.groundAlpha;
+  baseSides.visible = L.baseSides;
+  C.doorLeaves(S.doors).forEach((lf, i) => leaves[i].position.set((lf.x0 + lf.x1) / 2, (lf.y0 + lf.y1) / 2, (lf.z0 + lf.z1) / 2));
+  for (const b of C.BUILDINGS) {
+    const over = c.x > b.x0 && c.x < b.x1 && c.z > b.z0 && c.z < b.z1 + 0.15;
+    const a = S.mode === 'exiting' && S.lift === b.id && over ? C.smooth(b.h + 0.6, b.h + 3.0, c.y) : 1;
+    for (const k of LIFT[b.id]) {
+      const m = MESH[k], mat = m.material;
+      m.visible = a > 0.01;
+      if (k === 'glassTransom') { mat.opacity = C.GLASS_OPACITY * a; continue; }
+      const tr = a < 0.999;
+      if (mat.transparent !== tr) { mat.transparent = tr; mat.depthWrite = !tr; mat.needsUpdate = true; }
+      mat.opacity = a;
+    }
+  }
+  if (dbgDoors.length) dbgDoors.forEach((l, i) => { l.visible = S.doors[i].k < C.DOOR_PASS; });
+  if (audio && audio.ctx) { const now = audio.ctx.currentTime; audio.lp.frequency.setTargetAtTime(L.lowpass, now, 0.08); audio.g.gain.setTargetAtTime(L.volume, now, 0.08); }
+  const h = hints[S.mode] || '';
+  if (h !== hintNow) { hintEl.innerHTML = h; hintNow = h; }
+}
+
+// ---------------- input: Pointer Events for mouse and touch ----------------
+const ROT = 0.006, LOOK = 0.005, PINCH_GAIN = 1.6;   // pinch: one comfortable spread (about 3x) reaches the entry threshold on a phone
+const pts = new Map();
+let pinch = null, drag = null;
+const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
+canvas.addEventListener('pointerdown', (e) => {
+  startAudio();
+  try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointers may not be capturable */ }
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+  if (pts.size === 2) { const g = two(); pinch = { d0: g.d, d: g.d }; drag = null; }
+  else if (pts.size === 1) { drag = { id: e.pointerId, tap: true, live: false }; pinch = null; }
+  else { drag = null; pinch = null; }
+});
+canvas.addEventListener('pointermove', (e) => {
+  const p = pts.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  if (pinch && pts.size === 2) {
+    const g = two(), mode = sim.S.mode;
+    if (mode === 'orbit' && g.d > 1 && pinch.d > 1) sim.zoomAt(Math.pow(pinch.d / g.d, PINCH_GAIN), g.mx / cssW, g.my / cssH);
+    else if (mode === 'walk' && g.d < 0.75 * pinch.d0) sim.exit();
+    pinch.d = g.d;
+    return;
+  }
+  if (!drag || drag.id !== e.pointerId) return;
+  if (!drag.live && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) >= 8) { drag.live = true; drag.tap = false; }
+  if (!drag.live) return;
+  if (sim.S.mode === 'orbit') sim.rotate(-dx * ROT, -dy * ROT);
+  else if (sim.S.mode === 'walk') sim.lookBy(dx * LOOK, dy * LOOK);
+});
+function tapWalk(x, y) {
+  const S = sim.S, ray = C.screenRay(S.cam, sim.fov(), S.aspect, x / cssW, y / cssH), floor = C.groundAt(S.player.x, S.player.z);
+  if (ray.d[1] > -0.02) return;
+  const t = (floor - ray.o[1]) / ray.d[1];
+  if (t > 0 && t < 40) sim.walkTo(ray.o[0] + ray.d[0] * t, ray.o[2] + ray.d[2] * t);
+}
+const pointerEnd = (e) => {
+  const p = pts.get(e.pointerId);
+  if (!p) return;
+  if (drag && drag.id === e.pointerId && drag.tap && e.type === 'pointerup' && pts.size === 1
+    && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 8 && performance.now() - p.t0 < 300 && sim.S.mode === 'walk') tapWalk(e.clientX, e.clientY);
+  pts.delete(e.pointerId);
+  if (pts.size < 2) pinch = null;
+  if (drag && drag.id === e.pointerId) drag = null;
+};
+canvas.addEventListener('pointerup', pointerEnd);
+canvas.addEventListener('pointercancel', pointerEnd);
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  if (sim.S.mode === 'orbit') sim.zoomAt(Math.exp(C.clamp(dy, -240, 240) * 0.0012), e.clientX / cssW, e.clientY / cssH);
+  else if (sim.S.mode === 'walk' && dy > 2) sim.exit();
+}, { passive: false });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+const keys = {};
+let keyDriving = false;
+addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  startAudio();
+  keys[e.code] = true;
+  if (e.code === 'Escape' && sim.S.mode === 'walk') sim.exit();
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k of Object.keys(keys)) keys[k] = false; });
+function applyKeys() {
+  if (sim.S.mode !== 'walk') return;
+  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  if (!f && !s) { if (keyDriving) { sim.drive(0, 0); keyDriving = false; } return; }
+  const yaw = sim.S.player.yaw, sp = keys.ShiftLeft || keys.ShiftRight ? C.RUN_SPEED : C.WALK_SPEED, n = Math.hypot(f, s);
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  sim.drive(((fx * f + rx * s) / n) * sp, ((fz * f + rz * s) / n) * sp);
+  keyDriving = true;
+}
+
+// ---------------- loop, hooks ----------------
+const v3 = new THREE.Vector3();
+function screenBoxOf(points) {
+  camera.updateMatrixWorld();
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of points) { v3.set(p[0], p[1], p[2]).project(camera); const x = (v3.x + 1) / 2, y = (1 - v3.y) / 2; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+const gl = renderer.getContext();
+const gpu = (() => { try { const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch { return 'unknown'; } })();
+const frameTimes = [];
+let lastCalls = 0, lastTris = 0;
+window.__diorama = {
+  ready: false,
+  state: () => sim.snapshot(),
+  enter: (aim) => { const ok = sim.enter(aim); sync(); return ok; },
+  exit: () => { const ok = sim.exit(); sync(); return ok; },
+  walkTo: (x, z) => sim.walkTo(x, z),
+  step: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) sim.update(dt); sync(); return sim.snapshot(); },
+  solids: () => C.solids(sim.S.doors),
+  screenBox: () => { sync(); return { ...screenBoxOf(C.SCREEN_POINTS.base), model: screenBoxOf(C.SCREEN_POINTS.model) }; },
+  // extra hooks used by tools/browser-check.cjs
+  walkRoute: (p) => sim.walkRoute(p),
+  zoomAt: (f, sx, sy) => { const r = sim.zoomAt(f, sx, sy); sync(); return r; },
+  rotate: (a, b) => { sim.rotate(a, b); sync(); },
+  place: (x, z, yaw) => { const r = sim.place(x, z, yaw); sync(); return r; },
+  drive: (vx, vz) => sim.drive(vx, vz),
+  lookAt: (x, y, z) => sim.lookAt(x, y, z),
+  auto: (on) => { sim.S.auto = !!on; },
+  ui: (on) => { document.body.classList.toggle('noui', !on); },
+  toScreen: (x, y, z) => { sync(); camera.updateMatrixWorld(); v3.set(x, y, z).project(camera); return [((v3.x + 1) / 2) * cssW, ((1 - v3.y) / 2) * cssH]; },
+  info: () => {
+    const n = frameTimes.length, span = n > 1 ? (frameTimes[n - 1] - frameTimes[0]) / 1000 : 0;
+    return { calls: lastCalls, triangles: lastTris, dpr: renderer.getPixelRatio(), deviceDpr: window.devicePixelRatio, buffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
+      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltH.enabled, rainSegments: N_RAIN };
+  },
+  core: C,
+};
+
+resize();
+if (VIEW) { C.runView(sim, VIEW, VIEW === 'mid' ? AIM : null); sim.S.auto = false; }
+sync();
+let last = performance.now(), frames = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  last = now;
+  if (sim.S.auto) { applyKeys(); sim.update(dt); }
+  sync();
+  renderer.info.reset();
+  composer.render(dt);
+  lastCalls = renderer.info.render.calls; lastTris = renderer.info.render.triangles;
+  frameTimes.push(now);
+  while (frameTimes.length > 2 && now - frameTimes[0] > 2000) frameTimes.shift();
+  if (dbgEl) { const S = sim.S; dbgEl.textContent = `s ${S.s.toFixed(3)}  z ${S.z.toFixed(3)}  ${S.mode}\ndoors ${S.doors.map((d) => d.k.toFixed(2)).join(' ')}\ncalls ${lastCalls}  fps ${window.__diorama.info().fps.toFixed(0)}`; }
+  if (++frames === 2) window.__diorama.ready = true;
+}
+requestAnimationFrame(frame);
