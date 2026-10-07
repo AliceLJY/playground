@@ -602,3 +602,201 @@ test('scare events happen at the same instants at 30 and 120 steps per second', 
   const worst = Math.max(...a.map((x, i) => Math.abs(x.t - b[i].t)));
   assert.ok(worst < 1e-6, `event times differ by up to ${worst}`);
 });
+
+// ---------------- 第四轮：摇杆、手机转头、「看整间店」 (SPEC 店里的操作, R1-R6, R8) ----------------
+const SCREENS = { phone: [390, 844], fold: [880, 920], desk: [1280, 720] };
+async function walkIn(C, [w, h] = SCREENS.phone, { aim = 'door', route = [[5.0, -0.6], [6.2, -2.3]] } = {}) {
+  const sim = C.createSim({ aspect: w / h });
+  sim.enter(aim); run(sim, () => sim.S.mode === 'walk');
+  if (route) { sim.walkRoute(route); run(sim, () => !sim.S.player.route); }
+  return { sim, pad: C.createTouchPad(sim, { width: w, height: h }), w, h };
+}
+const stepFor = (sim, secs, each) => { for (let t = 0; t < secs - 1e-9; t += DT) { sim.update(DT); if (each) each(); } };
+// two free fingers on the right half, brought together to `ratio` of their starting distance
+function pinchRight(pad, w, h, ratio, t0 = 0, ids = [11, 12]) {
+  const cx = w * 0.76, cy = h * 0.55, d0 = w * 0.18;
+  pad.down(ids[0], cx - d0 / 2, cy, t0); pad.down(ids[1], cx + d0 / 2, cy, t0 + 5);
+  for (let i = 1; i <= 10; i++) { const d = d0 * (1 + (ratio - 1) * (i / 10)); pad.move(ids[0], cx - d / 2, cy); pad.move(ids[1], cx + d / 2, cy); }
+  pad.up(ids[0], cx - (d0 * ratio) / 2, cy, t0 + 400); pad.up(ids[1], cx + (d0 * ratio) / 2, cy, t0 + 405);
+}
+
+test('R1: the joystick walks along the view in proportion to the push, stops when let go, and never turns the view', async () => {
+  const C = await load();
+  const { sim, pad } = await walkIn(C), p = sim.S.player;
+  sim.place(5.0, -1.5, 0);
+  const yaw0 = p.yaw, at = () => [p.x, p.z];
+  pad.down(1, 100, 650, 0);                                   // left 45%: a joystick appears where the thumb lands
+  assert.ok(pad.joy && pad.joy.x0 === 100 && pad.joy.y0 === 650, 'joystick under the thumb');
+  let a = at(); pad.move(1, 100, 590); stepFor(sim, 1);       // pushed fully up for 1 s
+  let b = at(), d = Math.hypot(b[0] - a[0], b[1] - a[1]), dir = Math.atan2(-(b[0] - a[0]), -(b[1] - a[1]));
+  assert.ok(Math.abs(d - 1.3) <= 0.1, `full push for 1 s: ${d.toFixed(3)} m`);
+  assert.ok(angDiff(dir, p.yaw) < 0.02, 'along the line of sight');
+  a = at(); pad.move(1, 100, 620); stepFor(sim, 1);           // half way
+  b = at(); const half = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  assert.ok(Math.abs(half / d - 0.5) <= 0.1, `half push: ${half.toFixed(3)} m, ${(half / d).toFixed(2)} of full`);
+  a = at(); pad.move(1, 100, 645); stepFor(sim, 0.5);         // 5 px: inside the 6 px dead zone
+  b = at(); assert.ok(Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-9, 'dead zone: no movement');
+  a = at(); pad.move(1, 160, 650); stepFor(sim, 0.5);         // pushed right: steps sideways, view unchanged
+  b = at(); const side = Math.atan2(-(b[0] - a[0]), -(b[1] - a[1]));
+  assert.ok(angDiff(side, p.yaw - Math.PI / 2) < 0.02 && Math.abs(Math.hypot(b[0] - a[0], b[1] - a[1]) - 0.65) < 0.05, 'pushed right: 0.65 m to the right of the view');
+  assert.strictEqual(p.yaw, yaw0, 'pushing sideways does not turn the view');
+  pad.move(1, 100, 590); stepFor(sim, 0.2); pad.up(1, 100, 590, 3000);
+  a = at(); stepFor(sim, 0.2); b = at();
+  assert.ok(Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-9, 'let go: stopped within 0.2 s');
+  assert.strictEqual(p.yaw, yaw0, 'the view did not turn');
+  assert.strictEqual(pad.joy, null);
+});
+
+test('R2: the joystick and a right-hand drag at once walk and turn, and are never taken for a pinch', async () => {
+  const C = await load();
+  for (const order of ['joystick first', 'drag first']) {
+    const { sim, pad } = await walkIn(C), p = sim.S.player;
+    sim.place(5.0, -1.5, 0);
+    const x0 = p.x, z0 = p.z, yaw0 = p.yaw, modes = new Set();
+    if (order === 'joystick first') { pad.down(1, 90, 700, 0); pad.down(2, 300, 520, 40); }
+    else { pad.down(2, 300, 520, 0); pad.down(1, 90, 700, 40); }
+    let closest = Infinity;
+    for (let i = 1; i <= 60; i++) {                               // thumb pushed up, other hand dragged left: the fingers end up close together
+      pad.move(1, 90 + i * 1.2, 700 - Math.min(45, i));
+      pad.move(2, 300 - i * 1.8, 520 + i * 1.5);
+      closest = Math.min(closest, Math.hypot(300 - i * 1.8 - (90 + i * 1.2), 520 + i * 1.5 - (700 - Math.min(45, i))));
+      sim.update(DT); modes.add(sim.S.mode);
+      assert.ok(!pad.pinching, 'never a pinch');
+    }
+    pad.up(1, 162, 655, 2000); pad.up(2, 192, 610, 2000);
+    assert.ok(closest < 0.75 * Math.hypot(210, 180), `${order}: the two fingers came within ${closest.toFixed(0)} px (a pinch would have fired)`);
+    assert.deepStrictEqual([...modes], ['walk'], `${order}: stayed walking (${[...modes]})`);
+    assert.ok(Math.hypot(p.x - x0, p.z - z0) > 0.3, `${order}: walked ${Math.hypot(p.x - x0, p.z - z0).toFixed(2)} m`);
+    assert.ok(Math.abs(p.yaw - yaw0) > 0.3, `${order}: turned ${(p.yaw - yaw0).toFixed(2)} rad`);
+  }
+});
+
+test('R3: a touch swipe across the whole width turns 180 deg, vertical at the same ratio; the mouse is as before', async () => {
+  const C = await load();
+  for (const [name, [w, h]] of Object.entries({ phone: SCREENS.phone, fold: SCREENS.fold })) {
+    const { sim, pad } = await walkIn(C, [w, h]), p = sim.S.player;
+    sim.place(5.0, -1.5, 0);
+    const yaw0 = p.yaw;
+    pad.down(1, w - 1, h / 2, 0);                                 // starts on the right (not the joystick), slides to the left edge
+    for (let x = w - 1; x > 1; x -= 7) pad.move(1, x, h / 2);
+    pad.move(1, 1, h / 2); pad.up(1, 1, h / 2, 900);
+    const turned = Math.abs(p.yaw - yaw0) * (w / (w - 2));        // scaled to a full-width swipe
+    assert.ok(Math.abs(turned - Math.PI) <= 0.1 * Math.PI, `${name}: full width turns ${(turned * 180 / Math.PI).toFixed(1)} deg`);
+    const pitch0 = p.pitch;
+    pad.down(2, w * 0.8, h * 0.3, 2000); pad.move(2, w * 0.8, h * 0.3 + w / 8); pad.up(2, w * 0.8, h * 0.3 + w / 8, 2500);
+    assert.ok(Math.abs(p.pitch - pitch0 - Math.PI / 8) < 1e-9, `${name}: 1/8 of the width down tilts ${(p.pitch - pitch0).toFixed(4)} rad`);
+  }
+  assert.strictEqual(C.LOOK_MOUSE, 0.005); assert.strictEqual(C.ROT_MOUSE, 0.006);
+});
+
+test('R4: pinching inside a shop rises to the room view; roof and ceiling off, floor in frame, nothing crossed (both shops)', async () => {
+  const C = await load();
+  for (const [id, aim, route] of [['store', 'door', [[5.0, -0.6], [6.2, -2.3]]], ['next', { x: -6.0, z: -3.5 }, [[-6.0, -0.6], [-6.0, -2.2]]]]) {
+    for (const [name, scr] of Object.entries(SCREENS)) {
+      const { sim, pad, w, h } = await walkIn(C, scr, { aim, route });
+      assert.strictEqual(sim.snapshot().level, 'inside');
+      pinchRight(pad, w, h, 0.6);
+      assert.strictEqual(sim.S.mode, 'rising', `${id} ${name}: pinch inside -> rising, not out (${sim.S.mode})`);
+      const modes = new Set(), bad = [];
+      for (let i = 0; i < 200 && sim.S.mode !== 'room'; i++) {
+        sim.update(DT); modes.add(sim.S.mode);
+        const c = sim.S.cam;
+        if (!C.cameraClear([c.x, c.y, c.z], 0.1, sim.S.lift)) bad.push(c.y.toFixed(2));
+      }
+      assert.strictEqual(sim.S.mode, 'room', `${id} ${name}: reached the room view`);
+      assert.ok(!modes.has('exiting') && !modes.has('orbit'), 'did not go out');
+      assert.strictEqual(bad.length, 0, `${id} ${name}: camera inside a solid on ${bad.length} frames`);
+      const rf = sim.roofs();
+      assert.ok(rf[id].a === 0 && rf[id].parts === 'room', `${id}: roof and ceiling off`);
+      for (const other of Object.keys(rf).filter((k) => k !== id)) assert.strictEqual(rf[other].a, 1, 'the other shop keeps its roof');
+      const b = C.BUILDINGS.find((q) => q.id === id), corners = C.roomFloor(b).map((q) => C.project(sim.S.cam, sim.fov(), w / h, q));
+      assert.ok(corners.every((q) => q.depth > 0 && q.x >= 0 && q.x <= 1 && q.y >= 0 && q.y <= 1), `${id} ${name}: floor corners ${corners.map((q) => `(${q.x.toFixed(2)},${q.y.toFixed(2)})`).join(' ')}`);
+    }
+  }
+});
+
+test('R5: from the room view a spread lands on the aimed floor; a pinch goes out to the table as in item 2', async () => {
+  const C = await load();
+  for (const [name, scr] of Object.entries(SCREENS)) {
+    const { sim, pad, w, h } = await walkIn(C, scr);
+    pinchRight(pad, w, h, 0.6); run(sim, () => sim.S.mode === 'room', 3);
+    const aim = [5.4, -4.6], q = C.project(sim.S.cam, sim.fov(), w / h, [aim[0], C.SIDEWALK_H, aim[1]]), sx = q.x * w, sy = q.y * h;
+    pad.down(21, sx - 25, sy, 5000); pad.down(22, sx + 25, sy, 5005);          // spread around that spot
+    for (let i = 1; i <= 8; i++) { pad.move(21, sx - 25 - i * 6, sy); pad.move(22, sx + 25 + i * 6, sy); }
+    pad.up(21, sx - 73, sy, 5300); pad.up(22, sx + 73, sy, 5305);
+    assert.strictEqual(sim.S.mode, 'landing', `${name}: spread -> landing`);
+    const camYaw = sim.S.trans.yawO, bad = [];
+    for (let i = 0; i < 200 && sim.S.mode !== 'walk'; i++) { sim.update(DT); const c = sim.S.cam; if (!C.cameraClear([c.x, c.y, c.z], 0.1, sim.S.lift)) bad.push(i); }
+    const p = sim.S.player, s = sim.snapshot();
+    assert.ok(Math.hypot(p.x - aim[0], p.z - aim[1]) <= 0.3, `${name}: landed ${Math.hypot(p.x - aim[0], p.z - aim[1]).toFixed(3)} m from the aimed spot`);
+    assert.ok(Math.abs(s.eye - 1.6) <= 0.02 && Math.abs(p.pitch) < 0.05, `eye ${s.eye.toFixed(3)}, pitch ${p.pitch}`);
+    assert.ok(angDiff(p.yaw, camYaw) < 1e-9, 'facing the way the camera faced');
+    assert.strictEqual(bad.length, 0, 'the landing crossed nothing');
+    // back up, then pinch again: out to the table exactly as an exit from walking (item 2)
+    pinchRight(pad, w, h, 0.6, 8000); run(sim, () => sim.S.mode === 'room', 3);
+    const trig = sim.S.trigger;
+    pinchRight(pad, w, h, 0.6, 9000, [31, 32]);
+    assert.ok(sim.S.mode === 'exiting' && sim.S.trans.room, `${name}: pinch in the room view -> out`);
+    let prevS = sim.S.s, jump = 0, prevFov = sim.fov(), fovJump = 0;
+    for (let i = 0; i < 200 && sim.S.mode !== 'orbit'; i++) { sim.update(DT); jump = Math.max(jump, Math.abs(sim.S.s - prevS)); fovJump = Math.max(fovJump, Math.abs(sim.fov() - prevFov)); prevS = sim.S.s; prevFov = sim.fov(); }
+    assert.ok(jump < 0.05 && fovJump < 3, `${name}: s and the view angle change smoothly on the way out (largest step ${jump.toFixed(3)}, ${fovJump.toFixed(2)} deg)`);
+    const o = sim.S.orbit, t = trig.orbit, L = C.looks(trig.s, w / h), after = sim.snapshot();
+    assert.ok(Math.hypot(o.cx - t.cx, o.cy - t.cy, o.cz - t.cz) < 0.05 && Math.abs(o.r - t.r) < 0.05 && angDiff(o.theta, t.theta) < 0.01 && angDiff(o.phi, t.phi) < 0.01, 'back at the entry orbit');
+    assert.ok(after.s === trig.s && after.fog === L.fog && after.baseSides === L.baseSides && after.groundAlpha === L.groundAlpha, 's, fog, base sides, ground as at the entry');
+    assert.ok(Object.values(sim.roofs()).every((r) => r.a === 1), 'roofs back');
+  }
+});
+
+test('R6: pinching on the pavement goes straight out; Esc goes straight out from every level', async () => {
+  const C = await load();
+  const { sim, pad, w, h } = await walkIn(C, SCREENS.phone, { route: null });   // landed on the pavement, 2.6 m from the door
+  assert.strictEqual(sim.snapshot().level, 'street');
+  const modes = new Set();
+  pinchRight(pad, w, h, 0.6);
+  for (let i = 0; i < 200 && sim.S.mode !== 'orbit'; i++) { modes.add(sim.S.mode); sim.update(DT); }
+  assert.ok(modes.has('exiting') && !modes.has('rising') && !modes.has('room'), `pavement pinch: ${[...modes]}`);
+  // Esc: from inside (no room view on the way), from the room view, and during the rise
+  for (const where of ['inside', 'room', 'rising']) {
+    const { sim: s2 } = await walkIn(C, SCREENS.desk), seen = new Set();
+    if (where !== 'inside') { s2.back(); if (where === 'room') run(s2, () => s2.S.mode === 'room', 3); else s2.update(DT * 5); }
+    assert.ok(s2.escape(), `Esc ${where}`);
+    for (let i = 0; i < 300 && s2.S.mode !== 'orbit'; i++) { seen.add(s2.S.mode); s2.update(DT); }
+    assert.strictEqual(s2.S.mode, 'orbit', `Esc ${where}: outside`);
+    assert.ok(!seen.has('walk') && !seen.has('landing') && (where !== 'inside' || !seen.has('room')), `Esc ${where}: ${[...seen]}`);
+  }
+});
+
+test('R8 (logic): the room view starts no scare event, a running one finishes, and E5 waits until the roof is back', async () => {
+  const C = await load();
+  // E2 has just fired (E3 would follow once it is over): rise at once and stay 10 s, turning the view about
+  let sim;
+  for (const [w, h] of Object.values(SCREENS)) for (const turn of [0, 1.1, 2.3, 3.4, 4.6, 5.7]) {
+    sim = C.createSim({ aspect: w / h });
+    sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+    sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+    assert.ok(sim.horror().fired.E2 != null && sim.horror().fired.E3 == null);
+    sim.back(); const n0 = sim.horror().history.length;
+    run(sim, () => sim.S.mode === 'room', 3); sim.roomRotate(turn, 0.35);
+    stepFor(sim, 10);
+    assert.strictEqual(sim.S.mode, 'room');
+    assert.strictEqual(sim.horror().history.length, n0, `${w}x${h}, turned ${turn}: events in the room view: ${sim.horror().history.slice(n0).map((x) => x.e)}`);
+    assert.ok(sim.horror().wideAt === null && sim.levels().hum === 1, 'nothing changed; the freezer blackout ran its course');
+  }
+  // a door E3 has opened keeps its own timeline after rising
+  sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route); run(sim, () => sim.horror().fired.E3 != null, 6);
+  assert.ok(sim.horror().fired.E3 != null && sim.S.doors[0].k < 0.5, 'E3 has just started');
+  sim.back();
+  const ks = []; stepFor(sim, 3.5, () => ks.push(sim.S.doors[0].k));
+  assert.ok(Math.max(...ks) === 1 && ks[ks.length - 1] === 0, `E3's door: up to ${Math.max(...ks)}, ends ${ks[ks.length - 1]}`);
+  // E5 when leaving from the room view: only once the roof is fully back
+  let placed = null;
+  sim.exit();
+  for (let i = 0; i < 200 && sim.S.mode !== 'orbit'; i++) {
+    const before = sim.horror().figure; sim.update(DT);
+    if (!before && sim.horror().figure === 'window') placed = { roof: sim.roofs().store.a, t: sim.S.trans ? sim.S.trans.tau : null };
+  }
+  assert.ok(placed, 'E5 happened leaving from the room view');
+  assert.strictEqual(placed.roof, 1, `roof at ${placed.roof} when the figure was placed`);
+});

@@ -338,7 +338,7 @@ export function aimHit(o, d) {
   return best;
 }
 // Push a point until it is at least `clear` from every solid (doors counted shut), staying outdoors.
-export function pushClear(x, z, clear = 0.4) {
+export function pushClear(x, z, clear = 0.4, area = OUTDOOR) {
   const boxes = walkBoxes(null), p = { x, z };
   for (let it = 0; it < 12; it++) {
     let moved = false;
@@ -352,7 +352,7 @@ export function pushClear(x, z, clear = 0.4) {
         if (m === l) p.x = b[0] - clear; else if (m === rr) p.x = b[2] + clear; else if (m === t) p.z = b[1] - clear; else p.z = b[3] + clear;
       }
     }
-    const cx = clamp(p.x, OUTDOOR.x0 + clear, OUTDOOR.x1 - clear), cz = clamp(p.z, OUTDOOR.z0 + clear, OUTDOOR.z1 - clear);
+    const cx = clamp(p.x, area.x0 + clear, area.x1 - clear), cz = clamp(p.z, area.z0 + clear, area.z1 - clear);
     if (cx !== p.x || cz !== p.z) { p.x = cx; p.z = cz; moved = true; }
     if (!moved) break;
   }
@@ -514,7 +514,7 @@ function createHorror(S, calm) {
       let firstAbove = null;
       for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t0 + dur + 1e-9; k++) {
         const t = k * HORROR.tick, P = poseAt(t);
-        if (P.cam.y <= STORE.h + HORROR.e5.above) continue;
+        if (P.cam.y <= STORE.h + HORROR.e5.above || P.lift) continue;   // above the roofs, and every roof back in place
         if (firstAbove === null) firstAbove = t;
         if (!pointsVisible(P.cam, P.fov, P.aspect, figurePoints('window'), P.lift)) { H.e5Plan = { at: t, dark: false, done: false }; return; }
       }
@@ -543,32 +543,95 @@ function createHorror(S, calm) {
 }
 
 // ---------------- the simulation ----------------
+// ---------------- 第四轮：摇杆、手机转头、「看整间店」 (SPEC 店里的操作与「看整间店」视角) ----------------
+export const PAD = { left: 0.45, radius: 60, dead: 0.1, tapPx: 8, tapMs: 300, pinch: 0.75, gain: 1.6 };
+export const LOOK_MOUSE = 0.005, ROT_MOUSE = 0.006, ROT_TOUCH = 0.006;   // rad per css px: mouse look, orbit drag (unchanged since round 1)
+export const touchTurn = (px, width) => (px * Math.PI) / Math.max(1, width);   // touch look: a swipe across the whole width turns 180 deg
+// Joystick: finger offset (dx, dy) in css px from where it came down -> walking velocity relative to the view.
+export function joyVelocity(dx, dy, yaw) {
+  const L = Math.hypot(dx, dy), m = Math.min(1, L / PAD.radius);
+  if (m < PAD.dead) return { vx: 0, vz: 0, m };
+  const ux = dx / L, uy = dy / L, sp = WALK_SPEED * m, sn = Math.sin(yaw), cs = Math.cos(yaw);
+  return { vx: (sn * uy + cs * ux) * sp, vz: (cs * uy - sn * ux) * sp, m };        // screen up = forward (-sin, -cos), right = (cos, -sin)
+}
+export const ROOM = { rise: 1.0, land: 1.0, phi: 0.6, phiRange: [0.25, 1.0], margin: 0.06, fog: 0.008, roofBack: [0.1, 0.55] };
+export const fovRoom = (aspect) => clamp(deg(2 * Math.atan(Math.tan(rad(20)) / Math.min(1, aspect))), 40, 80);   // 40 deg each way at least
+export const roomInterior = (b) => ({ x0: b.x0 + WALL_T, x1: b.x1 - WALL_T, z0: b.z0 + WALL_T, z1: b.z1 - WALL_T });
+export const roomFloor = (b) => { const A = roomInterior(b), F = SIDEWALK_H; return [[A.x0, F, A.z0], [A.x1, F, A.z0], [A.x1, F, A.z1], [A.x0, F, A.z1]]; };
+// The room view: an orbit round the shop's floor centre, from far enough that the floor and the wall tops are all in frame.
+export function roomOrbit(b, theta, phi, aspect) {
+  const A = roomInterior(b), cx = (A.x0 + A.x1) / 2, cz = (A.z0 + A.z1) / 2, cy = SIDEWALK_H, fov = fovRoom(aspect), top = b.h - 0.2;
+  const pts = roomFloor(b).concat(roomFloor(b).map(([x, , z]) => [x, top, z]));
+  const fits = (r) => { const cam = orbitCamera({ cx, cy, cz, r, theta, phi }); return pts.every((q) => { const v = project(cam, fov, aspect, q); return v.depth > 0.1 && v.x >= ROOM.margin && v.x <= 1 - ROOM.margin && v.y >= ROOM.margin && v.y <= 1 - ROOM.margin; }); };
+  let lo = 2, hi = 150;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+  return { id: b.id, cx, cy, cz, r: hi, theta, phi, fov };
+}
+// Where a landing from the room view ends up: inside this shop clear of the furniture, at the other shop's door, or outdoors.
+export function roomLanding(b, x, z) {
+  if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) { const [qx, qz] = pushClear(x, z, 0.35, roomInterior(b)); return { x: qx, z: qz, building: b.id }; }
+  const other = buildingAt(x, z);
+  if (other) return doorLanding(other);
+  const [qx, qz] = pushClear(clamp(x, OUTDOOR.x0, OUTDOOR.x1), clamp(z, OUTDOOR.z0, OUTDOOR.z1), 0.4);
+  return { x: qx, z: qz, building: null };
+}
+// The look of a pose blended towards the room view by q (fov, light fog, rain over the base instead of round the camera).
+export function blendLooks(s, aspect, q) {
+  const L = looks(s, aspect);
+  if (q <= 0) return L;
+  L.fov = lerp(L.fov, fovRoom(aspect), q); L.fog = lerp(L.fog, ROOM.fog, q); L.rainMix = lerp(L.rainMix, 0, q);
+  L.rainHeight = lerp(L.rainHeight, 9.5, q); L.rainShown = lerp(L.rainShown, 1, q); L.rainOpacity = lerp(L.rainOpacity, 0.3, q);
+  return L;
+}
+
 export const DT_VIEW = 1 / 60;
 export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   const S = {
     aspect, rHero: heroRadius(aspect), mode: 'orbit', t: 0, rainT: 0, auto: true,
-    orbit: null, z: 0, s: 0, cam: null, trans: null, trigger: null, lift: null, landing: null,
-    player: { x: 0, z: 0, eyeY: EYE_H, yaw: 0, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null },
+    orbit: null, z: 0, s: 0, cam: null, trans: null, trigger: null, lift: null, landing: null, room: null, pendingEscape: false,
+    player: { x: 0, z: 0, eyeY: EYE_H, yaw: 0, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null, joy: null },
     doors: newDoors(), entries: 0, exits: 0, raised: 0,
   };
   S.orbit = heroOrbitAt(rOf(0, S.rHero));
   const HZ = createHorror(S, calm);
   S.h = HZ.H;
 
+  // Transitions: enter (orbit -> walk), exit (walk or room -> orbit), rise (walk -> room), land (room -> walk).
+  // er runs 0 at P0 (orbit or room camera) to 1 at P2 (eye or room camera for an exit from the room view).
+  const erOf = (tr, tau) => { const e = easeInOut(clamp01(tau / tr.dur)); return tr.kind === 'enter' || tr.kind === 'land' ? e : 1 - e; };
+  const sOf = (tr, er) => (tr.kind === 'rise' || tr.kind === 'land' ? 1 : tr.s0 + (1 - tr.s0) * er);
+  const roomQ = (tr, er) => (tr.kind === 'rise' || tr.kind === 'land' ? 1 - er : tr.room ? er : 0);   // how much of the room look
   function refresh() {
     if (S.mode === 'orbit') { S.s = S_PER_Z * S.z; S.cam = orbitCamera(S.orbit); }
     else if (S.mode === 'walk') { S.s = 1; const p = S.player; S.cam = { x: p.x, y: p.eyeY, z: p.z, yaw: p.yaw, pitch: p.pitch }; }
-    else {
-      const tr = S.trans, e = easeInOut(clamp01(tr.tau / tr.dur)), er = tr.kind === 'enter' ? e : 1 - e;
-      S.s = tr.s0 + (1 - tr.s0) * er;
-      S.cam = pathPose(tr, er);
-    }
+    else if (S.mode === 'room') { S.s = 1; S.cam = orbitCamera(S.room); }
+    else { const tr = S.trans, er = erOf(tr, tr.tau); S.s = sOf(tr, er); S.cam = pathPose(tr, er); }
   }
-  const fovNow = () => MAP.fov(S.s, S.aspect);
+  function looksNow() {
+    if (S.mode === 'room') return blendLooks(1, S.aspect, 1);
+    if (S.trans) return blendLooks(S.s, S.aspect, roomQ(S.trans, erOf(S.trans, S.trans.tau)));
+    return looks(S.s, S.aspect);
+  }
+  const fovNow = () => looksNow().fov;
+  // Roofs: hidden in the room view (roof, ceiling, light panels: parts 'room'); while rising out of a shop to the
+  // table the lifted parts of round 1 (roof, fascia, lintel, sign: parts 'lift'). The alpha also tells E5 whether a
+  // roof is back in place.
+  function roofOf(b, cam = S.cam, mode = S.mode, tr = S.trans, tau = tr ? tr.tau : 0) {
+    if (S.room && S.room.id === b.id && (mode === 'room' || mode === 'rising' || mode === 'landing'))
+      return { a: mode === 'room' ? 0 : 1 - smooth(b.h - 0.4, b.h + 0.2, cam.y), parts: 'room' };
+    if (mode === 'exiting' && tr && S.lift === b.id) {
+      if (tr.room) return { a: smooth(ROOM.roofBack[0], ROOM.roofBack[1], tau / tr.dur), parts: 'room' };
+      const over = cam.x > b.x0 && cam.x < b.x1 && cam.z > b.z0 && cam.z < b.z1 + 0.15;
+      return { a: over ? smooth(b.h + 0.6, b.h + 3.0, cam.y) : 1, parts: 'lift' };
+    }
+    return { a: 1, parts: 'lift' };
+  }
+  const roofs = () => Object.fromEntries(BUILDINGS.map((b) => [b.id, roofOf(b)]));
   function setAspect(a) {
     if (Math.abs(a - S.aspect) < 1e-9) return;
     S.aspect = a; S.rHero = heroRadius(a);
     if (S.mode === 'orbit') S.orbit.r = rOf(S.z, S.rHero);
+    if (S.room) { const b = BUILDINGS.find((q) => q.id === S.room.id); S.room = roomOrbit(b, S.room.theta, S.room.phi, a); }
     refresh();
   }
   // Keep the orbit centre over the model: the further out, the closer to the hero centre (at z = 0 it is the hero centre).
@@ -621,44 +684,115 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   }
   // Camera pose of an entry or exit at time tau into it (pure: also used to look ahead along an exit for E5).
   function transPose(tr, tau, mode) {
-    const e = easeInOut(clamp01(tau / tr.dur)), er = tr.kind === 'enter' ? e : 1 - e, s = tr.s0 + (1 - tr.s0) * er, f = MAP.fov(s, S.aspect), c = pathPose(tr, er);
-    const over = S.lift && c.x > STORE.x0 && c.x < STORE.x1 && c.z > STORE.z0 && c.z < STORE.z1 + 0.15 && c.y < STORE.h + 3.0;   // lifted roof still see-through
-    return { mode, cam: c, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: over ? S.lift : null };
+    const er = erOf(tr, tau), s = sOf(tr, er), f = blendLooks(s, S.aspect, roomQ(tr, er)).fov, c = pathPose(tr, er);
+    const b = S.lift && BUILDINGS.find((q) => q.id === S.lift), see = b && roofOf(b, c, mode, tr, tau).a < 1;   // a lifted roof not yet back
+    return { mode, cam: c, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: see ? S.lift : null };
   }
+  const roomPose = () => { const f = fovRoom(S.aspect); return { mode: 'room', cam: orbitCamera(S.room), fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: S.room.id }; };
   function exit() {
-    if (S.mode !== 'walk') return false;
-    const p = S.player, cam = orbitCamera(S.trigger.orbit), b = buildingAt(p.x, p.z, 0.15);   // inside, or in the doorway
-    S.lift = b ? b.id : null;
-    const P0 = [cam.x, cam.y, cam.z], P2 = [p.x, p.eyeY, p.z], ch = controlHeight(P0, P2, S.lift);
+    if (S.mode !== 'walk' && S.mode !== 'room') return false;
+    const p = S.player, cam = orbitCamera(S.trigger.orbit), fromRoom = S.mode === 'room';
+    let P2, yawG, pitchG;
+    if (fromRoom) { const c = orbitCamera(S.room); S.lift = S.room.id; P2 = [c.x, c.y, c.z]; yawG = c.yaw; pitchG = c.pitch; }
+    else { const b = buildingAt(p.x, p.z, 0.15); S.lift = b ? b.id : null; P2 = [p.x, p.eyeY, p.z]; yawG = p.yaw; pitchG = p.pitch; }   // inside, or in the doorway
+    const P0 = [cam.x, cam.y, cam.z], ch = controlHeight(P0, P2, S.lift);
     if (ch.raised) S.raised++;
-    S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [p.x, ch.h, p.z], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG: p.yaw, pitchG: p.pitch, s0: S.trigger.s, raised: ch.raised };
-    p.route = null; p.input = [0, 0]; p.look = null;
-    S.mode = 'exiting'; S.exits++;
+    S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [P2[0], Math.max(ch.h, fromRoom ? P2[1] : 0), P2[2]], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG, pitchG, s0: S.trigger.s, raised: ch.raised, room: fromRoom };
+    p.route = null; p.input = [0, 0]; p.look = null; p.joy = null;
+    S.mode = 'exiting'; S.exits++; S.pendingEscape = false;
     const tr = S.trans, tStart = S.t;
     HZ.onExitStart(tStart, (t) => transPose(tr, Math.min(tr.dur, t - tStart), 'exiting'), tr.dur);
     refresh();
     return true;
   }
   function finish() {
-    const tr = S.trans;
-    if (tr.kind === 'enter') {
-      const L = S.landing, p = S.player;
-      Object.assign(p, { x: L.x, z: L.z, eyeY: groundAt(L.x, L.z) + EYE_H, yaw: L.yaw, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null });
+    const tr = S.trans, p = S.player;
+    if (tr.kind === 'enter' || tr.kind === 'land') {
+      const L = tr.kind === 'enter' ? S.landing : tr.target;
+      Object.assign(p, { x: L.x, z: L.z, eyeY: groundAt(L.x, L.z) + EYE_H, yaw: tr.kind === 'enter' ? L.yaw : tr.yawG, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null, joy: null });
       S.mode = 'walk';
-    } else {
-      S.orbit = { ...S.trigger.orbit }; S.z = S.trigger.z; S.mode = 'orbit'; S.lift = null;
+      if (tr.kind === 'land') { S.room = null; S.lift = null; }
+    } else if (tr.kind === 'rise') S.mode = 'room';
+    else {
+      S.orbit = { ...S.trigger.orbit }; S.z = S.trigger.z; S.mode = 'orbit'; S.lift = null; S.room = null;
       HZ.onExitFinish();
     }
     S.trans = null;
+    if (S.pendingEscape && (S.mode === 'walk' || S.mode === 'room')) exit();
+    S.pendingEscape = false;
   }
+  // Pinch in / wheel back: in a shop -> the room view; outdoors -> out to the table; in the room view -> out to the table.
+  function back() {
+    if (S.mode === 'room') return exit();
+    if (S.mode !== 'walk') return false;
+    const p = S.player, b = buildingAt(p.x, p.z, 0.15);
+    if (!b) return exit();
+    const room = roomOrbit(b, p.yaw, ROOM.phi, S.aspect), c = orbitCamera(room);
+    S.room = room; S.lift = b.id;
+    const P0 = [c.x, c.y, c.z], P2 = [p.x, p.eyeY, p.z], ch = controlHeight(P0, P2, b.id);
+    if (ch.raised) S.raised++;
+    S.trans = { kind: 'rise', tau: 0, dur: ROOM.rise, P0, P1: [p.x, Math.max(ch.h, c.y), p.z], P2, yawO: c.yaw, pitchO: c.pitch, yawG: p.yaw, pitchG: p.pitch, s0: 1, raised: ch.raised };
+    p.route = null; p.input = [0, 0]; p.look = null; p.joy = null;
+    S.mode = 'rising'; refresh();
+    return true;
+  }
+  // Esc: straight out from any level (after a running rise or landing).
+  function escape() {
+    if (S.mode === 'walk' || S.mode === 'room') return exit();
+    if (S.mode === 'rising' || S.mode === 'landing') { S.pendingEscape = true; return true; }
+    return false;
+  }
+  // From the room view down to a ground point: eye height, level, facing the way the camera faced.
+  function landAtPoint(x, z) {
+    if (S.mode !== 'room') return false;
+    const b = BUILDINGS.find((q) => q.id === S.room.id), c = orbitCamera(S.room), L = roomLanding(b, x, z);
+    const P0 = [c.x, c.y, c.z], P2 = [L.x, groundAt(L.x, L.z) + EYE_H, L.z], ch = controlHeight(P0, P2, b.id);
+    if (ch.raised) S.raised++;
+    S.trans = { kind: 'land', tau: 0, dur: ROOM.land, P0, P1: [L.x, Math.max(ch.h, c.y), L.z], P2, yawO: c.yaw, pitchO: c.pitch, yawG: c.yaw, pitchG: 0, s0: 1, raised: ch.raised, target: { ...L, aimed: [x, z] } };
+    S.mode = 'landing'; refresh();
+    return true;
+  }
+  // The ground point under a screen position (0-1), for the current camera; null if the ray misses the ground.
+  function groundPoint(sx, sy) {
+    const ray = screenRay(S.cam, fovNow(), S.aspect, sx, sy);
+    if (ray.d[1] > -0.02) return null;
+    let t = (SIDEWALK_H - ray.o[1]) / ray.d[1], x = ray.o[0] + ray.d[0] * t, z = ray.o[2] + ray.d[2] * t;
+    if (groundAt(x, z) === 0) { t = -ray.o[1] / ray.d[1]; x = ray.o[0] + ray.d[0] * t; z = ray.o[2] + ray.d[2] * t; }
+    return t > 0 ? [x, z] : null;
+  }
+  const landAt = (sx, sy) => { const g = S.mode === 'room' && groundPoint(sx, sy); return g ? landAtPoint(g[0], g[1]) : false; };
+  function roomRotate(dTheta, dPhi) {
+    if (S.mode !== 'room') return;
+    const b = BUILDINGS.find((q) => q.id === S.room.id);
+    S.room = roomOrbit(b, S.room.theta + dTheta, clamp(S.room.phi + dPhi, ROOM.phiRange[0], ROOM.phiRange[1]), S.aspect);
+    refresh();
+  }
+  // A tap: walk there (walking), or land there (room view).
+  function tapAt(sx, sy) {
+    if (S.mode === 'room') return landAt(sx, sy);
+    if (S.mode !== 'walk') return false;
+    const ray = screenRay(S.cam, fovNow(), S.aspect, sx, sy), floor = groundAt(S.player.x, S.player.z);
+    if (ray.d[1] > -0.02) return false;
+    const t = (floor - ray.o[1]) / ray.d[1];
+    return t > 0 && t < 40 ? walkTo(ray.o[0] + ray.d[0] * t, ray.o[2] + ray.d[2] * t) : false;
+  }
+  // Joystick offset in css px (from where the finger came down); the walking direction follows the view every step.
+  function joy(dx, dy) {
+    const p = S.player;
+    if (S.mode !== 'walk') { p.joy = null; return; }
+    p.joy = [dx, dy];
+    if (Math.hypot(dx, dy) >= PAD.dead * PAD.radius) p.route = null;
+  }
+  const joyEnd = () => { S.player.joy = null; };
   // One walking step. Route legs carry their leftover time to the next leg, so the position at a given time does not
   // depend on the step size (for unobstructed legs).
   function stepWalk(dt, t0) {
     const p = S.player, boxes = walkBoxes(S.doors, HZ.backAngle(t0)), path = [];
     const yaw0 = p.yaw, pitch0 = p.pitch, look = p.look ? { ...p.look } : null, k0 = S.doors[0].k;
-    if (p.input[0] || p.input[1]) {
+    const jv = p.joy && joyVelocity(p.joy[0], p.joy[1], p.yaw), inp = jv ? [jv.vx, jv.vz] : p.input;
+    if (inp[0] || inp[1]) {
       p.route = null;
-      moveCircle(p, p.input[0] * dt, p.input[1] * dt, boxes, dt, path);
+      moveCircle(p, inp[0] * dt, inp[1] * dt, boxes, dt, path);
     } else if (p.route) {
       let left = dt, guard = 0;
       while (left > 1e-12 && p.route && guard++ < 16) {
@@ -700,11 +834,17 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     else {
       const tr = S.trans, tau0 = tr ? tr.tau : 0, mode = S.mode, orbitCam = orbitCamera(S.orbit);
       HZ.advance(t0, S.t, (t) => {
-        if (!tr) { const s = S_PER_Z * S.z, f = MAP.fov(s, S.aspect); return { mode, cam: orbitCam, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: null }; }
+        if (!tr) {
+          if (mode === 'room') return roomPose();
+          const s = S_PER_Z * S.z, f = MAP.fov(s, S.aspect); return { mode, cam: orbitCam, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: null };
+        }
         return transPose(tr, Math.min(tr.dur, tau0 + (t - t0)), mode);
       }, () => 0);
-      // Doors close outside walk mode. Rising out of a doorway, that door waits until the camera is above it.
-      S.doors.forEach((st, i) => { if (!(S.mode === 'exiting' && S.lift === DOORS[i].id && S.cam.y < SIDEWALK_H + DOOR_H + 0.3)) closeDoors([st], dt); });
+      // Doors close outside walk mode (nobody near them), except that a door E3 has opened keeps its own timeline, and
+      // rising out of a doorway that door waits until the camera is above it.
+      const held = S.doors.map((st, i) => (S.mode === 'exiting' && S.lift === DOORS[i].id && S.cam.y < SIDEWALK_H + DOOR_H + 0.3 ? { ...st } : null));
+      stepDoorsPath(S.doors, [[1e3, 1e3, 1e3, 1e3, dt]], t0, HZ.doorOverride(), HZ.onDoorOpen);
+      held.forEach((h, i) => { if (h) Object.assign(S.doors[i], h); });
       if (S.trans) { S.trans.tau = Math.min(S.trans.dur, S.trans.tau + dt); if (S.trans.tau >= S.trans.dur - 1e-9) finish(); }
     }
     refresh();
@@ -738,18 +878,19 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     Object.assign(S.player, { x, z, yaw, eyeY: groundAt(x, z) + EYE_H, route: null, input: [0, 0], look: null, stuck: 0 });
     refresh(); return true;
   }
+  const levelOf = () => (S.mode === 'orbit' ? 'outside' : S.mode === 'room' ? 'room' : S.mode === 'walk' ? (buildingAt(S.player.x, S.player.z, 0.15) ? 'inside' : 'street') : S.mode);
   function snapshot() {
-    const L = looks(S.s, S.aspect), p = S.player, c = S.cam;
+    const L = looksNow(), p = S.player, c = S.cam;
     return {
-      mode: S.mode, s: S.s, z: S.z, t: S.t, rainT: S.rainT, aspect: S.aspect, rHero: S.rHero,
+      mode: S.mode, level: levelOf(), room: S.room && { ...S.room }, pendingEscape: S.pendingEscape, s: S.s, z: S.z, t: S.t, rainT: S.rainT, aspect: S.aspect, rHero: S.rHero,
       orbit: { ...S.orbit }, cam: { ...c }, eye: c.y - groundAt(c.x, c.z),
       fov: L.fov, hfov: hfov(L.fov, S.aspect), tilt: L.tilt, fog: L.fog, rainMix: L.rainMix, rainOpacity: L.rainOpacity, rainHeight: L.rainHeight, rainShown: L.rainShown,
       groundAlpha: L.groundAlpha, baseSides: L.baseSides, lowpass: L.lowpass, volume: L.volume,
       doors: S.doors.map((d, i) => ({ id: DOORS[i].id, k: d.k, want: d.want })),
-      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, looking: !!p.look, stuck: p.stuck },
+      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, looking: !!p.look, joy: p.joy && [...p.joy], stuck: p.stuck },
       trigger: S.trigger && { orbit: { ...S.trigger.orbit }, z: S.trigger.z, s: S.trigger.s, hit: S.trigger.hit },
       landing: S.landing && { ...S.landing }, lift: S.lift, entries: S.entries, exits: S.exits, raised: S.raised,
-      transition: S.trans && { kind: S.trans.kind, tau: S.trans.tau, dur: S.trans.dur, raised: S.trans.raised },
+      transition: S.trans && { kind: S.trans.kind, tau: S.trans.tau, dur: S.trans.dur, raised: S.trans.raised, room: !!S.trans.room, target: S.trans.target && { ...S.trans.target } },
       back: (HZ.backAngle(S.t) * 180) / Math.PI,
     };
   }
@@ -757,7 +898,63 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   const trigger = (name) => { const ok = HZ.trigger(name, S.t, S.doors[0].k); refresh(); return ok; };
   const levels = () => ({ light: HZ.light(S.t), freezer: HZ.freezer(S.t), hum: HZ.hum(S.t), back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, HZ.hum(S.t)) });
   refresh();
-  return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels };
+  return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels,
+    looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd };
+}
+
+// ---------------- touch: joystick, look, pinch, tap (SPEC 店里的操作) ----------------
+// Pure: the page feeds pointer events (css px, ms), the pad drives the simulation. A finger that comes down in the left
+// 45% while walking is the joystick (one at a time); any other finger is free. Two free fingers are a pinch; one free
+// finger drags (orbit: rotate; walking: turn the head, a full screen width = 180 deg; room view: go round the shop).
+// The joystick finger is never part of a pinch. A short press (< 8 px, < 300 ms) with nothing else down is a tap.
+export function createTouchPad(sim, { width = 390, height = 844 } = {}) {
+  const pts = new Map();
+  let W = width, H = height, joyId = null, dragId = null, pinch = null;
+  const mode = () => sim.S.mode, free = () => [...pts.keys()].filter((k) => k !== joyId);
+  return {
+    resize(w, h) { W = Math.max(1, w); H = Math.max(1, h); },
+    get joy() { const p = joyId != null && pts.get(joyId); return p ? { x0: p.x0, y0: p.y0, x: p.x, y: p.y } : null; },
+    get pinching() { return !!pinch; },
+    down(id, x, y, t) {
+      const p = { x, y, x0: x, y0: y, t0: t, live: false, spent: false };
+      pts.set(id, p);
+      if (mode() === 'walk' && joyId === null && x < PAD.left * W) { joyId = id; return; }
+      const f = free();
+      if (f.length === 2) { const [a, b] = f.map((k) => pts.get(k)), d = Math.hypot(a.x - b.x, a.y - b.y); pinch = { ids: f, d0: d, d, done: false }; dragId = null; }
+      else if (f.length === 1) dragId = id;
+    },
+    move(id, x, y) {
+      const p = pts.get(id);
+      if (!p) return;
+      const dx = x - p.x, dy = y - p.y;
+      p.x = x; p.y = y;
+      if (Math.hypot(x - p.x0, y - p.y0) >= PAD.tapPx) p.live = true;
+      if (id === joyId) { sim.joy(x - p.x0, y - p.y0); return; }
+      if (pinch && pinch.ids.includes(id)) {
+        const [a, b] = pinch.ids.map((k) => pts.get(k)), d = Math.hypot(a.x - b.x, a.y - b.y), m = mode(), mx = (a.x + b.x) / 2 / W, my = (a.y + b.y) / 2 / H;
+        if (m === 'orbit') { if (d > 1 && pinch.d > 1) sim.zoomAt(Math.pow(pinch.d / d, PAD.gain), mx, my); }
+        else if (!pinch.done && d < PAD.pinch * pinch.d0 && (m === 'walk' || m === 'room')) { pinch.done = true; sim.back(); }
+        else if (!pinch.done && d > pinch.d0 / PAD.pinch && m === 'room') { pinch.done = true; sim.landAt(mx, my); }
+        pinch.d = d;
+        return;
+      }
+      if (id !== dragId || p.spent || !p.live) return;
+      const m = mode();
+      if (m === 'orbit') sim.rotate(-dx * ROT_TOUCH, -dy * ROT_TOUCH);
+      else if (m === 'walk') sim.lookBy(touchTurn(dx, W), touchTurn(dy, W));
+      else if (m === 'room') sim.roomRotate(-dx * ROT_TOUCH, -dy * ROT_TOUCH);
+    },
+    up(id, x, y, t, cancelled = false) {
+      const p = pts.get(id);
+      if (!p) return;
+      const tap = !cancelled && !p.live && !p.spent && pts.size === 1 && Math.hypot(x - p.x0, y - p.y0) < PAD.tapPx && t - p.t0 < PAD.tapMs;
+      if (id === joyId) { joyId = null; sim.joyEnd(); }
+      pts.delete(id);
+      if (id === dragId) dragId = null;
+      if (pinch && pinch.ids.includes(id)) { pinch = null; for (const k of free()) pts.get(k).spent = true; }
+      if (tap) sim.tapAt(x / W, y / H);
+    },
+  };
 }
 
 // ---------------- fixed views (SPEC 固定机位): produced by running the simulation, then frozen ----------------
@@ -767,6 +964,7 @@ export const VIEW_SCRIPTS = {
   door: { aim: 'door' },
   inside: { aim: 'door', route: [[5.0, -0.6], [6.2, -2.3]], look: [1.5, 1.25, -7.95] },          // by the till, looking at the freezers
   next: { aim: { x: -6.0, z: -3.5 }, route: [[-6.0, -0.6], [-6.0, -2.2]], look: [-6.3, 0.95, -5.6] }, // inside the shop next door, facing the bar
+  room: { aim: 'door', route: [[5.0, -0.6], [6.2, -2.3]], look: [1.5, 1.25, -7.95], room: true },     // by the till, then pinch: the whole shop from above
   scare: {}, reveal: {},                                                                              // scripted by playScare
 };
 // A scripted visit for the scare version: freezers (E2), the door behind you (E3), the staff door (E4), then out (E5).
@@ -803,6 +1001,7 @@ export function runView(sim, view, aimOverride) {
   until(() => sim.S.mode === 'walk');
   if (v.route) { sim.walkRoute(v.route); until(() => !sim.S.player.route); }
   if (v.look) { sim.lookAt(...v.look); until(() => !sim.S.player.look); }
+  if (v.room) { sim.back(); until(() => sim.S.mode === 'room'); }
   return true;
 }
 

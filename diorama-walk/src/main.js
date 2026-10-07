@@ -31,6 +31,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:${C.COLORS.sky};oversc
 #dbg{position:fixed;left:12px;top:10px;font:12px/1.45 ui-monospace,Menlo,monospace;color:${C.COLORS.accent};pointer-events:none;white-space:pre;text-shadow:0 1px 2px #000}
 body.noui #hint,body.noui #dbg{display:none}
 #dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
+#joy{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgba(214,222,234,.5);background:rgba(214,222,234,.08);pointer-events:none;display:none}
+#joy i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(214,222,234,.38)}
 </style>`);
 const canvas = document.createElement('canvas');
 canvas.id = 'c';
@@ -38,6 +40,7 @@ document.body.prepend(canvas);
 const hintEl = document.createElement('div');
 hintEl.id = 'hint';
 const darkEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dark' }));
+const joyEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'joy', innerHTML: '<i></i>' })), joyKnob = joyEl.firstChild;
 document.body.appendChild(hintEl);
 const dbgEl = DEBUG ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 
@@ -156,6 +159,7 @@ const DIM_EMISSIVE = [MATS.storeCeiling, MATS.shelf];
 const baseColor = new Map(DIM_COLOR.concat(Object.keys(MATS).filter((k) => /^freezer\d$/.test(k)).map((k) => MATS[k])).map((m) => [m, m.color.clone()]));
 const baseEmissive = new Map(DIM_EMISSIVE.map((m) => [m, m.emissive.clone()]));
 const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeWall:upper', 'glassTransom', 'sign', 'signText', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'sign2Text', 'nextLightPanel'] };
+const ROOM_LIFT = { store: ['storeRoof', 'storeCeiling', 'storeLightPanel'], next: ['nextRoof', 'nextLightPanel'] };   // the room view: roof and ceiling off, walls and the back room's roof stay
 
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
 const N_RAIN = 2400;
@@ -246,6 +250,7 @@ function resize() {
   composer.setPixelRatio(pr); composer.setSize(cssW, cssH);
   camera.aspect = cssW / cssH;
   sim.setAspect(cssW / cssH);
+  if (typeof pad !== 'undefined') pad.resize(cssW, cssH);
 }
 addEventListener('resize', resize);
 
@@ -301,12 +306,22 @@ function playSound(kind, lv) {
 
 // ---------------- draw the simulation ----------------
 const hints = {
-  orbit: COARSE ? '单指拖动转 · <b>双指张开</b>放大，走进去' : '拖动旋转 · <b>滚轮往前</b>放大，走进去',
-  walk: COARSE ? '拖动转头 · <b>轻点地面</b>走过去 · <b>双指捏合</b>出来' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>或 Esc 出来',
+  outside: COARSE ? '单指拖动转 · <b>双指张开</b>放大，走进去' : '拖动旋转 · <b>滚轮往前</b>放大，走进去',
+  inside: COARSE ? '<b>左边摇杆</b>走 · 右边拖动转头 · <b>捏合</b>看整间店' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>看整间店 · Esc 出来',
+  street: COARSE ? '<b>左边摇杆</b>走 · 右边拖动转头 · <b>捏合</b>出来' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>或 Esc 出来',
+  room: COARSE ? '拖动绕着转 · <b>张开</b>落回去 · <b>捏合</b>回到外面' : '拖动绕着转 · <b>滚轮往前</b>落回光标处 · <b>滚轮往后</b>回到外面 · Esc 出来',
 };
+function setAlpha(k, a) {                           // fade one lifted part (glass keeps its own opacity)
+  const m = MESH[k], mat = m.material;
+  m.visible = a > 0.01;
+  if (k === 'glassTransom') { mat.opacity = C.GLASS_OPACITY * a; return; }
+  const tr = a < 0.999;
+  if (mat.transparent !== tr) { mat.transparent = tr; mat.depthWrite = !tr; mat.needsUpdate = true; }
+  mat.opacity = a;
+}
 let hintNow = null, focusY = 0.5;
 function sync() {
-  const S = sim.S, L = C.looks(S.s, S.aspect), c = S.cam;
+  const S = sim.S, L = sim.looksNow(), c = S.cam;
   camera.position.set(c.x, c.y, c.z);
   camera.rotation.set(c.pitch, c.yaw, 0, 'YXZ');
   camera.fov = L.fov;
@@ -328,18 +343,11 @@ function sync() {
   bigGround.visible = L.groundAlpha > 0.001; bigGround.material.opacity = L.groundAlpha;
   baseSides.visible = L.baseSides;
   C.doorLeaves(S.doors).forEach((lf, i) => leaves[i].position.set((lf.x0 + lf.x1) / 2, (lf.y0 + lf.y1) / 2, (lf.z0 + lf.z1) / 2));
+  const RF = sim.roofs();
   for (const b of C.BUILDINGS) {
-    const over = c.x > b.x0 && c.x < b.x1 && c.z > b.z0 && c.z < b.z1 + 0.15;
-    const a = S.mode === 'exiting' && S.lift === b.id && over ? C.smooth(b.h + 0.6, b.h + 3.0, c.y) : 1;
+    const { a, parts } = RF[b.id], on = parts === 'room' ? ROOM_LIFT[b.id] : LIFT[b.id];
     if (b.id === 'store') ceilingGrid.visible = a > 0.5;
-    for (const k of LIFT[b.id]) {
-      const m = MESH[k], mat = m.material;
-      m.visible = a > 0.01;
-      if (k === 'glassTransom') { mat.opacity = C.GLASS_OPACITY * a; continue; }
-      const tr = a < 0.999;
-      if (mat.transparent !== tr) { mat.transparent = tr; mat.depthWrite = !tr; mat.needsUpdate = true; }
-      mat.opacity = a;
-    }
+    for (const k of LIFT[b.id]) setAlpha(k, on.includes(k) ? a : 1);
   }
   if (dbgDoors.length) dbgDoors.forEach((l, i) => { l.visible = S.doors[i].k < C.DOOR_PASS; });
   // scare version: what the state machine says this instant
@@ -362,63 +370,56 @@ function sync() {
     for (const ev of S.h.sounds) if (ev.t > audio.played && ev.t <= S.t) playSound(ev.kind, V.audio);
     audio.played = Math.max(audio.played, S.t);
   }
-  const h = hints[S.mode] || '';
+  const j = pad.joy;                                // the floating joystick under the left thumb
+  joyEl.style.display = j ? 'block' : 'none';
+  if (j) {
+    const dx = j.x - j.x0, dy = j.y - j.y0, d = Math.hypot(dx, dy), k = d > C.PAD.radius ? C.PAD.radius / d : 1;
+    joyEl.style.left = j.x0 + 'px'; joyEl.style.top = j.y0 + 'px'; joyKnob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+  }
+  const h = hints[sim.snapshot().level] || '';
   if (h !== hintNow) { hintEl.innerHTML = h; hintNow = h; }
 }
 
 // ---------------- input: Pointer Events for mouse and touch ----------------
-const ROT = 0.006, LOOK = 0.005, PINCH_GAIN = 1.6;   // pinch: one comfortable spread (about 3x) reaches the entry threshold on a phone
-const pts = new Map();
-let pinch = null, drag = null;
-const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
+const pad = C.createTouchPad(sim, { width: innerWidth, height: innerHeight });
+let mouse = null;                                   // mouse: drag turns / rotates, a click walks or lands (round-3 sensitivity)
+const isMouse = (e) => e.pointerType === 'mouse';
 canvas.addEventListener('pointerdown', (e) => {
   startAudio();
   try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointers may not be capturable */ }
-  pts.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
-  if (pts.size === 2) { const g = two(); pinch = { d0: g.d, d: g.d }; drag = null; }
-  else if (pts.size === 1) { drag = { id: e.pointerId, tap: true, live: false }; pinch = null; }
-  else { drag = null; pinch = null; }
+  if (isMouse(e)) { mouse = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now(), live: false }; return; }
+  pad.down(e.pointerId, e.clientX, e.clientY, performance.now());
 });
 canvas.addEventListener('pointermove', (e) => {
-  const p = pts.get(e.pointerId);
-  if (!p) return;
-  const dx = e.clientX - p.x, dy = e.clientY - p.y;
-  p.x = e.clientX; p.y = e.clientY;
-  if (pinch && pts.size === 2) {
-    const g = two(), mode = sim.S.mode;
-    if (mode === 'orbit' && g.d > 1 && pinch.d > 1) sim.zoomAt(Math.pow(pinch.d / g.d, PINCH_GAIN), g.mx / cssW, g.my / cssH);
-    else if (mode === 'walk' && g.d < 0.75 * pinch.d0) sim.exit();
-    pinch.d = g.d;
-    return;
-  }
-  if (!drag || drag.id !== e.pointerId) return;
-  if (!drag.live && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) >= 8) { drag.live = true; drag.tap = false; }
-  if (!drag.live) return;
-  if (sim.S.mode === 'orbit') sim.rotate(-dx * ROT, -dy * ROT);
-  else if (sim.S.mode === 'walk') sim.lookBy(dx * LOOK, dy * LOOK);
+  if (!isMouse(e)) { pad.move(e.pointerId, e.clientX, e.clientY); return; }
+  if (!mouse) return;
+  const dx = e.clientX - mouse.x, dy = e.clientY - mouse.y;
+  mouse.x = e.clientX; mouse.y = e.clientY;
+  if (!mouse.live && Math.hypot(e.clientX - mouse.x0, e.clientY - mouse.y0) >= C.PAD.tapPx) mouse.live = true;
+  if (!mouse.live) return;
+  if (sim.S.mode === 'orbit') sim.rotate(-dx * C.ROT_MOUSE, -dy * C.ROT_MOUSE);
+  else if (sim.S.mode === 'walk') sim.lookBy(dx * C.LOOK_MOUSE, dy * C.LOOK_MOUSE);
+  else if (sim.S.mode === 'room') sim.roomRotate(-dx * C.ROT_MOUSE, -dy * C.ROT_MOUSE);
 });
-function tapWalk(x, y) {
-  const S = sim.S, ray = C.screenRay(S.cam, sim.fov(), S.aspect, x / cssW, y / cssH), floor = C.groundAt(S.player.x, S.player.z);
-  if (ray.d[1] > -0.02) return;
-  const t = (floor - ray.o[1]) / ray.d[1];
-  if (t > 0 && t < 40) sim.walkTo(ray.o[0] + ray.d[0] * t, ray.o[2] + ray.d[2] * t);
-}
 const pointerEnd = (e) => {
-  const p = pts.get(e.pointerId);
-  if (!p) return;
-  if (drag && drag.id === e.pointerId && drag.tap && e.type === 'pointerup' && pts.size === 1
-    && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 8 && performance.now() - p.t0 < 300 && sim.S.mode === 'walk') tapWalk(e.clientX, e.clientY);
-  pts.delete(e.pointerId);
-  if (pts.size < 2) pinch = null;
-  if (drag && drag.id === e.pointerId) drag = null;
+  if (!isMouse(e)) { pad.up(e.pointerId, e.clientX, e.clientY, performance.now(), e.type === 'pointercancel'); return; }
+  if (mouse && !mouse.live && e.type === 'pointerup' && performance.now() - mouse.t0 < C.PAD.tapMs) sim.tapAt(e.clientX / cssW, e.clientY / cssH);
+  mouse = null;
 };
 canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
+// Wheel: outside it zooms; inside, one notch back = one level out, forward in the room view = land under the cursor.
+// A level change needs a fresh notch: after one, the wheel is ignored until it has been still for 250 ms.
+let wheelLast = 0, wheelArmed = true;
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
-  if (sim.S.mode === 'orbit') sim.zoomAt(Math.exp(C.clamp(dy, -240, 240) * 0.0012), e.clientX / cssW, e.clientY / cssH);
-  else if (sim.S.mode === 'walk' && dy > 2) sim.exit();
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY, now = performance.now(), mode = sim.S.mode;
+  if (now - wheelLast > 250) wheelArmed = true;
+  wheelLast = now;
+  if (mode === 'orbit') { sim.zoomAt(Math.exp(C.clamp(dy, -240, 240) * 0.0012), e.clientX / cssW, e.clientY / cssH); return; }
+  if (!wheelArmed || (mode !== 'walk' && mode !== 'room')) return;
+  if (dy > 2 && sim.back()) wheelArmed = false;
+  else if (dy < -2 && mode === 'room' && sim.landAt(e.clientX / cssW, e.clientY / cssH)) wheelArmed = false;
 }, { passive: false });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 const keys = {};
@@ -427,7 +428,7 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   startAudio();
   keys[e.code] = true;
-  if (e.code === 'Escape' && sim.S.mode === 'walk') sim.exit();
+  if (e.code === 'Escape') sim.escape();
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k of Object.keys(keys)) keys[k] = false; });
@@ -459,6 +460,13 @@ window.__diorama = {
   state: () => sim.snapshot(),
   enter: (aim) => { const ok = sim.enter(aim); sync(); return ok; },
   exit: () => { const ok = sim.exit(); sync(); return ok; },
+  back: () => { const ok = sim.back(); sync(); return ok; },
+  escape: () => { const ok = sim.escape(); sync(); return ok; },
+  landAt: (sx, sy) => { const ok = sim.landAt(sx, sy); sync(); return ok; },
+  groundPoint: (sx, sy) => sim.groundPoint(sx, sy),
+  roomRotate: (a, b) => { sim.roomRotate(a, b); sync(); },
+  roofs: () => sim.roofs(),
+  pad: () => ({ joy: pad.joy, pinching: pad.pinching, joyShown: joyEl.style.display === 'block', joyAt: [parseFloat(joyEl.style.left) || 0, parseFloat(joyEl.style.top) || 0], hint: hintEl.textContent }),
   walkTo: (x, z) => sim.walkTo(x, z),
   step: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) sim.update(dt); sync(); return sim.snapshot(); },
   solids: () => C.solids(sim.S.doors, sim.levels().back),   // the staff door where it really is
@@ -482,6 +490,7 @@ window.__diorama = {
         freezers: [0, 1, 2, 3, 4].map((i) => MATS['freezer' + i].color.r / baseColor.get(MATS['freezer' + i]).r) },
       figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, color: '#' + figMat.color.getHexString() }, leaf: -leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
       camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
+      drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'storeLightPanel', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0 },
       audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
   },
   core: C,
