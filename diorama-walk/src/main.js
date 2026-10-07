@@ -33,6 +33,7 @@ body.noui #hint,body.noui #dbg{display:none}
 #dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
 #joy{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgba(214,222,234,.5);background:rgba(214,222,234,.08);pointer-events:none;display:none}
 #joy i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(214,222,234,.38)}
+#joyHint{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgb(214,222,234);background:rgba(214,222,234,.15);opacity:.25;pointer-events:none;display:none}
 </style>`);
 const canvas = document.createElement('canvas');
 canvas.id = 'c';
@@ -41,6 +42,7 @@ const hintEl = document.createElement('div');
 hintEl.id = 'hint';
 const darkEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dark' }));
 const joyEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'joy', innerHTML: '<i></i>' })), joyKnob = joyEl.firstChild;
+const joyHintEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'joyHint' }));   // where the joystick is, before it is pressed
 document.body.appendChild(hintEl);
 const dbgEl = DEBUG ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 
@@ -370,6 +372,9 @@ function sync() {
     for (const ev of S.h.sounds) if (ev.t > audio.played && ev.t <= S.t) playSound(ev.kind, V.audio);
     audio.played = Math.max(audio.played, S.t);
   }
+  const hintOn = C.joyHint(S.mode, pad, COARSE);   // faint ring in the middle of the joystick spot (touch screens only)
+  joyHintEl.style.display = hintOn ? 'block' : 'none';
+  if (hintOn) { joyHintEl.style.left = cssW * C.PAD.left / 2 + 'px'; joyHintEl.style.top = cssH * (1 + C.PAD.low) / 2 + 'px'; }
   const j = pad.joy;                                // the floating joystick under the left thumb
   joyEl.style.display = j ? 'block' : 'none';
   if (j) {
@@ -466,7 +471,8 @@ window.__diorama = {
   groundPoint: (sx, sy) => sim.groundPoint(sx, sy),
   roomRotate: (a, b) => { sim.roomRotate(a, b); sync(); },
   roofs: () => sim.roofs(),
-  pad: () => { sync(); return { joy: pad.joy, pinching: pad.pinching, joyShown: joyEl.style.display === 'block', joyAt: [parseFloat(joyEl.style.left) || 0, parseFloat(joyEl.style.top) || 0], hint: hintEl.textContent }; },
+  pad: () => { sync(); return { joy: pad.joy, pinching: pad.pinching, joyShown: joyEl.style.display === 'block', joyAt: [parseFloat(joyEl.style.left) || 0, parseFloat(joyEl.style.top) || 0], hint: hintEl.textContent,
+    pending: pad.pending, ring: { shown: joyHintEl.style.display === 'block', at: [parseFloat(joyHintEl.style.left) || 0, parseFloat(joyHintEl.style.top) || 0], opacity: Number(getComputedStyle(joyHintEl).opacity), size: joyHintEl.offsetWidth }, coarse: COARSE }; },
   walkTo: (x, z) => sim.walkTo(x, z),
   step: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) sim.update(dt); sync(); return sim.snapshot(); },
   solids: () => C.solids(sim.S.doors, sim.levels().back),   // the staff door where it really is

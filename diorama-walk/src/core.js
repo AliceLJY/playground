@@ -544,7 +544,20 @@ function createHorror(S, calm) {
 
 // ---------------- the simulation ----------------
 // ---------------- 第四轮：摇杆、手机转头、「看整间店」 (SPEC 店里的操作与「看整间店」视角) ----------------
-export const PAD = { left: 0.45, radius: 60, dead: 0.1, tapPx: 8, tapMs: 300, pinch: 0.75, gain: 1.6 };
+export const PAD = { left: 0.45, low: 0.6, radius: 60, dead: 0.1, tapPx: 8, tapMs: 300, pinch: 0.75, gain: 1.6, together: 150, decidePx: 12, radial: 0.7 };
+// The joystick spot: the left 45% of the screen, lower 40% of its height (round 5).
+export const inJoyZone = (x, y, w, h) => x < PAD.left * w && y >= PAD.low * h;
+// Two fingers that came down together (within 150 ms): a pinch when, since then, they moved mostly along the line
+// between them (radial share >= 70%) and against each other (radial difference >= 70% of the radial sum; one finger
+// still and the other moving along the line counts). a, b: { x0, y0 } where they were when the pair formed, { x, y } now.
+export function pairIsPinch(a, b) {
+  const ux = b.x0 - a.x0, uy = b.y0 - a.y0, L = Math.hypot(ux, uy) || 1, nx = ux / L, ny = uy / L;
+  const dax = a.x - a.x0, day = a.y - a.y0, dbx = b.x - b.x0, dby = b.y - b.y0;
+  const ra = dax * nx + day * ny, rb = dbx * nx + dby * ny, total = Math.hypot(dax, day) + Math.hypot(dbx, dby), radial = Math.abs(ra) + Math.abs(rb);
+  return total > 0 && radial >= PAD.radial * total && Math.abs(rb - ra) >= PAD.radial * radial;
+}
+// The faint ring on the joystick spot: touch devices, walking, joystick not down (round 5).
+export const joyHint = (mode, pad, coarse) => !!coarse && mode === 'walk' && !pad.joy && !pad.pending;
 export const LOOK_MOUSE = 0.005, ROT_MOUSE = 0.006, ROT_TOUCH = 0.006;   // rad per css px: mouse look, orbit drag (unchanged since round 1)
 export const touchTurn = (px, width) => (px * Math.PI) / Math.max(1, width);   // touch look: a swipe across the whole width turns 180 deg
 // Joystick: finger offset (dx, dy) in css px from where it came down -> walking velocity relative to the view.
@@ -554,15 +567,24 @@ export function joyVelocity(dx, dy, yaw) {
   const ux = dx / L, uy = dy / L, sp = WALK_SPEED * m, sn = Math.sin(yaw), cs = Math.cos(yaw);
   return { vx: (sn * uy + cs * ux) * sp, vz: (cs * uy - sn * ux) * sp, m };        // screen up = forward (-sin, -cos), right = (cos, -sin)
 }
-export const ROOM = { rise: 1.0, land: 1.0, phi: 0.6, phiRange: [0.25, 1.0], margin: 0.06, fog: 0.008, roofBack: [0.1, 0.55] };
-export const fovRoom = (aspect) => clamp(deg(2 * Math.atan(Math.tan(rad(20)) / Math.min(1, aspect))), 40, 80);   // 40 deg each way at least
+export const ROOM = { rise: 1.0, land: 1.0, phi: 0.6, phiTall: 0.35, phiRange: [0.25, 1.0], margin: 0.06, marginTall: [0.05, 0], fog: 0.008, roofBack: [0.1, 0.55] };
+export const isTall = (aspect) => aspect < 0.8;   // portrait screens (round 5: the room view turns the shop's long side upright)
+export const fovRoom = (aspect) => (isTall(aspect) ? 40 : clamp(deg(2 * Math.atan(Math.tan(rad(20)) / Math.min(1, aspect))), 40, 80));   // 40 deg vertical; landscape and fold: 40 deg each way at least
+// Where the room view starts: behind the walker's line of sight; on a portrait screen the nearest of the two angles that
+// put the shop's long side upright on the screen (looking along it).
+export function roomTheta(b, yaw, aspect) {
+  if (!isTall(aspect)) return yaw;
+  const along = b.x1 - b.x0 >= b.z1 - b.z0 ? [Math.PI / 2, -Math.PI / 2] : [0, Math.PI];
+  return along.reduce((best, a) => (Math.abs(wrapAngle(a - yaw)) < Math.abs(wrapAngle(best - yaw)) ? a : best));
+}
 export const roomInterior = (b) => ({ x0: b.x0 + WALL_T, x1: b.x1 - WALL_T, z0: b.z0 + WALL_T, z1: b.z1 - WALL_T });
 export const roomFloor = (b) => { const A = roomInterior(b), F = SIDEWALK_H; return [[A.x0, F, A.z0], [A.x1, F, A.z0], [A.x1, F, A.z1], [A.x0, F, A.z1]]; };
 // The room view: an orbit round the shop's floor centre, from far enough that the floor and the wall tops are all in frame.
 export function roomOrbit(b, theta, phi, aspect) {
   const A = roomInterior(b), cx = (A.x0 + A.x1) / 2, cz = (A.z0 + A.z1) / 2, cy = SIDEWALK_H, fov = fovRoom(aspect), top = b.h - 0.2;
   const pts = roomFloor(b).concat(roomFloor(b).map(([x, , z]) => [x, top, z]));
-  const fits = (r) => { const cam = orbitCamera({ cx, cy, cz, r, theta, phi }); return pts.every((q) => { const v = project(cam, fov, aspect, q); return v.depth > 0.1 && v.x >= ROOM.margin && v.x <= 1 - ROOM.margin && v.y >= ROOM.margin && v.y <= 1 - ROOM.margin; }); };
+  const [mF, mW] = isTall(aspect) ? ROOM.marginTall : [ROOM.margin, ROOM.margin], inside = (v, m) => v.depth > 0.1 && v.x >= m && v.x <= 1 - m && v.y >= m && v.y <= 1 - m;
+  const fits = (r) => { const cam = orbitCamera({ cx, cy, cz, r, theta, phi }); return pts.every((q, i) => inside(project(cam, fov, aspect, q), i < 4 ? mF : mW)); };   // floor corners, then wall tops
   let lo = 2, hi = 150;
   for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
   return { id: b.id, cx, cy, cz, r: hi, theta, phi, fov };
@@ -727,7 +749,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     if (S.mode !== 'walk') return false;
     const p = S.player, b = buildingAt(p.x, p.z, 0.15);
     if (!b) return exit();
-    const room = roomOrbit(b, p.yaw, ROOM.phi, S.aspect), c = orbitCamera(room);
+    const room = roomOrbit(b, roomTheta(b, p.yaw, S.aspect), isTall(S.aspect) ? ROOM.phiTall : ROOM.phi, S.aspect), c = orbitCamera(room);
     S.room = room; S.lift = b.id;
     const P0 = [c.x, c.y, c.z], P2 = [p.x, p.eyeY, p.z], ch = controlHeight(P0, P2, b.id);
     if (ch.raised) S.raised++;
@@ -909,19 +931,41 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
 // The joystick finger is never part of a pinch. A short press (< 8 px, < 300 ms) with nothing else down is a tap.
 export function createTouchPad(sim, { width = 390, height = 844 } = {}) {
   const pts = new Map();
-  let W = width, H = height, joyId = null, dragId = null, pinch = null;
+  let W = width, H = height, joyId = null, dragId = null, pinch = null, pending = null;
   const mode = () => sim.S.mode, free = () => [...pts.keys()].filter((k) => k !== joyId);
+  const startPinch = (ids, d0) => { const [a, b] = ids.map((k) => pts.get(k)); pinch = { ids, d0: d0 ?? Math.hypot(a.x - b.x, a.y - b.y), d: Math.hypot(a.x - b.x, a.y - b.y), done: false }; dragId = null; };
+  function pinchMoved() {
+    const [a, b] = pinch.ids.map((k) => pts.get(k)), d = Math.hypot(a.x - b.x, a.y - b.y), m = mode(), mx = (a.x + b.x) / 2 / W, my = (a.y + b.y) / 2 / H;
+    if (m === 'orbit') { if (d > 1 && pinch.d > 1) sim.zoomAt(Math.pow(pinch.d / d, PAD.gain), mx, my); }
+    else if (!pinch.done && d < PAD.pinch * pinch.d0 && (m === 'walk' || m === 'room')) { pinch.done = true; sim.back(); }
+    else if (!pinch.done && d > pinch.d0 / PAD.pinch && m === 'room') { pinch.done = true; sim.landAt(mx, my); }
+    pinch.d = d;
+  }
   return {
     resize(w, h) { W = Math.max(1, w); H = Math.max(1, h); },
     get joy() { const p = joyId != null && pts.get(joyId); return p ? { x0: p.x0, y0: p.y0, x: p.x, y: p.y } : null; },
     get pinching() { return !!pinch; },
+    get pending() { return !!pending; },
     down(id, x, y, t) {
-      const p = { x, y, x0: x, y0: y, t0: t, live: false, spent: false };
+      const walking = mode() === 'walk', p = { x, y, x0: x, y0: y, t0: t, live: false, spent: false, zone: walking && inJoyZone(x, y, W, H) };
+      const others = [...pts.keys()];
       pts.set(id, p);
-      if (mode() === 'walk' && joyId === null && x < PAD.left * W) { joyId = id; return; }
-      const f = free();
-      if (f.length === 2) { const [a, b] = f.map((k) => pts.get(k)), d = Math.hypot(a.x - b.x, a.y - b.y); pinch = { ids: f, d0: d, d, done: false }; dragId = null; }
-      else if (f.length === 1) dragId = id;
+      if (!walking) {                                     // outside and in the room view: no joystick, two fingers are a pinch
+        const f = free();
+        if (f.length === 2) startPinch(f); else if (f.length === 1) dragId = id;
+        return;
+      }
+      if (pending || pinch || others.length > 1) { p.spent = true; return; }   // a third finger does nothing
+      if (others.length === 0) { if (p.zone) joyId = id; else dragId = id; return; }
+      const o = pts.get(others[0]), together = t - o.t0 <= PAD.together;
+      if (together && (p.zone || o.zone)) {               // two fingers together, one on the joystick spot: wait and see how they move
+        if (joyId !== null) { joyId = null; sim.joyEnd(); }
+        dragId = null; pending = { ids: [others[0], id], a: { x: o.x, y: o.y }, b: { x, y } };
+        return;
+      }
+      if (joyId === others[0]) { dragId = id; return; }   // the joystick came first: the new finger turns the head
+      if (p.zone) { joyId = id; return; }                 // a head-turning finger came first: the new one on the spot is the joystick
+      startPinch([others[0], id]);                        // neither on the joystick spot: a pinch, as before
     },
     move(id, x, y) {
       const p = pts.get(id);
@@ -929,15 +973,19 @@ export function createTouchPad(sim, { width = 390, height = 844 } = {}) {
       const dx = x - p.x, dy = y - p.y;
       p.x = x; p.y = y;
       if (Math.hypot(x - p.x0, y - p.y0) >= PAD.tapPx) p.live = true;
-      if (id === joyId) { sim.joy(x - p.x0, y - p.y0); return; }
-      if (pinch && pinch.ids.includes(id)) {
-        const [a, b] = pinch.ids.map((k) => pts.get(k)), d = Math.hypot(a.x - b.x, a.y - b.y), m = mode(), mx = (a.x + b.x) / 2 / W, my = (a.y + b.y) / 2 / H;
-        if (m === 'orbit') { if (d > 1 && pinch.d > 1) sim.zoomAt(Math.pow(pinch.d / d, PAD.gain), mx, my); }
-        else if (!pinch.done && d < PAD.pinch * pinch.d0 && (m === 'walk' || m === 'room')) { pinch.done = true; sim.back(); }
-        else if (!pinch.done && d > pinch.d0 / PAD.pinch && m === 'room') { pinch.done = true; sim.landAt(mx, my); }
-        pinch.d = d;
+      if (pending && pending.ids.includes(id)) {
+        const [ia, ib] = pending.ids, A = pts.get(ia), B = pts.get(ib);
+        if (Math.hypot(A.x - pending.a.x, A.y - pending.a.y) + Math.hypot(B.x - pending.b.x, B.y - pending.b.y) < PAD.decidePx) return;
+        const pa = pending; pending = null;
+        if (pairIsPinch({ x0: pa.a.x, y0: pa.a.y, x: A.x, y: A.y }, { x0: pa.b.x, y0: pa.b.y, x: B.x, y: B.y })) { startPinch([ia, ib], Math.hypot(pa.a.x - pa.b.x, pa.a.y - pa.b.y)); pinchMoved(); }
+        else {                                            // the finger on the joystick spot (the first if both) walks, the other turns
+          joyId = A.zone ? ia : ib; dragId = joyId === ia ? ib : ia; pts.get(dragId).live = true;
+          const J = pts.get(joyId); sim.joy(J.x - J.x0, J.y - J.y0);
+        }
         return;
       }
+      if (id === joyId) { sim.joy(x - p.x0, y - p.y0); return; }
+      if (pinch && pinch.ids.includes(id)) { pinchMoved(); return; }
       if (id !== dragId || p.spent || !p.live) return;
       const m = mode();
       if (m === 'orbit') sim.rotate(-dx * ROT_TOUCH, -dy * ROT_TOUCH);
@@ -951,6 +999,7 @@ export function createTouchPad(sim, { width = 390, height = 844 } = {}) {
       if (id === joyId) { joyId = null; sim.joyEnd(); }
       pts.delete(id);
       if (id === dragId) dragId = null;
+      if (pending && pending.ids.includes(id)) { pending = null; for (const k of pts.keys()) pts.get(k).spent = true; }   // undecided pair broken up
       if (pinch && pinch.ids.includes(id)) { pinch = null; for (const k of free()) pts.get(k).spent = true; }
       if (tap) sim.tapAt(x / W, y / H);
     },

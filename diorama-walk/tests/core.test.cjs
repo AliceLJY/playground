@@ -647,14 +647,14 @@ test('R1: the joystick walks along the view in proportion to the push, stops whe
   assert.strictEqual(pad.joy, null);
 });
 
-test('R2: the joystick and a right-hand drag at once walk and turn, and are never taken for a pinch', async () => {
+test('R2: one finger held over 150 ms, then the other: walking and turning at once, never taken for a pinch', async () => {
   const C = await load();
   for (const order of ['joystick first', 'drag first']) {
     const { sim, pad } = await walkIn(C), p = sim.S.player;
     sim.place(5.0, -1.5, 0);
     const x0 = p.x, z0 = p.z, yaw0 = p.yaw, modes = new Set();
-    if (order === 'joystick first') { pad.down(1, 90, 700, 0); pad.down(2, 300, 520, 40); }
-    else { pad.down(2, 300, 520, 0); pad.down(1, 90, 700, 40); }
+    if (order === 'joystick first') { pad.down(1, 90, 700, 0); pad.down(2, 300, 520, 300); }   // 300 ms apart: no waiting to decide
+    else { pad.down(2, 300, 520, 0); pad.down(1, 90, 700, 300); }
     let closest = Infinity;
     for (let i = 1; i <= 60; i++) {                               // thumb pushed up, other hand dragged left: the fingers end up close together
       pad.move(1, 90 + i * 1.2, 700 - Math.min(45, i));
@@ -799,4 +799,96 @@ test('R8 (logic): the room view starts no scare event, a running one finishes, a
   }
   assert.ok(placed, 'E5 happened leaving from the room view');
   assert.strictEqual(placed.roof, 1, `roof at ${placed.roof} when the figure was placed`);
+});
+
+// ---------------- 第五轮：两指几乎同时落下、竖屏整间店、提示圈、左上方转头 (SPEC R10-R13) ----------------
+test('R10: two fingers down together: moving against each other along their line is a pinch, otherwise walk and turn; a joystick held 300 ms stays a joystick', async () => {
+  const C = await load();
+  for (const [name, scr] of Object.entries({ phone: SCREENS.phone, fold: SCREENS.fold })) {
+    const [w, h] = scr, jx = w * 0.2, jy = h * 0.82;                       // on the joystick spot (lower left)
+    // (1) together (30 ms apart), one on the spot, closing along the line between them -> the room view
+    let { sim, pad } = await walkIn(C, scr);
+    const bx = w * 0.78, by = h * 0.62;
+    pad.down(1, jx, jy, 0); pad.down(2, bx, by, 30);
+    assert.ok(pad.pending && !pad.joy && !pad.pinching, `${name} (1): undecided while the fingers have not moved`);
+    for (let i = 1; i <= 10; i++) { const k = i / 10 * 0.45; pad.move(1, jx + (bx - jx) * k / 2, jy + (by - jy) * k / 2); pad.move(2, bx - (bx - jx) * k / 2, by - (by - jy) * k / 2); }
+    assert.strictEqual(sim.S.mode, 'rising', `${name} (1): together and closing -> the room view (${sim.S.mode})`);
+    // (2) together, the lower-left one pushed up, the right one swiping across (both directions) -> walk and turn
+    for (const dir of [1, -1]) {
+      ({ sim, pad } = await walkIn(C, scr)); sim.place(5.0, -1.5, 0);
+      const p = sim.S.player, x0 = p.x, z0 = p.z, yaw0 = p.yaw, rx = w * 0.72, ry = jy - 8, modes = new Set();
+      pad.down(1, jx, jy, 0); pad.down(2, rx, ry, 25);
+      for (let i = 1; i <= 40; i++) { pad.move(1, jx, jy - Math.min(40, i * 2)); pad.move(2, rx + dir * i * 2, ry); sim.update(DT); modes.add(sim.S.mode); }
+      assert.deepStrictEqual([...modes], ['walk'], `${name} (2) swipe ${dir > 0 ? 'out' : 'in'}: stayed walking (${[...modes]})`);
+      assert.ok(pad.joy && !pad.pinching, `${name} (2): joystick + head-turn`);
+      assert.ok(Math.hypot(p.x - x0, p.z - z0) > 0.3 && Math.abs(p.yaw - yaw0) > 0.2, `${name} (2): walked ${Math.hypot(p.x - x0, p.z - z0).toFixed(2)} m, turned ${(p.yaw - yaw0).toFixed(2)}`);
+    }
+    // (3) joystick held 300 ms, then the second finger, closing in -> still walk and turn
+    ({ sim, pad } = await walkIn(C, scr)); sim.place(5.0, -1.5, 0);
+    pad.down(1, jx, jy, 0); pad.move(1, jx, jy - 30);
+    pad.down(2, bx, by, 300);
+    assert.ok(!pad.pending, `${name} (3): no waiting to decide after 300 ms`);
+    const modes3 = new Set();
+    for (let i = 1; i <= 30; i++) { pad.move(1, jx + i * 2, jy - 30 - i); pad.move(2, bx - i * 4, by + i * 2); sim.update(DT); modes3.add(sim.S.mode); }
+    assert.deepStrictEqual([...modes3], ['walk'], `${name} (3): stayed walking (${[...modes3]})`);
+    assert.ok(!pad.pinching && pad.joy, `${name} (3): joystick + head-turn`);
+    // (4) together, both moving the same way along their line (a two-finger slide): not a pinch
+    ({ sim, pad } = await walkIn(C, scr));
+    pad.down(1, jx, jy, 0); pad.down(2, bx, by, 20);
+    for (let i = 1; i <= 8; i++) { const ux = (bx - jx), uy = (by - jy), L = Math.hypot(ux, uy); pad.move(1, jx + ux / L * i * 3, jy + uy / L * i * 3); pad.move(2, bx + ux / L * i * 3, by + uy / L * i * 3); }
+    assert.ok(!pad.pinching && sim.S.mode === 'walk', `${name} (4): a two-finger slide is not a pinch`);
+    // (5) together, neither on the joystick spot: a pinch straight away, as before
+    ({ sim, pad } = await walkIn(C, scr));
+    pad.down(1, w * 0.6, h * 0.3, 0); pad.down(2, w * 0.9, h * 0.3, 20);
+    assert.ok(pad.pinching && !pad.pending, `${name} (5): both off the spot -> pinch at once`);
+  }
+});
+
+test('R11: on a portrait screen the room view turns the shop long side upright and fills at least 45% of the height', async () => {
+  const C = await load();
+  for (const [w, h] of [[390, 844], [380, 870]]) for (const [id, aim, route] of [['store', 'door', [[5.0, -0.6], [6.2, -2.3]]], ['next', { x: -6.0, z: -3.5 }, [[-6.0, -0.6], [-6.0, -2.2]]]]) {
+    const { sim } = await walkIn(C, [w, h], { aim, route });
+    sim.back(); run(sim, () => sim.S.mode === 'room', 3);
+    const b = C.BUILDINGS.find((q) => q.id === id), q = C.roomFloor(b).map((pt) => C.project(sim.S.cam, sim.fov(), w / h, pt));
+    const ys = q.map((v) => v.y), xs = q.map((v) => v.x), hh = Math.max(...ys) - Math.min(...ys);
+    assert.ok(q.every((v) => v.depth > 0 && v.x >= 0 && v.x <= 1 && v.y >= 0 && v.y <= 1), `${w}x${h} ${id}: corners in frame`);
+    assert.ok(hh >= 0.45, `${w}x${h} ${id}: floor box ${(hh * 100).toFixed(1)}% of the height`);
+    const long = b.x1 - b.x0 >= b.z1 - b.z0 ? 'x' : 'z', yaw = sim.S.cam.yaw;
+    assert.ok(long === 'x' ? Math.abs(Math.cos(yaw)) < 1e-9 : Math.abs(Math.sin(yaw)) < 1e-9, `${id}: looking along the long side (yaw ${yaw.toFixed(3)})`);
+  }
+  // landscape keeps round 4: the view starts behind the walker's line of sight
+  const { sim } = await walkIn(C, SCREENS.desk); const yaw = sim.S.player.yaw;
+  sim.back(); run(sim, () => sim.S.mode === 'room', 3);
+  assert.ok(angDiff(sim.S.room.theta, yaw) < 1e-9 && sim.S.room.phi === C.ROOM.phi, 'landscape unchanged');
+});
+
+test('R12: the joystick ring shows on touch screens while walking with no joystick down, and never with a mouse', async () => {
+  const C = await load();
+  const { sim, pad } = await walkIn(C);
+  assert.strictEqual(C.joyHint(sim.S.mode, pad, true), true, 'walking, touch, nothing down: shown');
+  assert.strictEqual(C.joyHint(sim.S.mode, pad, false), false, 'mouse: never');
+  pad.down(1, 80, 700, 0);
+  assert.strictEqual(C.joyHint(sim.S.mode, pad, true), false, 'joystick down: hidden');
+  pad.up(1, 80, 700, 100);
+  assert.strictEqual(C.joyHint(sim.S.mode, pad, true), true, 'let go: back');
+  pad.down(2, 80, 700, 1000); pad.down(3, 300, 600, 1020);
+  assert.ok(pad.pending && C.joyHint(sim.S.mode, pad, true) === false, 'two fingers deciding: hidden');
+  pad.up(2, 80, 700, 1100); pad.up(3, 300, 600, 1100);
+  sim.back(); run(sim, () => sim.S.mode === 'room', 3);
+  assert.strictEqual(C.joyHint(sim.S.mode, pad, true), false, 'room view: no ring');
+});
+
+test('R13: a finger on the upper left turns the head; no joystick, no walking', async () => {
+  const C = await load();
+  for (const [w, h] of [SCREENS.phone, SCREENS.fold]) {
+    const { sim, pad } = await walkIn(C, [w, h]), p = sim.S.player;
+    sim.place(5.0, -1.5, 0);
+    const x0 = p.x, z0 = p.z, yaw0 = p.yaw, sx = w * 0.2, sy = h * 0.3;
+    assert.ok(!C.inJoyZone(sx, sy, w, h) && C.inJoyZone(sx, h * 0.8, w, h), 'upper left is off the spot, lower left is on it');
+    pad.down(1, sx, sy, 0); assert.strictEqual(pad.joy, null, 'no joystick on the upper left');
+    for (let i = 1; i <= 10; i++) pad.move(1, sx + i * 10, sy);
+    stepFor(sim, 0.5); pad.up(1, sx + 100, sy, 800);
+    assert.ok(Math.abs(Math.abs(p.yaw - yaw0) - C.touchTurn(100, w)) < 1e-9, `${w}x${h}: turned ${(p.yaw - yaw0).toFixed(4)} rad`);
+    assert.ok(Math.hypot(p.x - x0, p.z - z0) < 1e-9, 'did not walk');
+  }
 });
