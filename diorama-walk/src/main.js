@@ -466,7 +466,7 @@ window.__diorama = {
   groundPoint: (sx, sy) => sim.groundPoint(sx, sy),
   roomRotate: (a, b) => { sim.roomRotate(a, b); sync(); },
   roofs: () => sim.roofs(),
-  pad: () => ({ joy: pad.joy, pinching: pad.pinching, joyShown: joyEl.style.display === 'block', joyAt: [parseFloat(joyEl.style.left) || 0, parseFloat(joyEl.style.top) || 0], hint: hintEl.textContent }),
+  pad: () => { sync(); return { joy: pad.joy, pinching: pad.pinching, joyShown: joyEl.style.display === 'block', joyAt: [parseFloat(joyEl.style.left) || 0, parseFloat(joyEl.style.top) || 0], hint: hintEl.textContent }; },
   walkTo: (x, z) => sim.walkTo(x, z),
   step: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) sim.update(dt); sync(); return sim.snapshot(); },
   solids: () => C.solids(sim.S.doors, sim.levels().back),   // the staff door where it really is

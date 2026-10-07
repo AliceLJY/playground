@@ -76,7 +76,7 @@ const isExternal = (u) => {
   }
 
   // ---------- fixed views: screenshots as a visitor sees them ----------
-  const views = [['hero', '?view=hero'], ['mid-aim-door', '?view=mid&aim=door'], ['door', '?view=door'], ['inside', '?view=inside'], ['next', '?view=next'], ['scare', '?view=scare'], ['reveal', '?view=reveal']];
+  const views = [['hero', '?view=hero'], ['mid-aim-door', '?view=mid&aim=door'], ['door', '?view=door'], ['inside', '?view=inside'], ['next', '?view=next'], ['scare', '?view=scare'], ['reveal', '?view=reveal'], ['room', '?view=room']];
   let gpu = '', calls = {};
   for (const [name, q] of views) {
     const P = await open(q);
@@ -88,13 +88,14 @@ const isExternal = (u) => {
     report.runs.push({ name, query: q, viewport: '1280x720', dpr: i.dpr, buffer: i.buffer, calls: i.calls, triangles: i.triangles, s: st.s, mode: st.mode, cam: st.cam, eye: st.eye, doors: st.doors, horror: hz });
     await P.close();
   }
-  for (const [name, q] of [['phone-hero', '?view=hero'], ['phone-inside', '?view=inside'], ['phone-scare', '?view=scare'], ['phone-reveal', '?view=reveal']]) {
-    const P = await open(q, { width: 390, height: 844, dpr: 3, touch: true });
+  for (const [name, q, w, h, dpr] of [['phone-hero', '?view=hero', 390, 844, 3], ['phone-inside', '?view=inside', 390, 844, 3], ['phone-scare', '?view=scare', 390, 844, 3], ['phone-reveal', '?view=reveal', 390, 844, 3], ['phone-room', '?view=room', 390, 844, 3],
+    ['fold-hero', '?view=hero', 880, 920, 2], ['fold-inside', '?view=inside', 880, 920, 2], ['fold-room', '?view=room', 880, 920, 2]]) {
+    const P = await open(q, { width: w, height: h, dpr, touch: true });
     await P.page.waitForTimeout(500);
     const i = await info(P.page);
     await P.page.screenshot({ path: shot(name) });
     const hz = await P.page.evaluate(() => { const h = window.__diorama.horror(); return { fired: h.fired, figure: h.figure, scare: h.scare, drawn: window.__diorama.info().figures, leaf: window.__diorama.info().leaf }; });
-    report.runs.push({ name, query: q, viewport: '390x844', deviceDpr: 3, dpr: i.dpr, buffer: i.buffer, calls: i.calls, horror: hz });
+    report.runs.push({ name, query: q, viewport: `${w}x${h}`, deviceDpr: dpr, dpr: i.dpr, buffer: i.buffer, calls: i.calls, horror: hz });
     await P.close();
   }
 
@@ -357,9 +358,9 @@ const isExternal = (u) => {
     const walking = (await state(page)).player.walking;
     await until(page, () => !window.__diorama.state().player.walking, 8000);
     const p1 = (await state(page)).player, moved = Math.hypot(p1.x - p0.x, p1.z - p0.z);
-    // two fingers pinch in to a third of the start distance
-    await touch('touchStart', [[95, 600], [295, 600]]);
-    for (let i = 1; i <= 15; i++) { const h = 100 - i * 4.5; await touch('touchMove', [[195 - h, 600], [195 + h, 600]]); await page.waitForTimeout(16); }
+    // two fingers pinch in to a third of the start distance, on the right half (the left 45% is the joystick since round 4)
+    await touch('touchStart', [[210, 600], [370, 600]]);
+    for (let i = 1; i <= 15; i++) { const h = 80 - i * 3.6; await touch('touchMove', [[290 - h, 600], [290 + h, 600]]); await page.waitForTimeout(16); }
     await touch('touchEnd', []);
     const leaving = await until(page, () => window.__diorama.state().mode === 'exiting' || window.__diorama.state().mode === 'orbit', 3000);
     const back = await until(page, () => window.__diorama.state().mode === 'orbit', 5000);
@@ -715,6 +716,261 @@ const isExternal = (u) => {
       `the original items 1-9, performance and the player default are the other rows of this run`);
   }
 
+  // ======================= 第四轮 R1–R9 (SPEC 店里的操作与「看整间店」视角) =======================
+  let finishR9 = () => {};
+  const PHONE = { width: 390, height: 844, dpr: 3, touch: true }, FOLD = { width: 880, height: 920, dpr: 2, touch: true };
+  // Chrome hands touch moves to the page with the next frame, so every touch waits two frames before the next read or step
+  const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+  const cdpTouch = async (P) => { const cdp = await P.ctx.newCDPSession(P.page); return async (type, pts) => { await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([id, x, y]) => ({ id, x, y, radiusX: 4, radiusY: 4, force: 1 })) }); await settle(P.page); }; };
+  const snap = (page) => page.evaluate(() => { const s = window.__diorama.state(); return { mode: s.mode, level: s.level, x: s.player.x, z: s.player.z, yaw: s.player.yaw, pitch: s.player.pitch, eye: s.eye, cam: s.cam, s: s.s, fog: s.fog, t: s.t, lift: s.lift, trigger: s.trigger, room: s.room, transition: s.transition }; });
+  const stepN = (page, n, dt = 1 / 60) => page.evaluate(({ n, dt }) => { window.__diorama.step(dt, n); }, { n, dt });
+  const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+  const angD = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  // pinch (ratio < 1) or spread (ratio > 1) with two fingers on the right side, centred at (cx, cy) css px
+  async function twoFingers(T, page, cx, cy, d0, ratio, ids = [11, 12], stepEach = 0) {
+    await T('touchStart', [[ids[0], cx - d0 / 2, cy], [ids[1], cx + d0 / 2, cy]]);
+    for (let i = 1; i <= 10; i++) { const d = d0 * (1 + (ratio - 1) * (i / 10)); await T('touchMove', [[ids[0], cx - d / 2, cy], [ids[1], cx + d / 2, cy]]); if (stepEach) await stepN(page, stepEach); }
+    await T('touchEnd', []);
+  }
+  // every frame of a running transition: camera outside every solid grown by 0.1 m (doors that are open and lifted parts skipped)
+  const transitionFrames = (page, until) => page.evaluate((until) => {
+    const D = window.__diorama, bad = [], modes = new Set();
+    for (let i = 0; i < 400; i++) {
+      const s = D.step(1 / 60, 1); modes.add(s.mode);
+      const c = s.cam;
+      for (const b of D.solids()) {
+        if ((b.kind === 'door' && !b.active) || (s.lift && b.lift === s.lift)) continue;
+        if (c.x > b.x0 - 0.1 && c.x < b.x1 + 0.1 && c.y > b.y0 - 0.1 && c.y < b.y1 + 0.1 && c.z > b.z0 - 0.1 && c.z < b.z1 + 0.1) bad.push(b.id);
+      }
+      if (s.mode === until) break;
+    }
+    return { bad: [...new Set(bad)], modes: [...modes], frames: modes.size };
+  }, until);
+  const roomShot = (page, id) => page.evaluate((id) => {
+    const D = window.__diorama, C = D.core, b = C.BUILDINGS.find((q) => q.id === id), w = innerWidth, h = innerHeight;
+    const corners = C.roomFloor(b).map(([x, y, z]) => D.toScreen(x, y, z)).map(([x, y]) => [x / w, y / h]);
+    return { corners, inFrame: corners.every(([x, y]) => x >= 0 && x <= 1 && y >= 0 && y <= 1), drawn: D.info().drawnRoofs, hint: D.pad().hint };
+  }, id);
+
+  // ---------- R1: the joystick walks, stops, never turns ----------
+  {
+    const P = await open('?view=door', PHONE), page = P.page, T = await cdpTouch(P);
+    await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+    const s0 = await snap(page);
+    await T('touchStart', [[1, 100, 650]]);
+    const pad0 = await page.evaluate(() => window.__diorama.pad());
+    await T('touchMove', [[1, 100, 590]]); const a = await snap(page); await stepN(page, 60); const b = await snap(page);
+    await T('touchMove', [[1, 100, 620]]); const c = await snap(page); await stepN(page, 60); const d = await snap(page);
+    await page.waitForTimeout(250); await page.screenshot({ path: shot('phone-joystick') });
+    const pad1 = await page.evaluate(() => window.__diorama.pad());
+    await T('touchMove', [[1, 100, 645]]); const e = await snap(page); await stepN(page, 30); const f = await snap(page);
+    await T('touchMove', [[1, 160, 650]]); const g0 = await snap(page); await stepN(page, 30); const g1 = await snap(page);
+    await T('touchMove', [[1, 100, 590]]); await stepN(page, 12); await T('touchEnd', []); const h0 = await snap(page); await stepN(page, 12); const h1 = await snap(page);
+    const pad2 = await page.evaluate(() => window.__diorama.pad());
+    await P.close();
+    const full = dist2(a, b), dir = Math.atan2(-(b.x - a.x), -(b.z - a.z)), half = dist2(c, d), dead = dist2(e, f), side = dist2(g0, g1), sideDir = Math.atan2(-(g1.x - g0.x), -(g1.z - g0.z)), after = dist2(h0, h1);
+    report.r1 = { pad0, pad1, pad2, full, half, dead, side, after, yaw: [s0.yaw, h1.yaw] };
+    check('R1', 'joystick walks along the view, in proportion, stops on release, never turns', pad0.joyShown && pad0.joyAt[0] === 100 && pad0.joyAt[1] === 650 && Math.abs(full - 1.3) <= 0.1 && angD(dir, s0.yaw) < 0.02 && Math.abs(half / full - 0.5) <= 0.1 && dead < 1e-9 && angD(sideDir, s0.yaw - Math.PI / 2) < 0.02 && after < 1e-9 && h1.yaw === s0.yaw && !pad2.joyShown,
+      `390x844 touch: thumb down at (100, 650) on the left -> joystick shown ${pad0.joyShown} at (${pad0.joyAt.join(', ')}); pushed fully up 1 s -> ${full.toFixed(3)} m, ${(angD(dir, s0.yaw) * 180 / Math.PI).toFixed(2)} deg off the line of sight; half push 1 s -> ${half.toFixed(3)} m (${(half / full).toFixed(2)} of full); ` +
+      `5 px (inside the 6 px dead zone) 0.5 s -> ${dead.toFixed(4)} m; pushed right 0.5 s -> ${side.toFixed(3)} m to the right of the view; let go -> ${after.toFixed(4)} m in the next 0.2 s, joystick hidden ${!pad2.joyShown}; yaw ${s0.yaw.toFixed(4)} -> ${h1.yaw.toFixed(4)}`);
+  }
+
+  // ---------- R2: joystick and right-hand drag together, never a pinch ----------
+  {
+    const P = await open('?view=door', PHONE), page = P.page, T = await cdpTouch(P), res = {};
+    for (const order of ['joystick first', 'drag first']) {
+      await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+      const s0 = await snap(page);
+      if (order === 'joystick first') { await T('touchStart', [[1, 90, 700]]); await T('touchStart', [[1, 90, 700], [2, 300, 520]]); }
+      else { await T('touchStart', [[2, 300, 520]]); await T('touchStart', [[2, 300, 520], [1, 90, 700]]); }
+      const r = { modes: new Set(), pinched: 0, closest: Infinity };
+      for (let i = 1; i <= 60; i++) {
+        const j = [1, 90 + i * 1.2, 700 - Math.min(45, i)], k = [2, 300 - i * 1.8, 520 + i * 1.5];
+        r.closest = Math.min(r.closest, Math.hypot(k[1] - j[1], k[2] - j[2]));
+        await T('touchMove', [j, k]);
+        const q = await page.evaluate(() => { const D = window.__diorama, s = D.step(1 / 60, 1); return { mode: s.mode, pinching: D.pad().pinching }; });
+        r.modes.add(q.mode); if (q.pinching) r.pinched++;
+      }
+      await T('touchEnd', []);
+      const s1 = await snap(page);
+      res[order] = { modes: [...r.modes], pinched: r.pinched, closest: r.closest, moved: dist2(s0, s1), turned: s1.yaw - s0.yaw };
+    }
+    await P.close();
+    report.r2 = res;
+    const ok = Object.values(res).every((r) => r.modes.length === 1 && r.modes[0] === 'walk' && r.pinched === 0 && r.moved > 0.3 && Math.abs(r.turned) > 0.3 && r.closest < 0.75 * Math.hypot(210, 180));
+    check('R2', 'joystick plus right-hand drag: walks and turns, never a pinch', ok,
+      Object.entries(res).map(([k, r]) => `${k}: walked ${r.moved.toFixed(2)} m and turned ${r.turned.toFixed(2)} rad in 1 s; fingers came within ${r.closest.toFixed(0)} px of each other (start ${Math.hypot(210, 180).toFixed(0)}; a pinch would fire below 75%); modes ${r.modes.join(',')}; frames read as a pinch ${r.pinched}`).join(' | '));
+  }
+
+  // ---------- R3: touch turning by screen width; mouse as before ----------
+  {
+    const res = {};
+    for (const [name, opt] of [['390x844', PHONE], ['880x920', FOLD]]) {
+      const P = await open('?view=door', opt), page = P.page, T = await cdpTouch(P), W = opt.width;
+      await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+      const s0 = await snap(page);
+      await T('touchStart', [[1, W - 1, opt.height / 2]]);
+      for (let x = W - 9; x > 1; x -= 8) await T('touchMove', [[1, x, opt.height / 2]]);
+      await T('touchMove', [[1, 1, opt.height / 2]]); await T('touchEnd', []);
+      const s1 = await snap(page);
+      res[name] = { turned: Math.abs(s1.yaw - s0.yaw), swipe: W - 2, perWidth: (Math.abs(s1.yaw - s0.yaw) * W) / (W - 2) };
+      await P.close();
+    }
+    const M = await open('?view=door');
+    await M.page.evaluate(() => window.__diorama.step(0, 1));
+    const m0 = await snap(M.page);
+    await M.page.mouse.move(600, 360); await M.page.mouse.down(); await M.page.mouse.move(700, 360, { steps: 5 }); await M.page.mouse.up();
+    const m1 = await snap(M.page);
+    await M.close();
+    const mouse = m1.yaw - m0.yaw;
+    report.r3 = { res, mouse };
+    check('R3', 'touch turning: a full screen width is 180 deg; mouse unchanged', Object.values(res).every((r) => Math.abs(r.perWidth - Math.PI) <= 0.1 * Math.PI) && Math.abs(Math.abs(mouse) - 0.5) < 0.005,
+      Object.entries(res).map(([k, r]) => `${k}: a ${r.swipe} px swipe turned ${(r.turned * 180 / Math.PI).toFixed(1)} deg = ${(r.perWidth * 180 / Math.PI).toFixed(1)} deg per screen width (180 +- 18)`).join(' | ') + ` | mouse drag 100 px -> ${Math.abs(mouse).toFixed(3)} rad (round 3: 0.005 rad/px)`);
+  }
+
+  // ---------- R4 + R5: pinch inside -> room view; spread lands; pinch out like item 2 ----------
+  {
+    const r4 = {}, r5 = {};
+    for (const [name, q, opt, id] of [['store 390x844', '?view=inside', PHONE, 'store'], ['next 390x844', '?view=next', PHONE, 'next'], ['store 880x920', '?view=inside', FOLD, 'store']]) {
+      const P = await open(q, opt), page = P.page, T = await cdpTouch(P), W = opt.width, Hh = opt.height;
+      await page.evaluate(() => window.__diorama.step(0, 1));
+      const before = await snap(page);
+      await twoFingers(T, page, W * 0.76, Hh * 0.55, W * 0.2, 0.55);
+      const after = await snap(page);
+      const fr = await transitionFrames(page, 'room');
+      await page.waitForTimeout(250);
+      const rs = await roomShot(page, id), s2 = await snap(page);
+      if (name !== 'store 390x844') await page.screenshot({ path: shot(name.startsWith('next') ? 'phone-room-next' : 'fold-room-pinched') });
+      r4[name] = { level: before.level, modeAfterPinch: after.mode, frames: fr, mode: s2.mode, ...rs };
+      if (id === 'store') {
+        // spread over a floor spot -> land there
+        const aim = [5.4, -4.6], sc = await page.evaluate(([x, z]) => window.__diorama.toScreen(x, 0.12, z), aim);
+        await twoFingers(T, page, sc[0], sc[1], 50, 2.9, [21, 22]);
+        const m1 = (await snap(page)).mode, fl = await transitionFrames(page, 'walk'), s3 = await snap(page);
+        // back up to the room view, then pinch out to the table
+        await twoFingers(T, page, W * 0.76, Hh * 0.55, W * 0.2, 0.55, [31, 32]); await transitionFrames(page, 'room');
+        const camYaw = (await snap(page)).cam.yaw;
+        await twoFingers(T, page, W * 0.76, Hh * 0.55, W * 0.2, 0.55, [41, 42]);
+        const m2 = await snap(page), out = await transitionFrames(page, 'orbit'), s4 = await snap(page);
+        const fogAtEntry = await page.evaluate((s) => window.__diorama.core.looks(s, innerWidth / innerHeight).fog, s4.trigger.s);
+        const drawn = await page.evaluate(() => window.__diorama.info().drawnRoofs);
+        r5[name] = { spreadMode: m1, landFrames: fl, landed: [s3.x, s3.z], off: Math.hypot(s3.x - aim[0], s3.z - aim[1]), eye: s3.eye, pitch: s3.pitch, yaw: s3.yaw, outMode: m2.mode, outFrames: out, end: s4, fogAtEntry, drawn, camYaw };
+      }
+      await P.close();
+    }
+    report.r4 = r4; report.r5 = r5;
+    const ok4 = Object.entries(r4).every(([k, r]) => {
+      const id = k.startsWith('next') ? 'next' : 'store', other = id === 'store' ? 'nextRoof' : 'storeRoof';
+      const off = id === 'store' ? r.drawn.storeRoof === 0 && r.drawn.storeCeiling === 0 && r.drawn.storeLightPanel === 0 && r.drawn.ceilingGrid === 0 : r.drawn.nextRoof === 0 && r.drawn.nextLightPanel === 0;
+      return r.level === 'inside' && r.modeAfterPinch === 'rising' && r.mode === 'room' && !r.frames.modes.includes('exiting') && !r.frames.modes.includes('orbit') && r.frames.bad.length === 0 && off && r.drawn.annex === 1 && r.drawn[other] === 1 && r.inFrame;
+    });
+    check('R4', 'pinch inside a shop: the room view, roof and ceiling off, back room roof on, floor in frame, nothing crossed', ok4,
+      Object.entries(r4).map(([k, r]) => `${k}: level ${r.level}, pinch -> ${r.modeAfterPinch} -> ${r.mode} (modes on the way ${r.frames.modes.join(',')}), camera inside a solid on ${r.frames.bad.length} frames; drawn roof/ceiling/panels/grid ${k.startsWith('next') ? `${r.drawn.nextRoof}/-/${r.drawn.nextLightPanel}/-` : `${r.drawn.storeRoof}/${r.drawn.storeCeiling}/${r.drawn.storeLightPanel}/${r.drawn.ceilingGrid}`}, back room ${r.drawn.annex}, other shop roof ${k.startsWith('next') ? r.drawn.storeRoof : r.drawn.nextRoof}; floor corners ${r.corners.map(([x, y]) => `(${x.toFixed(2)},${y.toFixed(2)})`).join(' ')} all in frame ${r.inFrame}; hint「${r.hint}」`).join(' | '));
+    const ok5 = Object.values(r5).every((r) => r.spreadMode === 'landing' && r.landFrames.bad.length === 0 && r.off <= 0.3 && Math.abs(r.eye - 1.6) <= 0.02 && Math.abs(r.pitch) < 0.05 && r.outMode === 'exiting' && r.outFrames.modes.every((m) => m === 'exiting' || m === 'orbit') && r.end.mode === 'orbit' && r.end.s === r.end.trigger.s && Math.abs(r.end.fog - r.fogAtEntry) < 1e-12 && r.drawn.storeRoof === 1 && r.drawn.storeCeiling === 1);
+    check('R5', 'from the room view: spread lands on the aimed floor; pinch goes out like item 2, roofs back', ok5,
+      Object.entries(r5).map(([k, r]) => `${k}: spread over (5.4, -4.6) -> ${r.spreadMode}, landed at (${f3(r.landed[0])}, ${f3(r.landed[1])}) ${r.off.toFixed(3)} m off, eye ${f3(r.eye)}, pitch ${f3(r.pitch)}, camera inside a solid on ${r.landFrames.bad.length} frames; pinch twice -> ${r.outMode} -> ${r.end.mode}: s ${f3(r.end.s)} = entry s ${f3(r.end.trigger.s)}, fog ${r.end.fog} = ${r.fogAtEntry}, roof drawn ${r.drawn.storeRoof}, ceiling ${r.drawn.storeCeiling}`).join(' | '));
+  }
+
+  // ---------- R6: pinch on the pavement goes straight out ----------
+  {
+    const P = await open('?view=door', PHONE), page = P.page, T = await cdpTouch(P);
+    await page.evaluate(() => window.__diorama.step(0, 1));
+    const s0 = await snap(page);
+    await twoFingers(T, page, 390 * 0.76, 844 * 0.55, 78, 0.55);
+    const m = (await snap(page)).mode, fr = await transitionFrames(page, 'orbit'), s1 = await snap(page);
+    await P.close();
+    report.r6 = { level: s0.level, m, modes: fr.modes, end: s1.mode };
+    check('R6', 'pinch on the pavement goes straight out', s0.level === 'street' && m === 'exiting' && !fr.modes.includes('rising') && !fr.modes.includes('room') && s1.mode === 'orbit',
+      `standing on the pavement (${f3(s0.x)}, ${f3(s0.z)}), level ${s0.level}; pinch on the right half -> ${m}, modes on the way ${fr.modes.join(',')}, ends ${s1.mode}`);
+  }
+
+  // ---------- R7: desktop, real wheel and keys (real time) ----------
+  {
+    const P = await open('?view=inside'), page = P.page;
+    const poll = async (pred, ms) => { const seen = new Set(), t0 = Date.now(); while (Date.now() - t0 < ms) { const m = (await snap(page)).mode; seen.add(m); if (pred(m)) return { ok: true, seen: [...seen] }; await page.waitForTimeout(50); } return { ok: false, seen: [...seen] }; };
+    await page.evaluate(() => window.__diorama.auto(true));
+    await page.mouse.move(640, 360);
+    await page.mouse.wheel(0, 120); const w1 = await poll((m) => m === 'room', 3000);
+    await page.waitForTimeout(400); await page.screenshot({ path: shot('room-wheel') });
+    await page.mouse.wheel(0, 120); const w2 = await poll((m) => m === 'orbit', 4000);
+    // in again, stand inside, wheel back to the room view, wheel forward over a floor spot
+    const door = await page.evaluate(() => window.__diorama.toScreen(5.0, 1.3, 0.5)); await page.mouse.move(door[0], door[1]);
+    for (let k = 0; k < 40 && (await snap(page)).mode === 'orbit'; k++) { await page.mouse.wheel(0, -120); await page.waitForTimeout(40); }
+    await poll((m) => m === 'walk', 4000);
+    await page.evaluate(() => window.__diorama.place(5.0, -2.0, 0)); await page.waitForTimeout(400);
+    await page.mouse.wheel(0, 120); const w3 = await poll((m) => m === 'room', 3000);
+    const spot = await page.evaluate(() => window.__diorama.toScreen(4.0, 0.12, -4.5)); await page.mouse.move(spot[0], spot[1]);
+    const aimed = await page.evaluate(([x, y]) => window.__diorama.groundPoint(x / innerWidth, y / innerHeight), spot);
+    await page.waitForTimeout(400); await page.mouse.wheel(0, -120); const w4 = await poll((m) => m === 'walk', 3000);
+    const landed = await snap(page);
+    // Esc from walking inside, and from the room view
+    await page.keyboard.press('Escape'); const e1 = await poll((m) => m === 'orbit', 4000);
+    for (let k = 0; k < 40 && (await snap(page)).mode === 'orbit'; k++) { await page.mouse.move(door[0], door[1]); await page.mouse.wheel(0, -120); await page.waitForTimeout(40); }
+    await poll((m) => m === 'walk', 4000);
+    await page.evaluate(() => window.__diorama.place(5.0, -2.0, 0)); await page.waitForTimeout(400);
+    await page.mouse.wheel(0, 120); await poll((m) => m === 'room', 3000);
+    await page.keyboard.press('Escape'); const e2 = await poll((m) => m === 'orbit', 4000);
+    await P.close();
+    const off = aimed ? Math.hypot(landed.x - aimed[0], landed.z - aimed[1]) : null;
+    report.r7 = { w1, w2, w3, w4, aimed, landed: [landed.x, landed.z], off, e1, e2 };
+    check('R7', 'desktop: wheel back to the room view and out, wheel forward lands under the cursor, Esc out from every level',
+      w1.ok && !w1.seen.includes('exiting') && w2.ok && w3.ok && w4.ok && off != null && off <= 0.3 && Math.abs(landed.eye - 1.6) <= 0.02 && e1.ok && !e1.seen.includes('room') && !e1.seen.includes('rising') && e2.ok && !e2.seen.includes('walk'),
+      `inside, one notch back -> room view ${w1.ok} (${w1.seen.join(',')}); another notch back -> outside ${w2.ok} (${w2.seen.join(',')}); room view again ${w3.ok}; cursor over the floor at (${aimed ? aimed.map(f3).join(', ') : '-'}), one notch forward -> walking ${w4.ok} at (${f3(landed.x)}, ${f3(landed.z)}), ${off == null ? '-' : off.toFixed(3)} m off, eye ${f3(landed.eye)}; ` +
+      `Esc while walking inside -> outside ${e1.ok} (${e1.seen.join(',')}); Esc in the room view -> outside ${e2.ok} (${e2.seen.join(',')})`);
+  }
+
+  // ---------- R8: the room view starts nothing; E5 after the roof is back ----------
+  {
+    const P = await open('?view=hero');
+    await P.page.evaluate(helpers);
+    const r = await P.page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, S = D.core.SCARE_PLAN;
+      H.enter(); D.walkRoute(S.aisle); H.until(() => !D.state().player.walking, 20);
+      const e2 = D.horror().fired.E2, n0 = D.horror().history.length;
+      D.back(); H.until(() => D.state().mode === 'room', 3);
+      const t0 = D.state().t; H.until(() => false, 10); const t1 = D.state().t;
+      const later = D.horror().history.slice(n0).map((x) => x.e), wide = D.horror().wideAt;
+      D.back(); let placed = null;
+      H.each = () => { if (!placed && D.horror().figure === 'window') { const i = D.info(); placed = { roof: i.drawnRoofs.storeRoof, ceiling: i.drawnRoofs.storeCeiling, simRoof: D.roofs().store.a, camY: D.state().cam.y }; } };
+      H.until(() => D.state().mode === 'orbit', 5); H.each = null;
+      return { e2, stay: t1 - t0, later, wide, placed, figure: D.horror().figure };
+    });
+    await P.close();
+    report.r8 = r;
+    const hOk = report.checks.filter((c) => /^H[1-8]$/.test(String(c.id))).every((c) => c.pass) && report.checks.filter((c) => /^H[1-8]$/.test(String(c.id))).length === 8;
+    check('R8', 'scare points unaffected: H1-H8 pass, nothing starts in the room view, E5 after the roof is back', hOk && r.e2 != null && r.stay >= 10 - 1e-6 && r.later.length === 0 && r.wide === null && r.placed && r.placed.roof === 1 && r.placed.simRoof === 1 && r.figure === 'window',
+      `H1-H8 in this run: ${hOk ? 'all pass' : 'NOT all pass'}; E2 fired at ${f2(r.e2)} s, then the room view for ${r.stay.toFixed(2)} s: events ${r.later.length ? r.later.join(',') : 'none'}, staff door changed ${r.wide !== null}; leaving from the room view: figure placed with the roof drawn at ${r.placed ? r.placed.roof : '-'} (simulation ${r.placed ? r.placed.simRoof : '-'}), camera ${r.placed ? r.placed.camY.toFixed(2) : '-'} m; ends with the figure at '${r.figure}'`);
+  }
+
+  // ---------- R9: the 880x920 fold screen ----------
+  {
+    const P = await open('?view=inside', FOLD), page = P.page, T = await cdpTouch(P);
+    const overflow = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+    await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+    const s0 = await snap(page);
+    await T('touchStart', [[1, 200, 700]]); await T('touchMove', [[1, 200, 640]]); await stepN(page, 45);
+    await page.waitForTimeout(250); await page.screenshot({ path: shot('fold-joystick') });
+    await T('touchEnd', []); const s1 = await snap(page);
+    await T('touchStart', [[2, 700, 400]]); for (let x = 692; x >= 480; x -= 8) await T('touchMove', [[2, x, 400]]); await T('touchEnd', []);
+    const s2 = await snap(page);
+    await twoFingers(T, page, 880 * 0.76, 920 * 0.55, 176, 0.55); const fr = await transitionFrames(page, 'room'); const lv1 = (await snap(page)).mode;
+    const sc = await page.evaluate(() => window.__diorama.toScreen(5.4, 0.12, -4.6));
+    await twoFingers(T, page, sc[0], sc[1], 60, 2.9, [21, 22]); await transitionFrames(page, 'walk'); const s3 = await snap(page);
+    await twoFingers(T, page, 880 * 0.76, 920 * 0.55, 176, 0.55, [31, 32]); await transitionFrames(page, 'room');
+    await twoFingers(T, page, 880 * 0.76, 920 * 0.55, 176, 0.55, [41, 42]); await transitionFrames(page, 'orbit'); const s4 = await snap(page);
+    await P.close();
+    const fold = { overflow, walked: dist2(s0, s1), turned: Math.abs(s2.yaw - s1.yaw), lv1, frames: fr, s3, end: s4.mode };
+    report.r9 = fold;
+    // judged at the very end, once items 9, performance and the player default have run too
+    finishR9 = () => {
+      const regress = report.checks.filter((c) => /^(1|1b|2|3|4|5|6|7|8|9|P|D|H[1-8])$/.test(String(c.id)));
+      check('R9', 'regressions (H1-H8, items 1-9, 1b, performance, player default) and the 880x920 fold screen',
+        regress.length === 19 && regress.every((c) => c.pass) && fold.overflow.sw <= fold.overflow.cw && fold.walked > 0.5 && Math.abs(fold.turned - (216 * Math.PI) / 880) < 0.02 && fold.lv1 === 'room' && fold.frames.bad.length === 0 && fold.s3.mode === 'walk' && Math.hypot(fold.s3.x - 5.4, fold.s3.z + 4.6) <= 0.3 && fold.end === 'orbit',
+        `${regress.filter((c) => c.pass).length}/${regress.length} earlier rows pass (${regress.filter((c) => !c.pass).map((c) => c.id).join(',') || 'none failing'}); 880x920 touch: no horizontal overflow (scrollWidth ${fold.overflow.sw} <= ${fold.overflow.cw}); ` +
+        `joystick 0.75 s -> ${fold.walked.toFixed(2)} m; a 216 px drag -> ${fold.turned.toFixed(3)} rad (216/880 x pi = ${((216 * Math.PI) / 880).toFixed(3)}); pinch inside -> ${fold.lv1}; spread -> walking at (${f3(fold.s3.x)}, ${f3(fold.s3.z)}); pinch, pinch -> ${fold.end}`);
+    };
+  }
+
   // ---------- performance: draw calls and frame rate ----------
   {
     const perf = {};
@@ -753,12 +1009,15 @@ const isExternal = (u) => {
     const pc = (await state(page)).player;
     await page.keyboard.down('Shift'); await page.keyboard.down('w'); await page.waitForTimeout(700);
     await page.keyboard.up('w'); await page.keyboard.up('Shift');
-    const pk = (await state(page)).player;
+    const pkS = await state(page), pk = pkS.player;
     const keyMoved = Math.hypot(pk.x - pc.x, pk.z - pc.z);
     await page.mouse.move(640, 360); await page.mouse.down(); await page.mouse.move(760, 360, { steps: 6 }); await page.mouse.up();
     const yawDrag = (await state(page)).player.yaw - pk.yaw;
     await page.mouse.wheel(0, 120);
-    const back = await until(page, () => window.__diorama.state().mode === 'orbit', 5000);
+    const lvl = await until(page, () => ['room', 'orbit'].includes(window.__diorama.state().mode), 5000);
+    const viaRoom = (await state(page)).mode === 'room';
+    if (viaRoom) { await page.waitForTimeout(400); await page.mouse.wheel(0, 120); }
+    const back = lvl && await until(page, () => window.__diorama.state().mode === 'orbit', 5000);
     const fin = await state(page);
     // and once more with Esc
     for (let k = 0; k < 6; k++) { await page.mouse.wheel(0, -120); await page.waitForTimeout(40); }
@@ -769,7 +1028,7 @@ const isExternal = (u) => {
     report.defaultRun = { i0, landed: landed.cam, wheels, clickWalk, keyMoved, yawDrag, fin: { s: fin.s, orbit: fin.orbit, trigger: fin.trigger }, i1 };
     check('D', 'player default (no parameters, pixel ratio 2, real input)', inside && clickWalk && keyMoved > 1.0 && Math.abs(yawDrag) > 0.1 && back && again && escBack && i0.dpr === 2,
       `pixel ratio ${i0.dpr}, buffer ${i0.buffer.join('x')}, tilt pass on ${i0.tiltOn}; ${wheels} wheel notches over the door -> inside ${inside}, eye ${f3(landed.eye)}; click on floor -> walking ${clickWalk}; ` +
-      `Shift+W 0.7 s -> ${keyMoved.toFixed(2)} m; drag -> yaw ${yawDrag.toFixed(2)} rad; wheel back -> outside ${back} (s ${f3(fin.s)} = entry s ${f3(fin.trigger.s)}); wheel in again ${again}, Esc -> outside ${escBack}; sound ${i1.audio}`);
+      `Shift+W 0.7 s -> ${keyMoved.toFixed(2)} m (now ${pkS.level === 'inside' ? 'inside the shop' : 'on the ' + pkS.level}); drag -> yaw ${yawDrag.toFixed(2)} rad; wheel back${viaRoom ? ' (in the shop: room view first, one more notch)' : ''} -> outside ${back} (s ${f3(fin.s)} = entry s ${f3(fin.trigger.s)}); wheel in again ${again}, Esc -> outside ${escBack}; sound ${i1.audio}`);
     await P.close();
   }
 
@@ -777,6 +1036,7 @@ const isExternal = (u) => {
   check(9, 'clean start: no errors, no outside requests', allErrors.length === 0 && allExternal.length === 0,
     `${loads} page loads: ${allErrors.length} errors/warnings, ${allExternal.length} outside requests${allErrors.length ? ' — ' + allErrors.slice(0, 4).join(' ; ') : ''}${allExternal.length ? ' — ' + allExternal.slice(0, 4).join(' ; ') : ''}`);
 
+  finishR9();
   report.gpu = gpu; report.calls = calls; report.errors = allErrors; report.external = allExternal;
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
   const failed = report.checks.filter((c) => !c.pass).length;
