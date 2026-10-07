@@ -445,7 +445,7 @@ export function pointsVisible(cam, fov, aspect, pts, skip = null) {
 const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], L = Math.hypot(...d); return Math.acos(clamp((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L, -1, 1)); };
 function createHorror(S, calm) {
   const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null });
-  const H = { calm, visit: 0, figure: calm ? null : 'counter', fired: blank(), done: { E2: false, E3: false, E4: false }, e0: null, e2: null, e3: null, e4: null, wideAt: null, e5Armed: false, e5Dark: null,
+  const H = { calm, visit: 0, figure: calm ? null : 'counter', fired: blank(), done: { E2: false, E3: false, E4: false }, e0: null, e2: null, e3: null, e4: null, wideAt: null, e5Plan: null, e5Dark: null,
     sounds: [], vibes: [], history: [] };
   const fire = (name, t) => { H.fired[name] = t; H.history.push({ e: name, t, visit: H.visit }); };
   const backAngle = (t) => {
@@ -487,21 +487,36 @@ function createHorror(S, calm) {
         if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= 1 / 6 && q.y > 0 && q.y < 1) startE4(t);
       }
     }
-    // E5: once above the roof, put the figure behind the glass at a moment the camera cannot see that spot. If the spot
-    // stays in view (leaving while facing the shop), the shop lights cut for 0.35 s as in E0 and it is placed in the dark.
-    if (H.e5Dark && !H.e5Dark.done && t >= H.e5Dark.placeAt - 1e-9) { H.figure = 'window'; H.e5Dark.done = true; H.e5Armed = false; fire('E5', H.e5Dark.placeAt); }
-    if (H.e5Armed && !H.e5Dark && P.cam.y > STORE.h + HORROR.e5.above) {
-      if (!pointsVisible(P.cam, P.fov, P.aspect, figurePoints('window'), P.lift)) { H.figure = 'window'; H.e5Armed = false; fire('E5', t); }
-      else H.e5Dark = { start: t, end: t + HORROR.e0.dark, placeAt: t + HORROR.e0.dark / 2, done: false };
+    // E5, planned when the exit starts (see onExitStart): placed unseen, or in a 0.35 s blackout when no such moment exists.
+    if (H.e5Plan && !H.e5Plan.done && t >= H.e5Plan.at - 1e-9) {
+      H.e5Plan.done = true;
+      if (H.e5Plan.dark) H.e5Dark = { start: H.e5Plan.at, end: H.e5Plan.at + HORROR.e0.dark, placeAt: H.e5Plan.at + HORROR.e0.dark / 2, done: false };
+      else { H.figure = 'window'; fire('E5', H.e5Plan.at); }
     }
+    if (H.e5Dark && !H.e5Dark.done && t >= H.e5Dark.placeAt - 1e-9) { H.figure = 'window'; H.e5Dark.done = true; fire('E5', H.e5Dark.placeAt); }
   }
   return {
     H, backAngle, light, freezer, hum, scare, shake, darken,
     onEnterStart(t) {
-      H.visit++; H.fired = blank(); H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Armed = false; H.e5Dark = null;
+      H.visit++; H.fired = blank(); H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Plan = null; H.e5Dark = null;
       H.e0 = !H.calm && H.figure ? { start: t + HORROR.e0.delay, end: t + HORROR.e0.delay + HORROR.e0.dark, removeAt: t + HORROR.e0.delay + HORROR.e0.dark / 2, done: false } : null;
     },
-    onExitStart() { H.e5Armed = !H.calm && H.done.E2; H.e5Dark = null; },
+    // The exit path is fixed once it starts, so E5 looks ahead along it on the same tick grid: the first tick above the
+    // roofs at which the camera cannot see the spot behind the glass. If the camera sees that spot all the way up
+    // (leaving while facing the shop from across the street), the shop lights cut for 0.35 s at the first tick above the
+    // roofs, as in E0, and the figure is placed in the dark.
+    onExitStart(t0, poseAt, dur) {
+      H.e5Plan = null; H.e5Dark = null;
+      if (H.calm || !H.done.E2 || !poseAt) return;
+      let firstAbove = null;
+      for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t0 + dur + 1e-9; k++) {
+        const t = k * HORROR.tick, P = poseAt(t);
+        if (P.cam.y <= STORE.h + HORROR.e5.above) continue;
+        if (firstAbove === null) firstAbove = t;
+        if (!pointsVisible(P.cam, P.fov, P.aspect, figurePoints('window'), P.lift)) { H.e5Plan = { at: t, dark: false, done: false }; return; }
+      }
+      if (firstAbove !== null) H.e5Plan = { at: firstAbove, dark: true, done: false };
+    },
     onExitFinish() { H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; },
     advance(t0, t1, poseAt, kAt) { for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t1 + 1e-9; k++) { const t = k * HORROR.tick; evalAt(t, poseAt(Math.min(t, t1)), kAt); } },
     doorOverride: () => (H.e3 ? [H.e3.t0, H.e3.holdEnd] : null),
@@ -513,12 +528,12 @@ function createHorror(S, calm) {
       if (name === 'E2') { H.e2 = { t0: t }; H.done.E2 = true; fire('E2', t); return true; }
       if (name === 'E3') { startE3(t, k0); return true; }
       if (name === 'E4') { if (H.wideAt === null) H.wideAt = t; startE4(t); return true; }
-      if (name === 'E5') { H.figure = 'window'; H.e5Armed = false; fire('E5', t); return true; }
+      if (name === 'E5') { H.figure = 'window'; H.e5Plan = null; fire('E5', t); return true; }
       return false;
     },
     snapshot(t) {
       return { visit: H.visit, fired: { ...H.fired }, figure: H.figure, calm: H.calm, scare: scare(t), light: light(t), freezer: freezer(t), hum: hum(t), back: (backAngle(t) * 180) / Math.PI,
-        shake: shake(t), darken: darken(t), done: { ...H.done }, wideAt: H.wideAt, e5Armed: H.e5Armed, e5Dark: H.e5Dark && { ...H.e5Dark }, e0: H.e0 && { ...H.e0 }, e2: H.e2 && { ...H.e2 }, e3: H.e3 && { ...H.e3 }, e4: H.e4 && { ...H.e4 },
+        shake: shake(t), darken: darken(t), done: { ...H.done }, wideAt: H.wideAt, e5Plan: H.e5Plan && { ...H.e5Plan }, e5Dark: H.e5Dark && { ...H.e5Dark }, e0: H.e0 && { ...H.e0 }, e2: H.e2 && { ...H.e2 }, e3: H.e3 && { ...H.e3 }, e4: H.e4 && { ...H.e4 },
         sounds: H.sounds.map((x) => ({ ...x })), vibes: H.vibes.map((x) => ({ ...x, pattern: x.pattern.slice() })), history: H.history.map((x) => ({ ...x })) };
     },
   };
@@ -601,6 +616,12 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     startEnter({ o, d: d.map((v) => v / L) });
     return true;
   }
+  // Camera pose of an entry or exit at time tau into it (pure: also used to look ahead along an exit for E5).
+  function transPose(tr, tau, mode) {
+    const e = easeInOut(clamp01(tau / tr.dur)), er = tr.kind === 'enter' ? e : 1 - e, s = tr.s0 + (1 - tr.s0) * er, f = MAP.fov(s, S.aspect), c = pathPose(tr, er);
+    const over = S.lift && c.x > STORE.x0 && c.x < STORE.x1 && c.z > STORE.z0 && c.z < STORE.z1 + 0.15 && c.y < STORE.h + 3.0;   // lifted roof still see-through
+    return { mode, cam: c, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: over ? S.lift : null };
+  }
   function exit() {
     if (S.mode !== 'walk') return false;
     const p = S.player, cam = orbitCamera(S.trigger.orbit), b = buildingAt(p.x, p.z, 0.15);   // inside, or in the doorway
@@ -610,7 +631,8 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [p.x, ch.h, p.z], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG: p.yaw, pitchG: p.pitch, s0: S.trigger.s, raised: ch.raised };
     p.route = null; p.input = [0, 0]; p.look = null;
     S.mode = 'exiting'; S.exits++;
-    HZ.onExitStart();
+    const tr = S.trans, tStart = S.t;
+    HZ.onExitStart(tStart, (t) => transPose(tr, Math.min(tr.dur, t - tStart), 'exiting'), tr.dur);
     refresh();
     return true;
   }
@@ -676,9 +698,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
       const tr = S.trans, tau0 = tr ? tr.tau : 0, mode = S.mode, orbitCam = orbitCamera(S.orbit);
       HZ.advance(t0, S.t, (t) => {
         if (!tr) { const s = S_PER_Z * S.z, f = MAP.fov(s, S.aspect); return { mode, cam: orbitCam, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: null }; }
-        const tau = Math.min(tr.dur, tau0 + (t - t0)), e = easeInOut(clamp01(tau / tr.dur)), er = tr.kind === 'enter' ? e : 1 - e, s = tr.s0 + (1 - tr.s0) * er, f = MAP.fov(s, S.aspect), c = pathPose(tr, er);
-        const over = S.lift && c.x > STORE.x0 && c.x < STORE.x1 && c.z > STORE.z0 && c.z < STORE.z1 + 0.15 && c.y < STORE.h + 3.0;   // lifted roof still see-through
-        return { mode, cam: c, fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: over ? S.lift : null };
+        return transPose(tr, Math.min(tr.dur, tau0 + (t - t0)), mode);
       }, () => 0);
       // Doors close outside walk mode. Rising out of a doorway, that door waits until the camera is above it.
       S.doors.forEach((st, i) => { if (!(S.mode === 'exiting' && S.lift === DOORS[i].id && S.cam.y < SIDEWALK_H + DOOR_H + 0.3)) closeDoors([st], dt); });
