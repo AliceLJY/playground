@@ -412,12 +412,17 @@ export const HORROR = {
     backroom: { x: 6.55, z: -9.0, yaw: Math.PI },                                                  // in the staff doorway, facing into the store
   },
   e0: { delay: 0.2, dark: 0.35, level: 0.03 },
-  e2: { x0: -2.0, x1: 5.0, z0: -7.6, z1: -7.6 + 1.8, sections: 5, step: 0.12, silence: 1.6 },
-  e3: { dist: 5, extra: (10 * Math.PI) / 180, hold: 1.2 },
-  e4: { dist: 1.6, hingeClear: 1.3, reveal: 0.25, slam: 0.12, shake: 0.025, shakeTime: 0.25, darken: 0.1, vibrate: [90, 50, 140] },
+  // round 6: E2 on any of 4 m walked in the shop / within 3 m of the freezer wall / 12 s in the shop; the ceiling panels blink twice first
+  e2: { walk: 4, wall: 3, time: 12, blinks: [[0, 0.1], [0.2, 0.3]], seq: 0.4, sections: 5, step: 0.12, silence: 1.6 },
+  // round 6: 3 s after E2, door out of view and >= 3 m away; after 15 s it opens in view (still >= 3 m away)
+  e3: { dist: 3, wait: 3, fallback: 15, extra: (10 * Math.PI) / 180, hold: 1.2 },
+  // round 6: within 2.0 m, door in the middle half of the view, >= 1.3 m from the hinge
+  e4: { dist: 2.0, middle: 0.25, hingeClear: 1.3, reveal: 0.25, slam: 0.12, shake: 0.025, shakeTime: 0.25, darken: 0.1, vibrate: [90, 50, 140] },
+  // round 6: knocking behind the staff door once it is wide: first 0.3 s after, then every 6 s, 20% louder each time, at most 2.5x the base
+  knock: { delay: 0.3, every: 6, first: 1.0, grow: 1.2, max: 2.5, pos: [BACKDOOR.cx, SIDEWALK_H + 1.2, BACKDOOR.cz - 0.3] },   // just behind the staff door
   e5: { above: 0.2 },
 };
-export const E2_DARK = (HORROR.e2.sections - 1) * HORROR.e2.step;     // last freezer section off: the silence starts
+export const E2_DARK = HORROR.e2.seq + (HORROR.e2.sections - 1) * HORROR.e2.step;     // last freezer section off: the silence starts (after the blinks)
 export const E2_TOTAL = E2_DARK + HORROR.e2.silence;                   // everything back on
 export const E4_BANG = HORROR.e4.reveal + HORROR.e4.slam;              // the door hits the frame
 // Sound levels: rain plus both hums is the base; the doorbell about 2x, the bang about 4x (SPEC 声音).
@@ -427,6 +432,7 @@ export function audioLevels(s, hum = 1) {
   return { rain, fluor: AUDIO.fluor * inside * hum, freezer: AUDIO.freezer * inside * hum, base, bell: AUDIO.bell * base, slam: AUDIO.slam * base, sting: AUDIO.sting * base };
 }
 const DOOR0_EYE = [STORE.door.cx, SIDEWALK_H + DOOR_H / 2, FACADE_Z - WALL_T / 2];
+const doorSound = (i) => [DOORS[i].cx, SIDEWALK_H + DOOR_H - 0.1, DOORS[i].cz];   // where a door chime comes from
 const BACKDOOR_C = [BACKDOOR.cx, SIDEWALK_H + BACKDOOR.h / 2, BACKDOOR.cz];
 // Opaque boxes for "can the camera see this point": every solid except the glazed store front, plus its fascia and kerb.
 const OCCLUDERS = STATIC_SOLIDS.filter((b) => !['store:front-l', 'store:front-r', 'store:lintel'].includes(b.id))
@@ -447,7 +453,7 @@ const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0]
 function createHorror(S, calm) {
   const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null });
   const H = { calm, visit: 0, figure: calm ? null : 'counter', fired: blank(), done: { E2: false, E3: false, E4: false }, e0: null, e2: null, e3: null, e4: null, wideAt: null, e5Plan: null, e5Dark: null,
-    sounds: [], vibes: [], history: [] };
+    walked: 0, inside: 0, last: null, knock: null, sounds: [], vibes: [], history: [] };
   const fire = (name, t) => { H.fired[name] = t; H.history.push({ e: name, t, visit: H.visit }); };
   const backAngle = (t) => {
     if (H.e4 && t >= H.e4.t0 + HORROR.e4.reveal) return BACKDOOR.wide * Math.max(0, 1 - (t - H.e4.t0 - HORROR.e4.reveal) / HORROR.e4.slam);
@@ -455,7 +461,8 @@ function createHorror(S, calm) {
   };
   const dark = (b, t) => b && t >= b.start && t < b.end;
   const light = (t) => (dark(H.e0, t) || dark(H.e5Dark, t) ? HORROR.e0.level : 1);
-  const freezer = (t) => [0, 1, 2, 3, 4].map((i) => (H.e2 && t >= H.e2.t0 + (4 - i) * HORROR.e2.step && t < H.e2.t0 + E2_TOTAL ? 0 : 1) * light(t));
+  const freezer = (t) => [0, 1, 2, 3, 4].map((i) => (H.e2 && t >= H.e2.t0 + HORROR.e2.seq + (4 - i) * HORROR.e2.step && t < H.e2.t0 + E2_TOTAL ? 0 : 1) * light(t));
+  const panel = (t) => (H.e2 && HORROR.e2.blinks.some(([a, b]) => t >= H.e2.t0 + a && t < H.e2.t0 + b) ? 0 : 1) * light(t);   // ceiling panels: two blinks
   const hum = (t) => (H.e2 && t >= H.e2.t0 + E2_DARK && t < H.e2.t0 + E2_TOTAL ? 0 : 1);
   const scare = (t) => !!(H.e4 && t >= H.e4.t0 && t < H.e4.t0 + E4_BANG);
   const shake = (t) => {
@@ -465,30 +472,48 @@ function createHorror(S, calm) {
     return [a * Math.sin(2 * Math.PI * 26 * u), 0.6 * a * Math.sin(2 * Math.PI * 33 * u + 1.3), 0];
   };
   const darken = (t) => { const u = H.e4 ? t - H.e4.t0 - E4_BANG : -1; return u >= 0 && u < HORROR.e4.darken ? 1 : 0; };
-  const startE3 = (t, k0) => {
+  const startE3 = (t, k0, inView = false) => {
     const holdEnd = t + (1 - k0) / DOOR_SPEED + HORROR.e3.hold;
-    H.e3 = { t0: t, k0, holdEnd, closedAt: holdEnd + 1 / DOOR_SPEED }; H.done.E3 = true; fire('E3', t);
+    H.e3 = { t0: t, k0, holdEnd, closedAt: holdEnd + 1 / DOOR_SPEED, inView }; H.done.E3 = true; fire('E3', t);
   };
   const startE4 = (t) => {
     H.e4 = { t0: t, bang: t + E4_BANG }; H.done.E4 = true; fire('E4', t);
-    H.sounds.push({ kind: 'slam', t: t + E4_BANG }, { kind: 'sting', t: t + E4_BANG });
+    H.sounds.push({ kind: 'slam', t: t + E4_BANG, pos: BACKDOOR_C.slice() }, { kind: 'sting', t: t + E4_BANG, pos: BACKDOOR_C.slice() });
     H.vibes.push({ t: t + E4_BANG, pattern: HORROR.e4.vibrate.slice() });
   };
   function evalAt(t, P, kAt) {
     if (H.e0 && !H.e0.done && t >= H.e0.removeAt - 1e-9) { H.figure = null; H.e0.done = true; fire('E0', H.e0.removeAt); }
     if (H.calm) return;
+    if (P.mode !== 'walk') H.last = null;
     if (P.mode === 'walk') {
-      const e2 = HORROR.e2;
-      if (!H.done.E2 && P.x > e2.x0 && P.x < e2.x1 && P.z > e2.z0 && P.z < e2.z1) { H.e2 = { t0: t }; H.done.E2 = true; fire('E2', t); }
-      if (H.e2 && !H.done.E3 && t >= H.e2.t0 + E2_TOTAL - 1e-9 && Math.hypot(P.x - DOOR0_EYE[0], P.z - DOOR0_EYE[2]) >= HORROR.e3.dist
-        && angleTo(P.cam, DOOR0_EYE) > rad(P.hfov / 2) + HORROR.e3.extra) startE3(t, kAt(t));
+      const e2 = HORROR.e2, inStore = insideInterior(P.x, P.z) && buildingAt(P.x, P.z) === STORE;
+      if (inStore) {
+        const d = H.last ? Math.hypot(P.x - H.last[0], P.z - H.last[1]) : 0;
+        if (d < 0.05) H.walked += d;                   // a jump (the test hook that puts the walker somewhere) is not walking
+        H.inside += HORROR.tick;
+      }
+      H.last = [P.x, P.z];
+      if (!H.done.E2 && inStore) {
+        const why = { walk: H.walked >= e2.walk, wall: P.z - (STORE.z0 + WALL_T) <= e2.wall, time: H.inside >= e2.time - 1e-9 };
+        if (why.walk || why.wall || why.time) { H.e2 = { t0: t, why, walked: H.walked, inside: H.inside }; H.done.E2 = true; fire('E2', t); }
+      }
+      const e2end = H.e2 ? H.e2.t0 + E2_TOTAL : Infinity;
+      if (H.e2 && !H.done.E3 && t >= e2end + HORROR.e3.wait - 1e-9 && Math.hypot(P.x - DOOR0_EYE[0], P.z - DOOR0_EYE[2]) >= HORROR.e3.dist) {
+        const unseen = angleTo(P.cam, DOOR0_EYE) > rad(P.hfov / 2) + HORROR.e3.extra;
+        if (unseen || t >= e2end + HORROR.e3.fallback - 1e-9) startE3(t, kAt(t), !unseen);
+      }
       // the staff door swings wide unseen, and never into the walker: out of view, and the walker outside its sweep
       if (H.e3 && H.wideAt === null && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra
-        && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) H.wideAt = t;
+        && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) { H.wideAt = t; H.knock = { next: t + HORROR.knock.delay, mult: HORROR.knock.first }; }
       if (H.wideAt !== null && !H.done.E4 && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
         const q = project(P.cam, P.fov, P.aspect, BACKDOOR_C);
-        if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= 1 / 6 && q.y > 0 && q.y < 1) startE4(t);
+        if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.e4.middle && q.y > 0 && q.y < 1) startE4(t);
       }
+    }
+    // knocking behind the wide staff door until E4 (stops when the visit ends)
+    while (H.knock && !H.done.E4 && t >= H.knock.next - 1e-9) {
+      H.sounds.push({ kind: 'knock', t: H.knock.next, mult: H.knock.mult, pos: HORROR.knock.pos.slice() });
+      H.knock.mult = Math.min(HORROR.knock.max, H.knock.mult * HORROR.knock.grow); H.knock.next += HORROR.knock.every;
     }
     // E5, planned when the exit starts (see onExitStart): placed unseen, or in a 0.35 s blackout when no such moment exists.
     if (H.e5Plan && !H.e5Plan.done && t >= H.e5Plan.at - 1e-9) {
@@ -499,9 +524,10 @@ function createHorror(S, calm) {
     if (H.e5Dark && !H.e5Dark.done && t >= H.e5Dark.placeAt - 1e-9) { H.figure = 'window'; H.e5Dark.done = true; fire('E5', H.e5Dark.placeAt); }
   }
   return {
-    H, backAngle, light, freezer, hum, scare, shake, darken,
+    H, backAngle, light, freezer, panel, hum, scare, shake, darken,
     onEnterStart(t) {
       H.visit++; H.fired = blank(); H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Plan = null; H.e5Dark = null;
+      H.walked = 0; H.inside = 0; H.last = null; H.knock = null;
       H.e0 = !H.calm && H.figure ? { start: t + HORROR.e0.delay, end: t + HORROR.e0.delay + HORROR.e0.dark, removeAt: t + HORROR.e0.delay + HORROR.e0.dark / 2, done: false } : null;
     },
     // The exit path is fixed once it starts, so E5 looks ahead along it on the same tick grid: the first tick above the
@@ -509,7 +535,7 @@ function createHorror(S, calm) {
     // (leaving while facing the shop from across the street), the shop lights cut for 0.35 s at the first tick above the
     // roofs, as in E0, and the figure is placed in the dark.
     onExitStart(t0, poseAt, dur) {
-      H.e5Plan = null; H.e5Dark = null;
+      H.e5Plan = null; H.e5Dark = null; H.knock = null;
       if (H.calm || !H.done.E2 || !poseAt) return;
       let firstAbove = null;
       for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t0 + dur + 1e-9; k++) {
@@ -523,9 +549,9 @@ function createHorror(S, calm) {
     onExitFinish() { H.done = { E2: false, E3: false, E4: false }; H.e2 = H.e3 = H.e4 = null; H.wideAt = null; },
     advance(t0, t1, poseAt, kAt) { for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t1 + 1e-9; k++) { const t = k * HORROR.tick; evalAt(t, poseAt(Math.min(t, t1)), kAt); } },
     doorOverride: () => (H.e3 ? [H.e3.t0, H.e3.holdEnd] : null),
-    onDoorOpen(i, t) { H.sounds.push({ kind: 'bell', t, door: DOORS[i].id }); fire('E1', t); },
+    onDoorOpen(i, t) { H.sounds.push({ kind: 'bell', t, door: DOORS[i].id, pos: doorSound(i) }); fire('E1', t); },
     trigger(name, t, k0 = 0) {
-      if (name === 'E1') { H.sounds.push({ kind: 'bell', t, door: 'store' }); fire('E1', t); return true; }
+      if (name === 'E1') { H.sounds.push({ kind: 'bell', t, door: 'store', pos: doorSound(0) }); fire('E1', t); return true; }
       if (H.calm) return false;
       if (name === 'E0') { if (!H.figure) return false; H.e0 = { start: t, end: t + HORROR.e0.dark, removeAt: t + HORROR.e0.dark / 2, done: false }; return true; }
       if (name === 'E2') { H.e2 = { t0: t }; H.done.E2 = true; fire('E2', t); return true; }
@@ -535,7 +561,7 @@ function createHorror(S, calm) {
       return false;
     },
     snapshot(t) {
-      return { visit: H.visit, fired: { ...H.fired }, figure: H.figure, calm: H.calm, scare: scare(t), light: light(t), freezer: freezer(t), hum: hum(t), back: (backAngle(t) * 180) / Math.PI,
+      return { visit: H.visit, fired: { ...H.fired }, figure: H.figure, calm: H.calm, scare: scare(t), light: light(t), freezer: freezer(t), panel: panel(t), hum: hum(t), walked: H.walked, inside: H.inside, knock: H.knock && { ...H.knock }, back: (backAngle(t) * 180) / Math.PI,
         shake: shake(t), darken: darken(t), done: { ...H.done }, wideAt: H.wideAt, e5Plan: H.e5Plan && { ...H.e5Plan }, e5Dark: H.e5Dark && { ...H.e5Dark }, e0: H.e0 && { ...H.e0 }, e2: H.e2 && { ...H.e2 }, e3: H.e3 && { ...H.e3 }, e4: H.e4 && { ...H.e4 },
         sounds: H.sounds.map((x) => ({ ...x })), vibes: H.vibes.map((x) => ({ ...x, pattern: x.pattern.slice() })), history: H.history.map((x) => ({ ...x })) };
     },
@@ -566,6 +592,16 @@ export function joyVelocity(dx, dy, yaw) {
   if (m < PAD.dead) return { vx: 0, vz: 0, m };
   const ux = dx / L, uy = dy / L, sp = WALK_SPEED * m, sn = Math.sin(yaw), cs = Math.cos(yaw);
   return { vx: (sn * uy + cs * ux) * sp, vz: (cs * uy - sn * ux) * sp, m };        // screen up = forward (-sin, -cos), right = (cos, -sin)
+}
+// Keyboard (round 6): W S and the up/down arrows walk forward and back, A D step sideways, the left/right arrows and
+// Q E turn at a steady 2.0 rad/s (Shift runs but does not turn faster). Returns the walking velocity and the turn rate.
+export const TURN_RATE = 2.0;
+export function keyMotion(k, yaw) {
+  const f = (k.fwd ? 1 : 0) - (k.back ? 1 : 0), s = (k.right ? 1 : 0) - (k.left ? 1 : 0), turn = ((k.turnL ? 1 : 0) - (k.turnR ? 1 : 0)) * TURN_RATE;
+  if (!f && !s) return { vx: 0, vz: 0, turn };
+  const sp = k.run ? RUN_SPEED : WALK_SPEED, n = Math.hypot(f, s);
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  return { vx: ((fx * f + rx * s) / n) * sp, vz: ((fz * f + rz * s) / n) * sp, turn };
 }
 export const ROOM = { rise: 1.0, land: 1.0, phi: 0.6, phiTall: 0.35, phiRange: [0.25, 1.0], margin: 0.06, marginTall: [0.05, 0], fog: 0.008, roofBack: [0.1, 0.55] };
 export const isTall = (aspect) => aspect < 0.8;   // portrait screens (round 5: the room view turns the shop's long side upright)
@@ -720,7 +756,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     const P0 = [cam.x, cam.y, cam.z], ch = controlHeight(P0, P2, S.lift);
     if (ch.raised) S.raised++;
     S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [P2[0], Math.max(ch.h, fromRoom ? P2[1] : 0), P2[2]], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG, pitchG, s0: S.trigger.s, raised: ch.raised, room: fromRoom };
-    p.route = null; p.input = [0, 0]; p.look = null; p.joy = null;
+    p.route = null; p.input = [0, 0]; p.look = null; p.joy = null; p.turn = 0;
     S.mode = 'exiting'; S.exits++; S.pendingEscape = false;
     const tr = S.trans, tStart = S.t;
     HZ.onExitStart(tStart, (t) => transPose(tr, Math.min(tr.dur, t - tStart), 'exiting'), tr.dur);
@@ -731,7 +767,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     const tr = S.trans, p = S.player;
     if (tr.kind === 'enter' || tr.kind === 'land') {
       const L = tr.kind === 'enter' ? S.landing : tr.target;
-      Object.assign(p, { x: L.x, z: L.z, eyeY: groundAt(L.x, L.z) + EYE_H, yaw: tr.kind === 'enter' ? L.yaw : tr.yawG, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null, joy: null });
+      Object.assign(p, { x: L.x, z: L.z, eyeY: groundAt(L.x, L.z) + EYE_H, yaw: tr.kind === 'enter' ? L.yaw : tr.yawG, pitch: 0, route: null, ri: 0, stuck: 0, input: [0, 0], look: null, joy: null, turn: 0 });
       S.mode = 'walk';
       if (tr.kind === 'land') { S.room = null; S.lift = null; }
     } else if (tr.kind === 'rise') S.mode = 'room';
@@ -754,7 +790,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     const P0 = [c.x, c.y, c.z], P2 = [p.x, p.eyeY, p.z], ch = controlHeight(P0, P2, b.id);
     if (ch.raised) S.raised++;
     S.trans = { kind: 'rise', tau: 0, dur: ROOM.rise, P0, P1: [p.x, Math.max(ch.h, c.y), p.z], P2, yawO: c.yaw, pitchO: c.pitch, yawG: p.yaw, pitchG: p.pitch, s0: 1, raised: ch.raised };
-    p.route = null; p.input = [0, 0]; p.look = null; p.joy = null;
+    p.route = null; p.input = [0, 0]; p.look = null; p.joy = null; p.turn = 0;
     S.mode = 'rising'; refresh();
     return true;
   }
@@ -809,7 +845,8 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   // One walking step. Route legs carry their leftover time to the next leg, so the position at a given time does not
   // depend on the step size (for unobstructed legs).
   function stepWalk(dt, t0) {
-    const p = S.player, boxes = walkBoxes(S.doors, HZ.backAngle(t0)), path = [];
+    const p = S.player, boxes = walkBoxes(S.doors, HZ.backAngle(t0)), path = [], turn = p.turn || 0;
+    if (turn) p.look = null;                            // turning keys take over from a running look-at
     const yaw0 = p.yaw, pitch0 = p.pitch, look = p.look ? { ...p.look } : null, k0 = S.doors[0].k;
     const jv = p.joy && joyVelocity(p.joy[0], p.joy[1], p.yaw), inp = jv ? [jv.vx, jv.vz] : p.input;
     if (inp[0] || inp[1]) {
@@ -836,11 +873,12 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     const poseAt = (t) => {
       let tau = t - t0, x = path[0][0], z = path[0][1];
       for (const [ax, az, bx, bz, sdt] of path) { if (tau <= sdt) { const f = sdt > 1e-12 ? tau / sdt : 1; x = ax + (bx - ax) * f; z = az + (bz - az) * f; break; } tau -= sdt; x = bx; z = bz; }
-      const e = Math.exp(-5 * (t - t0)), yaw = look ? look.yaw + wrapAngle(yaw0 - look.yaw) * e : yaw0, pitch = look ? look.pitch + (pitch0 - look.pitch) * e : pitch0;
+      const e = Math.exp(-5 * (t - t0)), yaw = turn ? yaw0 + turn * (t - t0) : look ? look.yaw + wrapAngle(yaw0 - look.yaw) * e : yaw0, pitch = look ? look.pitch + (pitch0 - look.pitch) * e : pitch0;
       return { mode: 'walk', x, z, cam: { x, y: groundAt(x, z) + EYE_H, z, yaw, pitch }, fov: fovIn, hfov: hIn, aspect: S.aspect, lift: null };
     };
     HZ.advance(t0, t0 + dt, poseAt, (t) => Math.max(0, k0 - DOOR_SPEED * (t - t0)));
     stepDoorsPath(S.doors, path, t0, HZ.doorOverride(), HZ.onDoorOpen);
+    if (turn) p.yaw += turn * dt;                       // constant rate: the same angle at any step size
     if (p.look) {
       const k = 1 - Math.exp(-dt * 5);
       p.yaw = lerpAngle(p.yaw, p.look.yaw, k); p.pitch = lerp(p.pitch, p.look.pitch, k);
@@ -887,6 +925,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     return true;
   }
   function drive(vx, vz) { S.player.input = [vx, vz]; if (vx || vz) S.player.route = null; }
+  function turn(rate) { S.player.turn = S.mode === 'walk' ? rate : 0; if (rate) S.player.look = null; }   // rad/s, + = to the left
   function lookBy(dYaw, dPitch) {
     if (S.mode !== 'walk') return;
     const p = S.player; p.look = null; p.yaw += dYaw; p.pitch = clamp(p.pitch + dPitch, -1.2, 1.2); refresh();
@@ -897,7 +936,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   }
   function place(x, z, yaw = S.player.yaw) {     // test hook: put the walker somewhere (walk mode only)
     if (S.mode !== 'walk') return false;
-    Object.assign(S.player, { x, z, yaw, eyeY: groundAt(x, z) + EYE_H, route: null, input: [0, 0], look: null, stuck: 0 });
+    Object.assign(S.player, { x, z, yaw, eyeY: groundAt(x, z) + EYE_H, route: null, input: [0, 0], look: null, stuck: 0, turn: 0 });
     refresh(); return true;
   }
   const levelOf = () => (S.mode === 'orbit' ? 'outside' : S.mode === 'room' ? 'room' : S.mode === 'walk' ? (buildingAt(S.player.x, S.player.z, 0.15) ? 'inside' : 'street') : S.mode);
@@ -909,7 +948,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
       fov: L.fov, hfov: hfov(L.fov, S.aspect), tilt: L.tilt, fog: L.fog, rainMix: L.rainMix, rainOpacity: L.rainOpacity, rainHeight: L.rainHeight, rainShown: L.rainShown,
       groundAlpha: L.groundAlpha, baseSides: L.baseSides, lowpass: L.lowpass, volume: L.volume,
       doors: S.doors.map((d, i) => ({ id: DOORS[i].id, k: d.k, want: d.want })),
-      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, looking: !!p.look, joy: p.joy && [...p.joy], stuck: p.stuck },
+      player: { x: p.x, z: p.z, yaw: p.yaw, pitch: p.pitch, walking: !!p.route, looking: !!p.look, joy: p.joy && [...p.joy], stuck: p.stuck, turn: p.turn || 0 },
       trigger: S.trigger && { orbit: { ...S.trigger.orbit }, z: S.trigger.z, s: S.trigger.s, hit: S.trigger.hit },
       landing: S.landing && { ...S.landing }, lift: S.lift, entries: S.entries, exits: S.exits, raised: S.raised,
       transition: S.trans && { kind: S.trans.kind, tau: S.trans.tau, dur: S.trans.dur, raised: S.trans.raised, room: !!S.trans.room, target: S.trans.target && { ...S.trans.target } },
@@ -918,9 +957,9 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   }
   const horror = () => HZ.snapshot(S.t);
   const trigger = (name) => { const ok = HZ.trigger(name, S.t, S.doors[0].k); refresh(); return ok; };
-  const levels = () => ({ light: HZ.light(S.t), freezer: HZ.freezer(S.t), hum: HZ.hum(S.t), back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, HZ.hum(S.t)) });
+  const levels = () => ({ light: HZ.light(S.t), freezer: HZ.freezer(S.t), panel: HZ.panel(S.t), hum: HZ.hum(S.t), back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, HZ.hum(S.t)) });
   refresh();
-  return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels,
+  return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, turn, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels,
     looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd };
 }
 
@@ -1026,10 +1065,11 @@ export function playScare(sim, { dt = DT_VIEW, upTo = 'out', after = 0, aim = 'd
   until(() => h().e2 && S.t >= h().e2.t0 + E2_TOTAL, 5);
   if (upTo === 'E2') { until(() => false, after); return log; }
   if (upTo === 'reveal') { sim.walkRoute(P.out); until(() => !S.player.route, 20); sim.exit(); until(() => S.mode === 'orbit', 5); until(() => false, after); return log; }
-  until(() => h().e3 && S.t >= h().e3.closedAt, 6);
+  until(() => h().e3 && S.t >= h().e3.closedAt, 12);
   sim.lookAt(...P.behind); until(() => !S.player.look, 6);
   sim.lookAt(...P.staff); until(() => !S.player.look, 6);
-  sim.walkTo(...P.near); until(() => !S.player.route, 6);
+  sim.walkTo(...P.near); until(() => !S.player.route || !!h().e4, 6);
+  S.player.route = null;                                     // stops where E4 caught it (round 6: from 2.0 m)
   sim.lookAt(...P.staff); until(() => !!h().e4 || !S.player.look, 6);
   if (upTo === 'scare') { const t4 = h().e4 && h().e4.t0; if (t4 != null) until(() => S.t >= t4 + after, 2); return log; }
   until(() => h().e4 && S.t >= h().e4.bang + 0.6, 6);
@@ -1037,6 +1077,124 @@ export function playScare(sim, { dt = DT_VIEW, upTo = 'out', after = 0, aim = 'd
   sim.walkRoute(P.out); until(() => !S.player.route, 20);
   sim.exit(); until(() => S.mode === 'orbit', 5);
   return log;
+}
+// ---------------- the first-visit wanderer (round 6, F1) ----------------
+// A stand-in for someone on their first visit. It knows nothing about where or when the scares happen: it lands at the
+// shop, walks in, wanders along the aisles turning left and right with the arrow keys every few seconds, heads for the
+// middle-rear of the shop, and from then on walks toward the loudest sound it has just heard (looking around when it
+// hears nothing). What it may use: its own position and heading, the shop's outline, whether it is stuck, and the
+// sounds that have played (where they came from, how loud). It acts only through keys: forward and the two turning
+// keys. Every random choice comes from the seed. These parameters were fixed before the first run and not tuned.
+export const WANDER = {
+  extraIn: [0.5, 1.5],       // s: keeps walking after the doorway
+  browse: [6, 10],           // s: wandering the aisles
+  leg: [1.2, 2.5],           // s: each stretch of walking between two look-arounds
+  sweep: [0.6, 1.4],         // rad: how far it looks to each side
+  rearX: [0.35, 0.65], rearZ: [0.2, 0.45],   // middle-rear of the shop, as fractions of its inside width and depth (from the back)
+  rearTimeout: 12, arrive: 0.8,
+  idleTurn: [0.8, 2.0], idleWait: [0.5, 1.5], idleWalk: [0.6, 1.2],
+  hear: 3,                   // s: a sound counts as "current" for this long after it plays
+  reach: 1.0, forget: 8,     // stops chasing a sound when this close to it, or this long after it played
+  stuck: 0.5, aim: 0.12, walkErr: 0.6,
+};
+export function createWanderer(sim, seed = 1) {
+  const r = rng(seed), R = ([a, b]) => a + (b - a) * r(), sign = () => (r() < 0.5 ? -1 : 1), S = sim.S, Wd = WANDER;
+  const ix0 = STORE.x0 + WALL_T, ix1 = STORE.x1 - WALL_T, iz0 = STORE.z0 + WALL_T, iz1 = STORE.z1 - WALL_T;
+  const inShop = () => { const p = S.player; return p.x > ix0 && p.x < ix1 && p.z > iz0 && p.z < iz1; };
+  const rear = [lerp(ix0, ix1, R(Wd.rearX)), lerp(iz0, iz1, R(Wd.rearZ))];
+  const gain = (ev) => (ev.kind === 'knock' ? ev.mult : ev.kind === 'bell' ? AUDIO.bell : ev.kind === 'slam' ? AUDIO.slam : 0);
+  const st = { phase: 'land', t0: 0, until: 0, queue: [], heard: null, wentT: -Infinity, track: null, log: [] };
+  const go = (phase, extra = {}) => { st.phase = phase; st.t0 = S.t; st.queue = []; st.track = null; Object.assign(st, extra); st.log.push({ t: S.t, phase, x: S.player.x, z: S.player.z }); };
+  const idle = () => ({ fwd: false, back: false, left: false, right: false, turnL: false, turnR: false, run: false });
+  // stuck: walking forward but hardly moving for a while
+  const stuckCheck = (walking) => {
+    const p = S.player;
+    if (!walking) { st.track = null; return false; }
+    if (!st.track) { st.track = { x: p.x, z: p.z, t: S.t }; return false; }
+    if (S.t - st.track.t < Wd.stuck) return false;
+    const moved = Math.hypot(p.x - st.track.x, p.z - st.track.z), bad = moved < WALK_SPEED * Wd.stuck * 0.3;
+    st.track = { x: p.x, z: p.z, t: S.t };
+    return bad;
+  };
+  const doQueue = (k, dt) => {        // runs the front action: walk for a time, turn by an angle, or wait
+    const a = st.queue[0];
+    if (!a) return false;
+    if (a.kind === 'walk') { k.fwd = true; a.left -= dt; }
+    else if (a.kind === 'turn') { if (a.left > 0) k.turnL = true; else k.turnR = true; a.left -= Math.sign(a.left) * TURN_RATE * dt; if (Math.abs(a.left) < 1e-9 || Math.sign(a.left) !== a.sign) a.left = 0; }
+    else a.left -= dt;
+    if (a.kind === 'turn' ? a.left === 0 : a.left <= 0) st.queue.shift();
+    return true;
+  };
+  const turnBy = (ang) => ({ kind: 'turn', left: ang, sign: Math.sign(ang) });
+  const lookAround = () => { const a = R(Wd.sweep) * sign(); return [turnBy(a), turnBy(-2 * a), turnBy(a)]; };
+  const unstick = () => [turnBy(sign() * R([Math.PI / 2, Math.PI])), { kind: 'walk', left: 0.8 }];
+  const steer = (k, x, z) => {        // turn toward a point, walk when roughly facing it
+    const p = S.player, want = Math.atan2(-(x - p.x), -(z - p.z)), err = wrapAngle(want - p.yaw);
+    if (err > Wd.aim) k.turnL = true; else if (err < -Wd.aim) k.turnR = true;
+    if (Math.abs(err) < Wd.walkErr) k.fwd = true;
+    return Math.hypot(x - p.x, z - p.z);
+  };
+  // what it hears: sounds that have played in the last few seconds, loudness falling off with distance
+  const listen = () => {
+    const p = S.player, now = S.t;
+    let best = null;
+    for (const ev of sim.horror().sounds) {
+      if (!ev.pos || ev.t > now || ev.t <= now - Wd.hear || ev.t <= st.wentT) continue;   // a sound it has already gone to does not call it back
+      const lv = gain(ev) / Math.max(1, Math.hypot(ev.pos[0] - p.x, ev.pos[2] - p.z));
+      if (lv > 0 && (!best || lv > best.lv + 1e-9 || (lv > best.lv - 1e-9 && ev.t > best.t))) best = { lv, t: ev.t, kind: ev.kind, pos: ev.pos };
+    }
+    if (best && (!st.heard || best.t > st.heard.t)) { st.log.push({ t: now, phase: 'heard', kind: best.kind, x: p.x, z: p.z }); st.heard = best; }
+  };
+  function decide(dt) {
+    const k = idle(), p = S.player;
+    if (S.mode === 'orbit' && st.phase === 'land') { sim.enter('door'); go('landing'); return k; }
+    if (S.mode !== 'walk') return k;
+    if (st.phase === 'landing') go('enter');
+    if (st.phase === 'enter') {
+      k.fwd = true;
+      if (inShop()) go('in', { until: S.t + R(Wd.extraIn) });
+      return k;
+    }
+    if (st.phase === 'in') { k.fwd = true; if (S.t >= st.until) go('browse', { until: S.t + R(Wd.browse) }); return k; }
+    if (st.phase === 'browse') {
+      if (S.t >= st.until) { go('rear', { until: S.t + Wd.rearTimeout }); return decide(0); }
+      if (!st.queue.length) st.queue.push({ kind: 'walk', left: R(Wd.leg) }, ...lookAround());
+      const walking = st.queue[0].kind === 'walk';
+      doQueue(k, dt);
+      if (stuckCheck(walking && k.fwd)) st.queue = unstick();
+      return k;
+    }
+    if (st.phase === 'rear') {
+      if (st.queue.length) { doQueue(k, dt); return k; }
+      const d = steer(k, rear[0], rear[1]);
+      if (d < Wd.arrive || S.t >= st.until) { go('listen'); return k; }
+      if (stuckCheck(k.fwd)) st.queue = unstick();
+      return k;
+    }
+    // listen: walk toward the loudest current sound, otherwise look around
+    listen();
+    if (st.heard && (S.t - st.heard.t > Wd.forget || Math.hypot(st.heard.pos[0] - p.x, st.heard.pos[2] - p.z) < Wd.reach)) { st.wentT = st.heard.t; st.heard = null; }
+    if (st.queue.length && st.queue[0].unstick) { doQueue(k, dt); return k; }
+    if (st.heard) {
+      st.queue = [];
+      steer(k, st.heard.pos[0], st.heard.pos[2]);
+      if (stuckCheck(k.fwd)) st.queue = unstick().map((a) => ({ ...a, unstick: true }));
+      return k;
+    }
+    if (!st.queue.length) st.queue.push(turnBy(sign() * R(Wd.idleTurn)), { kind: 'wait', left: R(Wd.idleWait) }, { kind: 'walk', left: R(Wd.idleWalk) });
+    const walking = st.queue[0].kind === 'walk';
+    doQueue(k, dt);
+    if (stuckCheck(walking && k.fwd)) st.queue = unstick();
+    return k;
+  }
+  // one step through the keys (the page uses decide() and its own key handling instead)
+  function step(dt) {
+    const k = decide(dt);
+    if (S.mode === 'walk') { const m = keyMotion(k, S.player.yaw); sim.drive(m.vx, m.vz); sim.turn(m.turn); }
+    sim.update(dt);
+    return k;
+  }
+  return { decide, step, get phase() { return st.phase; }, get log() { return st.log; }, rear, seed };
 }
 export function runView(sim, view, aimOverride) {
   if (view === 'scare') { playScare(sim, { upTo: 'scare', after: 0.15 }); return true; }
