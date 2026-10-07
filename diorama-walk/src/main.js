@@ -675,7 +675,9 @@ window.__diorama = {
         // the names the earlier checks read: shop lamps = the brighter bulb, glow = the TV screen, freezers -> the TV (one value)
         lamp: Math.max(bulbTill.intensity / LIGHT.bulbTill, bulbAisle.intensity / LIGHT.bulbAisle), glow: tvState ? tvState.level : 1, freezers: [tvState ? tvState.level : 1],
         lights: (() => { let n = 0, sh = 0; scene.traverse((o) => { if (o.isLight && o.visible && o.intensity > 0) { n++; if (o.castShadow) sh++; } }); return { n, shadows: sh }; })() },
-      dog: dog.visible ? { ...dogPose, drawn: true } : null,
+      // the dog as drawn: which way its head points (tail -> head, from the meshes), how low the body sits, the tail's swing
+      dog: dog.visible ? (() => { dog.updateMatrixWorld(true); const hd = dogHead.getWorldPosition(new THREE.Vector3()), tl = dogTail.getWorldPosition(new THREE.Vector3());
+        return { ...dogPose, drawn: true, drawnYaw: Math.atan2(-(hd.x - tl.x), -(hd.z - tl.z)), drawnLow: -dogBody.position.y, tailSwing: dogTail.rotation.y, at: [dog.position.x, dog.position.z] }; })() : null,
       figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, color: '#' + figMat.color.getHexString() }, leaf: -C.BACKDOOR.dir * leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
       camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
       drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'hang', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0, bulbs: bulbMeshes[0].visible ? 1 : 0 },
