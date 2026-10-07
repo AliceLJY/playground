@@ -234,15 +234,34 @@ test('running into walls and shelves never goes through (SPEC 5)', async () => {
   }
 });
 
-test('a tap into a wall slides, then gives up after a second stuck (SPEC 里面怎么走)', async () => {
+test('a tap into a wall slides along it, and gives up one second after it is stuck (SPEC 里面怎么走)', async () => {
   const C = await load();
   const sim = C.createSim({ aspect: 16 / 9 });
   sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  // head-on into the freezers: walks the aisle, then stands still against them; the walk must end 1 s after the last movement
   sim.place(0.0, -3.5);
-  sim.walkTo(0.0, -12);                            // straight through the freezer and the back wall
-  const t = run(sim, () => !sim.S.player.route, 20);
-  assert.ok(t < 8, `stopped after ${t.toFixed(2)} s`);
-  assert.ok(sim.S.player.z > C.STORE.z0 + C.WALL_T, 'still inside the store');
+  sim.walkTo(0.0, -12);
+  let t = 0, lastMove = 0, prev = { x: sim.S.player.x, z: sim.S.player.z };
+  for (; t < 20 && sim.S.player.route; t += DT) {
+    sim.update(DT);
+    const p = sim.S.player;
+    if (Math.hypot(p.x - prev.x, p.z - prev.z) > 1e-4) lastMove = t + DT;
+    prev = { x: p.x, z: p.z };
+  }
+  assert.ok(!sim.S.player.route, 'the walk ended');
+  assert.ok(Math.abs(t - lastMove - 1) < 0.05, `stopped ${(t - lastMove).toFixed(3)} s after the last movement`);
+  assert.ok(near(sim.S.player.z, -7.6 + C.R, 1e-3), `stands against the freezer front (z=${sim.S.player.z.toFixed(3)})`);
+  // at an angle into the east wall: slides along it instead of stopping at the first touch
+  sim.place(7.5, -4.2);
+  sim.walkTo(12, -7.0);
+  let touched = null;
+  for (t = 0; t < 20 && sim.S.player.route; t += DT) {
+    sim.update(DT);
+    if (touched === null && sim.S.player.x > C.STORE.x1 - C.WALL_T - C.R - 1e-3) touched = { t, z: sim.S.player.z };
+  }
+  assert.ok(touched, 'reached the wall');
+  assert.ok(touched.z - sim.S.player.z > 1.0, `slid ${(touched.z - sim.S.player.z).toFixed(2)} m along the wall after touching it`);
+  assert.ok(sim.S.player.x <= C.STORE.x1 - C.WALL_T - C.R + 1e-6, 'never inside the wall');
 });
 
 test('leaving from inside a shop: roof lifted, no other solid crossed, doors shut at the end (SPEC 退出)', async () => {

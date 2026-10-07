@@ -37,7 +37,7 @@ export const EXTRA_COLORS = {
   storeRoof: '#AAB0B9', nextRoof: '#6C5747', storeFloor: '#C7CBD1', storeGrid: '#8D949E', nextFloor: '#5E4B3D',
   shelf: '#8B94A1', shelfBoard: '#B7BEC8', freezerBody: '#A9B2BE', counter: '#7D8591', dark: '#11151D', mat: '#3A4252',
   frame: '#2B313B', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
-  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E',
+  bench: '#5F5246', fence: '#2E343E', stripe: '#8E949E', storeCeiling: '#D2D6DC', ceilingGrid: '#8A919B',
 };
 
 // ---------------- layout (SPEC 尺度与布局) ----------------
@@ -601,6 +601,7 @@ export function visualBoxes() {
   add('dark', 6.0, F, -8.3, 7.05, F + 2.15, -8.28);                                  // staff doorway
   add('shelf', 6.0, F, -8.3, 6.77, F + 2.1, -7.66);                                  // its leaf, half open (box stand-in)
   add('mat', DOORS[0].x0, F, -1.0, DOORS[0].x1, F + 0.012, FACADE_Z - T);
+  add('storeCeiling', STORE.x0 + T, STORE.h - 0.212, STORE.z0 + T, STORE.x1 - T, STORE.h - 0.202, STORE.z1 - T);   // light ceiling under the roof slab
   for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) add('storeLightPanel', -1.6 + i * 2.9, STORE.h - 0.27, -6.6 + j * 2.6, -0.4 + i * 2.9, STORE.h - 0.2, -6.25 + j * 2.6);
   // next door
   add('bar', -8.4, F, -5.2, -4.0, F + 1.05, -4.6);

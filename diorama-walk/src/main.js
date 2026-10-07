@@ -6,6 +6,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { HorizontalTiltShiftShader } from 'three/addons/shaders/HorizontalTiltShiftShader.js';
 import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftShader.js';
+import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as C from './core.js';
 
@@ -15,7 +16,9 @@ const AIM = ['door', 'street', 'roof'].includes(Q.get('aim')) ? Q.get('aim') : n
 const DEBUG = Q.get('debug') === '1';
 const TILT = Q.get('tilt');                     // test override only: 'off' or 'on'
 const COARSE = matchMedia('(pointer: coarse)').matches;
-const TILT_K = 10;                              // blur reach: taps spread up to 4·K·|0.5 - v| CSS pixels
+// Tilt-shift runs three's two shaders twice: a fine pair, then a coarse pair 9x wider. The 9-tap kernel alone, spread wide,
+// copies thin lines (rain) into a comb of sharp ghosts; the fine pair fills the gaps so the blur is smooth.
+const TILT_K = [1.0, 9.0];                     // tap spacing = K·|0.5 - v| CSS pixels
 
 // ---------------- page ----------------
 document.head.insertAdjacentHTML('beforeend', `<style>
@@ -53,7 +56,7 @@ const MATS = {
   nextWall: lam(COL.nextWall), 'nextWall:upper': lam(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lam(COL.nextFloor),
   glass: glassMat(), glassTransom: glassMat(), frame: lam(COL.frame), sign: glow(COL.storeLight), sign2: glow(COL.nextLight),
   shelf: new THREE.MeshLambertMaterial({ color: COL.shelf, emissive: 0x262b33 }), shelfBoard: lam(COL.shelfBoard), freezerBody: lam(COL.freezerBody), freezer: glow(COL.freezer),
-  counter: lam(COL.counter), dark: glow(COL.dark), mat: lam(COL.mat), storeLightPanel: glow(COL.storeLight), nextLightPanel: glow(COL.nextLight),
+  storeCeiling: new THREE.MeshLambertMaterial({ color: COL.storeCeiling, emissive: 0x30343a }), counter: lam(COL.counter), dark: glow(COL.dark), mat: lam(COL.mat), storeLightPanel: glow(COL.storeLight), nextLightPanel: glow(COL.nextLight),
   bar: lam(COL.bar), stool: lam(COL.stool), shelf2: lam(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
   pole: lam(COL.pole), lamp: glow(COL.lamp), bench: lam(COL.bench), fence: lam(COL.fence),
 };
@@ -87,6 +90,8 @@ function gridLines(x0, x1, z0, z1, step, y, color, alongZ = true, alongX = true)
 }
 const G = C.FLOOR_GRID;
 scene.add(gridLines(G.x0, G.x1, G.z0, G.z1, G.step, G.y, COL.storeGrid));
+const ceilingGrid = gridLines(G.x0, G.x1, G.z0, G.z1, G.step, C.STORE.h - 0.215, COL.ceilingGrid);   // suspended-ceiling grid
+scene.add(ceilingGrid);
 scene.add(gridLines(C.NEXT.x0 + C.WALL_T, C.NEXT.x1 - C.WALL_T, C.NEXT.z0 + C.WALL_T, C.NEXT.z1 - C.WALL_T, 0.32, G.y, '#4A3B30', false, true));
 // sliding door leaves: glass with a dark frame
 const leafFrame = (w, h) => mergeGeometries([[w, 0.05, 0, h / 2 - 0.025], [w, 0.05, 0, -h / 2 + 0.025], [0.035, h, -w / 2 + 0.0175, 0], [0.035, h, w / 2 - 0.0175, 0]]
@@ -116,7 +121,7 @@ const streetLamp = new THREE.PointLight(COL.lamp, 9, 14, 1.3);
 streetLamp.position.set(C.LAMP.x, C.LAMP.top - 0.45, C.LAMP.z + 0.3);
 scene.add(streetLamp);
 // what hides while you rise out of a building
-const LIFT = { store: ['storeRoof', 'storeWall:upper', 'glassTransom', 'sign', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'nextLightPanel'] };
+const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeWall:upper', 'glassTransom', 'sign', 'storeLightPanel'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'nextLightPanel'] };
 
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
 const N_RAIN = 2400;
@@ -176,11 +181,17 @@ if (DEBUG) {
 }
 
 // ---------------- post: tilt-shift (three's own shaders) ----------------
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
-composer.addPass(new RenderPass(scene, camera));
-const tiltH = new ShaderPass(HorizontalTiltShiftShader), tiltV = new ShaderPass(VerticalTiltShiftShader);
-composer.addPass(tiltH);
-composer.addPass(tiltV);
+// Only the scene render is multisampled; the blur passes run on the composer's plain buffers (MSAA on every pass cost
+// a quarter of the frame rate at pixel ratio 2).
+class MsaaRenderPass extends RenderPass {
+  constructor(sc, cam) { super(sc, cam); this.msaa = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }); this.copy = new ShaderPass(CopyShader); }
+  setSize(w, h) { this.msaa.setSize(w, h); }
+  render(renderer, writeBuffer, readBuffer, dt, mask) { super.render(renderer, writeBuffer, this.msaa, dt, mask); this.copy.render(renderer, readBuffer, this.msaa); }
+}
+const composer = new EffectComposer(renderer);
+composer.addPass(new MsaaRenderPass(scene, camera));
+const tiltPasses = TILT_K.map((k) => [new ShaderPass(HorizontalTiltShiftShader), new ShaderPass(VerticalTiltShiftShader), k]);
+for (const [h, v] of tiltPasses) { composer.addPass(h); composer.addPass(v); }
 composer.addPass(new OutputPass());
 
 // ---------------- simulation ----------------
@@ -232,9 +243,11 @@ function sync() {
   camera.updateProjectionMatrix();
   scene.fog.density = L.fog;
   const t = TILT === 'off' ? 0 : TILT === 'on' ? 1 : L.tilt;
-  tiltH.enabled = tiltV.enabled = t > 0.001;
-  tiltH.uniforms.h.value = (t * TILT_K) / cssW; tiltV.uniforms.v.value = (t * TILT_K) / cssH;
-  tiltH.uniforms.r.value = tiltV.uniforms.r.value = 0.5;
+  for (const [ph, pv, k] of tiltPasses) {
+    ph.enabled = pv.enabled = t > 0.001;
+    ph.uniforms.h.value = (t * k) / cssW; pv.uniforms.v.value = (t * k) / cssH;
+    ph.uniforms.r.value = pv.uniforms.r.value = 0.5;
+  }
   rainMat.uniforms.uTime.value = S.rainT; rainMat.uniforms.uMix.value = L.rainMix;
   rainMat.uniforms.uCam.value.copy(camera.position); rainMat.uniforms.uLen.value = C.lerp(0.35, 0.55, L.rainMix);
   bigGround.visible = L.groundAlpha > 0.001; bigGround.material.opacity = L.groundAlpha;
@@ -243,6 +256,7 @@ function sync() {
   for (const b of C.BUILDINGS) {
     const over = c.x > b.x0 && c.x < b.x1 && c.z > b.z0 && c.z < b.z1 + 0.15;
     const a = S.mode === 'exiting' && S.lift === b.id && over ? C.smooth(b.h + 0.6, b.h + 3.0, c.y) : 1;
+    if (b.id === 'store') ceilingGrid.visible = a > 0.5;
     for (const k of LIFT[b.id]) {
       const m = MESH[k], mat = m.material;
       m.visible = a > 0.01;
@@ -368,7 +382,7 @@ window.__diorama = {
   info: () => {
     const n = frameTimes.length, span = n > 1 ? (frameTimes[n - 1] - frameTimes[0]) / 1000 : 0;
     return { calls: lastCalls, triangles: lastTris, dpr: renderer.getPixelRatio(), deviceDpr: window.devicePixelRatio, buffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
-      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltH.enabled, rainSegments: N_RAIN };
+      css: [cssW, cssH], gpu, fps: span > 0 ? (n - 1) / span : 0, audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, rainSegments: N_RAIN };
   },
   core: C,
 };
