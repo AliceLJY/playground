@@ -79,7 +79,7 @@ const MATS = {
   sidewalk: lam(COL.sidewalk), stripe: lam(COL.stripe),
   storeWall: lamIn(COL.storeWall), storeRoof: lam(COL.storeRoof), storeFloor: lamIn(COL.storeFloor), storeFacade: lam(COL.storeFacade), 'storeFacade:upper': lam(COL.storeFacade),
   nextWall: lamIn(COL.nextWall), 'nextWall:upper': lamIn(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lamIn(COL.nextFloor),
-  glass: glassMat(), windowGlass: new THREE.MeshLambertMaterial({ color: COL.windowGlass, transparent: true, opacity: C.WINDOW.opacity, depthWrite: false, side: THREE.DoubleSide }),
+  glass: glassMat(), windowGlass: new THREE.MeshLambertMaterial({ color: COL.windowGlass, transparent: true, opacity: C.WINDOW.opacity, depthWrite: false, side: THREE.FrontSide }),   // one face toward the camera: the pane is 0.35 once, not twice
   frame: lam(COL.frame), sign: lam(COL.oldSign), sign2: lam(COL.nextDark), signText: lam(COL.oldSignText), sign2Text: lam(COL.sign2Text), awning: lam(COL.awning),
   shelf: lamIn(COL.shelf), shelfBoard: lamIn(COL.shelfBoard), goods: lamIn(COL.goods), goods2: lamIn(COL.goods2), goods3: lamIn(COL.goods3),
   freezerBody: lamIn(COL.chest), chestLid: lamIn(COL.chestLid), counter: lamIn(COL.counter), tvBody: lamIn(COL.tvBody), register: lamIn(COL.register),
@@ -676,7 +676,7 @@ window.__diorama = {
         lamp: Math.max(bulbTill.intensity / LIGHT.bulbTill, bulbAisle.intensity / LIGHT.bulbAisle), glow: tvState ? tvState.level : 1, freezers: [tvState ? tvState.level : 1],
         lights: (() => { let n = 0, sh = 0; scene.traverse((o) => { if (o.isLight && o.visible && o.intensity > 0) { n++; if (o.castShadow) sh++; } }); return { n, shadows: sh }; })() },
       dog: dog.visible ? { ...dogPose, drawn: true } : null,
-      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, color: '#' + figMat.color.getHexString() }, leaf: -leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
+      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, color: '#' + figMat.color.getHexString() }, leaf: -C.BACKDOOR.dir * leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
       camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
       drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'hang', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0, bulbs: bulbMeshes[0].visible ? 1 : 0 },
       audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
