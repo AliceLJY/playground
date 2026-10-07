@@ -498,6 +498,11 @@ test('H5: staff door scare only after E3; figure 0.25 s, slam within 0.12 s, sma
   run(sim, () => false, 1);
   assert.ok(sim.horror().fired.E3 != null && sim.horror().wideAt === null, 'E3 happened, the staff door never left the view');
   assert.strictEqual(sim.horror().fired.E4, null, 'no E4 while the door is still the way it was');
+  // round 7: from the right of the doorway the figure would be in sight past the half-open leaf; still no E4 while the door is not wide
+  sim.walkTo(7.3, -6.8); run(sim, () => !sim.S.player.route); sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !sim.S.player.look, 4); run(sim, () => false, 2);
+  const pr = sim.S.player, past = C.figureSightlines(sim.S.cam, sim.fov(), sim.S.aspect, sim.levels().back).filter(Boolean).length;
+  assert.ok(Math.hypot(pr.x - C.BACKDOOR.cx, pr.z - C.BACKDOOR.cz) <= 2.0 && Math.abs(sim.levels().back - C.BACKDOOR.half) < 1e-9 && past >= 1, `setup: ${past} figure points in sight past the half-open leaf`);
+  assert.ok(sim.horror().wideAt === null && sim.horror().fired.E4 === null, 'the staff door never went wide: no E4 even with the figure in sight');
   // (b) the full visit
   sim = C.createSim({ aspect: 16 / 9 });
   C.playScare(sim, { upTo: 'scare', after: 0 });
@@ -970,6 +975,9 @@ test('E4 sight lines (round 7): the open leaf and the back wall hide the figure,
   // the leaf is a rotated box, not the axis-aligned collision box: a sight line that passes the leaf's tip but crosses its bounding box is not blocked
   const o = [6.30, C.SIDEWALK_H + 1.0, -7.60], tip = [B.hx + Math.cos(wide) * B.w, B.hz + Math.sin(wide) * B.w];
   assert.ok(C.leafHit(o, [0, 0, -1], wide) === Infinity && C.leafHit([tip[0] - 0.05, o[1], -7.0], [0, 0, -1], wide) < Infinity, 'leaf hit test follows the turned leaf');
+  // just beside the hinge the leaf is far back: from (6.03, -7.0) straight back the ray meets its face about 1.0 m along (z -8.0); its bounding box would stop it at 0.30 m
+  const near = C.leafHit([6.03, o[1], -7.0], [0, 0, -1], wide);
+  assert.ok(near > 0.9 && near < 1.1, `leaf met ${near.toFixed(3)} m along (the turned leaf, not its bounding box at 0.30 m)`);
 });
 
 test('F2: E2 fires on 4 m walked in the shop, within 3 m of the freezer wall, or 12 s in the shop, each on its own; once a visit; two panel blinks first', async () => {
