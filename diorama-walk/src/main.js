@@ -258,6 +258,7 @@ addEventListener('resize', resize);
 
 // ---------------- sound: WebAudio rain, only after the first touch or key ----------------
 let audio = null, vibePlayed = 0;
+let wanderRun = null;                              // the wanderer hook's state between calls
 function startAudio() {
   if (audio) return;
   try {
@@ -285,7 +286,16 @@ function startAudio() {
 }
 
 // One-off sounds, all synthesised. Peaks come from core.audioLevels: bell about 2x the bed, bang about 4x.
-function playSound(kind, lv) {
+// The ear follows the camera (for the knocking, which is placed in 3D); older browsers only have setPosition/setOrientation.
+function setListener(L, c) {
+  const cp = Math.cos(c.pitch), f = [-Math.sin(c.yaw) * cp, Math.sin(c.pitch), -Math.cos(c.yaw) * cp];
+  if (L.positionX) {
+    L.positionX.value = c.x; L.positionY.value = c.y; L.positionZ.value = c.z;
+    L.forwardX.value = f[0]; L.forwardY.value = f[1]; L.forwardZ.value = f[2]; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+  } else { if (L.setPosition) L.setPosition(c.x, c.y, c.z); if (L.setOrientation) L.setOrientation(f[0], f[1], f[2], 0, 1, 0); }
+}
+const KNOCK = { gap: 0.17, panner: { model: 'HRTF', distance: 'inverse', ref: 3, rolloff: 0.5 } };   // falls to half by about 9 m away
+function playSound(kind, lv, ev = {}) {
   const { ctx, master } = audio, t = ctx.currentTime, env = (peak, attack, decay) => { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay); g.connect(master); return g; };
   const osc = (type, f, dest, start = t, stop = t + 1.5) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.connect(dest); o.start(start); o.stop(stop); return o; };
   if (kind === 'bell') {                           // a plain two-tone chime: high then low, a major third apart
@@ -303,14 +313,29 @@ function playSound(kind, lv) {
     const g = env(lv.sting, 0.006, 0.5), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700; hp.connect(g);
     osc('sawtooth', 1396.9, hp, t, t + 0.56); osc('sawtooth', 1479.98, hp, t, t + 0.56);
     audio.log.push({ kind, at: t, peak: lv.sting, base: lv.base, length: 0.506 });
+  } else if (kind === 'knock') {                   // three knocks on the staff door from behind it: a low thud and a short wooden tap each, placed in 3D
+    const peak = lv.base * ev.mult, pan = ctx.createPanner(), P = KNOCK.panner;
+    pan.panningModel = P.model; pan.distanceModel = P.distance; pan.refDistance = P.ref; pan.rolloffFactor = P.rolloff;
+    if (pan.positionX) { pan.positionX.value = ev.pos[0]; pan.positionY.value = ev.pos[1]; pan.positionZ.value = ev.pos[2]; } else pan.setPosition(...ev.pos);
+    pan.connect(master);
+    for (let i = 0; i < 3; i++) {
+      const t0 = t + i * KNOCK.gap, g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14); g.connect(pan);
+      const o = osc('sine', 150, g, t0, t0 + 0.16); o.frequency.setValueAtTime(150, t0); o.frequency.exponentialRampToValueAtTime(70, t0 + 0.1);
+      const n = ctx.createBufferSource(); n.buffer = audio.noise; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 1.2;
+      const ng = ctx.createGain(); ng.gain.setValueAtTime(0.0001, t0); ng.gain.linearRampToValueAtTime(peak * 0.5, t0 + 0.002); ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
+      n.connect(bp); bp.connect(ng); ng.connect(pan); n.start(t0, Math.random() * 1.5, 0.08);
+    }
+    const at = (a, i) => (pan[a] ? pan[a].value : ev.pos[i]);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, mult: ev.mult, pos: ev.pos.slice(), panner: { x: at('positionX', 0), y: at('positionY', 1), z: at('positionZ', 2), model: pan.panningModel, distance: pan.distanceModel }, knocks: 3 });
   }
 }
 
 // ---------------- draw the simulation ----------------
 const hints = {
   outside: COARSE ? '单指拖动转 · <b>双指张开</b>放大，走进去' : '拖动旋转 · <b>滚轮往前</b>放大，走进去',
-  inside: COARSE ? '<b>左边摇杆</b>走 · 右边拖动转头 · <b>捏合</b>看整间店' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>看整间店 · Esc 出来',
-  street: COARSE ? '<b>左边摇杆</b>走 · 右边拖动转头 · <b>捏合</b>出来' : '<b>W A S D</b> 走，Shift 跑 · <b>点地面</b>走过去 · 拖动转头 · <b>滚轮往后</b>或 Esc 出来',
+  inside: COARSE ? '<b>左边摇杆</b>走 · 右边拖动转头 · <b>捏合</b>看整间店' : '<b>W S</b> 前后 · <b>A D</b> 横移 · <b>← →</b> 转身 · 拖动也能转 · <b>滚轮往后</b>看整间店',
+  street: COARSE ? '<b>左边摇杆</b>走 · 右边拖动转头 · <b>捏合</b>出来' : '<b>W S</b> 前后 · <b>A D</b> 横移 · <b>← →</b> 转身 · 拖动也能转 · <b>滚轮往后</b>或 Esc 出来',
   room: COARSE ? '拖动绕着转 · <b>张开</b>落回去 · <b>捏合</b>回到外面' : '拖动绕着转 · <b>滚轮往前</b>落回光标处 · <b>滚轮往后</b>回到外面 · Esc 出来',
 };
 function setAlpha(k, a) {                           // fade one lifted part (glass keeps its own opacity)
@@ -357,8 +382,8 @@ function sync() {
   figPersist.visible = !figureHidden && !!V.figure; if (V.figure) placeFigure(figPersist, V.figure);
   figScare.visible = !figureHidden && V.scare; if (V.scare) placeFigure(figScare, 'backroom');
   leafPivot.rotation.y = -V.back;
-  for (const l of storeLamps) l.intensity = 5.5 * V.light;
-  for (const m of DIM_COLOR) m.color.copy(baseColor.get(m)).multiplyScalar(V.light);
+  for (const l of storeLamps) l.intensity = 5.5 * V.panel;          // the ceiling panels (V.panel includes the E0/E5 darkness; E2 blinks them twice)
+  for (const m of DIM_COLOR) m.color.copy(baseColor.get(m)).multiplyScalar(m === MATS.storeLightPanel ? V.panel : V.light);
   for (const m of DIM_EMISSIVE) m.emissive.copy(baseEmissive.get(m)).multiplyScalar(V.light);
   for (let i = 0; i < 5; i++) { const m = MATS['freezer' + i]; m.color.copy(baseColor.get(m)).multiplyScalar(V.freezer[i]); }
   camera.position.x += V.shake[0]; camera.position.y += V.shake[1]; camera.position.z += V.shake[2];   // the picture shakes, the walker does not
@@ -369,7 +394,8 @@ function sync() {
     const now = audio.ctx.currentTime;
     audio.lp.frequency.setTargetAtTime(L.lowpass, now, 0.08); audio.g.gain.setTargetAtTime(L.volume, now, 0.08);
     audio.fluor.gain.setTargetAtTime(V.audio.fluor, now, 0.015); audio.freezer.gain.setTargetAtTime(V.audio.freezer, now, 0.015);
-    for (const ev of S.h.sounds) if (ev.t > audio.played && ev.t <= S.t) playSound(ev.kind, V.audio);
+    setListener(audio.ctx.listener, c);
+    for (const ev of S.h.sounds) if (ev.t > audio.played && ev.t <= S.t) playSound(ev.kind, V.audio, ev);
     audio.played = Math.max(audio.played, S.t);
   }
   const hintOn = C.joyHint(S.mode, pad, COARSE);   // faint ring in the middle of the joystick spot (touch screens only)
@@ -434,17 +460,18 @@ addEventListener('keydown', (e) => {
   startAudio();
   keys[e.code] = true;
   if (e.code === 'Escape') sim.escape();
+  if (e.code.startsWith('Arrow')) e.preventDefault();          // the arrows walk and turn; they must not scroll the page
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k of Object.keys(keys)) keys[k] = false; });
+// W S and the up/down arrows walk, A D step sideways, the left/right arrows and Q E turn (round 6)
 function applyKeys() {
   if (sim.S.mode !== 'walk') return;
-  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-  const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-  if (!f && !s) { if (keyDriving) { sim.drive(0, 0); keyDriving = false; } return; }
-  const yaw = sim.S.player.yaw, sp = keys.ShiftLeft || keys.ShiftRight ? C.RUN_SPEED : C.WALK_SPEED, n = Math.hypot(f, s);
-  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
-  sim.drive(((fx * f + rx * s) / n) * sp, ((fz * f + rz * s) / n) * sp);
+  const k = { fwd: keys.KeyW || keys.ArrowUp, back: keys.KeyS || keys.ArrowDown, left: keys.KeyA, right: keys.KeyD,
+    turnL: keys.ArrowLeft || keys.KeyQ, turnR: keys.ArrowRight || keys.KeyE, run: keys.ShiftLeft || keys.ShiftRight };
+  const m = C.keyMotion(k, sim.S.player.yaw), on = !!(m.vx || m.vz || m.turn);
+  if (!on) { if (keyDriving) { sim.drive(0, 0); sim.turn(0); keyDriving = false; } return; }
+  sim.drive(m.vx, m.vz); sim.turn(m.turn);
   keyDriving = true;
 }
 
@@ -475,10 +502,34 @@ window.__diorama = {
     pending: pad.pending, ring: { shown: joyHintEl.style.display === 'block', at: [parseFloat(joyHintEl.style.left) || 0, parseFloat(joyHintEl.style.top) || 0], opacity: Number(getComputedStyle(joyHintEl).opacity), size: joyHintEl.offsetWidth }, coarse: COARSE }; },
   walkTo: (x, z) => sim.walkTo(x, z),
   step: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) sim.update(dt); sync(); return sim.snapshot(); },
+  // steps with whatever keys are held right now, through the page's own key handling (round 6, K1)
+  keyStep: (dt = 1 / 60, n = 1) => { sim.S.auto = false; for (let i = 0; i < n; i++) { applyKeys(); sim.update(dt); } sync(); return sim.snapshot(); },
+  // the first-visit wanderer (core.createWanderer), its keys fed through the page's key handling; quarter of a second per frame
+  // the first-visit wanderer (core.createWanderer), its keys fed through the page's key handling, a quarter of a second per
+  // frame. `stop` names an event to pause at (the same wanderer carries on with resume: true); otherwise it runs to E4 or maxT.
+  wander: ({ seed = 1, maxT = 90, chunk = 0.25, stop = 'E4', resume = false } = {}) => new Promise((resolve) => {
+    sim.S.auto = false;
+    if (!resume || !wanderRun) wanderRun = { w: C.createWanderer(sim, seed), t0: sim.S.t };
+    const { w, t0 } = wanderRun, dt = 1 / 60, map = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', turnL: 'ArrowLeft', turnR: 'ArrowRight', run: 'ShiftLeft' };
+    const tick = () => {
+      for (let i = 0; i < Math.round(chunk / dt); i++) {
+        if (sim.horror().fired[stop] != null || sim.S.t - t0 >= maxT - 1e-9) {
+          for (const c of Object.values(map)) keys[c] = false;
+          applyKeys(); sync(); resolve({ t: sim.S.t - t0, t0, log: w.log, rear: w.rear }); return;
+        }
+        const k = w.decide(dt);
+        for (const [a, c] of Object.entries(map)) keys[c] = !!k[a];
+        applyKeys(); sim.update(dt);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }),
   solids: () => C.solids(sim.S.doors, sim.levels().back),   // the staff door where it really is
   screenBox: () => { sync(); return { ...screenBoxOf(C.SCREEN_POINTS.base), model: screenBoxOf(C.SCREEN_POINTS.model) }; },
   // extra hooks used by tools/browser-check.cjs
   walkRoute: (p) => sim.walkRoute(p),
+  stopWalk: () => { sim.S.player.route = null; },              // test hook: the scripted visit stops where E4 caught it
   zoomAt: (f, sx, sy) => { const r = sim.zoomAt(f, sx, sy); sync(); return r; },
   rotate: (a, b) => { sim.rotate(a, b); sync(); },
   place: (x, z, yaw) => { const r = sim.place(x, z, yaw); sync(); return r; },
@@ -497,6 +548,7 @@ window.__diorama = {
       figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, color: '#' + figMat.color.getHexString() }, leaf: -leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
       camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
       drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'storeLightPanel', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0 },
+      panel: { level: sim.levels().panel, lamp: storeLamps[0].intensity, color: '#' + MATS.storeLightPanel.color.getHexString() },
       audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
   },
   core: C,
@@ -514,7 +566,7 @@ window.__diorama = {
     const solid = opaque.filter((o) => !figPersist.children.includes(o) && !figScare.children.includes(o) && o !== bigGround);
     const rc = new THREE.Raycaster(), from = camera.position.clone();
     return pts.map((p) => { const q = new THREE.Vector3(...p), dist = from.distanceTo(q); rc.set(from, q.clone().sub(from).normalize()); rc.far = dist - 0.05;
-      const hit = rc.intersectObjects(solid, false)[0]; return { inFrustum: fr.containsPoint(q), blockedBy: hit ? (Object.entries(MESH).find(([, m]) => m === hit.object) || ['other'])[0] : null }; });
+      const hit = rc.intersectObjects(solid, false)[0]; return { inFrustum: fr.containsPoint(q), blockedBy: hit ? (hit.object.parent === leafPivot ? 'staffDoorLeaf' : (Object.entries(MESH).find(([, m]) => m === hit.object) || ['other'])[0]) : null }; });
   },
 };
 
