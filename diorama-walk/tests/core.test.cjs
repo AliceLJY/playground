@@ -937,20 +937,39 @@ test('K1 (logic): the turning keys turn 2.0 rad/s in place at any step rate; the
   assert.ok(Math.abs(a.S.player.yaw - b.S.player.yaw) < 1e-9 && Math.abs(a.S.cam.yaw - b.S.cam.yaw) < 1e-9, 'same yaw at 30 and 120 steps/s');
 });
 
-test('F1: a first-visit wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s (3 seeds; phone, fold and desk)', async () => {
+test('F1 (round 7): a wanderer that knows nothing of the triggers meets E2, E3, E4 in order within 90 s and sees the figure (6 seeds, 3 landings; phone, fold and desk)', async () => {
   const C = await load();
-  // it must not read when or where the scares happen: only its own pose, the shop outline, being stuck, and the sounds that played
+  // it must not read when or where the scares happen: only its own pose, the shop outline and entrance, being stuck, and the sounds that played
   const src = C.createWanderer.toString();
-  for (const bad of ['HORROR', 'BACKDOOR', 'DOOR0', 'DOORS', 'SCARE_PLAN', 'wideAt', 'fired', '.done', 'history', '.e2', '.e3', '.e4', 'E2_', 'E4_', 'trigger', 'levels(']) assert.ok(!src.includes(bad), `wanderer reads ${bad}`);
-  const out = [];
-  for (const [name, asp] of [['desk', 16 / 9], ['phone', 390 / 844], ['fold', 880 / 920]]) for (const seed of [1, 2, 3]) {
-    const sim = C.createSim({ aspect: asp }), w = C.createWanderer(sim, seed), dt = 1 / 60;
+  for (const bad of ['HORROR', 'BACKDOOR', 'DOOR0', 'DOORS', 'SCARE_PLAN', 'wideAt', 'fired', '.done', 'history', '.e2', '.e3', '.e4', 'E2_', 'E4_', 'trigger', 'levels(', 'figure', 'Sightlines']) assert.ok(!src.includes(bad), `wanderer reads ${bad}`);
+  const RUNS = [[1, 'door'], [2, 'street'], [3, 'roof'], [4, 'door'], [5, 'door'], [6, 'door']];   // seeds 4-6: the round-6 trial, landing at the door
+  const out = [], lands = {};
+  for (const [name, asp] of [['desk', 16 / 9], ['phone', 390 / 844], ['fold', 880 / 920]]) for (const [seed, aim] of RUNS) {
+    const sim = C.createSim({ aspect: asp }), w = C.createWanderer(sim, seed, { aim }), dt = 1 / 60;
     for (let t = 0; t < 90 - 1e-9 && !sim.horror().done.E4; t += dt) w.step(dt);
     const h = sim.horror(), at = (e) => { const x = h.history.find((y) => y.e === e); return x ? x.t : null; }, T = [at('E2'), at('E3'), at('E4')];
-    out.push(`${name} seed ${seed}: E2 ${T[0] && T[0].toFixed(2)} E3 ${T[1] && T[1].toFixed(2)} E4 ${T[2] && T[2].toFixed(2)} | ${w.log.filter((e) => e.phase !== 'heard').map((e) => e.phase + '@' + e.t.toFixed(1)).join(' ')}`);
+    const land = w.log.find((e) => e.phase === 'enter'); lands[aim] = [land.x, land.z];
+    let seen12 = null;
+    if (h.e4) { const t4 = h.e4.t0; while (sim.S.t < t4 + 0.12 - 1e-9) sim.update(1 / 240); seen12 = C.figureSightlines(sim.S.cam, sim.fov(), sim.S.aspect, sim.levels().back).filter(Boolean).length; }
+    out.push(`${name} seed ${seed} (${aim}, landed ${land.x.toFixed(1)},${land.z.toFixed(1)}): E2 ${T[0] && T[0].toFixed(2)} E3 ${T[1] && T[1].toFixed(2)} E4 ${T[2] && T[2].toFixed(2)}, figure points in sight at E4 ${h.e4 && h.e4.seen}, at E4+0.12 s ${seen12}`);
     assert.ok(T.every((x) => x != null) && T[0] < T[1] && T[1] < T[2] && T[2] <= 90, `${name} seed ${seed} stuck: ${JSON.stringify({ T, wide: h.wideAt, phase: w.phase, at: [sim.S.player.x, sim.S.player.z], log: w.log.slice(-6) })}`);
+    assert.ok(h.e4.seen >= 1 && seen12 >= 1, `${name} seed ${seed}: figure points in sight ${h.e4.seen} at E4, ${seen12} at E4+0.12 s`);
   }
+  assert.ok(Math.hypot(lands.door[0] - lands.street[0], lands.door[1] - lands.street[1]) > 3, 'the street landing starts somewhere else');
   console.log('F1 ' + out.join('\nF1 '));
+});
+
+test('E4 sight lines (round 7): the open leaf and the back wall hide the figure, the doorway shows it', async () => {
+  const C = await load(), B = C.BACKDOOR, wide = B.wide, door = [B.cx, C.SIDEWALK_H + B.h / 2, B.cz];
+  const cam = (x, z) => { const y = C.SIDEWALK_H + 1.6, dx = door[0] - x, dz = door[2] - z; return { x, y, z, yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(door[1] - y, Math.hypot(dx, dz)) }; };
+  const n = (x, z, a = wide) => C.figureSightlines(cam(x, z), 65, 16 / 9, a).filter(Boolean).length;
+  assert.strictEqual(n(6.54, -6.30), 5, 'straight in front: all five');
+  assert.strictEqual(n(5.83, -6.43), 0, 'left front (round-6 seed 2): the open leaf is in the way');
+  assert.strictEqual(n(4.75, -7.35), 0, 'far left, close to the wall (round-6 seed 1): the back wall is in the way');
+  assert.ok(n(5.83, -6.43, -Math.PI / 2) > 0, 'the same spot with the leaf swung out of the way (into the back room): the leaf was what hid it');
+  // the leaf is a rotated box, not the axis-aligned collision box: a sight line that passes the leaf's tip but crosses its bounding box is not blocked
+  const o = [6.30, C.SIDEWALK_H + 1.0, -7.60], tip = [B.hx + Math.cos(wide) * B.w, B.hz + Math.sin(wide) * B.w];
+  assert.ok(C.leafHit(o, [0, 0, -1], wide) === Infinity && C.leafHit([tip[0] - 0.05, o[1], -7.0], [0, 0, -1], wide) < Infinity, 'leaf hit test follows the turned leaf');
 });
 
 test('F2: E2 fires on 4 m walked in the shop, within 3 m of the freezer wall, or 12 s in the shop, each on its own; once a visit; two panel blinks first', async () => {
@@ -1050,6 +1069,7 @@ test('F4: knocks behind the wide staff door every 6 s, 20% louder each time up t
     assert.ok(Math.hypot(x.pos[0] - C.BACKDOOR.cx, x.pos[2] - C.BACKDOOR.cz) <= 0.5 && x.pos[2] < C.BACKDOOR.cz, `source at ${x.pos.map((v) => v.toFixed(2))}: behind the staff door`);
   }
   // E4: no more knocks after it
+  sim.walkTo(...C.SCARE_PLAN.front); run(sim, () => !S.player.route, 8);       // from the front: the open leaf does not hide the doorway
   sim.lookAt(...C.SCARE_PLAN.staff); run(sim, () => !S.player.look, 4);
   sim.walkTo(...C.SCARE_PLAN.near); run(sim, () => !!h().e4, 8);
   const t4 = h().fired.E4;

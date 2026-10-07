@@ -417,7 +417,7 @@ export const HORROR = {
   // round 6: 3 s after E2, door out of view and >= 3 m away; after 15 s it opens in view (still >= 3 m away)
   e3: { dist: 3, wait: 3, fallback: 15, extra: (10 * Math.PI) / 180, hold: 1.2 },
   // round 6: within 2.0 m, door in the middle half of the view, >= 1.3 m from the hinge
-  e4: { dist: 2.0, middle: 0.25, hingeClear: 1.3, reveal: 0.25, slam: 0.12, shake: 0.025, shakeTime: 0.25, darken: 0.1, vibrate: [90, 50, 140] },
+  e4: { dist: 2.0, middle: 0.25, seen: 1, hingeClear: 1.3, reveal: 0.25, slam: 0.12, shake: 0.025, shakeTime: 0.25, darken: 0.1, vibrate: [90, 50, 140] },
   // round 6: knocking behind the staff door once it is wide: first 0.3 s after, then every 6 s, 20% louder each time, at most 2.5x the base
   knock: { delay: 0.3, every: 6, first: 1.0, grow: 1.2, max: 2.5, pos: [BACKDOOR.cx, SIDEWALK_H + 1.2, BACKDOOR.cz - 0.3] },   // just behind the staff door
   e5: { above: 0.2 },
@@ -449,6 +449,31 @@ export function pointsVisible(cam, fov, aspect, pts, skip = null) {
   }
   return false;
 }
+// Can the camera see the figure in the staff doorway (round 7, E4)? Sight lines to its five sample points, against every
+// solid (furniture, walls; glass not counted) with the back wall opened at the staff doorway the way the page draws it
+// (its collision box closes the doorway), plus the staff door leaf as a thin box turned to its current angle about the hinge.
+const LEAF_T = 0.04;                              // leaf thickness, as drawn
+const SIGHT = OCCLUDERS.filter((b) => !['store:back', 'store:fascia', 'store:kerb'].includes(b.id)).concat([   // fascia and kerb face the street
+  B3('store:back-l', 'wall', STORE.x0, 0, STORE.z0, BACKDOOR.hx, STORE.h - 0.2, STORE.z0 + WALL_T),
+  B3('store:back-r', 'wall', BACKDOOR.hx + BACKDOOR.w, 0, STORE.z0, STORE.x1, STORE.h - 0.2, STORE.z0 + WALL_T),
+  B3('store:back-top', 'wall', BACKDOOR.hx, SIDEWALK_H + BACKDOOR.h + 0.02, STORE.z0, BACKDOOR.hx + BACKDOOR.w, STORE.h - 0.2, STORE.z0 + WALL_T)]);
+// Distance along a ray to the staff door leaf at `angle` (Infinity if missed): the ray in the leaf's own frame (x along
+// the leaf from the hinge, z across it), then the usual slab test.
+export function leafHit(o, u, angle) {
+  const c = Math.cos(angle), s = Math.sin(angle), dx = o[0] - BACKDOOR.hx, dz = o[2] - BACKDOOR.hz;
+  const lo = [dx * c + dz * s, o[1] - SIDEWALK_H, -dx * s + dz * c], lu = [u[0] * c + u[2] * s, u[1], -u[0] * s + u[2] * c];
+  return rayBox(lo, lu, { x0: 0, x1: BACKDOOR.w, y0: 0, y1: BACKDOOR.h, z0: -LEAF_T / 2, z1: LEAF_T / 2 });
+}
+// One flag per sample point of the figure in the staff doorway: on screen and nothing in between.
+export function figureSightlines(cam, fov, aspect, backAngle) {
+  const o = [cam.x, cam.y, cam.z];
+  return figurePoints('backroom').map((q) => {
+    const pr = project(cam, fov, aspect, q);
+    if (pr.depth < 0.05 || pr.x < 0 || pr.x > 1 || pr.y < 0 || pr.y > 1) return false;
+    const d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]], L = Math.hypot(...d), u = d.map((v) => v / L);
+    return !SIGHT.some((b) => rayBox(o, u, b) < L - 0.05) && !(leafHit(o, u, backAngle) < L - 0.05);
+  });
+}
 const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], L = Math.hypot(...d); return Math.acos(clamp((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L, -1, 1)); };
 function createHorror(S, calm) {
   const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null });
@@ -476,8 +501,8 @@ function createHorror(S, calm) {
     const holdEnd = t + (1 - k0) / DOOR_SPEED + HORROR.e3.hold;
     H.e3 = { t0: t, k0, holdEnd, closedAt: holdEnd + 1 / DOOR_SPEED, inView }; H.done.E3 = true; fire('E3', t);
   };
-  const startE4 = (t) => {
-    H.e4 = { t0: t, bang: t + E4_BANG }; H.done.E4 = true; fire('E4', t);
+  const startE4 = (t, seen = null) => {
+    H.e4 = { t0: t, bang: t + E4_BANG, seen }; H.done.E4 = true; fire('E4', t);
     H.sounds.push({ kind: 'slam', t: t + E4_BANG, pos: BACKDOOR_C.slice() }, { kind: 'sting', t: t + E4_BANG, pos: BACKDOOR_C.slice() });
     H.vibes.push({ t: t + E4_BANG, pattern: HORROR.e4.vibrate.slice() });
   };
@@ -507,7 +532,10 @@ function createHorror(S, calm) {
         && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) { H.wideAt = t; H.knock = { next: t + HORROR.knock.delay, mult: HORROR.knock.first }; }
       if (H.wideAt !== null && !H.done.E4 && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
         const q = project(P.cam, P.fov, P.aspect, BACKDOOR_C);
-        if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.e4.middle && q.y > 0 && q.y < 1) startE4(t);
+        if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.e4.middle && q.y > 0 && q.y < 1) {
+          const seen = figureSightlines(P.cam, P.fov, P.aspect, backAngle(t)).filter(Boolean).length;   // round 7: the figure must be in sight
+          if (seen >= HORROR.e4.seen) startE4(t, seen);
+        }
       }
     }
     // knocking behind the wide staff door until E4 (stops when the visit ends)
@@ -1100,13 +1128,15 @@ export const WANDER = {
   reach: 1.0, forget: 8,     // stops chasing a sound when this close to it, or this long after it played
   stuck: 0.5, aim: 0.12, walkErr: 0.6,
 };
-export function createWanderer(sim, seed = 1) {
+export function createWanderer(sim, seed = 1, { aim = 'door' } = {}) {
   const r = rng(seed), R = ([a, b]) => a + (b - a) * r(), sign = () => (r() < 0.5 ? -1 : 1), S = sim.S, Wd = WANDER;
   const ix0 = STORE.x0 + WALL_T, ix1 = STORE.x1 - WALL_T, iz0 = STORE.z0 + WALL_T, iz1 = STORE.z1 - WALL_T;
   const inShop = () => { const p = S.player; return p.x > ix0 && p.x < ix1 && p.z > iz0 && p.z < iz1; };
   const rear = [lerp(ix0, ix1, R(Wd.rearX)), lerp(iz0, iz1, R(Wd.rearZ))];
+  // the shop entrance is in plain sight: a point out in front of it, then one just inside (round 7: landings away from the door)
+  const doorOut = [STORE.door.cx, STORE.z1 + 1.0], doorIn = [STORE.door.cx, STORE.z1 - 1.2];
   const gain = (ev) => (ev.kind === 'knock' ? ev.mult : ev.kind === 'bell' ? AUDIO.bell : ev.kind === 'slam' ? AUDIO.slam : 0);
-  const st = { phase: 'land', t0: 0, until: 0, queue: [], heard: null, wentT: -Infinity, track: null, log: [] };
+  const st = { phase: 'land', t0: 0, until: 0, queue: [], heard: null, wentT: -Infinity, track: null, through: false, log: [] };
   const go = (phase, extra = {}) => { st.phase = phase; st.t0 = S.t; st.queue = []; st.track = null; Object.assign(st, extra); st.log.push({ t: S.t, phase, x: S.player.x, z: S.player.z }); };
   const idle = () => ({ fwd: false, back: false, left: false, right: false, turnL: false, turnR: false, run: false });
   // stuck: walking forward but hardly moving for a while
@@ -1150,12 +1180,15 @@ export function createWanderer(sim, seed = 1) {
   };
   function decide(dt) {
     const k = idle(), p = S.player;
-    if (S.mode === 'orbit' && st.phase === 'land') { sim.enter('door'); go('landing'); return k; }
+    if (S.mode === 'orbit' && st.phase === 'land') { sim.enter(aim); go('landing'); return k; }
     if (S.mode !== 'walk') return k;
     if (st.phase === 'landing') go('enter');
-    if (st.phase === 'enter') {
-      k.fwd = true;
-      if (inShop()) go('in', { until: S.t + R(Wd.extraIn) });
+    if (st.phase === 'enter') {                      // walk to the shop door and through it
+      if (inShop()) { go('in', { until: S.t + R(Wd.extraIn) }); return decide(0); }
+      if (st.queue.length) { doQueue(k, dt); return k; }
+      const tgt = st.through ? doorIn : doorOut;
+      if (steer(k, tgt[0], tgt[1]) < 0.5) st.through = true;
+      if (stuckCheck(k.fwd)) st.queue = unstick();
       return k;
     }
     if (st.phase === 'in') { k.fwd = true; if (S.t >= st.until) go('browse', { until: S.t + R(Wd.browse) }); return k; }
@@ -1197,7 +1230,7 @@ export function createWanderer(sim, seed = 1) {
     sim.update(dt);
     return k;
   }
-  return { decide, step, get phase() { return st.phase; }, get log() { return st.log; }, rear, seed };
+  return { decide, step, get phase() { return st.phase; }, get log() { return st.log; }, rear, seed, aim };
 }
 export function runView(sim, view, aimOverride) {
   if (view === 'scare') { playScare(sim, { upTo: 'scare', after: 0.15 }); return true; }
