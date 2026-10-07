@@ -484,7 +484,8 @@ const isExternal = (u) => {
     const Q = await open('?view=hero');
     await Q.page.evaluate(helpers);
     await Q.page.evaluate(() => window.__diorama.ui(false));
-    const front = () => Q.page.evaluate(() => { const D = window.__diorama, C = D.core, a = D.toScreen(C.STORE.x0 + 0.3, 2.6, C.STORE.z1), b = D.toScreen(C.STORE.x1 - 0.3, C.SIDEWALK_H + 0.2, C.STORE.z1);
+    // round 8: the shop's light now only shows through the small window (the rest of the front is wood), so that is what is read
+    const front = () => Q.page.evaluate(() => { const D = window.__diorama, C = D.core, W = C.WINDOW, a = D.toScreen(W.x0, W.y1, C.FACADE_Z), b = D.toScreen(W.x1, W.y0, C.FACADE_Z);
       return [Math.min(a[0], b[0]) / innerWidth, Math.min(a[1], b[1]) / innerHeight, Math.max(a[0], b[0]) / innerWidth, Math.max(a[1], b[1]) / innerHeight]; });
     await Q.page.evaluate(() => { const D = window.__diorama, H = window.__H; D.enter('door'); H.until(() => D.state().t >= D.horror().e0.start - 1 / 60 - 1e-9, 2); });
     await Q.page.waitForTimeout(250);
@@ -503,7 +504,7 @@ const isExternal = (u) => {
     const ok = (v) => v.removal && v.removal.lamp <= 0.05 && v.removal.glow <= 0.05 && v.removal.fz <= 0.05 && v.removal.prevLamp <= 0.05 && v.litPop === 0 && v.removal.camY > r.roof && v.e0.end - v.e0.start <= 0.35 + 1e-9;
     const txt = (v, k) => `${k}: figure was '${v.before}', removed at frame ${v.removal && v.removal.frame} of ${v.n} in the descent: drawn shop lamps ${f2(v.removal && v.removal.lamp * 100)}% / glow ${f2(v.removal && v.removal.glow * 100)}% / freezers ${f2(v.removal && v.removal.fz * 100)}% of normal (previous frame lamps ${f2(v.removal && v.removal.prevLamp * 100)}%), camera ${f2(v.removal && v.removal.camY)} m (roof ${r.roof} m), blackout ${f2(v.e0.end - v.e0.start)} s; vanished from a lit frame ${v.litPop} times`;
     check('H2', 'the figure disappears only while the shop is dark', ok(r.first) && ok(r.second) && lb < la,
-      `${txt(r.first, 'visit 1')} | ${txt(r.second, 'visit 2 (from behind the glass)')} | as pixels: shop front mean luminance ${f1(la)} just before the blackout -> ${f1(lb)} at the removal frame (h2-before-blackout.png, h2-removal-frame.png)`);
+      `${txt(r.first, 'visit 1')} | ${txt(r.second, 'visit 2 (from behind the glass)')} | as pixels: the shop window's mean luminance ${f1(la)} just before the blackout -> ${f1(lb)} at the removal frame (h2-before-blackout.png, h2-removal-frame.png)`);
   }
 
   // ---------- H3 (round 8): the tube blinks twice, bulbs and tube out one by one, TV black, hums silent 1.6 s, once per visit ----------
@@ -1345,11 +1346,22 @@ const isExternal = (u) => {
   {
     const cur = await lumStats(shot('inside')), base = baseline ? await lumStats(baseline) : { mean: 152.46, recorded: true };
     const ratio = cur.top / cur.bottom;
-    report.a1 = { cur, base, baseline };
-    check('A1', 'the shop is really dark: the inside view at <= 45% of round 7\'s brightness, bright 10% >= 6x the dark half, not black',
-      cur.mean <= 0.45 * base.mean && ratio >= 6 && cur.mean > 8 && cur.max > 120,
+    // the sky light and moon inside, as drawn: the same view with the bulbs and the tube off, ambient at 0, as built, and at full
+    // (round 6's level); linear-light means (the screen is sRGB), so (built - none) / (full - none) is the share that is left
+    const linMean = async (q) => {
+      const P = await open('?view=inside&lights=0,0,0' + q); await P.page.evaluate(() => window.__diorama.ui(false)); await P.page.waitForTimeout(300);
+      const buf = await P.page.screenshot(); await P.close();
+      return calc.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, c.width, c.height).data, lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; let s = 0;
+        for (let i = 0; i < d.length; i += 4) s += 0.2126 * lin(d[i]) + 0.7152 * lin(d[i + 1]) + 0.0722 * lin(d[i + 2]); return s / (d.length / 4); }, buf.toString('base64'));
+    };
+    const amb = { none: await linMean(',0'), built: await linMean(''), full: await linMean(',1') };
+    amb.share = (amb.built - amb.none) / (amb.full - amb.none);
+    report.a1 = { cur, base, baseline, amb };
+    check('A1', 'the shop is really dark: the inside view at <= 45% of round 7\'s brightness, bright 10% >= 6x the dark half, not black; sky light inside at about 30%',
+      cur.mean <= 0.45 * base.mean && ratio >= 6 && cur.mean > 8 && cur.max > 120 && amb.share >= 0.25 && amb.share <= 0.35,
       `inside view mean luminance ${cur.mean.toFixed(1)} vs round 7 ${base.mean.toFixed(1)} (${baseline ? 'measured from ' + path.basename(baseline) : 'recorded value'}) = ${(100 * cur.mean / base.mean).toFixed(1)}% (<= 45%); ` +
-      `brightest 10% ${cur.top.toFixed(1)} / darkest 50% ${cur.bottom.toFixed(1)} = ${ratio.toFixed(2)} (>= 6); brightest pixel ${cur.max.toFixed(0)} (not all black)`);
+      `brightest 10% ${cur.top.toFixed(1)} / darkest 50% ${cur.bottom.toFixed(1)} = ${ratio.toFixed(2)} (>= 6); brightest pixel ${cur.max.toFixed(0)} (not all black); with the bulbs and tube off, linear mean ${amb.none.toFixed(4)} without sky light, ${amb.built.toFixed(4)} as built, ${amb.full.toFixed(4)} at full: sky light and moon inside at ${(100 * amb.share).toFixed(1)}% (about 30%: 25-35%)`);
   }
 
   // ---------- A7: performance, one shadow-casting light, and the phone ----------
@@ -1475,15 +1487,15 @@ const isExternal = (u) => {
         const boxes = D.solids().filter((s) => s.kind !== 'roof' && s.y1 > C.SIDEWALK_H + 0.05 && s.y0 < C.SIDEWALK_H + 0.6 && (s.kind !== 'door' || s.active)).map((s) => [s.x0, s.z0, s.x1, s.z1]);
         for (const lf of C.doorLeaves(st.doors).filter((l) => l.door === 0)) boxes.push([lf.x0, lf.z0, lf.x1, lf.z1]);
         const hit = boxes.find((b) => obb(d, b)); if (hit) { W.hits++; if (!W.first) W.first = { t: st.t, b: hit, d: { ...d } }; }
-        if (d.phase === 'growl') W.growl.push({ dev: Math.abs(C.wrapAngle(d.yaw - Math.atan2(-(B.cx - d.x), -(B.cz - d.z)))) * 180 / Math.PI, crouch: d.crouch, drawn: !!D.info().dog, t: st.t, x: d.x, z: d.z });
+        if (d.phase === 'growl') { const g = D.info().dog; W.growl.push({ dev: g ? Math.abs(C.wrapAngle(g.drawnYaw - Math.atan2(-(B.cx - g.at[0]), -(B.cz - g.at[1])))) * 180 / Math.PI : 999, low: g ? g.drawnLow : 0, drawn: !!g, t: st.t, x: d.x, z: d.z }); }
       };
       H.each = W.each;
       H.until(() => D.horror().dogView && D.horror().dogView.phase === 'growl' && D.state().t >= D.horror().dog.log.find((x) => x.phase === 'growl').t + 1.2, 30);
       const dv = D.horror().dogView;
       // from behind it and to one side (2.2 m away, outside the 2 m at which it would run, and clear of its way out): the dog in
       // front, the staff door beyond it
-      const cx = dv.x - 2.0, cz = dv.z + 1.0, lx = (dv.x + B.cx) / 2, lz = (dv.z + B.cz) / 2;
-      D.place(cx, cz, Math.atan2(-(lx - cx), -(lz - cz))); D.lookAt(lx, 0.7, lz); for (let i = 0; i < 30; i++) H.step();
+      const cx = dv.x - 2.0, cz = dv.z + 1.0, lx = dv.x + 0.25 * (B.cx - dv.x), lz = dv.z + 0.25 * (B.cz - dv.z);   // aimed a quarter of the way from it to the door
+      D.place(cx, cz, Math.atan2(-(lx - cx), -(lz - cz))); D.lookAt(lx, 0.55, lz); for (let i = 0; i < 30; i++) H.step();
       H.each = null;
       const { e3, hits, gap, frames, growl, first } = W;
       return { e3, dog0: D.horror().dog.t0, hits, gap, frames, growl, first, at: [dv.x, dv.z] };
@@ -1505,9 +1517,10 @@ const isExternal = (u) => {
     const c = await Q.page.evaluate(() => {
       const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.walk(C.SCARE_PLAN.aisle);
       H.until(() => D.horror().dogView && D.horror().dogView.phase === 'sniff' && D.state().t >= D.horror().dog.log.find((x) => x.phase === 'sniff').t + 0.6, 40);
+      const sw = []; for (let i = 0; i < 48; i++) { D.step(1 / 240, 1); const g = D.info().dog; if (g) sw.push(g.tailSwing); }   // the drawn tail over 0.2 s
       const dv = D.horror().dogView, cx = dv.x - 2.0, cz = dv.z - 0.6;
       D.place(cx, cz, Math.atan2(-(dv.x - cx), -(dv.z - cz))); D.lookAt(dv.x, 0.4, dv.z); for (let i = 0; i < 60; i++) D.step(1 / 240, 1);   // turned to face it from the start
-      return { tail: dv.tail, phase: dv.phase, drawn: !!D.info().dog };
+      return { tail: dv.tail, phase: dv.phase, drawn: !!D.info().dog, swing: sw.length ? Math.max(...sw) - Math.min(...sw) : 0 };
     });
     await Q.page.screenshot({ path: shot('D4-calm-dog') });
     const c2 = await Q.page.evaluate(() => { const D = window.__diorama, H = window.__H; H.until(() => D.horror().dog && D.horror().dog.goneAt !== null, 15); H.until(() => false, 20); return { kinds: (D.audioLog() || []).map((x) => x.kind), phases: D.horror().dog.log.map((x) => x.phase), dogs: D.horror().dog.t0 }; });
@@ -1518,13 +1531,13 @@ const isExternal = (u) => {
     const wt = r2.watch;
     check('D2', 'the dog: footprint never in a wall, shelf or door leaf, always >= 1.2 m from the walker (in the page)', wt.frames > 0 && wt.hits === 0 && wt.gap >= 1.2 && Math.abs(r.dog0 - r.e3) < 1e-9,
       `dog came in with E3 (${f2(r.e3)} s, dog at ${f2(r.dog0)} s); ${wt.frames} frames from the door opening until it had shut behind the dog: footprint overlapping a wall, shelf, crate or door leaf on ${wt.hits}${wt.first ? ' (first ' + JSON.stringify(wt.first) + ')' : ''}, closest to the walker ${wt.gap.toFixed(2)} m`);
-    check('D3', 'growling at the staff door: head within 15 deg of it, body lowered; picture D3-dog-growl', r.growl.length > 0 && maxDev < 15 && r.growl.filter((g) => g.t - r.growl[0].t > 0.3).every((g) => g.crouch > 0.9 && g.drawn),
-      `${r.growl.length} growl frames, head at most ${maxDev == null ? 'n/a' : maxDev.toFixed(2)} deg off the staff door, crouched ${r.growl.length ? r.growl[r.growl.length - 1].crouch : 'n/a'}; standing at (${r.at.map((v) => v.toFixed(2)).join(', ')})`);
+    check('D3', 'growling at the staff door (as drawn): head within 15 deg of it, body lowered; picture D3-dog-growl', r.growl.length > 0 && maxDev < 15 && r.growl.every((g) => g.drawn) && r.growl.filter((g) => g.t - r.growl[0].t > 0.3).every((g) => g.low >= 0.099),
+      `${r.growl.length} growl frames, the drawn head (tail -> head on the meshes) at most ${maxDev == null ? 'n/a' : maxDev.toFixed(2)} deg off the staff door, body lowered ${r.growl.length ? r.growl[r.growl.length - 1].low.toFixed(3) : 'n/a'} m; standing at (${r.at.map((v) => v.toFixed(2)).join(', ')})`);
     check('D4', 'dog sounds in order (paws, shake, growl, whimper), knocking only after it has gone; calm: no growl, tail wagging; once a visit',
       order.every((v) => v != null) && order[0] < order[1] && order[1] < order[2] && order[2] < order[3] && knock && knock.t > r2.t0 + r2.closedAt && r2.wideAt >= r2.closedAt - 1e-9 && r2.doorK === 0 &&
-      c.tail === 'wag' && c.drawn && !c2.kinds.includes('growl') && !c2.kinds.includes('whimper') && c2.kinds.includes('paw') && c2.kinds.includes('shake') && c2.phases.join(',') === 'enter,shake,walk,turn,sniff,out,gone',
+      c.tail === 'wag' && c.drawn && c.swing > 0.5 && !c2.kinds.includes('growl') && !c2.kinds.includes('whimper') && c2.kinds.includes('paw') && c2.kinds.includes('shake') && c2.phases.join(',') === 'enter,shake,walk,turn,sniff,out,gone',
       `phases ${r2.log.join(' ')}; door shut again at +${r2.closedAt.toFixed(2)} s (k ${r2.doorK}); turned away from the staff door meanwhile, it went wide at +${r2.wideAt.toFixed(2)} s; first paw/shake/growl/whimper at +${order.map((v) => (v == null ? 'n/a' : (v - r2.t0).toFixed(2))).join('/')} s; first knock at +${knock ? (knock.t - r2.t0).toFixed(2) : 'n/a'} s; ` +
-      `calm: phases ${c2.phases.join(',')}, tail ${c.tail} while sniffing, sounds ${[...new Set(c2.kinds)].join(',')} (no growl, no whimper)`);
+      `calm: phases ${c2.phases.join(',')}, tail ${c.tail} while sniffing (the drawn tail swings through ${c.swing.toFixed(2)} rad in 0.2 s), sounds ${[...new Set(c2.kinds)].join(',')} (no growl, no whimper)`);
   }
 
   // ---------- pictures: dark, narrow, can't see it all (entrance, mid-aisle, at the TV, at the staff door) and the grocery from outside ----------
