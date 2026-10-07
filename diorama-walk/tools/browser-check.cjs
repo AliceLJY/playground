@@ -358,9 +358,9 @@ const isExternal = (u) => {
     const walking = (await state(page)).player.walking;
     await until(page, () => !window.__diorama.state().player.walking, 8000);
     const p1 = (await state(page)).player, moved = Math.hypot(p1.x - p0.x, p1.z - p0.z);
-    // two fingers pinch in to a third of the start distance, on the right half (the left 45% is the joystick since round 4)
-    await touch('touchStart', [[210, 600], [370, 600]]);
-    for (let i = 1; i <= 15; i++) { const h = 80 - i * 3.6; await touch('touchMove', [[290 - h, 600], [290 + h, 600]]); await page.waitForTimeout(16); }
+    // two fingers pinch in to a third of the start distance, centred on the screen (the left one lands on the joystick spot)
+    await touch('touchStart', [[95, 600], [295, 600]]);
+    for (let i = 1; i <= 15; i++) { const h = 100 - i * 4.5; await touch('touchMove', [[195 - h, 600], [195 + h, 600]]); await page.waitForTimeout(16); }
     await touch('touchEnd', []);
     const leaving = await until(page, () => window.__diorama.state().mode === 'exiting' || window.__diorama.state().mode === 'orbit', 3000);
     const back = await until(page, () => window.__diorama.state().mode === 'orbit', 5000);
@@ -781,8 +781,8 @@ const isExternal = (u) => {
     for (const order of ['joystick first', 'drag first']) {
       await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
       const s0 = await snap(page);
-      if (order === 'joystick first') { await T('touchStart', [[1, 90, 700]]); await T('touchStart', [[1, 90, 700], [2, 300, 520]]); }
-      else { await T('touchStart', [[2, 300, 520]]); await T('touchStart', [[2, 300, 520], [1, 90, 700]]); }
+      if (order === 'joystick first') { await T('touchStart', [[1, 90, 700]]); await page.waitForTimeout(300); await T('touchStart', [[1, 90, 700], [2, 300, 520]]); }
+      else { await T('touchStart', [[2, 300, 520]]); await page.waitForTimeout(300); await T('touchStart', [[2, 300, 520], [1, 90, 700]]); }
       const r = { modes: new Set(), pinched: 0, closest: Infinity };
       for (let i = 1; i <= 60; i++) {
         const j = [1, 90 + i * 1.2, 700 - Math.min(45, i)], k = [2, 300 - i * 1.8, 520 + i * 1.5];
@@ -798,7 +798,7 @@ const isExternal = (u) => {
     await P.close();
     report.r2 = res;
     const ok = Object.values(res).every((r) => r.modes.length === 1 && r.modes[0] === 'walk' && r.pinched === 0 && r.moved > 0.3 && Math.abs(r.turned) > 0.3 && r.closest < 0.75 * Math.hypot(210, 180));
-    check('R2', 'joystick plus right-hand drag: walks and turns, never a pinch', ok,
+    check('R2', 'one finger held 300 ms, then the other (joystick or drag first): walks and turns, never a pinch', ok,
       Object.entries(res).map(([k, r]) => `${k}: walked ${r.moved.toFixed(2)} m and turned ${r.turned.toFixed(2)} rad in 1 s; fingers came within ${r.closest.toFixed(0)} px of each other (start ${Math.hypot(210, 180).toFixed(0)}; a pinch would fire below 75%); modes ${r.modes.join(',')}; frames read as a pinch ${r.pinched}`).join(' | '));
   }
 
@@ -940,6 +940,127 @@ const isExternal = (u) => {
     const hOk = report.checks.filter((c) => /^H[1-8]$/.test(String(c.id))).every((c) => c.pass) && report.checks.filter((c) => /^H[1-8]$/.test(String(c.id))).length === 8;
     check('R8', 'scare points unaffected: H1-H8 pass, nothing starts in the room view, E5 after the roof is back', hOk && r.e2 != null && r.stay >= 10 - 1e-6 && r.later.length === 0 && r.wide === null && r.placed && r.placed.roof === 1 && r.placed.simRoof === 1 && r.figure === 'window',
       `H1-H8 in this run: ${hOk ? 'all pass' : 'NOT all pass'}; E2 fired at ${f2(r.e2)} s, then the room view for ${r.stay.toFixed(2)} s: events ${r.later.length ? r.later.join(',') : 'none'}, staff door changed ${r.wide !== null}; leaving from the room view: figure placed with the roof drawn at ${r.placed ? r.placed.roof : '-'} (simulation ${r.placed ? r.placed.simRoof : '-'}), camera ${r.placed ? r.placed.camY.toFixed(2) : '-'} m; ends with the figure at '${r.figure}'`);
+  }
+
+  // ---------- R10: two fingers down together (390x844 and 880x920) ----------
+  {
+    const res = {};
+    for (const [name, opt] of [['390x844', PHONE], ['880x920', FOLD]]) {
+      const W = opt.width, Hh = opt.height, jx = W * 0.2, jy = Hh * 0.82, bx = W * 0.78, by = Hh * 0.62, r = {};
+      // (1) together, one on the joystick spot, closing along the line between them
+      let P = await open('?view=door', opt), page = P.page, T = await cdpTouch(P);
+      await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+      await T('touchStart', [[1, jx, jy]]); await T('touchStart', [[1, jx, jy], [2, bx, by]]);
+      const pend = (await page.evaluate(() => window.__diorama.pad())).pending;
+      for (let i = 1; i <= 10; i++) { const k = (i / 10) * 0.45; await T('touchMove', [[1, jx + ((bx - jx) * k) / 2, jy + ((by - jy) * k) / 2], [2, bx - ((bx - jx) * k) / 2, by - ((by - jy) * k) / 2]]); }
+      await T('touchEnd', []);
+      const m1 = (await snap(page)).mode, fr1 = await transitionFrames(page, 'room');
+      r.one = { pending: pend, mode: m1, end: fr1.modes[fr1.modes.length - 1] };
+      await P.close();
+      // (2) together, the lower-left one pushed up, the right one swiping across; then (2b) swiping the other way
+      for (const [key, dir] of [['two', 1], ['twoIn', -1]]) {
+        P = await open('?view=door', opt); page = P.page; T = await cdpTouch(P);
+        await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+        const s0 = await snap(page), rx = W * 0.72, ry = jy - 8, modes = new Set(); let pinched = 0;
+        await T('touchStart', [[1, jx, jy]]); await T('touchStart', [[1, jx, jy], [2, rx, ry]]);
+        for (let i = 1; i <= 40; i++) {                 // 2/3 s: thumb up to 40 px, the other finger 100 px across
+          await T('touchMove', [[1, jx, jy - Math.min(40, i * 2)], [2, rx + dir * i * 2.5, ry]]);
+          const q = await page.evaluate(() => { const D = window.__diorama, s = D.step(1 / 60, 1); return { mode: s.mode, pinching: D.pad().pinching, joy: !!D.pad().joy }; });
+          modes.add(q.mode); if (q.pinching) pinched++;
+        }
+        const joyOn = (await page.evaluate(() => window.__diorama.pad())).joyShown;
+        await T('touchEnd', []);
+        const s1 = await snap(page);
+        r[key] = { modes: [...modes], pinched, joyOn, moved: dist2(s0, s1), turned: s1.yaw - s0.yaw };
+        await P.close();
+      }
+      // (3) joystick held 300 ms, then the second finger, closing in
+      P = await open('?view=door', opt); page = P.page; T = await cdpTouch(P);
+      await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+      const t0 = await snap(page);
+      await T('touchStart', [[1, jx, jy]]); await T('touchMove', [[1, jx, jy - 30]]); await page.waitForTimeout(300);
+      await T('touchStart', [[1, jx, jy - 30], [2, bx, by]]);
+      const modes3 = new Set(); let pinched3 = 0;
+      for (let i = 1; i <= 25; i++) {
+        await T('touchMove', [[1, jx + i * 2, jy - 30 - i], [2, bx - i * 4, by + i * 2]]);
+        const q = await page.evaluate(() => { const D = window.__diorama, s = D.step(1 / 60, 1); return { mode: s.mode, pinching: D.pad().pinching }; });
+        modes3.add(q.mode); if (q.pinching) pinched3++;
+      }
+      await T('touchEnd', []);
+      const t1 = await snap(page);
+      r.three = { modes: [...modes3], pinched: pinched3, moved: dist2(t0, t1), turned: t1.yaw - t0.yaw };
+      await P.close();
+      res[name] = r;
+    }
+    report.r10 = res;
+    const ok = Object.values(res).every((r) => r.one.pending && r.one.mode === 'rising' && r.one.end === 'room'
+      && ['two', 'twoIn'].every((k) => r[k].modes.length === 1 && r[k].modes[0] === 'walk' && r[k].pinched === 0 && r[k].joyOn && r[k].moved > 0.3 && Math.abs(r[k].turned) > 0.2)
+      && r.three.modes.length === 1 && r.three.modes[0] === 'walk' && r.three.pinched === 0 && r.three.moved > 0.3 && Math.abs(r.three.turned) > 0.2);
+    check('R10', 'two fingers down together: closing along their line is a pinch; push up + swipe is walk and turn; a joystick held 300 ms stays one', ok,
+      Object.entries(res).map(([k, r]) => `${k}: (1) together (one on the joystick spot), undecided at first ${r.one.pending}, closing along the line -> ${r.one.mode} -> ${r.one.end}; ` +
+        `(2) together, thumb up + swipe out -> modes ${r.two.modes.join(',')}, pinch frames ${r.two.pinched}, joystick ${r.two.joyOn}, walked ${r.two.moved.toFixed(2)} m, turned ${r.two.turned.toFixed(2)} rad; swipe in -> ${r.twoIn.modes.join(',')}, ${r.twoIn.pinched}, ${r.twoIn.joyOn}, ${r.twoIn.moved.toFixed(2)} m, ${r.twoIn.turned.toFixed(2)} rad; ` +
+        `(3) joystick held 300 ms then the other finger closing in -> modes ${r.three.modes.join(',')}, pinch frames ${r.three.pinched}, walked ${r.three.moved.toFixed(2)} m, turned ${r.three.turned.toFixed(2)} rad`).join(' | '));
+  }
+
+  // ---------- R11: portrait room view, shop long side upright ----------
+  {
+    const res = {};
+    for (const [name, q, id] of [['store', '?view=room', 'store'], ['next', '?view=next', 'next']]) {
+      const P = await open(q, PHONE), page = P.page, T = await cdpTouch(P);
+      await page.evaluate(() => window.__diorama.step(0, 1));
+      if (id === 'next') { await twoFingers(T, page, 390 * 0.76, 844 * 0.4, 78, 0.55); await transitionFrames(page, 'room'); }
+      const r = await page.evaluate((id) => {
+        const D = window.__diorama, C = D.core, b = C.BUILDINGS.find((q) => q.id === id), h = innerHeight, w = innerWidth;
+        const pts = C.roomFloor(b).map(([x, y, z]) => D.toScreen(x, y, z)), ys = pts.map((p) => p[1]), xs = pts.map((p) => p[0]);
+        return { mode: D.state().mode, share: (Math.max(...ys) - Math.min(...ys)) / h, wide: (Math.max(...xs) - Math.min(...xs)) / w, inFrame: pts.every(([x, y]) => x >= 0 && x <= w && y >= 0 && y <= h), yaw: D.state().cam.yaw };
+      }, id);
+      res[name] = r;
+      await P.close();
+    }
+    report.r11 = res;
+    check('R11', 'portrait room view: floor box >= 45% of the screen height, corners in frame', Object.values(res).every((r) => r.mode === 'room' && r.share >= 0.45 && r.inFrame),
+      Object.entries(res).map(([k, r]) => `${k} 390x844: floor box ${(r.share * 100).toFixed(1)}% of the height (round 4: about 33%), ${(r.wide * 100).toFixed(1)}% of the width, corners in frame ${r.inFrame}, camera heading ${(r.yaw * 180 / Math.PI).toFixed(0)} deg (along the long side)`).join(' | '));
+  }
+
+  // ---------- R12: the joystick ring ----------
+  {
+    const P = await open('?view=door', PHONE), page = P.page, T = await cdpTouch(P);
+    await page.evaluate(() => window.__diorama.step(0, 1));
+    const a = await page.evaluate(() => window.__diorama.pad());
+    await page.waitForTimeout(200); await page.screenshot({ path: shot('phone-ring') });
+    await T('touchStart', [[1, 90, 690]]); await T('touchMove', [[1, 90, 660]]);
+    const b = await page.evaluate(() => window.__diorama.pad());
+    await T('touchEnd', []);
+    const c = await page.evaluate(() => window.__diorama.pad());
+    await twoFingers(T, page, 390 * 0.76, 844 * 0.4, 78, 0.55);       // not on the joystick spot: a pinch; walking on the pavement -> out
+    await transitionFrames(page, 'orbit');
+    const d = await page.evaluate(() => window.__diorama.pad());
+    await P.close();
+    const M = await open('?view=door');
+    await M.page.evaluate(() => window.__diorama.step(0, 1));
+    const m = await M.page.evaluate(() => window.__diorama.pad());
+    await M.close();
+    report.r12 = { a, b, c, d, m };
+    check('R12', 'joystick ring: shown on touch while walking with nothing down, hidden on press, back on release, never with a mouse',
+      a.coarse && a.ring.shown && Math.abs(a.ring.at[0] - 390 * 0.225) < 1 && Math.abs(a.ring.at[1] - 844 * 0.8) < 1 && Math.abs(a.ring.opacity - 0.25) < 0.01 && a.ring.size === 120 && !b.ring.shown && b.joyShown && c.ring.shown && !d.ring.shown && !m.coarse && !m.ring.shown,
+      `390x844 touch, walking: ring shown ${a.ring.shown} at (${a.ring.at.map((v) => v.toFixed(1)).join(', ')}) (middle of the lower-left spot), opacity ${a.ring.opacity}, ${a.ring.size} px across (joystick 120 px); thumb down -> ring ${b.ring.shown ? 'shown' : 'hidden'}, joystick ${b.joyShown}; let go -> ring ${c.ring.shown ? 'shown' : 'hidden'}; outside -> ring ${d.ring.shown ? 'shown' : 'hidden'}; desktop with a mouse (pointer coarse ${m.coarse}), walking -> ring ${m.ring.shown ? 'shown' : 'hidden'}`);
+  }
+
+  // ---------- R13: the upper left turns the head ----------
+  {
+    const P = await open('?view=door', PHONE), page = P.page, T = await cdpTouch(P);
+    await page.evaluate(() => { window.__diorama.step(0, 1); window.__diorama.place(5.0, -1.5, 0); });
+    const s0 = await snap(page);
+    await T('touchStart', [[1, 78, 250]]);
+    let joySeen = false;
+    for (let i = 1; i <= 10; i++) { await T('touchMove', [[1, 78 + i * 10, 250]]); joySeen = joySeen || (await page.evaluate(() => window.__diorama.pad())).joyShown; }
+    await stepN(page, 30); await T('touchEnd', []);
+    const s1 = await snap(page);
+    await P.close();
+    const expect = (100 * Math.PI) / 390;
+    report.r13 = { turned: s1.yaw - s0.yaw, moved: dist2(s0, s1), joySeen };
+    check('R13', 'upper left: a drag turns the head, no joystick, no walking', Math.abs(Math.abs(s1.yaw - s0.yaw) - expect) < 1e-6 && dist2(s0, s1) < 1e-9 && !joySeen,
+      `390x844: finger down at (78, 250) (left 45%, upper 60%), dragged 100 px right -> turned ${Math.abs(s1.yaw - s0.yaw).toFixed(4)} rad (100/390 x pi = ${expect.toFixed(4)}), walked ${dist2(s0, s1).toFixed(4)} m, joystick shown ${joySeen}`);
   }
 
   // ---------- R9: the 880x920 fold screen ----------
