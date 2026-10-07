@@ -965,7 +965,7 @@ const isExternal = (u) => {
     finishR9 = () => {
       const regress = report.checks.filter((c) => /^(1|1b|2|3|4|5|6|7|8|9|P|D|H[1-8])$/.test(String(c.id)));
       check('R9', 'regressions (H1-H8, items 1-9, 1b, performance, player default) and the 880x920 fold screen',
-        regress.length === 19 && regress.every((c) => c.pass) && fold.overflow.sw <= fold.overflow.cw && fold.walked > 0.5 && Math.abs(fold.turned - (216 * Math.PI) / 880) < 0.02 && fold.lv1 === 'room' && fold.frames.bad.length === 0 && fold.s3.mode === 'walk' && Math.hypot(fold.s3.x - 5.4, fold.s3.z + 4.6) <= 0.3 && fold.end === 'orbit',
+        regress.length === 20 && regress.every((c) => c.pass) && fold.overflow.sw <= fold.overflow.cw && fold.walked > 0.5 && Math.abs(fold.turned - (216 * Math.PI) / 880) < 0.02 && fold.lv1 === 'room' && fold.frames.bad.length === 0 && fold.s3.mode === 'walk' && Math.hypot(fold.s3.x - 5.4, fold.s3.z + 4.6) <= 0.3 && fold.end === 'orbit',
         `${regress.filter((c) => c.pass).length}/${regress.length} earlier rows pass (${regress.filter((c) => !c.pass).map((c) => c.id).join(',') || 'none failing'}); 880x920 touch: no horizontal overflow (scrollWidth ${fold.overflow.sw} <= ${fold.overflow.cw}); ` +
         `joystick 0.75 s -> ${fold.walked.toFixed(2)} m; a 216 px drag -> ${fold.turned.toFixed(3)} rad (216/880 x pi = ${((216 * Math.PI) / 880).toFixed(3)}); pinch inside -> ${fold.lv1}; spread -> walking at (${f3(fold.s3.x)}, ${f3(fold.s3.z)}); pinch, pinch -> ${fold.end}`);
     };
