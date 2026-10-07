@@ -33,7 +33,7 @@ body.noui #hint,body.noui #dbg{display:none}
 #dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
 #joy{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgba(214,222,234,.5);background:rgba(214,222,234,.08);pointer-events:none;display:none}
 #joy i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(214,222,234,.38)}
-#joyHint{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgb(214,222,234);background:rgba(214,222,234,.15);opacity:.25;pointer-events:none;display:none}
+#joyHint{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:2px solid rgb(214,222,234);box-shadow:0 0 0 1.5px rgba(16,20,28,.9),inset 0 0 0 1.5px rgba(16,20,28,.9);background:rgba(214,222,234,.12);opacity:.25;pointer-events:none;display:none}
 </style>`);
 const canvas = document.createElement('canvas');
 canvas.id = 'c';
