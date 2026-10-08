@@ -35,6 +35,7 @@ export const GLASS_OPACITY = 0.25, RAIN_OPACITY = 0.35;
 // Colours the spec leaves open (furniture, floors, roofs). Greys and browns that sit between the spec colours.
 export const EXTRA_COLORS = {
   footprint: '#1A1714',                           // round 9: wet bare footprints (dark, a little shine)
+  endRim: '#8FCBFF',                              // round 10: the faint cold rim on the ending figure's head and shoulders
   storeRoof: '#7E776C', nextRoof: '#6C5747', storeFloor: '#7A7062', storeGrid: '#5C5449', nextFloor: '#5E4B3D', storeWall: '#4A453D',
   shelf: '#5A4632', shelfBoard: '#6E5640', freezerBody: '#A9B2BE', counter: '#4E3D2E', dark: '#11151D', mat: '#2E2A26',
   frame: '#9AA0A6', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
@@ -650,8 +651,15 @@ export const footAlpha = (age) => (age < 0 ? 0 : age < FOOT.fade ? 1 : Math.max(
 // The ending (N5): a visit with E4 in it leaves the figure behind the window as E5 does; once it has been on screen for 2 s
 // running, its head turns and lifts onto the camera over 1.5 s and then follows the camera; the body turns after it at
 // 0.5 rad/s. Without E4 it stays as it is, its back to the street.
-export const ENDING = { see: 2.0, turn: 1.5, body: 0.5 };
-export const endHeadPoint = () => { const sp = HORROR.spots.window; return [sp.x, SIDEWALK_H + HORROR.figure.h - HORROR.figure.headR, sp.z]; };
+// Round 10 (SPEC 第九轮「结局加强」): the moment it turns, the shop window's light goes out for 0.12 s and comes back; a faint
+// cold rim comes up on its head and shoulders; once the head has turned it walks forward for 1.2 s until its front is 0.05 m
+// from the glass (the body turning round to the street as it goes), then lifts one hand flat onto the glass, and keeps
+// staring at the camera.
+export const ENDING = { see: 2.0, turn: 1.5, body: 0.5, flash: 0.12, walk: 1.2, gap: 0.05, hand: 0.5, rimIn: 0.4, handUp: 1.80, handSide: 0.26 };   // its right hand, just left of the window's middle bar as seen from the street
+export const FIG_DEPTH = 0.72;                       // the body capsule is flattened front to back (page: body.scale.z)
+export const WINDOW_GLASS_IN = FACADE_Z - 0.12;      // the inner face of the shop window's pane (core 'windowGlass' box)
+export const ENDING_Z = WINDOW_GLASS_IN - ENDING.gap - HORROR.figure.bodyR * FIG_DEPTH;   // where it stops, front 0.05 m off the glass
+export const endHeadPoint = (z = HORROR.spots.window.z) => { const sp = HORROR.spots.window; return [sp.x, SIDEWALK_H + HORROR.figure.h - HORROR.figure.headR, z]; };
 const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], L = Math.hypot(...d); return Math.acos(clamp((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L, -1, 1)); };
 function createHorror(S, calm) {
   const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null, P1: null, P2: null, R1: null, END: null });
@@ -666,7 +674,8 @@ function createHorror(S, calm) {
     return H.wideAt !== null && t >= H.wideAt ? BACKDOOR.wide : BACKDOOR.half;
   };
   const dark = (b, t) => b && t >= b.start && t < b.end;
-  const light = (t) => (dark(H.e0, t) || dark(H.e5Dark, t) ? HORROR.e0.level : 1);
+  const endFlash = (t) => !!(H.end && H.end.t0 !== null && H.figure === 'window' && t >= H.end.t0 - 1e-9 && t < H.end.t0 + ENDING.flash - 1e-9);   // round 10
+  const light = (t) => (dark(H.e0, t) || dark(H.e5Dark, t) || endFlash(t) ? HORROR.e0.level : 1);
   // round 8 lights: two bulbs and the tube; E2 puts them out one by one (after two tube blinks), the tube also flickers on
   // its own and once more for P1; the television's snow and the freezer's hum stop in the E2 silence
   const e2Off = (i, t) => !!(H.e2 && t >= H.e2.t0 + HORROR.e2.seq + i * HORROR.e2.step && t < H.e2.t0 + E2_TOTAL);
@@ -690,7 +699,8 @@ function createHorror(S, calm) {
   const footprints = (t) => (H.foot0 === null ? [] : FOOTPRINTS.filter((f) => t >= H.foot0 + f.dt - 1e-9).map((f) => ({ ...f, at: H.foot0 + f.dt, alpha: footAlpha(t - H.foot0 - f.dt) })).filter((f) => f.alpha > 0));
   const newestFoot = (t) => { if (H.foot0 === null) return null; let n = null; for (const f of FOOTPRINTS) if (t >= H.foot0 + f.dt - 1e-9) n = f; return n; };
   const footArrived = (t) => H.foot0 !== null && t >= H.foot0 + FOOT_ARRIVE - 1e-9;
-  const endPose = () => (H.end && H.figure === 'window' ? { armed: H.end.armed, looking: H.end.t0 !== null, t0: H.end.t0, bodyYaw: H.end.bodyYaw, headYaw: H.end.headYaw, pitch: H.end.pitch, headRel: wrapAngle(H.end.headYaw - H.end.bodyYaw), target: H.end.target && { ...H.end.target } } : null);
+  const endPose = () => (H.end && H.figure === 'window' ? { armed: H.end.armed, looking: H.end.t0 !== null, t0: H.end.t0, bodyYaw: H.end.bodyYaw, headYaw: H.end.headYaw, pitch: H.end.pitch, headRel: wrapAngle(H.end.headYaw - H.end.bodyYaw), target: H.end.target && { ...H.end.target },
+    x: HORROR.spots.window.x, z: H.end.z, rim: H.end.rim, hand: H.end.hand, handAt: H.end.handAt && H.end.handAt.slice(), flash: H.end.t0 !== null ? [H.end.t0, H.end.t0 + ENDING.flash] : null } : null);
   const scare = (t) => !!(H.e4 && t >= H.e4.t0 && t < H.e4.t0 + E4_BANG);
   const shake = (t) => {
     const u = H.e4 ? t - H.e4.t0 - E4_BANG : -1;
@@ -931,16 +941,26 @@ function createHorror(S, calm) {
   function endStep(t, P) {
     const E = H.end;
     if (!E || !E.armed || H.figure !== 'window') return;
-    const head = endHeadPoint();
+    const sp = HORROR.spots.window;
     if (E.t0 === null) {
       E.seen = pointsVisible(P.cam, P.fov, P.aspect, figurePoints('window'), P.lift) ? E.seen + HORROR.tick : 0;
       if (E.seen < ENDING.see - 1e-9) return;
-      E.t0 = t; H.sounds.push({ kind: 'drone', t, pos: head.slice() }); fire('END', t);
+      const h0 = endHeadPoint(E.z);
+      E.t0 = t; H.sounds.push({ kind: 'drone', t, pos: h0.slice() }); fire('END', t);
+      E.dir = wrapAngle(Math.atan2(-(P.cam.x - h0[0]), -(P.cam.z - h0[2])) - sp.yaw) < 0 ? -1 : 1;   // the body turns round the way the head turns
     }
-    const dx = P.cam.x - head[0], dy = P.cam.y - head[1], dz = P.cam.z - head[2], ty = Math.atan2(-dx, -dz), tp = Math.atan2(dy, Math.hypot(dx, dz)), k = smooth(0, ENDING.turn, t - E.t0);
+    const u = t - E.t0;
+    // round 10: walks to the glass once the head has turned, the body turning round to the street (yaw + pi) meanwhile
+    E.z = sp.z + (ENDING_Z - sp.z) * smooth(ENDING.turn, ENDING.turn + ENDING.walk, u);
+    E.bodyYaw = sp.yaw + E.dir * Math.PI * smooth(0, ENDING.turn + ENDING.walk, u);
+    E.rim = smooth(0, ENDING.rimIn, u);
+    E.hand = smooth(ENDING.turn + ENDING.walk, ENDING.turn + ENDING.walk + ENDING.hand, u);
+    { const side = ENDING.handSide;                       // local (side, 0, 0) -> world (side cos(yaw), 0, -side sin(yaw)); the hand is pressed flat on the pane
+      E.handAt = [sp.x + side * Math.cos(E.bodyYaw), SIDEWALK_H + ENDING.handUp, WINDOW_GLASS_IN - 0.012]; }
+    const head = endHeadPoint(E.z);
+    const dx = P.cam.x - head[0], dy = P.cam.y - head[1], dz = P.cam.z - head[2], ty = Math.atan2(-dx, -dz), tp = Math.atan2(dy, Math.hypot(dx, dz)), k = smooth(0, ENDING.turn, u);
     E.target = { yaw: ty, pitch: tp };
-    E.headYaw = HORROR.spots.window.yaw + wrapAngle(ty - HORROR.spots.window.yaw) * k; E.pitch = tp * k;
-    const err = wrapAngle(ty - E.bodyYaw), stepB = ENDING.body * HORROR.tick; E.bodyYaw += Math.abs(err) <= stepB ? err : Math.sign(err) * stepB;
+    E.headYaw = sp.yaw + wrapAngle(ty - sp.yaw) * k; E.pitch = tp * k;
   }
   function evalAt(t, P, kAt) {
     if (H.e0 && !H.e0.done && t >= H.e0.removeAt - 1e-9) { H.figure = null; H.end = null; H.e0.done = true; fire('E0', H.e0.removeAt); }
@@ -1037,7 +1057,7 @@ function createHorror(S, calm) {
     onExitStart(t0, poseAt, dur) {
       H.e5Plan = null; H.e5Dark = null; H.knock = null; H.dog = null; H.p1arm = null;
       H.blk = H.blk.filter((b) => b.done); H.r1.fig = null;                 // round 9: no dark spells or figures once you are leaving
-      H.end = !H.calm && H.done.E4 && H.done.E2 ? { armed: true, seen: 0, t0: null, bodyYaw: HORROR.spots.window.yaw, headYaw: HORROR.spots.window.yaw, pitch: 0, target: null } : { armed: false, seen: 0, t0: null, bodyYaw: HORROR.spots.window.yaw, headYaw: HORROR.spots.window.yaw, pitch: 0, target: null };
+      H.end = !H.calm && H.done.E4 && H.done.E2 ? { armed: true, seen: 0, t0: null, bodyYaw: HORROR.spots.window.yaw, headYaw: HORROR.spots.window.yaw, pitch: 0, target: null, z: HORROR.spots.window.z, rim: 0, hand: 0, handAt: null, dir: 1 } : { armed: false, seen: 0, t0: null, bodyYaw: HORROR.spots.window.yaw, headYaw: HORROR.spots.window.yaw, pitch: 0, target: null, z: HORROR.spots.window.z, rim: 0, hand: 0, handAt: null, dir: 1 };
       if (H.calm || !H.done.E2 || !poseAt) return;
       let firstAbove = null;
       for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t0 + dur + 1e-9; k++) {

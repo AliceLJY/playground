@@ -1508,40 +1508,54 @@ test('N4: wet footprints from the door to the staff door, one every 0.5 s, left 
   c.enter('door'); run(c, () => c.S.mode === 'walk'); c.walkRoute(C.SCARE_PLAN.aisle); run(c, () => !c.S.player.route); run(c, () => c.horror().dog !== null, 25);
   run(c, () => false, 5); assert.ok(c.levels().foot.length === 0 && !c.horror().sounds.some((x) => x.kind === 'wetstep'), 'calm: no footprints');
 });
-test('N5: after a visit with E4 the figure behind the window, 2 s on screen, turns its head onto the camera within 1.5 s and keeps it there as the model turns; without E4 it does not', async () => {
-  const C = await load(), E = C.ENDING;
-  const gaze = (sim) => { const p = sim.horror().endPose, hd = C.endHeadPoint(), c = sim.S.cam, dx = c.x - hd[0], dy = c.y - hd[1], dz = c.z - hd[2];
+test('N5: after a visit with E4 the figure behind the window, 2 s on screen, turns its head onto the camera within 1.5 s and keeps it there as the model turns; round 10: the window light blinks, a cold rim, it walks to the glass and puts a hand on it; without E4 none of it', async () => {
+  const C = await load(), E = C.ENDING, sp = C.HORROR.spots.window;
+  const gaze = (sim) => { const p = sim.horror().endPose, hd = C.endHeadPoint(p.z), c = sim.S.cam, dx = c.x - hd[0], dy = c.y - hd[1], dz = c.z - hd[2];
     const f = [-Math.sin(p.headYaw) * Math.cos(p.pitch), Math.sin(p.pitch), -Math.cos(p.headYaw) * Math.cos(p.pitch)], L = Math.hypot(dx, dy, dz);
     return (Math.acos(Math.min(1, (f[0] * dx + f[1] * dy + f[2] * dz) / L)) * 180) / Math.PI; };
   const sim = C.createSim({ aspect: 16 / 9 });
   C.playScare(sim, { upTo: 'out' });
-  const h = sim.horror(), t5 = h.fired.E5;
-  assert.ok(h.done === undefined || true, '');
+  const h = sim.horror();
   assert.ok(h.figure === 'window' && h.end && h.end.armed && sim.S.mode === 'orbit', 'E4 in the visit: the ending is armed, the figure behind the window');
   // look away from the shop first: it waits until it has been on screen 2 s running
   sim.rotate(Math.PI, 0); run(sim, () => false, 3, 1 / 240);
-  assert.ok(sim.horror().endPose.looking === false && sim.horror().fired.END === null, 'not on screen: it does not turn');
+  assert.ok(sim.horror().endPose.looking === false && sim.horror().fired.END === null && sim.horror().light === 1, 'not on screen: it does not turn, the window stays lit');
   sim.rotate(-Math.PI, 0); const back = sim.S.t;
   run(sim, () => sim.horror().fired.END !== null, 5, 1 / 240);
   const tEnd = sim.horror().fired.END;
   assert.ok(Math.abs(tEnd - back - E.see) < 2 / 240, `turned ${(tEnd - back).toFixed(3)} s after it came back on screen (2 s)`);
   assert.ok(sim.horror().sounds.some((x) => x.kind === 'drone' && Math.abs(x.t - tEnd) < 1e-9), 'a low long tone as it looks up');
-  run(sim, () => sim.S.t >= tEnd + E.turn, 3, 1 / 240);
+  // round 10: the shop window's light goes out for 0.12 s the moment it turns, then comes back
+  const lightLog = [[sim.S.t - tEnd, sim.horror().light]], poses = [{ u: sim.S.t - tEnd, ...sim.horror().endPose }];
+  run(sim, () => { const hh = sim.horror(); lightLog.push([sim.S.t - tEnd, hh.light]); poses.push({ u: sim.S.t - tEnd, ...hh.endPose }); return sim.S.t >= tEnd + E.turn + E.walk + E.hand + 0.2; }, 6, 1 / 240);
+  const dark = lightLog.filter(([, l]) => l < 0.5), darkFrom = Math.min(...dark.map(([u]) => u)), darkTo = Math.max(...dark.map(([u]) => u));
+  assert.ok(dark.length > 0 && darkFrom <= 1 / 240 + 1e-9 && darkTo < E.flash && darkTo > E.flash - 2 / 240 && lightLog.filter(([u, l]) => u >= E.flash && l < 1).length === 0, `window light out from E+${darkFrom.toFixed(3)} to E+${darkTo.toFixed(3)} s (0.12 s), then lit`);
+  const at = (u) => poses.reduce((best, p) => (Math.abs(p.u - u) < Math.abs(best.u - u) ? p : best));
+  // the rim comes up, the head turns (1.5 s), then the walk (1.2 s) to 0.05 m off the glass, then the hand (0.5 s)
+  const pT = at(E.turn - 1 / 240), pW = at(E.turn + E.walk), pH = at(E.turn + E.walk + E.hand + 0.1);
+  const gap = (z) => C.WINDOW_GLASS_IN - (z + C.HORROR.figure.bodyR * C.FIG_DEPTH);
+  assert.ok(at(0).rim < 0.05 && at(E.rimIn).rim > 0.99, `rim ${at(0).rim.toFixed(2)} at the turn, ${at(E.rimIn).rim.toFixed(2)} ${E.rimIn} s later`);
+  assert.ok(Math.abs(pT.z - sp.z) < 1e-3 && pT.hand === 0, `still at its spot while the head turns (z ${pT.z.toFixed(3)})`);
+  const zs = poses.map((p) => p.z), mono = zs.every((z, i) => i === 0 || z >= zs[i - 1] - 1e-9);
+  assert.ok(mono && Math.abs(gap(pW.z) - E.gap) < 0.005 && pW.hand < 1e-3, `walked to the glass in ${E.walk} s: its front ${gap(pW.z).toFixed(3)} m off the glass (0.05)`);
+  assert.ok(Math.abs(Math.abs(C.wrapAngle(pW.bodyYaw - sp.yaw)) - Math.PI) < 1e-3, `turned round to the street (${(C.wrapAngle(pW.bodyYaw - sp.yaw) * 180 / Math.PI).toFixed(1)} deg)`);
+  const ha = pH.handAt, W = C.WINDOW;
+  assert.ok(pH.hand === 1 && Math.abs(ha[2] - (C.WINDOW_GLASS_IN - 0.012)) < 1e-6 && ha[0] > W.x0 + 0.1 && ha[0] < W.x1 - 0.1 && ha[1] > W.y0 + 0.1 && ha[1] < W.y1 - 0.1, `hand flat on the glass at (${ha.map((v) => v.toFixed(2)).join(', ')}), inside the window`);
   const g0 = gaze(sim), p0 = sim.horror().endPose;
-  assert.ok(g0 < 10 && p0.pitch > 0.2, `after 1.5 s: head ${g0.toFixed(2)} deg off the camera, lifted ${(p0.pitch * 180 / Math.PI).toFixed(1)} deg`);
+  assert.ok(g0 < 10 && p0.pitch > 0.2, `at the glass: head ${g0.toFixed(2)} deg off the camera, lifted ${(p0.pitch * 180 / Math.PI).toFixed(1)} deg`);
   const devs = [];
   for (const [a, b] of [[0.6, 0.05], [-1.1, -0.08]]) { sim.rotate(a, b); run(sim, () => false, 1.0, 1 / 240); devs.push(gaze(sim)); }
-  assert.ok(devs.every((d) => d < 10), `two other turns of the model: head ${devs.map((d) => d.toFixed(2)).join(' / ')} deg off the camera`);
-  const p1 = sim.horror().endPose; run(sim, () => false, 8);
-  assert.ok(Math.abs(C.wrapAngle(sim.horror().endPose.bodyYaw - sim.horror().endPose.target.yaw)) < Math.abs(C.wrapAngle(C.HORROR.spots.window.yaw - p1.target.yaw)) + 1e-9 && Math.abs(C.wrapAngle(sim.horror().endPose.bodyYaw - sim.horror().endPose.target.yaw)) < 0.05, 'the body has turned round to the camera too');
+  assert.ok(devs.every((d) => d < 10) && Math.abs(sim.horror().endPose.z - pW.z) < 1e-9 && sim.horror().endPose.hand === 1, `two other turns of the model: head ${devs.map((d) => d.toFixed(2)).join(' / ')} deg off the camera, still at the glass with its hand up`);
   // the next visit's E0 takes it away in the dark, ending and all
   sim.enter('door'); run(sim, () => sim.S.mode === 'walk', 10);
   assert.ok(sim.horror().figure === null && sim.horror().endPose === null, 'gone with E0');
-  // without E4: no turning
+  // without E4: no turning, no blink, no rim, no walk, no hand
   const r = C.createSim({ aspect: 16 / 9 });
-  C.playScare(r, { upTo: 'reveal' }); run(r, () => false, 8, 1 / 240);
+  C.playScare(r, { upTo: 'reveal' }); let lit = true;
+  run(r, () => { const hh = r.horror(); if (hh.light < 1 && hh.figure === 'window' && r.S.mode === 'orbit') lit = false; return false; }, 8, 1 / 240);
   const pr = r.horror().endPose;
-  assert.ok(r.horror().figure === 'window' && pr && !pr.armed && !pr.looking && pr.pitch === 0 && pr.headYaw === C.HORROR.spots.window.yaw && r.horror().fired.END === null, 'no E4: back to the street, head down');
+  assert.ok(r.horror().figure === 'window' && pr && !pr.armed && !pr.looking && pr.pitch === 0 && pr.headYaw === sp.yaw && r.horror().fired.END === null && pr.z === sp.z && pr.rim === 0 && pr.hand === 0 && pr.bodyYaw === sp.yaw && lit,
+    `no E4: back to the street, head down, stays where it is, no rim, no hand, the window never blinks (z ${pr && pr.z}, rim ${pr && pr.rim}, hand ${pr && pr.hand}, lit ${lit})`);
 });
 test('N7: a wanderer that hears nothing and goes by what it can see meets E2, E3, E4 in order within 120 s (6 seeds, 3 landings in turn, three screens); it never uses a sound', async () => {
   const C = await load();
