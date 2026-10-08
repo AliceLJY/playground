@@ -445,7 +445,7 @@ export const HORROR = {
   figure: { h: 1.7, bodyR: 0.19, headR: 0.12, color: '#0A0C10' },
   spots: {
     counter: { x: 8.2, z: -0.9, yaw: Math.atan2(8.2 - 5.0, -0.9 - FACADE_Z) },                    // behind the till, facing the door
-    window: { x: 7.9, z: FACADE_Z - WALL_T - 0.35, yaw: Math.PI },                                   // round 8: behind the small window, facing the street
+    window: { x: 7.9, z: FACADE_Z - WALL_T - 0.35, yaw: 0 },                                         // round 8: behind the small window; round 9: back to the street (SPEC 第九轮「照旧背对街站着」)
     backroom: { x: 6.55, z: -9.0, yaw: Math.PI },                                                  // in the staff doorway, facing into the store
   },
   e0: { delay: 0.2, dark: 0.35, level: 0.03 },
@@ -486,7 +486,10 @@ export const nextFlicker = (t) => { const i = flickerIndex(t - 1e-9) + 1; return
 // keeps out of solids as a circle of 0.45 m (the footprint's half diagonal is 0.431 m, so a circle kept clear keeps the
 // footprint clear however it is turned) and at least 1.2 m from the walker; it never blocks the walker.
 export const DOG = { len: 0.8, wid: 0.32, r: 0.45, start: [STORE.door.cx, FACADE_Z + 1.2], inside: [STORE.door.cx, FACADE_Z - WALL_T - 0.5], away: [STORE.door.cx, FACADE_Z + 1.6],
-  enter: 1.2, shake: 1.0, walk: 0.8, walkDist: 2.5, turn: 3.0, growl: 3.0, whimper: 0.5, run: 3.0, sniff: 2.0, trot: 2.0, keep: 1.2, flee: 2.0, giveUp: 1.8, step: 0.3, hold: 0.3 };
+  enter: 1.2, shake: 1.0, walk: 0.8, walkDist: 2.5, turn: 3.0, growl: 3.0, whimper: 0.5, run: 3.0, sniff: 2.0, trot: 2.0, keep: 1.2, flee: 2.0, giveUp: 1.8, step: 0.3, hold: 0.3,
+  // round 9: blocked on its way out for 3 s, it squeezes past along the other side of the doorway (at least 0.6 m from the
+  // walker); if neither side leaves that much room it lies down by the till until the doorway is clear
+  blockWait: 3, squeezeKeep: 0.6, lane: 0.43, hide: [6.5, -2.0], clearDoor: 2.0 };
 export const E2_DARK = HORROR.e2.seq + HORROR.e2.lights * HORROR.e2.step;     // television black and the hum off: the silence starts
 export const E2_TOTAL = E2_DARK + HORROR.e2.silence;                   // everything back on
 export const E4_BANG = HORROR.e4.reveal + HORROR.e4.slam;              // the door hits the frame
@@ -585,12 +588,76 @@ export function tvLook(P, backAngle = BACKDOOR.half) {
 // Where on the black screen the figure behind the walker shows (0 = the viewer's left edge): beside the walker's own
 // reflection, which sits where the walker stands along the screen.
 export const tvReflectU = (x, z) => clamp((z - GROCERY.tv.z0) / (GROCERY.tv.z1 - GROCERY.tv.z0) + 0.12, 0.2, 0.8);
+// ---------------- 第九轮：夜班须知、违反第 1 条、湿脚印、抬头的结局 (SPEC 夜班须知、脚印与抬头的结局) ----------------
+// The note on the till (N2): its words exactly as the SPEC gives them, where it lies, and when the hint shows (within 1.5 m,
+// the note in the middle half of the view across and on screen, nothing in between).
+export const NOTE_TEXT = ['夜班须知', '1. 灯灭的时候，站着别动。', '2. 门自己开了，就当没看见。', '3. 不要盯着电视超过十秒。', '4. 后面那扇门有人敲，不要过去。', '5. 下班前，记得看一眼橱窗。'];
+export const NOTE_CALM = ['今日特价：汽水两块'];
+export const NOTE = { x: 7.24, z: -1.9, w: 0.16, l: 0.21, yaw: 0.18, near: 1.5, middle: 0.25 };
+export const notePoint = () => [NOTE.x, SIDEWALK_H + 1.0 + 0.004, NOTE.z];
+export function noteHint(P, backAngle = BACKDOOR.half) {
+  if (!P || P.mode !== 'walk' || Math.hypot(P.x - NOTE.x, P.z - NOTE.z) > NOTE.near) return false;
+  const q = project(P.cam, P.fov, P.aspect, notePoint());
+  if (!(q.depth > 0.05 && Math.abs(q.x - 0.5) <= NOTE.middle && q.y > 0 && q.y < 1)) return false;
+  return sightlines(P.cam, P.fov, P.aspect, [notePoint()], backAngle)[0];
+}
+// Rule 1 (N3): the lights go out in E2 (all three off, from the tube going out to everything back) and twice more after E3,
+// 1.2 s each (both bulbs and the tube), starting between E3+15 and E3+30 s (fixed seed, at least 3 s apart, never over
+// another event: one that would start during E2, P1, P2, E4 or a figure still standing waits for it). A walker who moves
+// more than 0.3 m in the dark finds the figure in front of them as the light comes back: 3.0, 2.0, 1.2 m for the first,
+// second, third time, for 1.2 s, gone at the next tube flicker. Standing still: only a quiet breath beside them.
+export const RULE1 = { move: 0.3, dist: [3.0, 2.0, 1.2], tol: 0.2, stay: 1.2, short: 1.2, window: [15, 30], gap: 3, seed: 20261009, breath: 0.3, clear: 0.25, wait: 0.25 };
+export function shortBlackouts(t3, visit = 1) {
+  const r = rng(RULE1.seed + visit), span = RULE1.window[1] - RULE1.window[0] - RULE1.short, need = RULE1.short + RULE1.gap;
+  const a = r() * (span - need), b = a + need + r() * (span - a - need);
+  return [t3 + RULE1.window[0] + a, t3 + RULE1.window[0] + b];
+}
+const clearLine = (o, q, backAngle) => { const d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]], L = Math.hypot(...d), u = d.map((v) => v / L);
+  return !SIGHT.some((b) => rayBox(o, u, b) < L - 0.05) && !(leafHit(o, u, backAngle) < L - 0.05); };
+// Where the figure stands: straight ahead along the line of sight at that distance, or the nearest spot within 30 deg and
+// 0.2 m of it; on the shop floor, clear of every solid, its head on screen, the lines to its head and middle unblocked.
+export function rule1Spot(P, dist, backAngle = BACKDOOR.half) {
+  const fx = -Math.sin(P.cam.yaw), fz = -Math.cos(P.cam.yaw), o = [P.cam.x, P.cam.y, P.cam.z], F = SIDEWALK_H, f = HORROR.figure;
+  for (const da of [0, 0.09, -0.09, 0.17, -0.17, 0.26, -0.26, 0.35, -0.35, 0.44, -0.44, 0.52, -0.52]) for (const dd of [0, -0.1, 0.1, -0.2, 0.2]) {
+    const c = Math.cos(da), sn = Math.sin(da), ux = fx * c - fz * sn, uz = fx * sn + fz * c, d = dist + dd, x = P.x + d * ux, z = P.z + d * uz;
+    if (!(insideInterior(x, z) && buildingAt(x, z) === STORE) || !STATIC_WALK.every((b) => boxDist(x, z, b) >= RULE1.clear)) continue;
+    const head = [x, F + f.h - f.headR, z], mid = [x, F + 0.85, z];
+    if (!clearLine(o, head, backAngle) || !clearLine(o, mid, backAngle)) continue;
+    const q = project(P.cam, P.fov, P.aspect, head);
+    if (!(q.depth > 0.05 && q.x > 0.05 && q.x < 0.95 && q.y > 0.02 && q.y < 0.98)) continue;
+    return { x, z, yaw: Math.atan2(-(P.x - x), -(P.z - z)), d: Math.hypot(x - P.x, z - P.z) };
+  }
+  return null;
+}
+// Wet footprints (N4): from just inside the door to the staff door along the open floor (clear of the shelves, the till and
+// the crates), bare feet, left and right in turn 0.6 m apart, one every 0.5 s from E3; each fades 20 s after it appears.
+export const FOOT = { every: 0.5, step: 0.6, side: 0.1, fade: 20, fadeDur: 1.0, len: 0.25, wid: 0.1, path: [[STORE.door.cx, 0.0], [5.35, -3.2], [6.1, -6.6], [6.45, -7.85]] };
+export const FOOTPRINTS = (() => {
+  const P = FOOT.path, segs = [];
+  let total = 0;
+  for (let i = 1; i < P.length; i++) { const L = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); segs.push({ a: P[i - 1], b: P[i], L, s0: total }); total += L; }
+  const out = [];
+  for (let i = 0; i * FOOT.step <= total + 1e-9; i++) {
+    const s = i * FOOT.step, g = segs.find((q) => s <= q.s0 + q.L + 1e-9) || segs[segs.length - 1], dx = (g.b[0] - g.a[0]) / g.L, dz = (g.b[1] - g.a[1]) / g.L;
+    const side = i % 2 === 0 ? -1 : 1, u = s - g.s0;                       // left foot first; (-dz, dx) points to the right
+    out.push({ i, x: g.a[0] + dx * u + side * FOOT.side * -dz, z: g.a[1] + dz * u + side * FOOT.side * dx, yaw: Math.atan2(-dx, -dz), foot: side < 0 ? 'L' : 'R', dt: i * FOOT.every });
+  }
+  return out;
+})();
+export const FOOT_ARRIVE = FOOTPRINTS[FOOTPRINTS.length - 1].dt;           // the last print (at the staff door), after E3
+export const footAlpha = (age) => (age < 0 ? 0 : age < FOOT.fade ? 1 : Math.max(0, 1 - (age - FOOT.fade) / FOOT.fadeDur));
+// The ending (N5): a visit with E4 in it leaves the figure behind the window as E5 does; once it has been on screen for 2 s
+// running, its head turns and lifts onto the camera over 1.5 s and then follows the camera; the body turns after it at
+// 0.5 rad/s. Without E4 it stays as it is, its back to the street.
+export const ENDING = { see: 2.0, turn: 1.5, body: 0.5 };
+export const endHeadPoint = () => { const sp = HORROR.spots.window; return [sp.x, SIDEWALK_H + HORROR.figure.h - HORROR.figure.headR, sp.z]; };
 const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], L = Math.hypot(...d); return Math.acos(clamp((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L, -1, 1)); };
 function createHorror(S, calm) {
-  const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null, P1: null, P2: null });
+  const blank = () => ({ E0: null, E1: null, E2: null, E3: null, E4: null, E5: null, P1: null, P2: null, R1: null, END: null });
   const fresh = () => ({ E2: false, E3: false, E4: false, P1: false, P2: false, dog: false });
   const H = { calm, visit: 0, figure: calm ? null : 'counter', fired: blank(), done: fresh(), e0: null, e2: null, e3: null, e4: null, wideAt: null, e5Plan: null, e5Dark: null,
     c2: null, c3: null, p1: null, p1arm: null, p2: null, dog: null, lastP: null,
+    blk: [], r1: { n: 0, fig: null, log: [] }, foot0: null, footNext: 0, end: null,   // round 9: blackouts, rule-1 figures, footprints, the ending
     walked: 0, inside: 0, last: null, knock: null, sounds: [], vibes: [], history: [] };
   const fire = (name, t) => { H.fired[name] = t; H.history.push({ e: name, t, visit: H.visit }); };
   const backAngle = (t) => {
@@ -605,13 +672,24 @@ function createHorror(S, calm) {
   const e2Blink = (t) => !!(H.e2 && HORROR.e2.blinks.some(([a, b]) => t >= H.e2.t0 + a && t < H.e2.t0 + b));
   const p1Blink = (t) => !!(H.p1 && t >= H.p1.t1 && t < H.p1.t1 + TUBE.off);
   const silent = (t) => !!(H.e2 && t >= H.e2.t0 + E2_DARK && t < H.e2.t0 + E2_TOTAL);
-  const bulbs = (t) => [0, 1].map((i) => (e2Off(i, t) ? 0 : 1) * light(t));
-  const tubeOff = (t) => e2Off(2, t) || e2Blink(t) || tubeFlickerOff(t) || p1Blink(t);
+  // round 9: the two short blackouts after E3 (both bulbs and the tube), the dark spells rule 1 is about, the figure it brings
+  const shortOff = (t) => H.blk.some((b) => b.kind === 'short' && b.begun && t >= b.start && t < b.end);
+  const blackoutNow = (t) => H.blk.some((b) => (b.kind === 'e2' || b.begun) && t >= b.start && t < b.end);
+  const rule1Fig = (t) => { const f = H.r1.fig; return f && t >= f.t0 && t < f.t1 ? f : null; };
+  const busy = (t) => !!((H.e2 && t >= H.e2.t0 && t < H.e2.t0 + E2_TOTAL) || (H.p1 && t >= H.p1.t0 && t < H.p1.t1 + TUBE.off) || (H.p2 && t >= H.p2.t0 && t < H.p2.t1)
+    || (H.e4 && t >= H.e4.t0 && t < H.e4.bang + HORROR.e4.shakeTime) || rule1Fig(t) || blackoutNow(t));
+  const bulbs = (t) => [0, 1].map((i) => (e2Off(i, t) || shortOff(t) ? 0 : 1) * light(t));
+  const tubeOff = (t) => e2Off(2, t) || e2Blink(t) || tubeFlickerOff(t) || p1Blink(t) || shortOff(t);
   const tube = (t) => (tubeOff(t) ? 0 : 1) * light(t);
   const hum = (t) => (silent(t) ? 0 : 1);
   const p2On = (t) => !!(H.p2 && t >= H.p2.t0 && t < H.p2.t1);
   const tv = (t) => ({ snow: silent(t) || p2On(t) ? 0 : 1, reflect: p2On(t), u: H.p2 ? H.p2.u : 0.5, level: light(t) });
   const aisleFigure = (t) => (H.p1 && t >= H.p1.t0 && t < H.p1.t1 ? H.p1.aisle : null);
+  // round 9: the footprints shown at t (with how faded each is), the newest, and whether the trail has reached the staff door
+  const footprints = (t) => (H.foot0 === null ? [] : FOOTPRINTS.filter((f) => t >= H.foot0 + f.dt - 1e-9).map((f) => ({ ...f, at: H.foot0 + f.dt, alpha: footAlpha(t - H.foot0 - f.dt) })).filter((f) => f.alpha > 0));
+  const newestFoot = (t) => { if (H.foot0 === null) return null; let n = null; for (const f of FOOTPRINTS) if (t >= H.foot0 + f.dt - 1e-9) n = f; return n; };
+  const footArrived = (t) => H.foot0 !== null && t >= H.foot0 + FOOT_ARRIVE - 1e-9;
+  const endPose = () => (H.end && H.figure === 'window' ? { armed: H.end.armed, looking: H.end.t0 !== null, t0: H.end.t0, bodyYaw: H.end.bodyYaw, headYaw: H.end.headYaw, pitch: H.end.pitch, headRel: wrapAngle(H.end.headYaw - H.end.bodyYaw), target: H.end.target && { ...H.end.target } } : null);
   const scare = (t) => !!(H.e4 && t >= H.e4.t0 && t < H.e4.t0 + E4_BANG);
   const shake = (t) => {
     const u = H.e4 ? t - H.e4.t0 - E4_BANG : -1;
@@ -623,7 +701,11 @@ function createHorror(S, calm) {
   // the store door opening by itself (E3; in the calm version the same moment opens it for the dog, without an E3)
   const startE3 = (t, k0, inView = false) => {
     const holdEnd = t + (1 - k0) / DOOR_SPEED + HORROR.e3.hold, w = { t0: t, k0, holdEnd, closedAt: holdEnd + 1 / DOOR_SPEED, inView };
-    if (H.calm) H.c3 = w; else { H.e3 = w; H.done.E3 = true; fire('E3', t); }
+    if (H.calm) H.c3 = w; else {
+      H.e3 = w; H.done.E3 = true; fire('E3', t);
+      H.foot0 = t; H.footNext = 0;                    // round 9: wet footprints from the door, as the dog comes in
+      for (const st of shortBlackouts(t, H.visit)) H.blk.push({ kind: 'short', start: st, end: st + RULE1.short, begun: false, moved: 0, last: null, done: false, breathed: false });
+    }
     startDog(t);
   };
   const startE4 = (t, seen = null) => {
@@ -656,6 +738,9 @@ function createHorror(S, calm) {
   const dogClear = (x, z, r = DOG.r) => STATIC_WALK.every((b) => boxDist(x, z, b) >= r);
   const toYaw = (dx, dz) => Math.atan2(-dx, -dz);
   const doorYaw = (d) => toYaw(BACKDOOR.cx - d.x, BACKDOOR.cz - d.z);
+  // round 9: it growls at the newest wet footprint (the staff door when there are none, as in the calm version)
+  const lookYaw = (d, t) => { const f = newestFoot(t); return f ? toYaw(f.x - d.x, f.z - d.z) : doorYaw(d); };
+  const turnTo = (d, want, dt) => { const err = wrapAngle(want - d.yaw), step = DOG.turn * dt; return Math.abs(err) <= step ? want : d.yaw + Math.sign(err) * step; };
   function startDog(t) {
     H.dog = { t0: t, phase: 'enter', pt: t, x: DOG.start[0], z: DOG.start[1], yaw: 0, dist: 0, nextPaw: t + 0.12, stop: null, exitOpen: null, exitK0: 0, exitEnd: null, closedAt: null, goneAt: null,
       log: [{ phase: 'enter', t, x: DOG.start[0], z: DOG.start[1] }], calm: H.calm, minGap: Infinity };
@@ -678,6 +763,27 @@ function createHorror(S, calm) {
     return best ? [best.x, best.z] : [d.x, d.z - DOG.walkDist];
   }
   function openExit(d, t) { d.exitOpen = t; d.exitK0 = doorK(t); }
+  // the other side of the doorway from the walker, 0.43 m off its middle: the way there, through it and out, if every point
+  // of it stays clear of solids and the door's leaves and at least 0.6 m (+0.05) from where the walker stands
+  function squeezeWay(d, t) {
+    const w = H.lastP, cx = STORE.door.cx, lx = cx + (w[0] < cx ? 1 : -1) * DOG.lane, boxes = dogBoxes(t);
+    const way = [[lx, Math.min(d.z, DOG.inside[1] - 0.5)], [lx, FACADE_Z + 0.7], DOG.away];
+    let a = [d.x, d.z];
+    for (const b of way) {
+      const n = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.1));
+      for (let k = 1; k <= n; k++) { const x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; if (Math.hypot(x - w[0], z - w[1]) < DOG.squeezeKeep + 0.05 || !boxes.every((q) => boxDist(x, z, q) >= DOG.r - 1e-9)) return null; }
+      a = b;
+    }
+    return way.map((q) => q.slice());
+  }
+  // the doorway is clear: the walker is 2 m or more from it and the way there and out keeps 1.2 m from them
+  function doorClear(d) {
+    const w = H.lastP;
+    if (Math.hypot(w[0] - DOG.inside[0], w[1] - DOG.inside[1]) < DOG.clearDoor) return false;
+    let a = [d.x, d.z];
+    for (const b of [DOG.inside, DOG.away]) { for (let k = 1; k <= 20; k++) { const x = a[0] + (b[0] - a[0]) * k / 20, z = a[1] + (b[1] - a[1]) * k / 20; if (Math.hypot(x - w[0], z - w[1]) < DOG.keep) return false; } a = b; }
+    return true;
+  }
   function dogStep(t) {
     const d = H.dog;
     if (!d || d.goneAt !== null) return;
@@ -697,18 +803,18 @@ function createHorror(S, calm) {
         if (near(d.stop)) dogPhase(d, 'turn', t);
         break;
       case 'turn': {
-        const want = doorYaw(d), err = wrapAngle(want - d.yaw), step = DOG.turn * dt;
+        const want = lookYaw(d, t), err = wrapAngle(want - d.yaw), step = DOG.turn * dt;
         d.yaw = Math.abs(err) <= step ? want : d.yaw + Math.sign(err) * step;
         lockYaw = d.yaw;
         if (Math.abs(wrapAngle(want - d.yaw)) < 1e-6) { dogPhase(d, calmDog ? 'sniff' : 'growl', t); if (!calmDog) dogSound(d, 'growl', t, { dur: DOG.growl }); }
         break;
       }
       case 'growl':
-        lockYaw = doorYaw(d);
+        lockYaw = turnTo(d, lookYaw(d, t), dt);
         if (t - d.pt >= DOG.growl) { dogPhase(d, 'whimper', t); dogSound(d, 'whimper', t); openExit(d, t); }
         break;
       case 'whimper':
-        lockYaw = doorYaw(d);
+        lockYaw = turnTo(d, lookYaw(d, t), dt);
         if (t - d.pt >= DOG.whimper) dogPhase(d, 'out', t);
         break;
       case 'sniff':
@@ -721,19 +827,47 @@ function createHorror(S, calm) {
         if (d.exitEnd === null && d.z > FACADE_Z + DOG.r + 0.05) { d.exitEnd = t + DOG.hold; d.closedAt = d.exitEnd + 1 / DOOR_SPEED; }
         if (near(DOG.away, 0.08)) { d.goneAt = t; d.log.push({ phase: 'gone', t, x: d.x, z: d.z }); return; }
         break;
+      case 'squeeze':                                  // round 9: past the walker along the other side of the doorway
+        sp = DOG.trot;
+        while (d.way.length > 1 && near(d.way[0], 0.1)) d.way.shift();
+        target = d.way[0];
+        if (d.exitEnd === null && d.z > FACADE_Z + DOG.r + 0.05) { d.exitEnd = t + DOG.hold; d.closedAt = d.exitEnd + 1 / DOOR_SPEED; }
+        if (near(DOG.away, 0.08)) { d.goneAt = t; d.log.push({ phase: 'gone', t, x: d.x, z: d.z }); return; }
+        break;
+      case 'hide':                                     // round 9: lying by the till until the doorway is clear
+        if (!near(DOG.hide, 0.08)) { target = DOG.hide; sp = DOG.trot; }
+        else if (H.lastP && doorClear(d)) { d.lined = false; d.blocked = 0; d.prog = null; dogPhase(d, 'out', t); }
+        break;
     }
     // where it wants to go; a walker coming closer than 1.8 m makes it give up and leave, and closer than 2 m it runs: of 16
     // directions, the clear one (0.5 m ahead) that puts the most room between them, leaning towards the way out
     let vx = 0, vz = 0;
     if (target) { const dx = target[0] - d.x, dz = target[1] - d.z, L = Math.hypot(dx, dz); if (L > 1e-9) { const v = Math.min(sp, L / dt); vx = (dx / L) * v; vz = (dz / L) * v; } }
     const w = H.lastP;
+    // round 9: on its way out (or squeezing past), no headway for 3 s with the walker within 2 m: try the other side of the
+    // doorway, else lie down by the till
+    if (w && target && (d.phase === 'out' || d.phase === 'squeeze')) {
+      const dT = Math.hypot(target[0] - d.x, target[1] - d.z);
+      if (!d.prog) d.prog = { t, dist: dT };
+      else if (t - d.prog.t >= 0.5 - 1e-9) {
+        const stuck = d.prog.dist - dT < 0.1 && Math.hypot(d.x - w[0], d.z - w[1]) < DOG.flee;
+        d.blocked = stuck ? (d.blocked || 0) + (t - d.prog.t) : 0; d.prog = { t, dist: dT };
+      }
+      if ((d.blocked || 0) >= DOG.blockWait - 1e-9) {
+        d.blocked = 0; d.prog = null;
+        const way = d.phase === 'out' ? squeezeWay(d, t) : null;
+        if (way) { d.way = way; dogPhase(d, 'squeeze', t); } else dogPhase(d, 'hide', t);
+        return;
+      }
+    }
+    const squeezing = d.phase === 'squeeze', keep = squeezing ? DOG.squeezeKeep + 0.15 : DOG.keep + 0.4;
     if (w) {
       const ex = d.x - w[0], ez = d.z - w[1], de = Math.hypot(ex, ez);
       d.minGap = Math.min(d.minGap, de);
       if (de < DOG.giveUp && ['enter', 'shake', 'walk', 'turn', 'growl', 'sniff'].includes(d.phase)) {
         if (calmDog) { openExit(d, t); dogPhase(d, 'out', t); } else { dogPhase(d, 'whimper', t); dogSound(d, 'whimper', t); openExit(d, t); }
       }
-      if (de < DOG.flee) {
+      if (de < DOG.flee && !squeezing) {
         const boxes = dogBoxes(t), out = d.lined || d.z > DOG.inside[1] ? DOG.away : DOG.inside, ox = out[0] - d.x, oz = out[1] - d.z, oL = Math.hypot(ox, oz) || 1;
         let best = null;
         for (let k = 0; k < 16; k++) {
@@ -746,7 +880,7 @@ function createHorror(S, calm) {
       }
       // and within 1.6 m it never takes a step towards the walker: it goes round, or waits (a walker standing in the doorway
       // keeps it in until they move)
-      if (de < DOG.keep + 0.4 && de > 1e-9) { const ux = ex / de, uz = ez / de, toward = -(vx * ux + vz * uz); if (toward > 0) { vx += toward * ux; vz += toward * uz; } }
+      if (de < keep && de > 1e-9) { const ux = ex / de, uz = ez / de, toward = -(vx * ux + vz * uz); if (toward > 0) { vx += toward * ux; vz += toward * uz; } }
     }
     if (vx || vz) {
       const p = { x: d.x + vx * dt, z: d.z + vz * dt };
@@ -762,11 +896,53 @@ function createHorror(S, calm) {
     const d = H.dog;
     if (!d || d.goneAt !== null) return null;
     const ph = d.phase, u = t - d.pt;
-    return { x: d.x, z: d.z, yaw: d.yaw, phase: ph, legs: d.dist / 0.32 * Math.PI, crouch: ph === 'growl' ? Math.min(1, u / 0.3) : ph === 'whimper' ? 0.6 : 0,
-      tail: ph === 'growl' || ph === 'whimper' || (ph === 'out' && !d.calm) ? 'tuck' : d.calm ? 'wag' : 'up', shake: ph === 'shake' ? u : null, sniff: ph === 'sniff', calm: d.calm };
+    const lying = ph === 'hide' && Math.hypot(d.x - DOG.hide[0], d.z - DOG.hide[1]) < 0.1;
+    return { x: d.x, z: d.z, yaw: d.yaw, phase: ph, legs: d.dist / 0.32 * Math.PI, crouch: ph === 'growl' ? Math.min(1, u / 0.3) : ph === 'whimper' ? 0.6 : lying ? 1 : ph === 'squeeze' ? 0.4 : 0,
+      tail: ph === 'growl' || ph === 'whimper' || ph === 'hide' || ph === 'squeeze' || (ph === 'out' && !d.calm) ? 'tuck' : d.calm ? 'wag' : 'up', lying, shake: ph === 'shake' ? u : null, sniff: ph === 'sniff', calm: d.calm };
   };
+  // round 9, rule 1: the short blackouts begin (or wait for whatever is on), the walker's steps in the dark are added up, and
+  // as each dark spell ends a walker who moved > 0.3 m gets the figure ahead of them; one who stood still, a breath
+  function rule1Step(t, P) {
+    for (const b of H.blk) {
+      if (b.kind === 'short' && !b.begun && t >= b.start - 1e-9) { if (busy(t)) { b.start = t + RULE1.wait; b.end = b.start + RULE1.short; } else { b.begun = true; b.start = t; b.end = t + RULE1.short; } }
+      if (!b.begun || b.done || t < b.start - 1e-9) continue;
+      if (t < b.end - 1e-9) {
+        const step = b.last ? Math.hypot(P.x - b.last[0], P.z - b.last[1]) : 0;
+        if (step < 0.05) b.moved += step;           // a jump (the test hook) is not a step
+        b.last = [P.x, P.z];
+        if (!b.breathed && t >= b.end - RULE1.breath - 1e-9) {
+          b.breathed = true;
+          if (b.moved <= RULE1.move) { const bx = P.x + 0.35 * Math.sin(P.cam.yaw), bz = P.z + 0.35 * Math.cos(P.cam.yaw); H.sounds.push({ kind: 'breath', t, pos: [bx, SIDEWALK_H + 1.5, bz] }); }
+        }
+        continue;
+      }
+      b.done = true;
+      const entry = { kind: b.kind, start: b.start, end: b.end, moved: b.moved, figure: null };
+      if (b.moved > RULE1.move && H.r1.n < RULE1.dist.length) {
+        const sp = rule1Spot(P, RULE1.dist[H.r1.n], backAngle(t));
+        if (sp) { H.r1.n++; H.r1.fig = { ...sp, n: H.r1.n, want: RULE1.dist[H.r1.n - 1], t0: b.end, t1: nextFlicker(b.end + RULE1.stay) }; entry.figure = { ...H.r1.fig }; fire('R1', b.end); }
+        else entry.blocked = true;
+      }
+      H.r1.log.push(entry);
+    }
+  }
+  // round 9, the ending: after a visit with E4, once the figure behind the window has been on screen 2 s running
+  function endStep(t, P) {
+    const E = H.end;
+    if (!E || !E.armed || H.figure !== 'window') return;
+    const head = endHeadPoint();
+    if (E.t0 === null) {
+      E.seen = pointsVisible(P.cam, P.fov, P.aspect, figurePoints('window'), P.lift) ? E.seen + HORROR.tick : 0;
+      if (E.seen < ENDING.see - 1e-9) return;
+      E.t0 = t; H.sounds.push({ kind: 'drone', t, pos: head.slice() }); fire('END', t);
+    }
+    const dx = P.cam.x - head[0], dy = P.cam.y - head[1], dz = P.cam.z - head[2], ty = Math.atan2(-dx, -dz), tp = Math.atan2(dy, Math.hypot(dx, dz)), k = smooth(0, ENDING.turn, t - E.t0);
+    E.target = { yaw: ty, pitch: tp };
+    E.headYaw = HORROR.spots.window.yaw + wrapAngle(ty - HORROR.spots.window.yaw) * k; E.pitch = tp * k;
+    const err = wrapAngle(ty - E.bodyYaw), stepB = ENDING.body * HORROR.tick; E.bodyYaw += Math.abs(err) <= stepB ? err : Math.sign(err) * stepB;
+  }
   function evalAt(t, P, kAt) {
-    if (H.e0 && !H.e0.done && t >= H.e0.removeAt - 1e-9) { H.figure = null; H.e0.done = true; fire('E0', H.e0.removeAt); }
+    if (H.e0 && !H.e0.done && t >= H.e0.removeAt - 1e-9) { H.figure = null; H.end = null; H.e0.done = true; fire('E0', H.e0.removeAt); }
     if (P.mode !== 'walk') H.last = null;
     if (P.mode === 'walk') {
       H.lastP = [P.x, P.z];
@@ -777,12 +953,16 @@ function createHorror(S, calm) {
         H.inside += HORROR.tick;
       }
       H.last = [P.x, P.z];
+      if (!H.calm) rule1Step(t, P);
       const t2 = H.calm ? H.c2 : H.e2 && H.e2.t0;    // the calm version keeps the same clock for the dog, without E2 itself
       if ((t2 === null || t2 === undefined) && inStore) {
         const why = { walk: H.walked >= e2.walk, wall: P.z - (STORE.z0 + WALL_T) <= e2.wall, time: H.inside >= e2.time - 1e-9 };
         if (why.walk || why.wall || why.time) {
           if (H.calm) H.c2 = t;
-          else { H.e2 = { t0: t, why, walked: H.walked, inside: H.inside }; H.done.E2 = true; fire('E2', t); }
+          else {
+            H.e2 = { t0: t, why, walked: H.walked, inside: H.inside }; H.done.E2 = true; fire('E2', t);
+            H.blk.push({ kind: 'e2', start: t + HORROR.e2.seq + (HORROR.e2.lights - 1) * HORROR.e2.step, end: t + E2_TOTAL, begun: true, moved: 0, last: null, done: false, breathed: false });   // round 9: all three lights out
+          }
         }
       }
       const s2 = H.calm ? H.c2 : H.e2 && H.e2.t0, e2end = s2 !== null && s2 !== undefined ? s2 + E2_TOTAL : Infinity;
@@ -792,7 +972,7 @@ function createHorror(S, calm) {
       }
       if (!H.calm) {
         // P1: down an aisle, at the next tube flicker (it must still be looking down the same aisle then)
-        if (H.e2 && !H.done.P1 && t >= e2end - 1e-9) {
+        if (H.e2 && !H.done.P1 && t >= e2end - 1e-9 && !blackoutNow(t)) {
           const a = aisleLook(P, backAngle(t));
           if (H.p1arm) {
             if (t >= H.p1arm.at - 1e-9) {
@@ -802,14 +982,15 @@ function createHorror(S, calm) {
           } else if (a >= 0) H.p1arm = { aisle: a, at: nextFlicker(t) };
         }
         // P2: the television goes black with a figure behind you on it
-        if (H.e2 && !H.done.P2 && t >= e2end - 1e-9 && tvLook(P, backAngle(t))) {
+        if (H.e2 && !H.done.P2 && t >= e2end - 1e-9 && !blackoutNow(t) && tvLook(P, backAngle(t))) {
           H.p2 = { t0: t, t1: t + HORROR.p2.black, u: tvReflectU(P.x, P.z) }; H.done.P2 = true; fire('P2', t);
         }
-        // the staff door swings wide unseen, never into the walker, and only once the dog has gone and the door is shut
+        // the staff door swings wide unseen, never into the walker, and only once the dog has gone and the door is shut, and
+        // (round 9) the wet footprints have reached it
         const dogGone = !H.dog || (H.dog.closedAt !== null && t >= H.dog.closedAt - 1e-9);
-        if (H.e3 && H.wideAt === null && dogGone && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra
+        if (H.e3 && H.wideAt === null && dogGone && footArrived(t) && t >= H.e3.closedAt - 1e-9 && angleTo(P.cam, BACKDOOR_C) > rad(P.hfov / 2) + HORROR.e3.extra
           && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) { H.wideAt = t; H.knock = { next: t + HORROR.knock.delay, mult: HORROR.knock.first }; }
-        if (H.wideAt !== null && !H.done.E4 && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
+        if (H.wideAt !== null && !H.done.E4 && !blackoutNow(t) && Math.hypot(P.x - BACKDOOR.cx, P.z - BACKDOOR.cz) <= HORROR.e4.dist && Math.hypot(P.x - BACKDOOR.hx, P.z - BACKDOOR.hz) >= HORROR.e4.hingeClear) {
           const q = project(P.cam, P.fov, P.aspect, BACKDOOR_C);
           if (q.depth > 0.05 && Math.abs(q.x - 0.5) <= HORROR.e4.middle && q.y > 0 && q.y < 1) {
             const seen = figureSightlines(P.cam, P.fov, P.aspect, backAngle(t)).filter(Boolean).length;   // round 7: the figure must be in sight
@@ -820,6 +1001,12 @@ function createHorror(S, calm) {
     }
     dogStep(t);
     if (H.calm) return;
+    // round 9: the footprints' wet steps, each at its print; the knocking starts by E3+20 s at the latest
+    while (H.foot0 !== null && H.footNext < FOOTPRINTS.length && t >= H.foot0 + FOOTPRINTS[H.footNext].dt - 1e-9) {
+      const f = FOOTPRINTS[H.footNext++]; H.sounds.push({ kind: 'wetstep', t: H.foot0 + f.dt, pos: [f.x, SIDEWALK_H + 0.02, f.z], foot: f.foot });
+    }
+    if (H.e3 && !H.knock && !H.done.E4 && P.mode === 'walk' && t >= H.e3.t0 + 20 - 1e-9) H.knock = { next: t, mult: HORROR.knock.first, late: true };
+    if (P.mode !== 'walk') endStep(t, P);
     // knocking behind the wide staff door until E4 (stops when the visit ends)
     while (H.knock && !H.done.E4 && t >= H.knock.next - 1e-9) {
       H.sounds.push({ kind: 'knock', t: H.knock.next, mult: H.knock.mult, pos: HORROR.knock.pos.slice() });
@@ -834,10 +1021,11 @@ function createHorror(S, calm) {
     if (H.e5Dark && !H.e5Dark.done && t >= H.e5Dark.placeAt - 1e-9) { H.figure = 'window'; H.e5Dark.done = true; fire('E5', H.e5Dark.placeAt); }
   }
   return {
-    H, backAngle, light, bulbs, tube, tv, hum, aisleFigure, dogView, doorK, scare, shake, darken,
+    H, backAngle, light, bulbs, tube, tv, hum, aisleFigure, dogView, doorK, scare, shake, darken, footprints, newestFoot, footArrived, rule1Fig, blackoutNow, endPose,
     onEnterStart(t) {
       H.visit++; H.fired = blank(); H.done = fresh(); H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Plan = null; H.e5Dark = null;
       H.c2 = H.c3 = null; H.p1 = H.p1arm = H.p2 = null; H.dog = null;
+      H.blk = []; H.r1 = { n: 0, fig: null, log: [] }; H.foot0 = null; H.footNext = 0;
       H.walked = 0; H.inside = 0; H.last = null; H.knock = null;
       H.e0 = !H.calm && H.figure ? { start: t + HORROR.e0.delay, end: t + HORROR.e0.delay + HORROR.e0.dark, removeAt: t + HORROR.e0.delay + HORROR.e0.dark / 2, done: false } : null;
     },
@@ -847,6 +1035,8 @@ function createHorror(S, calm) {
     // roofs, as in E0, and the figure is placed in the dark.
     onExitStart(t0, poseAt, dur) {
       H.e5Plan = null; H.e5Dark = null; H.knock = null; H.dog = null; H.p1arm = null;
+      H.blk = H.blk.filter((b) => b.done); H.r1.fig = null;                 // round 9: no dark spells or figures once you are leaving
+      H.end = !H.calm && H.done.E4 && H.done.E2 ? { armed: true, seen: 0, t0: null, bodyYaw: HORROR.spots.window.yaw, headYaw: HORROR.spots.window.yaw, pitch: 0, target: null } : { armed: false, seen: 0, t0: null, bodyYaw: HORROR.spots.window.yaw, headYaw: HORROR.spots.window.yaw, pitch: 0, target: null };
       if (H.calm || !H.done.E2 || !poseAt) return;
       let firstAbove = null;
       for (let k = Math.floor(t0 / HORROR.tick + 1e-6) + 1; k * HORROR.tick <= t0 + dur + 1e-9; k++) {
@@ -882,7 +1072,9 @@ function createHorror(S, calm) {
         walked: H.walked, inside: H.inside, knock: H.knock && { ...H.knock }, back: (backAngle(t) * 180) / Math.PI,
         shake: shake(t), darken: darken(t), done: { ...H.done }, wideAt: H.wideAt, e5Plan: H.e5Plan && { ...H.e5Plan }, e5Dark: H.e5Dark && { ...H.e5Dark }, e0: H.e0 && { ...H.e0 }, e2: H.e2 && { ...H.e2 }, e3: H.e3 && { ...H.e3 }, e4: H.e4 && { ...H.e4 },
         c2: H.c2, c3: H.c3 && { ...H.c3 }, p1: H.p1 && { ...H.p1 }, p1arm: H.p1arm && { ...H.p1arm }, p2: H.p2 && { ...H.p2 },
-        dog: H.dog && { ...H.dog, log: H.dog.log.map((x) => ({ ...x })), stop: H.dog.stop && H.dog.stop.slice() }, dogView: dogView(t),
+        dog: H.dog && { ...H.dog, log: H.dog.log.map((x) => ({ ...x })), stop: H.dog.stop && H.dog.stop.slice(), way: H.dog.way && H.dog.way.map((q) => q.slice()) }, dogView: dogView(t),
+        blackouts: H.blk.map((b) => ({ kind: b.kind, start: b.start, end: b.end, begun: b.begun, moved: b.moved, done: b.done })), rule1: { n: H.r1.n, fig: H.r1.fig && { ...H.r1.fig }, log: H.r1.log.map((x) => ({ ...x })), now: rule1Fig(t) && { ...rule1Fig(t) } },
+        foot0: H.foot0, footprints: footprints(t), footArrived: footArrived(t), end: H.end && { ...H.end, target: H.end.target && { ...H.end.target } }, endPose: endPose(),
         sounds: H.sounds.map((x) => ({ ...x })), vibes: H.vibes.map((x) => ({ ...x, pattern: x.pattern.slice() })), history: H.history.map((x) => ({ ...x })) };
     },
   };
@@ -1282,10 +1474,14 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     return { hum: HZ.hum(S.t) * HZ.light(S.t), tube: tube > 0 ? 1 : 0, tv: tv.snow * tv.level, dTv: Math.hypot(c.x - TV_CENTRE[0], c.z - TV_CENTRE[2]), dAwning: Math.hypot(c.x - (AWNING.x0 + AWNING.x1) / 2, c.z - (AWNING.z0 + AWNING.z1) / 2) };
   };
   const levels = () => ({ light: HZ.light(S.t), bulbs: HZ.bulbs(S.t), tube: HZ.tube(S.t), tv: HZ.tv(S.t), hum: HZ.hum(S.t), aisle: HZ.aisleFigure(S.t), dog: HZ.dogView(S.t), door: HZ.doorK(S.t),
-    back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, soundState()) });
+    back: HZ.backAngle(S.t), figure: S.h.figure, scare: HZ.scare(S.t), shake: HZ.shake(S.t), darken: HZ.darken(S.t), audio: audioLevels(S.s, soundState()),
+    // round 9: the figure rule 1 brings, the wet footprints, the ending's pose, a dark spell on, the note's hint
+    rule1: HZ.rule1Fig(S.t), foot: HZ.footprints(S.t), end: HZ.endPose(), blackout: HZ.blackoutNow(S.t), note: noteNear() });
+  const view = () => { const L = levels(); return { bulbs: L.bulbs, tube: L.tube, tv: L.tv, staffOpen: L.back, foot: L.foot.map((f) => ({ i: f.i, x: f.x, z: f.z })) }; };   // round 9: what a visitor sees
+  const noteNear = () => noteHint({ mode: S.mode, x: S.player.x, z: S.player.z, cam: S.cam, fov: fovNow(), aspect: S.aspect }, HZ.backAngle(S.t));
   refresh();
   return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, turn, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels,
-    looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd };
+    looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd, view, noteNear };
 }
 
 // ---------------- touch: joystick, look, pinch, tap (SPEC 店里的操作) ----------------
@@ -1427,7 +1623,23 @@ export const WANDER = {
   reach: 1.0, forget: 8,     // stops chasing a sound when this close to it, or this long after it played
   stuck: 0.5, aim: 0.12, walkErr: 0.6,
 };
-export function createWanderer(sim, seed = 1, { aim = 'door' } = {}) {
+// Round 9 (N7): the same visitor with the sound off. It hears nothing; after browsing it goes by what it can see: the newest
+// wet footprint in view (newer than the last it reached), else the staff doorway standing wide open (the back room's light),
+// else any lit thing in view it has not been to in the last 20 s (the pool under each bulb, the tube's, the television, the
+// staff doorway), chosen by the seed; with nothing in view it looks around. "In view" = on screen with a clear line of sight
+// (the drawn footprints, the drawn lights and door). Fixed with the round-9 code, before the first run, and not tuned.
+export const WANDER_SIGHT = { revisit: 20, reach: 0.9, footReach: 0.6, searchTurns: 3 };
+// What a visitor can see of the scene, for that wanderer (sim.view()): the lights as drawn, the footprints drawn on the
+// floor, how far the staff door stands open; and where the lit things are, with when each counts as lit. Nothing about
+// when or why a scare starts.
+export const LIT_THINGS = [
+  { id: 'till', at: [6.3, SIDEWALK_H + 0.02, -1.6], go: [6.3, -1.6], on: (V) => V.bulbs[0] > 0.5 },
+  { id: 'aisle', at: [-0.25, SIDEWALK_H + 0.02, -4.0], go: [-0.25, -4.0], on: (V) => V.bulbs[1] > 0.5 },
+  { id: 'tube', at: [3.6, SIDEWALK_H + 0.02, -2.8], go: [3.6, -2.8], on: (V) => V.tube > 0.5 },
+  { id: 'tv', at: TV_CENTRE.slice(), go: [6.3, (GROCERY.tv.z0 + GROCERY.tv.z1) / 2], on: (V) => V.tv.snow > 0 || V.tv.reflect },
+  { id: 'staff', at: [BACKDOOR.cx, SIDEWALK_H + 1.0, BACKDOOR.cz], go: [BACKDOOR.cx, BACKDOOR.cz], on: () => true, wide: (V) => V.staffOpen > BACKDOOR.half + 0.1 },
+];
+export function createWanderer(sim, seed = 1, { aim = 'door', senses = 'sound' } = {}) {
   const r = rng(seed), R = ([a, b]) => a + (b - a) * r(), sign = () => (r() < 0.5 ? -1 : 1), S = sim.S, Wd = WANDER;
   const ix0 = STORE.x0 + WALL_T, ix1 = STORE.x1 - WALL_T, iz0 = STORE.z0 + WALL_T, iz1 = STORE.z1 - WALL_T;
   const inShop = () => { const p = S.player; return p.x > ix0 && p.x < ix1 && p.z > iz0 && p.z < iz1; };
@@ -1477,6 +1689,37 @@ export function createWanderer(sim, seed = 1, { aim = 'door' } = {}) {
     }
     if (best && (!st.heard || best.t > st.heard.t)) { st.log.push({ t: now, phase: 'heard', kind: best.kind, x: p.x, z: p.z }); st.heard = best; }
   };
+  // what it can see (round 9, senses: 'sight'): a point on screen with nothing opaque in between
+  const sees = (q, V) => { const cam = S.cam, fov = sim.fov(), pr = project(cam, fov, S.aspect, q);
+    return pr.depth > 0.05 && pr.x >= 0 && pr.x <= 1 && pr.y >= 0 && pr.y <= 1 && sightlines(cam, fov, S.aspect, [q], V.staffOpen)[0]; };
+  const F0 = SIDEWALK_H, LIT = LIT_THINGS, STAFF = LIT_THINGS.find((o) => o.wide);
+  const sight = { goal: null, lastFoot: -1, visited: {}, search: 0 };
+  function looking(k, dt) {
+    const p = S.player, L = sim.view(), now = S.t;
+    // 1. the newest footprint it can see, newer than the last one it reached
+    let foot = null;
+    for (const f of L.foot) if (f.i > sight.lastFoot && (!foot || f.i > foot.i) && sees([f.x, F0 + 0.01, f.z], L)) foot = f;
+    if (foot) { if (!sight.goal || sight.goal.kind !== 'foot') st.log.push({ t: now, phase: 'saw-foot-' + foot.i, x: p.x, z: p.z }); sight.goal = { kind: 'foot', i: foot.i, go: [foot.x, foot.z] }; sight.search = 0; st.queue = st.queue.filter((a) => a.unstick); }
+    // 2. the staff doorway standing wide open
+    else if (STAFF.wide(L) && (!sight.goal || sight.goal.kind !== 'wide') && sees(STAFF.at, L)) { sight.goal = { kind: 'wide', go: STAFF.go.slice() }; st.queue = st.queue.filter((a) => a.unstick); st.log.push({ t: now, phase: 'saw-open-door', x: p.x, z: p.z }); }
+    // 3. a lit thing in view not visited lately
+    else if (!sight.goal && !st.queue.length) {
+      const can = LIT.filter((o) => o.on(L) && now - (sight.visited[o.id] ?? -Infinity) > WANDER_SIGHT.revisit && Math.hypot(o.go[0] - p.x, o.go[1] - p.z) > WANDER_SIGHT.reach && sees(o.at, L));
+      if (can.length) { const o = can[Math.floor(r() * can.length)]; sight.goal = { kind: 'lit', id: o.id, go: o.go.slice() }; st.log.push({ t: now, phase: 'saw-' + o.id, x: p.x, z: p.z }); }
+    }
+    if (st.queue.length && (st.queue[0].unstick || !sight.goal)) { const walking = st.queue[0].kind === 'walk'; doQueue(k, dt); if (stuckCheck(walking && k.fwd)) st.queue = unstick().map((a) => ({ ...a, unstick: true })); return k; }
+    if (sight.goal) {
+      const g = sight.goal, d = steer(k, g.go[0], g.go[1]);
+      if (d < (g.kind === 'foot' ? WANDER_SIGHT.footReach : WANDER_SIGHT.reach)) {
+        if (g.kind === 'foot') sight.lastFoot = g.i; else if (g.kind === 'lit') sight.visited[g.id] = now;
+        sight.goal = null; st.queue = lookAround();
+      } else if (stuckCheck(k.fwd)) { if (g.kind === 'lit') sight.visited[g.id] = now; if (g.kind === 'foot') sight.lastFoot = g.i; sight.goal = null; st.queue = unstick().map((a) => ({ ...a, unstick: true })); }
+      return k;
+    }
+    // nothing in view: look around, then a few steps
+    st.queue.push(turnBy(sign() * R(Wd.idleTurn)), { kind: 'wait', left: R(Wd.idleWait) }, { kind: 'walk', left: R(Wd.idleWalk) });
+    return k;
+  }
   function decide(dt) {
     const k = idle(), p = S.player;
     if (S.mode === 'orbit' && st.phase === 'land') { sim.enter(aim); go('landing'); return k; }
@@ -1492,7 +1735,7 @@ export function createWanderer(sim, seed = 1, { aim = 'door' } = {}) {
     }
     if (st.phase === 'in') { k.fwd = true; if (S.t >= st.until) go('browse', { until: S.t + R(Wd.browse) }); return k; }
     if (st.phase === 'browse') {
-      if (S.t >= st.until) { go('rear', { until: S.t + Wd.rearTimeout }); return decide(0); }
+      if (S.t >= st.until) { if (senses === 'sight') { go('look'); return decide(0); } go('rear', { until: S.t + Wd.rearTimeout }); return decide(0); }
       if (!st.queue.length) st.queue.push({ kind: 'walk', left: R(Wd.leg) }, ...lookAround());
       const walking = st.queue[0].kind === 'walk';
       doQueue(k, dt);
@@ -1506,6 +1749,7 @@ export function createWanderer(sim, seed = 1, { aim = 'door' } = {}) {
       if (stuckCheck(k.fwd)) st.queue = unstick();
       return k;
     }
+    if (st.phase === 'look') return looking(k, dt);
     // listen: walk toward the loudest current sound, otherwise look around
     listen();
     if (st.heard && (S.t - st.heard.t > Wd.forget || Math.hypot(st.heard.pos[0] - p.x, st.heard.pos[2] - p.z) < Wd.reach)) { st.wentT = st.heard.t; st.heard = null; }
@@ -1529,7 +1773,7 @@ export function createWanderer(sim, seed = 1, { aim = 'door' } = {}) {
     sim.update(dt);
     return k;
   }
-  return { decide, step, get phase() { return st.phase; }, get log() { return st.log; }, rear, seed, aim };
+  return { decide, step, get phase() { return st.phase; }, get log() { return st.log; }, rear, seed, aim, senses, get goal() { return sight.goal; } };
 }
 export function runView(sim, view, aimOverride) {
   if (view === 'scare') { playScare(sim, { upTo: 'scare', after: 0.15 }); return true; }
