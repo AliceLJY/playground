@@ -1145,8 +1145,8 @@ const isExternal = (u) => {
     let refFps = null, curFps = perf['hero dpr2'].fps, ab = null;
     if (perfRef) { ab = { cur: [], ref: [] }; for (let k = 0; k < 3; k++) { ab.cur.push(await rafFps(null, 2)); ab.ref.push(await rafFps(perfRef, 2)); }
       refFps = med(ab.ref); curFps = med(ab.cur); report.perfRef = { hero_dpr2: ab }; }
-    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50, curFps, refFps),
-      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}) hero dpr2 this build and it alternately, three times each, hero dpr2: ${ab.cur.map((v) => v.toFixed(1)).join(' / ')} vs ${ab.ref.map((v) => v.toFixed(1)).join(' / ')} fps (medians ${curFps.toFixed(1)} vs ${refFps.toFixed(1)})` : ''}`);
+    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, curFps >= 50, curFps, refFps),   // with a reference: this build's median of its three alternating samples (the accepted round-10 method)
+      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}): this build and it alternately, three times each, hero dpr2: ${ab.cur.map((v) => v.toFixed(1)).join(' / ')} vs ${ab.ref.map((v) => v.toFixed(1)).join(' / ')} fps (medians ${curFps.toFixed(1)} vs ${refFps.toFixed(1)})` : ''}`);
   }
 
   // ---------- player default: no parameters, pixel ratio 2, real wheel / clicks / keys in real time ----------
@@ -1402,7 +1402,7 @@ const isExternal = (u) => {
       const m = (a) => a.slice().sort((x, y) => x - y)[1]; deskRef = { fps: m(a7ab.ref), cur: m(a7ab.cur) }; }
     report.a7 = { desk, deskIn, phone, phoneIn, deskRef };
     check('A7', 'performance: hero 1280x720 <= 150 draw calls and >= 50 fps; one shadow-casting light; 390x844 measured too',
-      deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30 ? fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, desk.fps >= 50, deskRef ? deskRef.cur : desk.fps, deskRef ? deskRef.fps : null) : false,
+      deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30 ? fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, (deskRef ? deskRef.cur : desk.fps) >= 50, deskRef ? deskRef.cur : desk.fps, deskRef ? deskRef.fps : null) : false,
       `hero 1280x720: ${desk.calls} draw calls, ${desk.fps.toFixed(1)} fps; inside 1280x720: ${deskIn.calls} calls, ${deskIn.fps.toFixed(1)} fps; lights on ${desk.shop.lights.n}, casting shadows ${desk.shop.lights.shadows}; ` +
       `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)${deskRef ? `; this build and the reference build alternately, three times each, hero 1280x720: ${a7ab.cur.map((v) => v.toFixed(1)).join(' / ')} vs ${a7ab.ref.map((v) => v.toFixed(1)).join(' / ')} fps (medians ${deskRef.cur.toFixed(1)} vs ${deskRef.fps.toFixed(1)})` : ''}`);
   }
