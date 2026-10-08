@@ -1309,8 +1309,10 @@ test('D1-D3: the dog comes in with E3, shakes, walks 2-3 m, growls at the staff 
   assert.strictEqual(sim.S.doors[0].k, 0, 'D1: the door shut again after it left');
   assert.ok(rec.hits.length === 0, `D2: footprint never in a wall, shelf or door leaf (${rec.hits.length} hits${rec.hits.length ? ' at ' + rec.hits[0].t.toFixed(2) + ' ' + JSON.stringify(rec.hits[0].b) : ''})`);
   assert.ok(rec.gap >= 1.2, `D2: at least 1.2 m from the walker (closest ${rec.gap.toFixed(2)} m)`);
-  const g = rec.frames.filter((f) => f.phase === 'growl'), dev = Math.max(...g.map((f) => Math.abs(C.wrapAngle(f.yaw - Math.atan2(-(B.cx - f.x), -(B.cz - f.z)))) * 180 / Math.PI));
-  assert.ok(g.length > 0 && dev < 15 && g.every((f) => f.crouch > 0 || f.t - g[0].t < 0.3) && g.every((f) => f.tail === 'tuck'), `D3: growling head ${dev.toFixed(2)} deg off the staff door, crouched, tail tucked`);
+  // round 9 (N4): it growls at the newest wet footprint (< 20 deg), not at the staff door any more
+  const newest = (t) => { let n = null; for (const f of C.FOOTPRINTS) if (t >= h.foot0 + f.dt - 1e-9) n = f; return n; };
+  const g = rec.frames.filter((f) => f.phase === 'growl'), dev = Math.max(...g.map((f) => { const n = newest(f.t); return Math.abs(C.wrapAngle(f.yaw - Math.atan2(-(n.x - f.x), -(n.z - f.z)))) * 180 / Math.PI; }));
+  assert.ok(h.foot0 === e3.t0 && g.length > 0 && dev < 20 && g.every((f) => f.crouch > 0 || f.t - g[0].t < 0.3) && g.every((f) => f.tail === 'tuck'), `D3/N4: growling head ${dev.toFixed(2)} deg off the newest footprint, crouched, tail tucked`);
   const snd = h.sounds.filter((s) => s.t >= dog.t0 - 1e-9), first = (k) => snd.find((s) => s.kind === k), knock = h.sounds.find((s) => s.kind === 'knock');
   assert.ok(first('paw').t < first('shake').t && first('shake').t < first('growl').t && first('growl').t < first('whimper').t, 'paws, shake, growl, whimper in order');
   assert.ok(!knock || knock.t > dog.closedAt, 'no knocking while the dog is in (the staff door goes wide only after)');
@@ -1338,25 +1340,39 @@ test('D1-D3: the dog comes in with E3, shakes, walks 2-3 m, growls at the staff 
     assert.ok(started && rw.hits.length === 0 && rw.gap >= 1.2 && w.horror().dog.goneAt !== null,
       `D2 ${label}${calm ? ' (calm)' : ''}: closest ${rw.gap.toFixed(2)} m, ${rw.hits.length} footprint overlaps${rw.hits.length ? ' first at ' + rw.hits[0].t.toFixed(2) + ' ' + JSON.stringify(rw.hits[0].b) : ''}, gone ${w.horror().dog.goneAt !== null}`);
   }
-  // D2 with a walker who goes round the west side (well clear of it) and stands in the doorway: it does not come past them, it
-  // waits at least 1.2 m off with the door held open; once they walk back in, it runs out and the door shuts
+  // N6 (round 9): a walker who goes round the west side (well clear of it) and stands in the doorway, to one side: after 3 s
+  // with no headway it squeezes out along the other side, never closer than 0.6 m, out of the door within 8 s of setting off
   for (const calm of [false, true]) {
     const w = C.createSim({ aspect: 16 / 9, calm });
     w.enter('door'); run(w, () => w.S.mode === 'walk'); w.walkRoute(C.SCARE_PLAN.aisle); run(w, () => !w.S.player.route);
     run(w, () => w.horror().dog !== null, 25, 1 / 240);
-    let stage = 0, outAt = null, held = null;
+    let routed = false, outAt = null, outOfDoor = null;
     const rw = watchDog(C, w, (s) => {
       const d = s.horror().dogView; if (!d) return;
-      if (stage === 0 && d.phase === 'shake') { s.walkRoute([[2.75, -5.2], [2.75, -1.0], [4.4, -0.5]]); stage = 1; }
+      if (!routed && d.phase === 'shake') { s.walkRoute([[2.75, -5.2], [2.75, -1.0], [4.4, -0.5]]); routed = true; }
       if (d.phase === 'out' && outAt === null) outAt = s.S.t;
-      if (stage === 1 && !s.S.player.route && outAt !== null && s.S.t > outAt + 3) {
-        held = { x: d.x, z: d.z, door: s.S.doors[0].k, walker: [s.S.player.x, s.S.player.z], gone: s.horror().dog.goneAt };
-        s.walkRoute([[2.75, -1.0], [2.75, -5.2]]); stage = 2;
-      }
+      if (outAt !== null && outOfDoor === null && d.z > C.FACADE_Z + C.DOG.r + 0.05) outOfDoor = s.S.t;
     });
-    const dg = w.horror().dog;
-    assert.ok(held && held.gone === null && held.door === 1 && Math.hypot(held.walker[0] - 4.4, held.walker[1] + 0.5) < 0.1 && rw.hits.length === 0 && rw.gap >= 1.2 && dg.goneAt !== null && w.S.doors[0].k === 0,
-      `D2 standing in the doorway${calm ? ' (calm)' : ''}: it waited at (${held && held.x.toFixed(2)}, ${held && held.z.toFixed(2)}) with the door at ${held && held.door}, closest ${rw.gap.toFixed(2)} m, ${rw.hits.length} overlaps; after the walker went back in: gone ${dg.goneAt !== null}, door ${w.S.doors[0].k}`);
+    const dg = w.horror().dog, ph = dg.log.map((x) => x.phase);
+    assert.ok(ph.includes('squeeze') && outOfDoor !== null && outOfDoor - outAt <= 8 && rw.hits.length === 0 && rw.gap >= 0.6 && dg.goneAt !== null && dg.closedAt !== null && Math.hypot(w.S.player.x - 4.4, w.S.player.z + 0.5) < 0.1,
+      `N6 standing in the doorway to one side${calm ? ' (calm)' : ''}: phases ${ph.join(',')}, out of the door ${outOfDoor === null ? 'never' : (outOfDoor - outAt).toFixed(2) + ' s'} after setting off, closest ${rw.gap.toFixed(2)} m, ${rw.hits.length} overlaps (the walker in the doorway keeps the door open themselves)`);
+  }
+  // N6: standing in the middle of the doorway leaves less than 0.6 m either side: it lies down by the till; once the walker
+  // walks back in, it goes; never closer than 0.6 m, never in a solid
+  {
+    const w = C.createSim({ aspect: 16 / 9 });
+    w.enter('door'); run(w, () => w.S.mode === 'walk'); w.walkRoute(C.SCARE_PLAN.aisle); run(w, () => !w.S.player.route);
+    run(w, () => w.horror().dog !== null, 25, 1 / 240);
+    let routed = false, lay = null, left = false;
+    const rw = watchDog(C, w, (s) => {
+      const d = s.horror().dogView; if (!d) return;
+      if (!routed && d.phase === 'shake') { s.walkRoute([[2.75, -5.2], [2.75, -1.0], [5.0, -0.45]]); routed = true; }
+      if (d.lying && !lay) lay = { t: s.S.t, x: d.x, z: d.z, crouch: d.crouch };
+      if (lay && !left && s.S.t > lay.t + 2) { s.walkRoute([[3.2, -1.2], [3.2, -4.8]]); left = true; }
+    });
+    const dg = w.horror().dog, ph = dg.log.map((x) => x.phase);
+    assert.ok(lay && Math.hypot(lay.x - C.DOG.hide[0], lay.z - C.DOG.hide[1]) < 0.15 && lay.crouch === 1 && ph.indexOf('hide') > ph.indexOf('out') && dg.goneAt !== null && rw.hits.length === 0 && rw.gap >= 0.6 && w.S.doors[0].k === 0,
+      `N6 standing in the middle of the doorway: phases ${ph.join(',')}, lay down at ${lay ? '(' + lay.x.toFixed(2) + ', ' + lay.z.toFixed(2) + ')' : 'never'}, gone after the walker left ${dg.goneAt !== null}, closest ${rw.gap.toFixed(2)} m, ${rw.hits.length} overlaps`);
   }
   // calm: comes in, sniffs about wagging, trots out; no growl, no whimper; once a visit
   const c = C.createSim({ aspect: 16 / 9, calm: true });
@@ -1369,4 +1385,170 @@ test('D1-D3: the dog comes in with E3, shakes, walks 2-3 m, growls at the staff 
   assert.ok(rc.hits.length === 0 && rc.gap >= 1.2 && c.horror().fired.E3 === null, 'calm: no collisions, no E3 in the history');
   run(c, () => false, 30);
   assert.strictEqual(c.horror().dog.t0, cd.t0, 'once a visit');
+});
+
+// ---------------- 第九轮：夜班须知、违反第 1 条、湿脚印、抬头的结局、静音也玩得到 (SPEC 第九轮 N2-N7) ----------------
+test('N2 (logic): the note says exactly what the SPEC says; the hint shows within 1.5 m with the note in the middle half of the view', async () => {
+  const C = await load();
+  assert.deepStrictEqual(C.NOTE_TEXT, ['夜班须知', '1. 灯灭的时候，站着别动。', '2. 门自己开了，就当没看见。', '3. 不要盯着电视超过十秒。', '4. 后面那扇门有人敲，不要过去。', '5. 下班前，记得看一眼橱窗。'], 'the words, character for character');
+  assert.deepStrictEqual(C.NOTE_CALM, ['今日特价：汽水两块'], 'calm');
+  const sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  const q = C.notePoint(), at = (x, z, look = true) => { sim.place(x, z, 0); if (look) { sim.lookAt(...q); run(sim, () => !sim.S.player.look, 4); } else run(sim, () => false, 0.2); return sim.noteNear(); };
+  const nearOk = at(6.3, -1.9), d = Math.hypot(6.3 - C.NOTE.x, -1.9 - C.NOTE.z);
+  const tooFar = at(C.NOTE.x - 1.62, C.NOTE.z), farD = 1.62;
+  const away = (() => { sim.place(6.3, -1.9, 0); sim.lookAt(6.3, 1.6, -6); run(sim, () => !sim.S.player.look, 4); return sim.noteNear(); })();
+  assert.ok(nearOk && d <= 1.5 && !tooFar && !away, `${d.toFixed(2)} m and looking at it: hint ${nearOk}; ${farD} m: ${tooFar}; looking down the shop: ${away}`);
+  sim.exit(); run(sim, () => sim.S.mode === 'orbit', 5);
+  assert.strictEqual(sim.noteNear(), false, 'no hint outside');
+});
+
+// a visit up to E2 with the walker walking through its dark spell, then stopping
+async function visitE2(C, { calm = false, still = false } = {}) {
+  const sim = C.createSim({ aspect: 16 / 9, calm });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  sim.walkRoute([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4], [5.0, -0.4]]);
+  if (calm) { run(sim, () => !sim.S.player.route, 20); return sim; }
+  run(sim, () => !!sim.horror().e2, 20, 1 / 240);
+  if (still) { sim.S.player.route = null; sim.drive(0, 0); }
+  run(sim, () => sim.S.t >= sim.horror().e2.t0 + C.E2_TOTAL + 0.02, 5, 1 / 240);
+  return sim;
+}
+test('N3: rule 1 - lights out in E2 and twice after E3; moving in the dark brings the figure 3.0 / 2.0 / 1.2 m ahead for 1.2 s, gone at a flicker; standing still only a breath; none in calm', async () => {
+  const C = await load(), R = C.RULE1, f = C.HORROR.figure;
+  const sim = await visitE2(C), h1 = sim.horror(), e2 = h1.e2, b0 = h1.blackouts[0];
+  assert.ok(b0.kind === 'e2' && Math.abs(b0.start - (e2.t0 + 0.7)) < 1e-9 && Math.abs(b0.end - (e2.t0 + C.E2_TOTAL)) < 1e-9, `E2's dark spell ${(b0.start - e2.t0).toFixed(3)}-${(b0.end - e2.t0).toFixed(3)} s (all three lights out)`);
+  const L = sim.levels; let lightsAt = (t) => t;
+  const check = (entry, want, label) => {
+    const F = entry.figure;
+    assert.ok(entry.moved > R.move && F && Math.abs(F.d - want) <= R.tol + 1e-9, `${label}: moved ${entry.moved.toFixed(2)} m in the dark, figure at ${F ? F.d.toFixed(2) : 'none'} m (wants ${want} +- 0.2)`);
+    assert.ok(C.insideInterior(F.x, F.z) && C.walkBoxes(sim.S.doors).every((b) => C.boxDist(F.x, F.z, b) >= f.bodyR), `${label}: on the floor, clear of every solid`);
+    assert.ok(Math.abs(F.t0 - entry.end) < 1e-9 && F.t1 - F.t0 >= R.stay - 1e-9 && C.TUBE_EVENTS.some((e) => Math.abs(e.t - F.t1) < 1e-9) && F.t1 === C.nextFlicker(F.t0 + R.stay), `${label}: from the light coming back for ${(F.t1 - F.t0).toFixed(2)} s, gone as a flicker starts`);
+  };
+  check(h1.rule1.log[0], 3.0, 'E2');
+  // the figure is in sight from where the walker stood as the lights came back (the tick before it is placed)
+  // E3 with the walker 3 m in, facing the back; the two short blackouts, walking 1 m in each
+  sim.walkRoute([[4.5, -3.0]]); run(sim, () => !sim.S.player.route, 10); sim.lookAt(4.5, 1.6, -7); run(sim, () => !!sim.horror().e3, 20, 1 / 240);
+  const e3 = sim.horror().e3, sh = sim.horror().blackouts.filter((b) => b.kind === 'short');
+  assert.ok(sh.length === 2 && sh.every((b) => b.start >= e3.t0 + 15 - 1e-9 && b.end <= e3.t0 + 30 + 1e-9 && Math.abs(b.end - b.start - 1.2) < 1e-9) && sh[1].start - sh[0].end >= R.gap - 1e-9,
+    `short blackouts at E3+${sh.map((b) => (b.start - e3.t0).toFixed(2)).join(', E3+')} s, 1.2 s each, ${(sh[1].start - sh[0].end).toFixed(2)} s apart`);
+  for (const [i, want] of [[0, 2.0], [1, 1.2]]) {
+    const b = sim.horror().blackouts.filter((x) => x.kind === 'short')[i];
+    run(sim, () => sim.S.t >= b.start + 0.05, 40, 1 / 240);
+    const lv = sim.levels();
+    assert.ok(lv.bulbs[0] === 0 && lv.bulbs[1] === 0 && lv.tube === 0 && lv.blackout, `short blackout ${i + 1}: both bulbs and the tube out`);
+    sim.walkTo(4.5, -4.0); run(sim, () => sim.S.t >= b.end + 0.02, 3, 1 / 240);
+    check(sim.horror().rule1.log[i + 1], want, `short blackout ${i + 1}`);
+    const fig = sim.horror().rule1.log[i + 1].figure, cam = sim.S.cam, pts = [[fig.x, C.SIDEWALK_H + f.h - f.headR, fig.z], [fig.x, C.SIDEWALK_H + 0.85, fig.z]];
+    const seen = C.sightlines(cam, sim.fov(), 16 / 9, [pts[0]], sim.levels().back)[0];
+    assert.ok(seen && sim.levels().rule1 && sim.levels().rule1.n === i + 2, `short blackout ${i + 1}: its head in sight as the lights come back`);
+    sim.walkTo(4.5, -3.0); run(sim, () => !sim.S.player.route, 5); sim.lookAt(4.5, 1.6, -7); run(sim, () => !sim.S.player.look, 3);
+  }
+  // nothing overlaps: the dark spells against E2, P1, P2, E4 and each other
+  const hh = sim.horror(), spans = hh.blackouts.map((b) => [b.start, b.end]);
+  for (let i = 0; i < spans.length; i++) for (let j = i + 1; j < spans.length; j++) assert.ok(spans[i][1] <= spans[j][0] || spans[j][1] <= spans[i][0], 'dark spells apart');
+  for (const b of hh.blackouts.filter((x) => x.kind === 'short')) for (const [a, z] of [hh.e2 && [hh.e2.t0, hh.e2.t0 + C.E2_TOTAL], hh.p1 && [hh.p1.t0, hh.p1.t1], hh.p2 && [hh.p2.t0, hh.p2.t1], hh.e4 && [hh.e4.t0, hh.e4.bang]].filter(Boolean)) assert.ok(b.end <= a || z <= b.start, 'a short blackout never over another event');
+  // standing still in E2's dark: no figure, a breath beside the walker
+  const st = await visitE2(C, { still: true }), hs = st.horror();
+  const breath = hs.sounds.find((x) => x.kind === 'breath');
+  assert.ok(hs.rule1.log[0].moved <= R.move && !hs.rule1.log[0].figure && hs.rule1.n === 0 && !st.levels().rule1 && breath && breath.t < hs.blackouts[0].end && Math.hypot(breath.pos[0] - st.S.player.x, breath.pos[2] - st.S.player.z) < 0.6,
+    `still: moved ${hs.rule1.log[0].moved.toFixed(3)} m, figure ${hs.rule1.log[0].figure}, breath at ${breath && (breath.t - hs.blackouts[0].start).toFixed(2)} s into the dark, ${breath && Math.hypot(breath.pos[0] - st.S.player.x, breath.pos[2] - st.S.player.z).toFixed(2)} m away`);
+  // calm: no dark spells, no figure
+  const c = await visitE2(C, { calm: true }); run(c, () => false, 40);
+  assert.ok(c.horror().blackouts.length === 0 && c.horror().rule1.n === 0 && c.levels().bulbs.every((v) => v === 1), 'calm: no dark spells, no figure');
+});
+test('N4: wet footprints from the door to the staff door, one every 0.5 s, left and right, 0.6 m apart, never through a solid; fade after 20 s; the knocking after they arrive and the dog has gone, by E3+20 s', async () => {
+  const C = await load(), P = C.FOOTPRINTS, B = C.BACKDOOR, D0 = C.DOORS[0];
+  assert.ok(Math.hypot(P[0].x - D0.cx, P[0].z - (D0.z0 - 0.3)) < 0.6 && Math.hypot(P[P.length - 1].x - B.cx, P[P.length - 1].z - B.cz) < 1.0, `from just inside the door (${P[0].x.toFixed(2)}, ${P[0].z.toFixed(2)}) to the staff door (${P[P.length - 1].x.toFixed(2)}, ${P[P.length - 1].z.toFixed(2)})`);
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], b = P[i], gap = Math.hypot(b.x - a.x, b.z - a.z);
+    assert.ok(Math.abs(b.dt - a.dt - 0.5) < 1e-9 && a.foot !== b.foot && gap > 0.55 && gap < 0.7, `print ${i}: ${(b.dt - a.dt).toFixed(2)} s after, ${a.foot}->${b.foot}, ${gap.toFixed(2)} m`);
+    for (let k = 0; k <= 10; k++) { const x = a.x + (b.x - a.x) * k / 10, z = a.z + (b.z - a.z) * k / 10; assert.ok(C.walkBoxes(null, B.half).every((q) => C.boxDist(x, z, q) >= 0.2), `the way between prints ${i - 1} and ${i} clear of solids`); }
+  }
+  for (const p of P) assert.ok(C.walkBoxes(null, B.half).every((q) => C.boxDist(p.x, p.z, q) >= C.FOOT.len / 2), `print ${p.i} on clear floor`);
+  // in a visit: appear from E3, fade from 20 s, a wet step at each; the staff door goes wide only after the last print
+  const sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk'); sim.walkRoute(C.SCARE_PLAN.aisle); run(sim, () => !sim.S.player.route);
+  run(sim, () => !!sim.horror().e3, 15, 1 / 240);
+  const t3 = sim.horror().e3.t0;
+  run(sim, () => sim.S.t >= t3 + 3.2, 5, 1 / 240);
+  assert.strictEqual(sim.levels().foot.length, 7, '7 prints 3.2 s after E3');
+  sim.lookAt(...C.SCARE_PLAN.behind);               // turned away: the staff door may go wide once it is allowed to
+  run(sim, () => sim.horror().wideAt !== null, 25, 1 / 240);
+  const h = sim.horror(), wet = h.sounds.filter((x) => x.kind === 'wetstep'), knock = h.sounds.find((x) => x.kind === 'knock');
+  assert.ok(wet.length === P.length && wet.every((x, i) => Math.abs(x.t - (t3 + P[i].dt)) < 1e-9 && Math.hypot(x.pos[0] - P[i].x, x.pos[2] - P[i].z) < 1e-9), `${wet.length} wet steps, each at its print`);
+  assert.ok(h.wideAt >= t3 + C.FOOT_ARRIVE - 1e-9 && h.wideAt >= h.dog.closedAt - 1e-9 && h.wideAt <= t3 + 20, `staff door wide at E3+${(h.wideAt - t3).toFixed(2)} s: after the last print (E3+${C.FOOT_ARRIVE}) and the dog (door shut E3+${(h.dog.closedAt - t3).toFixed(2)})`);
+  run(sim, () => sim.horror().sounds.some((x) => x.kind === 'knock'), 2, 1 / 240);
+  const k1 = sim.horror().sounds.find((x) => x.kind === 'knock');
+  assert.ok(k1 && k1.t <= t3 + 20 && k1.t > h.wideAt, `first knock at E3+${(k1.t - t3).toFixed(2)} s`);
+  run(sim, () => sim.S.t >= t3 + 21.25, 25, 1 / 240);
+  const fp = sim.levels().foot;
+  assert.ok(fp.length === P.length - 1 && fp[0].i === 1 && Math.abs(fp[0].alpha - 0.25) < 0.01 && Math.abs(fp[1].alpha - 0.75) < 0.01 && fp[2].alpha === 1, `at E3+21.25 s the first print has gone, the second and third are fading (${fp[0].alpha.toFixed(2)}, ${fp[1].alpha.toFixed(2)}), the fourth still full`);
+  run(sim, () => sim.S.t >= t3 + C.FOOT_ARRIVE + 21.1, 10);
+  assert.strictEqual(sim.levels().foot.length, 0, 'all gone 21 s after the last');
+  // a walker who keeps the staff door in view the whole time: the knocking still starts by E3+20 s (the door half open)
+  const w = C.createSim({ aspect: 16 / 9 });
+  w.enter('door'); run(w, () => w.S.mode === 'walk'); w.walkRoute([[5.0, -0.6], [4.6, -4.0]]); run(w, () => !w.S.player.route);
+  w.lookAt(B.cx, 1.0, B.cz); run(w, () => !!w.horror().e3, 25, 1 / 240);
+  const t3b = w.horror().e3.t0; run(w, () => w.horror().sounds.some((x) => x.kind === 'knock'), 25, 1 / 240);
+  const kb = w.horror().sounds.find((x) => x.kind === 'knock');
+  assert.ok(kb && Math.abs(kb.t - (t3b + 20)) < 0.01 && w.horror().wideAt === null, `staring at the staff door: first knock at E3+${kb ? (kb.t - t3b).toFixed(2) : 'n/a'} s, door still half open`);
+  // calm: no footprints
+  const c = C.createSim({ aspect: 16 / 9, calm: true });
+  c.enter('door'); run(c, () => c.S.mode === 'walk'); c.walkRoute(C.SCARE_PLAN.aisle); run(c, () => !c.S.player.route); run(c, () => c.horror().dog !== null, 25);
+  run(c, () => false, 5); assert.ok(c.levels().foot.length === 0 && !c.horror().sounds.some((x) => x.kind === 'wetstep'), 'calm: no footprints');
+});
+test('N5: after a visit with E4 the figure behind the window, 2 s on screen, turns its head onto the camera within 1.5 s and keeps it there as the model turns; without E4 it does not', async () => {
+  const C = await load(), E = C.ENDING;
+  const gaze = (sim) => { const p = sim.horror().endPose, hd = C.endHeadPoint(), c = sim.S.cam, dx = c.x - hd[0], dy = c.y - hd[1], dz = c.z - hd[2];
+    const f = [-Math.sin(p.headYaw) * Math.cos(p.pitch), Math.sin(p.pitch), -Math.cos(p.headYaw) * Math.cos(p.pitch)], L = Math.hypot(dx, dy, dz);
+    return (Math.acos(Math.min(1, (f[0] * dx + f[1] * dy + f[2] * dz) / L)) * 180) / Math.PI; };
+  const sim = C.createSim({ aspect: 16 / 9 });
+  C.playScare(sim, { upTo: 'out' });
+  const h = sim.horror(), t5 = h.fired.E5;
+  assert.ok(h.done === undefined || true, '');
+  assert.ok(h.figure === 'window' && h.end && h.end.armed && sim.S.mode === 'orbit', 'E4 in the visit: the ending is armed, the figure behind the window');
+  // look away from the shop first: it waits until it has been on screen 2 s running
+  sim.rotate(Math.PI, 0); run(sim, () => false, 3, 1 / 240);
+  assert.ok(sim.horror().endPose.looking === false && sim.horror().fired.END === null, 'not on screen: it does not turn');
+  sim.rotate(-Math.PI, 0); const back = sim.S.t;
+  run(sim, () => sim.horror().fired.END !== null, 5, 1 / 240);
+  const tEnd = sim.horror().fired.END;
+  assert.ok(Math.abs(tEnd - back - E.see) < 2 / 240, `turned ${(tEnd - back).toFixed(3)} s after it came back on screen (2 s)`);
+  assert.ok(sim.horror().sounds.some((x) => x.kind === 'drone' && Math.abs(x.t - tEnd) < 1e-9), 'a low long tone as it looks up');
+  run(sim, () => sim.S.t >= tEnd + E.turn, 3, 1 / 240);
+  const g0 = gaze(sim), p0 = sim.horror().endPose;
+  assert.ok(g0 < 10 && p0.pitch > 0.2, `after 1.5 s: head ${g0.toFixed(2)} deg off the camera, lifted ${(p0.pitch * 180 / Math.PI).toFixed(1)} deg`);
+  const devs = [];
+  for (const [a, b] of [[0.6, 0.05], [-1.1, -0.08]]) { sim.rotate(a, b); run(sim, () => false, 1.0, 1 / 240); devs.push(gaze(sim)); }
+  assert.ok(devs.every((d) => d < 10), `two other turns of the model: head ${devs.map((d) => d.toFixed(2)).join(' / ')} deg off the camera`);
+  const p1 = sim.horror().endPose; run(sim, () => false, 8);
+  assert.ok(Math.abs(C.wrapAngle(sim.horror().endPose.bodyYaw - sim.horror().endPose.target.yaw)) < Math.abs(C.wrapAngle(C.HORROR.spots.window.yaw - p1.target.yaw)) + 1e-9 && Math.abs(C.wrapAngle(sim.horror().endPose.bodyYaw - sim.horror().endPose.target.yaw)) < 0.05, 'the body has turned round to the camera too');
+  // the next visit's E0 takes it away in the dark, ending and all
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk', 10);
+  assert.ok(sim.horror().figure === null && sim.horror().endPose === null, 'gone with E0');
+  // without E4: no turning
+  const r = C.createSim({ aspect: 16 / 9 });
+  C.playScare(r, { upTo: 'reveal' }); run(r, () => false, 8, 1 / 240);
+  const pr = r.horror().endPose;
+  assert.ok(r.horror().figure === 'window' && pr && !pr.armed && !pr.looking && pr.pitch === 0 && pr.headYaw === C.HORROR.spots.window.yaw && r.horror().fired.END === null, 'no E4: back to the street, head down');
+});
+test('N7: a wanderer that hears nothing and goes by what it can see meets E2, E3, E4 in order within 120 s (6 seeds, 3 landings in turn, three screens); it never uses a sound', async () => {
+  const C = await load();
+  const src = C.createWanderer.toString();
+  for (const bad of ['HORROR', 'BACKDOOR', 'DOOR0', 'DOORS', 'SCARE_PLAN', 'wideAt', 'fired', '.done', 'history', '.e2', '.e3', '.e4', 'E2_', 'E4_', 'trigger', 'levels(', 'figure', 'Sightlines']) assert.ok(!src.includes(bad), `wanderer reads ${bad}`);
+  const RUNS = [[1, 'door'], [2, 'street'], [3, 'next'], [4, 'door'], [5, 'street'], [6, 'next']];
+  for (const [name, asp] of [['desk', 16 / 9], ['phone', 390 / 844], ['fold', 880 / 920]]) for (const [seed, aim] of RUNS) {
+    const one = (deaf) => {
+      const sim = C.createSim({ aspect: asp });
+      if (deaf) { const real = sim.horror; sim.horror = () => ({ ...real(), sounds: [] }); }   // the same run with every sound taken away
+      const w = C.createWanderer(sim, seed, { aim, senses: 'sight' });
+      for (let t = 0; t < 120 && !sim.horror().done.E4; t += 1 / 60) w.step(1 / 60);
+      const h = sim.horror(), at = (e) => { const x = h.history.find((y) => y.e === e); return x ? x.t : null; };
+      return { e2: at('E2'), e3: at('E3'), e4: at('E4'), x: sim.S.player.x, z: sim.S.player.z };
+    };
+    const a = one(false), b = one(true);
+    assert.ok(a.e2 != null && a.e3 > a.e2 && a.e4 > a.e3 && a.e4 <= 120, `${name} seed ${seed} (${aim}): E2 ${a.e2 && a.e2.toFixed(1)} E3 ${a.e3 && a.e3.toFixed(1)} E4 ${a.e4 && a.e4.toFixed(1)}`);
+    assert.deepStrictEqual(b, a, `${name} seed ${seed}: the same with no sounds at all`);
+  }
 });

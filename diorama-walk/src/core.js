@@ -867,7 +867,7 @@ function createHorror(S, calm) {
       if (de < DOG.giveUp && ['enter', 'shake', 'walk', 'turn', 'growl', 'sniff'].includes(d.phase)) {
         if (calmDog) { openExit(d, t); dogPhase(d, 'out', t); } else { dogPhase(d, 'whimper', t); dogSound(d, 'whimper', t); openExit(d, t); }
       }
-      if (de < DOG.flee && !squeezing) {
+      if (de < DOG.flee && !squeezing && !(d.phase === 'hide' && de >= DOG.keep)) {   // going to lie down it only runs from a walker inside 1.2 m
         const boxes = dogBoxes(t), out = d.lined || d.z > DOG.inside[1] ? DOG.away : DOG.inside, ox = out[0] - d.x, oz = out[1] - d.z, oL = Math.hypot(ox, oz) || 1;
         let best = null;
         for (let k = 0; k < 16; k++) {
