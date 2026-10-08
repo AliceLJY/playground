@@ -9,9 +9,9 @@ const argv = process.argv.slice(2);
 const out = argv[0] || 'browser-check';
 const base = argv[1] && !argv[1].startsWith('--') ? argv[1] : 'file://' + path.resolve(__dirname, '../dist/index.html');
 const shots = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : out;
-const baseline = argv.includes('--baseline') ? argv[argv.indexOf('--baseline') + 1] : null;
+const baseline = argv.includes('--baseline') ? argv[argv.indexOf('--baseline') + 1] : null;   // round 8 A1: the round-7 inside.png
 // round 10: the last build that passed the frame-rate budgets, measured the same way in the same run (P, A7 can then be NOT_EVALUABLE)
-const perfRef = argv.includes('--perf-ref') ? 'file://' + path.resolve(argv[argv.indexOf('--perf-ref') + 1]) : null;   // round 8 A1: the round-7 inside.png
+const perfRef = argv.includes('--perf-ref') ? 'file://' + path.resolve(argv[argv.indexOf('--perf-ref') + 1]) : null;
 fs.mkdirSync(out, { recursive: true }); fs.mkdirSync(shots, { recursive: true });
 const shot = (name) => path.join(shots, name + '.png');
 const f3 = (v) => (typeof v === 'number' ? v.toFixed(3) : String(v));
@@ -1137,10 +1137,11 @@ const isExternal = (u) => {
       await P.close();
     }
     report.perf = perf;
+    let refFps = null;
     if (perfRef) { const P = await open('?view=hero', { dpr: 2, at: perfRef }); await P.page.waitForTimeout(1200);
-      perf.ref = await P.page.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 181) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await P.close(); }
-    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50, perf['hero dpr2'].fps, perfRef ? perf.ref : null),
-      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}) hero dpr2 measured the same way just after: ${perf.ref.toFixed(1)} fps` : ''}`);
+      refFps = await P.page.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 181) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await P.close(); report.perfRef = { hero_dpr2: refFps }; }
+    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50, perf['hero dpr2'].fps, refFps),
+      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}) hero dpr2 measured the same way just after: ${refFps.toFixed(1)} fps` : ''}`);
   }
 
   // ---------- player default: no parameters, pixel ratio 2, real wheel / clicks / keys in real time ----------
