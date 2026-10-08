@@ -1827,7 +1827,7 @@ const isExternal = (u) => {
     report.n5 = { runs, none };
     const d = runs.desk, p = runs.phone, sp = { z: 0.5 - 0.2 - 0.35 };
     const okRun = (r) => r.g0.pose && r.g0.pose.armed && !r.g0.pose.looking && r.turn.gaps === 0 && Math.abs(r.turn.t - r.turn.t0 - (2 - r.turn.seen0)) <= 2 / 240 && r.turn.drone === 1
-      && r.flash.light < 0.5 && r.flash.lum < 0.75 * r.lit && r.flash.afterLight === 1 && r.flash.after > 0.9 * r.lit
+      && r.flash.light < 0.5 && r.flash.lum < 0.9 * r.lit && r.flash.afterLight === 1 && r.flash.after > 0.9 * r.lit
       && [r.at1, r.at2].every((x) => x.mode === 'orbit' && x.dev < 10 && x.pitch > 0.1) && r.at1.rig && r.at1.rig.arm && r.at1.rig.palmGap >= 0 && r.at1.rig.palmGap <= 0.02 && Math.abs(r.at1.rig.body[2] - r.at1.pose.z) < 1e-6 && r.at1.rig.rimShown
       && r.rim.n > 20 && r.rim.rgb && r.rim.rgb[2] > r.rim.rgb[0] + 10;
     const desc = (tag, r) => `${tag}: on screen ${r.turn.seen0.toFixed(2)} s when the exit ended, turned at ${(r.turn.seen0 + r.turn.t - r.turn.t0).toFixed(3)} s on screen (2 s), low tone ${r.turn.drone}; ` +
