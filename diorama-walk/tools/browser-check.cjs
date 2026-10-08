@@ -38,8 +38,9 @@ const isExternal = (u) => {
   const fpsJudge = (rest, fpsOk, cur = null, ref = null, need = 50) => (rest && fpsOk ? true : rest && (displayCap < 55 || (ref !== null && cur !== null && ref < need && cur >= ref - 3)) ? 'NE' : false);
   const allErrors = [], allExternal = [];
   let loads = 0;
-  async function open(query, { width = 1280, height = 720, dpr = 1, touch = false, keepCard = false, at = null } = {}) {
+  async function open(query, { width = 1280, height = 720, dpr = 1, touch = false, keepCard = false, at = null, init = null } = {}) {
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch });
+    if (init) await ctx.addInitScript(init);   // round 12: stand-ins planted before the page's own code runs
     const page = await ctx.newPage(), errors = [], external = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
@@ -62,6 +63,44 @@ const isExternal = (u) => {
   const until = async (page, fn, ms, arg) => { try { await page.waitForFunction(fn, arg, { polling: 100, timeout: ms }); return true; } catch { return false; } };
   const info = (page) => page.evaluate(() => window.__diorama.info());
   const state = (page) => page.evaluate(() => window.__diorama.state());
+
+  // ======================= 第十二轮：iPhone 静音键与声音恢复 (SPEC 第十二轮 S1 S2) =======================
+  // Both rows work on any build (no hook from this round), so the round-11 build is the known-bad calibration: it fails both.
+  // ---------- S1: Chromium has no navigator.audioSession, so a stand-in is planted before load and read after the card closes ----------
+  {
+    const P = await open('', { keepCard: true, init: () => { Object.defineProperty(navigator, 'audioSession', { value: { type: 'auto' }, configurable: true }); } });
+    await P.page.waitForTimeout(200);
+    const before = await P.page.evaluate(() => navigator.audioSession.type);
+    await P.page.mouse.click(640, 120); await P.page.waitForTimeout(300);
+    const after = await P.page.evaluate(() => ({ type: navigator.audioSession.type, audio: window.__diorama.info().audio }));
+    await P.close();
+    report.s1 = { before, after };
+    check('S1', 'iPhone silent switch: the click that closes the card asks for playback sound (navigator.audioSession.type) and the sound runs',
+      before === 'auto' && after.type === 'playback' && after.audio === 'running', `before the click ${before}, after it ${after.type}, sound ${after.audio}`);
+  }
+  // ---------- S2: suspend the running sound as the system would, three times; a key, a click and a return to the page each resume it ----------
+  {
+    const P = await open('', { init: () => { const C = window.AudioContext; window.__ctxs = []; window.AudioContext = class extends C { constructor(...a) { super(...a); window.__ctxs.push(this); } }; } }), page = P.page;
+    const running = () => window.__ctxs.length > 0 && window.__ctxs[0].state === 'running';
+    const r0 = await until(page, running, 2000);
+    const suspend = () => page.evaluate(() => window.__ctxs[0].suspend().then(() => window.__ctxs[0].state));
+    const res = {};
+    res.s1 = await suspend(); await page.waitForTimeout(300); res.idle = await page.evaluate(() => window.__ctxs[0].state);   // nothing done: stays suspended
+    await page.keyboard.press('ShiftLeft'); res.byKey = await until(page, running, 2000);
+    res.s2 = await suspend(); await page.mouse.click(640, 120); res.byClick = await until(page, running, 2000);
+    res.s3 = await suspend(); await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); res.byReturn = await until(page, running, 2000);
+    await P.close();
+    report.s2 = { r0, ...res };
+    check('S2', 'sound comes back after the system suspends it: a key, a click or a return to the page resumes it within 2 s',
+      r0 && res.s1 === 'suspended' && res.idle === 'suspended' && res.byKey && res.s2 === 'suspended' && res.byClick && res.s3 === 'suspended' && res.byReturn,
+      `running at start ${r0}; suspended ${res.s1}, untouched 0.3 s later ${res.idle}; resumed by a key ${res.byKey}, by a click ${res.byClick}, by returning to the page ${res.byReturn}`);
+  }
+  if (argv.includes('--only-sound')) {   // quick run of this round's rows alone, e.g. against the round-11 build to see them fail
+    fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
+    const failed = report.checks.filter((c) => !c.pass).length;
+    console.log(`\n${report.checks.length - failed}/${report.checks.length} passed (round-12 sound rows only; errors: ${allErrors.length})`);
+    await browser.close(); process.exit(failed ? 1 : 0);
+  }
 
   // Laplacian variance in horizontal bands of a PNG, computed in a blank page (no extra Node dependencies).
   const calc = await (await browser.newContext()).newPage();

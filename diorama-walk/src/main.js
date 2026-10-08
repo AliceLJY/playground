@@ -412,6 +412,9 @@ let audio = null, vibePlayed = 0;
 let wanderRun = null;                              // the wanderer hook's state between calls
 function startAudio() {
   if (audio) return;
+  // round 12: on iPhone, page sound follows the silent switch unless the page asks for playback
+  // simplified: an older iOS without navigator.audioSession still follows the switch; a looping silent <audio> element would cover it
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) { audio = { state: 'unsupported' }; return; }
@@ -441,6 +444,11 @@ function startAudio() {
     audio = { ctx, lp, g, master, buzz, snow, freezer, awning, noise: buf, log: [], played: sim.S.t, tubeWas: 1 };
   } catch (e) { audio = { state: 'failed: ' + e.message }; }
 }
+// round 12: the system can suspend the sound after it started (switching apps, a call, the lock screen); the next touch, key
+// or return to the page resumes it, instead of staying silent until a reload
+function wakeAudio() { if (audio && audio.ctx && audio.ctx.state !== 'running' && audio.ctx.state !== 'closed') audio.ctx.resume().catch(() => {}); }
+for (const type of ['pointerdown', 'pointerup', 'touchend', 'keydown']) addEventListener(type, wakeAudio, { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
 
 // One-off sounds, all synthesised. Peaks come from core.audioLevels: bell about 2x the bed, bang about 4x.
 // The ear follows the camera (for the knocking, which is placed in 3D); older browsers only have setPosition/setOrientation.

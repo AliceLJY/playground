@@ -2,6 +2,16 @@
 
 对照 [SPEC.md](SPEC.md)「结局镜头（第十一轮）」一节：结局机位、N5h（阈值不变）、N9、N9b。其余条目照旧复跑；P、A7 按第十轮的判据（与第八轮版本交替各测三遍、比中位数）记 NOT_EVALUABLE。
 
+## 第十二轮（iPhone 静音键与声音恢复，2026-10-09）记录
+
+对照 SPEC「iPhone 静音键与声音恢复（第十二轮）」S1–S3。
+
+- 改动：`src/main.js` 启动声音前设 `navigator.audioSession.type = 'playback'`（没有这个接口就跳过）；`wakeAudio` 在按下、抬起、`touchend`、按键和页面回到前台时，恢复被暂停的声音。`tools/browser-check.cjs` 加 S1、S2，`open()` 加 `init`（加载前注入替身），加 `--only-sound` 只跑这两条。
+- 打包：`dist/index.html` 683742 bytes，sha256 前 16 位 `2e4e1005a1931c08`。Node 55/55。
+- 校准（S3 后半）：第十一版（`55ca586feb11bd8e`）只跑 S1、S2，两条都失败：点开场卡后 `type` 仍是 `auto`；暂停后按键、点击、回到前台都没恢复。
+- 新版只跑 S1、S2：2/2。新版全套：60/60（含 S1、S2；P、A7 这次直接通过），Chrome 155.0.8059.40，ANGLE Metal（Apple M4），headless。
+- 没覆盖：真 iPhone 拨到静音时有没有声音（Chromium 没有这个接口，只验了页面把它设成了 `playback`）；iOS 在切 app 后把声音置为 `interrupted` 时，真机上 `resume()` 能不能恢复。要 Alice 在 iPhone 上试。
+
 ## 运行命令
 
 ```bash
