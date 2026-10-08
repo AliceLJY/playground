@@ -1557,6 +1557,36 @@ test('N5: after a visit with E4 the figure behind the window, 2 s on screen, tur
   assert.ok(r.horror().figure === 'window' && pr && !pr.armed && !pr.looking && pr.pitch === 0 && pr.headYaw === sp.yaw && r.horror().fired.END === null && pr.z === sp.z && pr.rim === 0 && pr.hand === 0 && pr.bodyYaw === sp.yaw && lit,
     `no E4: back to the street, head down, stays where it is, no rim, no hand, the window never blinks (z ${pr && pr.z}, rim ${pr && pr.rim}, hand ${pr && pr.hand}, lit ${lit})`);
 });
+test('N9 (logic): after a visit with E4 the exit stops at the ending shot (15 deg right of the window normal, 20 deg down, the window 35-50% of the width in landscape and 70-90% in portrait), the figure in frame and clear of the vending machine and the window frame, never in a solid on the way, the focus on the window, the ending within 2.5 s; N9b: without E4 the exit goes back to the orbit it came from', async () => {
+  const C = await load(), F = C.SIDEWALK_H;
+  for (const [name, asp] of [['desk', 16 / 9], ['phone', 390 / 844], ['fold', 880 / 920]]) {
+    const sim = C.createSim({ aspect: asp });
+    C.playScare(sim, { upTo: 'E4' });
+    const trig = { ...sim.S.trigger.orbit };
+    sim.walkRoute(C.SCARE_PLAN.out); run(sim, () => !sim.S.player.route, 20);
+    sim.exit();
+    const bad = [], dur = sim.S.trans.dur; let frames = 0;
+    run(sim, () => { if (sim.S.mode === 'exiting') { frames++; const c = sim.S.cam; if (!C.cameraClear([c.x, c.y, c.z], 0.1, sim.S.lift)) bad.push(sim.S.trans.tau.toFixed(2)); } return sim.S.mode === 'orbit'; }, 5, 1 / 240);
+    const tOut = sim.S.t, o = sim.S.orbit, cam = sim.S.cam, fov = sim.fov(), share = C.windowShare(cam, fov, asp), range = asp < 1 ? C.END_SHOT.ranges.portrait : C.END_SHOT.ranges.landscape;
+    const yawDeg = (C.wrapAngle(o.theta) * 180) / Math.PI, downDeg = -(cam.pitch * 180) / Math.PI;
+    assert.ok(o.ending && bad.length === 0 && frames > 0, `${name}: ended at the ending shot (${o.ending}); camera in a solid on ${bad.length} of ${frames} exit frames${bad.length ? ' at ' + bad.slice(0, 3).join(', ') : ''}`);
+    assert.ok(yawDeg >= 10 && yawDeg <= 20 && downDeg >= 15 && downDeg <= 25 && share >= range[0] && share <= range[1], `${name}: ${yawDeg.toFixed(1)} deg right of the window normal (10-20), ${downDeg.toFixed(1)} deg down (15-25), the window ${(100 * share).toFixed(1)}% of the width (${range.map((v) => v * 100).join('-')}%)`);
+    const pts = C.figurePoints('window'), seen = pts.map((q) => { const p = C.project(cam, fov, asp, q); return { inFrame: p.depth > 0 && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1, by: C.sightBlocker(cam, q) }; });
+    assert.ok(sim.horror().figure === 'window' && seen.every((s) => s.inFrame) && seen.every((s) => !s.by || !/vending|window-frame/.test(s.by)), `${name}: the figure's 5 points in frame ${seen.filter((s) => s.inFrame).length}/5, blocked by ${seen.map((s) => s.by || '-').join(' / ')} (never the vending machine or the window frame)`);
+    const ef = sim.endFocus(), focus = C.focusLine(cam, fov, asp, ef && ef.at, ef ? ef.k : 0), mid = C.project(cam, fov, asp, C.WINDOW_MID).y;
+    assert.ok(Math.abs(focus - mid) < 0.05, `${name}: focus line at ${focus.toFixed(3)} of the height, the window's middle at ${mid.toFixed(3)}`);
+    run(sim, () => sim.horror().fired.END !== null, 5, 1 / 240);
+    const late = sim.horror().fired.END === null ? Infinity : sim.horror().fired.END - tOut;
+    assert.ok(late <= 2.5, `${name}: the ending started ${late.toFixed(2)} s after the exit ended (<= 2.5)`);
+    // N9b: a visit without E4 goes back to the orbit it came from (item 2's tolerances)
+    const r = C.createSim({ aspect: asp });
+    C.playScare(r, { upTo: 'reveal' });
+    const tg = r.S.trigger.orbit, ro = r.S.orbit;
+    assert.ok(!ro.ending && Math.hypot(ro.cx - tg.cx, ro.cy - tg.cy, ro.cz - tg.cz) < 0.05 && Math.abs(ro.r - tg.r) < 0.05 && Math.abs(ro.theta - tg.theta) < 0.01 && Math.abs(ro.phi - tg.phi) < 0.01 && r.horror().fired.END === null,
+      `${name} N9b: no E4 -> back to the entry orbit (centre ${Math.hypot(ro.cx - tg.cx, ro.cy - tg.cy, ro.cz - tg.cz).toFixed(4)} m, radius ${Math.abs(ro.r - tg.r).toFixed(4)} m off)`);
+    void trig;
+  }
+});
 test('N7: a wanderer that hears nothing and goes by what it can see meets E2, E3, E4 in order within 120 s (6 seeds, 3 landings in turn, three screens); it never uses a sound', async () => {
   const C = await load();
   const src = C.createWanderer.toString();

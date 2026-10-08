@@ -1805,15 +1805,22 @@ const isExternal = (u) => {
     const rectLum = (png, rect) => calc.evaluate(async ({ b64, rect }) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(Math.round(rect[0]), Math.round(rect[1]), Math.max(1, Math.round(rect[2] - rect[0])), Math.max(1, Math.round(rect[3] - rect[1]))).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; return s / (d.length / 4); }, { b64: png.toString('base64'), rect });
     const runs = {};
-    for (const [tag, opts, rot1, rot2] of [['desk', {}, [0.35, 0.05], [-0.7, -0.05]], ['phone', { width: 390, height: 844, dpr: 3, touch: true }, [-1.2, 0], [-0.25, 0.04]]]) {
-      const P = await open('?view=hero', opts), page = P.page, sfx = tag === 'desk' ? '' : '-phone';
+    // round 11: three screens; the exit stops at the ending shot, which is angle 1 (N9 is read there as it stops)
+    for (const [tag, opts, rot1, rot2] of [['desk', {}, [0, 0], [0.3, -0.03]], ['phone', { width: 390, height: 844, dpr: 3, touch: true }, [0, 0], [0.3, -0.03]], ['fold', { width: 880, height: 920, dpr: 2, touch: true }, [0, 0], [0.3, -0.03]]]) {
+      const P = await open('?view=hero', opts), page = P.page, sfx = tag === 'desk' ? '' : '-' + tag;
       await page.keyboard.press('KeyX');
       await page.evaluate(helpers);
-      await page.evaluate((r) => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.e3(); H.staff(); H.bang(); H.leave(); D.rotate(r[0], r[1]); for (let i = 0; i < 24; i++) D.step(1 / 240, 1); D.ui(false); }, rot1);
+      const tOut = await page.evaluate((r) => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.e3(); H.staff(); H.bang(); H.leave(); const t = D.state().t; if (r[0] || r[1]) D.rotate(r[0], r[1]); D.ui(false); return t; }, rot1);
       const g0 = await gazeNow(page);
-      const before = await silhouette(page);                       // the round-9 picture: standing at its spot, back to the street, no rim
+      // N9: the ending shot as it stops
+      await page.waitForTimeout(250); await page.screenshot({ path: shot('N9-' + tag + '-stop') });
+      const shotRead = await page.evaluate(() => { const D = window.__diorama, C = D.core, S = D.state(), W = C.WINDOW, F = C.SIDEWALK_H, w = innerWidth, h = innerHeight;
+        const a = D.toScreen(W.x0, C.WINDOW_MID[1], C.FACADE_Z), b = D.toScreen(W.x1, C.WINDOW_MID[1], C.FACADE_Z), mid = D.toScreen(...C.WINDOW_MID), pts = C.figurePoints('window');
+        const scr = pts.map((q) => D.toScreen(...q)), vis = D.visibility(pts), cam = D.info().camera;
+        return { mode: S.mode, ending: !!(S.orbit && S.orbit.ending), share: Math.abs(b[0] - a[0]) / w, aspect: w / h, figure: D.horror().figure, inFrame: scr.map((v) => v[0] >= 0 && v[0] <= w && v[1] >= 0 && v[1] <= h), blocked: vis.map((v) => v.blockedBy), focus: D.info().focusY, mid: mid[1] / h,
+          yaw: C.deg(C.wrapAngle(S.orbit.theta)), down: C.deg(Math.PI / 2 - S.orbit.phi), cam }; });
       const rect = await windowRect(page), litPng = await page.screenshot(), lit = await rectLum(litPng, rect);
-      const turn = await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.dt = 1 / 240; const seen0 = D.horror().end.seen, t0 = D.state().t; let gaps = 0;
+      const turn = await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.dt = 1 / 240; const seen0 = D.horror().end.seen, t0 = D.state().t; let gaps = 0;   // (t0 = the exit's end: nothing has moved since)
         H.each = () => { if (D.horror().fired.END == null && !D.horror().end.seen) gaps++; };
         H.until(() => D.horror().fired.END != null, 6); H.each = null; return { t: D.horror().fired.END, t0, seen0, gaps, drone: (D.audioLog() || []).filter((x) => x.kind === 'drone').length, light: D.horror().light }; });
       await page.evaluate(() => { const D = window.__diorama; for (let i = 0; i < 12; i++) D.step(1 / 240, 1); });   // E+0.05 s, inside the 0.12 s blink
@@ -1822,27 +1829,35 @@ const isExternal = (u) => {
       await page.evaluate(() => { const D = window.__diorama; for (let i = 0; i < 36; i++) D.step(1 / 240, 1); });   // E+0.20 s
       flash.after = await rectLum(await page.screenshot(), rect); flash.afterLight = await page.evaluate(() => window.__diorama.horror().light);
       await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; const t = D.horror().fired.END; H.until(() => D.state().t >= t + C.ENDING.turn + C.ENDING.walk + C.ENDING.hand + 0.2, 6); });
-      const at1 = await gazeNow(page); await page.waitForTimeout(250); await page.screenshot({ path: shot('N5-ending' + sfx + '-angle1') });
+      const at1 = await gazeNow(page); await page.waitForTimeout(250); await page.screenshot({ path: shot('N9-' + tag + '-hand') });
       const after = await silhouette(page);
       // the rim: the pixels it changes, and their colour (cold: blue above red)
       await page.waitForTimeout(100); const R1 = await page.screenshot(); await page.evaluate(() => window.__diorama.hideRim(true)); await page.waitForTimeout(250); const R0 = await page.screenshot(); await page.evaluate(() => window.__diorama.hideRim(false));
       const rim = await diff(R1, R0, 1);
       await page.evaluate((r) => { const D = window.__diorama; D.rotate(r[0], r[1]); for (let i = 0; i < 120; i++) D.step(1 / 240, 1); }, rot2);
       await page.waitForTimeout(250); const at2 = await gazeNow(page); await page.screenshot({ path: shot('N5-ending' + sfx + '-angle2') });
-      runs[tag] = { g0, before, after, ratio: before.height ? after.height / before.height : 0, lit, flash, turn, at1, at2, rim };
+      runs[tag] = { g0, after, lit, flash, turn, at1, at2, rim, tOut, shotRead, late: turn.t - tOut };
       await P.close();
+    }
+    // N5h's baseline, the round-9 picture: a visit without E4 leaves to the entry orbit with the figure behind the window, back to
+    // the street; turned the way rounds 9-10 read it (1280x720: 0.35 rad as in round 9's N5; 390x844: 1.2 rad, the least that
+    // brings the window wholly on screen there)
+    for (const [tag, opts, rot] of [['desk', {}, [0.35, 0.05]], ['phone', { width: 390, height: 844, dpr: 3, touch: true }, [-1.2, 0]]]) {
+      const P = await open('?view=hero', opts), page = P.page; await page.evaluate(helpers);
+      await page.evaluate((r) => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.leave(); D.rotate(r[0], r[1]); for (let i = 0; i < 24; i++) D.step(1 / 240, 1); D.ui(false); }, rot);
+      runs[tag].before = await silhouette(page); runs[tag].ratio = runs[tag].before.height ? runs[tag].after.height / runs[tag].before.height : 0; await P.close();
     }
     // no E4 in the visit: it stays as it was
     const Q = await open('?view=hero'), q = Q.page;
     await q.evaluate(helpers);
-    const none = await q.evaluate(() => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.leave(); H.dt = 1 / 60; let lit = true;
+    const none = await q.evaluate(() => { const D = window.__diorama, H = window.__H; D.enter('door'); const o0 = D.state().orbit; H.until(() => D.state().mode === 'walk', 10); H.aisle(); H.leave(); const o1 = D.state().orbit; H.dt = 1 / 60; let lit = true;
       H.each = () => { if (D.horror().light < 1 && D.state().mode === 'orbit' && D.horror().figure === 'window') lit = false; }; H.until(() => false, 8); H.each = null;
       for (let i = 0; i < 60; i++) D.step(1 / 60, 1);
-      const i = D.info(); return { fired: D.horror().fired.END, figure: D.horror().figure, pose: D.levels().end, head: i.figures.endHead, rig: i.figures.endRig, lit }; });
+      const i = D.info(); return { fired: D.horror().fired.END, figure: D.horror().figure, pose: D.levels().end, head: i.figures.endHead, rig: i.figures.endRig, lit, o0, o1 }; });
     await q.waitForTimeout(250); await q.evaluate(() => window.__diorama.ui(false)); await q.screenshot({ path: shot('N5-no-E4') });
     await Q.close();
     report.n5 = { runs, none };
-    const d = runs.desk, p = runs.phone, sp = { z: 0.5 - 0.2 - 0.35 };
+    const d = runs.desk, p = runs.phone, fo = runs.fold, sp = { z: 0.5 - 0.2 - 0.35 };
     const okRun = (r) => r.g0.pose && r.g0.pose.armed && !r.g0.pose.looking && r.turn.gaps === 0 && Math.abs(r.turn.t - r.turn.t0 - (2 - r.turn.seen0)) <= 2 / 240 && r.turn.drone === 1
       && r.flash.light < 0.5 && r.flash.lum < 0.9 * r.lit && r.flash.afterLight === 1 && r.flash.after > 0.9 * r.lit
       && [r.at1, r.at2].every((x) => x.mode === 'orbit' && x.dev < 10 && x.pitch > 0.1) && r.at1.rig && r.at1.rig.arm && r.at1.rig.palmGap >= 0 && r.at1.rig.palmGap <= 0.02 && Math.abs(r.at1.rig.body[2] - r.at1.pose.z) < 1e-6 && r.at1.rig.rimShown
@@ -1852,12 +1867,21 @@ const isExternal = (u) => {
       `at the glass: body z ${r.at1.rig.body[2].toFixed(3)}, hand ${r.at1.rig.arm ? 'up' : 'down'} at (${r.at1.rig.palm.map((v) => v.toFixed(2)).join(', ')}), ${(r.at1.rig.palmGap * 1000).toFixed(0)} mm off the pane; rim ${r.rim.n} px, mean colour rgb(${r.rim.rgb ? r.rim.rgb.map((v) => v.toFixed(0)).join(', ') : '-'}); ` +
       `head ${r.at1.dev.toFixed(2)} / ${r.at2.dev.toFixed(2)} deg off the camera at two angles, lifted ${(r.at1.pitch * 180 / Math.PI).toFixed(1)} / ${(r.at2.pitch * 180 / Math.PI).toFixed(1)} deg`;
     const noneOk = none.figure === 'window' && none.fired == null && none.pose && !none.pose.armed && none.head && none.head.pitch === 0 && none.head.headRel === 0 && none.rig && !none.rig.arm && !none.rig.rimShown && Math.abs(none.rig.body[2] - sp.z) < 1e-6 && none.lit;
-    check('N5', 'ending: after a visit with E4, 2 s on screen, the window light blinks out (0.12 s) as the head turns onto the camera (with a low tone); a cold rim on head and shoulders; it walks to the glass, puts a hand on it and keeps staring from two other angles (< 10 deg; 1280x720 and 390x844); without E4 none of it',
-      okRun(d) && okRun(p) && noneOk,
-      desc('1280x720', d) + ' | ' + desc('390x844', p) + ` | no E4: figure ${none.figure}, turned ${none.fired}, head lifted ${none.head ? (none.head.pitch * 180 / Math.PI).toFixed(1) : 'n/a'} deg, body z ${none.rig ? none.rig.body[2].toFixed(3) : 'n/a'}, hand ${none.rig && none.rig.arm ? 'up' : 'down'}, rim ${none.rig && none.rig.rimShown ? 'on' : 'off'}, window never blinked ${none.lit}`);
+    check('N5', 'ending: after a visit with E4, 2 s on screen, the window light blinks out (0.12 s) as the head turns onto the camera (with a low tone); a cold rim on head and shoulders; it walks to the glass, puts a hand on it and keeps staring from two angles (< 10 deg; 1280x720, 390x844, 880x920); without E4 none of it',
+      okRun(d) && okRun(p) && okRun(fo) && noneOk,
+      desc('1280x720', d) + ' | ' + desc('390x844', p) + ' | ' + desc('880x920', fo) + ` | no E4: figure ${none.figure}, turned ${none.fired}, head lifted ${none.head ? (none.head.pitch * 180 / Math.PI).toFixed(1) : 'n/a'} deg, body z ${none.rig ? none.rig.body[2].toFixed(3) : 'n/a'}, hand ${none.rig && none.rig.arm ? 'up' : 'down'}, rim ${none.rig && none.rig.rimShown ? 'on' : 'off'}, window never blinked ${none.lit}`);
     check('N5h', 'ending: at the glass the figure is >= 1.6x as tall on screen as in round 9 (the whole picture, 1280x720 and 390x844)',
       d.ratio >= 1.6 && p.ratio >= 1.6,
-      `1280x720 (angle 1): ${d.before.height} px before it turns (round 9's picture, ${d.before.n} px changed by drawing it) -> ${d.after.height} px at the glass with its hand up (${d.after.n} px) = ${d.ratio.toFixed(2)}x | 390x844 (angle 1): ${p.before.height} px -> ${p.after.height} px = ${p.ratio.toFixed(2)}x (needs >= 1.6x)`);
+      `1280x720: round 9's exit picture (no E4, entry orbit turned 0.35 rad) ${d.before.height} px (${d.before.n} px changed by drawing it) -> at the glass in the ending shot with its hand up ${d.after.height} px (${d.after.n} px) = ${d.ratio.toFixed(2)}x | 390x844: round 9's picture (turned 1.2 rad) ${p.before.height} px -> ${p.after.height} px = ${p.ratio.toFixed(2)}x (needs >= 1.6x)`);
+    // N9b: without E4 the exit goes back to the orbit it came from (item 2's tolerances)
+    { const a = none.o0, b = none.o1, dc = Math.hypot(a.cx - b.cx, a.cy - b.cy, a.cz - b.cz), dr = Math.abs(a.r - b.r), da = Math.max(Math.abs(a.theta - b.theta), Math.abs(a.phi - b.phi));
+      check('N9b', 'without E4 the exit goes back to the orbit it came from, not to the ending shot (item 2 tolerances)', dc < 0.05 && dr < 0.05 && da < 0.01 && !b.ending,
+        `entry orbit vs after the exit: centre ${dc.toExponential(1)} m, radius ${dr.toExponential(1)} m, angles ${da.toExponential(1)} rad; ending shot ${!!b.ending}; item 2 (no E4, three aims) is the other row of this run`); }
+    // N9: the ending shot on three screens
+    const n9ok = (r) => { const x = r.shotRead, rg = x.aspect < 1 ? [0.7, 0.9] : [0.35, 0.5]; return x.mode === 'orbit' && x.ending && x.share >= rg[0] && x.share <= rg[1] && x.figure === 'window' && x.inFrame.every(Boolean) && x.blocked.every((b) => b !== 'vendBody' && b !== 'frame') && Math.abs(x.focus - x.mid) < 0.05 && x.yaw >= 10 && x.yaw <= 20 && x.down >= 15 && x.down <= 25 && r.late <= 2.5; };
+    const n9desc = (name, r) => { const x = r.shotRead; return `${name}: ${x.mode}${x.ending ? ' (ending shot)' : ''}, camera at (${x.cam.map((v) => v.toFixed(2)).join(', ')}), ${x.yaw.toFixed(1)} deg right of the window normal, ${x.down.toFixed(1)} deg down; window ${(100 * x.share).toFixed(1)}% of the width (${x.aspect < 1 ? '70-90' : '35-50'}%); figure's 5 points in frame ${x.inFrame.filter(Boolean).length}/5, blocked by ${x.blocked.map((b) => b || '-').join(' / ')}; focus line ${x.focus.toFixed(3)} vs the window's middle ${x.mid.toFixed(3)}; the ending started ${r.late.toFixed(2)} s after the exit ended`; };
+    check('N9', 'the ending shot: after a visit with E4 the exit stops square on to the window (10-20 deg right, 15-25 deg down), the window 35-50% (landscape) or 70-90% (portrait) of the width, the figure in frame and not behind the vending machine or the window frame, the focus on the window, the ending within 2.5 s (1280x720, 390x844, 880x920)',
+      n9ok(d) && n9ok(p) && n9ok(fo), [['1280x720', d], ['390x844', p], ['880x920', fo]].map(([n, r]) => n9desc(n, r)).join(' | '));
   }
   // ---------- N6: the shop window brighter than the vending machine; the dog blocked at the door ----------
   {
@@ -1927,7 +1951,7 @@ const isExternal = (u) => {
     check('A8', 'regressions after the reskin: items 1-9, 1b, performance, player default, H1-H8, R1-R13, K1, K2, F1, F4, V1',
       rows.every(okRow), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !okRow(rows[i])).join(',') || 'none failing'}${neNote(rows)})`);
   }  {
-    const rows = report.checks.filter((c) => !/^N[1-8]h?$/.test(String(c.id)) && !['A8', 'F5', 'R9'].includes(String(c.id)));
+    const rows = report.checks.filter((c) => !/^N\d+[bh]?$/.test(String(c.id)) && !['A8', 'F5', 'R9'].includes(String(c.id)));
     check('N8', 'regressions after round 9: every earlier row passes (the card closed first on the normal entry)', rows.every(okRow), `${rows.filter((c) => c.pass).length}/${rows.length} earlier rows pass${neNote(rows)} (${rows.filter((c) => !okRow(c)).map((c) => c.id).join(',') || 'none failing'})`);
   }
 
