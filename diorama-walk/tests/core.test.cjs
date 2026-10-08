@@ -1353,7 +1353,8 @@ test('D1-D3: the dog comes in with E3, shakes, walks 2-3 m, growls at the staff 
       if (d.phase === 'out' && outAt === null) outAt = s.S.t;
       if (outAt !== null && outOfDoor === null && d.z > C.FACADE_Z + C.DOG.r + 0.05) outOfDoor = s.S.t;
     });
-    const dg = w.horror().dog, ph = dg.log.map((x) => x.phase);
+    const dg = w.horror().dog, ph = dg.log.map((x) => x.phase), sq = dg.log.find((x) => x.phase === 'squeeze'), stuckFrom = rw.frames.find((f) => f.phase === 'out' && f.t > outAt + 0.2 && rw.frames.some((g) => g.t > f.t && g.t < f.t + 0.6 && Math.hypot(g.x - f.x, g.z - f.z) < 0.05));
+    assert.ok(sq && stuckFrom && sq.t - stuckFrom.t >= 3 - 0.5 - 1e-9 && sq.t - outAt >= 3, `N6: it waits ~3 s before squeezing past (held from ${stuckFrom ? (stuckFrom.t - outAt).toFixed(2) : 'n/a'} s, squeezed at ${sq ? (sq.t - outAt).toFixed(2) : 'n/a'} s after setting off)`);
     assert.ok(ph.includes('squeeze') && outOfDoor !== null && outOfDoor - outAt <= 8 && rw.hits.length === 0 && rw.gap >= 0.6 && dg.goneAt !== null && dg.closedAt !== null && Math.hypot(w.S.player.x - 4.4, w.S.player.z + 0.5) < 0.1,
       `N6 standing in the doorway to one side${calm ? ' (calm)' : ''}: phases ${ph.join(',')}, out of the door ${outOfDoor === null ? 'never' : (outOfDoor - outAt).toFixed(2) + ' s'} after setting off, closest ${rw.gap.toFixed(2)} m, ${rw.hits.length} overlaps (the walker in the doorway keeps the door open themselves)`);
   }

@@ -31,6 +31,17 @@ html,body{margin:0;height:100%;overflow:hidden;background:${C.COLORS.sky};oversc
 #dbg{position:fixed;left:12px;top:10px;font:12px/1.45 ui-monospace,Menlo,monospace;color:${C.COLORS.accent};pointer-events:none;white-space:pre;text-shadow:0 1px 2px #000}
 body.noui #hint,body.noui #dbg{display:none}
 #dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
+#card{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,8,12,.62);z-index:20;cursor:pointer;touch-action:none}
+#card .box{box-sizing:border-box;width:min(86vw,360px);padding:26px 22px 18px;border-radius:14px;background:rgba(18,20,26,.92);box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center;color:#D6DEEA;font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+#card h1{margin:0 0 12px;font-size:24px;letter-spacing:.12em;color:#E8E0CC;font-weight:600}
+#card p{margin:2px 0}
+#card .go{margin-top:12px;color:${C.COLORS.accent}}
+#card a{display:inline-block;margin-top:16px;color:rgba(214,222,234,.6);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+#noteHint{position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100% - 24px);box-sizing:border-box;padding:8px 14px;border-radius:18px;background:rgba(12,14,18,.72);color:#E8E0CC;font:14px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;white-space:nowrap;cursor:pointer;display:none;z-index:5}
+#note{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,5,8,.72);z-index:15;cursor:pointer;touch-action:none}
+#note .paper{box-sizing:border-box;width:min(86vw,380px);padding:22px 22px 24px;background:#E9E0C9;color:#2A2420;box-shadow:0 8px 30px rgba(0,0,0,.65);transform:rotate(-2.5deg);font-family:"Kaiti SC","STKaiti","KaiTi",serif;font-size:max(16px,min(4.6vw,21px));line-height:1.75}
+#note .paper h2{margin:0 0 8px;font-size:1.35em;font-weight:600;text-align:center;letter-spacing:.2em}
+#note .paper p{margin:0}
 #joy{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:1.5px solid rgba(214,222,234,.5);background:rgba(214,222,234,.08);pointer-events:none;display:none}
 #joy i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(214,222,234,.38)}
 #joyHint{position:fixed;left:0;top:0;width:${2 * C.PAD.radius}px;height:${2 * C.PAD.radius}px;margin:${-C.PAD.radius}px 0 0 ${-C.PAD.radius}px;border-radius:50%;box-sizing:border-box;border:2px solid rgb(214,222,234);box-shadow:0 0 0 1.5px rgba(16,20,28,.9),inset 0 0 0 1.5px rgba(16,20,28,.9);background:rgba(214,222,234,.12);opacity:.25;pointer-events:none;display:none}
@@ -44,6 +55,15 @@ const darkEl = document.body.appendChild(Object.assign(document.createElement('d
 const joyEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'joy', innerHTML: '<i></i>' })), joyKnob = joyEl.firstChild;
 const joyHintEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'joyHint' }));   // where the joystick is, before it is pressed
 document.body.appendChild(hintEl);
+// round 9: the opening card (normal entry only; fixed views skip it), the note's hint and the note itself
+const cardEl = VIEW ? null : document.body.appendChild(Object.assign(document.createElement('div'), { id: 'card', innerHTML: CALM
+  ? '<div class="box"><h1>深夜杂货店</h1><p>安心版：不会有吓人的东西</p><p class="go">放大，走进去</p><a href="?">回到正常版</a></div>'
+  : '<div class="box"><h1>深夜杂货店</h1><p>建议戴耳机、关灯玩</p><p class="go">放大，走进去</p><a href="?calm=1">不敢玩？安心版</a></div>' }));
+const noteHintEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'noteHint', textContent: COARSE ? '收银台上有张纸条 · 点它看看' : '收银台上有张纸条 · 点它或按 F 看看' }));
+const noteEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'note' }));
+noteEl.innerHTML = '<div class="paper">' + (CALM ? C.NOTE_CALM.map((l) => `<p>${l}</p>`).join('') : `<h2>${C.NOTE_TEXT[0]}</h2>` + C.NOTE_TEXT.slice(1).map((l) => `<p>${l}</p>`).join('')) + '</div>';
+const cardOpen = () => !!cardEl && cardEl.style.display !== 'none';
+const noteOpen = () => noteEl.style.display === 'flex';
 const dbgEl = DEBUG ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 
 // ---------------- renderer, scene ----------------
@@ -74,6 +94,7 @@ function inside(mat) {
 const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
 const lamIn = (c) => inside(lam(c));
 const glow = (c) => new THREE.MeshBasicMaterial({ color: c });
+const VEND_DIM = 0.3;                           // round 9: the vending machine's light well under the shop window's (SPEC 两处小修①)
 const glassMat = () => new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: C.GLASS_OPACITY, depthWrite: false, side: THREE.DoubleSide });
 const MATS = {
   sidewalk: lam(COL.sidewalk), stripe: lam(COL.stripe),
@@ -84,7 +105,7 @@ const MATS = {
   shelf: lamIn(COL.shelf), shelfBoard: lamIn(COL.shelfBoard), goods: lamIn(COL.goods), goods2: lamIn(COL.goods2), goods3: lamIn(COL.goods3),
   freezerBody: lamIn(COL.chest), chestLid: lamIn(COL.chestLid), counter: lamIn(COL.counter), tvBody: lamIn(COL.tvBody), register: lamIn(COL.register),
   box: lamIn(COL.box), boxOut: lam(COL.box), hang: lamIn(COL.hang), cord: lamIn(COL.cord), storeCeiling: lamIn(COL.storeCeiling), dark: glow(COL.dark), mat: lamIn(COL.mat),
-  nextLightPanel: lam(COL.nextDark), bar: lamIn(COL.bar), stool: lamIn(COL.stool), shelf2: lamIn(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(COL.vending),
+  nextLightPanel: lam(COL.nextDark), bar: lamIn(COL.bar), stool: lamIn(COL.stool), shelf2: lamIn(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(new THREE.Color(COL.vending).multiplyScalar(VEND_DIM)),
   pole: lam(COL.pole), lamp: glow(COL.lamp), bench: lam(COL.bench), fence: lam(COL.fence),
   annex: lamIn(COL.annex), annexFloor: lamIn(COL.annexFloor), backGlow: glow(COL.backGlow),
 };
@@ -204,14 +225,35 @@ function makeFigure() {                             // faceless silhouette: caps
   const f = C.HORROR.figure, g = new THREE.Group(), top = f.h - 2 * f.headR - 0.01;
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(f.bodyR, top - 2 * f.bodyR, 6, 16), figMat);
   body.position.y = top / 2; body.scale.z = 0.72;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(f.headR, 18, 12), figMat);
-  head.position.y = top + 0.01 + f.headR;
-  body.castShadow = head.castShadow = true;
-  g.add(body, head); g.visible = false; scene.add(g);
+  // round 9: the head turns and lifts about the neck (the ending), so it has a front: a featureless face, flatter and a
+  // little forward of the skull, the same dark colour (no eyes, nothing on it)
+  const head = new THREE.Group(); head.position.y = top + 0.01; head.rotation.order = 'YXZ';
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(f.headR, 18, 12), figMat); skull.position.y = f.headR;
+  const face = new THREE.Mesh(new THREE.SphereGeometry(f.headR * 0.82, 14, 10), figMat); face.position.set(0, f.headR * 0.78, -f.headR * 0.42); face.scale.set(0.92, 1.06, 0.62);
+  head.add(skull, face);
+  body.castShadow = skull.castShadow = face.castShadow = true;
+  g.add(body, head); g.userData.head = head; g.visible = false; scene.add(g);
   return g;
 }
-const figPersist = makeFigure(), figScare = makeFigure(), figAisle = makeFigure();
-let figureHidden = false;                           // test hook: render the same frame without the figure
+const figPersist = makeFigure(), figScare = makeFigure(), figAisle = makeFigure(), figWarn = makeFigure();   // round 9: figWarn = rule 1
+// round 9: the wet footprints (one mesh per print, a bare foot drawn into a canvas, dark with a little shine)
+const footCanvas = document.createElement('canvas'); footCanvas.width = 32; footCanvas.height = 80;
+{ const g = footCanvas.getContext('2d'); g.fillStyle = '#fff';
+  g.beginPath(); g.ellipse(17, 50, 9, 22, 0.08, 0, Math.PI * 2); g.fill();                    // sole and heel
+  g.beginPath(); g.ellipse(14, 70, 7, 8, 0, 0, Math.PI * 2); g.fill();
+  for (const [x, y, r] of [[8, 22, 4.2], [14, 18, 3.6], [19, 17, 3.2], [24, 19, 2.8], [28, 23, 2.4]]) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); } }
+const footTex = new THREE.CanvasTexture(footCanvas);
+const footMeshes = C.FOOTPRINTS.map((f) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(C.FOOT.wid, C.FOOT.len).rotateX(-Math.PI / 2), inside(new THREE.MeshPhongMaterial({ color: COL.footprint, specular: 0x5a646c, shininess: 70, alphaMap: footTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })));
+  m.position.set(f.x, C.SIDEWALK_H + 0.006, f.z); m.rotation.y = f.yaw; if (f.foot === 'L') m.scale.x = -1; m.visible = false; scene.add(m); return m;
+});
+// round 9: the note on the till (light paper, a scrawl of strokes), lit by the bulb above it
+const noteCanvas = document.createElement('canvas'); noteCanvas.width = 96; noteCanvas.height = 128;
+{ const g = noteCanvas.getContext('2d'), r = C.rng(909); g.fillStyle = '#E3D9BF'; g.fillRect(0, 0, 96, 128); g.strokeStyle = 'rgba(40,30,24,.85)'; g.lineWidth = 2.2; g.lineCap = 'round';
+  for (let row = 0; row < 7; row++) { const y = 16 + row * 15 + (row === 0 ? 0 : 4); g.beginPath(); let x = row === 0 ? 30 : 10; g.moveTo(x, y); while (x < (row === 0 ? 66 : 84 - r() * 18)) { x += 3 + r() * 5; g.lineTo(x, y + (r() - 0.5) * 6); } g.stroke(); } }
+const noteMesh = new THREE.Mesh(new THREE.PlaneGeometry(C.NOTE.w, C.NOTE.l).rotateX(-Math.PI / 2), inside(new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(noteCanvas) })));
+{ const q = C.notePoint(); noteMesh.position.set(q[0], q[1], q[2]); noteMesh.rotation.y = Math.PI / 2 + C.NOTE.yaw; scene.add(noteMesh); }
+let figureHidden = false, footHidden = false;      // test hooks: render the same frame without the figure / the footprints
 const placeAt = (g, p) => { g.position.set(p.x, C.SIDEWALK_H, p.z); g.rotation.y = p.yaw; };
 const placeFigure = (g, spot) => placeAt(g, C.HORROR.spots[spot]);
 const leafPivot = new THREE.Group();
@@ -419,6 +461,21 @@ function playSound(kind, lv, ev = {}) {
     lfo.frequency.value = 4.2; const lg = ctx.createGain(); lg.gain.value = 0.35; lfo.connect(lg); lg.connect(am.gain); am.gain.value = 0.65; lfo.start(t); lfo.stop(t + dur);
     am.connect(g); g.connect(pan); noiseBurst(am, 'lowpass', 190, 1.2, t, dur); const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300; lp.connect(am); osc('sawtooth', 75, lp, t, t + dur);
     audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice(), length: dur });
+  } else if (kind === 'breath') {                  // round 9: a quiet breath beside you in the dark (breathy band of noise, in and out)
+    const peak = lv.base * C.AUDIO.breath, pan = placed(ev.pos), g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.45); g.gain.linearRampToValueAtTime(peak * 0.35, t + 0.7); g.gain.linearRampToValueAtTime(peak * 0.8, t + 1.0); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6); g.connect(pan);
+    noiseBurst(g, 'bandpass', 750, 0.9, t, 1.65);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice() });
+  } else if (kind === 'wetstep') {                 // round 9: a wet bare footstep at its print (a soft slap, low and short)
+    const peak = lv.base * C.AUDIO.wetstep, pan = placed(ev.pos), g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); g.connect(pan);
+    noiseBurst(g, 'bandpass', 420, 1.4, t, 0.13);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, pos: ev.pos.slice() });
+  } else if (kind === 'drone') {                   // round 9: the ending's very low long tone (two low sines, swelling 1.2 s, 3.5 s in all)
+    const peak = lv.base * C.AUDIO.drone, g = ctx.createGain(), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 1.2); g.gain.setValueAtTime(peak, t + 2.0); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.5); lp.connect(g); g.connect(master);
+    osc('sine', 49, lp, t, t + 3.6); osc('sine', 73.4, lp, t, t + 3.6); osc('triangle', 98, lp, t, t + 3.6);
+    audio.log.push({ kind, at: t, simT: ev.t, peak, base: lv.base, length: 3.5 });
   } else if (kind === 'whimper') {                 // one whimper: a sine falling 1100 -> 650 Hz with a little vibrato
     const peak = lv.base * C.AUDIO.whimper, pan = placed(ev.pos), g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5); g.connect(pan);
@@ -501,8 +558,12 @@ function sync() {
   // scare version: what the state machine says this instant
   const V = sim.levels();
   figPersist.visible = !figureHidden && !!V.figure; if (V.figure) placeFigure(figPersist, V.figure);
+  { const hd = figPersist.userData.head, E = V.end; if (E && V.figure === 'window') { figPersist.rotation.y = E.bodyYaw; hd.rotation.y = E.headRel; hd.rotation.x = E.pitch; } else hd.rotation.set(0, 0, 0); }   // round 9: the ending
   figScare.visible = !figureHidden && V.scare; if (V.scare) placeFigure(figScare, 'backroom');
   figAisle.visible = !figureHidden && V.aisle !== null; if (V.aisle !== null) placeAt(figAisle, C.aisleSpot(C.GROCERY.aisles[V.aisle]));
+  figWarn.visible = !figureHidden && !!V.rule1; if (V.rule1) placeAt(figWarn, V.rule1);   // round 9: rule 1
+  { const on = new Map(V.foot.map((f) => [f.i, f.alpha])); footMeshes.forEach((m, i) => { const a = on.get(i); m.visible = !footHidden && a !== undefined; if (a !== undefined) m.material.opacity = 0.92 * a; }); }
+  { const show = !!V.note && !noteOpen() && !cardOpen() && S.mode === 'walk'; noteHintEl.style.display = show ? 'block' : 'none'; }
   leafPivot.rotation.y = -C.leafAngle(V.back);
   // round 8 lights: bulbs and tube (E0/E5 darkness, E2 one by one, the tube's flicker), the TV, the glow on the pavement
   bulbTill.intensity = LIGHT.bulbTill * V.bulbs[0]; bulbAisle.intensity = LIGHT.bulbAisle * V.bulbs[1]; tubeLight.intensity = LIGHT.tube * V.tube;
@@ -537,6 +598,27 @@ function sync() {
   const h = hints[sim.snapshot().level] || '';
   if (h !== hintNow) { hintEl.innerHTML = h; hintNow = h; }
 }
+
+// ---------------- round 9: the opening card and the note ----------------
+if (cardEl) {
+  // a click (pressed and let go within 8 px) closes it and starts the sound; a drag over it does nothing
+  let down = null;
+  const swallow = (e) => { if (e.target.tagName !== 'A') { e.preventDefault(); e.stopPropagation(); } };
+  cardEl.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; swallow(e); }); cardEl.addEventListener('pointerup', swallow);
+  cardEl.addEventListener('wheel', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+  cardEl.addEventListener('click', (e) => { if (e.target.tagName === 'A') return; e.preventDefault(); if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > C.PAD.tapPx) { down = null; return; } down = null; cardEl.style.display = 'none'; startAudio(); });
+}
+let noteOpenedAt = -1e9;
+function openNote() { if (cardOpen()) return; noteOpenedAt = performance.now(); noteEl.style.display = 'flex'; sim.drive(0, 0); sim.turn(0); for (const k of Object.keys(keys)) keys[k] = false; noteHintEl.style.display = 'none'; }
+function closeNote() { noteEl.style.display = 'none'; }
+noteEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
+noteEl.addEventListener('click', (e) => { e.preventDefault(); if (performance.now() - noteOpenedAt > 400) closeNote(); });   // not the click of the very tap that opened it
+noteHintEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); startAudio(); });
+noteHintEl.addEventListener('click', (e) => { e.preventDefault(); openNote(); });
+// a tap on the note itself opens it (mouse click or touch tap, in the shop)
+const noteRay = new THREE.Raycaster();
+const noteAt = (sx, sy) => { if (sim.S.mode !== 'walk') return false; sync(); camera.updateMatrixWorld(); noteRay.setFromCamera(new THREE.Vector2(sx * 2 - 1, 1 - sy * 2), camera); return noteRay.intersectObject(noteMesh, false).length > 0; };
+{ const tap0 = sim.tapAt; sim.tapAt = (sx, sy) => { if (noteAt(sx, sy)) { openNote(); return true; } return tap0(sx, sy); }; }
 
 // ---------------- input: Pointer Events for mouse and touch ----------------
 const pad = C.createTouchPad(sim, { width: innerWidth, height: innerHeight });
@@ -584,7 +666,13 @@ const keys = {};
 let keyDriving = false;
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (cardOpen()) { e.preventDefault(); return; }            // round 9: nothing happens until the opening card is closed
+  if (noteOpen()) {                                          // round 9: the note open: F / Enter / Esc only close it
+    if (e.code === 'KeyF' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Escape') { e.preventDefault(); closeNote(); }
+    return;
+  }
   startAudio();
+  if (e.code === 'KeyF' && sim.levels().note) { e.preventDefault(); openNote(); return; }
   keys[e.code] = true;
   if (e.code === 'Escape') sim.escape();
   if (e.code.startsWith('Arrow')) e.preventDefault();          // the arrows walk and turn; they must not scroll the page
@@ -634,9 +722,9 @@ window.__diorama = {
   // the first-visit wanderer (core.createWanderer), its keys fed through the page's key handling; quarter of a second per frame
   // the first-visit wanderer (core.createWanderer), its keys fed through the page's key handling, a quarter of a second per
   // frame. `stop` names an event to pause at (the same wanderer carries on with resume: true); otherwise it runs to E4 or maxT.
-  wander: ({ seed = 1, aim = 'door', maxT = 90, chunk = 0.25, stop = 'E4', resume = false } = {}) => new Promise((resolve) => {
+  wander: ({ seed = 1, aim = 'door', maxT = 90, chunk = 0.25, stop = 'E4', resume = false, senses = 'sound' } = {}) => new Promise((resolve) => {
     sim.S.auto = false;
-    if (!resume || !wanderRun) wanderRun = { w: C.createWanderer(sim, seed, { aim }), t0: sim.S.t };
+    if (!resume || !wanderRun) wanderRun = { w: C.createWanderer(sim, seed, { aim, senses }), t0: sim.S.t };
     const { w, t0 } = wanderRun, dt = 1 / 60, map = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', turnL: 'ArrowLeft', turnR: 'ArrowRight', run: 'ShiftLeft' };
     const tick = () => {
       for (let i = 0; i < Math.round(chunk / dt); i++) {
@@ -678,7 +766,12 @@ window.__diorama = {
       // the dog as drawn: which way its head points (tail -> head, from the meshes), how low the body sits, the tail's swing
       dog: dog.visible ? (() => { dog.updateMatrixWorld(true); const hd = dogHead.getWorldPosition(new THREE.Vector3()), tl = dogTail.getWorldPosition(new THREE.Vector3());
         return { ...dogPose, drawn: true, drawnYaw: Math.atan2(-(hd.x - tl.x), -(hd.z - tl.z)), drawnLow: -dogBody.position.y, tailSwing: dogTail.rotation.y, at: [dog.position.x, dog.position.z] }; })() : null,
-      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, color: '#' + figMat.color.getHexString() }, leaf: -C.BACKDOOR.dir * leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
+      figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, warn: figWarn.visible, color: '#' + figMat.color.getHexString(),
+        warnAt: figWarn.visible ? [figWarn.position.x, figWarn.position.z] : null,
+        // round 9: the window figure's head as drawn: where it is and which way its face points (from the meshes)
+        endHead: figPersist.visible ? (() => { scene.updateMatrixWorld(); const hd = figPersist.userData.head, p = hd.children[0].getWorldPosition(new THREE.Vector3()), d = hd.getWorldDirection(new THREE.Vector3()).negate();
+          return { pos: [p.x, p.y, p.z], dir: [d.x, d.y, d.z], bodyYaw: figPersist.rotation.y, headRel: hd.rotation.y, pitch: hd.rotation.x }; })() : null },
+      foot: footMeshes.filter((m) => m.visible).length, leaf: -C.BACKDOOR.dir * leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
       camera: [camera.position.x, camera.position.y, camera.position.z],   // drawn camera (the simulation's plus any shake)
       drawnRoofs: { ...Object.fromEntries(['storeRoof', 'storeCeiling', 'hang', 'nextRoof', 'nextLightPanel', 'annex', 'storeWall'].map((k) => [k, MESH[k].visible ? MESH[k].material.opacity : 0])), ceilingGrid: ceilingGrid.visible ? 1 : 0, bulbs: bulbMeshes[0].visible ? 1 : 0 },
       audio: audio ? (audio.ctx ? audio.ctx.state : audio.state) : 'not started', tiltOn: tiltPasses[0][0].enabled, focusY, fov: camera.fov, hfov: C.hfov(camera.fov, cssW / cssH), rainSegments: N_RAIN };
@@ -688,6 +781,13 @@ window.__diorama = {
   trigger: (name) => { const ok = sim.trigger(name); sync(); return ok; },
   levels: () => sim.levels(),
   audioLog: () => (audio && audio.log ? audio.log.slice() : null),
+  // round 9: the opening card and the note, as the page shows them
+  card: () => { if (!cardEl) return { open: false, shown: false }; const b = cardEl.firstChild.getBoundingClientRect(), a = cardEl.querySelector('a');
+    return { open: cardOpen(), shown: true, box: [b.left, b.top, b.right, b.bottom], text: cardEl.firstChild.innerText, link: a.getAttribute('href'), linkText: a.textContent }; },
+  note: () => { sync(); const p = noteEl.firstChild, b = p.getBoundingClientRect(), ps = [...p.querySelectorAll('h2,p')];
+    return { hint: noteHintEl.style.display === 'block', hintText: noteHintEl.textContent, hintBox: (() => { const r = noteHintEl.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })(), open: noteOpen(),
+      lines: ps.map((x) => x.textContent), fontPx: Math.min(...ps.map((x) => parseFloat(getComputedStyle(x).fontSize))), font: getComputedStyle(p).fontFamily, box: [b.left, b.top, b.right, b.bottom], transform: getComputedStyle(p).transform, near: sim.levels().note }; },
+  noteScreen: () => { sync(); camera.updateMatrixWorld(); const v = noteMesh.position.clone().project(camera); return [((v.x + 1) / 2) * cssW, ((1 - v.y) / 2) * cssH]; },
   // round 8: the bed gains the simulation asks for now (A6), and what the nodes are actually set to
   audioGains: () => { const V = sim.levels(), L = sim.looksNow(); return { planned: { rain: L.volume, ...V.audio }, nodes: audio && audio.ctx ? Object.fromEntries(['buzz', 'snow', 'freezer', 'awning'].map((k) => [k, audio[k].gain.value]).concat([['rain', audio.g.gain.value]])) : null }; },
   // the television's screen as drawn (64 x 48): mean brightness, and in P2 the figure's pixels against the reflection around it
@@ -698,13 +798,15 @@ window.__diorama = {
     return { mean: all / (64 * 48), figure: fig / nf, around: ring / nr, state: tvState && { ...tvState } };
   },
   hideFigure: (on) => { figureHidden = !!on; sync(); },
+  hideFoot: (on) => { footHidden = !!on; sync(); },   // round 9 test hook: the same frame without the footprints
   figureMask: (on) => { figMat.color.set(on ? '#ffffff' : C.HORROR.figure.color); sync(); },   // paint the figure white to find its pixels
   // Can the camera see these points? Frustum, then a ray against every opaque mesh (glass, rain, lines and the figures skipped).
   visibility: (pts) => {
     sync(); scene.updateMatrixWorld(); camera.updateMatrixWorld();   // the staff door leaf moves in sync(): without the scene update its matrix is the last drawn frame's
     const fr = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     const opaque = []; scene.traverse((o) => { if (o.isMesh && o.visible && !(o.material.transparent) && !o.parent?.isGroup || (o.isMesh && o.parent === leafPivot)) opaque.push(o); });
-    const solid = opaque.filter((o) => !figPersist.children.includes(o) && !figScare.children.includes(o) && o !== bigGround);
+    const figs = [figPersist, figScare, figAisle, figWarn].flatMap((g) => [...g.children, ...g.userData.head.children]);
+    const solid = opaque.filter((o) => !figs.includes(o) && !footMeshes.includes(o) && o !== noteMesh && o !== bigGround);
     const rc = new THREE.Raycaster(), from = camera.position.clone();
     return pts.map((p) => { const q = new THREE.Vector3(...p), dist = from.distanceTo(q); rc.set(from, q.clone().sub(from).normalize()); rc.far = dist - 0.05;
       const hit = rc.intersectObjects(solid, false)[0]; return { inFrustum: fr.containsPoint(q), blockedBy: hit ? (hit.object.parent === leafPivot ? 'staffDoorLeaf' : (Object.entries(MESH).find(([, m]) => m === hit.object) || ['other'])[0]) : null }; });

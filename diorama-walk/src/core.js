@@ -34,6 +34,7 @@ export const COLORS = {
 export const GLASS_OPACITY = 0.25, RAIN_OPACITY = 0.35;
 // Colours the spec leaves open (furniture, floors, roofs). Greys and browns that sit between the spec colours.
 export const EXTRA_COLORS = {
+  footprint: '#1A1714',                           // round 9: wet bare footprints (dark, a little shine)
   storeRoof: '#7E776C', nextRoof: '#6C5747', storeFloor: '#7A7062', storeGrid: '#5C5449', nextFloor: '#5E4B3D', storeWall: '#4A453D',
   shelf: '#5A4632', shelfBoard: '#6E5640', freezerBody: '#A9B2BE', counter: '#4E3D2E', dark: '#11151D', mat: '#2E2A26',
   frame: '#9AA0A6', bar: '#5A4436', stool: '#3E3A37', shelf2: '#4D3D33', vendBody: '#B5BFCC', pole: '#3A404B',
@@ -496,7 +497,7 @@ export const E4_BANG = HORROR.e4.reveal + HORROR.e4.slam;              // the do
 // Sound levels (round 8): the rain (with the rain on the tin awning), the tube's buzz, the television's snow (louder near the
 // till) and the chest freezer's hum are the base; the hanging bell about 2x, the bang about 4x. In the E2 silence only the
 // rain is left. `st`: { hum, tube, tv } on/off (0-1) and the walker's distances to the television and the awning.
-export const AUDIO = { buzz: 0.04, snow: 0.05, freezer: 0.06, awning: 0.05, bell: 2, slam: 4, sting: 1.6, paw: 0.5, shake: 0.9, growl: 1.4, whimper: 1.0 };
+export const AUDIO = { buzz: 0.04, snow: 0.05, freezer: 0.06, awning: 0.05, bell: 2, slam: 4, sting: 1.6, paw: 0.5, shake: 0.9, growl: 1.4, whimper: 1.0, breath: 0.45, wetstep: 0.35, drone: 1.3 };   // round 9: breath, wet steps, the ending's tone
 export const snowNear = (d) => clamp(1 - (d - 0.8) / 5, 0.15, 1);           // television snow: full within 0.8 m, 15% from 5.8 m
 export const awningNear = (d) => clamp(1 - d / 9, 0.2, 1);                  // rain on the awning: loudest under it
 export function audioLevels(s, st = {}) {

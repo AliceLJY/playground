@@ -25,7 +25,7 @@ const isExternal = (u) => {
   const check = (id, name, pass, detail) => { report.checks.push({ id, name, pass: !!pass, detail }); console.log(`${pass ? 'PASS' : 'FAIL'}  #${id}  ${name} — ${detail}`); };
   const allErrors = [], allExternal = [];
   let loads = 0;
-  async function open(query, { width = 1280, height = 720, dpr = 1, touch = false } = {}) {
+  async function open(query, { width = 1280, height = 720, dpr = 1, touch = false, keepCard = false } = {}) {
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch });
     const page = await ctx.newPage(), errors = [], external = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
@@ -34,6 +34,12 @@ const isExternal = (u) => {
     await page.goto(base + query);
     await page.waitForFunction(() => window.__diorama && window.__diorama.ready, null, { polling: 100, timeout: 30000 });
     loads++;
+    // round 9: the normal entry opens with a card; every earlier item is measured after it is closed (SPEC N8: 先关卡再测),
+    // with a real click / tap on the dimmed part of the screen (which also starts the sound, as for a real visitor)
+    if (!keepCard && await page.evaluate(() => window.__diorama.card().open)) {
+      if (touch) await page.touchscreen.tap(width / 2, 40); else await page.mouse.click(width / 2, 40);
+      await page.waitForFunction(() => !window.__diorama.card().open, null, { polling: 100, timeout: 5000 });
+    }
     const close = async () => {
       allErrors.push(...errors.map((e) => `${query || '(no query)'} ${width}x${height}: ${e}`));
       allExternal.push(...external);
@@ -1561,6 +1567,290 @@ const isExternal = (u) => {
     console.log('        pictures: ' + Object.entries(lum).map(([k, v]) => `${k} mean ${v.mean.toFixed(1)}, bright 10% ${v.top.toFixed(0)} / dark half ${v.bottom.toFixed(1)}`).join('; '));
   }
 
+  // ======================= 第九轮：夜班须知、脚印与抬头的结局 (SPEC 第九轮 N1-N8) =======================
+  const NOTE_WORDS = ['夜班须知', '1. 灯灭的时候，站着别动。', '2. 门自己开了，就当没看见。', '3. 不要盯着电视超过十秒。', '4. 后面那扇门有人敲，不要过去。', '5. 下班前，记得看一眼橱窗。'];
+  // ---------- N1: the opening card ----------
+  {
+    const P = await open('', { keepCard: true }), page = P.page;
+    await page.waitForTimeout(300);
+    const c0 = await page.evaluate(() => window.__diorama.card()), s0 = await page.evaluate(() => { const S = window.__diorama.state(); return JSON.stringify({ o: S.orbit, m: S.mode, s: S.s, z: S.z }); });
+    await page.screenshot({ path: shot('N1-card-desktop') });
+    // everything a visitor might try before closing it: drag, wheel, keys
+    await page.mouse.move(300, 300); await page.mouse.down(); await page.mouse.move(520, 340, { steps: 8 }); await page.mouse.up();
+    await page.mouse.move(640, 360); await page.mouse.wheel(0, -600); await page.waitForTimeout(150);
+    for (const k of ['KeyW', 'ArrowLeft', 'KeyQ', 'Escape', 'Space', 'KeyF', 'Enter']) await page.keyboard.press(k);
+    await page.waitForTimeout(400);
+    const s1 = await page.evaluate(() => { const S = window.__diorama.state(); return JSON.stringify({ o: S.orbit, m: S.mode, s: S.s, z: S.z }); }), a1 = await page.evaluate(() => window.__diorama.info().audio), c1 = await page.evaluate(() => window.__diorama.card().open);
+    await page.mouse.click(640, 120); await page.waitForTimeout(250);
+    const c2 = await page.evaluate(() => ({ card: window.__diorama.card().open, audio: window.__diorama.info().audio }));
+    await page.mouse.move(640, 360); await page.mouse.wheel(0, -400); await page.waitForTimeout(300);
+    const s2 = await page.evaluate(() => { const S = window.__diorama.state(); return JSON.stringify({ o: S.orbit, m: S.mode, s: S.s, z: S.z }); });
+    await P.close();
+    // the link to the calm version, followed for real
+    const L = await open('', { keepCard: true });
+    const box = await L.page.evaluate(() => { const r = document.querySelector('#card a').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    await Promise.all([L.page.waitForNavigation(), L.page.mouse.click(box[0], box[1])]);
+    await L.page.waitForFunction(() => window.__diorama && window.__diorama.ready, null, { polling: 100 });
+    const calm = await L.page.evaluate(() => ({ search: location.search, card: window.__diorama.card(), calm: window.__diorama.horror().calm }));
+    await L.close();
+    const V = await open('?view=hero', { keepCard: true }), cv = await V.page.evaluate(() => window.__diorama.card()); await V.close();
+    const Ph = await open('', { width: 390, height: 844, dpr: 3, touch: true, keepCard: true });
+    await Ph.page.waitForTimeout(300);
+    const cp = await Ph.page.evaluate(() => ({ card: window.__diorama.card(), sw: document.documentElement.scrollWidth, iw: innerWidth, ih: innerHeight }));
+    await Ph.page.screenshot({ path: shot('N1-card-phone') });
+    await Ph.page.touchscreen.tap(195, 120); await Ph.page.waitForTimeout(250);
+    const cp2 = await Ph.page.evaluate(() => ({ card: window.__diorama.card().open, audio: window.__diorama.info().audio }));
+    await Ph.close();
+    report.n1 = { c0, c1, a1, c2, calm, cv, cp, cp2, same: s0 === s1, moved: s2 !== s1 };
+    const inBox = (b, w, h) => b[0] >= 0 && b[1] >= 0 && b[2] <= w && b[3] <= h;
+    check('N1', 'opening card: shown on the normal entry; drag, wheel and keys do nothing until it is closed; one click closes it and starts the sound; the calm link; not on fixed views; whole on 390x844',
+      c0.open && /深夜杂货店/.test(c0.text) && /建议戴耳机、关灯玩/.test(c0.text) && /放大，走进去/.test(c0.text) && c0.linkText === '不敢玩？安心版' && c0.link === '?calm=1' &&
+      s0 === s1 && c1 && a1 === 'not started' && !c2.card && c2.audio === 'running' && s2 !== s1 &&
+      calm.search === '?calm=1' && calm.calm && /安心版：不会有吓人的东西/.test(calm.card.text) && calm.card.link === '?' && !cv.shown &&
+      cp.card.open && inBox(cp.card.box, cp.iw, cp.ih) && cp.sw <= cp.iw && !cp2.card && cp2.audio === 'running',
+      `card "${c0.text.replace(/\n+/g, ' / ')}", link ${c0.link}; drag + wheel + W, ←, Q, Esc, Space, F, Enter with it up: scene unchanged ${s0 === s1}, card still up ${c1}, sound ${a1}; ` +
+      `one click: card ${c2.card ? 'still up' : 'gone'}, sound ${c2.audio}; a wheel notch after that zooms ${s2 !== s1}; link clicked -> ${calm.search}, calm ${calm.calm}, card "${calm.card.text.replace(/\n+/g, ' / ')}" (link back ${calm.card.link}); ?view=hero: card ${cv.shown}; ` +
+      `390x844: box ${cp.card.box.map((v) => v.toFixed(0)).join(',')} inside ${cp.iw}x${cp.ih} ${inBox(cp.card.box, cp.iw, cp.ih)}, scrollWidth ${cp.sw}; one tap -> card ${cp2.card ? 'up' : 'gone'}, sound ${cp2.audio}`);
+  }
+
+  // ---------- N2: the note on the till ----------
+  {
+    const goNote = (page) => page.evaluate(() => { const D = window.__diorama, q = D.core.notePoint(); D.enter('door'); for (let i = 0; i < 900 && D.state().mode !== 'walk'; i++) D.step(1 / 60, 1);
+      D.place(6.3, -1.9, -Math.PI / 2); D.lookAt(...q); for (let i = 0; i < 150; i++) D.step(1 / 60, 1); return D.note(); });
+    const P = await open(''), page = P.page;
+    const n0 = await goNote(page);
+    await page.waitForTimeout(150);
+    const ns = await page.evaluate(() => window.__diorama.noteScreen());
+    await page.mouse.click(ns[0], ns[1]); await page.waitForTimeout(150);
+    const byClick = await page.evaluate(() => window.__diorama.note());
+    await page.screenshot({ path: shot('N2-note-desktop') });
+    await page.mouse.click(200, 650); await page.waitForTimeout(150);
+    const closedByClick = !(await page.evaluate(() => window.__diorama.note().open));
+    const hb = (await page.evaluate(() => window.__diorama.note())).hintBox;
+    await page.mouse.click((hb[0] + hb[2]) / 2, (hb[1] + hb[3]) / 2); await page.waitForTimeout(150);
+    const byHint = await page.evaluate(() => window.__diorama.note().open);
+    await page.keyboard.press('KeyF'); const closedByF = !(await page.evaluate(() => window.__diorama.note().open));
+    await page.keyboard.press('KeyF'); const byF = await page.evaluate(() => window.__diorama.note().open);
+    await page.keyboard.press('Enter'); const closedByEnter = !(await page.evaluate(() => window.__diorama.note().open));
+    await page.keyboard.press('KeyF'); await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+    const esc = await page.evaluate(() => ({ open: window.__diorama.note().open, mode: window.__diorama.state().mode }));
+    const far = await page.evaluate(() => { const D = window.__diorama; D.place(4.2, -1.9, -Math.PI / 2); D.lookAt(...D.core.notePoint()); for (let i = 0; i < 120; i++) D.step(1 / 60, 1); return D.note(); });
+    await P.close();
+    const T = await open('', { width: 390, height: 844, dpr: 3, touch: true }), tp = T.page;
+    const t0 = await goNote(tp);
+    const ts = await tp.evaluate(() => window.__diorama.noteScreen());
+    await tp.touchscreen.tap(ts[0], ts[1]); await tp.waitForTimeout(200);
+    const tOpen = await tp.evaluate(() => window.__diorama.note());
+    await tp.screenshot({ path: shot('N2-note-phone') });
+    await T.close();
+    const Cm = await open('?calm=1'), cn = await goNote(Cm.page); await Cm.page.keyboard.press('KeyF'); const cOpen = await Cm.page.evaluate(() => window.__diorama.note()); await Cm.close();
+    report.n2 = { n0, byClick, closedByClick, byHint, closedByF, byF, closedByEnter, esc, far, t0, tOpen, cOpen };
+    const tilt = (m) => { const v = m.match(/matrix\(([^)]+)\)/); if (!v) return 0; const [a, b] = v[1].split(',').map(Number); return (Math.atan2(b, a) * 180) / Math.PI; };
+    check('N2', 'the note: hint within reach when looking at it; opened by clicking it, its hint or F; words exactly as in the SPEC; closed by a click, F or Enter; Esc only closes it; >= 16 px and whole on 390x844; calm: today\'s special',
+      n0.hint && n0.hintText === '收银台上有张纸条 · 点它或按 F 看看' && byClick.open && JSON.stringify(byClick.lines) === JSON.stringify(NOTE_WORDS) && closedByClick && byHint && closedByF && byF && closedByEnter && !esc.open && esc.mode === 'walk' && !far.hint &&
+      t0.hint && t0.hintText === '收银台上有张纸条 · 点它看看' && tOpen.open && tOpen.fontPx >= 16 && tOpen.box[0] >= 0 && tOpen.box[1] >= 0 && tOpen.box[2] <= 390 && tOpen.box[3] <= 844 && /Kaiti SC/.test(tOpen.font) && Math.abs(tilt(tOpen.transform)) > 1 &&
+      JSON.stringify(cOpen.lines) === JSON.stringify(['今日特价：汽水两块']) && cOpen.open,
+      `0.94 m from it, looking at it: hint "${n0.hintText}"; click on the note -> open ${byClick.open}, lines ${JSON.stringify(byClick.lines)} (match ${JSON.stringify(byClick.lines) === JSON.stringify(NOTE_WORDS)}); click -> closed ${closedByClick}; click on the hint -> open ${byHint}; F -> closed ${closedByF}; F -> open ${byF}; Enter -> closed ${closedByEnter}; ` +
+      `F then Esc -> note ${esc.open ? 'open' : 'closed'}, still ${esc.mode}; 3.0 m away: hint ${far.hint}; 390x844 touch: hint "${t0.hintText}", tap on the note -> open ${tOpen.open}, smallest font ${tOpen.fontPx} px, paper ${tOpen.box.map((v) => v.toFixed(0)).join(',')}, font ${tOpen.font}, tilted ${tilt(tOpen.transform).toFixed(1)} deg; calm: ${JSON.stringify(cOpen.lines)}`);
+  }
+
+  // ---------- N3: rule 1 in the page (pictures at 3.0, 2.0, 1.2 m) ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(helpers);
+    const figAt = async (name) => {
+      const r = await page.evaluate(() => { const D = window.__diorama, i = D.info(), st = D.state(), f = D.levels().rule1, C = D.core, F = C.SIDEWALK_H, hf = C.HORROR.figure;
+        const v = f ? D.visibility([[f.x, F + hf.h - hf.headR, f.z], [f.x, F + 0.85, f.z]]) : [];
+        return { f, drawn: i.figures.warn, at: i.figures.warnAt, d: f ? Math.hypot(f.x - st.player.x, f.z - st.player.z) : null, v, t: st.t }; });
+      await page.evaluate(() => window.__diorama.ui(false)); await page.screenshot({ path: shot(name) }); await page.evaluate(() => window.__diorama.ui(true));
+      return r;
+    };
+    // E2 while walking (the first time)
+    await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.enter(); D.walkRoute([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4], [5.0, -0.4]]); H.dt = 1 / 240; H.until(() => !!D.horror().e2, 20); const e2 = D.horror().e2.t0; H.until(() => D.state().t >= e2 + D.core.E2_TOTAL + 0.1, 4); });
+    const f1 = await figAt('N3-figure-3.0m');
+    const stay = await page.evaluate(() => { const D = window.__diorama, H = window.__H, f = D.levels().rule1; let last = null, flick = false; H.each = (st) => { if (D.info().figures.warn) last = st.t; else if (last !== null && !flick && st.t < f.t1 + 0.02) flick = D.levels().tube === 0; }; H.until(() => D.state().t >= f.t1 + 0.05, 8); H.each = null; return { t0: f.t0, t1: f.t1, last, flick }; });
+    // E3 from 3 m in, then the two short blackouts, walking 1 m in each
+    await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.dt = 1 / 60; D.walkRoute([[4.5, -3.0]]); H.until(() => !D.state().player.walking, 10); D.lookAt(4.5, 1.6, -7); H.until(() => !!D.horror().e3, 20); });
+    const shots3 = [];
+    for (const [i, name] of [[0, 'N3-figure-2.0m'], [1, 'N3-figure-1.2m']]) {
+      await page.evaluate((i) => { const D = window.__diorama, H = window.__H; H.dt = 1 / 240; const b = D.horror().blackouts.filter((x) => x.kind === 'short')[i]; H.until(() => D.state().t >= b.start + 0.05, 40); D.walkTo(4.5, -4.0); H.until(() => D.state().t >= b.end + 0.1, 3); }, i);
+      shots3.push(await figAt(name));
+      await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.dt = 1 / 60; D.walkTo(4.5, -3.0); H.until(() => !D.state().player.walking, 5); D.lookAt(4.5, 1.6, -7); H.until(() => !D.state().player.looking, 3); });
+    }
+    await P.close();
+    // standing still in E2's dark: nothing but a breath
+    const Q = await open('?view=hero'), q = Q.page;
+    await q.keyboard.press('KeyX');
+    await q.evaluate(helpers);
+    const still = await q.evaluate(() => { const D = window.__diorama, H = window.__H; H.enter(); D.walkRoute([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4], [5.0, -0.4]]); H.dt = 1 / 240; H.until(() => !!D.horror().e2, 20); D.stopWalk(); const e2 = D.horror().e2.t0; let drawn = 0; H.each = () => { if (D.info().figures.warn) drawn++; }; H.until(() => D.state().t >= e2 + D.core.E2_TOTAL + 2, 6); H.each = null;
+      return { drawn, log: D.horror().rule1.log, breath: (D.audioLog() || []).filter((x) => x.kind === 'breath') }; });
+    await Q.close();
+    const all = [f1, ...shots3];
+    report.n3 = { all, stay, still };
+    const okF = (r, want) => r.f && r.drawn && Math.abs(r.d - want) <= 0.2 + 1e-9 && r.v.every((x) => x.inFrustum !== undefined) && !r.v[0].blockedBy && !r.v[1].blockedBy && r.v[0].inFrustum;
+    check('N3', 'rule 1 in the page: moving in the dark brings the figure 3.0 / 2.0 / 1.2 m ahead (drawn, its head and middle not blocked), for >= 1.2 s, gone at a flicker; standing still: no figure, a breath',
+      okF(all[0], 3.0) && okF(all[1], 2.0) && okF(all[2], 1.2) && stay.last + 1 / 240 - stay.t0 >= 1.2 - 1e-6 && stay.flick && still.drawn === 0 && !still.log[0].figure && still.breath.length === 1,
+      all.map((r, k) => `${['E2', 'short 1', 'short 2'][k]}: figure drawn ${r.drawn} ${r.d == null ? 'n/a' : r.d.toFixed(2)} m ahead at (${r.at ? r.at.map((v) => v.toFixed(2)).join(', ') : '-'}), head ${r.v[0] ? (r.v[0].inFrustum ? 'on screen' : 'off screen') + ', blocked by ' + (r.v[0].blockedBy || 'nothing') : 'n/a'}, middle blocked by ${r.v[1] ? r.v[1].blockedBy || 'nothing' : 'n/a'}`).join('; ') +
+      `; the first drawn from ${stay.t0.toFixed(3)} to ${(stay.last + 1 / 240).toFixed(3)} s (${(stay.last + 1 / 240 - stay.t0).toFixed(2)} s), the tube off as it went ${stay.flick}; standing still: moved ${still.log[0].moved.toFixed(3)} m, figure drawn on ${still.drawn} frames, breaths played ${still.breath.length}`);
+  }
+
+  // ---------- N4: the wet footprints in the page (contrast with no sound, the dog's growl, the knocking) ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(helpers);
+    const r = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.walk(C.SCARE_PLAN.aisle); H.dt = 1 / 120;
+      H.until(() => !!D.horror().e3, 15);
+      const t3 = D.horror().e3.t0, growl = [];
+      H.each = (st) => { const g = D.info().dog, L = D.levels(); if (g && g.phase === 'growl') { const n = L.foot[L.foot.length - 1]; growl.push(Math.abs(C.wrapAngle(g.drawnYaw - Math.atan2(-(n.x - g.at[0]), -(n.z - g.at[1])))) * 180 / Math.PI); } };
+      H.until(() => D.horror().dogView && D.horror().dogView.phase === 'growl' && D.state().t >= D.horror().dog.log.find((x) => x.phase === 'growl').t + 1.0, 20);
+      H.each = null;
+      const dv = D.horror().dogView, n = D.levels().foot.slice(-1)[0];
+      // the growl picture: from behind the dog and to one side, the newest prints beyond it
+      const cx = dv.x - 2.0, cz = dv.z + 1.0; D.place(cx, cz, Math.atan2(-(n.x - cx), -(n.z - cz))); D.lookAt((dv.x + n.x) / 2, 0.4, (dv.z + n.z) / 2); for (let i = 0; i < 30; i++) D.step(1 / 240, 1);
+      return { t3, growl: growl.slice(), dog: { x: dv.x, z: dv.z }, newest: n.i };
+    });
+    await page.evaluate(() => window.__diorama.ui(false)); await page.screenshot({ path: shot('N4-dog-growl-at-footprints') });
+    // the whole trail, once it has reached the staff door: from just inside the door looking down the shop
+    const tr = await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core, t3 = D.horror().e3.t0; H.dt = 1 / 120;
+      H.until(() => D.state().t >= t3 + C.FOOT_ARRIVE + 0.3, 10); D.place(4.4, -0.3, 0); D.lookAt(6.0, 0.0, -5.4); for (let i = 0; i < 30; i++) D.step(1 / 240, 1);
+      // where each print is on screen (its four corners), so only its own pixels are read (the TV's snow moves between frames)
+      const boxes = D.levels().foot.map((f) => { const c = Math.cos(f.yaw), s = Math.sin(f.yaw), hw = C.FOOT.wid / 2, hl = C.FOOT.len / 2;
+        const pts = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, b]) => D.toScreen(f.x + a * hw * c - b * hl * s, C.SIDEWALK_H + 0.006, f.z - a * hw * s - b * hl * c));   // right (cos, -sin), forward (-sin, -cos)
+        return [Math.min(...pts.map((p) => p[0])) - 2, Math.min(...pts.map((p) => p[1])) - 2, Math.max(...pts.map((p) => p[0])) + 2, Math.max(...pts.map((p) => p[1])) + 2]; });
+      return { n: D.levels().foot.length, drawn: D.info().foot, boxes }; });
+    await page.waitForTimeout(250);
+    const withF = await page.screenshot(); await page.evaluate(() => window.__diorama.hideFoot(true)); await page.waitForTimeout(250);
+    const noF = await page.screenshot(); await page.evaluate(() => window.__diorama.hideFoot(false)); await page.waitForTimeout(150);
+    fs.writeFileSync(shot('N4-footprints'), withF);
+    const con = await calc.evaluate(async ({ a, b, boxes }) => {
+      const load = async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return { d: g.getImageData(0, 0, c.width, c.height).data, W: c.width, H: c.height }; };
+      const A = await load(a), B = await load(b), Y = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2], seen = new Uint8Array(A.W * A.H);
+      let n = 0, sa = 0, sb = 0, inBoxes = 0;
+      for (const bx of boxes) for (let y = Math.max(0, Math.floor(bx[1])); y < Math.min(A.H, Math.ceil(bx[3])); y++) for (let x = Math.max(0, Math.floor(bx[0])); x < Math.min(A.W, Math.ceil(bx[2])); x++) {
+        const p = y * A.W + x; if (seen[p]) continue; seen[p] = 1; inBoxes++; const i = 4 * p; if (Math.abs(Y(A.d, i) - Y(B.d, i)) > 6) { n++; sa += Y(A.d, i); sb += Y(B.d, i); } }
+      return { n, inBoxes, prints: sa / n, floor: sb / n, ratio: sa / sb };
+    }, { a: withF.toString('base64'), b: noF.toString('base64'), boxes: tr.boxes });
+    // the knocking and the fading, from here on (turned away so the staff door may go wide)
+    const k = await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core, t3 = D.horror().e3.t0; D.lookAt(...C.SCARE_PLAN.behind); H.dt = 1 / 60;
+      H.until(() => (D.audioLog() || []).some((x) => x.kind === 'knock'), 25);
+      const kn = (D.audioLog() || []).find((x) => x.kind === 'knock'), h = D.horror(), wet = (D.audioLog() || []).filter((x) => x.kind === 'wetstep');
+      H.until(() => D.state().t >= t3 + 21.3, 30); const at21 = D.levels().foot.length;
+      H.until(() => D.state().t >= t3 + C.FOOT_ARRIVE + 21.2, 30);
+      return { knock: kn.simT - t3, wide: h.wideAt - t3, dogClosed: h.dog.closedAt - t3, arrive: C.FOOT_ARRIVE, wet: wet.length, at21, end: D.levels().foot.length, drawnEnd: D.info().foot }; });
+    await P.close();
+    report.n4 = { r, tr, con, k };
+    const maxDev = Math.max(...r.growl);
+    check('N4', 'wet footprints: the whole trail drawn to the staff door, >= 25% darker than the floor (no sound needed); the dog growls at the newest (< 20 deg, as drawn); knocking after they arrive and the dog has gone, by E3+20 s; faded after 20 s',
+      tr.n === 14 && tr.drawn === 14 && con.n > 100 && con.ratio <= 0.75 && r.growl.length > 0 && maxDev < 20 && k.wet === 14 && k.knock > k.arrive && k.knock > k.dogClosed && k.knock <= 20 + 1e-6 && k.at21 === 13 && k.end === 0 && k.drawnEnd === 0,
+      `trail: ${tr.n} prints, ${tr.drawn} drawn; inside their ${tr.boxes.length} boxes on screen (${con.inBoxes} px) ${con.n} pixels changed by them, mean ${con.prints.toFixed(1)} against the floor's ${con.floor.toFixed(1)} = ${(100 * con.ratio).toFixed(1)}% (needs <= 75%); ` +
+      `growl: ${r.growl.length} frames, the drawn head at most ${maxDev.toFixed(2)} deg off the newest print (print ${r.newest} at the end); wet steps played ${k.wet}; staff door wide at E3+${k.wide.toFixed(2)} s, first knock E3+${k.knock.toFixed(2)} s (last print E3+${k.arrive}, dog's door shut E3+${k.dogClosed.toFixed(2)}); ` +
+      `prints left at E3+21.3 s ${k.at21}, 21 s after the last ${k.end} (drawn ${k.drawnEnd})`);
+  }
+
+  // ---------- N5: the ending (the figure behind the window looks up at you) ----------
+  {
+    const P = await open('?view=hero'), page = P.page;
+    await page.keyboard.press('KeyX');
+    await page.evaluate(helpers);
+    await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.e3(); H.staff(); H.bang(); H.leave(); });
+    const gazeNow = () => page.evaluate(() => { const D = window.__diorama, i = D.info(), e = i.figures.endHead, c = i.camera; if (!e) return { dev: 999, pitch: 0, mode: D.state().mode, missing: true };
+      const d = [c[0] - e.pos[0], c[1] - e.pos[1], c[2] - e.pos[2]], L = Math.hypot(...d);
+      return { mode: D.state().mode, dev: (Math.acos(Math.min(1, (e.dir[0] * d[0] + e.dir[1] * d[1] + e.dir[2] * d[2]) / L)) * 180) / Math.PI, pitch: e.pitch, pose: D.levels().end, t: D.state().t, fired: D.horror().fired.END, e5: D.horror().fired.E5 }; });
+    const g0 = await gazeNow();
+    const turn = await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; H.dt = 1 / 240; const seen0 = D.horror().end.seen, t0 = D.state().t; let gaps = 0;
+      H.each = () => { if (D.horror().fired.END == null && !D.horror().end.seen) gaps++; };
+      H.until(() => D.horror().fired.END != null, 6); H.each = null; const t = D.horror().fired.END; H.until(() => D.state().t >= t + C.ENDING.turn, 3); return { t, t0, seen0, gaps, drone: (D.audioLog() || []).filter((x) => x.kind === 'drone').length }; });
+    // closer to the shop, and from two different angles
+    const pics = [];
+    for (const [name, rot] of [['N5-ending-angle1', [0.35, 0.05]], ['N5-ending-angle2', [-0.7, -0.05]]]) {
+      await page.evaluate(([a, b]) => { const D = window.__diorama, C = D.core, w = C.WINDOW; D.rotate(a, b); const q = D.toScreen((w.x0 + w.x1) / 2, 1.6, C.FACADE_Z); D.zoomAt(0.5, q[0] / innerWidth, q[1] / innerHeight); for (let i = 0; i < 120; i++) D.step(1 / 240, 1); }, rot);
+      await page.waitForTimeout(250);
+      pics.push(await gazeNow());
+      await page.evaluate(() => window.__diorama.ui(false)); await page.screenshot({ path: shot(name) });
+      const c = await page.evaluate(() => { const D = window.__diorama, C = D.core, sp = C.HORROR.spots.window, a = D.toScreen(sp.x - 0.5, 2.4, sp.z), b = D.toScreen(sp.x + 0.5, 0.3, sp.z); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; });
+      const png = await page.screenshot({ clip: { x: Math.max(0, c[0]), y: Math.max(0, c[1]), width: Math.min(1280 - Math.max(0, c[0]), c[2] - c[0]), height: Math.min(720 - Math.max(0, c[1]), c[3] - c[1]) } });
+      const big = await calc.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const k = 4, cv = document.createElement('canvas'); cv.width = img.naturalWidth * k; cv.height = img.naturalHeight * k; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, cv.width, cv.height); return cv.toDataURL('image/png').split(',')[1]; }, png.toString('base64'));
+      fs.writeFileSync(shot(name + '-4x'), Buffer.from(big, 'base64'));
+      await page.evaluate(() => window.__diorama.ui(true));
+      await page.evaluate(() => { const D = window.__diorama; D.zoomAt(2, 0.5, 0.5); });
+    }
+    await P.close();
+    // no E4 in the visit: it stays as it was
+    const Q = await open('?view=hero'), q = Q.page;
+    await q.evaluate(helpers);
+    const none = await q.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.aisle(); H.leave(); H.dt = 1 / 60; H.until(() => false, 8);
+      const w = C.WINDOW, s = D.toScreen((w.x0 + w.x1) / 2, 1.6, C.FACADE_Z); D.zoomAt(0.5, s[0] / innerWidth, s[1] / innerHeight); for (let i = 0; i < 60; i++) D.step(1 / 60, 1);
+      const e = D.info().figures.endHead; return { fired: D.horror().fired.END, figure: D.horror().figure, pose: D.levels().end, head: e }; });
+    await q.waitForTimeout(250); await q.evaluate(() => window.__diorama.ui(false)); await q.screenshot({ path: shot('N5-no-E4') });
+    await Q.close();
+    report.n5 = { g0, turn, pics, none };
+    check('N5', 'ending: after a visit with E4 the figure behind the window, 2 s on screen, turns its head onto the camera within 1.5 s (with a low tone) and keeps it there from two other angles (< 10 deg, as drawn); without E4 it does not look up',
+      g0.pose && g0.pose.armed && !g0.pose.looking && turn.gaps === 0 && Math.abs(turn.t - turn.t0 - (2 - turn.seen0)) <= 2 / 240 && turn.drone === 1 && pics.every((x) => x.mode === 'orbit' && x.dev < 10 && x.pitch > 0.1) && none.figure === 'window' && none.fired == null && none.pose && !none.pose.armed && none.head && none.head.pitch === 0 && none.head.headRel === 0,
+      `E4 visit: E5 at ${g0.e5 && g0.e5.toFixed(2)} s, on screen for ${turn.seen0.toFixed(2)} s when the exit ended (${turn.t0.toFixed(2)} s), then in view throughout; it turned at ${turn.t.toFixed(2)} s = ${(turn.seen0 + turn.t - turn.t0).toFixed(3)} s on screen (2 s); the low tone played ${turn.drone}; ` +
+      pics.map((x, i) => `angle ${i + 1} (${x.mode}): drawn head ${x.dev.toFixed(2)} deg off the camera, lifted ${(x.pitch * 180 / Math.PI).toFixed(1)} deg`).join('; ') +
+      `; no E4: figure ${none.figure}, turned ${none.fired}, head lifted ${none.head ? (none.head.pitch * 180 / Math.PI).toFixed(1) : 'n/a'} deg, turned ${none.head ? (none.head.headRel * 180 / Math.PI).toFixed(1) : 'n/a'} deg`);
+  }
+
+  // ---------- N6: the shop window brighter than the vending machine; the dog blocked at the door ----------
+  {
+    const lumRect = async (file, rect) => calc.evaluate(async ({ b64, rect }) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(Math.round(rect[0]), Math.round(rect[1]), Math.max(1, Math.round(rect[2] - rect[0])), Math.max(1, Math.round(rect[3] - rect[1]))).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; return s / (d.length / 4); }, { b64: fs.readFileSync(file).toString('base64'), rect });
+    const Q = await open('?view=hero');
+    const rects = await Q.page.evaluate(() => { const D = window.__diorama, C = D.core, q = D.toScreen(6.2, 1.6, 0.5); D.rotate(0.35, -0.1); const q2 = D.toScreen(6.2, 1.6, 0.5); D.zoomAt(0.45, q2[0] / innerWidth, q2[1] / innerHeight);
+      const box = (pts) => { const s = pts.map((p) => D.toScreen(...p)), xs = s.map((v) => v[0]), ys = s.map((v) => v[1]); const pad = 0.2; const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); return [x0 + (x1 - x0) * pad, y0 + (y1 - y0) * pad, x1 - (x1 - x0) * pad, y1 - (y1 - y0) * pad]; };
+      const W = C.WINDOW, F = C.SIDEWALK_H, z = C.FACADE_Z;
+      return { win: box([[W.x0, W.y0, z], [W.x1, W.y0, z], [W.x0, W.y1, z], [W.x1, W.y1, z]]), vend: box([[6.03, F + 0.55, z + 0.72], [6.77, F + 0.55, z + 0.72], [6.03, F + 1.75, z + 0.72], [6.77, F + 1.75, z + 0.72]]) }; });
+    await Q.page.waitForTimeout(400); await Q.page.evaluate(() => window.__diorama.ui(false)); await Q.page.screenshot({ path: shot('N6-outside') });
+    await Q.close();
+    const win = await lumRect(shot('N6-outside'), rects.win), vend = await lumRect(shot('N6-outside'), rects.vend);
+    const gw = await lumRect(shot('G-outside'), rects.win).catch(() => null);
+    const P = await open('?view=hero'), page = P.page;
+    await page.evaluate(helpers);
+    const dog = await page.evaluate(() => {
+      const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.walk(C.SCARE_PLAN.aisle); H.dt = 1 / 120;
+      H.until(() => !!D.horror().dog, 15);
+      let routed = false, outAt = null, outOf = null, gap = Infinity, hits = 0;
+      const obb = (d, b) => { const f = [-Math.sin(d.yaw), -Math.cos(d.yaw)], rr = [Math.cos(d.yaw), -Math.sin(d.yaw)], hl = C.DOG.len / 2, hw = C.DOG.wid / 2;
+        const pts = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, c]) => [d.x + f[0] * hl * a + rr[0] * hw * c, d.z + f[1] * hl * a + rr[1] * hw * c]), bp = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+        for (const ax of [[1, 0], [0, 1], f, rr]) { const pa = pts.map((p) => p[0] * ax[0] + p[1] * ax[1]), pb = bp.map((p) => p[0] * ax[0] + p[1] * ax[1]); if (Math.max(...pa) <= Math.min(...pb) + 1e-9 || Math.max(...pb) <= Math.min(...pa) + 1e-9) return false; } return true; };
+      H.each = (st) => { const d = D.horror().dogView; if (!d) return; if (!routed && d.phase === 'shake') { D.walkRoute([[2.75, -5.2], [2.75, -1.0], [4.4, -0.5]]); routed = true; }
+        if (d.phase === 'out' && outAt === null) outAt = st.t; if (outAt !== null && outOf === null && d.z > C.FACADE_Z + C.DOG.r + 0.05) outOf = st.t;
+        gap = Math.min(gap, Math.hypot(d.x - st.player.x, d.z - st.player.z));
+        const boxes = D.solids().filter((s) => s.kind !== 'roof' && s.y1 > C.SIDEWALK_H + 0.05 && s.y0 < C.SIDEWALK_H + 0.6 && (s.kind !== 'door' || s.active)).map((s) => [s.x0, s.z0, s.x1, s.z1]);
+        for (const lf of C.doorLeaves(st.doors).filter((l) => l.door === 0)) boxes.push([lf.x0, lf.z0, lf.x1, lf.z1]);
+        if (boxes.some((b) => obb(d, b))) hits++; };
+      H.until(() => D.horror().dog && D.horror().dog.goneAt !== null, 30); H.each = null;
+      return { phases: D.horror().dog.log.map((x) => x.phase), out: outOf - outAt, gap, hits, walker: [D.state().player.x, D.state().player.z] };
+    });
+    await P.close();
+    report.n6 = { rects, win, vend, gw, dog };
+    check('N6', 'the shop window brighter than the vending machine from outside; a walker blocking the door: the dog squeezes out within 8 s, never closer than 0.6 m, never in a solid',
+      win > vend && dog.phases.includes('squeeze') && dog.out <= 8 && dog.gap >= 0.6 && dog.hits === 0,
+      `N6-outside: the window's mean luminance ${win.toFixed(1)} vs the vending machine's front ${vend.toFixed(1)}${gw == null ? '' : ' (G-outside, same rectangles: window ' + gw.toFixed(1) + ')'}; walker standing at (${dog.walker.map((v) => v.toFixed(2)).join(', ')}): dog ${dog.phases.join(',')}, out of the door ${dog.out.toFixed(2)} s after setting off, closest ${dog.gap.toFixed(2)} m, overlapping a solid on ${dog.hits} frames`);
+  }
+
+  // ---------- N7: the silent wanderer in the page (nothing heard; goes by what it can see) ----------
+  {
+    const wand2 = [];
+    for (const [seed, aim] of [[1, 'door'], [2, 'street'], [3, 'next']]) {
+      const P = await open('?view=hero');
+      const r = await P.page.evaluate(([seed, aim]) => window.__diorama.wander({ seed, aim, maxT: 120, senses: 'sight' }), [seed, aim]);
+      const h = await P.page.evaluate(() => ({ history: window.__diorama.horror().history, audio: window.__diorama.info().audio }));
+      await P.page.screenshot({ path: shot(`N7-seed${seed}-E4`) });
+      const at = (e) => { const x = h.history.find((y) => y.e === e); return x ? x.t - r.t0 : null; };
+      wand2.push({ seed, aim, T: [at('E2'), at('E3'), at('E4')], audio: h.audio, phases: r.log.map((e) => e.phase + '@' + (e.t - r.t0).toFixed(1)).join(' '), errors: P.errors.length });
+      await P.close();
+    }
+    report.n7 = wand2;
+    const f1row = report.checks.find((c) => c.id === 'F1');
+    check('N7', 'silent: a wanderer that hears nothing and goes by footprints and lit things meets E2, E3, E4 in order within 120 s (seeds 1-3, in the page, sound never started); F1 (by sound) still passes',
+      wand2.every((x) => x.T.every((v) => v != null) && x.T[0] < x.T[1] && x.T[1] < x.T[2] && x.T[2] <= 120 && x.audio === 'not started' && x.errors === 0) && f1row && f1row.pass,
+      wand2.map((x) => `seed ${x.seed} (aim ${x.aim}): E2 ${f2(x.T[0])} s, E3 ${f2(x.T[1])} s, E4 ${f2(x.T[2])} s, sound ${x.audio} (${x.phases})`).join(' | ') + `; F1 ${f1row && f1row.pass ? 'passes' : 'FAILS'}`);
+  }
+
   // ---------- SPEC 9: clean start ----------
   check(9, 'clean start: no errors, no outside requests', allErrors.length === 0 && allExternal.length === 0,
     `${loads} page loads: ${allErrors.length} errors/warnings, ${allExternal.length} outside requests${allErrors.length ? ' — ' + allErrors.slice(0, 4).join(' ; ') : ''}${allExternal.length ? ' — ' + allExternal.slice(0, 4).join(' ; ') : ''}`);
@@ -1571,7 +1861,11 @@ const isExternal = (u) => {
     const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));
     check('A8', 'regressions after the reskin: items 1-9, 1b, performance, player default, H1-H8, R1-R13, K1, K2, F1, F4, V1',
       rows.every((c) => c && c.pass), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !rows[i] || !rows[i].pass).join(',') || 'none failing'})`);
+  }  {
+    const rows = report.checks.filter((c) => !/^N[1-8]$/.test(String(c.id)) && !['A8', 'F5', 'R9'].includes(String(c.id)));
+    check('N8', 'regressions after round 9: every earlier row passes (the card closed first on the normal entry)', rows.every((c) => c.pass), `${rows.filter((c) => c.pass).length}/${rows.length} earlier rows pass (${rows.filter((c) => !c.pass).map((c) => c.id).join(',') || 'none failing'})`);
   }
+
   {
     const ids = ['1', '1b', '2', '3', '4', '5', '6', '7', '8', '9', 'P', 'D', ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => 'H' + i), ...Array.from({ length: 13 }, (_, i) => 'R' + (i + 1))];
     const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));
