@@ -1766,7 +1766,7 @@ const isExternal = (u) => {
     // closer to the shop, and from two different angles
     const pics = [];
     for (const [name, rot] of [['N5-ending-angle1', [0.35, 0.05]], ['N5-ending-angle2', [-0.7, -0.05]]]) {
-      await page.evaluate(([a, b]) => { const D = window.__diorama, C = D.core, w = C.WINDOW; D.rotate(a, b); const q = D.toScreen((w.x0 + w.x1) / 2, 1.6, C.FACADE_Z); D.zoomAt(0.5, q[0] / innerWidth, q[1] / innerHeight); for (let i = 0; i < 120; i++) D.step(1 / 240, 1); }, rot);
+      await page.evaluate(([a, b]) => { const D = window.__diorama; D.rotate(a, b); for (let i = 0; i < 120; i++) D.step(1 / 240, 1); }, rot);   // (no zoom: the exit leaves the camera at the entry orbit, already close; nearer would start an entry)
       await page.waitForTimeout(250);
       pics.push(await gazeNow());
       await page.evaluate(() => window.__diorama.ui(false)); await page.screenshot({ path: shot(name) });
@@ -1775,16 +1775,19 @@ const isExternal = (u) => {
       const big = await calc.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const k = 4, cv = document.createElement('canvas'); cv.width = img.naturalWidth * k; cv.height = img.naturalHeight * k; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, cv.width, cv.height); return cv.toDataURL('image/png').split(',')[1]; }, png.toString('base64'));
       fs.writeFileSync(shot(name + '-4x'), Buffer.from(big, 'base64'));
       await page.evaluate(() => window.__diorama.ui(true));
-      await page.evaluate(() => { const D = window.__diorama; D.zoomAt(2, 0.5, 0.5); });
     }
     await P.close();
     // no E4 in the visit: it stays as it was
     const Q = await open('?view=hero'), q = Q.page;
     await q.evaluate(helpers);
     const none = await q.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.aisle(); H.leave(); H.dt = 1 / 60; H.until(() => false, 8);
-      const w = C.WINDOW, s = D.toScreen((w.x0 + w.x1) / 2, 1.6, C.FACADE_Z); D.zoomAt(0.5, s[0] / innerWidth, s[1] / innerHeight); for (let i = 0; i < 60; i++) D.step(1 / 60, 1);
+      for (let i = 0; i < 60; i++) D.step(1 / 60, 1);
       const e = D.info().figures.endHead; return { fired: D.horror().fired.END, figure: D.horror().figure, pose: D.levels().end, head: e }; });
     await q.waitForTimeout(250); await q.evaluate(() => window.__diorama.ui(false)); await q.screenshot({ path: shot('N5-no-E4') });
+    { const c = await q.evaluate(() => { const D = window.__diorama, C = D.core, sp = C.HORROR.spots.window, a = D.toScreen(sp.x - 0.5, 2.4, sp.z), b = D.toScreen(sp.x + 0.5, 0.3, sp.z); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; });
+      const png = await q.screenshot({ clip: { x: Math.max(0, c[0]), y: Math.max(0, c[1]), width: Math.min(1280 - Math.max(0, c[0]), c[2] - c[0]), height: Math.min(720 - Math.max(0, c[1]), c[3] - c[1]) } });
+      const big = await calc.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const k = 4, cv = document.createElement('canvas'); cv.width = img.naturalWidth * k; cv.height = img.naturalHeight * k; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, cv.width, cv.height); return cv.toDataURL('image/png').split(',')[1]; }, png.toString('base64'));
+      fs.writeFileSync(shot('N5-no-E4-4x'), Buffer.from(big, 'base64')); }
     await Q.close();
     report.n5 = { g0, turn, pics, none };
     check('N5', 'ending: after a visit with E4 the figure behind the window, 2 s on screen, turns its head onto the camera within 1.5 s (with a low tone) and keeps it there from two other angles (< 10 deg, as drawn); without E4 it does not look up',

@@ -1553,3 +1553,36 @@ test('N7: a wanderer that hears nothing and goes by what it can see meets E2, E3
     assert.deepStrictEqual(b, a, `${name} seed ${seed}: the same with no sounds at all`);
   }
 });
+test('N3 (placement): when the spot straight ahead is in a crate or hidden behind a shelf, the figure stands somewhere clear and in sight instead (or not at all)', async () => {
+  const C = await load(), f = C.HORROR.figure, F = C.SIDEWALK_H;
+  const sim = C.createSim({ aspect: 16 / 9 });
+  sim.enter('door'); run(sim, () => sim.S.mode === 'walk');
+  const pose = (x, z, yaw) => { sim.place(x, z, yaw); run(sim, () => false, 0.1); return { mode: 'walk', x: sim.S.player.x, z: sim.S.player.z, cam: { ...sim.S.cam }, fov: sim.fov(), aspect: 16 / 9 }; };
+  // 3 m straight ahead is the low crate in the back corner (box-5): the head and middle would be in sight over it
+  const P1 = pose(2.7, -4.9, 0), s1 = C.rule1Spot(P1, 3.0), straight = [P1.x, P1.z - 3.0];
+  assert.ok(!C.walkBoxes(null).every((b) => C.boxDist(straight[0], straight[1], b) >= f.bodyR), 'the spot straight ahead is in a crate');
+  assert.ok(s1 && C.walkBoxes(null).every((b) => C.boxDist(s1.x, s1.z, b) >= f.bodyR) && Math.abs(s1.d - 3.0) <= 0.2 + 1e-9, `placed clear of it instead: (${s1 && s1.x.toFixed(2)}, ${s1 && s1.z.toFixed(2)}), ${s1 && s1.d.toFixed(2)} m`);
+  // 3 m straight ahead is the next aisle, behind a 1.9 m shelf
+  const P2 = pose(4.4, -3.6, Math.PI / 2), s2 = C.rule1Spot(P2, 3.0);
+  const seen = (s) => C.sightlines(P2.cam, P2.fov, 16 / 9, [[s.x, F + f.h - f.headR, s.z], [s.x, F + 0.85, s.z]], C.BACKDOOR.half);
+  assert.ok(!seen({ x: P2.x - 3.0, z: P2.z }).every(Boolean), 'the spot straight ahead is hidden by the shelf');
+  assert.ok(s2 === null || seen(s2).every(Boolean), `instead ${s2 ? `(${s2.x.toFixed(2)}, ${s2.z.toFixed(2)}), in sight` : 'nowhere'}`);
+});
+test('N3 (no overlap): a short blackout that would start during P2 waits until P2 is over; the staff door waits for the footprints even when the dog leaves early', async () => {
+  const C = await load();
+  const sim = await visitE2(C);
+  sim.walkRoute([[4.5, -3.0]]); run(sim, () => !sim.S.player.route, 10); sim.lookAt(4.5, 1.6, -7); run(sim, () => !!sim.horror().e3, 20, 1 / 240);
+  const b0 = sim.horror().blackouts.filter((b) => b.kind === 'short')[0], planned = b0.start;
+  run(sim, () => sim.S.t >= planned - 0.3, 40, 1 / 240);
+  sim.place(5.6, -2.47, -Math.PI / 2); run(sim, () => sim.S.t >= planned + 2, 4, 1 / 240);
+  const h = sim.horror(), p2 = h.p2, b = h.blackouts.filter((x) => x.kind === 'short')[0];
+  assert.ok(p2 && p2.t0 < planned && b.begun && b.start >= p2.t1 - 1e-9 && Math.abs(b.end - b.start - 1.2) < 1e-9, `P2 ${p2 && p2.t0.toFixed(2)}-${p2 && p2.t1.toFixed(2)} s, the blackout planned at ${planned.toFixed(2)} s began at ${b.start.toFixed(2)} s`);
+  // the dog chased out at once: its door shuts before the last footprint, yet the staff door waits for the footprints
+  const w = C.createSim({ aspect: 16 / 9 });
+  w.enter('door'); run(w, () => w.S.mode === 'walk'); w.walkRoute([[5.0, -0.6], [5.0, -2.4], [5.0, -0.4], [5.0, -2.4], [5.0, -0.4]]); run(w, () => !w.S.player.route, 20);
+  w.walkRoute([[5.0, -3.0]]); run(w, () => !w.S.player.route, 10); w.lookAt(5.0, 1.6, -7); run(w, () => !!w.horror().e3, 25, 1 / 240);
+  const t3 = w.horror().e3.t0; w.walkTo(5.0, -1.6); w.lookAt(5.0, 1.2, 2.0);
+  run(w, () => w.horror().wideAt !== null, 20, 1 / 240);
+  const hw = w.horror();
+  assert.ok(hw.dog.closedAt - t3 < C.FOOT_ARRIVE && hw.wideAt >= t3 + C.FOOT_ARRIVE - 1e-9, `the dog's door shut at E3+${(hw.dog.closedAt - t3).toFixed(2)} s, the staff door went wide at E3+${(hw.wideAt - t3).toFixed(2)} s (last print E3+${C.FOOT_ARRIVE})`);
+});
