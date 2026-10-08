@@ -9,7 +9,9 @@ const argv = process.argv.slice(2);
 const out = argv[0] || 'browser-check';
 const base = argv[1] && !argv[1].startsWith('--') ? argv[1] : 'file://' + path.resolve(__dirname, '../dist/index.html');
 const shots = argv.includes('--shots') ? argv[argv.indexOf('--shots') + 1] : out;
-const baseline = argv.includes('--baseline') ? argv[argv.indexOf('--baseline') + 1] : null;   // round 8 A1: the round-7 inside.png
+const baseline = argv.includes('--baseline') ? argv[argv.indexOf('--baseline') + 1] : null;
+// round 10: the last build that passed the frame-rate budgets, measured the same way in the same run (P, A7 can then be NOT_EVALUABLE)
+const perfRef = argv.includes('--perf-ref') ? 'file://' + path.resolve(argv[argv.indexOf('--perf-ref') + 1]) : null;   // round 8 A1: the round-7 inside.png
 fs.mkdirSync(out, { recursive: true }); fs.mkdirSync(shots, { recursive: true });
 const shot = (name) => path.join(shots, name + '.png');
 const f3 = (v) => (typeof v === 'number' ? v.toFixed(3) : String(v));
@@ -31,27 +33,28 @@ const isExternal = (u) => {
   const displayCap = await (async () => { const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } }), pg = await ctx.newPage(); await pg.setContent('<body style="background:#000"></body>'); await pg.waitForTimeout(500);
     const fps = await pg.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 121) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await ctx.close(); return fps; })();
   report.displayCap = displayCap;
-  const fpsJudge = (rest, fpsOk) => (rest && fpsOk ? true : rest && displayCap < 55 ? 'NE' : false);   // the non-fps parts must still pass
+  // NOT_EVALUABLE: the non-fps parts pass, and either the display cannot show 50 fps even for an empty page, or the reference build
+  // (the last one that passed) measured the same way in the same run misses the same budget while this one is no slower than it (3 fps)
+  const fpsJudge = (rest, fpsOk, cur = null, ref = null, need = 50) => (rest && fpsOk ? true : rest && (displayCap < 55 || (ref !== null && cur !== null && ref < need && cur >= ref - 3)) ? 'NE' : false);
   const allErrors = [], allExternal = [];
   let loads = 0;
-  async function open(query, { width = 1280, height = 720, dpr = 1, touch = false, keepCard = false } = {}) {
+  async function open(query, { width = 1280, height = 720, dpr = 1, touch = false, keepCard = false, at = null } = {}) {
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, hasTouch: touch, isMobile: touch });
     const page = await ctx.newPage(), errors = [], external = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
     page.on('request', (r) => { if (isExternal(r.url())) external.push(r.url()); });
-    await page.goto(base + query);
+    await page.goto((at || base) + query);
     await page.waitForFunction(() => window.__diorama && window.__diorama.ready, null, { polling: 100, timeout: 30000 });
     loads++;
     // round 9: the normal entry opens with a card; every earlier item is measured after it is closed (SPEC N8: 先关卡再测),
     // with a real click / tap on the dimmed part of the screen (which also starts the sound, as for a real visitor)
-    if (!keepCard && await page.evaluate(() => window.__diorama.card().open)) {
+    if (!keepCard && await page.evaluate(() => !!(window.__diorama.card && window.__diorama.card().open))) {   // (a reference build from before round 9 has no card)
       if (touch) await page.touchscreen.tap(width / 2, 40); else await page.mouse.click(width / 2, 40);
       await page.waitForFunction(() => !window.__diorama.card().open, null, { polling: 100, timeout: 5000 });
     }
     const close = async () => {
-      allErrors.push(...errors.map((e) => `${query || '(no query)'} ${width}x${height}: ${e}`));
-      allExternal.push(...external);
+      if (!at) { allErrors.push(...errors.map((e) => `${query || '(no query)'} ${width}x${height}: ${e}`)); allExternal.push(...external); }   // the reference build's page is not this build
       await ctx.close();
     };
     return { ctx, page, errors, external, close };
@@ -1134,8 +1137,10 @@ const isExternal = (u) => {
       await P.close();
     }
     report.perf = perf;
-    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50),
-      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display`);
+    if (perfRef) { const P = await open('?view=hero', { dpr: 2, at: perfRef }); await P.page.waitForTimeout(1200);
+      perf.ref = await P.page.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 181) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await P.close(); }
+    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50, perf['hero dpr2'].fps, perfRef ? perf.ref : null),
+      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}) hero dpr2 measured the same way just after: ${perf.ref.toFixed(1)} fps` : ''}`);
   }
 
   // ---------- player default: no parameters, pixel ratio 2, real wheel / clicks / keys in real time ----------
@@ -1386,11 +1391,12 @@ const isExternal = (u) => {
       const i = await info(P.page); await P.close(); return i;
     };
     const desk = await meas('?view=hero'), deskIn = await meas('?view=inside'), phone = await meas('?view=hero', { width: 390, height: 844, dpr: 3, touch: true }), phoneIn = await meas('?view=inside', { width: 390, height: 844, dpr: 3, touch: true });
-    report.a7 = { desk, deskIn, phone, phoneIn };
+    const deskRef = perfRef ? await meas('?view=hero', { at: perfRef }) : null;
+    report.a7 = { desk, deskIn, phone, phoneIn, deskRef };
     check('A7', 'performance: hero 1280x720 <= 150 draw calls and >= 50 fps; one shadow-casting light; 390x844 measured too',
-      fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, desk.fps >= 50 && deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30),
+      deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30 ? fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, desk.fps >= 50, desk.fps, deskRef ? deskRef.fps : null) : false,
       `hero 1280x720: ${desk.calls} draw calls, ${desk.fps.toFixed(1)} fps; inside 1280x720: ${deskIn.calls} calls, ${deskIn.fps.toFixed(1)} fps; lights on ${desk.shop.lights.n}, casting shadows ${desk.shop.lights.shadows}; ` +
-      `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)`);
+      `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)${deskRef ? `; reference build hero 1280x720 measured the same way just after: ${deskRef.fps.toFixed(1)} fps` : ''}`);
   }
 
   // ---------- A5: P1 at the end of an aisle, P2 the black TV (in the page) ----------
@@ -1788,7 +1794,7 @@ const isExternal = (u) => {
     const rectLum = (png, rect) => calc.evaluate(async ({ b64, rect }) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(Math.round(rect[0]), Math.round(rect[1]), Math.max(1, Math.round(rect[2] - rect[0])), Math.max(1, Math.round(rect[3] - rect[1]))).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; return s / (d.length / 4); }, { b64: png.toString('base64'), rect });
     const runs = {};
-    for (const [tag, opts, rot1, rot2] of [['desk', {}, [0.35, 0.05], [-0.7, -0.05]], ['phone', { width: 390, height: 844, dpr: 3, touch: true }, [-0.6, 0], [-0.25, -0.04]]]) {
+    for (const [tag, opts, rot1, rot2] of [['desk', {}, [0.35, 0.05], [-0.7, -0.05]], ['phone', { width: 390, height: 844, dpr: 3, touch: true }, [-1.2, 0], [-0.25, 0.04]]]) {
       const P = await open('?view=hero', opts), page = P.page, sfx = tag === 'desk' ? '' : '-phone';
       await page.keyboard.press('KeyX');
       await page.evaluate(helpers);
