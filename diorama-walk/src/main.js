@@ -562,7 +562,7 @@ function sync() {
   camera.updateProjectionMatrix();
   scene.fog.density = L.fog;
   const t = TILT === 'off' ? 0 : TILT === 'on' ? 1 : L.tilt;
-  focusY = C.focusLine(c, L.fov, cssW / cssH);
+  { const ef = sim.endFocus(); focusY = C.focusLine(c, L.fov, cssW / cssH, ef && ef.at, ef ? ef.k : 0); }   // round 11: on the window in the ending shot
   for (const [ph, pv, k] of tiltPasses) {
     ph.enabled = pv.enabled = t > 0.001;
     ph.uniforms.h.value = (t * k) / cssW; pv.uniforms.v.value = (t * k) / cssH;

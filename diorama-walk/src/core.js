@@ -327,10 +327,13 @@ export const STOREFRONT = [[STORE.x0, SIDEWALK_H, STORE.z1], [STORE.x0, STORE.h,
 export const SIGN = { x0: STORE.door.cx - 1.5, x1: STORE.door.cx + 1.5, y0: 2.95, y1: 3.3, z: STORE.z1 + 0.075 };
 export const FOCUS_BAND = 0.1;                     // the clear band: focus line ± 10% of the screen height
 // Screen height (0 top, 1 bottom) of the focus line: middle of the projected store front, held in [0.15, 0.85].
-export function focusLine(cam, fov, aspect) {
-  let y0 = Infinity, y1 = -Infinity;
-  for (const p of STOREFRONT) { const q = project(cam, fov, aspect, p); if (q.depth < 0.1) return 0.5; y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
-  return clamp((y0 + y1) / 2, 0.15, 0.85);
+export function focusLine(cam, fov, aspect, at = null, k = 0) {
+  let y0 = Infinity, y1 = -Infinity, f = null;
+  for (const p of STOREFRONT) { const q = project(cam, fov, aspect, p); if (q.depth < 0.1) { f = 0.5; break; } y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+  if (f === null) f = clamp((y0 + y1) / 2, 0.15, 0.85);
+  if (!at || k <= 0) return f;                            // round 11: the ending shot focuses on the window
+  const q = project(cam, fov, aspect, at), g = q.depth < 0.1 ? f : clamp(q.y, 0.15, 0.85);
+  return f + (g - f) * clamp01(k);
 }
 export const boxesAt = (cam, fov, aspect) => ({ base: screenBoxOf(cam, fov, aspect, BASE_PTS), model: screenBoxOf(cam, fov, aspect, MODEL_PTS) });
 export const heroOrbitAt = (r) => ({ cx: HERO.center[0], cy: HERO.center[1], cz: HERO.center[2], r, theta: HERO.theta, phi: HERO.phi });
@@ -541,6 +544,15 @@ export function pointsVisible(cam, fov, aspect, pts, skip = null) {
   }
   return false;
 }
+// Round 11 (N9): what, if anything, stands between the camera and a point: the occluders above plus the window's frame
+// bars (the drawn 'frame' boxes round and down the middle of the shop window). Returns the id of the nearest, or null.
+export function sightBlocker(cam, q) {
+  const W = WINDOW, frames = visualBoxes().filter((b) => b.mat === 'frame' && b.x1 > W.x0 - 0.1 && b.x0 < W.x1 + 0.1 && b.y0 >= W.y0 - 0.1).map((b, i) => ({ ...b, id: 'window-frame-' + i }));
+  const o = [cam.x, cam.y, cam.z], d = [q[0] - o[0], q[1] - o[1], q[2] - o[2]], L = Math.hypot(...d), u = d.map((v) => v / L);
+  let best = null, bt = L - 0.05;
+  for (const b of OCCLUDERS.concat(frames)) { const t = rayBox(o, u, b); if (t < bt) { bt = t; best = b.id; } }
+  return best;
+}
 // Can the camera see the figure in the staff doorway (round 7, E4)? Sight lines to its five sample points, against every
 // solid (furniture, walls; glass not counted) with the back wall opened at the staff doorway the way the page draws it
 // (its collision box closes the doorway), plus the staff door leaf as a thin box turned to its current angle about the hinge.
@@ -659,6 +671,26 @@ export const ENDING = { see: 2.0, turn: 1.5, body: 0.5, flash: 0.12, walk: 1.2, 
 export const FIG_DEPTH = 0.72;                       // the body capsule is flattened front to back (page: body.scale.z)
 export const WINDOW_GLASS_IN = FACADE_Z - 0.12;      // the inner face of the shop window's pane (core 'windowGlass' box)
 export const ENDING_Z = WINDOW_GLASS_IN - ENDING.gap - HORROR.figure.bodyR * FIG_DEPTH;   // where it stops, front 0.05 m off the glass
+// Round 11 (SPEC 结局镜头): after a visit with E4 the exit does not go back to the orbit it came from but stops at the ending
+// shot: across the pavement, square on to the shop window but 15 deg to the right of its normal (clear of the vending machine),
+// looking down 20 deg, close enough that the window takes 42% of the width in landscape and 80% in portrait (height >
+// width). It is an ordinary orbit (drag and zoom as outside) whose centre is the point on the line of sight through the
+// window's middle at the orbit centre's height limit, so the window's middle sits in the middle of the screen.
+export const END_SHOT = { yaw: rad(15), down: rad(20), share: { landscape: 0.42, portrait: 0.8 }, ranges: { landscape: [0.35, 0.5], portrait: [0.7, 0.9] } };
+export const WINDOW_MID = [(WINDOW.x0 + WINDOW.x1) / 2, (WINDOW.y0 + WINDOW.y1) / 2, FACADE_Z];
+export const endShotShare = (aspect) => (aspect < 1 ? END_SHOT.share.portrait : END_SHOT.share.landscape);
+export function windowShare(cam, fov, aspect) {          // the window's width as a share of the screen width
+  const a = project(cam, fov, aspect, [WINDOW.x0, WINDOW_MID[1], FACADE_Z]), b = project(cam, fov, aspect, [WINDOW.x1, WINDOW_MID[1], FACADE_Z]);
+  return Math.abs(b.x - a.x);
+}
+export function endShotOrbit(aspect, yaw = END_SHOT.yaw, down = END_SHOT.down, share = endShotShare(aspect)) {
+  const fov = MAP.fov(S_PER_Z * Z_ENTER, aspect), W = WINDOW_MID, dir = [Math.sin(yaw) * Math.cos(down), Math.sin(down), Math.cos(yaw) * Math.cos(down)];
+  const camAt = (d) => ({ x: W[0] + dir[0] * d, y: W[1] + dir[1] * d, z: W[2] + dir[2] * d, yaw, pitch: -down });
+  let lo = 0.5, hi = 60;                                  // the share falls as the camera backs off
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (windowShare(camAt(m), fov, aspect) > share) lo = m; else hi = m; }
+  const c = camAt((lo + hi) / 2), cy = HERO.center[1], t = (c.y - cy) / dir[1];   // along the line of sight down to the centre height
+  return { cx: c.x - dir[0] * t, cy, cz: c.z - dir[2] * t, r: t, theta: yaw, phi: Math.PI / 2 - down, ending: true };
+}
 export const endHeadPoint = (z = HORROR.spots.window.z) => { const sp = HORROR.spots.window; return [sp.x, SIDEWALK_H + HORROR.figure.h - HORROR.figure.headR, z]; };
 const angleTo = (cam, p) => { const { f } = basis(cam.yaw, cam.pitch), d = [p[0] - cam.x, p[1] - cam.y, p[2] - cam.z], L = Math.hypot(...d); return Math.acos(clamp((f[0] * d[0] + f[1] * d[1] + f[2] * d[2]) / L, -1, 1)); };
 function createHorror(S, calm) {
@@ -1043,6 +1075,7 @@ function createHorror(S, calm) {
   }
   return {
     H, backAngle, light, bulbs, tube, tv, hum, aisleFigure, dogView, doorK, scare, shake, darken, footprints, newestFoot, footArrived, rule1Fig, blackoutNow, endPose,
+    endingArmed: () => !H.calm && !!H.done.E4 && !!H.done.E2,       // round 11: this exit goes to the ending shot
     onEnterStart(t) {
       H.visit++; H.fired = blank(); H.done = fresh(); H.e2 = H.e3 = H.e4 = null; H.wideAt = null; H.e5Plan = null; H.e5Dark = null;
       H.c2 = H.c3 = null; H.p1 = H.p1arm = H.p2 = null; H.dog = null;
@@ -1204,6 +1237,8 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     return looks(S.s, S.aspect);
   }
   const fovNow = () => looksNow().fov;
+  // round 11: where the tilt-shift focuses: on the window in the ending shot (and over the last 40% of the exit into it)
+  const endFocus = () => (S.mode === 'orbit' && S.orbit.ending ? { at: WINDOW_MID, k: 1 } : S.mode === 'exiting' && S.trans && S.trans.endShot ? { at: WINDOW_MID, k: smooth(0.6, 1, S.trans.tau / S.trans.dur) } : null);
   // Roofs: hidden in the room view (roof, ceiling, light panels: parts 'room'); while rising out of a shop to the
   // table the lifted parts of round 1 (roof, fascia, lintel, sign: parts 'lift'). The alpha also tells E5 whether a
   // roof is back in place.
@@ -1221,7 +1256,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   function setAspect(a) {
     if (Math.abs(a - S.aspect) < 1e-9) return;
     S.aspect = a; S.rHero = heroRadius(a);
-    if (S.mode === 'orbit') S.orbit.r = rOf(S.z, S.rHero);
+    if (S.mode === 'orbit') { if (S.orbit.ending) { const o = endShotOrbit(a); Object.assign(S.orbit, { cx: o.cx, cy: o.cy, cz: o.cz, r: o.r }); } else S.orbit.r = rOf(S.z, S.rHero); }
     if (S.room) { const b = BUILDINGS.find((q) => q.id === S.room.id); S.room = roomOrbit(b, S.room.theta, S.room.phi, a); }
     refresh();
   }
@@ -1243,7 +1278,9 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
     const ray = screenRay(S.cam, fovNow(), S.aspect, sx, sy);
     const hit = aimHit(ray.o, ray.d);
     const P = hit.kind === 'none' ? [S.orbit.cx, 0, S.orbit.cz] : ray.o.map((v, i) => v + ray.d[i] * hit.t);
-    const z1 = clamp(zOf(S.orbit.r * factor, S.rHero), 0, 1), r1 = rOf(z1, S.rHero), k = r1 / S.orbit.r;
+    const close = S.orbit.r < rOf(S.z, S.rHero) - 1e-6 && S.orbit.r * factor < rOf(S.z, S.rHero);   // round 11: in the ending shot
+    const z1 = close ? S.z : clamp(zOf(S.orbit.r * factor, S.rHero), 0, 1), r1 = close ? S.orbit.r * factor : rOf(z1, S.rHero), k = r1 / S.orbit.r;
+    if (!close) delete S.orbit.ending;
     S.orbit.cx = P[0] + (S.orbit.cx - P[0]) * k; S.orbit.cy = P[1] + (S.orbit.cy - P[1]) * k; S.orbit.cz = P[2] + (S.orbit.cz - P[2]) * k;
     S.orbit.r = r1; S.z = z1; clampCentre(S.orbit, z1);
     refresh();
@@ -1282,13 +1319,14 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   const roomPose = () => { const f = fovRoom(S.aspect); return { mode: 'room', cam: orbitCamera(S.room), fov: f, hfov: hfov(f, S.aspect), aspect: S.aspect, lift: S.room.id }; };
   function exit() {
     if (S.mode !== 'walk' && S.mode !== 'room') return false;
-    const p = S.player, cam = orbitCamera(S.trigger.orbit), fromRoom = S.mode === 'room';
+    const endShot = HZ.endingArmed() ? endShotOrbit(S.aspect) : null;   // round 11: a visit with E4 ends at the ending shot
+    const p = S.player, cam = orbitCamera(endShot || S.trigger.orbit), fromRoom = S.mode === 'room';
     let P2, yawG, pitchG;
     if (fromRoom) { const c = orbitCamera(S.room); S.lift = S.room.id; P2 = [c.x, c.y, c.z]; yawG = c.yaw; pitchG = c.pitch; }
     else { const b = buildingAt(p.x, p.z, 0.15); S.lift = b ? b.id : null; P2 = [p.x, p.eyeY, p.z]; yawG = p.yaw; pitchG = p.pitch; }   // inside, or in the doorway
     const P0 = [cam.x, cam.y, cam.z], ch = controlHeight(P0, P2, S.lift);
     if (ch.raised) S.raised++;
-    S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [P2[0], Math.max(ch.h, fromRoom ? P2[1] : 0), P2[2]], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG, pitchG, s0: S.trigger.s, raised: ch.raised, room: fromRoom };
+    S.trans = { kind: 'exit', tau: 0, dur: EXIT_TIME, P0, P1: [P2[0], Math.max(ch.h, fromRoom ? P2[1] : 0), P2[2]], P2, yawO: cam.yaw, pitchO: cam.pitch, yawG, pitchG, s0: S.trigger.s, raised: ch.raised, room: fromRoom, endShot };
     p.route = null; p.input = [0, 0]; p.look = null; p.joy = null; p.turn = 0;
     S.mode = 'exiting'; S.exits++; S.pendingEscape = false;
     const tr = S.trans, tStart = S.t;
@@ -1305,7 +1343,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
       if (tr.kind === 'land') { S.room = null; S.lift = null; }
     } else if (tr.kind === 'rise') S.mode = 'room';
     else {
-      S.orbit = { ...S.trigger.orbit }; S.z = S.trigger.z; S.mode = 'orbit'; S.lift = null; S.room = null;
+      S.orbit = { ...(tr.endShot || S.trigger.orbit) }; S.z = S.trigger.z; S.mode = 'orbit'; S.lift = null; S.room = null;
       HZ.onExitFinish();
     }
     S.trans = null;
@@ -1502,7 +1540,7 @@ export function createSim({ aspect = 16 / 9, calm = false } = {}) {
   const noteNear = () => noteHint({ mode: S.mode, x: S.player.x, z: S.player.z, cam: S.cam, fov: fovNow(), aspect: S.aspect }, HZ.backAngle(S.t));
   refresh();
   return { S, update, refresh, rotate, zoomAt, enter, exit, walkTo, walkRoute, drive, turn, lookBy, lookAt, place, setAspect, advanceToS, snapshot, fov: fovNow, horror, trigger, levels,
-    looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd, view, noteNear };
+    looksNow, roofs, back, escape, landAt, landAtPoint, groundPoint, roomRotate, tapAt, joy, joyEnd, view, noteNear, endFocus };
 }
 
 // ---------------- touch: joystick, look, pinch, tap (SPEC 店里的操作) ----------------
