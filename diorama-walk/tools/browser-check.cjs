@@ -1717,9 +1717,11 @@ const isExternal = (u) => {
     const tr = await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core, t3 = D.horror().e3.t0; H.dt = 1 / 120;
       H.until(() => D.state().t >= t3 + C.FOOT_ARRIVE + 0.3, 10); D.place(4.4, -0.3, 0); D.lookAt(6.0, 0.0, -5.4); for (let i = 0; i < 30; i++) D.step(1 / 240, 1);
       // where each print is on screen (its four corners), so only its own pixels are read (the TV's snow moves between frames)
-      const boxes = D.levels().foot.map((f) => { const c = Math.cos(f.yaw), s = Math.sin(f.yaw), hw = C.FOOT.wid / 2, hl = C.FOOT.len / 2;
+      // only prints in front of the camera and wholly on screen (one behind the camera projects to a mirrored box that can land on the TV)
+      const cam = D.info().camera, fw = [6.0 - cam[0], 0.0 - cam[1], -5.4 - cam[2]];
+      const boxes = D.levels().foot.filter((f) => (f.x - cam[0]) * fw[0] + (C.SIDEWALK_H - cam[1]) * fw[1] + (f.z - cam[2]) * fw[2] > 0.3).map((f) => { const c = Math.cos(f.yaw), s = Math.sin(f.yaw), hw = C.FOOT.wid / 2, hl = C.FOOT.len / 2;
         const pts = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, b]) => D.toScreen(f.x + a * hw * c - b * hl * s, C.SIDEWALK_H + 0.006, f.z - a * hw * s - b * hl * c));   // right (cos, -sin), forward (-sin, -cos)
-        return [Math.min(...pts.map((p) => p[0])) - 2, Math.min(...pts.map((p) => p[1])) - 2, Math.max(...pts.map((p) => p[0])) + 2, Math.max(...pts.map((p) => p[1])) + 2]; });
+        return [Math.min(...pts.map((p) => p[0])) - 2, Math.min(...pts.map((p) => p[1])) - 2, Math.max(...pts.map((p) => p[0])) + 2, Math.max(...pts.map((p) => p[1])) + 2]; }).filter((bx) => bx[0] >= 0 && bx[1] >= 0 && bx[2] <= innerWidth && bx[3] <= innerHeight);
       return { n: D.levels().foot.length, drawn: D.info().foot, boxes }; });
     await page.waitForTimeout(250);
     const withF = await page.screenshot(); await page.evaluate(() => window.__diorama.hideFoot(true)); await page.waitForTimeout(250);
@@ -1744,8 +1746,8 @@ const isExternal = (u) => {
     report.n4 = { r, tr, con, k };
     const maxDev = Math.max(...r.growl);
     check('N4', 'wet footprints: the whole trail drawn to the staff door, >= 25% darker than the floor (no sound needed); the dog growls at the newest (< 20 deg, as drawn); knocking after they arrive and the dog has gone, by E3+20 s; faded after 20 s',
-      tr.n === 14 && tr.drawn === 14 && con.n > 100 && con.ratio <= 0.75 && r.growl.length > 0 && maxDev < 20 && k.wet === 14 && k.knock > k.arrive && k.knock > k.dogClosed && k.knock <= 20 + 1e-6 && k.at21 === 13 && k.end === 0 && k.drawnEnd === 0,
-      `trail: ${tr.n} prints, ${tr.drawn} drawn; inside their ${tr.boxes.length} boxes on screen (${con.inBoxes} px) ${con.n} pixels changed by them, mean ${con.prints.toFixed(1)} against the floor's ${con.floor.toFixed(1)} = ${(100 * con.ratio).toFixed(1)}% (needs <= 75%); ` +
+      tr.n === 14 && tr.drawn === 14 && tr.boxes.length >= 8 && con.n > 100 && con.ratio <= 0.75 && r.growl.length > 0 && maxDev < 20 && k.wet === 14 && k.knock > k.arrive && k.knock > k.dogClosed && k.knock <= 20 + 1e-6 && k.at21 === 13 && k.end === 0 && k.drawnEnd === 0,
+      `trail: ${tr.n} prints, ${tr.drawn} drawn; inside the boxes of the ${tr.boxes.length} wholly on screen in front of the camera (needs >= 8; ${con.inBoxes} px) ${con.n} pixels changed by them, mean ${con.prints.toFixed(1)} against the floor's ${con.floor.toFixed(1)} = ${(100 * con.ratio).toFixed(1)}% (needs <= 75%); ` +
       `growl: ${r.growl.length} frames, the drawn head at most ${maxDev.toFixed(2)} deg off the newest print (print ${r.newest} at the end); wet steps played ${k.wet}; staff door wide at E3+${k.wide.toFixed(2)} s, first knock E3+${k.knock.toFixed(2)} s (last print E3+${k.arrive}, dog's door shut E3+${k.dogClosed.toFixed(2)}); ` +
       `prints left at E3+21.3 s ${k.at21}, 21 s after the last ${k.end} (drawn ${k.drawnEnd})`);
   }
