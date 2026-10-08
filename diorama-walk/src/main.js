@@ -224,7 +224,7 @@ const figMat = new THREE.MeshBasicMaterial({ color: C.HORROR.figure.color });
 function makeFigure() {                             // faceless silhouette: capsule body (a little flattened front to back), round head
   const f = C.HORROR.figure, g = new THREE.Group(), top = f.h - 2 * f.headR - 0.01;
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(f.bodyR, top - 2 * f.bodyR, 6, 16), figMat);
-  body.position.y = top / 2; body.scale.z = 0.72;
+  body.position.y = top / 2; body.scale.z = C.FIG_DEPTH;
   // round 9: the head turns and lifts about the neck (the ending), so it has a front: a featureless face, flatter and a
   // little forward of the skull, the same dark colour (no eyes, nothing on it)
   const head = new THREE.Group(); head.position.y = top + 0.01; head.rotation.order = 'YXZ';
@@ -236,6 +236,32 @@ function makeFigure() {                             // faceless silhouette: caps
   return g;
 }
 const figPersist = makeFigure(), figScare = makeFigure(), figAisle = makeFigure(), figWarn = makeFigure();   // round 9: figWarn = rule 1
+// round 10, the ending made readable: a faint cold rim round the head and shoulders (back-face shells a little larger than
+// the head and the top of the body, added on top), and its right arm (upper arm, forearm, flat hand) that only shows while it
+// lifts its hand onto the glass. Only the figure behind the window has them.
+const rimMat = new THREE.MeshBasicMaterial({ color: COL.endRim, transparent: true, opacity: 0, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending });
+let rimHidden = false;
+const endRig = (() => {
+  const f = C.HORROR.figure, top = f.h - 2 * f.headR - 0.01, hd = figPersist.userData.head;
+  const headRim = new THREE.Mesh(new THREE.SphereGeometry(f.headR * 1.18, 20, 14), rimMat); headRim.position.y = f.headR; hd.add(headRim);
+  const shoulderRim = new THREE.Mesh(new THREE.SphereGeometry(f.bodyR * 1.13, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), rimMat);
+  shoulderRim.position.y = top - f.bodyR; shoulderRim.scale.z = C.FIG_DEPTH; figPersist.add(shoulderRim);
+  const arm = new THREE.Group(), seg = (r, len) => new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 10), figMat);
+  const upper = seg(0.045, 0.27 - 0.09), fore = seg(0.04, 0.26 - 0.08), palm = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 8), figMat); palm.scale.set(0.85, 1.15, 0.2);
+  const palmRim = new THREE.Mesh(new THREE.SphereGeometry(0.055 * 1.3, 12, 8), rimMat); palm.add(palmRim);   // the hand on the glass gets the same faint rim (it is pressed against a dark counter from most angles)
+  arm.add(upper, fore, palm); arm.visible = false; figPersist.add(arm);
+  return { headRim, shoulderRim, arm, upper, fore, palm, shoulder: new THREE.Vector3(Math.sign(C.ENDING.handSide) * (f.bodyR - 0.03), top - 0.09, 0), a: 0.27, b: 0.26 };
+})();
+const yUp = new THREE.Vector3(0, 1, 0);
+function placeSeg(m, p0, p1) { m.position.copy(p0).add(p1).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(yUp, p1.clone().sub(p0).normalize()); }
+// two-bone arm from the shoulder to the hand (figure-local), elbow out to the side and down
+function poseArm(handLocal) {
+  const R = endRig, S = R.shoulder, d = handLocal.clone().sub(S), L = Math.min(d.length(), R.a + R.b - 1e-4), u = d.clone().normalize();
+  const T = S.clone().addScaledVector(u, L), x = (R.a * R.a - R.b * R.b + L * L) / (2 * L), h = Math.sqrt(Math.max(0, R.a * R.a - x * x));
+  const pole = new THREE.Vector3(Math.sign(C.ENDING.handSide), -0.6, 0.2); pole.addScaledVector(u, -pole.dot(u)).normalize();
+  const E = S.clone().addScaledVector(u, x).addScaledVector(pole, h);
+  placeSeg(R.upper, S, E); placeSeg(R.fore, E, T); R.palm.position.copy(T); R.palm.quaternion.identity();
+}
 // round 9: the wet footprints (one mesh per print, a bare foot drawn into a canvas, dark with a little shine)
 const footCanvas = document.createElement('canvas'); footCanvas.width = 32; footCanvas.height = 80;
 { const g = footCanvas.getContext('2d'); g.fillStyle = '#fff';
@@ -558,7 +584,13 @@ function sync() {
   // scare version: what the state machine says this instant
   const V = sim.levels();
   figPersist.visible = !figureHidden && !!V.figure; if (V.figure) placeFigure(figPersist, V.figure);
-  { const hd = figPersist.userData.head, E = V.end; if (E && V.figure === 'window') { figPersist.rotation.y = E.bodyYaw; hd.rotation.y = E.headRel; hd.rotation.x = E.pitch; } else hd.rotation.set(0, 0, 0); }   // round 9: the ending
+  { const hd = figPersist.userData.head, E = V.end, R = endRig; if (E && V.figure === 'window') { figPersist.rotation.y = E.bodyYaw; figPersist.position.z = E.z; hd.rotation.y = E.headRel; hd.rotation.x = E.pitch; } else hd.rotation.set(0, 0, 0);   // round 9: the ending
+    const ending = !!(E && V.figure === 'window' && E.armed);           // round 10: the rim and the hand on the glass
+    rimMat.opacity = ending && !rimHidden ? 0.55 * E.rim : 0; R.headRim.visible = R.shoulderRim.visible = rimMat.opacity > 0;
+    R.arm.visible = ending && E.hand > 0;
+    if (R.arm.visible) { figPersist.updateMatrixWorld(true);
+      const glass = figPersist.worldToLocal(new THREE.Vector3(...E.handAt)), rest = new THREE.Vector3(R.shoulder.x + Math.sign(C.ENDING.handSide) * 0.04, R.shoulder.y - 0.5, 0.02);
+      poseArm(rest.lerp(glass, E.hand)); } }
   figScare.visible = !figureHidden && V.scare; if (V.scare) placeFigure(figScare, 'backroom');
   figAisle.visible = !figureHidden && V.aisle !== null; if (V.aisle !== null) placeAt(figAisle, C.aisleSpot(C.GROCERY.aisles[V.aisle]));
   figWarn.visible = !figureHidden && !!V.rule1; if (V.rule1) placeAt(figWarn, V.rule1);   // round 9: rule 1
@@ -769,6 +801,8 @@ window.__diorama = {
       figures: { counterOrWindow: figPersist.visible, backroom: figScare.visible, aisle: figAisle.visible, warn: figWarn.visible, color: '#' + figMat.color.getHexString(),
         warnAt: figWarn.visible ? [figWarn.position.x, figWarn.position.z] : null,
         // round 9: the window figure's head as drawn: where it is and which way its face points (from the meshes)
+        endRig: figPersist.visible ? (() => { scene.updateMatrixWorld(); const R = endRig, p = R.palm.getWorldPosition(new THREE.Vector3()), b = figPersist.position;
+          return { body: [b.x, b.y, b.z], rim: rimMat.opacity, rimShown: R.headRim.visible, arm: R.arm.visible, palm: [p.x, p.y, p.z], palmGap: C.WINDOW_GLASS_IN - (p.z + 0.055 * 0.2) }; })() : null,
         endHead: figPersist.visible ? (() => { scene.updateMatrixWorld(); const hd = figPersist.userData.head, p = hd.children[0].getWorldPosition(new THREE.Vector3()), d = hd.getWorldDirection(new THREE.Vector3()).negate();
           return { pos: [p.x, p.y, p.z], dir: [d.x, d.y, d.z], bodyYaw: figPersist.rotation.y, headRel: hd.rotation.y, pitch: hd.rotation.x }; })() : null },
       foot: footMeshes.filter((m) => m.visible).length, leaf: -C.BACKDOOR.dir * leafPivot.rotation.y, darkOverlay: Number(darkEl.style.opacity || 0),
@@ -799,6 +833,7 @@ window.__diorama = {
   },
   hideFigure: (on) => { figureHidden = !!on; sync(); },
   hideFoot: (on) => { footHidden = !!on; sync(); },   // round 9 test hook: the same frame without the footprints
+  hideRim: (on) => { rimHidden = !!on; sync(); },     // round 10 test hook: the same frame without the cold rim
   figureMask: (on) => { figMat.color.set(on ? '#ffffff' : C.HORROR.figure.color); sync(); },   // paint the figure white to find its pixels
   // Can the camera see these points? Frustum, then a ray against every opaque mesh (glass, rain, lines and the figures skipped).
   visibility: (pts) => {

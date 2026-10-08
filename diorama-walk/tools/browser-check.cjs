@@ -22,7 +22,16 @@ const isExternal = (u) => {
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const report = { base, browser: browser.version(), when: new Date().toISOString(), checks: [], runs: [] };
-  const check = (id, name, pass, detail) => { report.checks.push({ id, name, pass: !!pass, detail }); console.log(`${pass ? 'PASS' : 'FAIL'}  #${id}  ${name} — ${detail}`); };
+  // round 10: a row can be NOT_EVALUABLE (pass === 'NE'): not a pass, not a failure, not counted in the totals or the regression rows
+  const check = (id, name, pass, detail) => { const ne = pass === 'NE'; report.checks.push({ id, name, pass: ne ? false : !!pass, ne, detail }); console.log(`${ne ? 'N/E ' : pass ? 'PASS' : 'FAIL'}  #${id}  ${name} — ${ne ? 'NOT_EVALUABLE: ' : ''}${detail}`); };
+  const okRow = (c) => !!(c && (c.pass || c.ne));
+  const neNote = (rows) => { const ne = rows.filter((c) => c && c.ne).map((c) => c.id); return ne.length ? `; not evaluable here, not counted: ${ne.join(',')}` : ''; };
+  // the frame rate this machine's display lets an empty page reach: below 55/s no page can show 50 fps, so the fps budgets
+  // (P, A7) cannot be judged here (round 10: the mini's main display was a 30 Hz remote-desktop screen)
+  const displayCap = await (async () => { const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } }), pg = await ctx.newPage(); await pg.setContent('<body style="background:#000"></body>'); await pg.waitForTimeout(500);
+    const fps = await pg.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 121) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await ctx.close(); return fps; })();
+  report.displayCap = displayCap;
+  const fpsJudge = (rest, fpsOk) => (rest && fpsOk ? true : rest && displayCap < 55 ? 'NE' : false);   // the non-fps parts must still pass
   const allErrors = [], allExternal = [];
   let loads = 0;
   async function open(query, { width = 1280, height = 720, dpr = 1, touch = false, keepCard = false } = {}) {
@@ -1107,8 +1116,8 @@ const isExternal = (u) => {
     finishR9 = () => {
       const regress = report.checks.filter((c) => /^(1|1b|2|3|4|5|6|7|8|9|P|D|H[1-8])$/.test(String(c.id)));
       check('R9', 'regressions (H1-H8, items 1-9, 1b, performance, player default) and the 880x920 fold screen',
-        regress.length === 20 && regress.every((c) => c.pass) && fold.overflow.sw <= fold.overflow.cw && fold.walked > 0.5 && Math.abs(fold.turned - (216 * Math.PI) / 880) < 0.02 && fold.lv1 === 'room' && fold.frames.bad.length === 0 && fold.s3.mode === 'walk' && Math.hypot(fold.s3.x - 5.4, fold.s3.z + 4.6) <= 0.3 && fold.end === 'orbit',
-        `${regress.filter((c) => c.pass).length}/${regress.length} earlier rows pass (${regress.filter((c) => !c.pass).map((c) => c.id).join(',') || 'none failing'}); 880x920 touch: no horizontal overflow (scrollWidth ${fold.overflow.sw} <= ${fold.overflow.cw}); ` +
+        regress.length === 20 && regress.every(okRow) && fold.overflow.sw <= fold.overflow.cw && fold.walked > 0.5 && Math.abs(fold.turned - (216 * Math.PI) / 880) < 0.02 && fold.lv1 === 'room' && fold.frames.bad.length === 0 && fold.s3.mode === 'walk' && Math.hypot(fold.s3.x - 5.4, fold.s3.z + 4.6) <= 0.3 && fold.end === 'orbit',
+        `${regress.filter((c) => c.pass).length}/${regress.length} earlier rows pass (${regress.filter((c) => !okRow(c)).map((c) => c.id).join(',') || 'none failing'}${neNote(regress)}); 880x920 touch: no horizontal overflow (scrollWidth ${fold.overflow.sw} <= ${fold.overflow.cw}); ` +
         `joystick 0.75 s -> ${fold.walked.toFixed(2)} m; a 216 px drag -> ${fold.turned.toFixed(3)} rad (216/880 x pi = ${((216 * Math.PI) / 880).toFixed(3)}); pinch inside -> ${fold.lv1}; spread -> walking at (${f3(fold.s3.x)}, ${f3(fold.s3.z)}); pinch, pinch -> ${fold.end}`);
     };
   }
@@ -1125,8 +1134,8 @@ const isExternal = (u) => {
       await P.close();
     }
     report.perf = perf;
-    check('P', 'performance budget at ?view=hero 1280x720', perf['hero dpr1'].calls <= 150 && perf['hero dpr2'].fps >= 50 && perf['hero dpr1'].dpr <= 2,
-      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments`);
+    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50),
+      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display`);
   }
 
   // ---------- player default: no parameters, pixel ratio 2, real wheel / clicks / keys in real time ----------
@@ -1379,7 +1388,7 @@ const isExternal = (u) => {
     const desk = await meas('?view=hero'), deskIn = await meas('?view=inside'), phone = await meas('?view=hero', { width: 390, height: 844, dpr: 3, touch: true }), phoneIn = await meas('?view=inside', { width: 390, height: 844, dpr: 3, touch: true });
     report.a7 = { desk, deskIn, phone, phoneIn };
     check('A7', 'performance: hero 1280x720 <= 150 draw calls and >= 50 fps; one shadow-casting light; 390x844 measured too',
-      desk.calls <= 150 && desk.fps >= 50 && deskIn.fps >= 50 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1 && phone.fps >= 30 && phoneIn.fps >= 30,
+      fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, desk.fps >= 50 && deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30),
       `hero 1280x720: ${desk.calls} draw calls, ${desk.fps.toFixed(1)} fps; inside 1280x720: ${deskIn.calls} calls, ${deskIn.fps.toFixed(1)} fps; lights on ${desk.shop.lights.n}, casting shadows ${desk.shop.lights.shadows}; ` +
       `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)`);
   }
@@ -1721,7 +1730,7 @@ const isExternal = (u) => {
       const cam = D.info().camera, fw = [6.0 - cam[0], 0.0 - cam[1], -5.4 - cam[2]];
       const boxes = D.levels().foot.filter((f) => (f.x - cam[0]) * fw[0] + (C.SIDEWALK_H - cam[1]) * fw[1] + (f.z - cam[2]) * fw[2] > 0.3).map((f) => { const c = Math.cos(f.yaw), s = Math.sin(f.yaw), hw = C.FOOT.wid / 2, hl = C.FOOT.len / 2;
         const pts = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, b]) => D.toScreen(f.x + a * hw * c - b * hl * s, C.SIDEWALK_H + 0.006, f.z - a * hw * s - b * hl * c));   // right (cos, -sin), forward (-sin, -cos)
-        return [Math.min(...pts.map((p) => p[0])) - 2, Math.min(...pts.map((p) => p[1])) - 2, Math.max(...pts.map((p) => p[0])) + 2, Math.max(...pts.map((p) => p[1])) + 2]; }).filter((bx) => bx[0] >= 0 && bx[1] >= 0 && bx[2] <= innerWidth && bx[3] <= innerHeight);
+        return [Math.min(...pts.map((p) => p[0])) - 2, Math.min(...pts.map((p) => p[1])) - 2, Math.max(...pts.map((p) => p[0])) + 2, Math.max(...pts.map((p) => p[1])) + 2, Math.hypot(f.x - cam[0], C.SIDEWALK_H - cam[1], f.z - cam[2])]; }).filter((bx) => bx[0] >= 0 && bx[1] >= 0 && bx[2] <= innerWidth && bx[3] <= innerHeight);
       return { n: D.levels().foot.length, drawn: D.info().foot, boxes }; });
     await page.waitForTimeout(250);
     const withF = await page.screenshot(); await page.evaluate(() => window.__diorama.hideFoot(true)); await page.waitForTimeout(250);
@@ -1733,7 +1742,11 @@ const isExternal = (u) => {
       let n = 0, sa = 0, sb = 0, inBoxes = 0;
       for (const bx of boxes) for (let y = Math.max(0, Math.floor(bx[1])); y < Math.min(A.H, Math.ceil(bx[3])); y++) for (let x = Math.max(0, Math.floor(bx[0])); x < Math.min(A.W, Math.ceil(bx[2])); x++) {
         const p = y * A.W + x; if (seen[p]) continue; seen[p] = 1; inBoxes++; const i = 4 * p; if (Math.abs(Y(A.d, i) - Y(B.d, i)) > 6) { n++; sa += Y(A.d, i); sb += Y(B.d, i); } }
-      return { n, inBoxes, prints: sa / n, floor: sb / n, ratio: sa / sb };
+      // round 10: each print on its own, so the far ones can be reported (their pixels, and the mean luminance change in their box)
+      const each = boxes.map((bx) => { let m = 0, a = 0, b = 0, px = 0;
+        for (let y = Math.max(0, Math.floor(bx[1])); y < Math.min(A.H, Math.ceil(bx[3])); y++) for (let x = Math.max(0, Math.floor(bx[0])); x < Math.min(A.W, Math.ceil(bx[2])); x++) { const i = 4 * (y * A.W + x); px++; const d = Math.abs(Y(A.d, i) - Y(B.d, i)); if (d > 6) { m++; a += Y(A.d, i); b += Y(B.d, i); } }
+        return { dist: bx[4], px, changed: m, ratio: m ? a / b : 1, meanDiff: m ? (a - b) / m : 0 }; });
+      return { n, inBoxes, prints: sa / n, floor: sb / n, ratio: sa / sb, each };
     }, { a: withF.toString('base64'), b: noF.toString('base64'), boxes: tr.boxes });
     // the knocking and the fading, from here on (turned away so the staff door may go wide)
     const k = await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core, t3 = D.horror().e3.t0; D.lookAt(...C.SCARE_PLAN.behind); H.dt = 1 / 60;
@@ -1744,6 +1757,9 @@ const isExternal = (u) => {
       return { knock: kn.simT - t3, wide: h.wideAt - t3, dogClosed: h.dog.closedAt - t3, arrive: C.FOOT_ARRIVE, wet: wet.length, at21, end: D.levels().foot.length, drawnEnd: D.info().foot }; });
     await P.close();
     report.n4 = { r, tr, con, k };
+    const far = con.each.slice().sort((a, b) => b.dist - a.dist).slice(0, 4);   // round 10: the far prints, reported on their own (N4's threshold unchanged)
+    report.n4far = far;
+    console.log('        far footprints (the 4 farthest wholly on screen in the N4 view): ' + far.map((f) => `${f.dist.toFixed(1)} m: ${f.changed}/${f.px} px changed, mean ${(100 * f.ratio).toFixed(0)}% of the floor (mean luminance change ${f.meanDiff.toFixed(1)})`).join(' | '));
     const maxDev = Math.max(...r.growl);
     check('N4', 'wet footprints: the whole trail drawn to the staff door, >= 25% darker than the floor (no sound needed); the dog growls at the newest (< 20 deg, as drawn); knocking after they arrive and the dog has gone, by E3+20 s; faded after 20 s',
       tr.n === 14 && tr.drawn === 14 && tr.boxes.length >= 8 && con.n > 100 && con.ratio <= 0.75 && r.growl.length > 0 && maxDev < 20 && k.wet === 14 && k.knock > k.arrive && k.knock > k.dogClosed && k.knock <= 20 + 1e-6 && k.at21 === 13 && k.end === 0 && k.drawnEnd === 0,
@@ -1752,53 +1768,80 @@ const isExternal = (u) => {
       `prints left at E3+21.3 s ${k.at21}, 21 s after the last ${k.end} (drawn ${k.drawnEnd})`);
   }
 
-  // ---------- N5: the ending (the figure behind the window looks up at you) ----------
+  // ---------- N5: the ending (round 9: the head turns onto the camera; round 10: the window blinks, a cold rim, it walks to
+  // the glass and puts a hand on it) ----------
   {
-    const P = await open('?view=hero'), page = P.page;
-    await page.keyboard.press('KeyX');
-    await page.evaluate(helpers);
-    await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.e3(); H.staff(); H.bang(); H.leave(); });
-    const gazeNow = () => page.evaluate(() => { const D = window.__diorama, i = D.info(), e = i.figures.endHead, c = i.camera; if (!e) return { dev: 999, pitch: 0, mode: D.state().mode, missing: true };
+    // pixels changed between two frames of the same view: count, rows (height of the changed area), and the mean colour of the changed pixels in the first
+    const diff = (a, b, minRow = 2) => calc.evaluate(async ({ a, b, minRow }) => {
+      const load = async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return { d: g.getImageData(0, 0, c.width, c.height).data, W: c.width, H: c.height }; };
+      const A = await load(a), B = await load(b), Y = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2], rows = new Map(); let n = 0, r = 0, g = 0, bl = 0;
+      for (let y = 0; y < A.H; y++) for (let x = 0; x < A.W; x++) { const i = 4 * (y * A.W + x); if (Math.abs(Y(A.d, i) - Y(B.d, i)) > 10) { rows.set(y, (rows.get(y) || 0) + 1); n++; r += A.d[i]; g += A.d[i + 1]; bl += A.d[i + 2]; } }
+      const ys = [...rows.entries()].filter(([, c]) => c >= minRow).map(([y]) => y);
+      return { n, height: ys.length ? Math.max(...ys) - Math.min(...ys) + 1 : 0, top: ys.length ? Math.min(...ys) : null, frame: A.H, rgb: n ? [r / n, g / n, bl / n] : null };
+    }, { a: a.toString('base64'), b: b.toString('base64'), minRow });
+    const silhouette = async (page) => { await page.waitForTimeout(250); const A = await page.screenshot(); await page.evaluate(() => window.__diorama.hideFigure(true)); await page.waitForTimeout(250); const B = await page.screenshot(); await page.evaluate(() => window.__diorama.hideFigure(false)); return diff(A, B); };
+    const gazeNow = (page) => page.evaluate(() => { const D = window.__diorama, i = D.info(), e = i.figures.endHead, c = i.camera; if (!e) return { dev: 999, pitch: 0, mode: D.state().mode, missing: true };
       const d = [c[0] - e.pos[0], c[1] - e.pos[1], c[2] - e.pos[2]], L = Math.hypot(...d);
-      return { mode: D.state().mode, dev: (Math.acos(Math.min(1, (e.dir[0] * d[0] + e.dir[1] * d[1] + e.dir[2] * d[2]) / L)) * 180) / Math.PI, pitch: e.pitch, pose: D.levels().end, t: D.state().t, fired: D.horror().fired.END, e5: D.horror().fired.E5 }; });
-    const g0 = await gazeNow();
-    const turn = await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; H.dt = 1 / 240; const seen0 = D.horror().end.seen, t0 = D.state().t; let gaps = 0;
-      H.each = () => { if (D.horror().fired.END == null && !D.horror().end.seen) gaps++; };
-      H.until(() => D.horror().fired.END != null, 6); H.each = null; const t = D.horror().fired.END; H.until(() => D.state().t >= t + C.ENDING.turn, 3); return { t, t0, seen0, gaps, drone: (D.audioLog() || []).filter((x) => x.kind === 'drone').length }; });
-    // closer to the shop, and from two different angles
-    const pics = [];
-    for (const [name, rot] of [['N5-ending-angle1', [0.35, 0.05]], ['N5-ending-angle2', [-0.7, -0.05]]]) {
-      await page.evaluate(([a, b]) => { const D = window.__diorama; D.rotate(a, b); for (let i = 0; i < 120; i++) D.step(1 / 240, 1); }, rot);   // (no zoom: the exit leaves the camera at the entry orbit, already close; nearer would start an entry)
-      await page.waitForTimeout(250);
-      pics.push(await gazeNow());
-      await page.evaluate(() => window.__diorama.ui(false)); await page.screenshot({ path: shot(name) });
-      const c = await page.evaluate(() => { const D = window.__diorama, C = D.core, sp = C.HORROR.spots.window, a = D.toScreen(sp.x - 0.5, 2.4, sp.z), b = D.toScreen(sp.x + 0.5, 0.3, sp.z); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; });
-      const png = await page.screenshot({ clip: { x: Math.max(0, c[0]), y: Math.max(0, c[1]), width: Math.min(1280 - Math.max(0, c[0]), c[2] - c[0]), height: Math.min(720 - Math.max(0, c[1]), c[3] - c[1]) } });
-      const big = await calc.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const k = 4, cv = document.createElement('canvas'); cv.width = img.naturalWidth * k; cv.height = img.naturalHeight * k; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, cv.width, cv.height); return cv.toDataURL('image/png').split(',')[1]; }, png.toString('base64'));
-      fs.writeFileSync(shot(name + '-4x'), Buffer.from(big, 'base64'));
-      await page.evaluate(() => window.__diorama.ui(true));
+      return { mode: D.state().mode, dev: (Math.acos(Math.min(1, (e.dir[0] * d[0] + e.dir[1] * d[1] + e.dir[2] * d[2]) / L)) * 180) / Math.PI, pitch: e.pitch, pose: D.levels().end, rig: i.figures.endRig, t: D.state().t, fired: D.horror().fired.END, e5: D.horror().fired.E5 }; });
+    const windowRect = (page) => page.evaluate(() => { const D = window.__diorama, C = D.core, W = C.WINDOW, z = C.FACADE_Z; const s = [[W.x0, W.y0], [W.x1, W.y0], [W.x0, W.y1], [W.x1, W.y1]].map(([x, y]) => D.toScreen(x, y, z)), xs = s.map((v) => v[0]), ys = s.map((v) => v[1]), pad = 0.15;
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); return [x0 + (x1 - x0) * pad, y0 + (y1 - y0) * pad, x1 - (x1 - x0) * pad, y1 - (y1 - y0) * pad]; });
+    const rectLum = (png, rect) => calc.evaluate(async ({ b64, rect }) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      const d = g.getImageData(Math.round(rect[0]), Math.round(rect[1]), Math.max(1, Math.round(rect[2] - rect[0])), Math.max(1, Math.round(rect[3] - rect[1]))).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; return s / (d.length / 4); }, { b64: png.toString('base64'), rect });
+    const runs = {};
+    for (const [tag, opts, rot1, rot2] of [['desk', {}, [0.35, 0.05], [-0.7, -0.05]], ['phone', { width: 390, height: 844, dpr: 3, touch: true }, [-0.6, 0], [-0.25, -0.04]]]) {
+      const P = await open('?view=hero', opts), page = P.page, sfx = tag === 'desk' ? '' : '-phone';
+      await page.keyboard.press('KeyX');
+      await page.evaluate(helpers);
+      await page.evaluate((r) => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.e3(); H.staff(); H.bang(); H.leave(); D.rotate(r[0], r[1]); for (let i = 0; i < 24; i++) D.step(1 / 240, 1); D.ui(false); }, rot1);
+      const g0 = await gazeNow(page);
+      const before = await silhouette(page);                       // the round-9 picture: standing at its spot, back to the street, no rim
+      const rect = await windowRect(page), litPng = await page.screenshot(), lit = await rectLum(litPng, rect);
+      const turn = await page.evaluate(() => { const D = window.__diorama, H = window.__H; H.dt = 1 / 240; const seen0 = D.horror().end.seen, t0 = D.state().t; let gaps = 0;
+        H.each = () => { if (D.horror().fired.END == null && !D.horror().end.seen) gaps++; };
+        H.until(() => D.horror().fired.END != null, 6); H.each = null; return { t: D.horror().fired.END, t0, seen0, gaps, drone: (D.audioLog() || []).filter((x) => x.kind === 'drone').length, light: D.horror().light }; });
+      await page.evaluate(() => { const D = window.__diorama; for (let i = 0; i < 12; i++) D.step(1 / 240, 1); });   // E+0.05 s, inside the 0.12 s blink
+      const flashPng = await page.screenshot(); if (tag === 'desk') fs.writeFileSync(shot('N5-window-blink'), flashPng);
+      const flash = { light: await page.evaluate(() => window.__diorama.horror().light), lum: await rectLum(flashPng, rect) };
+      await page.evaluate(() => { const D = window.__diorama; for (let i = 0; i < 36; i++) D.step(1 / 240, 1); });   // E+0.20 s
+      flash.after = await rectLum(await page.screenshot(), rect); flash.afterLight = await page.evaluate(() => window.__diorama.horror().light);
+      await page.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; const t = D.horror().fired.END; H.until(() => D.state().t >= t + C.ENDING.turn + C.ENDING.walk + C.ENDING.hand + 0.2, 6); });
+      const at1 = await gazeNow(page); await page.waitForTimeout(250); await page.screenshot({ path: shot('N5-ending' + sfx + '-angle1') });
+      const after = await silhouette(page);
+      // the rim: the pixels it changes, and their colour (cold: blue above red)
+      await page.waitForTimeout(100); const R1 = await page.screenshot(); await page.evaluate(() => window.__diorama.hideRim(true)); await page.waitForTimeout(250); const R0 = await page.screenshot(); await page.evaluate(() => window.__diorama.hideRim(false));
+      const rim = await diff(R1, R0, 1);
+      await page.evaluate((r) => { const D = window.__diorama; D.rotate(r[0], r[1]); for (let i = 0; i < 120; i++) D.step(1 / 240, 1); }, rot2);
+      await page.waitForTimeout(250); const at2 = await gazeNow(page); await page.screenshot({ path: shot('N5-ending' + sfx + '-angle2') });
+      runs[tag] = { g0, before, after, ratio: before.height ? after.height / before.height : 0, lit, flash, turn, at1, at2, rim };
+      await P.close();
     }
-    await P.close();
     // no E4 in the visit: it stays as it was
     const Q = await open('?view=hero'), q = Q.page;
     await q.evaluate(helpers);
-    const none = await q.evaluate(() => { const D = window.__diorama, H = window.__H, C = D.core; H.enter(); H.aisle(); H.leave(); H.dt = 1 / 60; H.until(() => false, 8);
+    const none = await q.evaluate(() => { const D = window.__diorama, H = window.__H; H.enter(); H.aisle(); H.leave(); H.dt = 1 / 60; let lit = true;
+      H.each = () => { if (D.horror().light < 1 && D.state().mode === 'orbit' && D.horror().figure === 'window') lit = false; }; H.until(() => false, 8); H.each = null;
       for (let i = 0; i < 60; i++) D.step(1 / 60, 1);
-      const e = D.info().figures.endHead; return { fired: D.horror().fired.END, figure: D.horror().figure, pose: D.levels().end, head: e }; });
+      const i = D.info(); return { fired: D.horror().fired.END, figure: D.horror().figure, pose: D.levels().end, head: i.figures.endHead, rig: i.figures.endRig, lit }; });
     await q.waitForTimeout(250); await q.evaluate(() => window.__diorama.ui(false)); await q.screenshot({ path: shot('N5-no-E4') });
-    { const c = await q.evaluate(() => { const D = window.__diorama, C = D.core, sp = C.HORROR.spots.window, a = D.toScreen(sp.x - 0.5, 2.4, sp.z), b = D.toScreen(sp.x + 0.5, 0.3, sp.z); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; });
-      const png = await q.screenshot({ clip: { x: Math.max(0, c[0]), y: Math.max(0, c[1]), width: Math.min(1280 - Math.max(0, c[0]), c[2] - c[0]), height: Math.min(720 - Math.max(0, c[1]), c[3] - c[1]) } });
-      const big = await calc.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const k = 4, cv = document.createElement('canvas'); cv.width = img.naturalWidth * k; cv.height = img.naturalHeight * k; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, cv.width, cv.height); return cv.toDataURL('image/png').split(',')[1]; }, png.toString('base64'));
-      fs.writeFileSync(shot('N5-no-E4-4x'), Buffer.from(big, 'base64')); }
     await Q.close();
-    report.n5 = { g0, turn, pics, none };
-    check('N5', 'ending: after a visit with E4 the figure behind the window, 2 s on screen, turns its head onto the camera within 1.5 s (with a low tone) and keeps it there from two other angles (< 10 deg, as drawn); without E4 it does not look up',
-      g0.pose && g0.pose.armed && !g0.pose.looking && turn.gaps === 0 && Math.abs(turn.t - turn.t0 - (2 - turn.seen0)) <= 2 / 240 && turn.drone === 1 && pics.every((x) => x.mode === 'orbit' && x.dev < 10 && x.pitch > 0.1) && none.figure === 'window' && none.fired == null && none.pose && !none.pose.armed && none.head && none.head.pitch === 0 && none.head.headRel === 0,
-      `E4 visit: E5 at ${g0.e5 && g0.e5.toFixed(2)} s, on screen for ${turn.seen0.toFixed(2)} s when the exit ended (${turn.t0.toFixed(2)} s), then in view throughout; it turned at ${turn.t.toFixed(2)} s = ${(turn.seen0 + turn.t - turn.t0).toFixed(3)} s on screen (2 s); the low tone played ${turn.drone}; ` +
-      pics.map((x, i) => `angle ${i + 1} (${x.mode}): drawn head ${x.dev.toFixed(2)} deg off the camera, lifted ${(x.pitch * 180 / Math.PI).toFixed(1)} deg`).join('; ') +
-      `; no E4: figure ${none.figure}, turned ${none.fired}, head lifted ${none.head ? (none.head.pitch * 180 / Math.PI).toFixed(1) : 'n/a'} deg, turned ${none.head ? (none.head.headRel * 180 / Math.PI).toFixed(1) : 'n/a'} deg`);
+    report.n5 = { runs, none };
+    const d = runs.desk, p = runs.phone, sp = { z: 0.5 - 0.2 - 0.35 };
+    const okRun = (r) => r.g0.pose && r.g0.pose.armed && !r.g0.pose.looking && r.turn.gaps === 0 && Math.abs(r.turn.t - r.turn.t0 - (2 - r.turn.seen0)) <= 2 / 240 && r.turn.drone === 1
+      && r.flash.light < 0.5 && r.flash.lum < 0.75 * r.lit && r.flash.afterLight === 1 && r.flash.after > 0.9 * r.lit
+      && [r.at1, r.at2].every((x) => x.mode === 'orbit' && x.dev < 10 && x.pitch > 0.1) && r.at1.rig && r.at1.rig.arm && r.at1.rig.palmGap >= 0 && r.at1.rig.palmGap <= 0.02 && Math.abs(r.at1.rig.body[2] - r.at1.pose.z) < 1e-6 && r.at1.rig.rimShown
+      && r.rim.n > 20 && r.rim.rgb && r.rim.rgb[2] > r.rim.rgb[0] + 10;
+    const desc = (tag, r) => `${tag}: on screen ${r.turn.seen0.toFixed(2)} s when the exit ended, turned at ${(r.turn.seen0 + r.turn.t - r.turn.t0).toFixed(3)} s on screen (2 s), low tone ${r.turn.drone}; ` +
+      `window light at E+0.05 s ${r.flash.light} (window mean ${r.flash.lum.toFixed(1)} vs ${r.lit.toFixed(1)} lit = ${(100 * r.flash.lum / r.lit).toFixed(0)}%), at E+0.20 s ${r.flash.afterLight} (${r.flash.after.toFixed(1)}); ` +
+      `at the glass: body z ${r.at1.rig.body[2].toFixed(3)}, hand ${r.at1.rig.arm ? 'up' : 'down'} at (${r.at1.rig.palm.map((v) => v.toFixed(2)).join(', ')}), ${(r.at1.rig.palmGap * 1000).toFixed(0)} mm off the pane; rim ${r.rim.n} px, mean colour rgb(${r.rim.rgb ? r.rim.rgb.map((v) => v.toFixed(0)).join(', ') : '-'}); ` +
+      `head ${r.at1.dev.toFixed(2)} / ${r.at2.dev.toFixed(2)} deg off the camera at two angles, lifted ${(r.at1.pitch * 180 / Math.PI).toFixed(1)} / ${(r.at2.pitch * 180 / Math.PI).toFixed(1)} deg`;
+    const noneOk = none.figure === 'window' && none.fired == null && none.pose && !none.pose.armed && none.head && none.head.pitch === 0 && none.head.headRel === 0 && none.rig && !none.rig.arm && !none.rig.rimShown && Math.abs(none.rig.body[2] - sp.z) < 1e-6 && none.lit;
+    check('N5', 'ending: after a visit with E4, 2 s on screen, the window light blinks out (0.12 s) as the head turns onto the camera (with a low tone); a cold rim on head and shoulders; it walks to the glass, puts a hand on it and keeps staring from two other angles (< 10 deg; 1280x720 and 390x844); without E4 none of it',
+      okRun(d) && okRun(p) && noneOk,
+      desc('1280x720', d) + ' | ' + desc('390x844', p) + ` | no E4: figure ${none.figure}, turned ${none.fired}, head lifted ${none.head ? (none.head.pitch * 180 / Math.PI).toFixed(1) : 'n/a'} deg, body z ${none.rig ? none.rig.body[2].toFixed(3) : 'n/a'}, hand ${none.rig && none.rig.arm ? 'up' : 'down'}, rim ${none.rig && none.rig.rimShown ? 'on' : 'off'}, window never blinked ${none.lit}`);
+    check('N5h', 'ending: at the glass the figure is >= 1.6x as tall on screen as in round 9 (the whole picture, 1280x720 and 390x844)',
+      d.ratio >= 1.6 && p.ratio >= 1.6,
+      `1280x720 (angle 1): ${d.before.height} px before it turns (round 9's picture, ${d.before.n} px changed by drawing it) -> ${d.after.height} px at the glass with its hand up (${d.after.n} px) = ${d.ratio.toFixed(2)}x | 390x844 (angle 1): ${p.before.height} px -> ${p.after.height} px = ${p.ratio.toFixed(2)}x (needs >= 1.6x)`);
   }
-
   // ---------- N6: the shop window brighter than the vending machine; the dog blocked at the door ----------
   {
     const lumRect = async (file, rect) => calc.evaluate(async ({ b64, rect }) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
@@ -1865,22 +1908,22 @@ const isExternal = (u) => {
     const ids = ['1', '1b', '2', '3', '4', '5', '6', '7', '8', '9', 'P', 'D', ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => 'H' + i), ...Array.from({ length: 13 }, (_, i) => 'R' + (i + 1)), 'K1', 'K2', 'F1', 'F4', 'V1'];
     const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));
     check('A8', 'regressions after the reskin: items 1-9, 1b, performance, player default, H1-H8, R1-R13, K1, K2, F1, F4, V1',
-      rows.every((c) => c && c.pass), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !rows[i] || !rows[i].pass).join(',') || 'none failing'})`);
+      rows.every(okRow), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !okRow(rows[i])).join(',') || 'none failing'}${neNote(rows)})`);
   }  {
-    const rows = report.checks.filter((c) => !/^N[1-8]$/.test(String(c.id)) && !['A8', 'F5', 'R9'].includes(String(c.id)));
-    check('N8', 'regressions after round 9: every earlier row passes (the card closed first on the normal entry)', rows.every((c) => c.pass), `${rows.filter((c) => c.pass).length}/${rows.length} earlier rows pass (${rows.filter((c) => !c.pass).map((c) => c.id).join(',') || 'none failing'})`);
+    const rows = report.checks.filter((c) => !/^N[1-8]h?$/.test(String(c.id)) && !['A8', 'F5', 'R9'].includes(String(c.id)));
+    check('N8', 'regressions after round 9: every earlier row passes (the card closed first on the normal entry)', rows.every(okRow), `${rows.filter((c) => c.pass).length}/${rows.length} earlier rows pass${neNote(rows)} (${rows.filter((c) => !okRow(c)).map((c) => c.id).join(',') || 'none failing'})`);
   }
 
   {
     const ids = ['1', '1b', '2', '3', '4', '5', '6', '7', '8', '9', 'P', 'D', ...[1, 2, 3, 4, 5, 6, 7, 8].map((i) => 'H' + i), ...Array.from({ length: 13 }, (_, i) => 'R' + (i + 1))];
     const rows = ids.map((id) => report.checks.find((c) => String(c.id) === id));
     check('F5', 'regressions: H1-H8 (round-6 thresholds), R1-R13, items 1-9, 1b, performance, player default',
-      rows.every((c) => c && c.pass), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !rows[i] || !rows[i].pass).join(',') || 'none failing'})`);
+      rows.every(okRow), `${rows.filter((c) => c && c.pass).length}/${ids.length} rows pass (${ids.filter((id, i) => !okRow(rows[i])).join(',') || 'none failing'}${neNote(rows)})`);
   }
   report.gpu = gpu; report.calls = calls; report.errors = allErrors; report.external = allExternal;
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2));
-  const failed = report.checks.filter((c) => !c.pass).length;
-  console.log(`\n${report.checks.length - failed}/${report.checks.length} passed · ${report.browser} · GPU ${gpu} · ${base}`);
+  const failed = report.checks.filter((c) => !c.pass && !c.ne).length, ne = report.checks.filter((c) => c.ne);
+  console.log(`\n${report.checks.length - ne.length - failed}/${report.checks.length - ne.length} passed${ne.length ? ` · not evaluable (not counted): ${ne.map((c) => c.id).join(', ')} — empty-page frame rate on this display ${displayCap.toFixed(1)}/s` : ''} · ${report.browser} · GPU ${gpu} · ${base}`);
   await browser.close();
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
