@@ -823,7 +823,7 @@ function createHorror(S, calm) {
         break;
       case 'out':
         sp = calmDog ? DOG.trot : DOG.run;
-        if (!d.lined && near(DOG.inside, 0.15)) d.lined = true;   // first back to just inside the door, then straight out
+        if (!d.lined && (near(DOG.inside, 0.15) || d.z > DOG.inside[1])) d.lined = true;   // first back to just inside the door (unless already past it), then straight out
         target = d.lined ? DOG.away : DOG.inside;
         if (d.exitEnd === null && d.z > FACADE_Z + DOG.r + 0.05) { d.exitEnd = t + DOG.hold; d.closedAt = d.exitEnd + 1 / DOOR_SPEED; }
         if (near(DOG.away, 0.08)) { d.goneAt = t; d.log.push({ phase: 'gone', t, x: d.x, z: d.z }); return; }

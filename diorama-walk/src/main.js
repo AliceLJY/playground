@@ -94,7 +94,7 @@ function inside(mat) {
 const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
 const lamIn = (c) => inside(lam(c));
 const glow = (c) => new THREE.MeshBasicMaterial({ color: c });
-const VEND_DIM = 0.3;                           // round 9: the vending machine's light well under the shop window's (SPEC 两处小修①)
+const VEND_DIM = 0.025;                         // round 9: the vending machine's light well under the shop window's (SPEC 两处小修①); a linear-light factor: about 16% of the old brightness on screen
 const glassMat = () => new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: C.GLASS_OPACITY, depthWrite: false, side: THREE.DoubleSide });
 const MATS = {
   sidewalk: lam(COL.sidewalk), stripe: lam(COL.stripe),
@@ -608,17 +608,17 @@ if (cardEl) {
   cardEl.addEventListener('wheel', (e) => { e.preventDefault(); e.stopPropagation(); }, { passive: false });
   cardEl.addEventListener('click', (e) => { if (e.target.tagName === 'A') return; e.preventDefault(); if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > C.PAD.tapPx) { down = null; return; } down = null; cardEl.style.display = 'none'; startAudio(); });
 }
-let noteOpenedAt = -1e9;
-function openNote() { if (cardOpen()) return; noteOpenedAt = performance.now(); noteEl.style.display = 'flex'; sim.drive(0, 0); sim.turn(0); for (const k of Object.keys(keys)) keys[k] = false; noteHintEl.style.display = 'none'; }
+let noteOpenedBy = null;                            // the tap that opened it: its own click must not close it again
+function openNote(at = null) { if (cardOpen()) return; noteOpenedBy = at && { t: performance.now(), x: at[0], y: at[1] }; noteEl.style.display = 'flex'; sim.drive(0, 0); sim.turn(0); for (const k of Object.keys(keys)) keys[k] = false; noteHintEl.style.display = 'none'; }
 function closeNote() { noteEl.style.display = 'none'; }
 noteEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
-noteEl.addEventListener('click', (e) => { e.preventDefault(); if (performance.now() - noteOpenedAt > 400) closeNote(); });   // not the click of the very tap that opened it
+noteEl.addEventListener('click', (e) => { e.preventDefault(); const o = noteOpenedBy; if (o && performance.now() - o.t < 400 && Math.hypot(e.clientX - o.x, e.clientY - o.y) < 12) return; closeNote(); });
 noteHintEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); startAudio(); });
 noteHintEl.addEventListener('click', (e) => { e.preventDefault(); openNote(); });
 // a tap on the note itself opens it (mouse click or touch tap, in the shop)
 const noteRay = new THREE.Raycaster();
 const noteAt = (sx, sy) => { if (sim.S.mode !== 'walk') return false; sync(); camera.updateMatrixWorld(); noteRay.setFromCamera(new THREE.Vector2(sx * 2 - 1, 1 - sy * 2), camera); return noteRay.intersectObject(noteMesh, false).length > 0; };
-{ const tap0 = sim.tapAt; sim.tapAt = (sx, sy) => { if (noteAt(sx, sy)) { openNote(); return true; } return tap0(sx, sy); }; }
+{ const tap0 = sim.tapAt; sim.tapAt = (sx, sy) => { if (noteAt(sx, sy)) { openNote([sx * cssW, sy * cssH]); return true; } return tap0(sx, sy); }; }
 
 // ---------------- input: Pointer Events for mouse and touch ----------------
 const pad = C.createTouchPad(sim, { width: innerWidth, height: innerHeight });
