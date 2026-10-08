@@ -1313,6 +1313,15 @@ test('D1-D3: the dog comes in with E3, shakes, walks 2-3 m, growls at the staff 
   const newest = (t) => { let n = null; for (const f of C.FOOTPRINTS) if (t >= h.foot0 + f.dt - 1e-9) n = f; return n; };
   const g = rec.frames.filter((f) => f.phase === 'growl'), dev = Math.max(...g.map((f) => { const n = newest(f.t); return Math.abs(C.wrapAngle(f.yaw - Math.atan2(-(n.x - f.x), -(n.z - f.z)))) * 180 / Math.PI; }));
   assert.ok(h.foot0 === e3.t0 && g.length > 0 && dev < 20 && g.every((f) => f.crouch > 0 || f.t - g[0].t < 0.3) && g.every((f) => f.tail === 'tuck'), `D3/N4: growling head ${dev.toFixed(2)} deg off the newest footprint, crouched, tail tucked`);
+  // once a print has been down 0.1 s the dog is on it (the staff door is only 2-5.5 deg away from the prints, so the loose bound alone can't tell them apart)
+  const newestAt = (t, foot0) => { let n = null; for (const f of C.FOOTPRINTS) if (t >= foot0 + f.dt - 1e-9) n = f; return n; };
+  const settled = (frames, foot0) => Math.max(...frames.filter((f) => { const n = newestAt(f.t, foot0); return n && f.t - (foot0 + n.dt) >= 0.1; }).map((f) => { const n = newestAt(f.t, foot0); return Math.abs(C.wrapAngle(f.yaw - Math.atan2(-(n.x - f.x), -(n.z - f.z)))) * 180 / Math.PI; }));
+  const set1 = settled(g, h.foot0);
+  const simB = C.createSim({ aspect: 16 / 9 });
+  simB.enter('door'); run(simB, () => simB.S.mode === 'walk'); simB.walkRoute(C.SCARE_PLAN.aisle); run(simB, () => !simB.S.player.route);
+  simB.place(6.3, -2.6, 0); run(simB, () => simB.horror().e3 !== null, 25, 1 / 240);
+  const recB = watchDog(C, simB), gB = recB.frames.filter((f) => f.phase === 'growl'), set2 = settled(gB, simB.horror().foot0);
+  assert.ok(set1 < 1.5 && gB.length > 0 && set2 < 1.5, `N4: settled on the newest footprint (${set1.toFixed(2)} deg; standing by the till ${set2.toFixed(2)} deg)`);
   const snd = h.sounds.filter((s) => s.t >= dog.t0 - 1e-9), first = (k) => snd.find((s) => s.kind === k), knock = h.sounds.find((s) => s.kind === 'knock');
   assert.ok(first('paw').t < first('shake').t && first('shake').t < first('growl').t && first('growl').t < first('whimper').t, 'paws, shake, growl, whimper in order');
   assert.ok(!knock || knock.t > dog.closedAt, 'no knocking while the dog is in (the staff door goes wide only after)');
