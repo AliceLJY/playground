@@ -1137,11 +1137,16 @@ const isExternal = (u) => {
       await P.close();
     }
     report.perf = perf;
-    let refFps = null;
-    if (perfRef) { const P = await open('?view=hero', { dpr: 2, at: perfRef }); await P.page.waitForTimeout(1200);
-      refFps = await P.page.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 181) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await P.close(); report.perfRef = { hero_dpr2: refFps }; }
-    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50, perf['hero dpr2'].fps, refFps),
-      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}) hero dpr2 measured the same way just after: ${refFps.toFixed(1)} fps` : ''}`);
+    // with a reference build: this build and the reference alternately, three times each, the same way; medians compared (one
+    // sample each was too noisy here: the GPU is shared with a remote desktop and drifts by 10 fps between pages)
+    const med = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+    const rafFps = async (at, dpr) => { const P = await open('?view=hero', { dpr, at }); await P.page.waitForTimeout(1200);
+      const v = await P.page.evaluate(() => new Promise((res) => { const t = []; const f = (n) => { t.push(n); if (t.length < 181) requestAnimationFrame(f); else res((t.length - 1) / ((t[t.length - 1] - t[0]) / 1000)); }; requestAnimationFrame(f); })); await P.close(); return v; };
+    let refFps = null, curFps = perf['hero dpr2'].fps, ab = null;
+    if (perfRef) { ab = { cur: [], ref: [] }; for (let k = 0; k < 3; k++) { ab.cur.push(await rafFps(null, 2)); ab.ref.push(await rafFps(perfRef, 2)); }
+      refFps = med(ab.ref); curFps = med(ab.cur); report.perfRef = { hero_dpr2: ab }; }
+    check('P', 'performance budget at ?view=hero 1280x720', fpsJudge(perf['hero dpr1'].calls <= 150 && perf['hero dpr1'].dpr <= 2, perf['hero dpr2'].fps >= 50, curFps, refFps),
+      Object.entries(perf).map(([k, v]) => `${k}: ${v.fps.toFixed(1)} fps, ${v.calls} draw calls, ${v.triangles} triangles, buffer ${v.buffer.join('x')}`).join(' | ') + ` | rain 2400 segments in one LineSegments | an empty page reaches ${displayCap.toFixed(1)} frames/s on this display${perfRef ? ` | reference build (${path.basename(path.dirname(path.dirname(perfRef.slice(7))))}) hero dpr2 this build and it alternately, three times each, hero dpr2: ${ab.cur.map((v) => v.toFixed(1)).join(' / ')} vs ${ab.ref.map((v) => v.toFixed(1)).join(' / ')} fps (medians ${curFps.toFixed(1)} vs ${refFps.toFixed(1)})` : ''}`);
   }
 
   // ---------- player default: no parameters, pixel ratio 2, real wheel / clicks / keys in real time ----------
@@ -1392,12 +1397,14 @@ const isExternal = (u) => {
       const i = await info(P.page); await P.close(); return i;
     };
     const desk = await meas('?view=hero'), deskIn = await meas('?view=inside'), phone = await meas('?view=hero', { width: 390, height: 844, dpr: 3, touch: true }), phoneIn = await meas('?view=inside', { width: 390, height: 844, dpr: 3, touch: true });
-    const deskRef = perfRef ? await meas('?view=hero', { at: perfRef }) : null;
+    let deskRef = null, a7ab = null;
+    if (perfRef) { a7ab = { cur: [], ref: [] }; for (let k = 0; k < 3; k++) { a7ab.cur.push((await meas('?view=hero')).fps); a7ab.ref.push((await meas('?view=hero', { at: perfRef })).fps); }
+      const m = (a) => a.slice().sort((x, y) => x - y)[1]; deskRef = { fps: m(a7ab.ref), cur: m(a7ab.cur) }; }
     report.a7 = { desk, deskIn, phone, phoneIn, deskRef };
     check('A7', 'performance: hero 1280x720 <= 150 draw calls and >= 50 fps; one shadow-casting light; 390x844 measured too',
-      deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30 ? fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, desk.fps >= 50, desk.fps, deskRef ? deskRef.fps : null) : false,
+      deskIn.fps >= 50 && phone.fps >= 30 && phoneIn.fps >= 30 ? fpsJudge(desk.calls <= 150 && desk.shop.lights.shadows === 1 && deskIn.shop.lights.shadows === 1, desk.fps >= 50, deskRef ? deskRef.cur : desk.fps, deskRef ? deskRef.fps : null) : false,
       `hero 1280x720: ${desk.calls} draw calls, ${desk.fps.toFixed(1)} fps; inside 1280x720: ${deskIn.calls} calls, ${deskIn.fps.toFixed(1)} fps; lights on ${desk.shop.lights.n}, casting shadows ${desk.shop.lights.shadows}; ` +
-      `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)${deskRef ? `; reference build hero 1280x720 measured the same way just after: ${deskRef.fps.toFixed(1)} fps` : ''}`);
+      `390x844 (pixel ratio ${phone.dpr}): hero ${phone.calls} calls ${phone.fps.toFixed(1)} fps, inside ${phoneIn.calls} calls ${phoneIn.fps.toFixed(1)} fps (headless desktop GPU, not a phone)${deskRef ? `; this build and the reference build alternately, three times each, hero 1280x720: ${a7ab.cur.map((v) => v.toFixed(1)).join(' / ')} vs ${a7ab.ref.map((v) => v.toFixed(1)).join(' / ')} fps (medians ${deskRef.cur.toFixed(1)} vs ${deskRef.fps.toFixed(1)})` : ''}`);
   }
 
   // ---------- A5: P1 at the end of an aisle, P2 the black TV (in the page) ----------
@@ -1790,8 +1797,11 @@ const isExternal = (u) => {
     const gazeNow = (page) => page.evaluate(() => { const D = window.__diorama, i = D.info(), e = i.figures.endHead, c = i.camera; if (!e) return { dev: 999, pitch: 0, mode: D.state().mode, missing: true };
       const d = [c[0] - e.pos[0], c[1] - e.pos[1], c[2] - e.pos[2]], L = Math.hypot(...d);
       return { mode: D.state().mode, dev: (Math.acos(Math.min(1, (e.dir[0] * d[0] + e.dir[1] * d[1] + e.dir[2] * d[2]) / L)) * 180) / Math.PI, pitch: e.pitch, pose: D.levels().end, rig: i.figures.endRig, t: D.state().t, fired: D.horror().fired.END, e5: D.horror().fired.E5 }; });
-    const windowRect = (page) => page.evaluate(() => { const D = window.__diorama, C = D.core, W = C.WINDOW, z = C.FACADE_Z; const s = [[W.x0, W.y0], [W.x1, W.y0], [W.x0, W.y1], [W.x1, W.y1]].map(([x, y]) => D.toScreen(x, y, z)), xs = s.map((v) => v[0]), ys = s.map((v) => v[1]), pad = 0.15;
-      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys); return [x0 + (x1 - x0) * pad, y0 + (y1 - y0) * pad, x1 - (x1 - x0) * pad, y1 - (y1 - y0) * pad]; });
+    // the window around the figure (on the pane, 0.6 m either side of it, 0.9-2.3 m up), clipped to the screen: what the blink darkens
+    const windowRect = (page) => page.evaluate(() => { const D = window.__diorama, C = D.core, sp = C.HORROR.spots.window, z = C.WINDOW_GLASS_IN, W = C.WINDOW;
+      const xa = Math.max(W.x0 + 0.05, sp.x - 0.6), xb = Math.min(W.x1 - 0.05, sp.x + 0.6), s = [[xa, 0.9], [xb, 0.9], [xa, 2.3], [xb, 2.3]].map(([x, y]) => D.toScreen(x, y, z)), xs = s.map((v) => v[0]), ys = s.map((v) => v[1]);
+      const k = devicePixelRatio;   // screenshots are in device pixels
+        return [Math.max(0, Math.min(...xs)) * k, Math.max(0, Math.min(...ys)) * k, Math.min(innerWidth, Math.max(...xs)) * k, Math.min(innerHeight, Math.max(...ys)) * k]; });
     const rectLum = (png, rect) => calc.evaluate(async ({ b64, rect }) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
       const d = g.getImageData(Math.round(rect[0]), Math.round(rect[1]), Math.max(1, Math.round(rect[2] - rect[0])), Math.max(1, Math.round(rect[3] - rect[1]))).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; return s / (d.length / 4); }, { b64: png.toString('base64'), rect });
     const runs = {};
