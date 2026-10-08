@@ -55,6 +55,14 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check and bundle Late-Night Grocery
+        working-directory: diorama-walk
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+
       - name: Assemble _site
         run: |
           mkdir -p _site/aju _site/shanhe _site/xiaoju-racing _site/rooftop-splash
@@ -90,6 +98,12 @@ jobs:
           python3 shadow-gong/build.py
           cp 'shadow-gong/灯影守夜.html' _site/shadow-gong/index.html
           cp shadow-gong/vendor/THREE-LICENSE.txt _site/shadow-gong/THREE-LICENSE.txt
+
+      - name: Assemble Late-Night Grocery
+        run: |
+          # 深夜杂货店：放大走进微缩模型的恐怖小游戏，上面已打成单文件（Three.js 许可在文件开头注释里）
+          mkdir -p _site/diorama-walk
+          cp diorama-walk/dist/index.html _site/diorama-walk/index.html
 
       - name: Check 3D exhibits
         run: node --check floorplan/share.js

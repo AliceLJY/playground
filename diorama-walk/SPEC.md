@@ -1,6 +1,6 @@
 # 微缩街角·走进去 · 灰盒规格
 
-按仓库根目录 [制作与验收约定](../AGENTS.md) 写的一页规格。**这是灰盒阶段**：全是方块和纯色，只验「放大进去、走、缩小出来」的手感，不做模型细节；在 `diorama-walk-greybox` 分支上做，不合进 main、不上线（main 一推就发布）。研究依据见弹药库 `interactive-3d-exhibit/diorama-walk-in-prompt.md` 与共享研究 `借鉴审计/beefnoode-miniature-konbini-walk-in-2026-10-07.md`。
+按仓库根目录 [制作与验收约定](../AGENTS.md) 写的一页规格。**这是灰盒阶段**：全是方块和纯色，只验「放大进去、走、缩小出来」的手感，不做模型细节；在 `diorama-walk-greybox` 分支上做了十一轮；2026-10-09 作者手机试玩第十一版后同意上线，以开场卡上的「深夜杂货店」为公开名字，仍是方块灰盒。研究依据见弹药库 `interactive-3d-exhibit/diorama-walk-in-prompt.md` 与共享研究 `借鉴审计/beefnoode-miniature-konbini-walk-in-2026-10-07.md`。
 
 ## 体验一句话
 

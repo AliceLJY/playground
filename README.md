@@ -8,6 +8,7 @@ Small things built for fun. One repo, one subfolder each, one Pages site. The fr
 
 | Toy | What it is | Stack |
 |---|---|---|
+| [Late-Night Grocery](diorama-walk/) · [play](https://aliceljy.github.io/playground/diorama-walk/) | A rainy-night street-corner miniature: zoom in and you walk into the one old grocery still lit, to work a night shift. There are scares; follow the shift rules until you get out | Three.js grey-box blocks, synthesised positional sound, keyboard/mouse and touch, standalone offline HTML |
 | [Shadow Gong](shadow-gong/) · [play](https://aliceljy.github.io/playground/shadow-gong/) | A parry duel on a shadow-puppet screen after the show: block the moment a blade lights up, and a perfect timing rings the gong and slows time before the finishing blow | Three.js 2.5D, procedural puppets and synthesised sound, keyboard/mouse and touch, standalone offline HTML |
 | [Rooftop Splash](rooftop-splash/) · [play](https://aliceljy.github.io/playground/rooftop-splash/) | A first-person rooftop water fight with bot teams, three blasters, water balloons and respawns | Three.js, procedural scenery, keyboard/mouse and touch, standalone offline HTML |
 | [Xiaoju Racing](xiaoju-racing/) · [play](https://aliceljy.github.io/playground/xiaoju-racing/) | A furry orange tabby races five cats through a Guangzhou-inspired circuit, with drifting and nitro | Three.js, procedural fur and standalone offline HTML |
