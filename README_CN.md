@@ -8,6 +8,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
+| [深夜杂货店](diorama-walk/) · [玩](https://aliceljy.github.io/playground/diorama-walk/) | 雨夜街角的一块微缩模型，放大就走进那家还亮着灯的老杂货店值夜班；有惊吓，照着《夜班须知》撑到出店 | Three.js 方块灰盒，程序合成的方位音效，键鼠与触屏，单文件离线可玩 |
 | [灯影守夜](shadow-gong/) · [玩](https://aliceljy.github.io/playground/shadow-gong/) | 散场后的皮影戏幕上举锣守灯：看兵器透光一亮就格挡，卡准了锣声一响、时间慢半拍，攒满架势再处决 | Three.js 2.5D，程序化皮影与合成音效，键鼠与触屏，单文件离线可玩 |
 | [天台水枪大战](rooftop-splash/) · [玩](https://aliceljy.github.io/playground/rooftop-splash/) | 夏日天台的第一人称水枪对战，蓝橙电脑团队、三把水枪、水球与复活 | 三维程序化场景，键鼠与触屏，单文件离线可玩 |
 | [小橘飞车 · 珠江杯](xiaoju-racing/) · [玩](https://aliceljy.github.io/playground/xiaoju-racing/) | 毛茸茸的小橘与五只猫同场竞速，漂移蓄气、氮气冲线 | Three.js，程序化毛发，单文件离线可玩 |
