@@ -8,6 +8,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import {
   SEED, mulberry32, clamp, SUMMIT_R, DECK_Y, CLOUD_Y, MOON_DIR, BUILDINGS, HERO_BOX, SATELLITES, FLAG_LINES, phaseOf,
   windowStates, windowLevel, VIEWS, createRig, fovFor, shiftFor, screenBox,
+  STORIES, FINALE_LINE, summitOf, createGame, focusPose, homePose, pickSummit, skyAt, windowOn, ROOM, EYE, SPOTS, createVisit, project,
 } from './core.js';
 
 const canvas = document.getElementById('scene');
@@ -77,10 +78,13 @@ const MATS = {
   flagY: std({ color: 0xe9b93a, roughness: 0.8, side: THREE.DoubleSide }),
   cloth: std({ color: 0xc9423a, roughness: 0.85, side: THREE.DoubleSide }),
   cream: std({ color: 0xe8dcc0, roughness: 0.9, side: THREE.DoubleSide }),
+  cat: std({ color: 0xd9832b, roughness: 0.92 }),
+  quilt: std({ color: 0x3f5f9a, roughness: 0.95 }),
 };
 
 // ---------------- geometry collector: everything static is merged per material ----------------
-const bins = {};
+const bins = {}, roomBins = {};
+let curBins = bins, curSummit = null;      // curSummit tags windows, lamps and lights with the summit they stand on
 const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3();
 let origin = new THREE.Matrix4();                       // current local frame (a summit, a hut)
 function put(mat, geo, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
@@ -90,7 +94,7 @@ function put(mat, geo, x = 0, y = 0, z = 0, ry = 0, rx = 0, rz = 0, sx = 1, sy =
   for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
   M4.compose(V.set(x, y, z), Q.setFromEuler(E.set(rx, ry, rz, 'YXZ')), S.set(sx, sy, sz)).premultiply(origin);
   g.applyMatrix4(M4);
-  (bins[mat] = bins[mat] || []).push(g);
+  (curBins[mat] = curBins[mat] || []).push(g);
 }
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (r0, r1, h, n = 12) => new THREE.CylinderGeometry(r0, r1, h, n);
@@ -117,18 +121,22 @@ const smokes = [];      // chimney tops in world space
 const pointLights = [];
 function worldM(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1) { return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(sx, sy, sz)).premultiply(origin); }
 // A window on a wall: (x, y, z) centre on the wall face, ry = direction the wall faces.
-function win(owner, x, y, z, ry, w = 0.62, h = 0.86, shutters = false) {
+function win(owner, x, y, z, ry, w = 0.62, h = 0.86, shutters = false, open = false) {
   const nx = Math.sin(ry), nz = Math.cos(ry), tx = Math.cos(ry), tz = -Math.sin(ry);
-  put('woodDark', box(w + 0.18, h + 0.18, 0.1), x + nx * 0.03, y, z + nz * 0.03, ry);
+  if (!open) put('woodDark', box(w + 0.18, h + 0.18, 0.1), x + nx * 0.03, y, z + nz * 0.03, ry);
+  else for (const s of [-1, 1]) {                       // ground floor of the main house: the room inside looks out through these
+    put('woodDark', box(0.09, h + 0.18, 0.1), x + tx * s * (w / 2 + 0.045) + nx * 0.03, y, z + tz * s * (w / 2 + 0.045) + nz * 0.03, ry);
+    put('woodDark', box(w + 0.18, 0.09, 0.1), x + nx * 0.03, y + s * (h / 2 + 0.045), z + nz * 0.03, ry);
+  }
   put('woodDark', box(0.05, h, 0.03), x + nx * 0.105, y, z + nz * 0.105, ry);
   put('woodDark', box(w, 0.05, 0.03), x + nx * 0.105, y, z + nz * 0.105, ry);
   put('snow', box(w + 0.26, 0.07, 0.2), x + nx * 0.1, y - h / 2 - 0.1, z + nz * 0.1, ry);
   if (shutters) for (const s of [-1, 1]) put('roofGreen', box(0.3, h + 0.06, 0.05), x + tx * s * (w / 2 + 0.26) + nx * 0.05, y, z + tz * s * (w / 2 + 0.26) + nz * 0.05, ry);
-  windows.push({ m: worldM(x + nx * 0.09, y, z + nz * 0.09, ry, w, h, 1), owner });
+  windows.push({ m: worldM(x + nx * 0.09, y, z + nz * 0.09, ry, w, h, 1), owner, summit: curSummit });
 }
 function lamp(x, y, z, s = 0.2, light = 0) {
-  lamps.push({ m: worldM(x, y, z, 0, s, s * 1.25, s) });
-  if (light) { const p = new THREE.Vector3(x, y, z).applyMatrix4(origin); pointLights.push({ p, i: light }); }
+  lamps.push({ m: worldM(x, y, z, 0, s, s * 1.25, s), summit: curSummit });
+  if (light) { const p = new THREE.Vector3(x, y, z).applyMatrix4(origin); pointLights.push({ p, i: light, summit: curSummit }); }
 }
 function lantern(x, y, z, light = 0) {            // a lantern hanging from a short arm on a post
   put('woodDark', cyl(0.06, 0.08, y, 6), x, y / 2, z);
@@ -235,11 +243,11 @@ function buildLodge() {
   const steps = 9; for (let i = 0; i < steps; i++) { const k = (i + 0.5) / steps; put('plank', box(0.5, 0.1, 1.0), kx + 3.3 - k * 4.5, ky + k * f1, kz + hd + 0.62); }
   put('woodDark', box(4.9, 0.08, 0.08), kx + 1.05, ky + f1 / 2 + 0.9, kz + hd + 1.12, 0, 0, Math.atan2(f1, 4.5)); for (const k of [0.1, 0.5, 0.9]) put('woodDark', box(0.08, 0.95, 0.08), kx + 3.3 - k * 4.5, ky + k * f1 + 0.45, kz + hd + 1.12);
   // windows: ground floor fewer (door and stair take the front), upper floor a full row, some with shutters
-  win('keep', kx - 1.4, ky + 1.45, kz + hd, 0, 0.7, 0.9, true);
+  win('keep', kx - 1.4, ky + 1.45, kz + hd, 0, 0.7, 0.9, true, true);
   for (const x of [-3.3, -1.5, 0.3, 2.1, 3.7]) win('keep', kx + x, by + 1.45, kz + hd, 0, x === -3.3 ? 0.8 : 0.66, x === -3.3 ? 1.5 : 0.9, x > -3);
-  for (const x of [-2.4, -0.2, 2.0, 3.8]) { win('keep', kx + x, ky + 1.45, kz - hd, Math.PI, 0.66, 0.9); win('keep', kx + x, by + 1.45, kz - hd, Math.PI, 0.66, 0.9, x > 0); }
+  for (const x of [-2.4, -0.2, 2.0, 3.8]) { win('keep', kx + x, ky + 1.45, kz - hd, Math.PI, 0.66, 0.9, false, true); win('keep', kx + x, by + 1.45, kz - hd, Math.PI, 0.66, 0.9, x > 0); }
   for (const z of [-1.6, 1.4]) { win('keep', kx - hw, by + 1.45, kz + z, -Math.PI / 2, 0.66, 0.9); win('keep', kx + hw, by + 1.45, kz + z, Math.PI / 2, 0.66, 0.9, true); }
-  win('keep', kx - hw, ky + 1.45, kz + 1.6, -Math.PI / 2, 0.66, 0.9);
+  win('keep', kx - hw, ky + 1.45, kz + 1.6, -Math.PI / 2, 0.66, 0.9, false, true);
   for (const sz of [-1, 1]) win('keep', kx + (sz > 0 ? hw : -hw), ky + keep.wallH + 1.2, kz, sz > 0 ? Math.PI / 2 : -Math.PI / 2, 0.6, 0.7);
   owners.push({ id: 'keep', box: new THREE.Box3(new THREE.Vector3(kx - hw - 0.7, 0, kz - hd - 0.8), new THREE.Vector3(kx + hw + 0.7, ky + keep.h, kz + hd + 1.4)) });
 
@@ -298,7 +306,7 @@ function buildLodge() {
 const satTops = {};
 function buildSatellites() {
   SATELLITES.forEach((s, i) => {
-    origin = new THREE.Matrix4().makeTranslation(s.x, s.y, s.z);
+    origin = new THREE.Matrix4().makeTranslation(s.x, s.y, s.z); curSummit = s.id;
     summit(s.r, 100 + i * 17, 40);
     const ph = phaseOf(i);
     if (s.id === 'red-hut') { hut(s.id, -0.4, 0.2, 0.9, 'hut-red', { chimney: true }); lantern(2.6, 1.9, 2.2, 6); pineTree(-3.2, -2.0, 3.0); }
@@ -319,11 +327,68 @@ function buildSatellites() {
     }
     void ph;
   });
-  origin = new THREE.Matrix4();
+  origin = new THREE.Matrix4(); curSummit = null;
+}
+
+// ---------------- inside the main house: one room, built apart and shown only while you are in it ----------------
+const roomLampAt = [];
+let fireAt = null;
+function buildRoom() {
+  curBins = roomBins; origin = new THREE.Matrix4();
+  const { x0, x1, z0, z1, y0, y1 } = ROOM, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0, h = y1 - y0, T = 0.12;
+  put('plank', box(w + 2 * T, 0.08, d + 2 * T), cx, y0 - 0.04, cz);
+  put('woodDark', box(w + 2 * T, 0.1, d + 2 * T), cx, y1 + 0.05, cz);
+  for (const x of [-3.6, -1.0, 1.6]) put('wood', box(0.2, 0.2, d), x, y1 - 0.1, cz);
+  // a wall with openings: along x (at z = fixed) or along z (at x = fixed); holes are { c, w, yb, yt }
+  const wall = (alongX, fixed, a0, a1, holes) => {
+    const seg = (c, len, yb, yt) => { if (len <= 0.001 || yt - yb <= 0.001) return; alongX ? put('wood', box(len, yt - yb, T), c, (yb + yt) / 2, fixed) : put('wood', box(T, yt - yb, len), fixed, (yb + yt) / 2, c); };
+    let edge = a0;
+    for (const o of holes.slice().sort((p, q) => p.c - q.c)) { seg((edge + o.c - o.w / 2) / 2, o.c - o.w / 2 - edge, y0, y1); seg(o.c, o.w, y0, o.yb); seg(o.c, o.w, o.yt, y1); edge = o.c + o.w / 2; }
+    seg((edge + a1) / 2, a1 - edge, y0, y1);
+  };
+  const W1 = { w: 0.7, yb: DECK_Y + 1.0, yt: DECK_Y + 1.9 };
+  wall(true, z0 - T / 2, x0 - T, x1 + T, [-3.4, -1.2, 1.0, 2.8].map((c) => ({ c, ...W1 })));          // four windows on the moon side
+  wall(true, z1 + T / 2, x0 - T, x1 + T, [{ c: -2.4, ...W1 }]);
+  wall(false, x0 - T / 2, z0, z1, []);
+  put('woodDark', box(0.95, 1.85, 0.06), -3.75, y0 + 0.925, z1 - 0.03); put('iron', box(0.06, 0.06, 0.06), -3.42, y0 + 0.95, z1 - 0.08);      // the door, seen from inside
+  wall(false, x1 + T / 2, z0, z1, []);
+  // hearth on the east wall, under the chimney
+  put('stone', box(0.9, 0.12, 2.3), 2.85, y0 + 0.06, -0.9);
+  for (const z of [-1.82, 0.02]) put('stone', box(0.7, 1.15, 0.36), 2.95, y0 + 0.58, z);
+  put('stone', box(0.7, 0.3, 2.2), 2.95, y0 + 1.3, -0.9); put('woodDark', box(0.86, 0.09, 2.4), 2.9, y0 + 1.5, -0.9);
+  put('stone', box(0.5, h - 1.55, 1.5), 3.05, y0 + 1.55 + (h - 1.55) / 2, -0.9); put('rockDark', box(0.08, 1.15, 1.5), 3.26, y0 + 0.58, -0.9);
+  for (const [z, r] of [[-1.15, 0.2], [-0.7, -0.3], [-0.92, 0.5]]) put('woodDark', cyl(0.09, 0.09, 0.62, 6), 2.95, y0 + 0.22 + Math.abs(r) * 0.12, z, r, Math.PI / 2);
+  put('cream', cyl(0.05, 0.05, 0.16, 6), 2.8, y0 + 1.63, -1.6); put('iron', cyl(0.11, 0.13, 0.2, 8), 2.85, y0 + 1.65, -0.2);
+  fireAt = new THREE.Vector3(2.95, y0 + 0.42, -0.9);
+  // rug, and the cat asleep by the fire
+  put('cloth', cyl(1.05, 1.05, 0.02, 20), 0.9, y0 + 0.012, -0.5); put('cream', cyl(0.78, 0.78, 0.02, 20), 0.9, y0 + 0.018, -0.5);
+  const cx2 = 1.75, cz2 = -0.55;
+  put('cat', new THREE.SphereGeometry(1, 12, 9), cx2, y0 + 0.15, cz2, 0.5, 0, 0, 0.3, 0.15, 0.2);
+  put('cat', new THREE.SphereGeometry(0.11, 10, 8), cx2 + 0.24, y0 + 0.16, cz2 - 0.12);
+  for (const s2 of [-1, 1]) put('cat', cone(0.04, 0.08, 4), cx2 + 0.25 + s2 * 0.045, y0 + 0.27, cz2 - 0.12 + s2 * 0.045);
+  put('cat', new THREE.TorusGeometry(0.2, 0.035, 5, 10, Math.PI), cx2 - 0.12, y0 + 0.05, cz2 + 0.1, 0.4, Math.PI / 2);
+  // table by the west wall: lamp, teapot, two cups, an open book; two stools
+  put('plank', box(0.95, 0.06, 1.25), -3.5, y0 + 0.74, 0.25); for (const a of [-1, 1]) for (const b of [-1, 1]) put('woodDark', box(0.07, 0.72, 0.07), -3.5 + a * 0.4, y0 + 0.36, 0.25 + b * 0.55);
+  put('iron', cyl(0.08, 0.1, 0.05, 8), -3.65, y0 + 0.8, -0.1); put('iron', cyl(0.015, 0.015, 0.22, 5), -3.65, y0 + 0.9, -0.1); roomLampAt.push([-3.65, y0 + 1.08, -0.1, 0.085]);
+  put('iron', cyl(0.1, 0.12, 0.16, 8), -3.4, y0 + 0.85, 0.55); for (const z of [0.3, 0.75]) put('cream', cyl(0.045, 0.035, 0.07, 7), -3.15, y0 + 0.805, z);
+  put('cream', box(0.3, 0.02, 0.4), -3.55, y0 + 0.78, 0.3, 0.2);
+  for (const [x, z] of [[-2.7, 0.0], [-3.4, 1.3]]) put('woodDark', cyl(0.19, 0.17, 0.44, 9), x, y0 + 0.22, z);
+  // bed in the south-east corner
+  put('woodDark', box(2.3, 0.34, 1.38), 1.75, y0 + 0.17, 2.6); put('woodDark', box(0.1, 0.9, 1.38), 2.86, y0 + 0.45, 2.6);
+  put('cream', box(2.16, 0.16, 1.26), 1.72, y0 + 0.42, 2.6); put('quilt', box(1.45, 0.1, 1.3), 1.35, y0 + 0.54, 2.6); put('cream', box(0.42, 0.12, 0.7), 2.5, y0 + 0.56, 2.6);
+  // bookshelf in the north-west corner
+  put('woodDark', box(0.34, 1.9, 1.8), -4.22, y0 + 0.95, -2.1);
+  const br = mulberry32(77), spines = ['cloth', 'roofGreen', 'flagY', 'cream', 'quilt', 'iron'];
+  for (let row = 0; row < 4; row++) { put('plank', box(0.36, 0.04, 1.7), -4.2, y0 + 0.3 + row * 0.45, -2.1); let z = -2.9; while (z < -1.4) { const tW = 0.05 + br() * 0.07, tH = 0.24 + br() * 0.14; put(spines[Math.floor(br() * spines.length)], box(0.22, tH, tW), -4.08, y0 + 0.32 + row * 0.45 + tH / 2, z + tW / 2); z += tW + 0.012; if (br() < 0.12) z += 0.2; } }
+  // a coat by the door, a lantern from the ceiling beam
+  put('cloth', box(0.42, 0.9, 0.1), -1.2, y0 + 1.3, z1 - 0.06); put('iron', box(0.5, 0.04, 0.04), -1.2, y0 + 1.77, z1 - 0.03);
+  put('iron', cyl(0.012, 0.012, 0.5, 4), -1.0, y1 - 0.45, 0.6); put('iron', box(0.2, 0.04, 0.2), -1.0, y1 - 0.7, 0.6); roomLampAt.push([-1.0, y1 - 0.86, 0.6, 0.11]);
+  curBins = bins;
 }
 
 buildLodge();
 buildSatellites();
+buildRoom();
 
 // merge and add
 const world = new THREE.Group(); scene.add(world);
@@ -333,6 +398,17 @@ for (const [k, list] of Object.entries(bins)) {
   list.forEach((g) => g.dispose());
 }
 
+const room = new THREE.Group(); room.visible = false; scene.add(room);
+for (const [k, list] of Object.entries(roomBins)) { const mesh = new THREE.Mesh(mergeGeometries(list, false), MATS[k]); mesh.receiveShadow = true; room.add(mesh); list.forEach((g) => g.dispose()); }
+const roomLamps = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.6, 2.2, 0.95) }), roomLampAt.length);
+roomLampAt.forEach((l, i) => roomLamps.setMatrixAt(i, M4.compose(V.set(l[0], l[1], l[2]), Q.identity(), S.set(l[3], l[3] * 1.2, l[3])))); room.add(roomLamps);
+const fire = new THREE.Group(); fire.position.copy(fireAt); room.add(fire);
+{ const fg = new THREE.ConeGeometry(0.17, 0.5, 7); fg.translate(0, 0.25, 0);
+  for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: new THREE.Color(i === 1 ? 2.6 : 2.0, i === 1 ? 1.25 : 0.7, 0.22), transparent: true, opacity: 0.92 })); f.position.set(0, 0, (i - 1) * 0.24); fire.add(f); } }
+const fireLight = new THREE.PointLight(0xff8436, 0, 10, 1.6); fireLight.position.set(fireAt.x - 0.5, fireAt.y + 0.3, fireAt.z); scene.add(fireLight);
+const tableLight = new THREE.PointLight(0xffc27a, 0, 7, 1.8); tableLight.position.set(-3.5, ROOM.y0 + 1.15, 0.1); scene.add(tableLight);
+const spotRings = SPOTS.map((sp) => { const r = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.27, 28), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.4, 0.6), transparent: true, opacity: 0.85, side: THREE.DoubleSide })); r.rotation.x = -Math.PI / 2; r.position.set(sp.x, ROOM.y0 + 0.03, sp.z); room.add(r); return r; });
+
 // windows: one instanced plane each, brightness in the instance colour (values above 1 are what blooms)
 const WARM = new THREE.Color(1.0, 0.56, 0.2), COLD = new THREE.Color(0.035, 0.05, 0.09), LIT = 3.4;
 const states = windowStates(windows.length);
@@ -340,9 +416,13 @@ const winMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE
 windows.forEach((w, i) => winMesh.setMatrixAt(i, w.m));
 const tmpC = new THREE.Color();
 let hoverId = null;
+const litAmt = {};                         // summit id -> 0..1, how far its lamps have come on
+const dayOn = new Float32Array(windows.length).fill(1);
+const stagger = windows.map((_, i) => mulberry32(900 + i)());
+const amtOf = (summit, k = 0) => (summit ? clamp(litAmt[summit] * 1.6 - k * 0.6, 0, 1) : 1);
 function paintWindows(t) {
   for (let i = 0; i < windows.length; i++) {
-    const L = windowLevel(states[i], t, i) * (hoverId && windows[i].owner === hoverId ? 1.5 : 1);
+    const L = windowLevel(states[i], t, i) * dayOn[i] * amtOf(windows[i].summit, stagger[i]) * (hoverId && windows[i].owner === hoverId ? 1.5 : 1);
     tmpC.copy(COLD).lerp(WARM, Math.min(1, L * 1.4)).multiplyScalar(1 + (LIT - 1) * Math.min(1.5, L));
     if (L === 0) tmpC.copy(COLD);
     winMesh.setColorAt(i, tmpC);
@@ -351,11 +431,12 @@ function paintWindows(t) {
 }
 paintWindows(0); scene.add(winMesh);
 
-const lampMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(4.2, 2.3, 0.8) }), lamps.length);
-lamps.forEach((l, i) => lampMesh.setMatrixAt(i, l.m)); scene.add(lampMesh);
+const lampMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), lamps.length);
+const LAMP_ON = new THREE.Color(4.2, 2.3, 0.8), LAMP_OFF = new THREE.Color(0.06, 0.06, 0.08);
+lamps.forEach((l, i) => { lampMesh.setMatrixAt(i, l.m); lampMesh.setColorAt(i, LAMP_ON); }); scene.add(lampMesh);
 const bulbMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.055, 6, 5), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.6, 2.2, 0.9) }), bulbs.length);
 bulbs.forEach((b, i) => bulbMesh.setMatrixAt(i, M4.makeTranslation(b.x, b.y, b.z))); scene.add(bulbMesh);
-pointLights.sort((a, b) => b.i - a.i).slice(0, 8).forEach((l) => { const p = new THREE.PointLight(0xffa860, l.i * 2.2, 15, 1.8); p.position.copy(l.p); scene.add(p); });
+const liveLights = pointLights.sort((a, b) => b.i - a.i).slice(0, 8).map((l) => { const p = new THREE.PointLight(0xffa860, l.i * 2.2, 15, 1.8); p.position.copy(l.p); scene.add(p); return { p, base: l.i * 2.2, summit: l.summit }; });
 
 // pennants and the flag lines to the two hamlets
 const pennants = [];
@@ -381,6 +462,8 @@ for (const line of FLAG_LINES) {
 const flagGeo = new THREE.PlaneGeometry(0.42, 0.5); flagGeo.translate(0, -0.25, 0);
 const flagMesh = new THREE.InstancedMesh(flagGeo, new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide }), flagItems.length);
 flagItems.forEach((f, i) => flagMesh.setColorAt(i, FLAG_COLORS[f.i % 5])); scene.add(flagMesh);
+const lineBulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.075, 6, 5), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.4, 2.1, 0.9) }), flagItems.length);
+flagItems.forEach((f, i) => lineBulbs.setMatrixAt(i, M4.makeTranslation(f.p.x, f.p.y + 0.06, f.p.z))); lineBulbs.visible = false; scene.add(lineBulbs);
 { // the two posts added after the merge loop above
   const extra = bins.woodDark.slice(-FLAG_LINES.length); const m = new THREE.Mesh(mergeGeometries(extra, false), MATS.woodDark); m.castShadow = true; world.add(m);
 }
@@ -388,13 +471,15 @@ flagItems.forEach((f, i) => flagMesh.setColorAt(i, FLAG_COLORS[f.i % 5])); scene
 // ---------------- sky, moon, stars, clouds, snow, smoke ----------------
 const moonDir = new THREE.Vector3(...MOON_DIR);
 const sky = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.ShaderMaterial({
-  side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uMoon: { value: moonDir } },
+  side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uMoon: { value: moonDir }, uLow: { value: new THREE.Color() }, uMid: { value: new THREE.Color() }, uTop: { value: new THREE.Color() }, uGlow: { value: new THREE.Color() }, uGlowDir: { value: new THREE.Vector3(1, 0, 0) }, uMoonA: { value: 1 } },
   vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position.z = gl_Position.w; }',
-  fragmentShader: `varying vec3 vD; uniform vec3 uMoon;
+  fragmentShader: `varying vec3 vD; uniform vec3 uMoon, uLow, uMid, uTop, uGlow, uGlowDir; uniform float uMoonA;
     void main(){ vec3 d = normalize(vD); float h = clamp(d.y * 0.5 + 0.5, 0.0, 1.0);
-      vec3 low = vec3(0.034, 0.052, 0.115), mid = vec3(0.02, 0.033, 0.085), top = vec3(0.007, 0.012, 0.04);
-      vec3 c = mix(low, mid, smoothstep(0.42, 0.62, h)); c = mix(c, top, smoothstep(0.6, 0.95, h));
-      float m = max(dot(d, uMoon), 0.0); c += vec3(0.1, 0.13, 0.2) * pow(m, 14.0) * 0.4 + vec3(0.22, 0.27, 0.38) * pow(m, 160.0) * 0.5;
+      vec3 c = mix(uLow, uMid, smoothstep(0.42, 0.62, h)); c = mix(c, uTop, smoothstep(0.6, 0.95, h));
+      // the side of the sky where the sun has just gone or is about to come: a warm band low on the horizon
+      float side = max(dot(normalize(vec3(d.x, 0.0, d.z) + 1e-5), normalize(vec3(uGlowDir.x, 0.0, uGlowDir.z))), 0.0);
+      c += uGlow * pow(side, 2.5) * (1.0 - smoothstep(-0.05, 0.42, d.y)) * 0.75;
+      float m = max(dot(d, uMoon), 0.0); c += (vec3(0.1, 0.13, 0.2) * pow(m, 14.0) * 0.4 + vec3(0.22, 0.27, 0.38) * pow(m, 160.0) * 0.5) * uMoonA;
       gl_FragColor = vec4(c, 1.0); }`,
 }));
 sky.renderOrder = -10; sky.frustumCulled = false; scene.add(sky);
@@ -404,13 +489,14 @@ const moonTex = canvasTex(256, 256, (g, w) => {
   const mr = mulberry32(3); for (let i = 0; i < 26; i++) { const a = mr() * 7, r = mr() * w * 0.4, s = 5 + mr() * 24; g.fillStyle = `rgba(150,162,188,${0.1 + mr() * 0.16})`; g.beginPath(); g.arc(w / 2 + Math.cos(a) * r, w / 2 + Math.sin(a) * r, s, 0, 7); g.fill(); }
 });
 const moon = new THREE.Mesh(new THREE.CircleGeometry(27, 48), new THREE.MeshBasicMaterial({ map: moonTex, color: new THREE.Color(1.18, 1.22, 1.34), transparent: true, fog: false, depthWrite: false }));
+let stars;
 moon.position.copy(moonDir).multiplyScalar(520); moon.lookAt(0, 0, 0); moon.renderOrder = -9; scene.add(moon);
 { const n = 420, pos = new Float32Array(n * 3), sr = mulberry32(5); for (let i = 0; i < n; i++) { const a = sr() * 6.283, y = 0.08 + sr() * 0.9, r = Math.sqrt(1 - y * y); pos.set([Math.cos(a) * r * 560, y * 560, Math.sin(a) * r * 560], i * 3); }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const st = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xbfd0ff, size: 1.5, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75, depthWrite: false })); st.renderOrder = -8; scene.add(st); }
+  stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xbfd0ff, size: 1.5, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75, depthWrite: false })); stars.renderOrder = -8; scene.add(stars); }
 
 // clouds: camera-facing soft puffs, one draw call. A sea below the summits, plus thinner layers at other depths.
-const cloudU = { uTime: { value: 0 }, uFog: { value: FOG }, uMoon: { value: moonDir } };
+const cloudU = { uTime: { value: 0 }, uFog: { value: FOG }, uMoon: { value: moonDir }, uTint: { value: new THREE.Color(1, 1, 1) } };
 function cloudLayer(n, place, opacity) {
   const base = new THREE.PlaneGeometry(2, 2), g = new THREE.InstancedBufferGeometry(); g.index = base.index; g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
   const off = new Float32Array(n * 4), par = new Float32Array(n * 3), cr2 = mulberry32(n * 13 + 1);
@@ -421,10 +507,10 @@ function cloudLayer(n, place, opacity) {
     vertexShader: `attribute vec4 aOff; attribute vec3 aPar; uniform float uTime; varying vec2 vUv; varying float vFog; varying float vSeed; varying vec3 vW;
       void main(){ vUv = uv; vSeed = aPar.x; vec3 c = aOff.xyz; c.x = mod(c.x + uTime * (0.35 + aPar.y * 0.4) + 190.0, 380.0) - 190.0; c.y += sin(uTime * 0.07 + aPar.z) * 0.6; vW = c;
         vec4 mv = modelViewMatrix * vec4(c, 1.0); mv.xy += position.xy * aOff.w * vec2(1.0, 0.62); vFog = 1.0 - exp(-0.0055 * 0.0055 * mv.z * mv.z * 0.6); gl_Position = projectionMatrix * mv; }`,
-    fragmentShader: `uniform vec3 uFog; uniform float uOp; varying vec2 vUv; varying float vFog; varying float vSeed; varying vec3 vW;
+    fragmentShader: `uniform vec3 uFog, uTint; uniform float uOp; varying vec2 vUv; varying float vFog; varying float vSeed; varying vec3 vW;
       void main(){ vec2 p = vUv * 2.0 - 1.0; float d = length(p); float a = smoothstep(1.0, 0.15, d); a *= a;
         float lump = 0.82 + 0.18 * sin(p.x * 5.0 + vSeed * 20.0) * sin(p.y * 4.0 + vSeed * 9.0);
-        vec3 c = mix(vec3(0.045, 0.062, 0.125), vec3(0.23, 0.29, 0.44), smoothstep(-0.7, 0.9, p.y)) * lump; c = mix(c, uFog, clamp(vFog, 0.0, 0.92));
+        vec3 c = mix(vec3(0.045, 0.062, 0.125), vec3(0.23, 0.29, 0.44), smoothstep(-0.7, 0.9, p.y)) * lump * uTint; c = mix(c, uFog, clamp(vFog, 0.0, 0.92));
         float edge = smoothstep(190.0, 150.0, abs(vW.x));
         gl_FragColor = vec4(c, a * uOp * edge * (1.0 - vFog * 0.55)); }`,
   }));
@@ -438,7 +524,7 @@ cloudLayer(34, (r) => { const a = r() * 6.283, d = 60 + r() * 110; return [Math.
 { const n = 900, pos = new Float32Array(n * 3), sr = mulberry32(21); for (let i = 0; i < n; i++) pos.set([(sr() - 0.5) * 110, sr() * 60, (sr() - 0.5) * 110], i * 3);
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const m = new THREE.Points(g, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: cloudU,
-    vertexShader: 'uniform float uTime; varying float vA; void main(){ vec3 p = position; p.y = mod(p.y - uTime * (1.1 + fract(p.x * 7.3) * 0.9), 60.0) - 14.0; p.x += sin(uTime * 0.5 + position.z) * 0.7 + uTime * 0.3; p.x = mod(p.x + 55.0, 110.0) - 55.0; vec4 mv = modelViewMatrix * vec4(p,1.0); gl_PointSize = clamp(150.0 / -mv.z, 1.0, 5.0); vA = clamp(1.4 - (-mv.z) / 80.0, 0.0, 1.0); gl_Position = projectionMatrix * mv; }',
+    vertexShader: 'uniform float uTime; varying float vA; void main(){ vec3 p = position; p.y = mod(p.y - uTime * (1.1 + fract(p.x * 7.3) * 0.9), 60.0) - 14.0; p.x += sin(uTime * 0.5 + position.z) * 0.7 + uTime * 0.3; p.x = mod(p.x + 55.0, 110.0) - 55.0; vec4 mv = modelViewMatrix * vec4(p,1.0); if (p.x > -5.6 && p.x < 3.6 && abs(p.z) < 3.6 && p.y < 9.5) mv.z = 10.0; gl_PointSize = clamp(150.0 / -mv.z, 1.0, 5.0); vA = clamp(1.4 - (-mv.z) / 80.0, 0.0, 1.0); gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(0.82, 0.88, 1.0, smoothstep(0.5, 0.1, d) * 0.55 * vA); }' }));
   m.frustumCulled = false; m.renderOrder = 6; scene.add(m); }
 
@@ -452,13 +538,46 @@ const SM_N = 9, smokePos = new Float32Array(smokes.length * SM_N * 3), smokeSeed
     fragmentShader: 'varying float vK; void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(0.5, 0.55, 0.68, smoothstep(0.5, 0.0, d) * 0.22 * sin(vK * 3.1416)); }' }));
   m.frustumCulled = false; m.renderOrder = 7; scene.add(m); }
 
+// shooting stars for the finale: line segments high on the moon side of the sky
+const METEORS = 18, meteorPos = new Float32Array(METEORS * 6), meteorCol = new Float32Array(METEORS * 6), meteorSpec = [];
+{ const mr = mulberry32(55), up3 = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < METEORS; i++) {
+    const az = Math.atan2(MOON_DIR[0], MOON_DIR[2]) + (mr() - 0.5) * 1.5, el = 0.2 + mr() * 0.42;
+    const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)), side = new THREE.Vector3().crossVectors(dir, up3).normalize();
+    meteorSpec.push({ t0: 1.6 + i * 0.42 + mr() * 0.5, dur: 0.75 + mr() * 0.5, from: dir.clone().multiplyScalar(520), vel: side.multiplyScalar((mr() < 0.5 ? -1 : 1) * (0.5 + mr() * 0.5)).add(new THREE.Vector3(0, -0.7, 0)).normalize().multiplyScalar(120 + mr() * 60), len: 34 + mr() * 30 });
+  } }
+const meteorGeo = new THREE.BufferGeometry(); meteorGeo.setAttribute('position', new THREE.BufferAttribute(meteorPos, 3)); meteorGeo.setAttribute('color', new THREE.BufferAttribute(meteorCol, 3));
+const meteors = new THREE.LineSegments(meteorGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+meteors.frustumCulled = false; meteors.renderOrder = -7; meteors.visible = false; scene.add(meteors);
+function paintMeteors(ft) {
+  for (let i = 0; i < METEORS; i++) {
+    const m = meteorSpec[i], k = (ft - m.t0) / m.dur, on = k > 0 && k < 1, a = on ? Math.sin(k * Math.PI) : 0;
+    V.copy(m.from).addScaledVector(m.vel, Math.max(0, ft - m.t0)); meteorPos.set([V.x, V.y, V.z], i * 6);
+    S.copy(m.vel).normalize().multiplyScalar(-m.len * a).add(V); meteorPos.set([S.x, S.y, S.z], i * 6 + 3);
+    meteorCol.set([4.5 * a, 4.6 * a, 5.2 * a, 0, 0, 0], i * 6);
+  }
+  meteorGeo.attributes.position.needsUpdate = true; meteorGeo.attributes.color.needsUpdate = true;
+}
+
 // ---------------- light ----------------
 const moonLight = new THREE.DirectionalLight(0x9fb9ff, 2.3);
+moonLight.target.position.set(0, 2, 0);
 moonLight.position.set(MOON_DIR[0], 0.5, MOON_DIR[2]).normalize().multiplyScalar(80);   // the light sits higher than the disc: shorter, cleaner shadows moonLight.target.position.set(0, 2, 0);
 moonLight.castShadow = true; moonLight.shadow.mapSize.set(2048, 2048);
 Object.assign(moonLight.shadow.camera, { left: -30, right: 30, top: 30, bottom: -24, near: 10, far: 170 }); moonLight.shadow.bias = -0.0012; moonLight.shadow.normalBias = 0.09;
 scene.add(moonLight, moonLight.target);
-scene.add(new THREE.HemisphereLight(0x4f69ad, 0x0d1018, 0.6));
+const hemi = new THREE.HemisphereLight(0x4f69ad, 0x0d1018, 0.6); scene.add(hemi);
+let hour = -1;
+function applyHour(h) {
+  if (h === hour) return; hour = h;
+  const k = skyAt(h), U = sky.material.uniforms;
+  U.uLow.value.setRGB(...k.low); U.uMid.value.setRGB(...k.mid); U.uTop.value.setRGB(...k.top); U.uGlow.value.setRGB(...k.glow); U.uGlowDir.value.set(...k.glowDir); U.uMoonA.value = k.moon;
+  FOG.setRGB(...k.fog); cloudU.uTint.value.setRGB(...k.cloud);
+  moonLight.color.setRGB(...k.key); moonLight.intensity = k.keyInt; moonLight.position.set(...k.keyDir).multiplyScalar(80);
+  hemi.intensity = k.hemi; hemi.color.setRGB(k.mid[0] * 6 + 0.1, k.mid[1] * 6 + 0.12, k.mid[2] * 5 + 0.2);
+  moon.material.opacity = k.moon; stars.material.opacity = 0.75 * k.stars;
+  for (let i = 0; i < windows.length; i++) dayOn[i] = windowOn(i, h) ? 1 : 0;
+}
 
 // ---------------- render pipeline: bloom only reaches what is brighter than white ----------------
 const composer = new EffectComposer(renderer);
@@ -472,14 +591,25 @@ const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rig = createRig({ u: viewName in VIEWS ? VIEWS[viewName] : parseFloat(params.get('u')) || 0, auto: !reduce && params.get('auto') !== '0' });
 const fixedT = params.has('t') ? parseFloat(params.get('t')) : frozen ? 12 : null;
 let aspect = 1, scale = 1, W = 1, H = 1;
+// ---------------- the game: lamps, stories, the hour, going inside ----------------
+const allLit = frozen || params.get('lit') === 'all';
+const game = createGame(allLit ? SATELLITES.map((q) => q.id) : []);
+for (const q of SATELLITES) litAmt[q.id] = game.lit.has(q.id) ? 1 : 0;
+let focusId = null, pendingLight = null, finaleT = allLit ? -2 : -1, finaleDue = -1;    // finaleT: -1 not yet, >= 0 running, -2 over
+let inside = false; const visit = createVisit();
+let hourWant = params.has('h') ? clamp(parseFloat(params.get('h')) || 0, 0, 1) : 0.5;
+const $ = (id) => document.getElementById(id);
 const SCALES = [1, 0.85, 0.7, 0.55];
 let scaleIdx = 0;
 function resize() {
   W = innerWidth; H = innerHeight; aspect = W / H;
   const pr = Math.min(devicePixelRatio || 1, 2) * SCALES[scaleIdx]; scale = pr;
   renderer.setPixelRatio(pr); renderer.setSize(W, H, false); composer.setPixelRatio(pr); composer.setSize(W, H);
-  camera.aspect = aspect; camera.fov = fovFor(aspect); camera.updateProjectionMatrix();
-  const sh = shiftFor(aspect); camera.projectionMatrix.elements[8] = -sh[0]; camera.projectionMatrix.elements[9] = -sh[1]; camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  applyProjection();
+}
+function applyProjection() {
+  camera.aspect = aspect; camera.fov = inside ? clamp(fovFor(aspect) * 1.8, 72, 92) : fovFor(aspect); camera.near = inside ? 0.06 : 0.5; camera.updateProjectionMatrix();
+  const sh = inside ? [0, 0] : shiftFor(aspect); camera.projectionMatrix.elements[8] = -sh[0]; camera.projectionMatrix.elements[9] = -sh[1]; camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
 }
 addEventListener('resize', resize); resize();
 
@@ -489,24 +619,82 @@ syncAuto();
 document.getElementById('tools').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const act = b.dataset.act;
-  if (act === 'in') rig.zoom(0.86); if (act === 'out') rig.zoom(1 / 0.86); if (act === 'reset') rig.reset(); if (act === 'auto') rig.setAuto(!rig.auto);
+  if (act === 'in') rig.zoom(0.86); if (act === 'out') rig.zoom(1 / 0.86); if (act === 'reset') { rig.reset(); unfocus(false); } if (act === 'auto') rig.setAuto(!rig.auto);
+  if (act === 'enter') enter();
   syncAuto();
 });
+const chip = $('chip'), story = $('story'), hint = $('hint');
+function syncChip() { chip.textContent = game.done ? '七座都亮了' : `点灯 ${game.count} / ${SATELLITES.length}`; chip.classList.toggle('done', game.done); if (game.count > 0) hint.style.opacity = '0'; }
+function showStory(name, line, withBack) { $('storyName').textContent = name; $('storyLine').textContent = line; $('back').style.display = withBack ? '' : 'none'; story.classList.add('on'); document.body.classList.add('focus'); }
+function hideStory() { story.classList.remove('on'); document.body.classList.remove('focus'); }
+// Fly to a summit; its lamps come on when the camera arrives.
+function focus(id) {
+  if (inside || finaleT >= 0 || !STORIES[id]) return;
+  focusId = id; pendingLight = id; rig.flyTo(focusPose(id));
+  showStory(STORIES[id].name, STORIES[id].line, true);
+}
+function unfocus(release = true) { focusId = null; pendingLight = null; if (finaleT < 0) hideStory(); if (release) { if (rig.auto) rig.release(); else rig.flyTo(homePose(), false); } }
+function lightNow(id) {
+  const r = game.light(id); syncChip();
+  if (r.finale) finaleDue = 3.2;        // let the seventh summit glow for a moment, then the finale
+  return r;
+}
+function startFinale() { finaleT = 0; focusId = null; pendingLight = null; showStory('', FINALE_LINE, false); rig.flyTo(homePose(), true); lineBulbs.visible = true; meteors.visible = true; }
+$('back').addEventListener('click', () => unfocus());
+syncChip();
+
+// the hour slider
+const hourEl = $('hour'); hourEl.value = String(Math.round(hourWant * 1000));
+hourEl.addEventListener('input', () => { hourWant = hourEl.value / 1000; });
+
+// going inside: a short fade, then you stand in the room
+const fadeEl = $('fade');
+function setInside(on) {
+  inside = on; room.visible = on; document.body.classList.toggle('inside', on);
+  fireLight.intensity = on ? 7 : 0; tableLight.intensity = on ? 6 : 0;
+  if (on) { visit.go(0); syncSpot(); hideStory(); focusId = null; pendingLight = null; }
+  applyProjection();
+}
+function syncSpot() { $('spotName').textContent = SPOTS[visit.spot].name; spotRings.forEach((r, i) => { r.visible = i !== visit.spot; }); }
+function fadeThen(fn) { fadeEl.style.opacity = '1'; setTimeout(() => { fn(); fadeEl.style.opacity = '0'; }, 380); }
+function enter() { if (!inside && finaleT < 0 || finaleT === -2 && !inside) fadeThen(() => setInside(true)); }
+function leave() { if (inside) fadeThen(() => setInside(false)); }
+$('leave').addEventListener('click', leave);
 const ptrs = new Map(); let pinch = 0;
-canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; });
+let tapStart = null;
+canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; tapStart = ptrs.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 } : null; });
 canvas.addEventListener('pointermove', (e) => {
   const p = ptrs.get(e.pointerId);
   if (!p) { if (e.pointerType === 'mouse') hover(e.clientX, e.clientY); return; }
   const dx = e.clientX - p[0], dy = e.clientY - p[1]; p[0] = e.clientX; p[1] = e.clientY;
+  if (tapStart) { tapStart.moved += Math.abs(dx) + Math.abs(dy); if (tapStart.moved < 8) return; }      // a finger that barely moves is a tap, not a drag
+  if (inside) { if (ptrs.size === 1) visit.look((dx / H) * 2.2, (dy / H) * 1.6); return; }
+  if (finaleT >= 0) return;
   if (ptrs.size === 1) rig.drag((dx / H) * 3.0, (dy / H) * 2.2);
   else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) rig.zoom(clamp(pinch / d, 0.8, 1.25)); pinch = d; }
 });
-const up = (e) => { ptrs.delete(e.pointerId); pinch = 0; };
+const up = (e) => {
+  ptrs.delete(e.pointerId); pinch = 0;
+  if (tapStart && e.type === 'pointerup' && tapStart.moved < 8 && performance.now() - tapStart.t < 450) onTap(e.clientX, e.clientY);
+  tapStart = null;
+};
+function onTap(x, y) {
+  if (inside) {              // tap a ring on the floor to stand there
+    let best = -1, bd = 80;
+    SPOTS.forEach((sp, i) => { if (i === visit.spot) return; V.set(sp.x, ROOM.y0, sp.z).project(camera); if (V.z > 1) return; const d = Math.hypot((V.x * 0.5 + 0.5) * W - x, (-V.y * 0.5 + 0.5) * H - y); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) { visit.go(best); syncSpot(); }
+    return;
+  }
+  ndc.set((x / W) * 2 - 1, -(y / H) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const id = pickSummit(ray.ray.origin.toArray(), ray.ray.direction.toArray());
+  if (id === 'lodge') { if (focusId) unfocus(); } else if (id) focus(id);
+}
 canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
 canvas.addEventListener('pointerleave', () => { hoverId = null; });
-canvas.addEventListener('wheel', (e) => { e.preventDefault(); rig.zoom(Math.exp(clamp(e.deltaY, -120, 120) * 0.0014)); }, { passive: false });
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (inside || finaleT >= 0) return; rig.zoom(Math.exp(clamp(e.deltaY, -120, 120) * 0.0014)); }, { passive: false });
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), hit = new THREE.Vector3();
 function hover(x, y) {
+  if (inside) { hoverId = null; return; }
   ndc.set((x / W) * 2 - 1, -(y / H) * 2 + 1); ray.setFromCamera(ndc, camera);
   let best = null, bd = Infinity;
   for (const o of owners) if (ray.ray.intersectBox(o.box, hit)) { const d = hit.distanceTo(camera.position); if (d < bd) { bd = d; best = o.id; } }
@@ -519,9 +707,19 @@ const camV = new THREE.Vector3(), tgtV = new THREE.Vector3();
 function frame() {
   const now = performance.now(), dt = Math.min((now - last) / 1000, 0.1); last = now;
   t = fixedT !== null ? fixedT : t + dt;
-  const p = frozen ? rig.update(0) : rig.update(dt);
+  const p = inside ? visit.pose() : frozen ? rig.update(0) : rig.update(dt);
   camV.set(...p.pos); tgtV.set(...p.target); camera.position.copy(camV); camera.lookAt(tgtV);
   cloudU.uTime.value = t;
+  applyHour(hourWant);
+  // lamps: a summit lights when the camera has arrived; brightness eases up
+  if (pendingLight && rig.mode !== 'fly') { lightNow(pendingLight); pendingLight = null; }
+  for (const q of SATELLITES) { const want = game.lit.has(q.id) ? 1 : 0; litAmt[q.id] = frozen ? want : litAmt[q.id] + (want - litAmt[q.id]) * Math.min(1, dt * 1.1); }
+  for (let i = 0; i < lamps.length; i++) lampMesh.setColorAt(i, tmpC.copy(LAMP_OFF).lerp(LAMP_ON, amtOf(lamps[i].summit)));
+  lampMesh.instanceColor.needsUpdate = true;
+  for (const l of liveLights) l.p.intensity = l.base * amtOf(l.summit);
+  if (finaleDue > 0) { finaleDue -= dt; if (finaleDue <= 0) startFinale(); }
+  if (finaleT >= 0) { finaleT += dt; paintMeteors(finaleT); if (finaleT > 11.5) { finaleT = -2; meteors.visible = false; hideStory(); rig.release(); } }
+  if (inside) { const fl = 0.8 + 0.14 * Math.sin(t * 9.1) + 0.08 * Math.sin(t * 23.7); fireLight.intensity = 7 * fl; fire.children.forEach((f, i) => { f.scale.set(1 + 0.12 * Math.sin(t * 11 + i * 2), 0.8 + 0.3 * Math.abs(Math.sin(t * 7.3 + i * 1.9)), 1); }); }
   paintWindows(t);
   for (const pn of pennants) { pn.m.rotation.y = 0.5 + Math.sin(t * 1.3 + pn.phase) * 0.35 + Math.sin(t * 3.1 + pn.phase * 2) * 0.12; pn.m.rotation.z = Math.sin(t * 2.2 + pn.phase) * 0.12; }
   for (let i = 0; i < flagItems.length; i++) { const f = flagItems[i]; M4.compose(f.p, Q.setFromEuler(E.set(Math.sin(t * 2.4 + i * 0.7) * 0.32, f.ry + Math.sin(t * 1.1 + i * 0.4) * 0.25, 0, 'YXZ')), S.set(1, 1, 1)); flagMesh.setMatrixAt(i, M4); }
@@ -540,11 +738,16 @@ requestAnimationFrame(frame);
 const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x0: r.left / W, x1: r.right / W, y0: r.top / H, y1: r.bottom / H }; };
 window.__cabin = {
   get ready() { return frames > 3; },
-  state: () => ({ mode: rig.mode, auto: rig.auto, u: rig.u, cam: camera.position.toArray(), target: tgtV.toArray(), t, hover: hoverId }),
+  state: () => ({ mode: rig.mode, auto: rig.auto, u: rig.u, cam: camera.position.toArray(), target: tgtV.toArray(), t, hover: hoverId, lit: [...game.lit], focus: focusId, finale: finaleT, inside, spot: SPOTS[visit.spot].id, hour, hold: rig.hold }),
   info: () => ({ fps, calls, tris, dpr: devicePixelRatio, pixelRatio: scale, scaleIdx, w: W, h: H, fov: camera.fov, windows: windows.length, lamps: lamps.length, bulbs: bulbs.length, lights: Math.min(pointLights.length, 8), summits: SATELLITES.length + 1 }),
   heroBox: () => screenBox(HERO_BOX, camera.position.toArray(), tgtV.toArray(), aspect),
   copyBox: () => rectOf(document.getElementById('copy')),
-  uiBoxes: () => Object.fromEntries(['.brand', '.badge', '.copy', '.tele', '.tools'].map((s) => [s, rectOf(document.querySelector(s))])),
+  uiBoxes: () => Object.fromEntries(['.brand', '.badge', '.chip', '.copy', '.tele', '.tools', '.hour', '.story', '.indoor'].filter((q) => { const el = document.querySelector(q), cs = getComputedStyle(el); return cs.display !== 'none' && cs.opacity !== '0'; }).map((s) => [s, rectOf(document.querySelector(s))])),
   jump: (u) => rig.jump(u),
+  focus, unfocus, enter: (now) => (now ? setInside(true) : enter()), leave: (now) => (now ? setInside(false) : leave()),
+  setHour: (h) => { hourWant = clamp(h, 0, 1); hourEl.value = String(Math.round(hourWant * 1000)); },
+  goSpot: (i) => { visit.go(i); syncSpot(); },
+  spotOnScreen: (i) => { V.set(SPOTS[i].x, ROOM.y0, SPOTS[i].z).project(camera); return { x: (V.x * 0.5 + 0.5) * W, y: (-V.y * 0.5 + 0.5) * H, front: V.z < 1 }; },
+  summitOnScreen: (id) => { const q = SATELLITES.find((k) => k.id === id); V.set(q.x, q.y + 1.2, q.z).project(camera); return { x: (V.x * 0.5 + 0.5) * W, y: (-V.y * 0.5 + 0.5) * H, front: V.z < 1 }; },
   rig,
 };

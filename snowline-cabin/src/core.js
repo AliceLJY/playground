@@ -147,35 +147,65 @@ export function screenBox(b, cam, target, aspect) {
 
 // ---------------- the rig: auto loop, manual orbit, eased return ----------------
 export const IDLE_S = 4.5;      // hands off this long, then the loop takes the view back
-export const RETURN_S = 3.2;    // how long the hand-back takes
+export const RETURN_S = 3.2;    // how long the hand-back takes at least; from far away it takes up to 5.5 s
 export const R_MIN = 17, R_MAX = 100;   // R_MAX is measured from the lodge, wherever the orbit centre currently is
 export const ORBIT_TARGET = [0, 4.2, 0];
 const toSph = (pos, tgt) => { const d = [pos[0] - tgt[0], pos[1] - tgt[1], pos[2] - tgt[2]], r = Math.hypot(...d); return { r, az: Math.atan2(d[0], d[2]), el: Math.asin(clamp(d[1] / r, -1, 1)) }; };
 const fromSph = (s, tgt) => [tgt[0] + s.r * Math.cos(s.el) * Math.sin(s.az), tgt[1] + s.r * Math.sin(s.el), tgt[2] + s.r * Math.cos(s.el) * Math.cos(s.az)];
 
+export const FLY_SPEED = 20, FLY_MIN_S = 1.6, FLY_MAX_S = 5.6;   // a flight takes its path length / 20 m/s, inside these limits
+const smoothstep = (k) => k * k * (3 - 2 * k);
+const sweep = (a, b) => { const ra = Math.hypot(a[0], a[2]), rb = Math.hypot(b[0], b[2]); return Math.abs(wrapAngle(Math.atan2(b[0], b[2]) - Math.atan2(a[0], a[2]))) * (ra + rb) / 2 + Math.abs(rb - ra) + Math.abs(b[1] - a[1]); };
+// Blend two poses around the lodge (angle, height, radius), never straight through it.
+// resolve() guards the middle; its push fades out at the end (and at the start too when both ends are free poses)
+// so there is no step when the blend hands over.
+function blendPose(from, to, e, bothEnds, dir = 0) {
+  const a = from.pos, b = to.pos;
+  // dir fixes which way round the lodge the blend goes. The loop keeps moving during a hand-back, and when its point
+  // crosses the far side the shortest way round flips; without a fixed direction the camera jumps to the other side.
+  let dAz = wrapAngle(Math.atan2(b[0], b[2]) - Math.atan2(a[0], a[2]));
+  if (dir > 0 && dAz < -Math.PI / 2) dAz += 2 * Math.PI; else if (dir < 0 && dAz > Math.PI / 2) dAz -= 2 * Math.PI;
+  const azA = Math.atan2(a[0], a[2]), az = azA + dAz * e;
+  const rad = lerp(Math.hypot(a[0], a[2]), Math.hypot(b[0], b[2]), e);
+  // long moves arc up over the summits instead of threading between them: pushing a point out of a summit flips side
+  // when the straight blend runs through its middle, which shows as a jump
+  const lift = Math.max(0, 23 - Math.max(a[1], b[1])) * Math.min(1, sweep(a, b) / 30) * Math.sin(Math.PI * e);
+  const raw = [rad * Math.sin(az), lerp(a[1], b[1], e) + lift, rad * Math.cos(az)], safe = resolve(raw);
+  const g = Math.min(1, (1 - e) / 0.2, bothEnds ? e / 0.2 : 1);
+  return { pos: raw.map((c, i) => lerp(c, safe[i], g)), target: [0, 1, 2].map((i) => lerp(from.target[i], to.target[i], e)) };
+}
+
 export function createRig({ u = 0, auto = true } = {}) {
   const rig = {
-    mode: auto ? 'auto' : 'manual', auto, u, idle: 0, k: 0,
+    mode: auto ? 'auto' : 'manual', auto, u, idle: 0, k: 0, hold: false, to: null,
     sph: null, target: ORBIT_TARGET.slice(), from: null, pos: null, look: null,
   };
   const pose = () => (rig.mode === 'auto' ? pathAt(rig.u) : { pos: resolve(fromSph(rig.sph, rig.target)), target: rig.target });
+  const here = () => ({ pos: (rig.pos || pathAt(rig.u).pos).slice(), target: (rig.look || pathAt(rig.u).target).slice() });
   const grab = () => {            // take over from wherever the camera is right now, without a jump
     if (rig.mode === 'manual') return;
-    const cur = { pos: rig.pos || pathAt(rig.u).pos, target: rig.look || pathAt(rig.u).target };
+    const cur = here();
     rig.target = cur.target.slice(); rig.sph = toSph(cur.pos, rig.target); rig.mode = 'manual';
   };
   rig.drag = (dAz, dEl) => { grab(); rig.idle = 0; rig.sph.az -= dAz; rig.sph.el = clamp(rig.sph.el + dEl, Math.min(-0.12, rig.sph.el), Math.max(1.25, rig.sph.el)); };
   rig.zoom = (f) => {
     grab(); rig.idle = 0;
-    const r = Math.max(rig.sph.r * f, Math.min(R_MIN, rig.sph.r));
+    const r = Math.max(rig.sph.r * f, Math.min(rig.hold ? 8 : R_MIN, rig.sph.r));
     if (f > 1) { const p = fromSph({ ...rig.sph, r }, rig.target); if (Math.hypot(p[0] - ORBIT_TARGET[0], p[1] - ORBIT_TARGET[1], p[2] - ORBIT_TARGET[2]) > R_MAX) return; }
     rig.sph.r = r;
   };
   rig.setAuto = (on) => { rig.auto = on; if (!on) grab(); rig.idle = 0; };
-  rig.reset = () => { grab(); rig.auto = true; rig.u = 0; rig.idle = IDLE_S; };
+  rig.reset = () => { grab(); rig.hold = false; rig.auto = true; rig.u = 0; rig.idle = IDLE_S; };
+  // Fly to a pose and stay there (hold): the loop does not take the view back until release().
+  rig.flyTo = (pose, hold = true) => { rig.from = here(); rig.to = { pos: pose.pos.slice(), target: pose.target.slice() }; rig.mode = 'fly'; rig.k = 0; rig.hold = hold; rig.idle = 0; rig.flyS = clamp(sweep(rig.from.pos, rig.to.pos) / FLY_SPEED, FLY_MIN_S, FLY_MAX_S); };
+  rig.release = () => { rig.hold = false; rig.idle = IDLE_S; };
   rig.jump = (uu) => { rig.u = uu; rig.mode = 'auto'; rig.from = null; const p = pathAt(uu); rig.pos = p.pos; rig.look = p.target; };
   rig.update = (dt) => {
     if (rig.mode === 'auto') rig.u = (rig.u + dt / LOOP_S) % 1;
+    else if (rig.mode === 'fly') {
+      rig.k = Math.min(1, rig.k + dt / rig.flyS);
+      if (rig.k >= 1) { rig.mode = 'manual'; rig.target = rig.to.target.slice(); rig.sph = toSph(rig.to.pos, rig.target); rig.from = null; rig.idle = 0; }
+    } else if (rig.mode === 'manual' && rig.hold) { /* parked at a summit: stay until released */ }
     else if (rig.mode === 'manual') {
       // ease the orbit centre back onto the lodge so a takeover near a far summit still orbits something
       // (the camera itself stays put while the centre slides: only the next drag feels the new centre)
@@ -183,24 +213,108 @@ export function createRig({ u = 0, auto = true } = {}) {
       for (let a = 0; a < 3; a++) rig.target[a] += (ORBIT_TARGET[a] - rig.target[a]) * Math.min(1, dt * 0.6);
       rig.sph = toSph(keep, rig.target);
       rig.idle += dt;
-      if (rig.auto && rig.idle >= IDLE_S) { rig.from = pose(); rig.mode = 'return'; rig.k = 0; }
+      if (rig.auto && rig.idle >= IDLE_S) { rig.from = pose(); rig.mode = 'return'; rig.k = 0; const b = pathAt(rig.u).pos; rig.retS = clamp(sweep(rig.from.pos, b) / 16, RETURN_S, 6); rig.dir = Math.sign(wrapAngle(Math.atan2(b[0], b[2]) - Math.atan2(rig.from.pos[0], rig.from.pos[2]))) || 1; }
     } else {
-      rig.k = Math.min(1, rig.k + dt / RETURN_S); rig.u = (rig.u + (dt / LOOP_S) * rig.k) % 1;
+      rig.k = Math.min(1, rig.k + dt / rig.retS); rig.u = (rig.u + (dt / LOOP_S) * rig.k) % 1;
       if (rig.k >= 1) { rig.mode = 'auto'; rig.from = null; }
     }
     let p;
-    if (rig.mode === 'return') {
-      // blend around the lodge (angle, height, radius), never straight through it
-      const to = pathAt(rig.u), e = easeInOut(rig.k), a = rig.from.pos, b = to.pos;
-      const azA = Math.atan2(a[0], a[2]), azB = Math.atan2(b[0], b[2]), az = azA + wrapAngle(azB - azA) * e;
-      const rad = lerp(Math.hypot(a[0], a[2]), Math.hypot(b[0], b[2]), e);
-      const raw = [rad * Math.sin(az), lerp(a[1], b[1], e), rad * Math.cos(az)], safe = resolve(raw);
-      // resolve() guards the middle of the blend; fade it out at the end so the hand-over to the path has no step
-      const g = e > 0.8 ? (1 - e) / 0.2 : 1;
-      p = { pos: raw.map((c, i2) => lerp(c, safe[i2], g)), target: [0, 1, 2].map((i2) => lerp(rig.from.target[i2], to.target[i2], e)) };
-    } else p = pose();
+    if (rig.mode === 'return') p = blendPose(rig.from, pathAt(rig.u), smoothstep(rig.k), false, rig.dir);
+    else if (rig.mode === 'fly') p = blendPose(rig.from, rig.to, smoothstep(rig.k), true);
+    else p = pose();
     rig.pos = p.pos; rig.look = p.target.slice();
     return p;
   };
   return rig;
+}
+
+// ---------------- lighting the lamps ----------------
+// The seven smaller summits start dark. Tap one: the view flies there and its lamps come on.
+export const STORIES = {
+  'red-hut': { name: '红顶小屋', line: '守林人住这儿。烟囱一冒烟，就是他又在煮茶了。' },
+  'white-porch': { name: '白墙小屋', line: '门廊灯是给邮差留的。他每周三翻山过来，总是天黑才到。' },
+  'bare-lantern': { name: '路灯石', line: '这块石头上没人住。灯油是大家轮流添的，给夜里赶路的人认方向。' },
+  beacon: { name: '小烽火塔', line: '起雾的时候，塔上的人会敲三下钟，告诉对面山头这边平安。' },
+  'hamlet-east': { name: '东村', line: '三户人家，冬天合用一口灶。轮到谁家，谁家的烟囱就冒烟。' },
+  'hamlet-north': { name: '北村', line: '松林后面的小村。木屋烧的柴，都是从这儿一捆一捆背过去的。' },
+  cairn: { name: '玛尼堆', line: '每个上山的人添一块石头，下山的时候再回头看一眼。' },
+};
+export const FINALE_LINE = '七座山头都亮了。今晚没有人摸黑。';
+export const summitOf = (owner) => { const s = SATELLITES.find((q) => owner === q.id || String(owner).startsWith(q.id + '-')); return s ? s.id : null; };
+export function createGame(initial = []) {
+  const lit = new Set(initial.filter((id) => SATELLITES.some((s) => s.id === id)));
+  return {
+    lit,
+    get count() { return lit.size; },
+    get done() { return lit.size === SATELLITES.length; },
+    light(id) {
+      if (!SATELLITES.some((s) => s.id === id)) return { changed: false, count: lit.size, done: lit.size === SATELLITES.length, finale: false };
+      const changed = !lit.has(id); lit.add(id);
+      const done = lit.size === SATELLITES.length;
+      return { changed, count: lit.size, done, finale: changed && done };
+    },
+  };
+}
+// Where the camera parks to look at one summit: outside it, looking back so the lodge is in the background.
+export function focusPose(id) {
+  const s = SATELLITES.find((q) => q.id === id), a = Math.atan2(s.x, s.z) + 0.5, d = s.r * 2.1 + 8;
+  return { pos: resolve([s.x + Math.sin(a) * d, s.y + s.r * 0.6 + 4, s.z + Math.cos(a) * d]), target: [s.x, s.y + 1.6, s.z] };
+}
+export const homePose = () => pathAt(0);
+// Which summit a ray hits first (origin o, unit direction d). The lodge counts as 'lodge'.
+export function pickSummit(o, d) {
+  let best = null, bt = Infinity;
+  const test = (id, c, r) => {
+    const oc = [o[0] - c[0], o[1] - c[1], o[2] - c[2]], b = oc[0] * d[0] + oc[1] * d[1] + oc[2] * d[2], cc = oc[0] * oc[0] + oc[1] * oc[1] + oc[2] * oc[2] - r * r, disc = b * b - cc;
+    if (disc < 0) return; const t = -b - Math.sqrt(disc); if (t > 0 && t < bt) { bt = t; best = id; }
+  };
+  for (const s of SATELLITES) test(s.id, [s.x, s.y + 1.2, s.z], s.r + 1.2);
+  test('lodge', [0, 5, 1], 11);
+  return best;
+}
+
+// ---------------- the hour: dusk (0) -> deep night (0.5) -> dawn (1) ----------------
+const SUN_SIDE = [-MOON_DIR[0], 0.06, -MOON_DIR[2]];
+const HOURS = [
+  { h: 0, low: [0.5, 0.2, 0.13], mid: [0.13, 0.085, 0.2], top: [0.022, 0.03, 0.1], fog: [0.14, 0.085, 0.13], key: [1.0, 0.55, 0.42], keyInt: 1.5, keyDir: [SUN_SIDE[0], 0.2, SUN_SIDE[2]], hemi: 0.7, stars: 0.2, moon: 0.55, glow: [0.9, 0.36, 0.16], glowDir: SUN_SIDE, cloud: [2.0, 1.15, 1.05], lights: 0.4 },
+  { h: 0.5, low: [0.034, 0.052, 0.115], mid: [0.02, 0.033, 0.085], top: [0.007, 0.012, 0.04], fog: [0.034, 0.052, 0.115], key: [0.62, 0.73, 1.0], keyInt: 2.3, keyDir: [MOON_DIR[0], 0.5, MOON_DIR[2]], hemi: 0.6, stars: 1, moon: 1, glow: [0, 0, 0], glowDir: SUN_SIDE, cloud: [1, 1, 1], lights: 1 },
+  { h: 1, low: [0.62, 0.36, 0.2], mid: [0.2, 0.25, 0.42], top: [0.06, 0.11, 0.27], fog: [0.2, 0.19, 0.27], key: [1.0, 0.78, 0.58], keyInt: 2.4, keyDir: [0.8, 0.28, -0.52], hemi: 1.0, stars: 0, moon: 0.3, glow: [1.0, 0.55, 0.25], glowDir: [0.8, 0.04, -0.52], cloud: [2.6, 2.0, 1.75], lights: 0.1 },
+];
+const mix3 = (a, b, k) => a.map((v, i) => lerp(v, b[i], k));
+export function skyAt(h) {
+  h = clamp(h, 0, 1);
+  const [A, B, k0] = h <= 0.5 ? [HOURS[0], HOURS[1], h / 0.5] : [HOURS[1], HOURS[2], (h - 0.5) / 0.5], k = k0 * k0 * (3 - 2 * k0), out = { h };
+  for (const f of Object.keys(A)) if (f !== 'h') out[f] = Array.isArray(A[f]) ? mix3(A[f], B[f], k) : lerp(A[f], B[f], k);
+  const l = Math.hypot(...out.keyDir); out.keyDir = out.keyDir.map((c) => c / l);
+  return out;
+}
+// Is window i switched on at hour h? Fewer at dusk, all of the usual ones at night, almost none by dawn.
+export function windowOn(i, h) { return mulberry32(SEED + 31 * i + 7)() < skyAt(h).lights; }
+
+// ---------------- inside the lodge ----------------
+// One room on the ground floor of the main house. You stand at one of three spots and look around.
+// (its west wall stands east of the round tower, which bulges into that corner of the house)
+export const ROOM = { x0: -4.4, x1: 3.3, z0: -3.3, z1: 3.3, y0: DECK_Y + 0.06, y1: DECK_Y + 2.36 };   // the ceiling stays under the wing roof, which reaches into this corner
+export const EYE = 1.3;
+export const SPOTS = [
+  { id: 'fire', name: '火炉边', x: 0.4, z: -0.3, yaw: -Math.PI / 2 - 0.15, pitch: -0.3 },   // looking down a little: the cat is on the rug      // yaw 0 looks along -z; negative turns towards +x
+  { id: 'window', name: '窗前', x: -0.35, z: -2.0, yaw: 0.56 },      // lined up so the moon sits in the second window
+  { id: 'table', name: '桌边', x: -2.3, z: 1.5, yaw: 0.72 },
+];
+// Furniture footprints (x0, x1, z0, z1): the standing spots keep clear of them.
+export const FURNITURE = [
+  { id: 'hearth', x0: 2.5, x1: 3.3, z0: -2.0, z1: 0.2 },
+  { id: 'table', x0: -4.0, x1: -3.0, z0: -0.4, z1: 0.9 },
+  { id: 'bed', x0: 0.6, x1: 2.9, z0: 1.9, z1: 3.3 },
+  { id: 'shelf', x0: -4.4, x1: -4.0, z0: -3.0, z1: -1.2 },
+];
+export function createVisit() {
+  const v = { spot: 0, yaw: SPOTS[0].yaw, pitch: SPOTS[0].pitch || -0.05 };
+  v.go = (i) => { if (i >= 0 && i < SPOTS.length) { v.spot = i; v.yaw = SPOTS[i].yaw; v.pitch = SPOTS[i].pitch || -0.05; } };
+  v.look = (dYaw, dPitch) => { v.yaw += dYaw; v.pitch = clamp(v.pitch + dPitch, -0.9, 0.9); };
+  v.pose = () => {
+    const s = SPOTS[v.spot], eye = [s.x, ROOM.y0 + EYE, s.z], c = Math.cos(v.pitch);
+    return { pos: eye, target: [eye[0] - Math.sin(v.yaw) * c, eye[1] + Math.sin(v.pitch), eye[2] - Math.cos(v.yaw) * c] };
+  };
+  return v;
 }
