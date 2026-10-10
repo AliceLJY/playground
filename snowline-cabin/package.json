@@ -1,0 +1,14 @@
+{
+  "name": "snowline-cabin",
+  "private": true,
+  "type": "module",
+  "description": "雪线小木屋：纯代码搭的雪夜山间木屋，能拖着转. Build: npm ci && node tools/build.mjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}

@@ -116,6 +116,14 @@ jobs:
           npm ci
           node tools/build.mjs
 
+      - name: Check and bundle Cabin Above the Snowline
+        working-directory: snowline-cabin
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+
       - name: Assemble 3D exhibits
         run: |
           # 机械沙虫：源码与打包在作者的提示词素材库，这里只放打好的单文件，原样发布
@@ -128,6 +136,9 @@ jobs:
           # 走进户型图：同一套房子摆满家具、能走进去；上一步已打成单文件
           mkdir -p _site/floorplan-walk
           cp floorplan-walk/dist/index.html _site/floorplan-walk/index.html
+          # 雪线小木屋：纯代码搭的雪夜山间木屋；上面已打成单文件（Three.js 许可在文件开头注释里）
+          mkdir -p _site/snowline-cabin
+          cp snowline-cabin/dist/index.html _site/snowline-cabin/index.html
 
       - name: Show what will be published
         run: find _site -type f | sort
