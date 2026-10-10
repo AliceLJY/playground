@@ -1,4 +1,4 @@
-// Browser acceptance for 雪线小木屋: SPEC 验收条目 B1-B8. Run by hand; needs an existing Playwright install and Google Chrome.
+// Browser acceptance for 雪线小木屋: SPEC 验收条目 B1-B12. Run by hand; needs an existing Playwright install and Google Chrome.
 //   node tools/build.mjs
 //   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <out-dir> [page-url]
 // Without a URL it opens dist/index.html from disk. Writes report.json and screenshots into <out-dir>.
@@ -90,6 +90,63 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
     const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1, k = Object.keys(s.ui), clashes = [];
     for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++) if (hit(s.ui[k[i]], s.ui[k[j]])) clashes.push(k[i] + ' x ' + k[j]);
     check('B8', 'phone 390x844: no two pieces of text or controls overlap; the lodge sits above the copy', clashes.length === 0 && s.hero.y1 <= s.ui['.copy'].y0 && s.hero.x0 >= 0 && s.hero.x1 <= 1, `overlaps: ${clashes.join(', ') || 'none'}; lodge bottom ${s.hero.y1.toFixed(3)}, copy top ${s.ui['.copy'].y0.toFixed(3)}`); await ctx.close(); }
+
+  // B9 lighting one lamp with a real click, then going back
+  { const { ctx, page } = await open('', 1280, 720);
+    const s0 = await page.evaluate(() => ({ lit: window.__cabin.state().lit.length, at: window.__cabin.summitOnScreen('beacon') }));
+    await page.mouse.click(s0.at.x, s0.at.y);
+    await page.waitForFunction(() => window.__cabin.state().lit.includes('beacon'), null, { polling: 100, timeout: 12000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    const s1 = await page.evaluate(() => ({ st: window.__cabin.state(), name: document.getElementById('storyName').textContent, on: document.getElementById('story').classList.contains('on'), chip: document.getElementById('chip').textContent }));
+    await page.waitForTimeout(8000); const parked = await page.evaluate(() => window.__cabin.state().mode);
+    await page.screenshot({ path: path.join(out, 'lamp.png') });
+    await page.click('#back'); await page.waitForTimeout(8500);
+    const s2 = await page.evaluate(() => ({ st: window.__cabin.state(), on: document.getElementById('story').classList.contains('on') }));
+    check('B9', 'a click on a dark summit flies there, lights it and shows its story; the view stays until "回木屋", then the loop resumes', s0.lit === 0 && s1.st.lit.length === 1 && s1.st.focus === 'beacon' && s1.on && s1.name === '小烽火塔' && s1.chip.includes('1') && parked === 'manual' && !s2.on && s2.st.focus === null && s2.st.mode === 'auto',
+      `before: ${s0.lit} lit; after click: lit ${JSON.stringify(s1.st.lit)}, story "${s1.name}", chip "${s1.chip}"; 8 s later still ${parked}; after back: story ${s2.on ? 'shown' : 'hidden'}, mode ${s2.st.mode}`);
+    // B10 the other six, then the finale
+    for (const id of ['red-hut', 'white-porch', 'bare-lantern', 'hamlet-east', 'hamlet-north', 'cairn']) { await page.evaluate((i) => window.__cabin.focus(i), id); await page.waitForFunction((i) => window.__cabin.state().lit.includes(i), id, { polling: 100, timeout: 12000 }).catch(() => {}); }
+    await page.waitForFunction(() => window.__cabin.state().finale > 4, null, { polling: 100, timeout: 15000 }).catch(() => {});
+    const f1 = await page.evaluate(() => ({ st: window.__cabin.state(), line: document.getElementById('storyLine').textContent, chip: document.getElementById('chip').textContent }));
+    await page.screenshot({ path: path.join(out, 'finale.png') });
+    await page.waitForFunction(() => window.__cabin.state().finale === -2, null, { polling: 100, timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(7000); const f2 = await page.evaluate(() => ({ st: window.__cabin.state(), on: document.getElementById('story').classList.contains('on') }));
+    check('B10', 'seven lit summits start the finale once; it ends by itself and the loop resumes', f1.st.lit.length === 7 && f1.st.finale > 4 && f1.line.includes('七座山头都亮了') && f1.chip === '七座都亮了' && f2.st.finale === -2 && !f2.on && f2.st.mode === 'auto',
+      `lit ${f1.st.lit.length}, finale clock ${f1.st.finale.toFixed(1)} s, line "${f1.line}", chip "${f1.chip}"; afterwards: finale ${f2.st.finale}, story ${f2.on ? 'shown' : 'hidden'}, mode ${f2.st.mode}`);
+    await ctx.close(); }
+
+  // B11 the hour
+  { const hs2 = {};
+    for (const hh of [0, 0.5, 1]) { const { ctx, page } = await open('?view=hero&h=' + hh, 1280, 720); await page.waitForTimeout(600); const png = await page.screenshot({ path: path.join(out, 'hour-' + hh + '.png') });
+      const pg = await (await browser.newContext()).newPage();
+      hs2[hh] = await pg.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+        const d = g.getImageData(Math.round(img.width * 0.45), 0, Math.round(img.width * 0.5), Math.round(img.height * 0.3)).data; let r = 0, b = 0, l = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; b += d[i + 2]; l += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; } return { rb: r / b, lum: l / (d.length / 4) / 255 }; }, png.toString('base64'));
+      await pg.context().close(); await ctx.close(); }
+    check('B11', 'the hour changes the picture: the sky is darkest and bluest at night, warmer at dusk and at dawn', hs2[0.5].lum < hs2[0].lum && hs2[0.5].lum < hs2[1].lum && hs2[0].rb > hs2[0.5].rb + 0.15 && hs2[1].rb > hs2[0.5].rb + 0.1,
+      `upper sky luminance dusk ${hs2[0].lum.toFixed(3)} / night ${hs2[0.5].lum.toFixed(3)} / dawn ${hs2[1].lum.toFixed(3)}; red-to-blue ratio ${hs2[0].rb.toFixed(2)} / ${hs2[0.5].rb.toFixed(2)} / ${hs2[1].rb.toFixed(2)}`);
+    const { ctx, page } = await open('', 1280, 720); const box = await page.locator('#hour').boundingBox();
+    await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2); await page.waitForTimeout(300); const hv = await page.evaluate(() => window.__cabin.state().hour);
+    check('B11b', 'dragging the slider towards dusk changes the hour', hv < 0.25, `hour after a click at 10% of the slider: ${hv.toFixed(2)}`); await ctx.close(); }
+
+  // B12 inside
+  for (const [w, h, dpr, tag] of [[1280, 720, 1, 'desktop'], [390, 844, 2, 'phone']]) {
+    const { ctx, page } = await open('?lit=all', w, h, dpr);
+    await page.click('[data-act="enter"]'); await page.waitForTimeout(1300);
+    const a = await page.evaluate(() => ({ st: window.__cabin.state(), ui: Object.keys(window.__cabin.uiBoxes()), boxes: window.__cabin.uiBoxes() }));
+    await page.screenshot({ path: path.join(out, 'inside-' + tag + '.png') });
+    // turn until another standing spot is on screen, then tap its ring
+    let target = null;
+    for (let turn = 0; turn < 8 && !target; turn++) {
+      const spots = await page.evaluate(() => [0, 1, 2].map((i) => ({ i, cur: window.__cabin.state().spot, ...window.__cabin.spotOnScreen(i) })));
+      target = spots.find((q) => q.front && q.x > w * 0.15 && q.x < w * 0.85 && q.y > h * 0.2 && q.y < h * 0.62 && ['fire', 'window', 'table'][q.i] !== q.cur) || null;
+      if (!target) { await page.mouse.move(w * 0.3, h * 0.4); await page.mouse.down(); await page.mouse.move(w * 0.3 + h * 0.3, h * 0.4, { steps: 8 }); await page.mouse.up(); }
+    }
+    let moved = null; if (target) { if (w < 600) await page.touchscreen.tap(target.x, target.y); else await page.mouse.click(target.x, target.y); await page.waitForTimeout(300); moved = await page.evaluate(() => window.__cabin.state().spot); }
+    await page.click('#leave'); await page.waitForTimeout(1300); const b = await page.evaluate(() => ({ st: window.__cabin.state(), ui: Object.keys(window.__cabin.uiBoxes()) }));
+    const hit = (p, q) => p.x0 < q.x1 && q.x0 < p.x1 && p.y0 < q.y1 && q.y0 < p.y1, clash = a.boxes['.indoor'] && a.boxes['.hour'] ? hit(a.boxes['.indoor'], a.boxes['.hour']) : true;
+    check('B12-' + tag, 'the door button takes you inside; a tap on a floor ring moves you; "出门" brings the outside view back', a.st.inside && a.st.spot === 'fire' && a.ui.includes('.indoor') && !a.ui.includes('.tools') && !clash && target && moved && moved !== 'fire' && !b.st.inside && b.ui.includes('.tools') && !b.ui.includes('.indoor'),
+      `inside ${a.st.inside} at "${a.st.spot}", panels ${a.ui.join(' ')}, panel and slider overlap ${clash}; ring tapped ${target ? 'yes' : 'none came into view'}, now at "${moved}"; after leaving: inside ${b.st.inside}`);
+    await ctx.close(); }
 
   check('B1', 'no page errors and nothing loaded from outside the page', errors.length === 0 && external.length === 0, `errors ${errors.length}${errors.length ? ': ' + errors.slice(0, 3).join(' | ') : ''}; outside requests ${external.length}`);
   const fail = report.checks.filter((c) => !c.pass && !c.ne), ne = report.checks.filter((c) => c.ne);

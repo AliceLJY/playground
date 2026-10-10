@@ -1,10 +1,17 @@
 # Cabin Above the Snowline
 
-A lit cabin on a snowy summit at night, to orbit and look at. A lodge, a lookout tower, a woodshed and a tea stall share one summit; seven smaller summits around it each carry a sign of life: a red-roofed hut, a porch lamp, a small beacon tower, a cairn. Two lines of prayer flags run from the lodge to the two hamlets.
+A lit cabin on a snowy summit at night, to orbit, look at and play with for a while. A lodge, a lookout tower, a woodshed and a tea stall share one summit; seven smaller summits around it each carry a sign of life: a red-roofed hut, a porch lamp, a small beacon tower, a cairn. Two lines of prayer flags run from the lodge to the two hamlets.
 
 **[Open it](https://aliceljy.github.io/playground/snowline-cabin/)**
 
 No models and no image files: every shape, the wood grain, the clouds, the snow and the moon are generated in code.
+
+## What you can do
+
+- **Light the lamps.** The seven smaller summits start dark. Tap one: the camera flies there, its lamps and windows come on, and a line about who lives there appears (in Chinese). When all seven are lit, lights come on along the flag lines and shooting stars cross the sky.
+- **Change the hour.** The slider at the bottom runs from dusk through deep night to dawn; the sky, the key light and the lit windows follow.
+- **Step inside.** The door button at the lower left takes you into the ground floor of the main house. Drag to look around; tap a ring on the floor to stand by the fire, at the window or at the table. The window spot faces the moon.
+- **Orbit.** Left alone, the camera circles by itself.
 
 ## Controls
 
@@ -13,7 +20,10 @@ No models and no image files: every shape, the wood grain, the clouds, the snow 
 | Orbit | drag | one finger |
 | Zoom | scroll, or the zoom buttons at the lower left | pinch, or the buttons |
 | Back to the opening view | reset button | same |
-| Auto-orbit | the rightmost button toggles it; when on, the camera resumes about 4.5 s after you let go | same |
+| Auto-orbit | the eye button toggles it; when on, the camera resumes about 4.5 s after you let go | same |
+| Light a lamp | tap a dark summit; then the back button, or tap the main house | same |
+| Change the hour | drag the slider at the bottom | same |
+| Go in, come out | the door button; inside, the leave button | same |
 
 Hovering a building brightens its windows a little. With "reduce motion" set in the system, auto-orbit starts switched off.
 

@@ -145,3 +145,87 @@ test('SPEC 7: in the opening view the lodge sits clear of the copy on wide scree
   const b = c.screenBox(c.HERO_BOX, v.pos, v.target, 390 / 844);
   assert.ok(b.x0 >= 0.02 && b.x1 <= 0.98 && b.y1 <= 0.6 && b.y0 >= 0.08, `phone: lodge box x ${b.x0.toFixed(2)}..${b.x1.toFixed(2)}, y ${b.y0.toFixed(2)}..${b.y1.toFixed(2)}`);
 });
+
+test('SPEC 8: lighting the lamps — each summit lights once, seven make the finale, unknown ids do nothing', async () => {
+  const c = await load();
+  const g = c.createGame();
+  assert.deepStrictEqual(g.light('nowhere'), { changed: false, count: 0, done: false, finale: false });
+  c.SATELLITES.forEach((s, i) => {
+    const r = g.light(s.id);
+    assert.ok(r.changed && r.count === i + 1, `${s.id} did not light`);
+    assert.strictEqual(r.finale, i === c.SATELLITES.length - 1, 'the finale must fire exactly on the seventh');
+    assert.strictEqual(g.light(s.id).changed, false, 'a lit summit must not light twice');
+    assert.strictEqual(g.light(s.id).finale, false, 'the finale must not fire again');
+  });
+  assert.ok(g.done);
+  for (const s of c.SATELLITES) { assert.ok(c.STORIES[s.id] && c.STORIES[s.id].line.length >= 10, `${s.id} has no story`); assert.strictEqual(c.summitOf(s.id + '-a'), s.id); }
+  assert.strictEqual(c.summitOf('keep'), null);
+});
+
+test('SPEC 9: every summit has a parking view that shows it, clear of everything, and a tap on it picks it', async () => {
+  const c = await load();
+  for (const s of c.SATELLITES) {
+    const f = c.focusPose(s.id);
+    for (const o of c.SATELLITES) assert.ok(dist(f.pos, [o.x, o.y + 1.5, o.z]) >= o.r + 3.5 - 1e-6, `view of ${s.id} is inside ${o.id}`);
+    assert.ok(c.clearance(f.pos) >= 6, `view of ${s.id} is ${c.clearance(f.pos).toFixed(1)} m from the lodge`);
+    const d = dist(f.pos, [s.x, s.y, s.z]); assert.ok(d > s.r + 5 && d < s.r * 3.4 + 16, `view of ${s.id} is ${d.toFixed(1)} m away`);
+    for (const aspect of [16 / 9, 390 / 844]) {
+      const q = c.project([s.x, s.y + 1.6, s.z], f.pos, f.target, aspect);
+      assert.ok(q.z > 0 && Math.abs(q.x) < 0.6 && Math.abs(q.y) < 0.6, `${s.id} sits at (${q.x.toFixed(2)}, ${q.y.toFixed(2)}) in its own view, aspect ${aspect.toFixed(2)}`);
+    }
+    const dir = f.target.map((v, i) => v - f.pos[i]), l = Math.hypot(...dir);
+    assert.strictEqual(c.pickSummit(f.pos, dir.map((v) => v / l)), s.id, `a tap at the middle of the view of ${s.id} picks something else`);
+  }
+  const h = c.homePose(), dir = [0 - h.pos[0], 5 - h.pos[1], 1 - h.pos[2]], l = Math.hypot(...dir);
+  assert.strictEqual(c.pickSummit(h.pos, dir.map((v) => v / l)), 'lodge');
+});
+
+test('SPEC 9: flying to a summit and back never jumps, never passes through the lodge, and the loop waits until released', async () => {
+  const c = await load();
+  for (const s of c.SATELLITES) for (const u0 of [0, 0.35, 0.7]) {
+    const rig = c.createRig({ u: u0 }); let prev = rig.update(DT).pos;
+    rig.flyTo(c.focusPose(s.id));
+    let worst = 0;
+    for (let i = 0; i < (c.FLY_MAX_S + 0.5) * 60; i++) { const q = rig.update(DT).pos; worst = Math.max(worst, dist(q, prev)); prev = q; assert.ok(c.clearance(q) >= 5, `to ${s.id} from u=${u0}: ${c.clearance(q).toFixed(2)} m from the lodge`); }
+    // 1 m a frame separates a fast sweep from a teleport; the fastest frames are where the flight bends around another summit
+    assert.ok(worst < 1.0, `to ${s.id} from u=${u0}: ${worst.toFixed(2)} m in one frame, limit 1.0 (60 m/s)`);
+    assert.ok(dist(prev, c.focusPose(s.id).pos) < 0.05, `did not arrive at ${s.id}`);
+    for (let i = 0; i < 20 * 60; i++) rig.update(DT);
+    assert.strictEqual(rig.mode, 'manual', 'the loop took the view back while parked');
+    rig.release(); let back = false; worst = 0; prev = rig.update(DT).pos;
+    for (let i = 0; i < 7 * 60; i++) { const q = rig.update(DT).pos; worst = Math.max(worst, dist(q, prev)); prev = q; if (rig.mode === 'auto') back = true; assert.ok(c.clearance(q) >= 5); }
+    assert.ok(back && worst < 1.2, `from ${s.id}: back=${back}, worst step ${worst.toFixed(2)} m`);
+  }
+});
+
+test('SPEC 10: the hour — night is the darkest sky, stars and lit windows peak at night, values stay continuous', async () => {
+  const c = await load();
+  const lum = (v) => 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  const d = c.skyAt(0), n = c.skyAt(0.5), m = c.skyAt(1);
+  assert.ok(lum(n.low) < lum(d.low) && lum(n.low) < lum(m.low), 'night horizon must be darker than dusk and dawn');
+  assert.ok(n.stars === 1 && d.stars < 0.5 && m.stars === 0);
+  assert.ok(d.low[0] > d.low[2] && m.low[0] > m.low[2] && n.low[2] > n.low[0], 'dusk and dawn horizons are warm, night is blue');
+  let prev = c.skyAt(0);
+  for (let h = 0.01; h <= 1.0001; h += 0.01) { const s = c.skyAt(h); for (const f of ['low', 'fog', 'key']) for (let i = 0; i < 3; i++) assert.ok(Math.abs(s[f][i] - prev[f][i]) < 0.05, `${f} jumps at h=${h.toFixed(2)}`); assert.ok(Math.abs(Math.hypot(...s.keyDir) - 1) < 1e-9); prev = s; }
+  const on = (h) => { let k = 0; for (let i = 0; i < 400; i++) if (c.windowOn(i, h)) k++; return k / 400; };
+  assert.ok(on(0.5) === 1, 'at night every window keeps its usual state');
+  assert.ok(on(0) > 0.25 && on(0) < 0.55, `dusk: ${on(0)}`); assert.ok(on(1) > 0.03 && on(1) < 0.2, `dawn: ${on(1)}`);
+  for (let i = 0; i < 400; i++) if (c.windowOn(i, 1)) assert.ok(c.windowOn(i, 0.75) && c.windowOn(i, 0.5), 'a window on at dawn must have been on all night');
+});
+
+test('SPEC 11: inside — three standing spots inside the room, clear of walls and furniture, eye below the ceiling', async () => {
+  const c = await load();
+  assert.strictEqual(c.SPOTS.length, 3);
+  const keep = c.BUILDINGS[0];
+  assert.ok(c.ROOM.x0 > keep.cx - keep.w / 2 && c.ROOM.x1 < keep.cx + keep.w / 2 && c.ROOM.z0 > keep.cz - keep.d / 2 && c.ROOM.z1 < keep.cz + keep.d / 2, 'the room must fit inside the main house');
+  for (const s of c.SPOTS) {
+    assert.ok(s.x > c.ROOM.x0 + 0.6 && s.x < c.ROOM.x1 - 0.6 && s.z > c.ROOM.z0 + 0.6 && s.z < c.ROOM.z1 - 0.6, `${s.id} is too close to a wall`);
+    for (const f of c.FURNITURE) { const dx = Math.max(f.x0 - s.x, s.x - f.x1, 0), dz = Math.max(f.z0 - s.z, s.z - f.z1, 0); assert.ok(Math.hypot(dx, dz) >= 0.5, `${s.id} stands ${Math.hypot(dx, dz).toFixed(2)} m from the ${f.id}`); }
+  }
+  for (let i = 0; i < c.SPOTS.length; i++) for (let j = i + 1; j < c.SPOTS.length; j++) assert.ok(Math.hypot(c.SPOTS[i].x - c.SPOTS[j].x, c.SPOTS[i].z - c.SPOTS[j].z) > 1.5, 'two spots are nearly the same place');
+  const v = c.createVisit(); v.go(1); v.look(0.3, 5); const p = v.pose();
+  assert.ok(p.pos[1] < c.ROOM.y1 - 0.5 && p.pos[1] > c.ROOM.y0 + 1, 'eye height'); assert.ok(v.pitch <= 0.9, 'pitch is clamped');
+  assert.ok(Math.abs(dist(p.pos, p.target) - 1) < 1e-9);
+  // the window spot looks out through the back wall, towards the moon side
+  v.go(1); const w = v.pose(), f = [w.target[0] - w.pos[0], w.target[2] - w.pos[2]]; assert.ok(f[1] < -0.8 && f[0] * c.MOON_DIR[0] + f[1] * c.MOON_DIR[2] > 0.6, 'the window spot must face the moon side');
+});

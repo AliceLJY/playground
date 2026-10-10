@@ -31,6 +31,30 @@
   .tools button:hover { background: rgba(40, 52, 80, .6); }
   .tools button[aria-pressed="true"] { border-color: rgba(255, 194, 122, .7); color: #ffd9a8; }
   .tools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .glass { border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  .chip { right: 28px; top: 62px; font-size: 10.5px; letter-spacing: .14em; padding: 6px 12px; border-radius: 999px; color: var(--dim); font-variant-numeric: tabular-nums; transition: color .4s, border-color .4s; }
+  .chip.done { color: #ffd9a8; border-color: rgba(255, 194, 122, .6); }
+  .hint { margin-top: 16px; font-size: 12px; letter-spacing: .08em; color: #ffd9a8; text-shadow: 0 1px 10px rgba(4, 8, 18, .8); transition: opacity .6s; }
+  .hint::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ffc27a; box-shadow: 0 0 8px #ffb060; margin-right: 9px; vertical-align: 1px; }
+  .story { left: 50%; bottom: 84px; transform: translate(-50%, 12px); width: min(440px, calc(100% - 40px)); padding: 16px 18px 14px; border-radius: 14px; opacity: 0; pointer-events: none; transition: opacity .5s, transform .5s; }
+  .story.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .story b { display: block; font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: .06em; }
+  .story span { display: block; margin-top: 7px; font-size: 13px; line-height: 1.8; color: rgba(236, 240, 248, .86); }
+  .story button, .indoor button { margin-top: 11px; font: inherit; font-size: 11.5px; letter-spacing: .12em; color: var(--ink); background: rgba(255, 255, 255, .08); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  .story button:hover, .indoor button:hover { background: rgba(255, 255, 255, .16); }
+  .hour { left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 999px; font-size: 10.5px; letter-spacing: .14em; color: var(--dim); pointer-events: auto; }
+  .hour input { -webkit-appearance: none; appearance: none; width: 170px; height: 18px; background: transparent; margin: 0; cursor: pointer; }
+  .hour input::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(90deg, #e58b5a, #4d63a6 50%, #f0b98a); border-radius: 2px; }
+  .hour input::-moz-range-track { height: 2px; background: linear-gradient(90deg, #e58b5a, #4d63a6 50%, #f0b98a); border-radius: 2px; }
+  .hour input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -6px; border-radius: 50%; background: #f4f6fb; border: 0; box-shadow: 0 0 10px rgba(255, 220, 170, .6); }
+  .hour input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #f4f6fb; border: 0; }
+  .indoor { left: 28px; bottom: 24px; padding: 14px 18px; border-radius: 14px; display: none; pointer-events: auto; max-width: min(300px, calc(100% - 40px)); }
+  .indoor b { display: block; font-family: var(--serif); font-size: 18px; letter-spacing: .06em; }
+  .indoor span { display: block; margin-top: 6px; font-size: 12px; line-height: 1.7; color: var(--dim); }
+  #fade { position: fixed; inset: 0; background: #05070d; opacity: 0; pointer-events: none; transition: opacity .36s; }
+  body.focus .copy, body.inside .copy, body.inside .tools, body.inside .chip, body.inside .tele, body.inside .credit, body.inside .story { display: none; }
+  body.inside .indoor { display: block; }
+  body.inside .hour { bottom: 26px; }
   .fail { inset: 0; display: none; place-items: center; text-align: center; padding: 40px; font-size: 14px; line-height: 1.9; color: var(--dim); }
   @media (max-aspect-ratio: 4/5) {
     .brand { left: 20px; top: 18px; right: 150px; line-height: 1.7; letter-spacing: .2em; } .brand span { display: none; } .badge { right: 20px; top: 16px; }
@@ -39,6 +63,10 @@
     .copy p { margin-top: 12px; font-size: 12px; line-height: 1.75; }
     .tools { left: 20px; bottom: 20px; } .tele { right: 20px; bottom: 22px; font-size: 9px; }
     .tele .long, .credit { display: none; }
+    .copy { bottom: 124px; } .chip { right: 20px; top: 54px; }
+    .hour { bottom: 72px; left: 20px; right: 20px; transform: none; justify-content: space-between; } .hour input { flex: 1; width: auto; }
+    .story { bottom: 124px; } .tele { display: none; }
+    body.inside .hour { bottom: 20px; } body.inside .indoor { left: 20px; bottom: 76px; }
   }
   @media (max-height: 520px) { .copy p { display: none; } .copy { bottom: 78px; } .copy h1 { font-size: clamp(24px, 4.6vw, 40px); } }
 </style>
@@ -51,7 +79,12 @@
   <div class="copy" id="copy">
     <h1>雪线之上，<b>有间小木屋。</b></h1>
     <p>沿着屋檐、木廊和山脊上的小屋慢慢转一圈。月光落在积雪上，炉火从有人的房间里亮起来。</p>
+    <div class="hint" id="hint">点一座暗着的山头，替它点灯</div>
   </div>
+  <div class="chip glass" id="chip">点灯 0 / 7</div>
+  <div class="story glass" id="story" role="status"><b id="storyName"></b><span id="storyLine"></span><button type="button" id="back">回木屋</button></div>
+  <label class="hour glass"><span>黄昏</span><input type="range" id="hour" min="0" max="1000" value="500" aria-label="时间：从黄昏到日出"><span>日出</span></label>
+  <div class="indoor glass" id="indoor"><b id="spotName"></b><span>拖动环顾。点地上的光点，换个地方待着。</span><button type="button" id="leave">出门</button></div>
   <div class="tele"><span class="long">虚构坐标 28.4° N · 99.1° E<br></span>月光 · 小雪 · 云海 3,400 m<small>场景为虚构设定，数字不对应真实地点</small></div>
   <div class="credit">STYLIZED WEB THREE.JS</div>
   <div class="tools" id="tools">
@@ -59,9 +92,11 @@
     <button type="button" data-act="out" aria-label="缩小" title="缩小"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5M8.5 11h5"/></svg></button>
     <button type="button" data-act="reset" aria-label="复位" title="复位"><svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.2-5.1M5 4.5V8h3.5"/></svg></button>
     <button type="button" data-act="auto" aria-label="自动环绕" title="自动环绕" aria-pressed="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="4"/><circle cx="12" cy="12" r="2.2"/></svg></button>
+    <button type="button" data-act="enter" aria-label="进屋坐坐" title="进屋坐坐"><svg viewBox="0 0 24 24"><path d="M6 21V4.5h12V21M3.5 21h17M14.5 12.5v1"/></svg></button>
   </div>
   <div class="fail" id="fail">这一页需要浏览器支持 WebGL。<br>换一个较新的浏览器，或者打开硬件加速再试。</div>
 </div>
+<div id="fade"></div>
 <!--BUNDLE-->
 </body>
 </html>
