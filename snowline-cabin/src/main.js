@@ -593,7 +593,7 @@ const fixedT = params.has('t') ? parseFloat(params.get('t')) : frozen ? 12 : nul
 let aspect = 1, scale = 1, W = 1, H = 1;
 // ---------------- the game: lamps, stories, the hour, going inside ----------------
 const allLit = frozen || params.get('lit') === 'all';
-const game = createGame(allLit ? SATELLITES.map((q) => q.id) : []);
+const game = createGame(allLit ? SATELLITES.map((q) => q.id) : (params.get('lit') || '').split(','));      // ?lit=all, or a comma list of summit ids
 for (const q of SATELLITES) litAmt[q.id] = game.lit.has(q.id) ? 1 : 0;
 let focusId = null, pendingLight = null, finaleT = allLit ? -2 : -1, finaleDue = -1;    // finaleT: -1 not yet, >= 0 running, -2 over
 let inside = false; const visit = createVisit();
@@ -742,7 +742,7 @@ window.__cabin = {
   info: () => ({ fps, calls, tris, dpr: devicePixelRatio, pixelRatio: scale, scaleIdx, w: W, h: H, fov: camera.fov, windows: windows.length, lamps: lamps.length, bulbs: bulbs.length, lights: Math.min(pointLights.length, 8), summits: SATELLITES.length + 1 }),
   heroBox: () => screenBox(HERO_BOX, camera.position.toArray(), tgtV.toArray(), aspect),
   copyBox: () => rectOf(document.getElementById('copy')),
-  uiBoxes: () => Object.fromEntries(['.brand', '.badge', '.chip', '.copy', '.tele', '.tools', '.hour', '.story', '.indoor'].filter((q) => { const el = document.querySelector(q), cs = getComputedStyle(el); return cs.display !== 'none' && cs.opacity !== '0'; }).map((s) => [s, rectOf(document.querySelector(s))])),
+  uiBoxes: () => Object.fromEntries(['.brand', '.badge', '.chip', '.copy', '.tele', '.tools', '.hour', '.story', '.indoor'].filter((q) => { const el = document.querySelector(q), cs = getComputedStyle(el); return cs.display !== 'none' && cs.opacity !== '0' && !(q === '.copy' && document.body.classList.contains('focus')); }).map((s) => [s, rectOf(document.querySelector(s))])),
   jump: (u) => rig.jump(u),
   focus, unfocus, enter: (now) => (now ? setInside(true) : enter()), leave: (now) => (now ? setInside(false) : leave()),
   setHour: (h) => { hourWant = clamp(h, 0, 1); hourEl.value = String(Math.round(hourWant * 1000)); },

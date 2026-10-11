@@ -42,6 +42,18 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/cabin-check   # bro
 
 The spec and acceptance items are in [SPEC.md](SPEC.md). Fixed views: `?view=hero`, `?view=deck`, `?view=sat`, `?view=wide`.
 
+## Record a demo video
+
+Optional, not part of CI. `tools/record.cjs` takes over the page clock before it loads, so each captured frame advances the page by exactly 1/60 s whatever the machine's speed. It walks through the page by itself: the opening, two summits lit, the hour dragged from dusk to dawn, three spots inside, then a second take that lights the seventh summit for the finale; about 83 seconds. The page has no sound, so the video is silent.
+
+```bash
+node tools/build.mjs
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./demo-landscape.mp4                          # 1920x1080
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./demo-portrait.mp4 --size 540x960 --dpr 2    # 1080x1920, phone layout
+```
+
+Panels are drawn without the frosted-glass blur while recording: headless screenshots drop a blurred panel's contents on some of the frames in which it repaints (measured 2026-10-11: 108 of 900 frames during the slider sweep, none after the change). The two moves between spots inside are made by a direct call without a tap ring, because the other floor rings were out of view at that moment.
+
 ## Known limits
 
 - The place is invented. The coordinates and altitude on the page are fiction.
