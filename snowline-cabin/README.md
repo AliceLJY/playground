@@ -52,6 +52,8 @@ NODE_PATH="$(npm root -g)" node tools/record.cjs ./demo-landscape.mp4           
 NODE_PATH="$(npm root -g)" node tools/record.cjs ./demo-portrait.mp4 --size 540x960 --dpr 2    # 1080x1920, phone layout
 ```
 
+For sound: `python3 tools/soundtrack.py soundtrack.wav` (needs numpy) synthesises a track timed to this tour: a slow pad, wind outdoors, a fire indoors, bells when a summit lights and small bells for the shooting stars, all computed, with no music files or samples. The mux command is at the top of the script. If the tour changes, edit `CUES` to the new marks.
+
 Panels are drawn without the frosted-glass blur while recording: headless screenshots drop a blurred panel's contents on some of the frames in which it repaints (measured 2026-10-11: 108 of 900 frames during the slider sweep, none after the change). The two moves between spots inside are made by a direct call without a tap ring, because the other floor rings were out of view at that moment.
 
 ## Known limits
