@@ -52,7 +52,8 @@
   .indoor b { display: block; font-family: var(--serif); font-size: 18px; letter-spacing: .06em; }
   .indoor span { display: block; margin-top: 6px; font-size: 12px; line-height: 1.7; color: var(--dim); }
   #fade { position: fixed; inset: 0; background: #05070d; opacity: 0; pointer-events: none; transition: opacity .36s; }
-  body.focus .copy, body.inside .copy, body.inside .tools, body.inside .chip, body.inside .tele, body.inside .credit, body.inside .story { display: none; }
+  .copy { transition: opacity .35s .4s; } body.focus .copy { opacity: 0; transition: opacity .15s 0s; pointer-events: none; }      /* the story card and the copy share a place: one leaves before the other arrives */
+  body.inside .copy, body.inside .tools, body.inside .chip, body.inside .tele, body.inside .credit, body.inside .story { display: none; }
   body.inside .indoor { display: block; }
   body.inside .hour { bottom: 26px; }
   .fail { inset: 0; display: none; place-items: center; text-align: center; padding: 40px; font-size: 14px; line-height: 1.9; color: var(--dim); }

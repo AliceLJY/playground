@@ -42,6 +42,18 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/cabin-check   # 浏
 
 规格与验收条目见 [SPEC.md](SPEC.md)。固定机位：`?view=hero`、`?view=deck`、`?view=sat`、`?view=wide`。
 
+## 录一段演示视频
+
+可选，不进 CI。`tools/record.cjs` 在页面加载前接管时钟，每拍一帧页面正好前进 1/60 秒，录出来的帧率和机器快慢无关。它自己走一遍流程：开场、点亮两座山头、时间从黄昏拖到日出、进屋看三个位置，再接一段点满第七座的收尾，约 83 秒。页面没有声音，成片是无声的。
+
+```bash
+node tools/build.mjs
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./演示-横屏.mp4                          # 1920×1080
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./演示-竖屏.mp4 --size 540x960 --dpr 2   # 1080×1920，用手机排版
+```
+
+录制时面板不带毛玻璃效果：无头浏览器截图会在面板重绘的那几帧丢掉面板里的内容（2026-10-11 实测拖滑条那 900 帧里坏了 108 帧，改掉后 0 帧）。屋内换位置那两下在脚本里是直接调用的，没有显示点击的圈，因为另外两个光点当时不在画面里。
+
 ## 已知的边界
 
 - 场景是虚构的，页面上的坐标和海拔是设定，不对应真实地点。
