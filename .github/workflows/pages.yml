@@ -55,6 +55,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Slipper Smash
+        working-directory: slipper-smash
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check and bundle Late-Night Grocery
         working-directory: diorama-walk
         run: |
@@ -98,6 +105,13 @@ jobs:
           python3 shadow-gong/build.py
           cp 'shadow-gong/灯影守夜.html' _site/shadow-gong/index.html
           cp shadow-gong/vendor/THREE-LICENSE.txt _site/shadow-gong/THREE-LICENSE.txt
+
+      - name: Assemble Slipper Smash
+        run: |
+          # 凉拖拍蟑螂：二维画布的划屏小游戏，没有构建步骤，页面、源码和图片原样发布
+          mkdir -p _site/slipper-smash
+          cp slipper-smash/index.html _site/slipper-smash/index.html
+          cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
 
       - name: Assemble Late-Night Grocery
         run: |
