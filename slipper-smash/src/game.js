@@ -66,10 +66,15 @@ const sfx={
 let game=null,pilot=null,screen='title',frozen=false,best=0,endTimer=0,clock=0;
 try{best=+localStorage.getItem('slipper-best')||0;}catch(e){}
 const fx={splats:[],bits:[],pops:[],shake:0,flash:0,banner:0,trail:[],down:null};
-const hand={x:-999,y:-999,angle:0,active:false,seen:false};
+const hand={x:-999,y:-999,angle:0,active:false,seen:false,tx:0,ty:0,swing:0};
+// what the autopilot holds: same swipe, but the slipper is shown gliding to the stroke and leaving the trail a finger leaves
+const pilotHands={get state(){return game.state;},swipe(x0,y0,x1,y1){
+  for(let i=0;i<=5;i++)fx.trail.push({x:x0+(x1-x0)*i/5,y:y0+(y1-y0)*i/5,t:(5-i)*0.012,brk:i===0});
+  hand.tx=x1;hand.ty=y1;hand.angle=Math.atan2(y1-y0,x1-x0);hand.swing=0.14;hand.seen=true;return game.swipe(x0,y0,x1,y1);}};
 function start(seed){
   game=Core.create({seed:seed==null?(Math.random()*1e9)|0:seed,aspect:cw/ch});pilot=null;screen='play';endTimer=0;
-  fx.splats.length=fx.bits.length=fx.pops.length=0;fx.shake=fx.flash=fx.banner=0;fx.down=null;resize();
+  fx.splats.length=fx.bits.length=fx.pops.length=fx.trail.length=0;fx.shake=fx.flash=fx.banner=0;fx.down=null;resize();
+  hand.x=hand.tx=game.state.W/2;hand.y=hand.ty=H*0.8;
 }
 function pop(text,x,y,color,size){fx.pops.push({text,x,y,color:color||COLOR.cream,size:size||44,t:0});}
 function burst(x,y,n,color,speed){for(let i=0;i<n;i++){const a=Math.random()*6.283,v=speed*(0.35+Math.random());fx.bits.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-speed*0.3,r:4+Math.random()*7,color,t:0,life:0.5+Math.random()*0.4});}}
@@ -94,7 +99,8 @@ function handle(e){
 function tick(dt){
   clock+=dt;
   if(screen==='play'&&game){
-    if(game.state.phase!=='over'){if(pilot)pilot(game);game.step(dt);}
+    if(game.state.phase!=='over'){if(pilot)pilot(pilotHands);game.step(dt);}
+    if(pilot){const k=Math.min(1,dt*34);hand.x+=(hand.tx-hand.x)*k;hand.y+=(hand.ty-hand.y)*k;hand.swing=Math.max(0,hand.swing-dt);hand.active=hand.swing>0;}
     const ev=game.state.events;for(let i=0;i<ev.length;i++)handle(ev[i]);ev.length=0;
     if(game.state.phase==='over'){endTimer-=dt;if(endTimer<=0)screen='result',fx.resultT=0;}
   }
@@ -118,7 +124,7 @@ function down(ev){
   if(frozen)return;
   if(screen==='title'){start();return;}
   if(screen==='result'){if(fx.resultT>0.7)start();return;}
-  const p=toWorld(ev.clientX,ev.clientY);lastPt=p;hand.active=true;hand.seen=true;hand.x=p.x;hand.y=p.y;
+  const p=toWorld(ev.clientX,ev.clientY);lastPt=p;hand.active=true;hand.seen=true;hand.x=p.x;hand.y=p.y;fx.trail.push({x:p.x,y:p.y,t:0,brk:true});
   try{canvas.setPointerCapture(ev.pointerId);}catch(e){}
   if(game&&!pilot)game.swipe(p.x,p.y,p.x,p.y);
 }
@@ -258,9 +264,9 @@ function draw(){
     if(fx.down&&fx.down.t<2){const d=fx.down,k=Math.min(1,d.t/0.35),a=Math.max(0,1-Math.max(0,d.t-1.2)/0.8);sprite(img.front,d.x,d.y+d.t*90,d.r*2.9,d.t*0.3,a,1+0.3*k,1-0.6*k);slipper(d.x,d.y-d.r*0.5+d.t*90,-0.5,d.r*0.9,a);}
     for(const e of s.ents)drawEntity(e,t);
     for(const p of fx.bits){ctx.globalAlpha=Math.max(0,1-p.t/p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,6.283);ctx.fill();}ctx.globalAlpha=1;
-    if(fx.trail.length>1){ctx.lineCap='round';ctx.lineJoin='round';for(let i=1;i<fx.trail.length;i++){const a=fx.trail[i-1],b=fx.trail[i],k=1-b.t/0.16;ctx.strokeStyle='rgba(190,220,255,'+0.55*k+')';ctx.lineWidth=34*k+4;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
+    if(fx.trail.length>1){ctx.lineCap='round';ctx.lineJoin='round';for(let i=1;i<fx.trail.length;i++){const a=fx.trail[i-1],b=fx.trail[i],k=1-b.t/0.16;if(b.brk||k<=0)continue;ctx.strokeStyle='rgba(190,220,255,'+0.55*k+')';ctx.lineWidth=34*k+4;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
     for(const p of fx.pops){ctx.save();ctx.globalAlpha=Math.max(0,1-p.t/0.8);text(p.text,Math.max(90,Math.min(s.W-90,p.x)),p.y,p.size,p.color);ctx.restore();}
-    if(screen==='play'){drawHud(s);if(hand.seen&&!pilot)slipper(hand.x,hand.y,hand.angle+Math.PI/2+(hand.active?0:-0.35),hand.active?170:140,hand.active?1:0.75);}
+    if(screen==='play'){drawHud(s);if(hand.seen)slipper(hand.x,hand.y,hand.angle+Math.PI/2+(hand.active?0:-0.35),hand.active?170:140,hand.active?1:0.75);}
     if(screen==='result')drawResult(s,t);
   }
   if(screen!=='play'){const m=muteBox();ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='rgba(6,8,12,0.5)';ctx.fillRect(m.x,m.y,m.w,m.h);
@@ -283,7 +289,8 @@ function advance(seconds){const n=Math.round(seconds/CFG.step);for(let i=0;i<n;i
 const VIEWS={hero:{seed:5,pilot:'human',t:13.2},stress:{seed:11,pilot:null,t:40.6},boss:{seed:8,pilot:'human',t:49.4},win:{seed:5,pilot:'precise',t:80}};
 const hook=window.__slipper={ready:false,metrics,
   start(seed){start(seed);return hook;},
-  autopilot(level){pilot=level?Core.pilot(level,game?game.state.t*1000|0:1):null;return hook;},
+  autopilot(level,seed){pilot=level?Core.pilot(level,seed==null?1:seed):null;return hook;},
+  sound(){audio();return hook;},
   advance(seconds){advance(seconds);return hook;},
   freeze(on){frozen=on!==false;return hook;},
   probe(){const s=game&&game.state,px=e=>({kind:e.kind,x:(view.ox+e.x*view.scale)/dpr,y:(view.oy+e.y*view.scale)/dpr,r:e.r*view.scale/dpr});
