@@ -23,6 +23,7 @@
 | [户型图 · 三维小样](floorplan/) · [看](https://aliceljy.github.io/playground/floorplan/) | 从一张公有领域户型图读出墙、门窗和房间，拉成能转的三维，配上 CAD 平面图、光追效果图和冬至日照 | Three.js 手机竖屏页，数据与效果图来自本地出片工程 |
 | [走进户型图](floorplan-walk/) · [看](https://aliceljy.github.io/playground/floorplan-walk/) | 同一张户型图做成能摆家具的彩色平面图：从家具库拖进去，切到 3D 房子从图上长出来，转着看或者从入户门走进去；真实日照、夜景、剖切、整屋换木色 | SVG 平面图 + Three.js，60 种家具（图例与模型移植自 floorplan-3d，MIT），键鼠与触屏，单文件离线可看 |
 | [雪线小木屋](snowline-cabin/) · [看](https://aliceljy.github.io/playground/snowline-cabin/) | 雪夜山顶一间亮着灯的木屋：点暗着的山头替它点灯，七座点满有流星；时间从黄昏拖到日出；还能进屋待一会儿 | Three.js 纯代码场景，没有模型和图片，鼠标与触屏，单文件离线可看 |
+| [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
 | [山河卷](shanhe-scroll/) · [看](https://aliceljy.github.io/playground/shanhe/) | 可以走进去的历史长卷：宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场 | Three.js 全景球，换一个数据文件就能换题材 |
 
 ## 加一个新玩意

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 机械钟齿轮传动机构</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f2f2eb;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            user-select: none;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        /* 顶部控制面板 */
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.92);
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #dcdcd2;
+            z-index: 10;
+            max-width: 310px;
+            backdrop-filter: blur(6px);
+        }
+        #ui-panel h2 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #2c2c2a;
+        }
+        #ui-panel p {
+            margin: 4px 0;
+            font-size: 12px;
+            color: #666;
+        }
+        .control-row {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #333;
+            font-weight: 500;
+        }
+        input[type="range"] {
+            width: 140px;
+            accent-color: #f3b530;
+            cursor: pointer;
+        }
+        .btn-group {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #b5924c;
+            background: #fdfaf2;
+            color: #4a3e28;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #f3b530;
+            color: #fff;
+            border-color: #f3b530;
+        }
+        /* 图上对应的 3D 浮动标签 */
+        .gear-label {
+            position: absolute;
+            background: #fdfaf2;
+            border: 1.5px solid #b5924c;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2c2518;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            transform: translate(0, -50%);
+            transition: opacity 0.2s;
+        }
+        /* playground 发布副本补丁：窄屏标注换行、缩小字号，不出屏 */
+        @media (max-width: 600px) {
+            .gear-label { white-space: normal; max-width: 34vw; font-size: 11px; padding: 4px 8px; }
+        }
+        .gear-label::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            background: #b5924c;
+            border-radius: 50%;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./vendor/three.module.js",
+                "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js"
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h2>⚙️ 机械钟三级齿轮传动机构</h2>
+    <p>🖱️ 左键拖动：旋转视角 | 右键：平移 | 滚轮：缩放</p>
+    <div class="control-row">
+        <span>演示时间倍率: <strong id="speed-val">60x</strong></span>
+        <input type="range" id="speed-slider" min="1" max="600" value="60">
+    </div>
+    <div class="btn-group">
+        <button id="toggle-labels">隐藏/显示标注</button>
+        <button id="reset-cam">复位视角</button>
+    </div>
+</div>
+
+<!-- 还原图上的三级传动标注 -->
+<div id="labels-container">
+    <div id="label-1" class="gear-label">第一级 96:8 → 中心轮每小时 1 圈</div>
+    <div id="label-2" class="gear-label">第二级 64:8 → 三轮每小时 8 圈</div>
+    <div id="label-3" class="gear-label">第三级 60:8 → 擒纵轮每小时 60 圈</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ==================== 1. 场景、相机与渲染器初始化 ====================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf2f2eb);
+
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(-14, 4, 48);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.target.set(0, 1, 0);
+
+// playground 发布副本补丁：窄屏（竖屏手机）按宽高比把机位沿原方向拉远，横屏保持原机位
+let userMovedCamera = false;
+controls.addEventListener('start', () => { userMovedCamera = true; });
+function setHomeView() {
+    const aspect = window.innerWidth / window.innerHeight;
+    const scale = Math.max(1, 1.0 / aspect);
+    camera.position.set(-14 * scale, 1 + 3 * scale, 48 * scale);
+    controls.target.set(0, 1, 0);
+}
+setHomeView();
+
+// 灯光配置
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.35);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xfffdf8, 1.2);
+dirLight.position.set(18, 28, 35);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.near = 10;
+dirLight.shadow.camera.far = 80;
+const d = 25;
+dirLight.shadow.camera.left = -d;
+dirLight.shadow.camera.right = d;
+dirLight.shadow.camera.top = d;
+dirLight.shadow.camera.bottom = -d;
+dirLight.shadow.bias = -0.0005;
+scene.add(dirLight);
+
+const backLight = new THREE.DirectionalLight(0xe8eef5, 0.5);
+backLight.position.set(-20, -10, -25);
+scene.add(backLight);
+
+// ==================== 2. 配色与材质工具函数 ====================
+const COLORS = {
+    green:   0xd8ebd0, // 第一级：发条主轮（浅绿）
+    drum:    0xc8bca6, // 发条盒（米棕）
+    blue:    0xc7dff0, // 第二级：中心轮（浅蓝）
+    orange:  0xf3b530, // 第三级：三轮（明黄/橙）
+    pink:    0xf7d6dc, // 擒纵轮 & 走针系跨轮（浅粉）
+    balance: 0xf2f2ec, // 摆轮 & 表圈（米白）
+    pinion:  0xd5d5ce, // 小齿轮轴齿（浅灰白）
+    metal:   0x7a7a75, // 转轴金属
+    minHand: 0xd8ebd0, // 分针（浅绿）
+    hrHand:  0xc5cae0  // 时针（淡紫蓝）
+};
+
+const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x3a3a38, transparent: true, opacity: 0.75 });
+
+// 为网格添加卡通插画风格轮廓线
+function addOutline(mesh, threshold = 22) {
+    const edges = new THREE.EdgesGeometry(mesh.geometry, threshold);
+    const line = new THREE.LineSegments(edges, edgeMaterial);
+    mesh.add(line);
+}
+
+// ==================== 3. 齿轮几何体生成器 ====================
+const MODULE = 0.16; // 齿轮模数：决定分度圆半径 R = (齿数 * MODULE) / 2
+
+/**
+ * 创建标准渐开线近似齿轮 & 带扇形镂空辐条
+ */
+function createGearMesh({
+    teeth,
+    module = MODULE,
+    thickness = 0.45,
+    color = 0xffffff,
+    spokes = 5,
+    innerRatio = 0.25,
+    outerRingRatio = 0.84,
+    holeRadius = 0.22
+}) {
+    const pitchRadius = (teeth * module) / 2;
+    const outerRadius = pitchRadius + module * 0.95;
+    const rootRadius = Math.max(0.15, pitchRadius - module * 1.15);
+
+    const shape = new THREE.Shape();
+    const step = (Math.PI * 2) / teeth;
+
+    for (let i = 0; i < teeth; i++) {
+        const a = i * step;
+        const a1 = a - step * 0.28;
+        const a2 = a - step * 0.13;
+        const a3 = a + step * 0.13;
+        const a4 = a + step * 0.28;
+        const aNext = (i + 1) * step - step * 0.28;
+
+        if (i === 0) {
+            shape.moveTo(Math.cos(a1) * rootRadius, Math.sin(a1) * rootRadius);
+        }
+        // 齿根 -> 齿顶 -> 齿根
+        shape.lineTo(Math.cos(a2) * outerRadius, Math.sin(a2) * outerRadius);
+        shape.lineTo(Math.cos(a3) * outerRadius, Math.sin(a3) * outerRadius);
+        shape.lineTo(Math.cos(a4) * rootRadius, Math.sin(a4) * rootRadius);
+        shape.lineTo(Math.cos(aNext) * rootRadius, Math.sin(aNext) * rootRadius);
+    }
+    shape.closePath();
+
+    // 中心轴孔
+    if (holeRadius > 0 && holeRadius < rootRadius * 0.7) {
+        const centerHole = new THREE.Path();
+        centerHole.absarc(0, 0, holeRadius, 0, Math.PI * 2, true);
+        shape.holes.push(centerHole);
+    }
+
+    // 5幅/4幅扇形镂空（还原图中的大齿轮辐条造型）
+    if (spokes > 0 && pitchRadius > 1.3) {
+        const rIn = pitchRadius * innerRatio;
+        const rOut = pitchRadius * outerRingRatio;
+        const spokeStep = (Math.PI * 2) / spokes;
+        const spokeHalfAngle = spokeStep * 0.11; // 辐条宽度角
+
+        for (let i = 0; i < spokes; i++) {
+            const startAngle = i * spokeStep + spokeHalfAngle;
+            const endAngle = (i + 1) * spokeStep - spokeHalfAngle;
+            if (endAngle > startAngle) {
+                const cutout = new THREE.Path();
+                cutout.absarc(0, 0, rIn, startAngle, endAngle, false);
+                cutout.absarc(0, 0, rOut, endAngle, startAngle, true);
+                cutout.closePath();
+                shape.holes.push(cutout);
+            }
+        }
+    }
+
+    const extrudeSettings = {
+        depth: thickness,
+        bevelEnabled: true,
+        bevelSegments: 1,
+        steps: 1,
+        bevelSize: 0.02,
+        bevelThickness: 0.02
+    };
+
+    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    geometry.translate(0, 0, -thickness / 2);
+
+    const material = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.55,
+        metalness: 0.08
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    addOutline(mesh, 25);
+    return mesh;
+}
+
+/**
+ * 创建顶部尖齿擒纵轮 (Escapement Wheel)
+ */
+function createEscapementWheelMesh({
+    teeth = 20,
+    pitchRadius = 2.6,
+    thickness = 0.38,
+    color = COLORS.pink,
+    spokes = 5
+}) {
+    const outerRadius = pitchRadius + 0.55;
+    const rootRadius = pitchRadius - 0.15;
+    const shape = new THREE.Shape();
+    const step = (Math.PI * 2) / teeth;
+
+    for (let i = 0; i < teeth; i++) {
+        const a = i * step;
+        const aRoot1 = a - step * 0.15;
+        const aTip = a + step * 0.16; // 倾斜棘齿尖角
+        const aRoot2 = a + step * 0.18;
+        const aNext = (i + 1) * step - step * 0.15;
+
+        if (i === 0) {
+            shape.moveTo(Math.cos(aRoot1) * rootRadius, Math.sin(aRoot1) * rootRadius);
+        }
+        shape.lineTo(Math.cos(aTip) * outerRadius, Math.sin(aTip) * outerRadius);
+        shape.lineTo(Math.cos(aRoot2) * rootRadius, Math.sin(aRoot2) * rootRadius);
+        shape.lineTo(Math.cos(aNext) * rootRadius, Math.sin(aNext) * rootRadius);
+    }
+    shape.closePath();
+
+    // 扇形镂空
+    const rIn = pitchRadius * 0.25;
+    const rOut = pitchRadius * 0.82;
+    const spokeStep = (Math.PI * 2) / spokes;
+    const spokeHalf = spokeStep * 0.11;
+    for (let i = 0; i < spokes; i++) {
+        const sa = i * spokeStep + spokeHalf;
+        const ea = (i + 1) * spokeStep - spokeHalf;
+        const hole = new THREE.Path();
+        hole.absarc(0, 0, rIn, sa, ea, false);
+        hole.absarc(0, 0, rOut, ea, sa, true);
+        hole.closePath();
+        shape.holes.push(hole);
+    }
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: false
+    });
+    geometry.translate(0, 0, -thickness / 2);
+
+    const mesh = new THREE.Mesh(
+        geometry,
+        new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.08 })
+    );
+    mesh.castShadow = true;
+    addOutline(mesh, 20);
+    return mesh;
+}
+
+// ==================== 4. 精确计算齿轮中心坐标与啮合相位 ====================
+// 分度圆半径计算函数: R = Z * MODULE / 2
+const R = (teeth) => (teeth * MODULE) / 2;
+
+// 中心轮位于表盘正中央 (0, 0)
+const posCenter = new THREE.Vector2(0, 0);
+
+// 1) 第一级大轮 (96齿绿轮) 啮合 中心轮同轴小齿轮 (8齿)，位于左下方 -105° 方向
+const dist1 = R(96) + R(8); // 7.68 + 0.64 = 8.32
+const angle1 = THREE.MathUtils.degToRad(-105);
+const posGreat = new THREE.Vector2(
+    Math.cos(angle1) * dist1,
+    Math.sin(angle1) * dist1
+);
+
+// 2) 第三级橙轮 (60齿) + 同轴小齿轮 (8齿) 啮合 中心轮 (64齿)，位于右上方 36° 方向
+const dist2 = R(64) + R(8); // 5.12 + 0.64 = 5.76
+const angle2 = THREE.MathUtils.degToRad(36);
+const posThird = new THREE.Vector2(
+    Math.cos(angle2) * dist2,
+    Math.sin(angle2) * dist2
+);
+
+// 3) 擒纵轮 (粉色棘齿轮) + 同轴小齿轮 (8齿) 啮合 第三级橙轮 (60齿)，位于上方偏左 125° 方向
+const dist3 = R(60) + R(8); // 4.80 + 0.64 = 5.44
+const angle3 = THREE.MathUtils.degToRad(125);
+const posEscape = new THREE.Vector2(
+    posThird.x + Math.cos(angle3) * dist3,
+    posThird.y + Math.sin(angle3) * dist3
+);
+
+// 4) 走针系（分针 -> 时针 12:1 减速跨轮），位于中心轮右下方 -42° 方向
+// 分针管轮(10齿) -> 跨轮大齿(30齿) & 跨轮小齿(8齿) -> 时针轮(32齿) => (30/10)*(32/8) = 12:1
+const distMinuteWork = R(10) + R(30); // 0.8 + 2.4 = 3.2
+const angleMW = THREE.MathUtils.degToRad(-42);
+const posMinuteWork = new THREE.Vector2(
+    Math.cos(angleMW) * distMinuteWork,
+    Math.sin(angleMW) * distMinuteWork
+);
+
+// ==================== 5. 组装背景背板与透明刻度表盘 ====================
+const clockRoot = new THREE.Group();
+scene.add(clockRoot);
+
+// 矩形背板（还原图中的白色立板）
+const backplateGeo = new THREE.BoxGeometry(24, 34, 0.6);
+const backplateMat = new THREE.MeshStandardMaterial({ color: 0xf7f7f2, roughness: 0.8 });
+const backplate = new THREE.Mesh(backplateGeo, backplateMat);
+backplate.position.set(0, 0.5, -3.2);
+backplate.receiveShadow = true;
+addOutline(backplate, 30);
+clockRoot.add(backplate);
+
+// 外圈刻度表环
+function createClockDialRing() {
+    const group = new THREE.Group();
+    const outerR = 14.5;
+    const innerR = 12.6;
+
+    const ringShape = new THREE.Shape();
+    ringShape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, innerR, 0, Math.PI * 2, true);
+    ringShape.holes.push(hole);
+
+    const ringGeo = new THREE.ExtrudeGeometry(ringShape, { depth: 0.35, bevelEnabled: false });
+    ringGeo.translate(0, 0, -0.175);
+    const ringMat = new THREE.MeshStandardMaterial({
+        color: COLORS.balance,
+        roughness: 0.6,
+        transparent: true,
+        opacity: 0.92
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    addOutline(ringMesh, 30);
+    group.add(ringMesh);
+
+    // 60 个刻度线
+    const tickMat = new THREE.MeshBasicMaterial({ color: 0x777770 });
+    for (let i = 0; i < 60; i++) {
+        const isHour = i % 5 === 0;
+        const len = isHour ? 1.1 : 0.6;
+        const w = isHour ? 0.09 : 0.05;
+        const tickGeo = new THREE.BoxGeometry(w, len, 0.38);
+        const tick = new THREE.Mesh(tickGeo, tickMat);
+        const a = (i * Math.PI * 2) / 60;
+        const rMid = innerR + (outerR - innerR) * 0.5;
+        tick.position.set(Math.cos(a) * rMid, Math.sin(a) * rMid, 0);
+        tick.rotation.z = a - Math.PI / 2;
+        group.add(tick);
+    }
+
+    group.position.set(0, 0, 2.7);
+    return group;
+}
+clockRoot.add(createClockDialRing());
+
+// 辅助函数：创建贯穿到背板的金属固定轴
+function addSupportAxle(x, y, zFront) {
+    const length = zFront - (-3.0);
+    const geo = new THREE.CylinderGeometry(0.18, 0.18, length, 20);
+    geo.rotateX(Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({ color: COLORS.metal, metalness: 0.5, roughness: 0.3 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, (-3.0 + zFront) / 2);
+    clockRoot.add(mesh);
+}
+
+// ==================== 6. 构建各级齿轮轴组 ====================
+
+// --- A. 第一级：发条盒 + 96齿绿色大齿轮 (每12小时转1圈) ---
+const shaftGreat = new THREE.Group();
+shaftGreat.position.set(posGreat.x, posGreat.y, 0);
+clockRoot.add(shaftGreat);
+
+// 后方棕色发条盒鼓轮
+const drumGeo = new THREE.CylinderGeometry(2.6, 2.6, 1.4, 36);
+drumGeo.rotateX(Math.PI / 2);
+const drumMesh = new THREE.Mesh(drumGeo, new THREE.MeshStandardMaterial({ color: COLORS.drum, roughness: 0.6 }));
+drumMesh.position.z = -2.0;
+addOutline(drumMesh, 25);
+shaftGreat.add(drumMesh);
+
+// 96齿浅绿主齿轮 (Z = -1.0)
+const gear96 = createGearMesh({ teeth: 96, color: COLORS.green, spokes: 5 });
+gear96.position.z = -1.0;
+shaftGreat.add(gear96);
+addSupportAxle(posGreat.x, posGreat.y, -0.5);
+
+// --- B. 第二级：中心轮轴系 (每小时转1圈) ---
+const shaftCenter = new THREE.Group();
+shaftCenter.position.set(posCenter.x, posCenter.y, 0);
+clockRoot.add(shaftCenter);
+
+// 中心轮后方8齿小齿轮 (与96齿绿轮在 Z = -1.0 啮合)
+const pinionCenter8 = createGearMesh({ teeth: 8, color: COLORS.pinion, spokes: 0, thickness: 0.55 });
+pinionCenter8.position.z = -1.0;
+shaftCenter.add(pinionCenter8);
+
+// 64齿浅蓝中心轮 (Z = 0.0)
+const gear64 = createGearMesh({ teeth: 64, color: COLORS.blue, spokes: 5 });
+gear64.position.z = 0.0;
+shaftCenter.add(gear64);
+
+// 中心轮前方10齿分针轮 (Z = 1.4，驱动走针跨轮)
+const cannonPinion10 = createGearMesh({ teeth: 10, color: COLORS.pink, spokes: 0, thickness: 0.45 });
+cannonPinion10.position.z = 1.4;
+shaftCenter.add(cannonPinion10);
+
+// --- C. 第三级：三轮轴系 (每小时转8圈) ---
+const shaftThird = new THREE.Group();
+shaftThird.position.set(posThird.x, posThird.y, 0);
+clockRoot.add(shaftThird);
+
+// 三轮后方8齿小齿轮 (与64齿蓝轮在 Z = 0.0 啮合)
+const pinionThird8 = createGearMesh({ teeth: 8, color: COLORS.pinion, spokes: 0, thickness: 0.55 });
+pinionThird8.position.z = 0.0;
+shaftThird.add(pinionThird8);
+
+// 60齿明黄色三轮 (Z = 0.8)
+const gear60 = createGearMesh({ teeth: 60, color: COLORS.orange, spokes: 5 });
+gear60.position.z = 0.8;
+shaftThird.add(gear60);
+addSupportAxle(posThird.x, posThird.y, 1.2);
+
+// --- D. 擒纵轮轴系 (每小时转60圈，即每分钟1圈) ---
+const shaftEscape = new THREE.Group();
+shaftEscape.position.set(posEscape.x, posEscape.y, 0);
+clockRoot.add(shaftEscape);
+
+// 擒纵轮后方8齿小齿轮 (与60齿橙轮在 Z = 0.8 啮合)
+const pinionEscape8 = createGearMesh({ teeth: 8, color: COLORS.pinion, spokes: 0, thickness: 0.55 });
+pinionEscape8.position.z = 0.8;
+shaftEscape.add(pinionEscape8);
+
+// 粉色尖齿擒纵轮 (Z = 1.55)
+const escapeWheel = createEscapementWheelMesh({ teeth: 20, pitchRadius: 2.5, color: COLORS.pink });
+escapeWheel.position.z = 1.55;
+shaftEscape.add(escapeWheel);
+
+// --- E. 顶部白色摆轮 (Balance Wheel，往复摆动) ---
+const shaftBalance = new THREE.Group();
+shaftBalance.position.set(posEscape.x, posEscape.y, 2.15);
+clockRoot.add(shaftBalance);
+
+function createBalanceWheel() {
+    const shape = new THREE.Shape();
+    const outR = 2.45;
+    const inR = 1.85;
+    shape.absarc(0, 0, outR, 0, Math.PI * 2, false);
+
+    // 3辐条扇形镂空
+    const spokes = 3;
+    const step = (Math.PI * 2) / spokes;
+    for (let i = 0; i < spokes; i++) {
+        const sa = i * step + 0.22;
+        const ea = (i + 1) * step - 0.22;
+        const hole = new THREE.Path();
+        hole.absarc(0, 0, 0.42, sa, ea, false);
+        hole.absarc(0, 0, inR, ea, sa, true);
+        hole.closePath();
+        shape.holes.push(hole);
+    }
+
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.35, bevelEnabled: false });
+    geo.translate(0, 0, -0.175);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: COLORS.balance, roughness: 0.5 }));
+    mesh.castShadow = true;
+    addOutline(mesh, 25);
+    return mesh;
+}
+shaftBalance.add(createBalanceWheel());
+addSupportAxle(posEscape.x, posEscape.y, 2.5);
+
+// --- F. 走针系跨轮 & 时针轮 (还原中心粉色小齿轮组) ---
+const shaftMinuteWork = new THREE.Group();
+shaftMinuteWork.position.set(posMinuteWork.x, posMinuteWork.y, 0);
+clockRoot.add(shaftMinuteWork);
+
+// 30齿粉色跨轮 (Z = 1.4，与中心10齿分针轮啮合)
+const gearMinuteWork30 = createGearMesh({ teeth: 30, color: COLORS.pink, spokes: 5, innerRatio: 0.3, thickness: 0.38 });
+gearMinuteWork30.position.z = 1.4;
+shaftMinuteWork.add(gearMinuteWork30);
+
+// 8齿跨轮小齿 (Z = 2.0)
+const pinionMinuteWork8 = createGearMesh({ teeth: 8, color: COLORS.pink, spokes: 0, thickness: 0.45 });
+pinionMinuteWork8.position.z = 2.0;
+shaftMinuteWork.add(pinionMinuteWork8);
+addSupportAxle(posMinuteWork.x, posMinuteWork.y, 2.3);
+
+// 中心同轴的32齿粉色时针轮 + 时针 (每12小时转1圈)
+const shaftHour = new THREE.Group();
+shaftHour.position.set(posCenter.x, posCenter.y, 0);
+clockRoot.add(shaftHour);
+
+const gearHour32 = createGearMesh({ teeth: 32, color: COLORS.pink, spokes: 5, innerRatio: 0.3, thickness: 0.38 });
+gearHour32.position.z = 2.0;
+shaftHour.add(gearHour32);
+
+// --- G. 时针与分针 (还原图上浅绿长分针 & 浅蓝短时针) ---
+function createPointerHand(length, tail, width, color, zOffset) {
+    const shape = new THREE.Shape();
+    shape.moveTo(-tail, -width * 0.65);
+    shape.lineTo(length * 0.82, -width * 0.35);
+    shape.lineTo(length, 0);
+    shape.lineTo(length * 0.82, width * 0.35);
+    shape.lineTo(-tail, width * 0.65);
+    shape.closePath();
+
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.16, bevelEnabled: false });
+    geo.translate(0, 0, zOffset);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.4 }));
+    mesh.castShadow = true;
+    addOutline(mesh, 20);
+    return mesh;
+}
+
+// 时针安装在时针轮轴上 (指向约10点方向起始偏角)
+const hourHand = createPointerHand(7.8, 1.6, 0.48, COLORS.hrHand, 2.35);
+hourHand.rotation.z = THREE.MathUtils.degToRad(142);
+shaftHour.add(hourHand);
+
+// 分针安装在中心轮轴上 (指向约2点方向起始偏角)
+const minuteHand = createPointerHand(11.6, 2.2, 0.36, COLORS.minHand, 2.58);
+minuteHand.rotation.z = THREE.MathUtils.degToRad(34);
+shaftCenter.add(minuteHand);
+
+// 中心装饰轴帽
+addSupportAxle(0, 0, 2.9);
+
+// ==================== 7. 齿轮初始啮合相位校准 ====================
+// 使相邻外啮合齿轮的齿顶精准嵌入齿槽，不发生模型穿模
+function alignMeshingPhase(gearMesh, teeth, contactAngleRad, isDrivenPinion = false) {
+    const step = (Math.PI * 2) / teeth;
+    // 如果主动轮在接触角处为齿顶，则从动轮在相反方向 (contactAngle + PI) 必须对准齿槽 (+ step/2)
+    if (!isDrivenPinion) {
+        gearMesh.rotation.z = contactAngleRad;
+    } else {
+        gearMesh.rotation.z = contactAngleRad + Math.PI + step / 2;
+    }
+}
+
+alignMeshingPhase(gear96, 96, angle1, false);
+alignMeshingPhase(pinionCenter8, 8, angle1, true);
+
+alignMeshingPhase(gear64, 64, angle2, false);
+alignMeshingPhase(pinionThird8, 8, angle2, true);
+
+alignMeshingPhase(gear60, 60, angle3, false);
+alignMeshingPhase(pinionEscape8, 8, angle3, true);
+
+alignMeshingPhase(cannonPinion10, 10, angleMW, false);
+alignMeshingPhase(gearMinuteWork30, 30, angleMW, true);
+
+alignMeshingPhase(pinionMinuteWork8, 8, angleMW + Math.PI, false);
+alignMeshingPhase(gearHour32, 32, angleMW + Math.PI, true);
+
+// ==================== 8. UI 交互与 3D 标签投影绑定 ====================
+let timeScale = 60; // 默认 60x 速度：中心轮每分钟转1圈，擒纵轮每秒转1圈，方便直观观察
+const slider = document.getElementById('speed-slider');
+const speedVal = document.getElementById('speed-val');
+
+slider.addEventListener('input', (e) => {
+    timeScale = parseFloat(e.target.value);
+    speedVal.textContent = `${timeScale}x`;
+});
+
+const labelsContainer = document.getElementById('labels-container');
+document.getElementById('toggle-labels').addEventListener('click', () => {
+    labelsContainer.style.display = labelsContainer.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('reset-cam').addEventListener('click', () => {
+    userMovedCamera = false;
+    setHomeView();
+});
+
+// 3D 锚点映射至屏幕 2D 标签
+const labelAnchors = [
+    { el: document.getElementById('label-1'), pos: new THREE.Vector3(posGreat.x - 4.5, posGreat.y - 5.8, 0) },
+    { el: document.getElementById('label-2'), pos: new THREE.Vector3(posCenter.x + 5.2, posCenter.y - 3.6, 0.5) },
+    { el: document.getElementById('label-3'), pos: new THREE.Vector3(posEscape.x + 2.8, posEscape.y - 1.2, 1.5) }
+];
+
+function updateLabels() {
+    const halfW = window.innerWidth / 2;
+    const halfH = window.innerHeight / 2;
+    labelAnchors.forEach(({ el, pos }) => {
+        const projected = pos.clone().project(camera);
+        const x = (projected.x * halfW) + halfW;
+        const y = -(projected.y * halfH) + halfH;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+    });
+}
+
+// ==================== 9. 严格按齿数比的动画主循环 ====================
+const clock = new THREE.Clock();
+let centerWheelAngle = 0; // 中心轮累计旋转角 (弧度)
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+    // 真实机械钟：中心轮每小时 (3600秒) 顺时针旋转 1 圈 (-2π 弧度)
+    const centerOmega = -(Math.PI * 2) / 3600;
+    centerWheelAngle += centerOmega * delta * timeScale;
+
+    // 1. 中心轮轴系：1 圈/小时 (顺时针: -1)
+    shaftCenter.rotation.z = centerWheelAngle;
+
+    // 2. 第一级发条主轮 (96:8 = 12:1)：每 12 小时转 1 圈，与中心轮反向 (逆时针)
+    shaftGreat.rotation.z = -centerWheelAngle * (8 / 96);
+
+    // 3. 第二级传动至三轮 (64:8 = 8:1)：每小时转 8 圈，与中心轮反向 (逆时针)
+    shaftThird.rotation.z = -centerWheelAngle * (64 / 8);
+
+    // 4. 第三级传动至擒纵轮 (60:8 = 7.5:1)：8 * 7.5 = 每小时 60 圈 (即每分钟1圈)，顺时针
+    shaftEscape.rotation.z = centerWheelAngle * (64 / 8) * (60 / 8);
+
+    // 5. 走针系跨轮 (10:30 = 1:3) 与 时针轮 (8:32 = 1:4) -> 总减速比 12:1，与分针同向
+    shaftMinuteWork.rotation.z = -centerWheelAngle * (10 / 30);
+    shaftHour.rotation.z = centerWheelAngle * (10 / 30) * (8 / 32);
+
+    // 6. 顶部白色摆轮简谐往复摆动
+    const elapsed = clock.getElapsedTime();
+    const oscFreq = Math.min(28, 3.5 * Math.sqrt(timeScale));
+    shaftBalance.rotation.z = Math.sin(elapsed * oscFreq) * 0.45;
+
+    controls.update();
+    updateLabels();
+    renderer.render(scene, camera);
+}
+
+animate();
+
+// 窗口尺寸自适应
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    if (!userMovedCamera) setHomeView();
+});
+</script>
+</body>
+</html>
