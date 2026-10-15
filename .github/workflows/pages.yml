@@ -154,6 +154,13 @@ jobs:
           mkdir -p _site/snowline-cabin
           cp snowline-cabin/dist/index.html _site/snowline-cabin/index.html
 
+      - name: Assemble Clockwork
+        run: |
+          # 机械钟齿轮：Gemini 4 Argon 一次生成的页面，Three.js 改读本地 vendor/，纯静态原样发布
+          mkdir -p _site/clockwork
+          cp clockwork/index.html clockwork/source.jpg clockwork/THREE-LICENSE.txt _site/clockwork/
+          cp -R clockwork/vendor _site/clockwork/
+
       - name: Show what will be published
         run: find _site -type f | sort
 
