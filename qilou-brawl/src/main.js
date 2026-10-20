@@ -180,10 +180,12 @@ function updateCamera(dt) {
   const p = sim.player, k = 1 - Math.exp(-dt * (winCam ? 2 : 6));
   if (winCam) { camYaw += C.wrap(p.a + Math.PI - camYaw) * Math.min(1, dt * 1.5); camDist += (3.6 - camDist) * Math.min(1, dt * 2); }
   const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
+  // 竖屏横向视野窄：屏幕越高，镜头拉得越远越高，看的点往前挪，阿龙落在画面中下部、前方留出打斗的地方
+  const tall = Math.min(2, Math.max(1, innerHeight / innerWidth)), dist = camDist * (1 + .55 * (tall - 1)), ahead = 1.6 + 1.6 * (tall - 1);
   // 镜头不进骑楼：横向夹在街面以内
-  const edge = C.HALF_W - 1.3, tx = Math.max(-edge, Math.min(edge, p.x * .55 - fx * camDist)), tz = p.z - fz * camDist, ty = 1.6 + camDist * .32;
+  const edge = C.HALF_W - 1.3, tx = Math.max(-edge, Math.min(edge, p.x * .55 - fx * dist)), tz = p.z - fz * dist, ty = Math.min(5.6, 1.6 + dist * (.32 + .1 * (tall - 1))); // 封顶 5.6 m：街上的灯笼串挂在 5.9 m 以上，镜头不能穿进去
   camPos.x += (tx - camPos.x) * k; camPos.y += (ty - camPos.y) * k; camPos.z += (tz - camPos.z) * k;
-  const lx = p.x + fx * 1.6, lz = p.z + fz * 1.6;
+  const lx = p.x + fx * ahead, lz = p.z + fz * ahead;
   camLook.x += (lx - camLook.x) * k; camLook.y = 1.15; camLook.z += (lz - camLook.z) * k;
   shake = Math.max(0, shake - dt);
   const sx = (Math.random() - .5) * shake, sy = (Math.random() - .5) * shake;
