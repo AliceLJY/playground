@@ -10,8 +10,12 @@ const q = new URLSearchParams(location.search);
 const VIEW = q.get('view'), AUTO = q.has('auto'), SEED = +(q.get('seed') || 5), FAST = +(q.get('fast') || 1);
 const ASSET = './assets/';
 const DEG = 180 / Math.PI;
-// PINOC 角色默认面朝 +x；core 的朝向 a 是 forward=(sin a, cos a)，换算成绕 y 轴的角度是 a-90°。
-const yawOf = (a) => a * DEG - 90;
+// core 的朝向 a 是 forward=(sin a, cos a)；动作库片段的正面在 setRotation 角度 = a·180/π 时朝 +z。
+// 两段片段和动作库其他片段朝向不一致，要额外补：格斗架势待机 -90°（截图量的）；文字生成的出拳 +45°
+// （命中时刻量「盆骨到伸得最远的手」的方向，刺拳、直拳、上勾拳、阿婆拍都在 -135° 上下，2026-10-20）。
+// 改素材文件里根骨的旋转不行：引擎不按文件的竖直轴解读根骨，按 Y、按 Z 转都会让人倒下。
+const yawOf = (a) => a * DEG;
+const CLIP_YAW = { idle: -90, punch: 45 };
 
 // 片段：名字 → 文件。出拳连段若缺，退到前踢。
 const CLIPS = {
@@ -65,7 +69,7 @@ async function boot() {
   if (!VIEW && !AUTO) $('title').classList.remove('hidden');
   scene.app.on('update', frame);
   bindInput();
-  window.__qilou = { ready: true, sim: () => sim, info, start: startGame, setPaused: (p) => (paused = p), snapshot };
+  window.__qilou = { ready: true, sim: () => sim, info, start: startGame, setPaused: (p) => (paused = p), snapshot, facing };
   if (VIEW) setupView(VIEW); else if (AUTO) startGame();
 }
 function setLoad(f, label) { $('load-fill').style.width = (f * 100).toFixed(0) + '%'; if (label) $('load-label').textContent = label; }
@@ -75,7 +79,7 @@ async function ensureChar(o) {
   const v = { o, c: null, key: '', loading: true };
   chars.set(o.id, v);
   v.c = await Character.load(scene, `${ASSET}chars/${CHARS[o.kind]}.vsplat`, { position: { x: o.x, y: 0, z: o.z } });
-  v.loading = false; v.c.setRotation(0, yawOf(o.a), 0);
+  v.loading = false;
   return v;
 }
 
@@ -101,17 +105,23 @@ function wantAnim(o) {
 }
 function syncChar(v, dt) {
   const o = v.o, c = v.c; if (!c) return;
-  c.setPosition(o.x, 0, o.z); c.setRotation(0, yawOf(o.a), 0);
+  c.setPosition(o.x, 0, o.z);
   const w = wantAnim(o);
   const key = `${o.state}|${o.move || ''}|${w.clip}`;
   if (key !== v.key || o.st < v.lastSt - 1e-6) {
     const fade = o.state === 'attack' ? .06 : o.state === 'hurt' ? .05 : .15;
     if (v.key === '') c.playAnimation(w.clip, { loop: !!w.loop, rootMotion: false });
     else c.crossfadeTo(w.clip, { duration: fade, loop: !!w.loop, rootMotion: false });
+    // 侧身补偿和动作淡入同步过渡：两段骨骼混合时的侧身量与补偿量此消彼长，身体不会甩
+    const to = CLIP_YAW[w.clip] || 0;
+    v.yawFrom = v.key === '' ? to : (v.yawOff ?? to); v.yawTo = to; v.yawT = 0; v.yawDur = v.key === '' ? 0 : fade;
     if (w.at) c.animationTime = w.at;
     v.key = key;
   }
   v.lastSt = o.st;
+  v.yawT = Math.min(v.yawDur || 0, (v.yawT || 0) + dt);
+  v.yawOff = v.yawDur ? v.yawFrom + (v.yawTo - v.yawFrom) * (v.yawT / v.yawDur) : v.yawTo;
+  c.setRotation(0, yawOf(o.a) + v.yawOff, 0);
   c.playbackSpeed = sim.hitstop > 0 ? .02 : w.rate;
   // 受击闪白、出招前闪金（预警）、二阶段泛红
   let tint = 0, col = { r: 1, g: 1, b: 1 };
@@ -310,6 +320,22 @@ function info() {
   const p = sim.player;
   return { phase: sim.phase, wave: sim.wave, t: +sim.t.toFixed(2), hp: p.hp, x: +p.x.toFixed(2), z: +p.z.toFixed(2), state: p.state, enemies: sim.enemies.filter((e) => !e.dead).length,
     chars: [...chars.values()].filter((v) => v.c).length, anims: [...have], fps: Math.round(fps) };
+}
+// 验收用：从左右锁骨骨骼的世界坐标算身体实际朝向，和逻辑朝向比。返回角度差（度，-180..180）。
+function facing(id = 0) {
+  const v = chars.get(id); if (!v || !v.c) return null;
+  const arm = v.c.armature, names = arm.boneNames, L = names.indexOf('clavicle_l'), R = names.indexOf('clavicle_r');
+  const ml = arm.getBoneWorldMatrix(L), mr = arm.getBoneWorldMatrix(R); if (!ml || !mr) return null;
+  const pl = ml.getTranslation(), pr = mr.getTranslation();
+  const lx = pr.x - pl.x, lz = pr.z - pl.z;            // 左→右
+  const body = Math.atan2(lz, -lx);                      // 身体正前方（符号用跑步已确认朝前的截图校准过），记成和 core 一样的 atan2(x, z)
+  let d = (body - v.o.a) * DEG; d = (((d % 360) + 540) % 360) - 180; // JS 的 % 对负数取负，先折一次
+  // 出拳方向：盆骨到水平方向伸得最远的那只手
+  const pel = arm.getBoneWorldMatrix(arm.pelvisBoneIndex).getTranslation();
+  let reach = null, far = 0;
+  for (const h of ['hand_l', 'hand_r']) { const m = arm.getBoneWorldMatrix(names.indexOf(h)); if (!m) continue; const t = m.getTranslation(), dx = t.x - pel.x, dz = t.z - pel.z, r = Math.hypot(dx, dz); if (r > far) { far = r; reach = Math.atan2(dx, dz); } }
+  let rd = reach == null ? null : (reach - v.o.a) * DEG; if (rd != null) rd = (((rd % 360) + 540) % 360) - 180;
+  return { diff: Math.round(d), reach: rd == null ? null : Math.round(rd), far: +far.toFixed(2), state: v.o.state, move: v.o.move || '', st: v.o.st, clip: v.key.split('|')[2] };
 }
 function snapshot() {
   const cam = scene.cameraEntity.camera, p = sim.player;
