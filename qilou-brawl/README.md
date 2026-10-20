@@ -36,6 +36,8 @@ node --test tests/*.test.cjs
 node tools/build.mjs          # output in dist/; serve it and open dist/index.html
 ```
 
-Query options: `?auto` lets the autopilot play (`&fast=4` to speed up), `?view=hero|wide|stress|boss` for fixed camera views.
+Query options: `?auto` lets the autopilot play (`&fast=4` to speed up), `?view=hero|wide|stress|boss` for fixed camera views, `?record` for recording.
+
+Recording: `node tools/record.cjs <page-url> <out-dir> 1920 1080 200 3` takes over the page clock and screenshots one frame per 1/30 s (no dropped frames), then renders the logged sounds offline into a soundtrack and muxes an MP4. To change only the sound, `tools/rerender-audio.cjs` reuses the frames.
 
 Spec in [SPEC.md](SPEC.md), verification record in [VERIFICATION.md](VERIFICATION.md), third-party licences in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

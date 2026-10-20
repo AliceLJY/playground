@@ -3,11 +3,13 @@ import * as pc from 'playcanvas';
 import { Scene, Character, Animation, SkyDome } from '@viggle/splat-engine';
 import C from './core.js';
 import { buildStreet, addLights } from './street.js';
-import { sfx } from './audio.js';
+import { sfx, renderOffline } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
-const VIEW = q.get('view'), AUTO = q.has('auto'), SEED = +(q.get('seed') || 5), FAST = +(q.get('fast') || 1);
+const REC = q.has('record'); // 录屏：先停在标题 2.5 s，再让自动驾驶打完整局，对白自动翻页，所有发声记时间供离线渲染音轨
+const VIEW = q.get('view'), AUTO = q.has('auto') || REC, SEED = +(q.get('seed') || 5), FAST = +(q.get('fast') || 1);
+if (REC) window.__qilouRec = [];
 const ASSET = './assets/';
 const DEG = 180 / Math.PI;
 // core 的朝向 a 是 forward=(sin a, cos a)；动作库片段的正面在 setRotation 角度 = a·180/π 时朝 +z。
@@ -69,8 +71,9 @@ async function boot() {
   if (!VIEW && !AUTO) $('title').classList.remove('hidden');
   scene.app.on('update', frame);
   bindInput();
-  window.__qilou = { ready: true, sim: () => sim, info, start: startGame, setPaused: (p) => (paused = p), snapshot, facing };
-  if (VIEW) setupView(VIEW); else if (AUTO) startGame();
+  window.__qilou = { ready: true, sim: () => sim, info, start: startGame, setPaused: (p) => (paused = p), snapshot, facing,
+    renderAudio: (t0, seconds) => renderOffline(window.__qilouRec || [], t0, seconds), recStart: () => { recT = 0; } };
+  if (VIEW) setupView(VIEW); else if (REC) $('title').classList.remove('hidden'); else if (AUTO) startGame();
 }
 function setLoad(f, label) { $('load-fill').style.width = (f * 100).toFixed(0) + '%'; if (label) $('load-label').textContent = label; }
 
@@ -133,9 +136,14 @@ function syncChar(v, dt) {
 }
 
 // ---------- 主循环 ----------
-let acc = 0, fps = 0, fpsN = 0, fpsT = 0;
+let acc = 0, fps = 0, fpsN = 0, fpsT = 0, recT = -1, talkT = 0;
 function frame(dt) {
   dt = Math.min(dt, .1); fpsN++; fpsT += dt; if (fpsT >= 1) { fps = fpsN / fpsT; fpsN = 0; fpsT = 0; }
+  if (REC && recT >= 0) {
+    recT += dt;
+    if (!started && recT >= 2.5) { $('title').classList.add('hidden'); startGame(); }
+    if (talk) { talkT += dt; if (talkT >= 2.4) { talkT = 0; nextLine(); } } else talkT = 0;
+  }
   if (started && !paused && !talk && sim.phase === 'fight') {
     acc += dt * FAST;
     while (acc >= C.STEP) { acc -= C.STEP; C.step(sim, AUTO ? bot(sim) : readInput(), C.STEP); handleEvents(); for (const k in pressed) pressed[k] = false; }
@@ -267,7 +275,7 @@ function again() {
 }
 function say(lines, title) {
   if (title) banner(title);
-  if (!lines || !lines.length || AUTO || VIEW) return;
+  if (!lines || !lines.length || (AUTO && !REC) || VIEW) return;
   talk = { lines: lines.slice(), i: 0 }; showLine();
 }
 function showLine() { const [who, text] = talk.lines[talk.i]; $('dialog').innerHTML = `<b>${who}</b>${text}<small>空格 / 点击 继续</small>`; $('dialog').classList.add('on'); }
