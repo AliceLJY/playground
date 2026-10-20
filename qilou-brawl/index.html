@@ -51,6 +51,7 @@ body.touch #boss{bottom:auto;top:62px}
 @keyframes bannerIn{0%{opacity:0;transform:scale(1.3)}12%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
 #dialog{position:fixed;left:50%;bottom:calc(max(24px,env(safe-area-inset-bottom)) + 120px);transform:translateX(-50%) translateY(20px);width:min(560px,calc(100vw - 32px));background:rgba(29,26,36,.88);border:2px solid var(--gold);border-radius:14px;padding:14px 18px 10px;font-size:17px;line-height:1.6;opacity:0;transition:all .2s;z-index:12;pointer-events:none}
 #dialog.on{opacity:1;transform:translateX(-50%)}
+body.touch #dialog{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 170px)}
 #dialog b{display:block;color:var(--gold);font-size:14px;margin-bottom:2px}
 #dialog small{display:block;text-align:right;opacity:.5;font-size:11px;margin-top:4px}
 #hurt-flash{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px rgba(215,38,46,.9);opacity:0;z-index:9}
