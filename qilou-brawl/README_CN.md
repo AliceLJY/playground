@@ -36,6 +36,8 @@ node --test tests/*.test.cjs
 node tools/build.mjs          # 产物在 dist/，用任意静态服务打开 dist/index.html
 ```
 
-带参数：`?auto` 让自动驾驶打（`&fast=4` 快进），`?view=hero|wide|stress|boss` 固定机位。
+带参数：`?auto` 让自动驾驶打（`&fast=4` 快进），`?view=hero|wide|stress|boss` 固定机位，`?record` 录屏模式。
+
+录屏：`node tools/record.cjs <页面地址> <输出目录> 1920 1080 200 3` 接管页面时钟逐帧截图（30 帧不丢帧），录完把记下的发声离线渲染成音轨合成 MP4；只想调声音用 `tools/rerender-audio.cjs`，不用重录画面。
 
 规格见 [SPEC.md](SPEC.md)，验收记录见 [VERIFICATION.md](VERIFICATION.md)，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
