@@ -98,6 +98,19 @@ jobs:
           cp 'rooftop-splash/天台水枪大战.html' _site/rooftop-splash/index.html
           cp rooftop-splash/vendor/THREE-LICENSE.txt _site/rooftop-splash/THREE-LICENSE.txt
 
+      - name: Check, bundle and assemble Qilou Brawl
+        working-directory: qilou-brawl
+        run: |
+          # 骑楼擂台：PINOC 泼溅角色 + PlayCanvas，不是单文件（引擎按相对路径找 worker，角色与动作是二进制素材）
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          # playcanvas 带一个用不上的原生 canvas 包，跳过安装脚本免得在 CI 上编译；esbuild 单独补跑
+          npm ci --ignore-scripts
+          npm rebuild esbuild
+          node tools/build.mjs
+          mkdir -p ../_site/qilou-brawl
+          cp -R dist/. ../_site/qilou-brawl/
+
       - name: Assemble Shadow Gong
         run: |
           # 灯影守夜：独立弹反玩法，单文件离线发布
