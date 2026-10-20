@@ -1,12 +1,13 @@
 // 录屏：接管页面时钟，每帧推进 1/30 s 再截图（帧率稳定、不丢帧），录完把记下的发声离线渲染成音轨，ffmpeg 合成 MP4。
-//   NODE_PATH="$(npm root -g)" node tools/record.cjs <url> <out-dir> [width] [height] [max-seconds] [seed]
+//   NODE_PATH="$(npm root -g)" node tools/record.cjs <url> <out-dir> [width] [height] [max-seconds] [seed] [pixel-ratio]
+// 竖屏：540 960 200 3 2 → 1080×1920，界面字号按手机比例
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 (async () => {
-  const [url, outDir, W = '1920', H = '1080', maxS = '200', seed = '3'] = process.argv.slice(2);
+  const [url, outDir, W = '1920', H = '1080', maxS = '200', seed = '3', dpr = '1'] = process.argv.slice(2);
   const frames = path.join(outDir, 'frames'); fs.mkdirSync(frames, { recursive: true });
   const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-gpu', '--ignore-gpu-blocklist'] });
-  const page = await (await b.newContext({ viewport: { width: +W, height: +H } })).newPage();
+  const page = await (await b.newContext({ viewport: { width: +W, height: +H }, deviceScaleFactor: +dpr })).newPage();
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.install({ time: 0 });
   await page.goto(`${url}?record&seed=${seed}`);
@@ -36,7 +37,7 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
   fs.writeFileSync(path.join(outDir, 'audio.wav'), Buffer.from(wav, 'base64'));
   const info = await page.evaluate(() => window.__qilou.info());
   await b.close();
-  const mp4 = path.join(outDir, `qilou-brawl-${W}x${H}.mp4`);
+  const mp4 = path.join(outDir, `qilou-brawl-${W * dpr}x${H * dpr}.mp4`);
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-i', path.join(outDir, 'audio.wav'),
     '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', mp4]);
   console.log(JSON.stringify({ frames: n, seconds: secs, phase: info.phase, mp4, errors: errors.slice(0, 5) }));

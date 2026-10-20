@@ -100,9 +100,9 @@ export function buildStreet(app, { halfW = 3.6, z0 = -8, z1 = 58, seed = 3 } = {
       z += w;
     }
   }
-  // lantern strings across the street
+  // lantern strings across the street, hung above the highest camera (main.js caps it at 5.6 m)
   for (let z = 4; z < 40; z += 6) for (let x = -halfW; x <= halfW; x += .9)
-    glow.box(x, 4.6 - Math.cos(x / halfW * 1.2) * .5, z, .22, .26, .22, (Math.round(x / .9) & 1) ? PAL.red : PAL.gold);
+    glow.box(x, 6.4 - Math.cos(x / halfW * 1.2) * .5, z, .22, .26, .22, (Math.round(x / .9) & 1) ? PAL.red : PAL.gold);
   // 擂台：地面高度的红毯方台，四角桩，背后横幅与鼓架
   const R0 = 41, R1 = 52;
   solid.box(0, .02, (R0 + R1) / 2, halfW * 2 - .3, .05, R1 - R0, '#A3262B');
