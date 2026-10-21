@@ -95,6 +95,6 @@ function takeOverClock(){
   const stats=await page.evaluate(()=>window.__herb.probe().state.result);
   await browser.close();
   await new Promise((res,rej)=>{const m=spawn('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',videoOnly,'-i',wav,'-c:v','copy',
-    '-af','loudnorm=I=-16:TP=-1.5:LRA=11','-c:a','aac','-b:a','192k','-ar','48000','-shortest','-movflags','+faststart',out],{stdio:'inherit'});m.on('close',c=>c===0?res():rej(new Error('mux exited '+c)));});
+    '-af','loudnorm=I=-16:TP=-1.5:LRA=11,alimiter=limit=0.79:level=false','-c:a','aac','-b:a','192k','-ar','48000','-shortest','-movflags','+faststart',out],{stdio:'inherit'});m.on('close',c=>c===0?res():rej(new Error('mux exited '+c)));});
   console.log(JSON.stringify({out,seed,frames,seconds:+(frames/FPS).toFixed(2),phase,stats,errors,work,timeline:path.join(work,'timeline.json')},null,1));
 })().catch(e=>{console.error(e);process.exit(1);});
