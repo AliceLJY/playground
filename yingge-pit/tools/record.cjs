@@ -1,11 +1,13 @@
 // Frame-exact gameplay recording for 打回乐池, run by hand (not part of CI). Adapted from slipper-smash/tools/record.cjs.
 // Needs an existing Playwright install, Google Chrome and ffmpeg; this repository installs none of them.
 //   python3 -m http.server 8951 --bind 127.0.0.1          (inside yingge-pit/)
-//   NODE_PATH="$(npm root -g)" node tools/record.cjs <output.mp4> [--mode solo|duo] [--seed N] [--seconds S] [--react 0.30] [--sd 0.12] [--size 540x960] [--dpr 2]
+//   NODE_PATH="$(npm root -g)" node tools/record.cjs <output.mp4> [--mode solo|duo] [--seed N] [--seconds S] [--react 0.30] [--sd 0.12] [--no-drum] [--events out.json] [--size 540x960] [--dpr 2]
 // The round is played with real touch input: the page's own title screen is tapped, then the recorder taps the pad of each
 // lane whose iron rod lights, after a normally distributed delay (default 0.30 +- 0.12 s, the spec's shaky-thumb player;
 // in duo, the thumb on that side), rings the gong when it glows
 // and goes for the red ball. --seconds stops early (the "first 30 seconds" clip); otherwise it records to the result card.
+// --no-drum switches off the game's background drum point (for cuts that get their own score); --events writes every game
+// event (hit, miss, gong, ...) with its video time, for syncing music to the picture.
 // The page's clock is taken over before it loads: every video frame advances the game by exactly 1/60 s, and the game's
 // AudioContext is swapped for an offline one whose currentTime follows that clock, so every sound lands on its frame.
 const {chromium}=require('playwright');
@@ -15,6 +17,7 @@ const fs=require('fs'),path=require('path'),os=require('os');
 const args=process.argv.slice(2),flag=(name,def)=>{const i=args.indexOf('--'+name);return i>=0?args[i+1]:def;};
 const out=args.find(a=>a.endsWith('.mp4'));if(!out){console.error('usage: record.cjs <output.mp4> [--mode solo|duo] [--seed N] [--seconds S]');process.exit(2);}
 const mode=flag('mode','solo'),seed=+flag('seed',11),react=+flag('react',0.30),sd=+flag('sd',0.12),limit=+flag('seconds',0),[W,H]=flag('size','540x960').split('x').map(Number),DPR=+flag('dpr',2);
+const noDrum=args.includes('--no-drum'),eventsOut=flag('events',null);
 const base=flag('base','http://127.0.0.1:8951/index.html'),FPS=60,FRAME=1000/FPS;
 const work=fs.mkdtempSync(path.join(os.tmpdir(),'yingge-pit-rec-')),videoOnly=path.join(work,'video.mp4'),wav=path.join(work,'audio.wav');
 
@@ -58,6 +61,7 @@ function takeOverClock(){
   for(let i=0;i<500&&!await isReady();i++){await page.evaluate(ms=>window.__rec.step(ms),FRAME);await page.waitForTimeout(20);}
   for(let i=0;i<30;i++)await page.evaluate(ms=>window.__rec.step(ms),FRAME);
   if(!await isReady())throw new Error('game did not become ready');
+  if(noDrum)await page.evaluate(()=>window.__yingge.ambient(false));
   // the round's seed: Math.random is seeded so the real title-screen start picks the same round every time
   await page.evaluate(sd=>{let a=sd>>>0;Math.random=()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};},seed);
 
@@ -79,11 +83,12 @@ function takeOverClock(){
   if(mode==='duo'){const b=await page.evaluate(()=>window.__yingge.toCss(695,1842));await touch(b.x,b.y);}   // the 双人 button
   for(let i=0;i<Math.round(0.9*FPS);i++){await shoot();p=await step();now+=1/FPS;}
   await touch(W/2,H*0.45);
-  const timeline=[];let lastPhase='';
+  const timeline=[],events=[],seenEv=new Set();let lastPhase='';
   while(true){
     await shoot();p=await step();now+=1/FPS;
     const s=p.state;if(!s){continue;}
-    if(s.phase!==lastPhase){timeline.push({t:+(frames/FPS).toFixed(2),phase:s.phase,wave:s.wave});lastPhase=s.phase;}
+    if(s.phase!==lastPhase){timeline.push({t:+(frames/FPS).toFixed(2),phase:s.phase,wave:s.wave});lastPhase=s.phase;events.push({v:+(frames/FPS).toFixed(3),type:'phase',phase:s.phase,wave:s.wave,phaseT:0});}
+    if(eventsOut){const lg=await page.evaluate(()=>window.__yingge.log.slice());for(const e of lg){const k=e.type+'|'+e.lane+'|'+e.player+'|'+e.t;if(!seenEv.has(k)){seenEv.add(k);events.push({v:+(frames/FPS).toFixed(3),...e});}}}
     // react to each lit lane once, with the thumb on that lane's side
     s.litIds.forEach((id,lane)=>{if(id==null||seen.has(id+':'+lane))return;seen.add(id+':'+lane);
       const pads=p.pads.filter(r=>r.lane===lane),pad=mode==='duo'&&lane===1?pads[Math.floor(rnd()*pads.length)]:pads[0];
@@ -107,5 +112,6 @@ function takeOverClock(){
   await new Promise((res,rej)=>{const m=spawn('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',videoOnly,'-i',wav,'-c:v','copy',
     '-af','loudnorm=I=-16:TP=-1.5:LRA=11','-c:a','aac','-b:a','192k','-ar','48000','-shortest','-movflags','+faststart',out],{stdio:'inherit'});m.on('close',c=>c===0?res():rej(new Error('mux exited '+c)));});
   fs.writeFileSync(path.join(work,'timeline.json'),JSON.stringify(timeline));
+  if(eventsOut)fs.writeFileSync(eventsOut,JSON.stringify({fps:FPS,frames,events},null,0));
   console.log(JSON.stringify({out,mode,seed,frames,seconds:+(frames/FPS).toFixed(2),stats,errors,timeline,lastEvents:log.slice(-6),work},null,1));
 })().catch(e=>{console.error(e);process.exit(1);});
