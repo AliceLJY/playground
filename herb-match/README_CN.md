@@ -21,7 +21,7 @@
 - 一页规格在 [SPEC.md](SPEC.md)：配色、构图范围、规则数值、性能预算和十条验收。
 - 规则在 `src/core.js`，不碰画面，可以在 node 里跑；测试用真实对局量同屏数量、药材互不重叠、药签不盖药材、四档打法（不操作、精准、真人、手抖）的时长和正确率。
 - 画面是二维画布，药材在 `src/herbs.js` 里用代码画：薄荷、生姜、菊花移植自短片《中药定义接龙》的 SVG，其余十三味照同一套扁平画法补画。声音用 WebAudio 现场合成。
-- 固定机位：`?view=hero`、`?view=flip`、`?view=stress`、`?view=result`，药材一览 `?view=sheet`；调试钩子是 `window.__herb`。
+- 固定机位：`?view=hero`、`?view=flip`、`?view=stress`、`?view=result`，药材一览 `?view=sheet`，药签一览 `?view=cards`；调试钩子是 `window.__herb`。
 
 ## 本地运行
 

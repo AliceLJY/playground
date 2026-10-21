@@ -35,7 +35,7 @@ const overlap=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
   const clear=p=>{const s=p.state;if(!s)return true;for(const c of s.cards)for(const h of s.herbs)if(!h.grabbed&&overlap(c,h))return false;return true;};
 
   // 1. title, the four fixed views and the herb sheet on five screen shapes
-  for(const size of Object.keys(SIZES))for(const [name,query] of [['title',''],['hero','?view=hero'],['flip','?view=flip'],['stress','?view=stress'],['result','?view=result'],['sheet','?view=sheet']]){
+  for(const size of Object.keys(SIZES))for(const [name,query] of [['title',''],['hero','?view=hero'],['flip','?view=flip'],['stress','?view=stress'],['result','?view=result'],['sheet','?view=sheet'],['cards','?view=cards']]){
     const {ctx,page,errors,external}=await open(query,size);await page.waitForTimeout(400);
     const p=await probe(page);await page.screenshot({path:path.join(out,size+'-'+name+'.png')});
     report.runs.push({size,name,probe:p,errors,external});
@@ -52,6 +52,13 @@ const overlap=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
     if(name==='result')check(size+' result: the closing card',p.screen==='result'&&p.state.result&&p.state.result.filed>0,p.state.result);
     await ctx.close();
   }
+
+  // 1b. every herb's card back, at the narrowest card (390-wide phone) and the full width: text ends above the divider
+  {const {ctx,page}=await open('','phone');const fit=await page.evaluate(()=>window.__herb.cardFit());
+    const bad=fit.filter(f=>f.bottom>f.divider-6);report.cardFit=fit;
+    check('card text fits above the divider for all 16 herbs at every card width',bad.length===0,bad);
+    check('the last line of a card (what was chosen) stays at 15 card units or larger',fit.every(f=>f.lastLine>=15),fit.map(f=>f.lastLine));
+    check('card notes stay at 16 card units or larger',fit.every(f=>f.noteSize>=16),fit.filter(f=>f.noteSize<16));await ctx.close();}
 
   // 2. player default (no parameters, default pixel ratio): a real tap on the right basket, a real drag into it, then play for frame cost
   for(const size of ['portrait','phone','desktop']){
