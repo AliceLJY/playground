@@ -317,6 +317,8 @@ function draw(){
   const s=game.state;
   for(const c of s.cards)drawCard(c);
   s.L.baskets.forEach(B=>drawBasket(B,B.i));
+  // score and slip captions sit under every herb, so a caption can never cover a character
+  for(const p of fx.pops){ctx.save();ctx.globalAlpha=Math.max(0,1-p.t/0.9);text(p.text,Math.max(70,Math.min(s.W-70,p.x)),p.y,p.size,p.color,'center',900,C.card);ctx.restore();}
   for(const h of s.herbs)if(!h.grabbed){
     // pops out of the shelf: grows with a small overshoot, a puff of dust behind it
     const age=s.t-h.born,k=Math.min(1,age/(CFG.popIn+0.08)),grow=k<1?0.35+0.65*(1-Math.pow(1-k,3))+0.12*Math.sin(k*Math.PI):1;
@@ -326,7 +328,6 @@ function draw(){
     herbAt(f.k,x,y,1-0.5*k,k*(f.ok?6.283:3.14),{mood:f.ok?'happy':'oops'});}
   for(const r of fx.ripples){const k=r.t/0.4;ctx.strokeStyle='rgba(59,42,30,'+(0.5*(1-k))+')';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x,r.y,18+50*k,0,6.283);ctx.stroke();}
   for(const h of s.herbs)if(h.grabbed){ctx.save();ctx.globalAlpha=0.25;ctx.fillStyle=C.ink;ctx.beginPath();ctx.ellipse(h.x+8,h.y+70,48,12,0,0,6.283);ctx.fill();ctx.restore();herbAt(h.k,h.x,h.y,1.12,0,moodFor(h,s),true);}
-  for(const p of fx.pops){ctx.save();ctx.globalAlpha=Math.max(0,1-p.t/0.9);text(p.text,Math.max(70,Math.min(s.W-70,p.x)),p.y,p.size,p.color,'center',900,C.card);ctx.restore();}
   if(screen==='play')drawHud(s);
   if(screen==='result')drawResult(s);
   drawFooter();
@@ -362,6 +363,8 @@ const hook=window.__herb={ready:false,metrics,
   autopilot(level,seed){pilot=level?Core.pilot(level,seed==null?1:seed):null;return hook;},
   sound(){audio();return hook;},
   advance(seconds){advance(seconds);return hook;},
+  popAt(str,x,y){fx.pops.push({text:str,x,y,color:C.seal,size:48,t:0});return hook;},
+  clearPops(){fx.pops.length=0;return hook;},
   cardFit(noShrink){const out=[],sz=[0.45,0.5625,0.75,1.78].map(a=>{const st=Core.create({aspect:a}).state;return[st.cardW/st.cardK,st.cardH/st.cardK];});for(const [w,ch] of sz)for(const h of HERBS){const L=cardBack(h,w,ch,noShrink);out.push({name:h.name,w,lastLine:+Math.min(lastLineSize({chosen:-1},w),lastLineSize({chosen:0},w)).toFixed(1),bottom:+L.bottom.toFixed(1),divider:L.divider,noteSize:L.noteSize});}return out;},
   freeze(on){frozen=on!==false;return hook;},
   probe(){const s=game&&game.state,B=CFG.box;

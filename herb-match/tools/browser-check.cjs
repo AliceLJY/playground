@@ -60,8 +60,20 @@ const overlap=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
     check('the last line of a card (what was chosen) stays at 15 card units or larger',fit.every(f=>f.lastLine>=15),fit.map(f=>f.lastLine));
     check('card notes stay at 16 card units or larger',fit.every(f=>f.noteSize>=16),fit.filter(f=>f.noteSize<16));await ctx.close();}
 
+  // 1c. captions (score pops, 不是X, 漏接了) are drawn under the herbs: put one on a herb's face and the face must not change
+  for(const size of ['portrait','landscape']){
+    const {ctx,page}=await open('',size);
+    await page.evaluate(()=>{window.__herb.start(5).advance(3).freeze();});await page.waitForTimeout(150);
+    const h=await page.evaluate(()=>{const p=window.__herb.probe(),h=p.state.herbs[0],s=p.view.scale/p.dpr;return{cx:h.cx,cy:h.cy,wx:(h.cx*p.dpr-p.view.ox)/p.view.scale,wy:(h.cy*p.dpr-p.view.oy)/p.view.scale,name:h.name,s};});
+    const clip={x:h.cx-8,y:h.cy-8,width:16,height:16};
+    const before=await page.screenshot({clip});await page.evaluate(([x,y])=>window.__herb.popAt('不是热',x,y),[h.wx,h.wy]);await page.waitForTimeout(150);
+    const withPop=await page.screenshot({clip});await page.evaluate(()=>window.__herb.clearPops());
+    check(size+' a caption placed on '+h.name+'\'s face leaves the face unchanged (herbs drawn above captions)',before.equals(withPop),{herb:h.name});
+    await ctx.close();
+  }
+
   // 2. player default (no parameters, default pixel ratio): a real tap on the right basket, a real drag into it, then play for frame cost
-  for(const size of ['portrait','phone','desktop']){
+  for(const size of ['portrait','phone','landscape','desktop']){
     const {ctx,page,errors}=await open('',size),touch=!!SIZES[size].hasTouch;
     await page.evaluate(()=>window.__herb.start(5));
     const nature=name=>page.evaluate(n=>window.HerbCore.HERBS.find(h=>h.name===n).nature,name);
