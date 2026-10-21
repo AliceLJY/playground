@@ -21,7 +21,7 @@ const CFG={
   tapTop:760,            // taps from here down to the bottom edge choose the basket under the finger
   hudBottom:140,
   comboStep:5,maxMult:4,points:10,quickBonus:5,quickY:450,
-  card:{w:236,h:270,ys:[290,150,470],life:2.8,maxWait:1.6,pad:6},
+  card:{w:236,h:270,ys:[290,150,470],tallH:310,tallYs:[290,150,430],life:2.8,maxWait:1.6,pad:6},
   step:1/120
 };
 // The four natures (四气), cold to hot. 微寒/大寒 count as 寒, 微温 as 温, 大热 as 热: degree words inside one nature.
@@ -103,8 +103,10 @@ function create(opts){
   // narrow screens shrink the card so one herb in the middle of the lane can never block both sides at once
   // wide screens have room beside the lane, so the card grows there (up to 1.6x) and stays readable on a landscape phone
   const side=(W-L.span)/2-2*CFG.margin,cardK=side>=CFG.card.w?Math.min(1.6,side/CFG.card.w):1;
-  const cardW=cardK>1?Math.floor(CFG.card.w*cardK):Math.min(CFG.card.w,Math.floor((W-2*CFG.margin)/2-CFG.box.half-CFG.card.pad-4)),cardH=Math.round(CFG.card.h*cardK);
-  const cardYs=cardK>1?[Math.round(CFG.hudBottom+10+(CFG.basketTop-60-CFG.hudBottom-10-cardH)/2)]:CFG.card.ys;s.cardW=cardW;s.cardK=cardK;
+  const cardW=cardK>1?Math.floor(CFG.card.w*cardK):Math.min(CFG.card.w,Math.floor((W-2*CFG.margin)/2-CFG.box.half-CFG.card.pad-4));
+  // a narrow card cannot get wider without blocking both sides at once, so it gets taller to keep its text readable
+  const tall=cardK===1&&cardW<200,cardH=tall?CFG.card.tallH:Math.round(CFG.card.h*cardK);
+  const cardYs=cardK>1?[Math.round(CFG.hudBottom+10+(CFG.basketTop-60-CFG.hudBottom-10-cardH)/2)]:tall?CFG.card.tallYs:CFG.card.ys;s.cardW=cardW;s.cardH=cardH;s.cardK=cardK;
   function sideRect(side,y){const x=side<0?CFG.margin:W-CFG.margin-cardW;return{x,y:y==null?cardYs[0]:y,w:cardW,h:cardH};}
   function clearOf(rect){
     const B=CFG.box,c=CFG.card;

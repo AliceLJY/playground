@@ -145,6 +145,17 @@ function wrap(str,maxW,size,weight){
   for(const ch of str){if(ctx.measureText(line+ch).width>maxW&&line){if('，。；、」！？'.includes(ch)){line+=ch;continue;}lines.push(line);line=ch;}else line+=ch;}
   if(line)lines.push(line);return lines;
 }
+// same number of lines as a plain wrap, but as even as possible, so no line ends up holding a single character
+function wrapEven(str,maxW,size,weight){
+  const n=wrap(str,maxW,size,weight).length;if(n<2)return[str];let lo=maxW*0.4,hi=maxW;
+  for(let i=0;i<10;i++){const mid=(lo+hi)/2;if(wrap(str,mid,size,weight).length===n)hi=mid;else lo=mid;}
+  return wrap(str,hi,size,weight);
+}
+// a property line breaks after its semicolon first (辛、甘，大热； / 有毒), and only then inside a part
+function tasteLines(str,maxW,size){
+  if(wrap(str,maxW,size,800).length<2||!str.includes('；'))return wrapEven(str,maxW,size,800);
+  const i=str.indexOf('；')+1;return[].concat(wrapEven(str.slice(0,i),maxW,size,800),wrapEven(str.slice(i),maxW,size,800));
+}
 function pill(x,y,w,h,r,fill,stroke,lw){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||3;ctx.stroke();}}
 function drawBackdrop(){
   if(!backdrop||backdrop.width!==cw||backdrop.height!==ch){
@@ -183,11 +194,31 @@ function drawBasket(B,i,title){
   pill(x-tw2/2,by+r+6,tw2,fs+10,6,'rgba(255,249,236,0.92)');text(NAT_SUB[i],x,by+r+11+fs/2,fs,C.ink,'center',700);
   ctx.restore();
 }
-function drawCard(card,t){let c=card;
-  const herb=HERBS[c.k],flip=fx.cardFlip.has(c)?fx.cardFlip.get(c):1,age=game.state.t-c.born,fade=Math.min(1,(CFG.card.life-age)/0.3);
-  const k=Math.min(1,flip/0.34),sx=Math.abs(Math.cos(k*Math.PI)),back=k>=0.5,zk=c.h/CFG.card.h;
-  ctx.save();ctx.globalAlpha=Math.max(0,fade);ctx.translate(c.x+c.w/2,c.y+c.h/2);ctx.scale(Math.max(0.02,sx)*zk,zk);ctx.rotate(c.x<view.W/2?-0.03:0.03);
-  c={x:c.x,y:c.y,w:c.w/zk,h:CFG.card.h,chosen:c.chosen};const x=-c.w/2,y=-c.h/2;
+// The back of a card, laid out top-down in card units (card height CFG.card.h). Lines are measured, so a long property
+// line or note wraps; the note shrinks a step at a time until everything ends above the divider over the last line.
+const CARD_TEXT={pillH:34,floor:44};
+function cardBack(herb,w,h,noShrink){
+  const maxW=w-28,divider=h-CARD_TEXT.floor,steps=[[19,25,25,30],[18,23,23,27],[17,21,22,26],[16,20,21,24],[15,18,20,23]];
+  for(const [nf,nl,tf,tl] of noShrink?steps.slice(0,1):steps){
+    const items=[];let yy=46;
+    items.push({text:herb.name,y:yy,size:herb.name.length>2?36:40,color:C.ink,weight:900});yy+=26;
+    items.push({rule:true,y:yy});yy+=20;
+    for(const l of tasteLines(herb.taste,maxW,tf)){items.push({text:l,y:yy,size:tf,color:C.seal,weight:800});yy+=tl;}
+    const pw=Math.min(maxW,128),ph=CARD_TEXT.pillH;items.push({pill:true,y:yy-tf/2+2,w:pw,h:ph});items.push({text:'归「'+NATURES[herb.nature].label+'」篓',y:yy-tf/2+2+ph/2,size:21,color:'#FFFFFF',weight:800});yy+=ph+10;
+    const notes=wrapEven(herb.note,maxW,nf,700);for(const l of notes){items.push({text:l,y:yy,size:nf,color:C.ink,weight:700});yy+=nl;}
+    const bottom=yy-nl+nf*0.6;
+    if(bottom<=divider-6||nf===15||noShrink)return{items,bottom,divider,noteSize:nf};
+  }
+}
+function drawCard(card){
+  const flip=fx.cardFlip.has(card)?fx.cardFlip.get(card):1,age=game.state.t-card.born,fade=Math.min(1,(CFG.card.life-age)/0.3);
+  const k=Math.min(1,flip/0.34);drawCardBody(card,HERBS[card.k],k>=0.5,game.state.cardK,Math.max(0,fade),Math.abs(Math.cos(k*Math.PI)));
+}
+const lastLine=c=>c.chosen<0?'刚才漏接了':'刚才放进了「'+NATURES[c.chosen].label+'」';
+function lastLineSize(c,w){ctx.font='800 18px '+FONT;return Math.min(18,18*(w-24)/ctx.measureText(lastLine(c)).width);}
+function drawCardBody(card,herb,back,zk,alpha,sx){
+  ctx.save();ctx.globalAlpha=alpha;ctx.translate(card.x+card.w/2,card.y+card.h/2);ctx.scale(Math.max(0.02,sx)*zk,zk);ctx.rotate(card.x<view.W/2?-0.03:0.03);
+  const c={w:card.w/zk,h:card.h/zk,chosen:card.chosen},x=-c.w/2,y=-c.h/2;
   ctx.strokeStyle=C.seal;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,y-30);ctx.lineTo(0,y+12);ctx.stroke();
   pill(x+4,y+6,c.w,c.h,14,'rgba(59,42,30,0.18)');pill(x,y,c.w,c.h,14,back?C.card:'#EADBC0',C.ink,4);
   ctx.beginPath();ctx.arc(0,y+16,7,0,6.283);ctx.strokeStyle=C.ink;ctx.lineWidth=3;ctx.stroke();
@@ -197,15 +228,24 @@ function drawCard(card,t){let c=card;
     else text('？',0,y+130,64,C.seal);
     text('翻面看看',0,y+200,24,C.muted,'center',700);
   }else{
-    const pad=14,maxW=c.w-2*pad;let yy=y+48;
-    text(herb.name,0,yy,herb.name.length>2?36:40,C.ink,'center',900);yy+=26;
-    ctx.strokeStyle=C.seal;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-c.w*0.3,yy);ctx.lineTo(c.w*0.3,yy);ctx.stroke();yy+=22;
-    for(const l of wrap(herb.taste,maxW,25,800)){text(l,0,yy,25,C.seal,'center',800);yy+=30;}
-    const n=herb.nature,pw=Math.min(maxW,128);pill(-pw/2,yy-4,pw,36,18,NAT[n]);text('归「'+NATURES[n].label+'」篓',0,yy+14,22,'#FFFFFF','center',800);yy+=48;
-    for(const l of wrap(herb.note,maxW,19,700)){text(l,0,yy,19,C.ink,'center',700);yy+=25;}
+    const L=cardBack(herb,c.w,c.h),pad=14;
+    for(const it of L.items){
+      if(it.rule){ctx.strokeStyle=C.seal;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-c.w*0.3,y+it.y);ctx.lineTo(c.w*0.3,y+it.y);ctx.stroke();}
+      else if(it.pill){pill(-it.w/2,y+it.y,it.w,it.h,it.h/2,NAT[herb.nature]);}
+      else text(it.text,0,y+it.y,it.size,it.color,'center',it.weight);
+    }
     ctx.strokeStyle='rgba(59,42,30,0.2)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x+pad,y+c.h-44);ctx.lineTo(x+c.w-pad,y+c.h-44);ctx.stroke();
-    text(c.chosen<0?'刚才漏接了':'刚才放进了「'+NATURES[c.chosen].label+'」',0,y+c.h-22,18,C.seal,'center',800);
+    text(lastLine(c),0,y+c.h-22,lastLineSize(c,c.w),C.seal,'center',800);
   }
+  ctx.restore();
+}
+// fixed view: all sixteen card backs at this screen's real card size (with alternating chosen baskets), to read the layout
+function drawCardsSheet(){
+  const W=view.W,st=Core.create({aspect:aspectNow()}).state,zk=st.cardK,cols=Math.max(4,Math.floor(W/(st.cardW+16))),rows=Math.ceil(16/cols);
+  const k=Math.min(1,(W-16)/(cols*(st.cardW+12)),(H-40)/(rows*(st.cardH+44)));
+  ctx.save();ctx.scale(k,k);
+  HERBS.forEach((h,i)=>{const col=i%cols,row=Math.floor(i/cols),x=(W/k-cols*(st.cardW+12))/2+col*(st.cardW+12),y=36+row*(st.cardH+44);
+    drawCardBody({x,y,w:st.cardW,h:st.cardH,chosen:i%5===4?-1:(h.nature+1+i%3)%4},h,true,zk,1,1);});
   ctx.restore();
 }
 function drawHud(s){
@@ -271,6 +311,7 @@ function draw(){
   drawBackdrop();
   ctx.setTransform(view.scale,0,0,view.scale,view.ox,view.oy);
   if(screen==='sheet'){drawSheet();return;}
+  if(screen==='cards'){drawCardsSheet();return;}
   if(screen==='title'){drawTitle();drawFooter();drawMute();return;}
   if(!game)return;
   const s=game.state;
@@ -321,6 +362,7 @@ const hook=window.__herb={ready:false,metrics,
   autopilot(level,seed){pilot=level?Core.pilot(level,seed==null?1:seed):null;return hook;},
   sound(){audio();return hook;},
   advance(seconds){advance(seconds);return hook;},
+  cardFit(noShrink){const out=[],sz=[0.45,0.5625,0.75,1.78].map(a=>{const st=Core.create({aspect:a}).state;return[st.cardW/st.cardK,st.cardH/st.cardK];});for(const [w,ch] of sz)for(const h of HERBS){const L=cardBack(h,w,ch,noShrink);out.push({name:h.name,w,lastLine:+Math.min(lastLineSize({chosen:-1},w),lastLineSize({chosen:0},w)).toFixed(1),bottom:+L.bottom.toFixed(1),divider:L.divider,noteSize:L.noteSize});}return out;},
   freeze(on){frozen=on!==false;return hook;},
   probe(){const s=game&&game.state,B=CFG.box;
     return{screen,frozen,dpr,canvas:[cw,ch],css:[innerWidth,innerHeight],view:{scale:view.scale,ox:view.ox,oy:view.oy,W:view.W},
@@ -332,6 +374,7 @@ const hook=window.__herb={ready:false,metrics,
 function boot(){
   resize();
   if(viewName==='sheet')screen='sheet';
+  if(viewName==='cards')screen='cards';
   const v=VIEWS[viewName];
   if(v){
     const seed=params.has('seed')?+params.get('seed'):v.seed;start(seed);if(v.pilot)pilot=Core.pilot(v.pilot,seed);

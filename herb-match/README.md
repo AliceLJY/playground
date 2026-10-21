@@ -21,7 +21,7 @@ Sixteen herbs, four per basket; "slightly cold" and "very cold" count as cold, "
 - The one-page spec is [SPEC.md](SPEC.md): colours, composition ranges, rule numbers, performance budget and ten acceptance items.
 - The rules live in `src/core.js` with no drawing code, so they run in Node. The tests measure real simulated rounds: how many herbs share the screen, that herbs never overlap, that explanation labels never cover a herb, and round length and accuracy for four styles of play (idle, precise, human-like, shaky hands).
 - Drawing uses a 2D canvas. The herbs are drawn in code in `src/herbs.js`: mint, ginger and chrysanthemum are ported from the SVG of the short film this game follows, the other thirteen are drawn in the same flat style. All sound is synthesised with WebAudio.
-- Fixed views: `?view=hero`, `?view=flip`, `?view=stress`, `?view=result`, and the herb sheet `?view=sheet`. The debugging hook is `window.__herb`.
+- Fixed views: `?view=hero`, `?view=flip`, `?view=stress`, `?view=result`, the herb sheet `?view=sheet` and the label sheet `?view=cards`. The debugging hook is `window.__herb`.
 
 ## Run locally
 
