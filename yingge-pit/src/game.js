@@ -158,7 +158,7 @@ function handle(e){
     case 'swing':vis.swings[e.lane]={at:s.t,hit:false};play('swish');break;
     case 'dizzy':pop('手忙脚乱',GEO.lanes[e.lane].x,GEO.lanes[e.lane].foot-GEO.lanes[e.lane].h-70,COLOR.pre,40);break;
     case 'gong':
-      vis.meterFull=false;
+      vis.meterFull=false;fx.banner=null;   // the "meter full, hit the gong" hint is done once the gong goes
       for(let i=0;i<3;i++)vis.swings[i]={at:s.t,hit:true,perfect:true};vis.jolt=s.t;vis.joltK=1.4;vis.spinT=s.t;vis.face='ouch';vis.faceUntil=s.t+1.2;
       fx.flash=0.5;fx.shake=22;fx.big={text:'大英歌！',t:0};for(let i=0;i<3;i++){const c=Core.contact(i);sparks(c.x,c.y,18,true);}
       fx.rings.push({x:GEO.gong.x,y:GEO.gong.y,t:0,r0:60,r1:520,color:COLOR.gold});play('bigYingge');break;

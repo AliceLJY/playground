@@ -81,13 +81,14 @@ const inside=(r,w,h)=>r.x>=-1&&r.y>=-1&&r.x+r.w<=w+1&&r.y+r.h<=h+1;
     const res=await page.evaluate(async()=>{
       const h=window.__yingge,ov=(a,b)=>a&&b&&a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
       const c=document.getElementById('stage'),g=c.getContext('2d'),d=Math.min(window.devicePixelRatio,2);
-      const out={frames:0,captionFrames:0,hits:[],popFrames:0,popHits:0,litFrames:0,darkRods:[]};
+      const out={frames:0,captionFrames:0,hits:[],capHits:[],popFrames:0,popHits:0,litFrames:0,darkRods:[]};
       for(const [seed,mode,level] of [[2,'solo','precise'],[3,'solo','human'],[4,'duo','human'],[6,'duo','precise']]){
         h.start(seed,mode).autopilot(level,seed);h.freeze(true);
         for(let i=0;i<2400;i++){
           h.advance(0.05);h.render();const p=h.probe();out.frames++;if(!p.state||p.state.phase==='over')break;
           const caps=p.texts.filter(t=>['banner','speech','hint'].includes(t.tag));if(caps.length)out.captionFrames++;
           for(const t of caps)p.puppets.forEach((b,k)=>{if(ov(t,b)&&out.hits.length<10)out.hits.push({seed,t:p.state.t,text:t.text,lane:k});});
+          for(let a=0;a<caps.length;a++)for(let b=a+1;b<caps.length;b++)if(ov(caps[a],caps[b])&&out.capHits.length<10)out.capHits.push({seed,t:p.state.t,a:caps[a].text,b:caps[b].text});
           const pops=p.texts.filter(t=>t.tag==='pop');if(pops.length){out.popFrames++;if(pops.some(t=>p.puppets.some(b=>ov(t,b))))out.popHits++;}
           for(const a of Object.values(p.boss.arms))if(a.lit){out.litFrames++;let n=0,br=0;
             for(let k=1;k<=12;k++){const x=(a.hand.x+(a.tip.x-a.hand.x)*k/13)*d,y=(a.hand.y+(a.tip.y-a.hand.y)*k/13)*d;if(y/d>=p.boss.panel-2)continue;
@@ -100,6 +101,7 @@ const inside=(r,w,h)=>r.x>=-1&&r.y>=-1&&r.x+r.w<=w+1&&r.y+r.h<=h+1;
     report.runs.push({size,name:'sweep',...res});
     check(`${size} sweep: captions were on screen in many frames (the check had something to check)`,res.captionFrames>=100,{frames:res.frames,captionFrames:res.captionFrames});
     check(`${size} sweep: no caption ever covers a puppet`,res.hits.length===0,res.hits);
+    check(`${size} sweep: captions never overlap each other`,res.capHits.length===0,res.capHits);
     check(`${size} sweep: every lit rod reads bright on screen`,res.litFrames>=200&&res.darkRods.length===0,{litFrames:res.litFrames,dark:res.darkRods.slice(0,5)});
     check(`${size} sweep: score pops rarely touch a puppet (at most 10% of pop frames)`,res.popFrames>50&&res.popHits/res.popFrames<=0.1,{popFrames:res.popFrames,popHits:res.popHits});
     check(`${size} sweep: no page errors`,errors.length===0,errors);

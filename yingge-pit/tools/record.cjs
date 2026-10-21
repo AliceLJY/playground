@@ -1,9 +1,10 @@
 // Frame-exact gameplay recording for 打回乐池, run by hand (not part of CI). Adapted from slipper-smash/tools/record.cjs.
 // Needs an existing Playwright install, Google Chrome and ffmpeg; this repository installs none of them.
 //   python3 -m http.server 8951 --bind 127.0.0.1          (inside yingge-pit/)
-//   NODE_PATH="$(npm root -g)" node tools/record.cjs <output.mp4> [--mode solo|duo] [--seed N] [--seconds S] [--size 540x960] [--dpr 2]
+//   NODE_PATH="$(npm root -g)" node tools/record.cjs <output.mp4> [--mode solo|duo] [--seed N] [--seconds S] [--react 0.30] [--sd 0.12] [--size 540x960] [--dpr 2]
 // The round is played with real touch input: the page's own title screen is tapped, then the recorder taps the pad of each
-// lane whose iron rod lights, 0.24 +- 0.06 s after it lights (in duo, the thumb on that side), rings the gong when it glows
+// lane whose iron rod lights, after a normally distributed delay (default 0.30 +- 0.12 s, the spec's shaky-thumb player;
+// in duo, the thumb on that side), rings the gong when it glows
 // and goes for the red ball. --seconds stops early (the "first 30 seconds" clip); otherwise it records to the result card.
 // The page's clock is taken over before it loads: every video frame advances the game by exactly 1/60 s, and the game's
 // AudioContext is swapped for an offline one whose currentTime follows that clock, so every sound lands on its frame.
@@ -13,7 +14,7 @@ const fs=require('fs'),path=require('path'),os=require('os');
 
 const args=process.argv.slice(2),flag=(name,def)=>{const i=args.indexOf('--'+name);return i>=0?args[i+1]:def;};
 const out=args.find(a=>a.endsWith('.mp4'));if(!out){console.error('usage: record.cjs <output.mp4> [--mode solo|duo] [--seed N] [--seconds S]');process.exit(2);}
-const mode=flag('mode','solo'),seed=+flag('seed',11),limit=+flag('seconds',0),[W,H]=flag('size','540x960').split('x').map(Number),DPR=+flag('dpr',2);
+const mode=flag('mode','solo'),seed=+flag('seed',11),react=+flag('react',0.30),sd=+flag('sd',0.12),limit=+flag('seconds',0),[W,H]=flag('size','540x960').split('x').map(Number),DPR=+flag('dpr',2);
 const base=flag('base','http://127.0.0.1:8951/index.html'),FPS=60,FRAME=1000/FPS;
 const work=fs.mkdtempSync(path.join(os.tmpdir(),'yingge-pit-rec-')),videoOnly=path.join(work,'video.mp4'),wav=path.join(work,'audio.wav');
 
@@ -86,7 +87,7 @@ function takeOverClock(){
     // react to each lit lane once, with the thumb on that lane's side
     s.litIds.forEach((id,lane)=>{if(id==null||seen.has(id+':'+lane))return;seen.add(id+':'+lane);
       const pads=p.pads.filter(r=>r.lane===lane),pad=mode==='duo'&&lane===1?pads[Math.floor(rnd()*pads.length)]:pads[0];
-      at(Math.max(0.1,0.24+0.06*gauss()),()=>touch(pad.x+pad.w*(0.3+0.4*rnd()),pad.y+pad.h*(0.3+0.4*rnd())));});
+      at(Math.max(0.06,react+sd*gauss()),()=>touch(pad.x+pad.w*(0.3+0.4*rnd()),pad.y+pad.h*(0.3+0.4*rnd())));});
     if(s.phase==='wave'&&s.meter>=8&&!gongPlanned){gongPlanned=true;at(0.5+0.2*rnd(),()=>{gongPlanned=false;return touch(p.gong.x,p.gong.y);});}
     if(s.ball&&ballFor!==s.wave&&rnd()<0.05){ballFor=s.wave;at(0.05,async()=>{const q=await page.evaluate(()=>window.__yingge.probe());if(q.state&&q.state.ball)await touch(q.state.ball.x,q.state.ball.y);});}
     for(let i=0;i<pending.length;i++)if(pending[i].t<=now){const f=pending.splice(i--,1)[0];await f.fn();}
