@@ -36,3 +36,8 @@ The parry mechanics follow ideas from [Long Wind](https://github.com/jbang2004/l
 ## Verification
 
 See [VERIFICATION.md](VERIFICATION.md) (in Chinese). Feel, sound and fun still need a human playtest.
+
+## Who it's for, AI assets
+
+- Who it's for: Action-game players who enjoy parry timing, and anyone curious how shadow puppetry becomes a game.
+- AI assets: No AI-generated images, models or sounds; puppet patterns and gong sounds are drawn and synthesized in code; code written through human–AI collaboration.

@@ -103,3 +103,8 @@ Draw calls include the shadow pass.
 **One thing from a real device**: Alice opened the page on her phone and said it looks right at first, then becomes very large once everything has loaded. A headless browser at seven phone and foldable sizes did not show it. What does reproduce reliably is a related fault, the page not adapting when the screen size changes after loading; that is fixed and is acceptance item 12. After the fix was deployed she opened the page again on her phone and confirmed it looks right. Her exact symptom was never reproduced here, so all that can be said is that it no longer appears after the fix.
 
 **Not verified**: touch feel on a real phone, above all dragging a card up from the bottom strip (the phone run only taps a card); pinch zoom; auto-orbit and replay were checked to move and to finish, not watched frame by frame; the night scene has one ceiling lamp per room, so the large living room stays dim.
+
+## Who it's for, AI assets
+
+- Who it's for: People who want to place the furniture themselves and then walk inside.
+- AI assets: Furniture legends and models are ported from floorplan-3d (MIT), the floor plan is the same as the page next door; no AI-generated images or models; code written through human–AI collaboration.

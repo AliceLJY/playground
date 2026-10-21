@@ -41,3 +41,8 @@ node tools/build.mjs          # 产物在 dist/，用任意静态服务打开 di
 录屏：`node tools/record.cjs <页面地址> <输出目录> 1920 1080 200 3` 接管页面时钟逐帧截图（30 帧不丢帧），录完把记下的发声离线渲染成音轨合成 MP4；只想调声音用 `tools/rerender-audio.cjs`，不用重录画面。
 
 规格见 [SPEC.md](SPEC.md)，验收记录见 [VERIFICATION.md](VERIFICATION.md)，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 谁会点开、AI 素材
+
+- 谁会点开：想看「一张图怎么变成能打的 3D 角色」的人，和喜欢西关骑楼、醒狮、粤剧题材的广州街坊。
+- AI 素材清单：四个角色的卡通全身图由 AI 画图工具生成，再经 PINOC 生成带骨骼的高斯泼溅角色；走、跑、踢、滚等动作来自 PINOC 免费动作库，三连拳由一句文字描述生成；街景、擂台和声音全是代码；代码由人与 AI 协作完成。

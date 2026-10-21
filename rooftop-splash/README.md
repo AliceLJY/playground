@@ -50,3 +50,8 @@ The small arena uses a one-metre navigation grid and box collision bounds. It ha
 ## Inspiration
 
 The interaction reference is [Transport Ship](https://claude-opus-5-5-cf-transport-ship.pages.dev/) by [riba2534](https://github.com/riba2534/claude-opus-5-5-demo). This project independently implements a water-fight theme; no source code, game assets, logos or original military setting were copied from that reference.
+
+## Who it's for, AI assets
+
+- Who it's for: Anyone who wants a three-minute first-person water fight in the browser.
+- AI assets: No AI-generated images, models or sounds; scene and characters are procedural; code written through human–AI collaboration.

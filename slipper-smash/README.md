@@ -35,3 +35,8 @@ Open `http://127.0.0.1:8931/`. Tests: `node --test tests/*.test.cjs`. There is n
 ## Verification
 
 See [VERIFICATION.md](VERIFICATION.md). Feel, sound and whether it is fun still need a person to play it.
+
+## Who it's for, AI assets
+
+- Who it's for: Anyone who wants a one-minute swipe game on the phone; Guangzhou folks will recognise the slipper and the cockroaches.
+- AI assets: The cockroach, alley and character images in `assets/` were generated with an AI image tool (the character is fictional); flip-flop, milk tea, effects and sound are code; code written through human–AI collaboration.

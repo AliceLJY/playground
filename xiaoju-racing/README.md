@@ -50,3 +50,8 @@ Seventeen core tests cover complete races, losing against bots, countdown, pause
 ## Credits
 
 Scene geometry, characters and game code are original. Three.js retains its MIT license; see [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Who it's for, AI assets
+
+- Who it's for: Cat people, drift-racing fans, and anyone curious to see Guangzhou streets as a track.
+- AI assets: No AI-generated images or models; the cat's fur and the track are procedural; code written through human–AI collaboration.

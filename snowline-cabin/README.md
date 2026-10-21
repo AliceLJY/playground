@@ -65,3 +65,8 @@ Panels are drawn without the frosted-glass blur while recording: headless screen
 ## Licence
 
 The page source belongs to the author. The bundled Three.js keeps its own MIT licence; the full text is in a comment at the top of the published file.
+
+## Who it's for, AI assets
+
+- Who it's for: Anyone who wants to sit on a snowy summit for a while and light a few lamps.
+- AI assets: No images or models at all, everything is generated in code; the approach was distilled from a prompt; code written through human–AI collaboration.

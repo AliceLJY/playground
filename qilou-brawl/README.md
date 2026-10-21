@@ -41,3 +41,8 @@ Query options: `?auto` lets the autopilot play (`&fast=4` to speed up), `?view=h
 Recording: `node tools/record.cjs <page-url> <out-dir> 1920 1080 200 3` takes over the page clock and screenshots one frame per 1/30 s (no dropped frames), then renders the logged sounds offline into a soundtrack and muxes an MP4. To change only the sound, `tools/rerender-audio.cjs` reuses the frames.
 
 Spec in [SPEC.md](SPEC.md), verification record in [VERIFICATION.md](VERIFICATION.md), third-party licences in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Who it's for, AI assets
+
+- Who it's for: People curious how one picture becomes a playable 3D fighter, and Guangzhou locals who like Xiguan arcades, lion dance and Cantonese opera.
+- AI assets: The four characters' cartoon full-body images were generated with an AI image tool, then turned into rigged Gaussian-splat characters by PINOC; walk, run, kick and roll clips come from PINOC's free motion library and the three-punch combo was generated from a text description; street, ring and sound are code; code written through human–AI collaboration.
