@@ -23,3 +23,8 @@ During production on 2026-09-30, checked in Chrome on a Mac mini: all six camera
 Before publishing here on 2026-10-02, rechecked in Playwright-driven Chromium on a Mac mini (Apple M4, WebGL on the real GPU), once from the source file and once from the site assembled by the workflow: 1440×900 and 390×844, device pixel ratio 1, no console errors or warnings, about 30 fps, and no requests beyond the page itself; at phone width the page does not scroll sideways and all 10 buttons stay on screen.
 
 After going live on 2026-10-02, Alice tried it on her own phone: orbiting and zooming were smooth. Not verified: a sustained 60 fps.
+
+## Who it's for, AI assets
+
+- Who it's for: People who like mechanical concept sheets and exploded-view animations.
+- AI assets: No AI-generated images or models; all geometry is procedural, built independently from AYi's prompt; code written through human–AI collaboration.

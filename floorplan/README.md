@@ -28,3 +28,8 @@ Starting from a floor plan found online: read the walls, openings and rooms, com
 Checked before publishing on 2026-10-02 in Playwright-driven Chromium on a Mac mini (Apple M4, WebGL on the real GPU), once from the source files and once from the site assembled by the workflow, at 1440×900 and 390×844, device pixel ratio 1: each of the four tabs opened and all four images loaded, with no errors other than the browser's own favicon 404. Pixels were read from the 3D canvas: at phone width, before the change, the leftmost and rightmost columns had 22 and 43 pixels on the walls (the house ran out of frame); after it, both are 0, with 35–43 pixels of margin on each side. At desktop width the house sits exactly where it did before, so the camera there is unchanged.
 
 After going live on 2026-10-02, Alice tried it on her own phone: orbiting and zooming were smooth.
+
+## Who it's for, AI assets
+
+- Who it's for: Anyone curious how a floor plan becomes 3D and how hours of sunlight are computed.
+- AI assets: The floor plan is from Wikimedia Commons (public domain); furniture and skylight in the renders are Poly Haven CC0 models and HDRIs, path-traced; no AI-generated images; code written through human–AI collaboration.

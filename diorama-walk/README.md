@@ -41,3 +41,8 @@ Browser acceptance runs through `tools/browser-check.cjs` (Playwright, needs a r
 ## License
 
 The game's own source belongs to the author. The bundle inlines Three.js (MIT); its license text is in the comment at the top of `dist/index.html`.
+
+## Who it's for, AI assets
+
+- Who it's for: People who like rainy-night miniatures and are willing to wear headphones for a few scares; there is a calm mode for everyone else.
+- AI assets: No AI-generated images, models or sounds; everything is grey-box geometry and procedural synthesis; code written through human–AI collaboration.

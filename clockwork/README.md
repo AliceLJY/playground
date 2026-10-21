@@ -24,3 +24,8 @@ A single diagram of a mechanical clock (`source.jpg`) was handed to Gemini 4 Arg
 ## Verification
 
 Checked on 2026-10-15 on a Mac mini (Apple M4, Chrome WebGL on Metal) with Playwright against a local server: 1440×900 and 390×844 viewports at pixel ratio 1, about 60 fps, no requests outside this page's own files, no horizontal overflow at phone width, all three controls on screen. The only console message is a favicon 404. Not yet tried on a real phone.
+
+## Who it's for, AI assets
+
+- Who it's for: People who want to see what an AI writes in one pass from a single diagram.
+- AI assets: The entire page was generated once by Gemini 4 Argon and kept as is; the input is the clock diagram `source.jpg` described above.

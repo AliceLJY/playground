@@ -40,3 +40,8 @@ Version 0.1 is an artistic neighbourhood inspired by Guangzhou. Streets, distanc
 ## Credits
 
 The game uses original procedural scene geometry. Three.js is distributed under its MIT license; see [third-party notices](THIRD_PARTY_NOTICES.md).
+
+## Who it's for, AI assets
+
+- Who it's for: People who want to cycle slowly through a cartoon Guangzhou and take a postcard on the way.
+- AI assets: No AI-generated images or models; the scene is original procedural geometry; code written through human–AI collaboration.
