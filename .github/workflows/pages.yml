@@ -62,6 +62,14 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Herb Match
+        working-directory: herb-match
+        run: |
+          node --check src/core.js
+          node --check src/herbs.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check and bundle Late-Night Grocery
         working-directory: diorama-walk
         run: |
@@ -125,6 +133,13 @@ jobs:
           mkdir -p _site/slipper-smash
           cp slipper-smash/index.html _site/slipper-smash/index.html
           cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
+
+      - name: Assemble Herb Match
+        run: |
+          # 药性配对：二维画布认药性小游戏，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/herb-match
+          cp herb-match/index.html _site/herb-match/index.html
+          cp -R herb-match/src _site/herb-match/
 
       - name: Assemble Late-Night Grocery
         run: |
