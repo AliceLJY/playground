@@ -62,6 +62,7 @@ NODE_PATH="$(npm root -g)" node tools/record.cjs out.mp4 --mode solo --seed 21  
 ## 线上
 
 - 第一版（`2e935d4`）：CI [run 39594024356](https://github.com/AliceLJY/playground/actions/runs/39594024356) 成功，本玩意 11 条测试在 CI 上全过；线上 10 个文件与本地 sha256 一致；对线上链接跑浏览器检查，344 项全过；首页小游戏那排有「打回乐池」卡片。
+- 第二版（`babfb40`，敲锣清横幅）：CI [run 39595567975](https://github.com/AliceLJY/playground/actions/runs/39595567975) 成功，11 条测试全过；线上 10 个文件与本地 sha256 一致（`src/game.js` 为 `a4197c6c…`）；对线上链接跑浏览器检查，346 项全过。
 
 ## 没覆盖的
 
