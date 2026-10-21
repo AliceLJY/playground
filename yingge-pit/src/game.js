@@ -102,6 +102,7 @@ function play(name,a,b){if(!ac||muted||!S[name])return;try{S[name](ac.currentTim
 
 // ---------- game state ----------
 const titleGame=Core.create({seed:1});
+let drumOn=true;   // 甲子's drum point under the waves; recordings that get their own score switch it off
 let mode='solo',game=null,pilot=null,screen='title',frozen=false,clock=0,resultT=0,best=0;
 try{best=+localStorage.getItem('yingge-best')||0;mode=localStorage.getItem('yingge-mode')==='duo'?'duo':'solo';}catch(e){}
 if(params.get('mode')==='duo')mode='duo';else if(params.get('mode')==='solo')mode='solo';
@@ -206,7 +207,7 @@ function updateVis(dt){
   if(s.phase==='wave'||s.phase==='intro'){
     if(v.barStart==null){v.barStart=clock+0.1;v.beatIdx=0;}
     const at=()=>{const n=JIAZI.length;return v.barStart+(Math.floor(v.beatIdx/n)*4+JIAZI[v.beatIdx%n][0])*SPB;};
-    while(clock>=at()){const vel=JIAZI[v.beatIdx%JIAZI.length][1];play('drum',vel*0.8);v.lastBeat=clock;v.beat=vel;v.beatIdx++;}
+    while(clock>=at()){const vel=JIAZI[v.beatIdx%JIAZI.length][1];if(drumOn)play('drum',vel*0.8);v.lastBeat=clock;v.beat=vel;v.beatIdx++;}
   }else v.barStart=null;
   if(s.phase==='won'){const T=s.phaseT;for(let i=0;i<3;i++)for(let k2=0;k2<13;k2+=3){const at=1.8+i*0.25+k2*0.15;if(T>=at&&T-dt<at)play('brush');}if(T>=4.4&&T-dt<4.4)play('bigYingge');}
 }
@@ -639,6 +640,7 @@ const hook=window.__yingge={ready:false,metrics,log,
   sound(){audio();return hook;},advance(seconds){advance(seconds);return hook;},freeze(on){frozen=on!==false;return hook;},
   runUntil(name){const v=VIEWS[name];return runUntil(v.until,200);},
   render(){draw();return hook;},
+  ambient(on){drumOn=on!==false;return hook;},
   toCss(x,y){return toCss(x,y);},
   tap(lane,player){return game?game.tap(lane,player||0):null;},gong(player){return game?game.gong(player||0):null;},
   probe(){
