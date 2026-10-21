@@ -8,6 +8,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
+| [打回乐池](yingge-pit/) · [玩](https://aliceljy.github.io/playground/yingge-pit/) | 英歌小戏台上，白衣木偶从乐池往上爬，铁枝一亮就点那一道，英歌纸偶出槌把它打回去；三波、大锣「大英歌」，两个人可以同一台手机一起打 | 二维画布，短片素材拼的戏台与纸偶，代码画的木偶，合成锣鼓，触屏与键盘，竖屏横屏都行 |
 | [药性配对](herb-match/) · [玩](https://aliceljy.github.io/playground/herb-match/) | 药材从药柜上落下，赶在落地前分进寒、凉、温、热四个药篓；分错了药签翻面讲为什么。只为认识四气，不是医疗建议 | 二维画布，代码画的扁平药材，合成音效，触屏与鼠标，竖屏横屏都行 |
 | [骑楼擂台](qilou-brawl/) · [玩](https://aliceljy.github.io/playground/qilou-brawl/) | 黄昏的西关骑楼街，粤剧武生从街口一路打上醒狮擂台：早茶阿婆、包租公、醒狮头，拳脚连段、翻滚格挡、锣鼓二阶段 | PINOC 一张图生成的高斯泼溅角色 + PlayCanvas，程序化街景与合成锣鼓，键鼠与触屏 |
 | [深夜杂货店](diorama-walk/) · [玩](https://aliceljy.github.io/playground/diorama-walk/) | 雨夜街角的一块微缩模型，放大就走进那家还亮着灯的老杂货店值夜班；有惊吓，照着《夜班须知》撑到出店 | Three.js 方块灰盒，程序合成的方位音效，键鼠与触屏，单文件离线可玩 |

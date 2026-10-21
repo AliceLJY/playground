@@ -70,6 +70,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Back to the Pit
+        working-directory: yingge-pit
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check and bundle Late-Night Grocery
         working-directory: diorama-walk
         run: |
@@ -140,6 +147,13 @@ jobs:
           mkdir -p _site/herb-match
           cp herb-match/index.html _site/herb-match/index.html
           cp -R herb-match/src _site/herb-match/
+
+      - name: Assemble Back to the Pit
+        run: |
+          # 打回乐池：二维画布的英歌小游戏，没有构建步骤，页面、源码和图片原样发布
+          mkdir -p _site/yingge-pit
+          cp yingge-pit/index.html _site/yingge-pit/index.html
+          cp -R yingge-pit/src yingge-pit/assets _site/yingge-pit/
 
       - name: Assemble Late-Night Grocery
         run: |
