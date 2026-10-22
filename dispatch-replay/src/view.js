@@ -64,20 +64,21 @@
 
   function buildLegend() {
     const seen = new Map();
-    model.agents.forEach((a) => seen.set(C.agentBadge(a), C.agentColor(a)));
+    model.agents.forEach((a) => seen.set(C.agentBadge(a), { color: C.agentColor(a), square: a.kind === 'external' }));
     const el = $('legend');
     el.innerHTML = '';
-    const add = (label, color) => {
+    const add = (label, color, square) => {
       const s = document.createElement('span');
       s.className = 'key';
       s.innerHTML = '<i></i>';
       s.querySelector('i').style.background = color;
+      if (square) s.querySelector('i').style.borderRadius = '2px';
       s.append(label);
       el.appendChild(s);
     };
     add('作者', C.COLOR.author);
     add('总调度', C.COLOR.cc);
-    seen.forEach((color, label) => add(label, color));
+    seen.forEach((k, label) => add(label, k.color, k.square));
   }
 
   function buildSwitcher() {
@@ -168,7 +169,7 @@
     dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-    L = C.layout(model, W, H);
+    L = C.layout(model, W, H, { picker: index.length > 1 });
     shortLabels = null;
     const cap = $('caption');
     cap.style.top = (L.stage.y + L.stage.h - L.captionH) + 'px';
@@ -177,6 +178,7 @@
     $('counters').style.bottom = (L.H - L.timeline.y + 16) + 'px';
     document.body.classList.toggle('portrait', L.portrait);
     document.body.classList.toggle('compact', L.compact);
+    document.body.classList.toggle('tall', L.tall);
   }
 
   // ---- drawing ----------------------------------------------------------------------------------
@@ -273,15 +275,16 @@
     const nowR = a.hasBubble ? C.radiusFor(s.tokens || 0, r0, model.maxPeak) : r0 * 0.55;
     if (s.phase === 'dispatching' || s.phase === 'working') {
       if (a.hasBubble) bubble(c.cx, c.cy, nowR, color, 1);
-      else drawBlock(c.cx, c.cy, nowR, color, 0.75 + 0.25 * Math.sin(clock.play(t) * 4));
+      else drawBlock(c.cx, c.cy, nowR, color, 0.8 + 0.2 * Math.sin(clock.play(t) * 4));
     } else if (s.phase === 'collapsing') {
       const r = nowR + (3.5 - nowR) * easeIn(s.p);
-      ctx.strokeStyle = hexA(color, 0.6 * (1 - s.p)); ctx.lineWidth = 2; circle(c.cx, c.cy, nowR + 6 * s.p); ctx.stroke();
-      if (a.hasBubble) bubble(c.cx, c.cy, r, color, 1 + s.p * 0.5);
-      else drawBlock(c.cx, c.cy, r, color, 1);
+      ctx.strokeStyle = hexA(color, 0.6 * (1 - s.p)); ctx.lineWidth = 2;
+      if (a.hasBubble) { circle(c.cx, c.cy, nowR + 6 * s.p); ctx.stroke(); bubble(c.cx, c.cy, r, color, 1 + s.p * 0.5); }
+      else { blockPath(c.cx, c.cy, nowR + 6 * s.p); ctx.stroke(); drawBlock(c.cx, c.cy, r, color, 1); }
     } else {
       ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(color, 0.42); ctx.lineWidth = 1;
-      circle(c.cx, c.cy, peakR); ctx.stroke(); ctx.setLineDash([]);
+      if (a.hasBubble) circle(c.cx, c.cy, peakR); else blockPath(c.cx, c.cy, peakR);
+      ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = hexA(color, 0.9); circle(c.cx, c.cy, 2.5); ctx.fill();
     }
     if (sel) { ctx.strokeStyle = hexA('#E8ECF8', 0.8); ctx.lineWidth = 1; ctx.strokeRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6); }
@@ -292,9 +295,10 @@
       let line;
       if (s.phase === 'done' || s.phase === 'returning' || s.phase === 'collapsing') {
         line = (a.hasBubble ? C.fmtTokensTight(a.peakTokens) : C.fmtClock(a.handbackT - a.dispatchT)) + '→' + C.fmtInt(a.handbackChars) + '字';
+      } else if (a.hasBubble) {
+        line = C.fmtTokensTight(s.tokens || 0) + ' · ' + toolsSoFar(a) + '次';
       } else {
-        const tools = toolsSoFar(a);
-        line = (a.hasBubble ? C.fmtTokensTight(s.tokens || 0) : C.fmtClock(t - a.dispatchT)) + ' · ' + tools + '次';
+        line = '已跑 ' + C.fmtClock(t - a.dispatchT);      // an external AI's inside is not in the transcript
       }
       text(line, c.cx, c.labelY + f * 2 + 3, f - 1 >= C.MIN_FONT ? f - 1 : C.MIN_FONT, hexA(color, s.phase === 'done' ? 0.7 : 0.95));
     }
@@ -320,9 +324,12 @@
     return out;
   }
 
+  // External AIs: a solid square, so it never reads as a context bubble (its context is not in the transcript).
+  function blockPath(x, y, r) { ctx.beginPath(); ctx.roundRect(x - r, y - r, r * 2, r * 2, Math.min(5, r / 4)); }
   function drawBlock(x, y, r, color, a) {
-    ctx.fillStyle = hexA(color, 0.35 * a); ctx.strokeStyle = hexA(color, 0.95 * a); ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.roundRect(x - r, y - r, r * 2, r * 2, Math.min(8, r / 2)); ctx.fill(); ctx.stroke();
+    blockPath(x, y, r);
+    ctx.fillStyle = hexA(color, 0.9 * a); ctx.fill();
+    ctx.strokeStyle = hexA('#FFFFFF', 0.35 * a); ctx.lineWidth = 1; ctx.stroke();
   }
 
   function toolsSoFar(a) {
@@ -409,7 +416,7 @@
     circle(b.x, b.y, b.r); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = hexA('#FF8A4C', 0.08); circle(b.x, b.y, b.r); ctx.fill();
     const f = Math.max(12, L.font);
-    text(model.agents.length + ' 个子 agent 的上下文峰值加起来', b.x, b.y - 4, f, C.COLOR.text, 'center', 600);
+    text(model.nSub + ' 个子 agent 的上下文峰值加起来', b.x, b.y - 4, f, C.COLOR.text, 'center', 600);
     text(C.fmtTokens(model.sumPeak) + ' token', b.x, b.y + f + 4, f + 4, '#FF8A4C', 'center', 700);
     bubble(c.x, c.y, c.r, C.COLOR.cc, 1.2);
     text('总调度自己', c.x, c.y + c.r + f + 4, f, C.COLOR.text, 'center', 600);
@@ -463,9 +470,11 @@
     end.style.opacity = Math.max(0, (ending - 0.6) / 0.4);
     if (!end.hidden && !end.dataset.filled) {
       const span = model.reply && model.task ? model.reply.t - model.task.t : model.duration;
-      $('s-line1').textContent = Math.round(span / 60) + ' 分钟里，' + model.agents.length + ' 个子 agent 调了 '
-        + C.fmtInt(model.toolTimes.length) + ' 次工具，交回的报告一共 ' + C.fmtInt(model.sumReport) + ' 字'
-        + (model.reply ? '；总调度最后写给作者 ' + C.fmtInt(model.reply.chars) + ' 字' : '');
+      const parts = [Math.round(span / 60) + ' 分钟里，' + model.nSub + ' 个子 agent 调了 ' + C.fmtInt(model.subTools)
+        + ' 次工具，交回的报告一共 ' + C.fmtInt(model.subReport) + ' 字'];
+      if (model.nExt) parts.push('外部 AI 被叫了 ' + model.nExt + ' 次');
+      if (model.reply) parts.push('总调度最后写给作者 ' + C.fmtInt(model.reply.chars) + ' 字');
+      $('s-line1').textContent = parts.join('；');
       end.dataset.filled = '1';
     }
     $('play').textContent = playing ? '暂停' : t >= endT ? '再看一遍' : '播放';
@@ -479,11 +488,15 @@
       const done = s.phase === 'done' || s.phase === 'returning' || s.phase === 'collapsing';
       d.innerHTML = '';
       const add = (cls, txt) => { const p = document.createElement('p'); p.className = cls; p.textContent = txt; d.appendChild(p); };
-      add('d-title', a.label + ' · ' + C.agentBadge(a) + (a.effort ? ' · effort ' + a.effort : ''));
-      add('', '派出于 ' + C.fmtClock(a.dispatchT) + (done ? '，跑了 ' + C.fmtClock(a.handbackT - a.dispatchT) : '，已跑 ' + C.fmtClock(t - a.dispatchT)));
+      const ext = a.kind === 'external';
+      add('d-title', a.label + ' · ' + C.agentBadge(a) + (ext ? ' · 外部 AI' : '') + (a.effort ? ' · effort ' + a.effort : ''));
+      add('', '派出于 ' + C.fmtClock(a.dispatchT) + (!done ? '，已跑 ' + C.fmtClock(t - a.dispatchT)
+        : ext ? '，' + C.fmtClock(a.handbackT - a.dispatchT) + ' 后总调度读回结果' : '，跑了 ' + C.fmtClock(a.handbackT - a.dispatchT)));
+      if (ext && done && a.endT != null) add('', '它自己跑了 ' + C.fmtClock(a.endT - a.dispatchT) + '（脚本自报）');
       if (a.hasBubble) add('', (done ? '上下文峰值 ' + C.fmtTokens(a.peakTokens) : '当前上下文 ' + C.fmtTokens(s.tokens || 0)) + ' token');
-      add('', '工具：' + toolLine);
-      add('', done ? '交回报告 ' + C.fmtInt(a.handbackChars) + ' 字' : '还在干活');
+      if (ext) add('', '会话记录里看不到它读了什么、调了什么');
+      else add('', '工具：' + toolLine);
+      add('', done ? (ext ? '总调度读回 ' : '交回报告 ') + C.fmtInt(a.handbackChars) + ' 字' : '还在干活');
       add('d-hint', '点这里关闭');
       d.hidden = false;
     } else d.hidden = true;
@@ -499,6 +512,8 @@
       caption: cap ? cap.text : null,
       layout: { W: L.W, H: L.H, cols: L.cols, rows: L.rows, rUnit: L.rUnit, font: L.font, portrait: L.portrait, compact: L.compact,
         endRulerY: L.endBig.y + L.endBig.r + Math.max(12, L.font) + 6 },
+      cells: L.cells.map((c, i) => ({ x: c.cx, y: c.cy, kind: model.agents[i].kind, color: C.agentColor(model.agents[i]) })),
+      dpr,
       summaryShown: !$('summary').hidden,
     };
   }

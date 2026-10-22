@@ -33,7 +33,7 @@ Small things built for fun. One repo, one subfolder each, one Pages site. The fr
 
 | Piece | What it is | Stack |
 |---|---|---|
-| [Dispatch Replay](dispatch-replay/) · [watch](https://aliceljy.github.io/playground/dispatch-replay/) | A replay of one real Claude Code job: the dispatcher spends 68 minutes splitting a fact-check of 15 posts across 21 subagents; each reads in over a hundred thousand tokens and hands back a report of a few hundred characters | 2D canvas, data extracted from a local session transcript (labels, times, token and character counts only), pause and scrub, phone or desktop |
+| [Dispatch Replay](dispatch-replay/) · [watch](https://aliceljy.github.io/playground/dispatch-replay/) | Replays of real Claude Code jobs, two to switch between: the dispatcher spends 68 minutes splitting a fact-check of 15 posts across 21 subagents, each reading in over a hundred thousand tokens and handing back a few hundred characters; making a short film, it sends out 8 subagents and calls an external AI, Codex, 8 times for pictures, a black box in the transcript | 2D canvas, data extracted from a local session transcript (labels, times, token and character counts only), pause and scrub, phone or desktop |
 
 ## Adding a new toy
 

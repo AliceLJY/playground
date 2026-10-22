@@ -33,7 +33,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
-| [派活回放](dispatch-replay/) · [看](https://aliceljy.github.io/playground/dispatch-replay/) | 回放一次真实的 Claude Code 工作：总调度用 68 分钟把 15 篇文章的事实核查拆给 21 个子 agent，每个读进十几万 token，交回的报告只有几百字 | 二维画布，数据从本机会话记录抽取（只留标签、时间、token 数和字数），可暂停拖动，手机电脑都行 |
+| [派活回放](dispatch-replay/) · [看](https://aliceljy.github.io/playground/dispatch-replay/) | 回放真实的 Claude Code 工作，两份可切换：总调度用 68 分钟把 15 篇文章的事实核查拆给 21 个子 agent，每个读进十几万 token，交回的报告只有几百字；做一支短片时派 8 个子 agent，另叫 8 次外部 AI Codex 画图，Codex 在记录里是个黑箱 | 二维画布，数据从本机会话记录抽取（只留标签、时间、token 数和字数），可暂停拖动，手机电脑都行 |
 
 ## 加一个新玩意
 

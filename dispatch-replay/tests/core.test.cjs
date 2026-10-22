@@ -43,6 +43,13 @@ for (const { slug, src, data } of SETS) {
       assert.ok(Number.isInteger(a.handbackChars) && a.handbackChars > 0, `spec §3: ${a.id} report length must be a positive integer`);
       assert.strictEqual(a.toolCount, a.tools.length, `spec §9.1: ${a.id} toolCount ${a.toolCount} ≠ ${a.tools.length} tool events`);
       for (const [t, g] of a.tools) assert.ok(C.GROUP[g], `spec §3: ${a.id} tool group "${g}" is not one of ${Object.keys(C.GROUP)}`);
+      if (a.kind === 'external') {
+        // an external AI is a black box in the transcript: no context, no tool trace, only times and the read-back length
+        assert.ok(C.VENDOR[a.vendor], `spec §3/§4: external ${a.id} vendor "${a.vendor}" has no colour in VENDOR`);
+        assert.strictEqual(a.ctx.length + a.tools.length, 0, `spec §3: external ${a.id} must not carry context or tool samples`);
+        assert.ok(a.peakTokens == null, `spec §3: external ${a.id} must not claim a token peak`);
+        if (a.endT != null) assert.ok(a.endT >= a.dispatchT && a.endT <= a.handbackT, `spec §3: external ${a.id} finished at ${a.endT}, outside [dispatch ${a.dispatchT}, hand-back ${a.handbackT}]`);
+      }
       if (a.kind === 'subagent') {
         assert.ok(a.ctx.length > 0, `spec §3: subagent ${a.id} needs context samples`);
         assert.strictEqual(a.peakTokens, Math.max(...a.ctx.map((x) => x[1])), `spec §9.1: ${a.id} peakTokens is not the context maximum`);
@@ -52,7 +59,7 @@ for (const { slug, src, data } of SETS) {
   });
 
   test(`${slug}: nothing private leaks into the published data file (spec §9.2)`, () => {
-    for (const [pattern, what] of [[/\/Users\/|\/home\/|[A-Za-z]:\\\\/, 'a file path'], [/https?:\/\//, 'a link'], [/\.md\b/, 'a .md file name'], [/toolu_|session|sessionId/i, 'a tool or session id'], [/@[a-z0-9.-]+\.[a-z]{2,}/i, 'an email address']]) {
+    for (const [pattern, what] of [[/\/Users\/|\/home\/|[A-Za-z]:\\\\/, 'a file path'], [/https?:\/\//, 'a link'], [/\.md\b/, 'a .md file name'], [/toolu_|session|sessionId/i, 'a tool or session id'], [/@[a-z0-9.-]+\.[a-z]{2,}/i, 'an email address'], [/\.(png|jpe?g|webp|txt|log|json|mp4|mov|wav|html?|ts|sh)\b/i, 'a file name']]) {
       assert.ok(!pattern.test(src), `spec §3: data/${slug}.js contains ${what}`);
     }
     for (const a of data.agents) assert.ok(a.label.length <= 20, `spec §9.2: label "${a.label}" is ${a.label.length} characters, limit 20`);
@@ -116,7 +123,7 @@ for (const { slug, src, data } of SETS) {
     const overlap = (a, b) => a.x < b.x + b.w - E && b.x < a.x + a.w - E && a.y < b.y + b.h - E && b.y < a.y + a.h - E;
     const circleBox = (c, r, below) => ({ x: c.x - r, y: c.y - r, w: 2 * r, h: 2 * r + (below || 0) });
     for (const [W, H] of VIEWPORTS) {
-      const L = C.layout(model, W, H), tag = `${W}×${H}`;
+      const L = C.layout(model, W, H, { picker: SETS.length > 1 }), tag = `${W}×${H}`;
       const stageBottom = L.stage.y + L.stage.h - L.captionH;
       assert.ok(L.rUnit >= 14, `spec §9.6: ${tag} largest bubble radius ${L.rUnit.toFixed(1)} px < 14`);
       assert.ok(L.font >= C.MIN_FONT, `spec §9.6: ${tag} label font ${L.font} px < ${C.MIN_FONT}`);
