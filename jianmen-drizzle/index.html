@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#E2DDCF">
+<title>细雨剑门</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--paper:#EDE6D6;--scene:#E2DDCF;--ink:#2B2925;--ochre:#B5774A;--seal:#B23A2E;--kai:"STKaiti","KaiTi","Kaiti SC","Kaiti TC","BiauKai","Noto Serif SC","Songti SC",serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--scene);color:var(--ink);font-family:var(--kai);user-select:none;-webkit-user-select:none;touch-action:none}
+#game,#rain{position:fixed;inset:0;width:100%;height:100%;display:block}
+#rain{pointer-events:none;z-index:2}
+#game{cursor:grab}
+#game.drag{cursor:grabbing}
+.hidden{display:none!important}
+
+/* 开场与结尾：立轴原画 */
+.scroll-screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:clamp(18px,5vw,64px);padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));background:var(--paper);transition:opacity 1.6s ease}
+.scroll-screen.fade{opacity:0;pointer-events:none}
+.scroll-screen img{height:min(86vh,1100px);max-width:46vw;object-fit:contain;box-shadow:0 0 0 10px #d9cfb8,0 0 0 11px #b9ab8c,0 18px 40px rgba(60,50,30,.25);transition:transform 1.6s ease}
+.scroll-screen.fade img{transform:scale(1.35)}
+.scroll-text{max-width:360px}
+.scroll-text h1{font-size:clamp(40px,9vw,64px);letter-spacing:.3em;margin:0 0 .2em;font-weight:500}
+.scroll-text .src{font-size:15px;line-height:1.9;opacity:.8}
+.scroll-text .poem{writing-mode:vertical-rl;height:9.5em;font-size:20px;letter-spacing:.25em;line-height:1.9;margin:18px 0;opacity:.9}
+.scroll-text .how{font-size:14px;opacity:.65;line-height:1.8}
+button.ink{margin-top:18px;background:var(--ink);color:var(--paper);border:0;padding:12px 38px;font-family:var(--kai);font-size:20px;letter-spacing:.4em;cursor:pointer;border-radius:2px}
+button.ink:active{transform:translateY(2px)}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink);margin-left:10px}
+#loadline{font-size:13px;opacity:.6;margin-top:10px;min-height:1.2em}
+@media (max-aspect-ratio:4/5){
+  .scroll-screen{flex-direction:column;gap:14px;justify-content:flex-start;padding-top:max(22px,env(safe-area-inset-top))}
+  .scroll-screen img{height:46vh;max-width:80vw}
+  .scroll-text{text-align:center}
+  .scroll-text .poem{writing-mode:horizontal-tb;height:auto;font-size:16px;letter-spacing:.12em;margin:8px 0}
+}
+
+/* 游戏中：诗笺、墨环、提示 */
+#hud{position:fixed;inset:0;z-index:5;pointer-events:none}
+#jian{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));display:flex;flex-direction:row-reverse;gap:6px;padding:12px 10px;background:rgba(237,230,214,.82);border:1px solid rgba(43,41,37,.35);box-shadow:0 6px 18px rgba(60,50,30,.15)}
+#jian .col{writing-mode:vertical-rl;font-size:clamp(17px,2.4vw,24px);letter-spacing:.18em;width:1.45em;height:8.7em;position:relative;border-left:1px dashed rgba(43,41,37,.18)}
+#jian .col:last-child{border-left:0}
+#jian .ch{opacity:0;transition:opacity .5s ease}
+#jian .ch.on{opacity:1}
+#jian .seal{position:absolute;left:50%;bottom:-6px;transform:translate(-50%,100%);width:12px;height:12px;background:var(--seal);opacity:0;transition:opacity .6s ease .8s}
+#jian .col.done .seal{opacity:.85}
+#ring{position:absolute;left:50%;top:50%;width:64px;height:64px;transform:translate(-50%,-50%);opacity:.75}
+#ring circle{fill:none;stroke-width:3}
+#ring .bg{stroke:rgba(43,41,37,.18)}
+#ring .fg{stroke:var(--ink);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
+#dot{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(43,41,37,.55)}
+#msg{position:absolute;left:50%;bottom:max(28px,env(safe-area-inset-bottom));transform:translateX(-50%);font-size:clamp(18px,3vw,26px);letter-spacing:.25em;text-align:center;opacity:0;transition:opacity 1s ease;text-shadow:0 0 12px rgba(226,221,207,.95),0 0 3px rgba(226,221,207,.95);white-space:nowrap}
+#msg.on{opacity:1}
+#msg small{display:block;font-size:.62em;letter-spacing:.15em;margin-top:.5em;opacity:.8}
+#hint{position:absolute;left:50%;top:calc(50% + 58px);transform:translateX(-50%);font-size:16px;letter-spacing:.2em;color:var(--ochre);opacity:0;transition:opacity .8s ease;text-shadow:0 0 8px rgba(226,221,207,.95)}
+#hint.on{opacity:1}
+#arrow{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0;transition:opacity .8s ease}
+#arrow.on{opacity:.8}
+#arrow i{position:absolute;left:58px;top:-9px;width:0;height:0;border-left:16px solid var(--ochre);border-top:9px solid transparent;border-bottom:9px solid transparent}
+#sound{position:fixed;left:max(14px,env(safe-area-inset-left));top:max(14px,env(safe-area-inset-top));z-index:6;width:38px;height:38px;border-radius:50%;border:1px solid rgba(43,41,37,.5);background:rgba(237,230,214,.75);font-family:var(--kai);font-size:17px;color:var(--ink);cursor:pointer}
+#sound.off{opacity:.45;text-decoration:line-through}
+#how{position:absolute;left:50%;top:max(16px,env(safe-area-inset-top));transform:translateX(-50%);font-size:14px;letter-spacing:.15em;opacity:0;transition:opacity 1.2s ease;text-shadow:0 0 8px rgba(226,221,207,.95)}
+#how.on{opacity:.75}
+@media (max-aspect-ratio:4/5){#jian{padding:8px 6px}#jian .col{font-size:15px}#how{top:auto;bottom:calc(max(28px,env(safe-area-inset-bottom)) + 70px)}}
+
+.outro .note{font-size:15px;line-height:2;opacity:.85;margin-top:10px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<canvas id="rain"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="jian">
+    <div class="col" data-line="0"></div>
+    <div class="col" data-line="1"></div>
+    <div class="col" data-line="2"></div>
+    <div class="col" data-line="3"></div>
+  </div>
+  <svg id="ring" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26"/><circle class="fg" cx="32" cy="32" r="26"/></svg>
+  <div id="dot"></div>
+  <div id="arrow"><i></i></div>
+  <div id="hint"></div>
+  <div id="how">拖动转头，看准了停一会儿</div>
+  <div id="msg"></div>
+</div>
+<button id="sound" class="hidden" aria-label="声音开关">声</button>
+
+<div id="intro" class="scroll-screen">
+  <img src="assets/painting.jpg" alt="高剑父《山水》，1926 年，写陆游剑门诗意">
+  <div class="scroll-text">
+    <h1>细雨剑门</h1>
+    <div class="src">高剑父《山水》，1926<br>题陆游《剑门道中遇微雨》，落款「写剑南诗意」</div>
+    <div class="poem">衣上征尘杂酒痕<br>远游无处不消魂<br>此身合是诗人未<br>细雨骑驴入剑门</div>
+    <div class="how">走进画里，找出这四句写的地方。<br>拖动转头，看准了停一会儿。</div>
+    <button id="enter" class="ink" disabled>入画</button>
+    <div id="loadline">研墨中…</div>
+  </div>
+</div>
+
+<div id="outro" class="scroll-screen outro hidden fade">
+  <img src="assets/painting.jpg" alt="高剑父《山水》，1926 年">
+  <div class="scroll-text">
+    <h1>剑门</h1>
+    <div class="poem">衣上征尘杂酒痕<br>远游无处不消魂<br>此身合是诗人未<br>细雨骑驴入剑门</div>
+    <div class="note">高剑父画的是陆游走进剑门的那一刻。<br>你刚才转过身看到的那一半，他没有画。</div>
+    <button id="stay" class="ink">再看看</button><button id="again" class="ink ghost">重新入画</button>
+  </div>
+</div>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>

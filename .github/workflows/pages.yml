@@ -134,6 +134,19 @@ jobs:
           mkdir -p ../_site/qilou-brawl
           cp -R dist/. ../_site/qilou-brawl/
 
+      - name: Check, bundle and assemble Drizzle at Jianmen
+        working-directory: jianmen-drizzle
+        run: |
+          # 细雨剑门：PINOC/JST-2 从高剑父 1926《山水》生成的泼溅场景 + PlayCanvas，不是单文件（场景是 SOG 二进制）
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          # 同骑楼擂台：跳过 playcanvas 带的原生 canvas 包，esbuild 单独补跑
+          npm ci --ignore-scripts
+          npm rebuild esbuild
+          node tools/build.mjs
+          mkdir -p ../_site/jianmen-drizzle
+          cp -R dist/. ../_site/jianmen-drizzle/
+
       - name: Assemble Shadow Gong
         run: |
           # 灯影守夜：独立弹反玩法，单文件离线发布
