@@ -33,6 +33,7 @@
     agy: { label: 'Gemini', color: '#7AB8FF' },
     grok: { label: 'Grok', color: '#D9D9D9' },
     gpt: { label: 'GPT', color: '#19C37D' },
+    codex: { label: 'Codex', color: '#9BE15D' },
   };
   const COLOR = { author: '#FF8FB1', cc: '#F5B84B', text: '#E8ECF8', dim: '#8A93B2', unknown: '#90A4AE' };
 
@@ -85,6 +86,10 @@
     const mainMax = Math.max(0, ...mainCtx.map((s) => s[1]));
     const sumPeak = peaks.reduce((s, v) => s + v, 0);
     const sumReport = agents.reduce((s, a) => s + (a.handbackChars || 0), 0);
+    const subs = agents.filter((a) => a.kind !== 'external');
+    const nExt = agents.length - subs.length;
+    const subReport = subs.reduce((s, a) => s + (a.handbackChars || 0), 0);
+    const subTools = subs.reduce((s, a) => s + a.tools.length, 0);
     const toolTimes = agents.reduce((acc, a) => acc.concat(a.tools.map((x) => x[0])), mainTools.map((x) => x[0]))
       .sort((p, q) => p - q);
 
@@ -104,6 +109,7 @@
 
     return {
       data, agents, byId, mainCtx, mainTools, maxPeak, mainMax, sumPeak, sumReport, toolTimes,
+      nSub: subs.length, nExt, subReport, subTools,
       maxConcurrent, heroT, duration: data.duration, task: data.task, reply: data.reply,
       captions: (data.captions || []).slice().sort((p, q) => p[0] - q[0]),
     };
@@ -243,6 +249,9 @@
       if (key === 'sumPeak') return fmtTokens(model.sumPeak);
       if (key === 'sumReport') return fmtInt(model.sumReport) + ' 字';
       if (key === 'n') return String(model.agents.length);
+      if (key === 'nSub') return String(model.nSub);
+      if (key === 'nExt') return String(model.nExt);
+      if (key === 'mainPeak') return fmtTokens(model.mainMax);
       return whole;
     });
   }
@@ -281,11 +290,13 @@
     return best;
   }
 
-  function layout(model, W, H) {
+  // opts.picker: the dataset picker is shown. On a narrow portrait screen it pushes the controls onto a second header row.
+  function layout(model, W, H, opts) {
     const portrait = H > W;
     const compact = !portrait && H < 520;
+    const tall = portrait && !!(opts && opts.picker) && W < 560;
     const labelBlock = compact ? LABEL_BLOCK_COMPACT : LABEL_BLOCK;
-    const header = compact ? 44 : portrait ? 56 : 60;
+    const header = compact ? 44 : tall ? 92 : portrait ? 56 : 60;
     const footer = compact ? 74 : portrait ? 108 : 96;
     const captionH = compact ? 40 : portrait ? 60 : 50;
     const stage = { x: 0, y: header, w: W, h: H - header - footer };
@@ -321,7 +332,7 @@
     const endBig = { x: gridArea.x + gridArea.w * 0.36, y: gridArea.y + gridArea.h / 2, r: endUnit * sumRatio };
     const endCc = { x: gridArea.x + gridArea.w * 0.84, y: endBig.y, r: endUnit * ccRatio };
     return {
-      W, H, portrait, compact, labelBlock, header, footer, captionH, stage, gridArea, author, cc, cells, rUnit, font,
+      W, H, portrait, compact, tall, labelBlock, header, footer, captionH, stage, gridArea, author, cc, cells, rUnit, font,
       cols: g.cols, rows: g.rows, ccMaxR: rUnit * ccRatio, endUnit, endBig, endCc,
       timeline: { x0: 16, x1: W - 16, y: H - (compact ? 22 : portrait ? 36 : 30) },
     };

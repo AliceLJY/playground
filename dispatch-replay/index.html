@@ -18,7 +18,7 @@ h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.02em;white-space:nowr
 #legend{display:flex;gap:10px;font-size:12px;color:var(--dim);white-space:nowrap}
 .key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:1px}
 .controls{display:flex;gap:8px;align-items:center;pointer-events:auto}
-button,select{font:inherit;font-size:13px;color:var(--text);background:#131A30;border:1px solid #2A355C;border-radius:8px;padding:6px 10px;cursor:pointer}
+button,select{font:inherit;font-size:13px;color:var(--text);background:#131A30;border:1px solid #2A355C;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap}
 button:hover,select:hover{border-color:var(--cc)}
 #caption{position:fixed;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 24px));display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;line-height:1.45;color:var(--text);opacity:0;pointer-events:none;text-shadow:0 1px 8px #000}
 #counters{position:fixed;left:16px;right:16px;display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--dim);pointer-events:none}
@@ -38,6 +38,9 @@ body.portrait #caption{font-size:14px}
 body.portrait #counters{gap:4px 12px;font-size:11px}
 body.portrait #detail{left:10px;right:10px;top:auto;bottom:118px;max-width:none}
 body.portrait #summary p{font-size:13px}
+body.tall header{height:92px;align-content:center}
+body.tall header .titles{flex:1 1 100%}
+body.tall header .controls{flex:1 1 100%;justify-content:flex-end}
 body.compact header{height:44px}
 body.compact h1{font-size:15px}
 body.compact #subtitle{display:none}
