@@ -38,4 +38,4 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs check-out
 
 ## 线上复验
 
-（发布后补）
+2026-10-23，提交 `ba1876d` 发布后：CI 运行 39836859847 通过，其中「Check Dispatch Replay」「Assemble Dispatch Replay」两步都成功。线上的 `index.html`、`src/core.js`、`src/view.js`、`data/index.js`、`data/factcheck-1022.js` 与本地逐字节相同（SHA-256 比对）。用同一个 `tools/browser-check.cjs` 对线上地址重跑，107 项全过。首页「AI 幕后」一排的卡片已经出现。
