@@ -85,3 +85,9 @@ for f in src/gear-profile.js src/gear-mesh.js src/framing.js; do node --check "$
 node --input-type=module --check < src/main.js
 node --test tests/*.test.cjs
 ```
+
+## 线上复验
+
+2026-10-23 随提交 `99eeb22` 上线：CI 运行 39855733007 通过（本玩意的检查与发布拷贝步骤都成功）；线上发布的文件与本地逐字节相同（SHA-256 比对）。
+
+第一次对线上地址跑 `tools/browser-check.cjs` 时有 1 项没过，是「只请求了本页自己的文件」那一条：检查脚本默认页面放在网站根目录 `/`，线上实际在 `/playground/gear-repair/` 下，路径前缀对不上，自家文件被当成了额外请求。失败清单里列出的确实全是本页自己的文件，页面没有问题。改法是让检查按页面所在目录换算相对路径（`basePath` / `rel`）：自家文件还原成相对路径，同目录下多出来的文件、别的目录的请求照样会被抓到（三种情况都用一行 node 核过）。改完本地与线上各重跑一遍，433 项都全过。

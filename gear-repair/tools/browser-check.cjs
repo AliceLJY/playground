@@ -6,6 +6,10 @@
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const out = process.argv[2] || 'check-out', base = process.argv[3] || 'http://127.0.0.1:8972/index.html', origin = new URL(base).origin;
+
+// The page may live below the site root (online it is /playground/<name>/); compare request paths relative to that folder.
+const basePath = new URL(base).pathname.replace(/[^/]*$/, '');
+const rel = (p) => (p.startsWith(basePath) ? '/' + p.slice(basePath.length) : p);
 fs.mkdirSync(out, { recursive: true });
 
 const SIZES = {
@@ -86,7 +90,7 @@ const barGaps = (page) => page.evaluate(() => {
     page.on('requestfailed', (r) => errors.push('requestfailed: ' + r.url().slice(0, 120)));
     page.on('request', (r) => {
       const u = r.url();
-      if (u.startsWith(origin)) seen.add(new URL(u).pathname);
+      if (u.startsWith(origin)) seen.add(rel(new URL(u).pathname));
       else if (!u.startsWith('data:') && !u.startsWith('blob:')) external.push(u.split('?')[0]);
     });
     await page.goto(base + query);
