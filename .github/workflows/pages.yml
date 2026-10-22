@@ -78,6 +78,28 @@ jobs:
           for f in data/*.js; do node --check "$f"; done
           node --test tests/*.test.cjs
 
+      - name: Check Agent Engine
+        working-directory: agent-engine
+        run: |
+          node --check src/core.js
+          node --check src/view.js
+          node --test tests/*.test.cjs
+
+      - name: Check Handwritten Board
+        working-directory: handwritten-board
+        run: |
+          node --check src/pages.js
+          node --check src/core.js
+          node --check src/board.js
+          node --test tests/*.test.cjs
+
+      - name: Check Gear Repair
+        working-directory: gear-repair
+        run: |
+          for f in src/gear-profile.js src/gear-mesh.js src/framing.js; do node --check "$f"; done
+          node --input-type=module --check < src/main.js
+          node --test tests/*.test.cjs
+
       - name: Check Back to the Pit
         working-directory: yingge-pit
         run: |
@@ -182,6 +204,21 @@ jobs:
           mkdir -p _site/dispatch-replay
           cp dispatch-replay/index.html _site/dispatch-replay/index.html
           cp -R dispatch-replay/src dispatch-replay/data _site/dispatch-replay/
+
+      - name: Assemble Agent Engine, Handwritten Board and Gear Repair
+        run: |
+          # agent 引擎是什么：六镜头讲解页，循环是真跑的教学小实现，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/agent-engine
+          cp agent-engine/index.html _site/agent-engine/index.html
+          cp -R agent-engine/src _site/agent-engine/
+          # 手写板书：DOM 文字加 SVG 的板书播放器，字体子集与 GSAP 在 vendor/，原样发布
+          mkdir -p _site/handwritten-board
+          cp handwritten-board/index.html handwritten-board/THIRD_PARTY_NOTICES.md _site/handwritten-board/
+          cp -R handwritten-board/src handwritten-board/vendor _site/handwritten-board/
+          # 齿轮返修：dsh 原版与它自己返修后的齿轮对照，Three.js 在 vendor/，原样发布
+          mkdir -p _site/gear-repair
+          cp gear-repair/index.html gear-repair/THIRD_PARTY_NOTICES.md _site/gear-repair/
+          cp -R gear-repair/src gear-repair/vendor _site/gear-repair/
 
       - name: Assemble Late-Night Grocery
         run: |
