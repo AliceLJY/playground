@@ -1,0 +1,17 @@
+{
+  "name": "jianmen-drizzle",
+  "private": true,
+  "description": "细雨剑门：走进高剑父 1926《山水》（写剑南诗意），PINOC/JST-2 泼溅场景 + PlayCanvas. Build: npm ci && node tools/build.mjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playcanvas": "2.18.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "canvas": false
+  }
+}
