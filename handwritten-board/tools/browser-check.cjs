@@ -7,6 +7,10 @@ const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const C = require('../src/core.js'), PAGES = require('../src/pages.js');
 const out = process.argv[2] || 'check-out', base = process.argv[3] || 'http://127.0.0.1:8973/index.html', origin = new URL(base).origin;
+
+// The page may live below the site root (online it is /playground/<name>/); compare request paths relative to that folder.
+const basePath = new URL(base).pathname.replace(/[^/]*$/, '');
+const rel = (p) => (p.startsWith(basePath) ? '/' + p.slice(basePath.length) : p);
 fs.mkdirSync(out, { recursive: true });
 
 const SIZES = {
@@ -44,7 +48,7 @@ const QUICK = !!process.env.HB_QUICK;   // HB_QUICK=1: only the fixed views, on 
     page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
     page.on('requestfailed', (r) => errors.push('request failed: ' + r.url()));
     page.on('response', (r) => { if (r.status() >= 400) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
-    page.on('request', (r) => { const u = r.url(); if (u.startsWith('data:')) return; requests.push(u.replace(origin, '')); if (!u.startsWith(origin)) external.push(u); });
+    page.on('request', (r) => { const u = r.url(); if (u.startsWith('data:')) return; if (u.startsWith(origin)) { const x = new URL(u); requests.push(rel(x.pathname) + x.search); } else requests.push(u); if (!u.startsWith(origin)) external.push(u); });
     await page.goto(base + query);
     await page.waitForFunction(() => window.__handBoard && window.__handBoard.ready, null, { polling: 100, timeout: 20000 });
     return { ctx, page, errors, external, requests };
