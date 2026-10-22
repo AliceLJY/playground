@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1c1a17">
+<meta name="description" content="两页手写板书，一笔一笔写出来，讲的是它自己怎么做出来的：手写字体逐字揭示，一只手跟着笔尖走，红笔圈重点。点画面暂停，可倍速、重放、翻页或长卷、换字体。">
+<link rel="icon" href="data:,">
+<title>手写板书</title>
+<style>
+  :root {
+    color-scheme: light;
+    --hand-font: "Long Cang", "Hannotate SC", "Xingkai SC", "HanziPen SC", "Ma Shan Zheng", "STKaiti", "Kaiti SC", serif;
+    --ink: #262421; --marker: #d9482b; --paper: #faf7ef;
+    --ui-font: -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  }
+  @font-face {
+    font-family: "Long Cang";
+    src: url("vendor/LongCang-Regular.subset.woff2") format("woff2");
+    font-display: block;
+  }
+  html, body { margin: 0; padding: 0; background: #1c1a17; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  .wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; min-height: 100vh; min-height: 100dvh;
+    gap: 10px; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); }
+  .head { font: 14px/1.5 var(--ui-font); color: #b9ae9b; text-align: center; text-wrap: balance; }
+  .head b { color: #eadfc9; font-weight: 600; }
+  /* the frame's size is set by src/board.js (it picks the board shape that suits the screen); this is only the fallback */
+  .frame { width: min(96vw, 1180px); aspect-ratio: 16/9; position: relative; box-shadow: 0 12px 60px rgba(0,0,0,.55); border-radius: 6px; overflow: hidden; background: var(--paper); cursor: pointer; flex: none;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  .stage { position: absolute; left: 0; top: 0; width: var(--sw); height: var(--sh); transform-origin: 0 0; background: var(--paper);
+    background-image: radial-gradient(rgba(60,50,30,.07) 1px, transparent 1.2px); background-size: 26px 26px; }
+  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(80,60,30,.10) 100%); }
+  .board { position: absolute; left: 0; top: 0; width: var(--sw); will-change: transform; }
+  .page { position: absolute; left: 0; top: 0; width: var(--sw); box-sizing: border-box; padding: var(--pad-t) var(--pad-r) 0 var(--pad-l); }
+  .page.flow { position: relative; padding-top: var(--flow-pad-t); padding-bottom: 20px; }
+  .line { position: relative; font-family: var(--hand-font); color: var(--ink); font-size: var(--fs); line-height: var(--lh); margin: 0 0 var(--gap) 0; white-space: nowrap; letter-spacing: .5px; }
+  .line.title { font-size: var(--fs-title); margin-bottom: var(--title-gap); letter-spacing: 1px; }
+  .ch { display: inline-block; clip-path: inset(0 100% 0 0); }
+  .ch.sp { width: .35em; }
+  /* Latin letters and digits: the Chinese handwriting font's Latin glyphs are small and uneven, so try a Latin hand first */
+  .ch.lat { font-family: "Caveat", "Bradley Hand", "Chalkboard SE", "Noteworthy", var(--hand-font); font-size: .92em; }
+  .doodles { position: absolute; left: 0; top: 0; width: var(--sw); overflow: visible; pointer-events: none; }
+  .doodles path { fill: none; stroke: var(--marker); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: .92; }
+  .hand { position: absolute; left: 0; top: 0; width: 240px; height: 270px; pointer-events: none; z-index: 30;
+    filter: drop-shadow(-5px 9px 10px rgba(50,40,20,.28)); transform-origin: 20px 240px; }
+  .pagenum { position: absolute; right: 30px; bottom: 18px; font: 500 20px/1 var(--ui-font); color: rgba(60,50,40,.45); letter-spacing: 1px; }
+  .bar { width: 100%; max-width: 1180px; display: flex; align-items: center; justify-content: center; gap: 8px 10px; flex-wrap: wrap; font: 13px/1.6 var(--ui-font); color: #b9ae9b; }
+  .bar button, .bar select { font: inherit; color: #e8dfcc; background: #37312a; border: 1px solid #4d453a; padding: 0 14px; min-height: 36px; border-radius: 999px; cursor: pointer; }
+  .bar button:hover { background: #454031; }
+  .bar button:focus-visible, .bar select:focus-visible, .bar input:focus-visible, .frame:focus-visible { outline: 2px solid #e08a3c; outline-offset: 2px; }
+  .bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 36px; padding: 0 4px; }
+  .bar input[type=checkbox] { width: 18px; height: 18px; margin: 0; }
+  .prog { flex: 1 1 90px; height: 6px; background: #37312a; border-radius: 999px; overflow: hidden; min-width: 80px; }
+  .prog i { display: block; height: 100%; width: 0; background: #e08a3c; }
+  .hint { opacity: .7; min-width: 7.5em; text-align: right; font-variant-numeric: tabular-nums; }
+  @media (pointer: coarse), (max-width: 900px) {
+    .bar button, .bar select, .bar label { min-height: 44px; }
+    .bar select { font-size: 16px; }
+    .bar input[type=checkbox] { width: 22px; height: 22px; }
+  }
+  @media (max-height: 520px) { .head { display: none; } .wrap { padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); gap: 8px; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="head" id="head"><b>手写板书</b> · 点击画面暂停/继续 · 纯前端,不生图</div>
+  <noscript><div class="head">手写板书需要打开 JavaScript 才能写出来。</div></noscript>
+  <div class="frame" id="frame" role="button" tabindex="0" aria-label="手写板书：点击暂停或继续">
+    <div class="stage" id="stage">
+      <div class="board" id="board">
+        <svg class="doodles" id="doodles" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="hand" id="hand" aria-hidden="true">
+          <!-- 卡通手持笔,viewBox 内笔尖固定在 (20,240);group 定位时以这一点为锚 -->
+          <svg viewBox="0 0 240 270" width="240" height="270" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+            <!-- 几何:笔尖 T=(20,240),笔杆沿 u=(.707,-.707) 指向右上,手从右下伸入;整组以笔尖为锚缩放 -->
+            <g transform="translate(20 240) scale(.82) translate(-20 -240)" stroke="#4a3527" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+              <!-- 袖口/手腕(最底层) -->
+              <path d="M128 190 L166 176 L246 254 L228 292 Z" fill="#e9e2d3"/>
+              <!-- 无名指/小指(收在掌下) -->
+              <circle cx="126" cy="214" r="15" fill="#f1c4a0"/>
+              <circle cx="143" cy="223" r="14" fill="#f1c4a0"/>
+              <!-- 掌 -->
+              <ellipse cx="119" cy="172" rx="52" ry="46" transform="rotate(-35 119 172)" fill="#f4cfae"/>
+              <!-- 笔杆(在掌前、指后) -->
+              <path d="M24.3 224.3 L177.3 71.3 L188.7 82.7 L35.7 235.7 Z" fill="#3b6ea5"/>
+              <path d="M177.3 71.3 L188.7 82.7 L198 73 L187 62 Z" fill="#c9d3dd"/>
+              <path d="M40 220 L52 208 L63 219 L51 231 Z" fill="#8fb1d3" stroke="none"/>
+              <path d="M20 240 L24.3 224.3 L35.7 235.7 Z" fill="#2a2320"/>
+              <!-- 中指(托在笔杆下,弯) -->
+              <line x1="112" y1="200" x2="72" y2="214" stroke-width="32"/>
+              <line x1="112" y1="200" x2="72" y2="214" stroke="#f1c4a0" stroke-width="26"/>
+              <!-- 食指(压在笔杆上,沿杆伸向笔尖) -->
+              <line x1="93" y1="155" x2="48" y2="195" stroke-width="32"/>
+              <line x1="93" y1="155" x2="48" y2="195" stroke="#f6d5b6" stroke-width="26"/>
+              <!-- 拇指(笔杆另一侧) -->
+              <line x1="115" y1="187" x2="74" y2="206" stroke-width="34"/>
+              <line x1="115" y1="187" x2="74" y2="206" stroke="#f6d5b6" stroke-width="28"/>
+              <!-- 指甲点缀 -->
+              <ellipse cx="52" cy="192" rx="7" ry="5" transform="rotate(-42 52 192)" fill="#fbe8da" stroke="none"/>
+              <ellipse cx="78" cy="205" rx="7" ry="5" transform="rotate(-25 78 205)" fill="#fbe8da" stroke="none"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="pagenum" id="pagenum"></div>
+    </div>
+  </div>
+  <div class="bar" id="bar">
+    <button id="playpause" type="button">⏸ 暂停</button>
+    <button id="replay" type="button">↺ 重放</button>
+    <select id="speed" aria-label="播放速度"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+    <label><input type="checkbox" id="pagemode" checked> 翻页模式</label>
+    <select id="font" aria-label="字体">
+      <option value='"Long Cang"'>龙藏行书</option>
+      <option value='"Hannotate SC"'>手札体</option>
+      <option value='"Xingkai SC"'>行楷</option>
+      <option value='"HanziPen SC"'>翩翩体</option>
+      <option value='"STKaiti", "Kaiti SC"'>楷体</option>
+    </select>
+    <div class="prog" aria-hidden="true"><i id="progbar"></i></div>
+    <span class="hint" id="clock">0.0s</span>
+  </div>
+</div>
+
+<script src="vendor/gsap.min.js"></script>
+<script src="src/pages.js"></script>
+<script src="src/core.js"></script>
+<script src="src/board.js"></script>
+</body>
+</html>

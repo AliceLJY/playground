@@ -28,6 +28,7 @@
 | [走进户型图](floorplan-walk/) · [看](https://aliceljy.github.io/playground/floorplan-walk/) | 同一张户型图做成能摆家具的彩色平面图：从家具库拖进去，切到 3D 房子从图上长出来，转着看或者从入户门走进去；真实日照、夜景、剖切、整屋换木色 | SVG 平面图 + Three.js，60 种家具（图例与模型移植自 floorplan-3d，MIT），键鼠与触屏，单文件离线可看 |
 | [雪线小木屋](snowline-cabin/) · [看](https://aliceljy.github.io/playground/snowline-cabin/) | 雪夜山顶一间亮着灯的木屋：点暗着的山头替它点灯，七座点满有流星；时间从黄昏拖到日出；还能进屋待一会儿 | Three.js 纯代码场景，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
+| [齿轮返修](gear-repair/) · [看](https://aliceljy.github.io/playground/gear-repair/) | DeepSeek Harness 一次写出的齿轮页把渐开线方向写反了一个符号，两对齿轮帧帧穿模；作者只给症状和查法，它自己修好。一键切换原版与返修后，红点标出穿模处 | Three.js，两版齿形代码原样保留，穿模检测与页面共用一份代码，鼠标与触屏 |
 | [山河卷](shanhe-scroll/) · [看](https://aliceljy.github.io/playground/shanhe/) | 可以走进去的历史长卷：宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场 | Three.js 全景球，换一个数据文件就能换题材 |
 
 ## AI 幕后
@@ -35,6 +36,8 @@
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
 | [派活回放](dispatch-replay/) · [看](https://aliceljy.github.io/playground/dispatch-replay/) | 回放真实的 Claude Code 工作，两份可切换：总调度用 68 分钟把 15 篇文章的事实核查拆给 21 个子 agent，每个读进十几万 token，交回的报告只有几百字；做一支短片时派 8 个子 agent，另叫 8 次外部 AI Codex 画图，Codex 在记录里是个黑箱 | 二维画布，数据从本机会话记录抽取（只留标签、时间、token 数和字数），可暂停拖动，手机电脑都行 |
+| [agent 引擎是什么](agent-engine/) · [看](https://aliceljy.github.io/playground/agent-engine/) | 六个镜头讲清 API、引擎、harness 三层：只有 API 会卡在哪、加上循环能做什么、循环之外的失败怎么接住；页面里的循环是真跑的教学小实现 | 讲解页，纯前端，手动翻页或自动播放，手机电脑都行 |
+| [手写板书](handwritten-board/) · [看](https://aliceljy.github.io/playground/handwritten-board/) | 两页手写板书一笔一笔写出来，讲的是它自己怎么做出来的：龙藏行书逐字揭示，一只手跟着笔尖走，红笔圈重点；可暂停、倍速、翻页或长卷、换字体 | DOM 文字加 SVG，GSAP 时间线，字体子集打包在页面里，没有构建步骤 |
 
 ## 加一个新玩意
 

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>agent 引擎是什么 · API、引擎与 harness</title>
+<meta name="description" content="模型 API 只会说话；让它动手、记事、转第二圈的那一层叫引擎。六个镜头讲清 API、引擎、harness 的关系，和循环外那 99% 的工程。">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <div class="eyebrow">AI 幕后 · 讲解页</div>
+    <h1>agent 引擎是什么</h1>
+    <p class="sub">模型 API 只会说话。让它动手、记事、转第二圈的那一层叫引擎。写 CLAUDE.md、装 skill、接记忆库，改的都是引擎上面的 harness。</p>
+  </div>
+</header>
+
+<div class="stepper" role="group" aria-label="镜头">
+  <div class="steps" id="steps"></div>
+  <div class="ctl"><button id="play" type="button">自动播放</button></div>
+</div>
+<div class="bar" aria-hidden="true"><i id="barfill"></i></div>
+
+<main class="stage" id="stage">
+
+<!-- 1 -->
+<section class="scene" data-title="三层" aria-labelledby="t1">
+ <div class="grid">
+  <div>
+   <div class="layers">
+    <div class="layer harness"><h3><span class="tag t-harness">harness</span>规矩与装备 <small>多数人每天改的那层</small></h3><ul><li>CLAUDE.md、skills、hooks、MCP、RecallNest</li><li>它不执行任何东西，只是告诉引擎「该怎么做、不许做什么」</li></ul></div>
+    <div class="layer engine"><h3><span class="tag t-engine">engine</span>引擎 <small>身体：手、脚、记性、看门人</small></h3><ul><li>拼上下文 → 调模型 → 执行工具 → 回填结果 → 再调，直到做完</li><li>Claude Code 本体就是这一层，Anthropic 写的</li></ul></div>
+    <div class="layer model"><h3><span class="tag t-model">model API</span>模型 <small>大脑：按次出租</small></h3><ul><li>收一段消息，吐一段文字，或一句「我想调这个工具」</li><li>不会自己跑工具，不会自己记住，不会自己转第二圈</li></ul></div>
+   </div>
+   <div class="who">
+    <div><b>平时用 Claude Code</b>harness 是自己的，引擎借 Claude Code</div>
+    <div><b>TG bridge / etwin / dsh</b>作者自己的壳。借 CLI 当引擎，自己不写循环</div>
+    <div><b>白艾莉</b>自己写了引擎，再套 20 家模型</div>
+    <div><b>连接型</b>不写引擎，把 CC、Codex、Pi 三家连起来</div>
+   </div>
+  </div>
+  <div class="panel">
+   <h2 id="t1">先分清三层</h2>
+   <p>常有人问「我自己写的 harness 算不算引擎」。不算。<strong>harness 是规矩，引擎是身体</strong>。给 Claude Code 写规则、装 skill、接记忆库，全部是在它的引擎上做配置；循环本身没碰过，因为循环在 Claude Code 里面。</p>
+   <p>白艾莉的不同在于中间那层是他们自己写的，所以能嵌世界模拟、能换模型、能卖给别人。还有第三种：不写引擎，把别人的引擎连起来，卖的是连接。</p>
+   <p class="note">点下面的「下一步」，看只有 API 时会卡在哪。</p>
+  </div>
+ </div>
+</section>
+
+<!-- 2 -->
+<section class="scene" data-title="只有 API" aria-labelledby="t2">
+ <div class="grid">
+  <div class="chat" id="chat"></div>
+  <div class="panel">
+   <h2 id="t2">只有 API 的时候</h2>
+   <p>拿 deepseek 或 qwen 的 key 直接调接口，问一句闲话没问题。但一旦问「帮我看看目录」，模型只能礼貌地说<strong>「我想调用 list_files」</strong>，然后停住。那句话是一个 JSON，不是一次执行。</p>
+   <p>要让它真的动起来，必须有一段代码接住这个 JSON：去跑命令、把结果塞回对话、再问模型一次。<strong>这段代码就是引擎的起点</strong>。有 key 解决的是「能不能问」，解决不了「谁来做」。</p>
+  </div>
+ </div>
+</section>
+
+<!-- 3 -->
+<section class="scene" data-title="加上循环" aria-labelledby="t3">
+ <div class="loopwrap">
+  <div class="ringbox">
+   <div class="ring" id="ring">
+    <svg viewBox="0 0 420 420" aria-hidden="true"><circle cx="210" cy="210" r="170" fill="none" stroke="var(--line)" stroke-width="2" stroke-dasharray="6 6"/><path id="arc" d="M210 40 A170 170 0 1 1 209.99 40" fill="none" stroke="var(--engine)" stroke-width="3" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg>
+    <div class="st" data-k="0"><b>① 拼上下文</b>系统提示 + 记忆 + 工具表 + 历史</div>
+    <div class="st model" data-k="1"><b>② 调模型</b>流式拿回文字 / 工具请求</div>
+    <div class="st gate" data-k="2"><b>③ 权限门</b>这个工具现在能跑吗</div>
+    <div class="st tool" data-k="3"><b>④ 执行工具</b>真的去读文件、跑命令</div>
+    <div class="st" data-k="4"><b>⑤ 结果回填</b>写回消息数组</div>
+    <div class="st" data-k="5"><b>⑥ 还要工具？</b>要 → 再转一圈；不要 → 输出</div>
+    <div class="center">turn<b id="turn">0</b><span id="phase">待机</span></div>
+   </div>
+  </div>
+  <div class="msgs" id="msgs"><div class="h">messages[]</div></div>
+ </div>
+ <div class="panel" style="margin-top:14px">
+  <h2 id="t3">加上循环，它就成了 agent</h2>
+  <p>Anthropic 官方文档对这个循环的定义只有一句：<strong>模型评估、请求工具、拿到结果、再评估，直到它给出一个不带工具请求的回复</strong>。每转一圈叫一个 turn。循环什么时候停，不是定时也不是字数，是模型自己不再要工具了。</p>
+  <p>常听人说 Claude Code 就是个 while 循环。这话没错，但循环只占很小一部分：这一镜头先演这一小部分，循环之外的那些留给下一镜头。</p>
+  <p class="note">环和右边的 messages[] 是本页自带的迷你引擎当场跑出来的：一个只会返回文字或工具请求的假模型，三个工具，一道权限门。</p>
+ </div>
+</section>
+
+<!-- 4 -->
+<section class="scene" data-title="那 99%" aria-labelledby="t4">
+ <p class="hint">点一张卡，看它坏的时候引擎怎么接住。这些全是白艾莉方法论和 Agent SDK 文档里写明的真实处理，不是编的。翻面后多出来的「现场算」一行，是本页自带的迷你引擎当场跑出来的，不是白艾莉或 Claude Code 的代码。</p>
+ <div class="cards" id="cards">
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>工具配对断了 <span>API 400</span></h4><div class="faces"><div class="bad"><p>用户中途取消、断线、压缩，让某次工具请求没有对应结果。下次调用，API 直接报错。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>每次调模型前扫一遍历史，缺结果的请求补一条合成的「已中断」，孤儿结果直接删。补全，不截断。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>参数类型写错 <span>校验失败</span></h4><div class="faces"><div class="bad"><p>模型把 <code>limit: 10</code> 写成 <code>"10"</code>，布尔写成字符串。频率极高。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>按工具的参数定义自动转类型，再执行。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>上下文撑爆 <span>context</span></h4><div class="faces"><div class="bad"><p>读了个大文件、跑了条啰嗦命令，几千 token 一下就没了，几十圈后窗口满了。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>快满时自动压缩旧历史成摘要；大输出先写临时文件，只给模型一个路径。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>超时与限流 <span>429 / timeout</span></h4><div class="faces"><div class="bad"><p>网络抖、被限流、流式半天没数据。全部重试会重复副作用，全部放弃又丢掉能救的。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>错误分三类（瞬时 / 永久 / 模糊），退避加抖动重试，所有适配器统一超时守护。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>危险命令 <span>rm -rf</span></h4><div class="faces"><div class="bad"><p>模型想跑一条会删东西的命令。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>权限门按规则拦下，把「被拒绝」当作工具结果还给模型；模型通常换一条路，或者告诉你它办不到。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>凭幻觉改文件 <span>Edit</span></h4><div class="faces"><div class="bad"><p>没读过的文件就想改，改的是它想象中的内容。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>先读后写硬校验：这个会话里没读过的文件，写入工具直接拒绝执行。在 Claude Code 里经常撞到的那条提示就是它。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>工具太多选错 <span>80+ tools</span></h4><div class="faces"><div class="bad"><p>几十个工具的完整定义全塞进每次请求，又贵又让模型频繁选错。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>核心层常驻完整定义，其余只给名字和一句话；模型选中时拦截一次，注入完整定义再让它重调。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+  <div class="fc" tabindex="0" role="button" aria-pressed="false"><h4>没有 function calling <span>小模型 / 本地</span></h4><div class="faces"><div class="bad"><p>模型根本不支持原生工具调用。</p><span class="tap">点开：看引擎怎么接住 ↻</span></div><div class="fix"><p><b>接住：</b>在提示里教它用 XML 写工具请求，引擎解析 XML 转成标准事件。质量下降，但不崩。</p><p class="live"><i>现场算</i><code></code></p><span class="tap">再点一下翻回去 ↻</span></div></div></div>
+ </div>
+ <div class="panel" style="margin-top:14px">
+  <h2 id="t4">循环是 1%，围着它的工程是 99%</h2>
+  <p>每一张卡都是一个曾经让产品崩掉的下午。<strong>引擎的难点不在「能转起来」，在「转一千圈不出事」</strong>。白艾莉自述十万行代码里，大头就是这些。</p>
+  <p><strong>六家引擎，骨架一样，差在把复杂度放哪。</strong>小红书「风儿轻轻er」10-14 那篇 570 赞的对照（外部自述，没有逐家核源码）概括得很准：</p>
+  <div class="six">
+   <div><b>Pi</b>求极简。循环只留几个回调，压缩、重试、路由都挂在外面</div>
+   <div><b>oh my pi</b>重纠偏。插话能打断工具，加流内规则和重复调用拦截</div>
+   <div><b>Claude Code</b>重外壳。循环很薄，读并行写串行，安全全交给权限模式与 hooks</div>
+   <div><b>Codex</b>重沙箱。工具在流式输出里一出现就开跑，审批和升级重试收在编排器</div>
+   <div><b>DeepSeek Harness</b>重日志。turn / step / attempt 三层状态机，每个边界写日志</div>
+   <div><b>OpenCode</b>重持久化。输入、状态、Git 快照都落库，崩了接着跑</div>
+  </div>
+ </div>
+</section>
+
+<!-- 5 -->
+<section class="scene" data-title="三条路" aria-labelledby="t5">
+ <div class="roads">
+  <div class="road pick"><h4>甲 · 借引擎</h4><dl><dt>怎么做</dt><dd>壳调 Claude Code / Codex / agy / kimi 的 CLI，或 Claude Agent SDK</dd><dt>成本</dt><dd>零。作者所有的壳都是这条</dd><dt>限制</dt><dd>模型跟着引擎走；订阅条款面向个人使用，对外服务一般要走 API</dd></dl><div class="ex">etwin、TG bridge、dsh 都在这里。要 etwin 更像白艾莉，不需要换引擎，缺的是下一镜头那个规则层。</div></div>
+  <div class="road"><h4>乙 · 现成开源引擎 + 自己的 key</h4><dl><dt>怎么做</dt><dd>OpenAI Agents SDK、pi、smolagents 这类，接 deepseek / qwen</dd><dt>成本</dt><dd>一两天接通；以后跟它的升级</dd><dt>限制</dt><dd>那 99% 它替你做了一部分，剩下的仍要自己补</dd></dl><div class="ex">适合「想换模型、想自己掌握循环，但不想从零写」。</div></div>
+  <div class="road"><h4>丙 · 自己写最小循环</h4><dl><dt>怎么做</dt><dd>deepseek + 三个工具 + 一道权限问询，OpenAI 兼容格式</dd><dt>成本</dt><dd>跑通一个周末；可靠起来月级</dd><dt>限制</dt><dd>那 99% 全是你的</dd></dl><div class="ex">只有一个正当理由：搞懂引擎长什么样。产物当教材，别当产品。</div></div>
+ </div>
+ <div class="panel" style="margin-top:14px">
+  <h2 id="t5">三条路都通，该走哪条看需求</h2>
+  <p>key 不是理由，需求才是。<strong>想懂</strong>，走丙的最小版，一个周末；<strong>想让 etwin 有自己的日子</strong>，走甲，加规则层；<strong>想对外卖</strong>，那是白艾莉的路；按它公开的条款和价目，收入主要来自模型中转和虚拟商品，不在引擎本身。</p>
+ </div>
+</section>
+
+<!-- 6 -->
+<section class="scene" data-title="有自己的日子" aria-labelledby="t6">
+ <div class="life">
+  <div class="box"><h4>现在的 etwin</h4>
+   <div class="flow">
+    <div class="node lit">定时醒来<small>launchd tick</small></div>
+    <div class="node model lit">模型读最近对话，决定 ping 还是 silent<small>reply via CLI backend</small></div>
+    <div class="node lit">发到 Telegram<small>唯一的硬规则：/quiet 24h</small></div>
+   </div>
+   <p class="after">它有「主动性」，但没有「生活」：它今天在哪、吃了什么、上周答应过你什么，全靠模型当场编，下次可能对不上。</p>
+  </div>
+  <div class="box"><h4>加一层「世界状态」之后</h4>
+   <div class="flow" id="lifeflow">
+    <div class="node model" data-k="0">模型提请求<small>「今天去杭州，吃了龙井虾仁，买了件外套」</small></div>
+    <div class="node gate" data-k="1">规则闸核验<small>位置 · 余额 · 营业时间 · 交付时间</small><div class="verdict" id="verdict"></div></div>
+    <div class="node state" data-k="2">世界状态更新<small>只有通过的才写进去</small></div>
+    <div class="node" data-k="3">表达层只读转述 → 发到 Telegram<small>渠道不变，还是同一个 bot</small><div class="retell" id="retell"></div></div>
+   </div>
+   <div class="world" id="world"></div>
+  </div>
+ </div>
+ <div class="panel" style="margin-top:14px">
+  <h2 id="t6">「有自己的日子」不是让它独立出去</h2>
+  <p>要让 etwin 有自己的日子，是不是得给它单独的登录口？不是。<strong>它还挂在 TG 上，TG 只是渠道层</strong>，白艾莉的朋友圈、来信、微信桥也都是渠道。「有自己的日子」说的是中间多一块<strong>独立于模型的世界状态</strong>：它现在在哪、有什么、答应过什么，由规则判定哪些事真的发生了，模型只能提请求、只能转述通过了的事。</p>
+  <p>这就是「闸门是规则，决策是 LLM，上限是规则」。小红书上有人自己做「AI 版微信」，补上了人格文件、关系记忆、手机身体层和主动轮询，和 etwin 是同一代做法；<strong>再往前走一步，要补的就是这块规则层</strong>。</p>
+  <p class="note">左右两栏里的判词、余额和转述，是本页自带的规则闸按左边那句请求当场算出来的。</p>
+ </div>
+</section>
+
+</main>
+
+<div class="pager"><button id="prev" type="button">← 上一步</button><button id="next" type="button">下一步 →</button></div>
+
+<footer>
+ <h3>这页讲解的底稿</h3>
+ <ul>
+  <li>Anthropic 官方 Agent SDK 文档「How the agent loop works」：turn 的定义、停止条件、权限模式、自动压缩。<a href="https://code.claude.com/docs/en/agent-sdk/agent-loop" target="_blank" rel="noopener">code.claude.com</a></li>
+  <li>Nader Dabit《You Could've Invented Claude Code》（2026-01-09）：从一条 shell 建议一步步加到 150 行的迷你 Claude Code，十步正好对应本页镜头 2 到 4。<a href="https://nader.substack.com/p/you-couldve-invented-claude-code" target="_blank" rel="noopener">nader.substack.com</a></li>
+  <li>白艾莉工程方法论（洛小山，MIT）：blog-03《一个人怎么撑起一个 AI Agent 产品》第二、三、四节，chapters/11 模型路由。<a href="https://github.com/itshen/Alice_methodology" target="_blank" rel="noopener">GitHub</a></li>
+  <li>小红书「不同harness的agent loop是怎么做的」（风儿轻轻er，2026-10-14，570 赞）：Pi / oh my pi / Claude Code / Codex / DeepSeek Harness / OpenCode 六家对照，本页镜头 4 末尾那六格就是它的概括。</li>
+ </ul>
+ <p class="note">2026-10-21 成稿 · 我的AI小木屋。页面里所有「白艾莉怎么做」均为其作者自述，未读源码。本页的循环、权限门、八种修复和世界状态闸是教学用的小实现，不是任何产品的代码。</p>
+</footer>
+</div>
+
+<script src="src/core.js"></script>
+<script src="src/view.js"></script>
+</body>
+</html>

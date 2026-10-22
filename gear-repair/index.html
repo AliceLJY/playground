@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>齿轮返修</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="DeepSeek Harness 一次写出的 Three.js 齿轮页，渐开线方向写反了一个符号，两个轮子咬合时帧帧穿模；它自己返修后零穿模。一键切换对比。">
+<style>
+:root{--bg:#0e1116;--panel:rgba(20,24,32,.88);--line:rgba(255,255,255,.10);--text:#e8edf4;--dim:#9aa4b0;--gold:#ffd166;--bad:#ff3b5c;--good:#3ddc97;--font:-apple-system,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;display:block;touch-action:none}
+button{font:inherit;color:var(--text);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:9px;padding:0 12px;min-height:38px;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+button:hover{border-color:var(--gold)}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button[aria-pressed=true]{background:rgba(255,209,102,.16);border-color:var(--gold);color:#fff}
+.seg{display:flex;gap:6px}
+.seg button{flex:1}
+
+#top{position:fixed;left:0;right:0;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));background:linear-gradient(var(--panel),rgba(20,24,32,.55));border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#top .titles{min-width:0}
+#top h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
+#sub{margin:1px 0 0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#chip{flex:1;min-width:0;display:flex;justify-content:center}
+#chip span{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid var(--line);background:rgba(255,255,255,.05);white-space:nowrap}
+#chip i{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+body[data-version=original] #chip span{border-color:rgba(255,59,92,.55);color:#ffd3da}
+body[data-version=original] #chip i{background:var(--bad)}
+body[data-version=repaired] #chip span{border-color:rgba(61,220,151,.55);color:#cff7e6}
+body[data-version=repaired] #chip i{background:var(--good)}
+#ver{flex:none;min-width:164px}
+body[data-version=original] #ver button[aria-pressed=true]{background:rgba(255,59,92,.18);border-color:var(--bad)}
+body[data-version=repaired] #ver button[aria-pressed=true]{background:rgba(61,220,151,.16);border-color:var(--good)}
+
+#bottom{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 14px;padding:8px 12px;padding-bottom:max(8px,env(safe-area-inset-bottom));background:linear-gradient(rgba(20,24,32,.55),var(--panel));border-top:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#readout{font-size:13px;color:var(--dim);white-space:nowrap;font-variant-numeric:tabular-nums}
+#readout b{font-weight:700;color:var(--text);margin:0 2px}
+body[data-version=original] #readout b.hot{color:#ff8da1}
+body[data-version=repaired] #readout b.hot{color:var(--good)}
+#readout i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px;vertical-align:-1px}
+.ctrls{display:flex;gap:6px}
+
+#info{position:fixed;z-index:8;left:50%;top:var(--info-top,70px);transform:translateX(-50%);width:min(560px,calc(100% - 24px));max-height:calc(100% - var(--info-top,70px) - var(--info-bottom,70px));overflow:auto;padding:16px 18px 14px;background:rgba(14,17,23,.97);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.6);font-size:14px;line-height:1.7}
+#info[hidden]{display:none}
+#info h2{margin:0 0 6px;font-size:16px}
+#info p{margin:0 0 8px}
+#info b{color:var(--gold)}
+#info .close{position:sticky;bottom:0;display:block;margin:10px 0 0 auto;background:#1b212b;box-shadow:0 0 0 6px rgba(14,17,23,.97)}
+
+body.compact #sub{display:none}
+body.compact #top h1{font-size:16px}
+body.compact #readout{font-size:12px}
+body.narrow #top{flex-wrap:wrap;gap:4px 10px;padding-top:max(6px,env(safe-area-inset-top))}
+body.narrow #top .titles{flex:1}
+body.narrow #chip{order:3;flex:1 0 100%}
+body.narrow #chip span{font-size:12px;padding:3px 10px}
+body.narrow #ver{min-width:150px}
+body.narrow #ver button,body.narrow #views button,body.narrow .ctrls button{min-height:40px}
+body.narrow #readout{flex:1 0 100%;text-align:center}
+body.narrow #views{flex:1 0 100%}
+body.narrow .ctrls{flex:1 0 100%}
+body.narrow .ctrls button{flex:1;padding:0 6px}
+body.short #top{padding-top:4px;padding-bottom:4px}
+body.short #bottom{padding-top:4px;padding-bottom:4px}
+body.short button{min-height:34px}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js",
+    "three/addons/environments/RoomEnvironment.js": "./vendor/RoomEnvironment.js"
+  }
+}
+</script>
+</head>
+<body data-version="original">
+<header id="top">
+  <div class="titles">
+    <h1>齿轮返修</h1>
+    <p id="sub">dsh 一次写出的齿轮页，和它自己返修后的版本</p>
+  </div>
+  <div id="chip" aria-live="polite"><span><i></i><em id="chip-text">检测中…</em></span></div>
+  <div class="seg" id="ver" role="group" aria-label="版本">
+    <button type="button" data-version="original" aria-pressed="true">原版</button>
+    <button type="button" data-version="repaired" aria-pressed="false">返修后</button>
+  </div>
+</header>
+
+<footer id="bottom">
+  <div id="readout"></div>
+  <div class="seg" id="views" role="group" aria-label="机位">
+    <button type="button" data-view="hero" aria-pressed="true">全景</button>
+    <button type="button" data-view="mesh" aria-pressed="false">A–B 特写</button>
+    <button type="button" data-view="mesh-cd" aria-pressed="false">C–D 特写</button>
+  </div>
+  <div class="ctrls">
+    <button type="button" id="b-play" aria-pressed="false">暂停</button>
+    <button type="button" id="b-slow" aria-pressed="false">慢放</button>
+    <button type="button" id="b-hl" aria-pressed="true">标红</button>
+    <button type="button" id="b-info" aria-pressed="false">说明</button>
+  </div>
+</footer>
+
+<section id="info" hidden role="dialog" aria-label="说明">
+  <h2>这页在讲什么</h2>
+  <p>DeepSeek Harness（简称 dsh）是作者在自己的 Mac mini 上跑的一个 agent 外壳。它一次写出了这页 Three.js 齿轮：A（12 齿）带动 B（30 齿），B 和 C（12 齿）同轴，C 再带动 D（30 齿），总减速比 <b>6.25 : 1</b>。传动比和初始相位都是对的。</p>
+  <p>毛病在齿形公式里：<b>渐开线的方向写反了一个符号</b>，齿越往外越宽，齿顶比齿根还宽。两个轮子咬合时，一个齿周期里每一帧都有齿互相穿过去。它页面上自己写的却是「正常啮合」。</p>
+  <p>作者没有替它改。任务书里只写了症状（齿越往外越宽）、两种查法（二维齿廓相交、啮合处特写截图）和「问题出在齿形生成那部分」，具体错在哪、怎么改，让它自己找。它改了三处齿形，另外修了轴的朝向和手机竖屏。</p>
+  <p><b>怎么看：</b>点右上角「原版 / 返修后」切换。红点是穿模的地方：一条齿廓的顶点落进了另一个轮子里，或者两条齿廓线交叉。「标红」可以关掉红点，直接看两个轮子叠在一起；「慢放」放到 0.2 倍；「A–B 特写」「C–D 特写」把镜头推到啮合处。顶上那一行是一个齿周期取 60 帧的检测结果，和测试用的是同一份代码。</p>
+  <p><b>两版的区别：</b>齿形函数各自保留 dsh 的原文；轴的朝向也跟着版本走。竖屏构图、说明面板、本地 three.js 是展示页统一加的，两版一样。</p>
+  <button type="button" class="close" id="info-close">关闭</button>
+</section>
+
+<script src="src/gear-profile.js"></script>
+<script src="src/gear-mesh.js"></script>
+<script src="src/framing.js"></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
