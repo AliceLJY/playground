@@ -1,6 +1,6 @@
 # playground
 
-做着玩的小东西，一个仓一个子目录，共用一个 Pages 站点。首页分两排：上手玩的小游戏，和转着看的 3D 展页。
+做着玩的小东西，一个仓一个子目录，共用一个 Pages 站点。首页分三排：上手玩的小游戏、转着看的 3D 展页，和放着看的 AI 幕后。
 
 **在线：https://aliceljy.github.io/playground/**
 
@@ -29,13 +29,19 @@
 | [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
 | [山河卷](shanhe-scroll/) · [看](https://aliceljy.github.io/playground/shanhe/) | 可以走进去的历史长卷：宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场 | Three.js 全景球，换一个数据文件就能换题材 |
 
+## AI 幕后
+
+| 玩意 | 是什么 | 技术 |
+|---|---|---|
+| [派活回放](dispatch-replay/) · [看](https://aliceljy.github.io/playground/dispatch-replay/) | 回放一次真实的 Claude Code 工作：总调度用 68 分钟把 15 篇文章的事实核查拆给 21 个子 agent，每个读进十几万 token，交回的报告只有几百字 | 二维画布，数据从本机会话记录抽取（只留标签、时间、token 数和字数），可暂停拖动，手机电脑都行 |
+
 ## 加一个新玩意
 
 开工前先读 [制作与验收约定](AGENTS.md)，在玩意自己的目录写一页规格。
 
 1. 在仓库根目录建它自己的文件夹。
 2. 在 `.github/workflows/pages.yml` 里加一段，把它的静态产物拷进 `_site/<名字>/`。
-3. 在根目录 `index.html` 对应的那一排（小游戏或 3D 展页）里加一张卡片。
+3. 在根目录 `index.html` 对应的那一排（小游戏、3D 展页或 AI 幕后）里加一张卡片。
 
 纯静态的只要一条 cp。需要构建的把构建命令写进同一个 workflow —— 参考 `aju-guangzhou-ride` 用 `build.py` 把源码内联成单文件的做法。
 

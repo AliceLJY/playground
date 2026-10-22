@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>派活回放</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="回放一次真实的 Claude Code 工作：总调度把活拆给一群子 agent，每个读了十几万 token，交回来只有几百字。">
+<style>
+:root{--text:#E8ECF8;--dim:#8A93B2;--cc:#F5B84B;--line:#1F2947;--font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#05070F;color:var(--text);font-family:var(--font);overflow:hidden;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;display:block;touch-action:none}
+header{position:fixed;left:0;right:0;top:0;height:60px;display:flex;align-items:center;gap:16px;padding:0 16px;pointer-events:none}
+header .titles{flex:1;min-width:0}
+h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#subtitle{margin:2px 0 0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#legend{display:flex;gap:10px;font-size:12px;color:var(--dim);white-space:nowrap}
+.key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:1px}
+.controls{display:flex;gap:8px;align-items:center;pointer-events:auto}
+button,select{font:inherit;font-size:13px;color:var(--text);background:#131A30;border:1px solid #2A355C;border-radius:8px;padding:6px 10px;cursor:pointer}
+button:hover,select:hover{border-color:var(--cc)}
+#caption{position:fixed;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 24px));display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;line-height:1.45;color:var(--text);opacity:0;pointer-events:none;text-shadow:0 1px 8px #000}
+#counters{position:fixed;left:16px;right:16px;display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--dim);pointer-events:none}
+#counters b{color:var(--text);font-weight:600;margin-left:4px;font-variant-numeric:tabular-nums}
+#clock{font-variant-numeric:tabular-nums;font-size:12px;color:var(--dim);min-width:130px;text-align:right}
+#detail{position:fixed;right:16px;top:72px;max-width:300px;background:rgba(14,19,38,.94);border:1px solid #2A355C;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;cursor:pointer}
+#detail p{margin:0 0 2px}
+#detail .d-title{font-weight:700;margin-bottom:4px}
+#detail .d-hint{color:var(--dim);font-size:11px;margin-top:4px}
+#summary{position:fixed;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 24px));text-align:center;pointer-events:none;text-shadow:0 1px 8px #000;padding-bottom:4px}
+#summary p{margin:2px 0;font-size:15px;line-height:1.45}
+#summary .note{font-size:11px;color:var(--dim)}
+body.portrait header{height:56px;flex-wrap:wrap;gap:4px 10px;padding:6px 10px;align-content:center}
+body.portrait h1{font-size:16px}
+body.portrait #legend,body.compact #legend{display:none}
+body.portrait #caption{font-size:14px}
+body.portrait #counters{gap:4px 12px;font-size:11px}
+body.portrait #detail{left:10px;right:10px;top:auto;bottom:118px;max-width:none}
+body.portrait #summary p{font-size:13px}
+body.compact header{height:44px}
+body.compact h1{font-size:15px}
+body.compact #subtitle{display:none}
+body.compact #caption{font-size:13px}
+body.compact #counters{font-size:11px;gap:10px}
+body.compact #summary p{font-size:12px;margin:1px 0}
+@media (max-width:560px){#clock{display:none}.controls button,.controls select{padding:5px 8px;font-size:12px}}
+noscript{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="派活过程动画"></canvas>
+<header>
+  <div class="titles"><h1 id="title">派活回放</h1><p id="subtitle"></p></div>
+  <div id="legend"></div>
+  <div class="controls">
+    <span id="clock"></span>
+    <select id="dataset" hidden aria-label="选数据"></select>
+    <select id="speed" aria-label="播放时长"><option value="90" selected>1.5 分钟看完</option><option value="180">3 分钟看完</option></select>
+    <button id="play" aria-pressed="false">播放</button>
+    <button id="restart" aria-label="从头播放">重来</button>
+  </div>
+</header>
+<div id="caption" role="status" aria-live="polite"></div>
+<div id="counters">
+  <span>在跑<b id="c-running">0</b></span>
+  <span>已派出<b id="c-sent">0</b></span>
+  <span>已交回<b id="c-back">0</b></span>
+  <span>正在读的上下文<b id="c-live">0</b> token</span>
+  <span>已交回报告<b id="c-report">0</b> 字</span>
+  <span>工具调用<b id="c-tools">0</b> 次</span>
+</div>
+<div id="detail" hidden></div>
+<div id="summary" hidden>
+  <p id="s-line1"></p>
+  <p class="note">数字取自 Claude Code 本地会话记录。token 是各子 agent 自己上下文的峰值，报告按字数计，两者单位不同。</p>
+</div>
+<noscript>这个回放需要打开 JavaScript 才能看。</noscript>
+<script src="src/core.js"></script>
+<script src="data/index.js"></script>
+<script src="src/view.js"></script>
+</body>
+</html>

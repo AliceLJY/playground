@@ -70,6 +70,14 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Dispatch Replay
+        working-directory: dispatch-replay
+        run: |
+          node --check src/core.js
+          node --check src/view.js
+          for f in data/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Back to the Pit
         working-directory: yingge-pit
         run: |
@@ -154,6 +162,13 @@ jobs:
           mkdir -p _site/yingge-pit
           cp yingge-pit/index.html _site/yingge-pit/index.html
           cp -R yingge-pit/src yingge-pit/assets _site/yingge-pit/
+
+      - name: Assemble Dispatch Replay
+        run: |
+          # 派活回放：一次真实 Claude Code 会话的回放动画，二维画布，没有构建步骤，页面、源码和数据原样发布
+          mkdir -p _site/dispatch-replay
+          cp dispatch-replay/index.html _site/dispatch-replay/index.html
+          cp -R dispatch-replay/src dispatch-replay/data _site/dispatch-replay/
 
       - name: Assemble Late-Night Grocery
         run: |
