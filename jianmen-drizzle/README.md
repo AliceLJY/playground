@@ -16,7 +16,7 @@ Turn around: Gao Jianfu never painted that side.
 | Look closer / wider | wheel | pinch |
 | Sound | the round sound button, top left | same |
 
-Hold your gaze on a place for a second; the ink ring in the middle fills. After 25 seconds without a find, a short hint and an arrow appear. A visit takes two or three minutes.
+Hold your gaze on a place for a second; the ink ring in the middle fills. The poem slip, top right, starts with the four lines traced in faint red; each find inks its line. The compass bar along the bottom shows which way each of the four places lies, marked ↑ if it is above you and ↓ if below. After 25 seconds without a find, a short hint and an arrow appear. A visit takes two or three minutes.
 
 ## How it was made
 
@@ -36,7 +36,7 @@ node --test tests/*.test.cjs
 node tools/build.mjs          # output in dist/; serve dist/index.html from any static server
 ```
 
-Query options: `?view=hero|gate|back` for fixed views, `?auto` for the autopilot to find all four places and reach the ending; `&still=1` freezes time and rain, `&hud=0` and `&rain=0` remove the interface and the rain, `&seam=off` removes the waterfall and shows the raw seam.
+Query options: `?view=hero|gate|back` for fixed views, `?auto` for the autopilot to find all four places and reach the ending, `?demo` for a slow walkthrough from the normal opening (`tools/demo.cjs` records it as a portrait MP4); `&still=1` freezes time and rain, `&hud=0` and `&rain=0` remove the interface and the rain, `&seam=off` removes the waterfall and shows the raw seam.
 
 Browser checks: `tools/check.cjs` (pixel readings and frame rate), `tools/layout.cjs` (the enter button fully visible and tappable on short screens) and `tools/first30.cjs` (a recording of the first 30 seconds); usage is at the top of each file.
 
