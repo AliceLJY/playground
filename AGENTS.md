@@ -80,6 +80,7 @@
 
 - 不搬长风的 10 领域文件所有权契约：单文件或小型玩意没有这项协作成本。
 - 不搬 91KB 规格书的体量：保留一页规格与必要检查，不为流程新增框架或依赖。
+- 改一个已有玩意前先读它自己的 three 版本（`vendor/three.module.js` 里的 `REVISION`，或 `package.json` 与锁文件），按那个版本写 API：现在 `clockwork/`、`shanhe-scroll/`、`gear-repair/` 内置 r160，其余走 npm 0.186.1，r183 起弃用的 `THREE.Clock` 在 r160 里照常用。不顺手升级；要升级单独一个提交，并读中间各版的迁移说明（取自 [awesome-gamedev-agent-skills](https://github.com/gamedev-skills/awesome-gamedev-agent-skills) 的 `docs/VERSION-SUPPORT.md`，Apache-2.0）。
 - 交付前核对规格条目、相关 Node 测试、固定机位截图和玩家默认档；写明实测结果及未覆盖项。
 - 本约定规定今后的制作方式，不代表既有玩意已补齐这些能力，也不代表自动检查能代替试玩。
 
