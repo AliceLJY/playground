@@ -14,6 +14,10 @@ const SIZES = {
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
   landscape: { viewport: { width: 844, height: 390 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
   fold: { viewport: { width: 720, height: 800 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  // phones with the browser's own bars taken off (AGENTS.md §3): iPhone Safari, Android Chrome, landscape
+  iphoneBars: { viewport: { width: 390, height: 664 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
+  androidBars: { viewport: { width: 412, height: 700 }, deviceScaleFactor: 2.625, hasTouch: true, isMobile: true },
+  landscapeBars: { viewport: { width: 844, height: 340 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true },
 };
 // the dataset list the page itself reads
 const sandbox = { window: {} };
@@ -39,14 +43,13 @@ const check = (name, pass, detail) => { report.checks.push({ name, pass: !!pass,
     for (let y = 0; y < h; y += 6) for (let x = 0; x < w; x += 6) { const i = (y * w + x) * 4; s++; if (d[i] + d[i + 1] + d[i + 2] > 120) n++; }
     return n / s;
   });
-  // canvas pixel at the centre of every running cell, with its distance from the executor's own colour
+  // canvas pixel at the centre of every executor that is working (not mid-flight), with its brightest channel
   const cellPixels = (page, st) => page.evaluate((st) => {
     const g = document.getElementById('stage').getContext('2d');
     return st.cells.map((c, i) => {
-      if (!['dispatching', 'working'].includes(st.phases[i])) return null;
+      if (st.phases[i] !== 'working') return null;
       const [r, gg, b] = g.getImageData(Math.round(c.x * st.dpr), Math.round(c.y * st.dpr), 1, 1).data;
-      const n = parseInt(c.color.slice(1), 16), want = [n >> 16, (n >> 8) & 255, n & 255];
-      return { kind: c.kind, rgb: [r, gg, b], dist: Math.round(Math.hypot(r - want[0], gg - want[1], b - want[2])) };
+      return { kind: c.kind, rgb: [r, gg, b], max: Math.max(r, gg, b) };
     }).filter(Boolean);
   }, st);
 
@@ -81,10 +84,10 @@ const check = (name, pass, detail) => { report.checks.push({ name, pass: !!pass,
       else check(`${tag}: caption on screen`, dom.caption.length > 0, dom.caption);
       if (view === 'hero') {
         check(`${tag}: peak concurrency`, st.counters.running === st.maxConcurrent, { running: st.counters.running, max: st.maxConcurrent });
-        // §9.11: an external AI is a solid block in its own colour; a subagent bubble is translucent, so its centre is not
+        // §9.11: an external AI is a black hole, dark at the centre; a subagent galaxy has a bright core
         for (const p of pixels) {
-          if (p.kind === 'external') check(`${tag}: external block is solid`, p.dist < 60, p);
-          else check(`${tag}: subagent bubble is not a solid block`, p.dist >= 60, p);
+          if (p.kind === 'external') check(`${tag}: external AI centre is dark`, p.max < 40, p);
+          else check(`${tag}: subagent centre is bright`, p.max > 150, p);
         }
       }
       await ctx.close();
