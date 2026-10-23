@@ -38,7 +38,7 @@ node tools/build.mjs          # 产物在 dist/，用任意静态服务打开 di
 
 带参数：`?view=hero|gate|back` 固定机位，`?auto` 让自动驾驶依次找四处直到结尾；`&still=1` 冻结时间与雨，`&hud=0`、`&rain=0` 去掉界面和雨，`&seam=off` 关掉瀑布、露出原始接缝。
 
-浏览器验收：`tools/check.cjs`（像素读数与帧率）、`tools/first30.cjs`（开局 30 秒录屏），用法写在文件开头。
+浏览器验收：`tools/check.cjs`（像素读数与帧率）、`tools/layout.cjs`（各种矮屏上「入画」按钮完整可点）、`tools/first30.cjs`（开局 30 秒录屏），用法写在文件开头。
 
 规格见 [SPEC.md](SPEC.md)，验收记录见 [VERIFICATION.md](VERIFICATION.md)，第三方许可与来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

@@ -38,7 +38,7 @@ node tools/build.mjs          # output in dist/; serve dist/index.html from any 
 
 Query options: `?view=hero|gate|back` for fixed views, `?auto` for the autopilot to find all four places and reach the ending; `&still=1` freezes time and rain, `&hud=0` and `&rain=0` remove the interface and the rain, `&seam=off` removes the waterfall and shows the raw seam.
 
-Browser checks: `tools/check.cjs` (pixel readings and frame rate) and `tools/first30.cjs` (a recording of the first 30 seconds); usage is at the top of each file.
+Browser checks: `tools/check.cjs` (pixel readings and frame rate), `tools/layout.cjs` (the enter button fully visible and tappable on short screens) and `tools/first30.cjs` (a recording of the first 30 seconds); usage is at the top of each file.
 
 Spec (in Chinese) in [SPEC.md](SPEC.md), verification record in [VERIFICATION.md](VERIFICATION.md), third-party licences and sources in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 

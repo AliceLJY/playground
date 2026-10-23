@@ -17,7 +17,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--scene);color:var
 .hidden{display:none!important}
 
 /* 开场与结尾：立轴原画 */
-.scroll-screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:clamp(18px,5vw,64px);padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));background:var(--paper);transition:opacity 1.6s ease}
+/* 能滑动是兜底：版式算好了按钮总在屏内，万一有更矮的屏，至少能滑下去找到它 */
+.scroll-screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:clamp(18px,5vw,64px);padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));background:var(--paper);transition:opacity 1.6s ease;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain}
 .scroll-screen.fade{opacity:0;pointer-events:none}
 .scroll-screen img{height:min(86vh,1100px);max-width:46vw;object-fit:contain;box-shadow:0 0 0 10px #d9cfb8,0 0 0 11px #b9ab8c,0 18px 40px rgba(60,50,30,.25);transition:transform 1.6s ease}
 .scroll-screen.fade img{transform:scale(1.35)}
@@ -30,11 +31,28 @@ button.ink{margin-top:18px;background:var(--ink);color:var(--paper);border:0;pad
 button.ink:active{transform:translateY(2px)}
 button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink);margin-left:10px}
 #loadline{font-size:13px;opacity:.6;margin-top:10px;min-height:1.2em}
+/* 竖屏：文字和按钮的高度先留出来，原画用剩下的（地址栏、底栏占掉的高度用 svh 扣掉） */
 @media (max-aspect-ratio:4/5){
-  .scroll-screen{flex-direction:column;gap:14px;justify-content:flex-start;padding-top:max(22px,env(safe-area-inset-top))}
-  .scroll-screen img{height:46vh;max-width:80vw}
+  .scroll-screen{flex-direction:column;gap:10px;justify-content:flex-start;padding-top:max(14px,env(safe-area-inset-top))}
+  .scroll-screen img{height:max(90px,calc(100vh - 420px));height:max(90px,calc(100svh - 420px));max-height:52vh;max-width:80vw;flex:0 0 auto}
   .scroll-text{text-align:center}
-  .scroll-text .poem{writing-mode:horizontal-tb;height:auto;font-size:16px;letter-spacing:.12em;margin:8px 0}
+  .scroll-text h1{font-size:clamp(30px,8vw,48px);margin:0}
+  .scroll-text .src{font-size:13px;line-height:1.7}
+  .scroll-text .poem{writing-mode:horizontal-tb;height:auto;font-size:15px;line-height:1.7;letter-spacing:.12em;margin:6px 0}
+  .scroll-text .how{font-size:13px;line-height:1.6}
+  button.ink{margin-top:10px}
+  #loadline{margin-top:6px}
+}
+/* 横屏的矮屏（手机横放、很矮的窗口）：字缩小，两行说明收起 */
+@media (min-aspect-ratio:4/5) and (max-height:560px){
+  .scroll-screen{gap:24px;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  .scroll-screen img{height:calc(100vh - 28px);height:calc(100svh - 28px)}
+  .scroll-text h1{font-size:30px;margin:0}
+  .scroll-text .src{font-size:12px;line-height:1.6}
+  .scroll-text .poem{font-size:14px;height:9em;line-height:1.7;margin:8px 0}
+  .scroll-text .how{display:none}
+  .outro .note{font-size:12px;line-height:1.7;margin-top:4px}
+  button.ink{margin-top:8px;padding:8px 26px;font-size:17px}
 }
 
 /* 游戏中：诗笺、墨环、提示 */
