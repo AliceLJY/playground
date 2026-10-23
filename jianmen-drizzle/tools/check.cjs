@@ -127,6 +127,13 @@ async function diffRatio(browser, a, b) {
       const { ctx, page, errors, bytes } = await open(browser, '', { viewport: { width: 390, height: 844 }, dpr: 3, mobile: true });
       await shot(page, 'phone-intro'); await page.tap('#enter'); await settle(page, 5200); await shot(page, 'phone-play');
       const info = await page.evaluate(() => window.__jianmen.info());
+      const hud = await page.evaluate(() => {
+        const c = document.getElementById('compass').getBoundingClientRect();
+        const marks = [...document.querySelectorAll('#compass .mk')].map((m) => m.getBoundingClientRect());
+        return { ghost: document.querySelectorAll('#jian .ch').length, inked: document.querySelectorAll('#jian .ch.on').length,
+          marks: marks.length, inside: marks.every((r) => r.left >= c.left - 1 && r.right <= c.right + 1 && r.width > 0), vw: innerWidth };
+      });
+      record('手机竖屏：诗笺描红字 / 方位标记', `${hud.ghost} 个字（已上墨 ${hud.inked}）/ ${hud.marks} 个标记${hud.inside ? '，都在条内' : '，有标记出了条'}`, hud.ghost === 28 && hud.marks === 4 && hud.inside, '28 / 4，都在条内');
       record('手机竖屏像素比 / 画布 / 场景', `${info.pixelRatio} / ${info.size.join('×')} / ${info.scene}`, info.scene.endsWith('scene-lite.sog'), '触屏应自动用轻量场景');
       record('手机首屏下载量 MB', (bytes() / 1048576).toFixed(1), bytes() <= 8 * 1048576, '≤ 8');
       record('手机竖屏报错', errors.length, errors.length === 0, errors.slice(0, 2).join(' | '));

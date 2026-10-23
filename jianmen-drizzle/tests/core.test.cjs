@@ -94,3 +94,17 @@ test('角度工具：偏航绕回与大圆夹角', () => {
   assert.ok(Math.abs(C.angle(179, 0, -179, 0) - 2) < 1e-6);
   assert.ok(Math.abs(C.angle(0, 90, 123, 90)) < 1e-6, '正上方不该受偏航影响');
 });
+
+test('方位条：转头时标记朝反方向移动，身后的那处钉在边上，关楼标「上」、来路标「下」', () => {
+  const s = C.create();
+  const at = (yaw, pitch) => Object.fromEntries(C.compass(s, { yaw, pitch }).map((m) => [m.id, m]));
+  const a = at(19, 8), b = at(49, 8);
+  for (const id of ['path', 'gate', 'far']) assert.ok(Math.abs((a[id].dx - b[id].dx) - 30) < 1e-6 || a[id].side || b[id].side, `向右转 30°，${id} 应往左移 30°`);
+  assert.equal(a.back.side !== 0, true, '朝原画看时，身后那处应该钉在边上');
+  assert.equal(a.gate.level, 'up'); assert.equal(a.path.level, 'down'); assert.equal(a.far.level, 'level');
+  assert.equal(at(180, 10).back.dx, 0, '转过身时「身后」应在正中');
+  assert.deepEqual(C.compass(s, { yaw: 0, pitch: 0 }).map((m) => m.mark), ['路', '云', '身后', '关']);
+  // 找到之后标记要变成已找到
+  for (let i = 0; i < 1.2 / STEP; i++) C.step(s, { yaw: 180, pitch: 10 }, STEP);
+  assert.equal(at(0, 0).back.found, true);
+});

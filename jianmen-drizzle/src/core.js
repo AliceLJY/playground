@@ -15,16 +15,18 @@ const FEEL={
   endDelay:2.5,     // seconds between the fourth find and the ending turn
   endTurn:4.0,      // seconds the ending spends turning back to the gate
   pitchMin:-75, pitchMax:75,
-  fovMin:35, fovMax:85, fovStart:88, fovRest:72,
+  fovMin:35, fovMax:85, fovStart:88, fovRest:72,   // field of view across the shorter screen side
+  fovStartPortrait:74, fovRestPortrait:60,          // a portrait phone at 60 sees the gate above and the path below, like the scroll
+  compassSpan:100,  // the compass bar shows this many degrees either side of the view
   startYaw:19, startPitch:8,
   neck:0.06         // eye distance in front of the neck pivot (scene units)
 };
 
 const TARGETS=[
-  {id:'path', yaw:8,   pitch:-40, r:16, line:0, text:'衣上征尘杂酒痕', hint:'低头，看看来时的路'},
-  {id:'far',  yaw:-90, pitch:-5,  r:20, line:1, text:'远游无处不消魂', hint:'往左望，云海那边'},
-  {id:'back', yaw:180, pitch:10,  r:30, line:2, text:'此身合是诗人未', hint:'转过身去', note:'这一面，高剑父没有画'},
-  {id:'gate', yaw:19,  pitch:47,  r:11,  line:3, text:'细雨骑驴入剑门', hint:'抬头，关楼在雨里'}
+  {id:'path', yaw:8,   pitch:-40, r:16, line:0, text:'衣上征尘杂酒痕', hint:'低头，看看来时的路', mark:'路'},
+  {id:'far',  yaw:-90, pitch:-5,  r:20, line:1, text:'远游无处不消魂', hint:'往左望，云海那边', mark:'云'},
+  {id:'back', yaw:180, pitch:10,  r:30, line:2, text:'此身合是诗人未', hint:'转过身去', note:'这一面，高剑父没有画', mark:'身后'},
+  {id:'gate', yaw:19,  pitch:47,  r:11,  line:3, text:'细雨骑驴入剑门', hint:'抬头，关楼在雨里', mark:'关'}
 ];
 
 function dir(yaw,pitch){const y=rad(yaw),p=rad(pitch);return [Math.sin(y)*Math.cos(p),Math.sin(p),-Math.cos(y)*Math.cos(p)];}
@@ -72,6 +74,17 @@ function nearestUnfound(s,look){
 // Progress of the dwell ring for whatever target the view is on (0..1), or 0.
 function ring(s){let m=0;for(const g of TARGETS)if(!s.found[g.id])m=Math.max(m,s.dwell[g.id]/FEEL.dwell);return m;}
 
+// Compass bar: where each target sits relative to the view. dx is degrees to turn (right +), clipped to the bar;
+// side says which edge an out-of-range target is pinned to; level says whether to look up or down for it.
+function compass(s,look){
+  const span=FEEL.compassSpan;
+  return TARGETS.map(g=>{
+    const dx=wrap(g.yaw-look.yaw), dp=g.pitch-look.pitch;
+    return {id:g.id,mark:g.mark,found:!!s.found[g.id],dx:clamp(dx,-span,span),side:dx>span?1:dx<-span?-1:0,
+      level:dp>20?'up':dp<-20?'down':'level'};
+  });
+}
+
 // Steer an aim toward the next unfound target (or the gate once ending) at `speed` deg/s.
 function autopilot(s,aim,dt,opt={}){
   const speed=opt.speed??90;
@@ -92,7 +105,7 @@ function shaker(sigma,rnd){
 
 function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
 
-const api={STEP,FEEL,TARGETS,clamp,wrap,dir,angle,create,step,ring,nearestUnfound,autopilot,shaker,rng};
+const api={STEP,FEEL,TARGETS,clamp,wrap,dir,angle,create,step,ring,nearestUnfound,compass,autopilot,shaker,rng};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else root.JianmenCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

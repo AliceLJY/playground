@@ -60,8 +60,9 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
 #jian{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));display:flex;flex-direction:row-reverse;gap:6px;padding:12px 10px;background:rgba(237,230,214,.82);border:1px solid rgba(43,41,37,.35);box-shadow:0 6px 18px rgba(60,50,30,.15)}
 #jian .col{writing-mode:vertical-rl;font-size:clamp(17px,2.4vw,24px);letter-spacing:.18em;width:1.45em;height:8.7em;position:relative;border-left:1px dashed rgba(43,41,37,.18)}
 #jian .col:last-child{border-left:0}
-#jian .ch{opacity:0;transition:opacity .5s ease}
-#jian .ch.on{opacity:1}
+#jian .ch{color:rgba(178,58,46,.32);transition:color .6s ease}
+#jian .ch.on{color:var(--ink)}
+#jiancap{position:absolute;left:-8px;right:-8px;bottom:-38px;text-align:center;font-size:14px;letter-spacing:.1em;color:var(--ink);white-space:nowrap;text-shadow:0 0 6px rgba(226,221,207,.95)}
 #jian .seal{position:absolute;left:50%;bottom:-6px;transform:translate(-50%,100%);width:12px;height:12px;background:var(--seal);opacity:0;transition:opacity .6s ease .8s}
 #jian .col.done .seal{opacity:.85}
 #ring{position:absolute;left:50%;top:50%;width:64px;height:64px;transform:translate(-50%,-50%);opacity:.75}
@@ -69,7 +70,7 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
 #ring .bg{stroke:rgba(43,41,37,.18)}
 #ring .fg{stroke:var(--ink);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
 #dot{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(43,41,37,.55)}
-#msg{position:absolute;left:50%;bottom:max(28px,env(safe-area-inset-bottom));transform:translateX(-50%);font-size:clamp(18px,3vw,26px);letter-spacing:.25em;text-align:center;opacity:0;transition:opacity 1s ease;text-shadow:0 0 12px rgba(226,221,207,.95),0 0 3px rgba(226,221,207,.95);white-space:nowrap}
+#msg{position:absolute;left:50%;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 78px);transform:translateX(-50%);font-size:clamp(18px,3vw,26px);letter-spacing:.25em;text-align:center;opacity:0;transition:opacity 1s ease;text-shadow:0 0 12px rgba(226,221,207,.95),0 0 3px rgba(226,221,207,.95);white-space:nowrap}
 #msg.on{opacity:1}
 #msg small{display:block;font-size:.62em;letter-spacing:.15em;margin-top:.5em;opacity:.8}
 #hint{position:absolute;left:50%;top:calc(50% + 58px);transform:translateX(-50%);font-size:16px;letter-spacing:.2em;color:var(--ochre);opacity:0;transition:opacity .8s ease;text-shadow:0 0 8px rgba(226,221,207,.95)}
@@ -81,7 +82,19 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
 #sound.off{opacity:.45;text-decoration:line-through}
 #how{position:absolute;left:50%;top:max(16px,env(safe-area-inset-top));transform:translateX(-50%);font-size:14px;letter-spacing:.15em;opacity:0;transition:opacity 1.2s ease;text-shadow:0 0 8px rgba(226,221,207,.95)}
 #how.on{opacity:.75}
-@media (max-aspect-ratio:4/5){#jian{padding:8px 6px}#jian .col{font-size:15px}#how{top:auto;bottom:calc(max(28px,env(safe-area-inset-bottom)) + 70px)}}
+/* 方位条：刻度随转头滚动；四处地方的标记，在上方的标「↑」、在下方的标「↓」，转不到的钉在两边 */
+#compass{position:absolute;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(560px,90vw);height:64px;pointer-events:none}
+#compass .tks{position:absolute;inset:0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent)}
+#compass .tk{position:absolute;left:0;top:29px;width:1px;height:7px;background:rgba(43,41,37,.5)}
+#compass .tk.big{top:26px;height:13px;background:rgba(43,41,37,.7)}
+#compass .base{position:absolute;left:6%;right:6%;top:32px;height:1px;background:rgba(43,41,37,.3)}
+#compass .needle{position:absolute;left:50%;top:2px;bottom:2px;width:2px;margin-left:-1px;background:rgba(43,41,37,.6)}
+#compass .mk{position:absolute;top:21px;transform:translateX(-50%);font-weight:400;font-size:14px;line-height:1;padding:3px 8px;border:1px solid var(--ochre);color:var(--ochre);background:rgba(237,230,214,.88);border-radius:999px;white-space:nowrap;letter-spacing:.05em}
+#compass .mk.up{top:0}
+#compass .mk.down{top:43px}
+#compass .mk.found{background:var(--seal);border-color:var(--seal);color:var(--paper)}
+#compass .mk.edge{opacity:.8}
+@media (max-aspect-ratio:4/5){#jian{padding:8px 6px}#jian .col{font-size:15px}#how{top:auto;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 128px)}}
 
 .outro .note{font-size:15px;line-height:2;opacity:.85;margin-top:10px}
 </style>
@@ -96,6 +109,7 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
     <div class="col" data-line="1"></div>
     <div class="col" data-line="2"></div>
     <div class="col" data-line="3"></div>
+    <div id="jiancap">看准一处，描出一句</div>
   </div>
   <svg id="ring" viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="26"/><circle class="fg" cx="32" cy="32" r="26"/></svg>
   <div id="dot"></div>
@@ -103,6 +117,7 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
   <div id="hint"></div>
   <div id="how">拖动转头，看准了停一会儿</div>
   <div id="msg"></div>
+  <div id="compass"><div class="tks"></div><i class="base"></i><i class="needle"></i></div>
 </div>
 <button id="sound" class="hidden" aria-label="声音开关">声</button>
 

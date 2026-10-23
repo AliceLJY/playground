@@ -5,7 +5,9 @@ import { initAudio, setRain, setMuted, isMuted, pluck, bell } from './audio.js';
 
 const { FEEL, TARGETS } = C;
 const q = new URLSearchParams(location.search);
-const VIEW = q.get('view'), STILL = q.has('still'), AUTO = q.has('auto'), SEAM = q.get('seam') !== 'off';
+const VIEW = q.get('view'), STILL = q.has('still'), AUTO = q.has('auto'), DEMO = q.has('demo'), SEAM = q.get('seam') !== 'off';
+// ?demo: normal opening, then after 入画 the autopilot turns slowly to each place and pauses after each find (for recording a walkthrough)
+const AUTO_SPEED = +q.get('speed') || (DEMO ? 32 : 60);
 const NO_HUD = q.get('hud') === '0', NO_RAIN = q.get('rain') === '0';
 const TESTING = !!(VIEW || STILL || AUTO || q.has('seam') || NO_HUD || NO_RAIN);
 const PAPER = [0.887, 0.865, 0.813];            // scene paper colour, median of bright grey splats (SPEC 第 5 节)
@@ -95,14 +97,16 @@ function setUniforms() {
 }
 
 // ---------- view state ----------
-const look = { yaw: FEEL.startYaw, pitch: FEEL.startPitch, fov: FEEL.fovStart };
+const isPortrait = () => innerHeight > innerWidth;
+const restFov = () => (isPortrait() ? FEEL.fovRestPortrait : FEEL.fovRest);
+const look = { yaw: FEEL.startYaw, pitch: FEEL.startPitch, fov: isPortrait() ? FEEL.fovStartPortrait : FEEL.fovStart };
 const aim = { ...look };                       // where input points; `look` eases toward it
-let state = C.create(), started = false, endingTurn = false, outroShown = false;
+let state = C.create(), started = false, endingTurn = false, outroShown = false, autoAt = 0;
 
 const PRESETS = {
-  hero: { yaw: FEEL.startYaw, pitch: FEEL.startPitch, fov: FEEL.fovRest },
+  hero: { yaw: FEEL.startYaw, pitch: FEEL.startPitch, fov: restFov() },
   gate: { yaw: 19, pitch: 47, fov: 50 },
-  back: { yaw: 180, pitch: 5, fov: 72 }
+  back: { yaw: 180, pitch: 5, fov: restFov() }
 };
 
 function placeCamera() {
@@ -110,12 +114,14 @@ function placeCamera() {
   // eye sits a little in front of the neck pivot, so turning the head gives real parallax
   const f = C.dir(look.yaw, look.pitch);
   camera.setPosition(f[0] * FEEL.neck, f[1] * FEEL.neck * 0.5, f[2] * FEEL.neck);
+  // look.fov is the field of view across the shorter screen side, so a portrait phone sees as wide as a laptop sees tall
+  camera.camera.horizontalFov = canvas.clientHeight > canvas.clientWidth;
   camera.camera.fov = look.fov;
 }
 
 // ---------- input: drag to look, wheel / pinch to zoom, arrows / WASD ----------
 const pointers = new Map(); let pinch0 = 0, fov0 = 0;
-const degPerPx = () => look.fov / Math.max(240, canvas.clientHeight) * 1.1;
+const degPerPx = () => look.fov / Math.max(240, Math.min(canvas.clientWidth, canvas.clientHeight)) * 1.1;
 canvas.addEventListener('pointerdown', (e) => {
   if (!started) return;
   canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); canvas.classList.add('drag');
@@ -150,11 +156,33 @@ function keyLook(dt) {
 const cols = [...document.querySelectorAll('#jian .col')];
 const ringFg = document.querySelector('#ring .fg'), RING_LEN = 2 * Math.PI * 26;
 ringFg.style.strokeDasharray = RING_LEN;
-function writeLine(line, text) {
-  const col = cols[line]; col.innerHTML = '';
-  [...text].forEach((ch, i) => { const s = document.createElement('span'); s.className = 'ch'; s.textContent = ch; col.appendChild(s); setTimeout(() => s.classList.add('on'), 120 + i * 260); });
+// The poem slip starts as faint red tracing characters (描红); a find inks its line over them.
+for (const g of TARGETS) cols[g.line].innerHTML = [...g.text].map((ch) => `<span class="ch">${ch}</span>`).join('');
+function writeLine(line) {
+  const col = cols[line], chars = [...col.querySelectorAll('.ch')];
+  chars.forEach((s, i) => setTimeout(() => s.classList.add('on'), 120 + i * 260));
   const seal = document.createElement('i'); seal.className = 'seal'; col.appendChild(seal);
-  setTimeout(() => col.classList.add('done'), 120 + text.length * 260);
+  setTimeout(() => col.classList.add('done'), 120 + chars.length * 260);
+  $('jiancap').textContent = `已得 ${state.order.length} / 4`;
+}
+
+// Compass bar: ticks every 15° scroll as you turn; the four places sit on it, pinned to an edge when out of range.
+const cmp = $('compass'), cmpTicks = [], cmpMarks = {};
+for (let y = -180; y < 180; y += 15) { const t = document.createElement('i'); t.className = 'tk' + (y % 45 === 0 ? ' big' : ''); cmp.querySelector('.tks').appendChild(t); cmpTicks.push([y, t]); }
+for (const g of TARGETS) { const m = document.createElement('b'); m.className = 'mk'; cmp.appendChild(m); cmpMarks[g.id] = m; }
+function updateCompass() {
+  const W = cmp.clientWidth; if (!W) return;
+  const span = FEEL.compassSpan, px = W / 2 / span;
+  for (const [y, t] of cmpTicks) { const dx = C.wrap(y - look.yaw); t.style.visibility = Math.abs(dx) > span ? 'hidden' : 'visible'; t.style.transform = `translateX(${(W / 2 + dx * px).toFixed(1)}px)`; }
+  for (const m of C.compass(state, look)) {
+    const el = cmpMarks[m.id];
+    const text = (m.side < 0 ? '‹ ' : '') + m.mark + (m.level === 'up' ? '↑' : m.level === 'down' ? '↓' : '') + (m.side > 0 ? ' ›' : '');
+    if (el.textContent !== text) el.textContent = text;
+    const cls = `mk ${m.level}${m.found ? ' found' : ''}${m.side ? ' edge' : ''}`;
+    if (el.className !== cls) el.className = cls;
+    el.style.left = `${(W / 2 + m.dx * px).toFixed(1)}px`;
+    el.style.transform = m.side < 0 ? 'translateX(0)' : m.side > 0 ? 'translateX(-100%)' : 'translateX(-50%)';   // pinned marks stay inside the bar
+  }
 }
 let msgTimer = 0;
 function say(text, small, hold = 4200) {
@@ -183,7 +211,7 @@ function sizeRain() {
 }
 sizeRain(); addEventListener('resize', sizeRain);
 function drawRain(dt) {
-  const W = rc.width, H = rc.height, pxPerDeg = H / look.fov;
+  const W = rc.width, H = rc.height, pxPerDeg = Math.min(W, H) / look.fov;
   const dYaw = C.wrap(look.yaw - lastYaw), dPitch = look.pitch - lastPitch; lastYaw = look.yaw; lastPitch = look.pitch;
   rx.clearRect(0, 0, W, H);
   if ((!started && !VIEW) || NO_RAIN) return;
@@ -204,7 +232,7 @@ function drawRain(dt) {
 function onEvents(evs) {
   for (const e of evs) {
     if (e.type === 'found') {
-      writeLine(e.line, e.text); pluck(e.line);
+      writeLine(e.line); pluck(e.line); if (DEMO) autoAt = state.t + 2.4;
       say(e.text, e.note || null, e.note ? 6000 : 4200);
       hideHint();
     } else if (e.type === 'hint') showHint(e.id, e.text);
@@ -230,7 +258,7 @@ app.on('update', (dtRaw) => {
   const dt = Math.min(dtRaw, 0.1);
   const now = performance.now(); fpsBuf.push(now - last); last = now; if (fpsBuf.length > 240) fpsBuf.shift();
   keyLook(dt);
-  if (AUTO && started) Object.assign(aim, C.autopilot(state, aim, dt, { speed: 60 }));
+  if ((AUTO || DEMO) && started && !endingTurn && state.t >= autoAt) Object.assign(aim, C.autopilot(state, aim, dt, { speed: AUTO_SPEED }));
   if (endingTurn) { const a = C.autopilot({ phase: 'ending' }, aim, dt, { speed: 28 }); aim.yaw = a.yaw; aim.pitch = a.pitch; aim.fov += (55 - aim.fov) * Math.min(1, dt * 0.6); }
   // ease the view toward the aim
   const k = Math.min(1, dt * 10);
@@ -242,6 +270,7 @@ app.on('update', (dtRaw) => {
   // ring
   ringFg.style.strokeDashoffset = RING_LEN * (1 - (state.phase === 'look' ? C.ring(state) : 0));
   updateArrow();
+  updateCompass();
   if (!STILL) uni.uTime += dt;
   if (started && uni.uReveal < 1) { revealT += dt; uni.uReveal = Math.min(1, revealT / 3.2); }
   setUniforms();
@@ -272,7 +301,8 @@ function begin(skipIntro) {
   if (!NO_HUD) { $('hud').classList.remove('hidden'); $('sound').classList.remove('hidden'); }
   if (skipIntro) { $('intro').classList.add('hidden'); uni.uReveal = 1; return; }
   $('intro').classList.add('fade'); setTimeout(() => $('intro').classList.add('hidden'), 1700);
-  aim.fov = FEEL.fovRest;
+  aim.fov = restFov();
+  if (DEMO) autoAt = 4.5;
   setTimeout(() => { $('how').classList.add('on'); howShown = true; }, 2600);
   setTimeout(hideHow, 12000);
   state.lastFind = 0;
