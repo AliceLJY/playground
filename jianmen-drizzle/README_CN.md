@@ -36,7 +36,7 @@ node --test tests/*.test.cjs
 node tools/build.mjs          # 产物在 dist/，用任意静态服务打开 dist/index.html
 ```
 
-带参数：`?view=hero|gate|back` 固定机位，`?auto` 让自动驾驶依次找四处直到结尾，`?demo` 从正常开场进、慢慢转去找四处（录演示用，`tools/demo.cjs` 录成竖屏 MP4）；`&still=1` 冻结时间与雨，`&hud=0`、`&rain=0` 去掉界面和雨，`&seam=off` 关掉瀑布、露出原始接缝。
+带参数：`?view=hero|gate|back` 固定机位，`?auto` 让自动驾驶依次找四处直到结尾，`?demo` 从正常开场进、慢慢转去找四处（录演示用：`tools/demo.cjs` 录成竖屏 MP4 并逐帧记下事件时间，`tools/demo-music.py` 按这些时间合成古琴味的配乐）；`&still=1` 冻结时间与雨，`&hud=0`、`&rain=0` 去掉界面和雨，`&seam=off` 关掉瀑布、露出原始接缝。
 
 浏览器验收：`tools/check.cjs`（像素读数与帧率）、`tools/layout.cjs`（各种矮屏上「入画」按钮完整可点）、`tools/first30.cjs`（开局 30 秒录屏），用法写在文件开头。
 

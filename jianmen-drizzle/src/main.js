@@ -312,7 +312,7 @@ window.__jianmen = {
   ready: false, error: null,
   info: () => {
     const s = [...fpsBuf].sort((a, b) => a - b), med = s.length ? 1000 / s[Math.floor(s.length / 2)] : 0;
-    return { phase: state.phase, found: [...state.order], look: { ...look }, hint: state.hint, fps: Math.round(med), started, outro: outroShown, pixelRatio: app.graphicsDevice.maxPixelRatio, size: [canvas.width, canvas.height], scene: SCENE };
+    return { phase: state.phase, found: [...state.order], foundAt: { ...state.found }, t: state.t, endingTurn, look: { ...look }, hint: state.hint, fps: Math.round(med), started, outro: outroShown, pixelRatio: app.graphicsDevice.maxPixelRatio, size: [canvas.width, canvas.height], scene: SCENE };
   },
   look: (yaw, pitch, fov) => { Object.assign(aim, { yaw, pitch, fov: fov ?? aim.fov }); Object.assign(look, aim); placeCamera(); }
 };
