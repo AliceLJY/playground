@@ -19,8 +19,20 @@ function loadData() {
   return out;
 }
 const SETS = loadData();
-const VIEWPORTS = [[1280, 720], [1920, 1080], [390, 844], [844, 390], [720, 800], [540, 960]];
+// bare screens plus phones with the browser's own bars taken off (AGENTS.md §3): iPhone Safari, Android Chrome, landscape
+const VIEWPORTS = [[1280, 720], [1920, 1080], [390, 844], [844, 390], [720, 800], [540, 960], [390, 664], [412, 700], [844, 340]];
 const PHASE_RANK = Object.fromEntries(C.PHASES.map((p, i) => [p, i]));
+
+test('every palette colours every model family, external AI and tool group; index.js names real palettes (spec §4)', () => {
+  for (const [name, th] of Object.entries(C.THEMES)) {
+    for (const k of Object.keys(C.FAMILY)) assert.ok(/^#[0-9A-F]{6}$/i.test(th.family[k] || ''), `spec §4: palette ${name} has no colour for ${k}`);
+    for (const k of Object.keys(C.VENDOR)) assert.ok(/^#[0-9A-F]{6}$/i.test(th.vendor[k] || ''), `spec §4: palette ${name} has no colour for ${k}`);
+    for (const k of Object.keys(C.GROUP)) assert.ok(/^#[0-9A-F]{6}$/i.test(th.group[k] || ''), `spec §4: palette ${name} has no colour for tool group ${k}`);
+  }
+  const sandbox = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'data', 'index.js'), 'utf8'), sandbox);
+  for (const d of sandbox.window.REPLAY_INDEX) assert.ok(!d.theme || C.THEMES[d.theme], `spec §4: ${d.slug} asks for palette "${d.theme}", which does not exist`);
+});
 
 test('data/index.js lists at least one dataset and every one loads', () => {
   assert.ok(SETS.length >= 1, 'spec §3: data/index.js must list a dataset');
@@ -134,7 +146,10 @@ for (const { slug, src, data } of SETS) {
       });
       // dispatcher at its largest plus its two label lines, and the author with its label
       const labels = Math.max(12, L.font) * 2 + 12;
-      const ccBox = circleBox(L.cc, L.ccMaxR, labels), authorBox = circleBox(L.author, L.author.r, 22);
+      const ccBox = circleBox(L.cc, L.ccMaxR + L.ccHalo, labels - L.ccHalo), authorBox = circleBox(L.author, L.author.r, 22);
+      const ccHalf = Math.max(L.ccMaxR + L.ccHalo, L.ccLabelW / 2);
+      Object.assign(ccBox, { x: L.cc.x - ccHalf, w: 2 * ccHalf });     // its two label lines are wider than the star
+      if (L.readout) L.cells.forEach((c, i) => assert.ok(!overlap(L.readout, c), `spec §5: ${tag} big readout covers executor ${i}`));
       for (const [name, box] of [['dispatcher', ccBox], ['author', authorBox]]) {
         assert.ok(box.y >= L.stage.y - 0.5 && box.y + box.h <= stageBottom + 0.5 && box.x >= 0 && box.x + box.w <= W, `spec §9.6: ${tag} ${name} leaves the stage`);
         L.cells.forEach((c, i) => assert.ok(!overlap(box, c), `spec §9.6: ${tag} ${name} covers cell ${i}`));

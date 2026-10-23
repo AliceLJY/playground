@@ -6,11 +6,15 @@
   const index = window.REPLAY_INDEX || [];
   const wanted = qs.get('d');
   const slug = wanted && /^[a-z0-9-]+$/.test(wanted) && index.some((d) => d.slug === wanted) ? wanted : (index[0] || {}).slug;
+  const entry = index.find((d) => d.slug === slug) || {};
+  const TH = C.THEMES[entry.theme] || C.THEMES.deepspace;     // this dataset's palette (SPEC §4)
+  const colorOf = (a) => C.agentColor(a, TH);
   const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const $ = (id) => document.getElementById(id);
   const canvas = $('stage'), ctx = canvas.getContext('2d');
   const FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif';
+  const MONO = '"SF Mono","JetBrains Mono",Menlo,Consolas,monospace';
 
   let model, L, playback = C.DEFAULT_PLAYBACK, clock = null, endT = 0;
   let t = 0, playing = false, last = 0, dragging = false, wasPlaying = false, selected = -1, dpr = 1;
@@ -31,6 +35,8 @@
 
   function start(data) {
     model = C.prepare(data);
+    document.body.classList.add('theme-' + (C.THEMES[entry.theme] ? entry.theme : 'deepspace'));
+    drops = model.drops;
     document.title = data.title + ' · 派活回放';
     $('title').textContent = data.title;
     $('subtitle').textContent = data.subtitle || '';
@@ -52,6 +58,7 @@
       play: () => setPlaying(true),
       pause: () => setPlaying(false),
       setPlayback: (p) => { setPlayback(p); draw(); },
+      tick: (dt) => step(dt),     // for frame-by-frame recording: stub requestAnimationFrame, then call this per frame
       state: () => snapshot(),
       drawStats: () => {
         const a = drawTimes.slice().sort((p, q) => p - q);
@@ -64,7 +71,7 @@
 
   function buildLegend() {
     const seen = new Map();
-    model.agents.forEach((a) => seen.set(C.agentBadge(a), { color: C.agentColor(a), square: a.kind === 'external' }));
+    model.agents.forEach((a) => seen.set(C.agentBadge(a), { color: colorOf(a), square: a.kind === 'external' }));
     const el = $('legend');
     el.innerHTML = '';
     const add = (label, color, square) => {
@@ -76,8 +83,8 @@
       s.append(label);
       el.appendChild(s);
     };
-    add('作者', C.COLOR.author);
-    add('总调度', C.COLOR.cc);
+    add('作者', TH.author);
+    add('总调度', TH.cc);
     seen.forEach((k, label) => add(label, k.color, k.square));
   }
 
@@ -112,6 +119,11 @@
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
+    step(dt);
+    requestAnimationFrame(frame);
+  }
+  // advance playback by dt playback seconds and draw (the rAF loop, or a recorder driving frames itself)
+  function step(dt) {
     if (playing && !dragging) {
       t = clock.real(clock.play(t) + dt);
       if (t >= endT) { t = endT; setPlaying(false); }
@@ -120,7 +132,6 @@
     draw();
     drawTimes.push(performance.now() - t0);
     if (drawTimes.length > 240) drawTimes.shift();
-    requestAnimationFrame(frame);
   }
 
   // ---- controls ---------------------------------------------------------------------------------
@@ -179,21 +190,54 @@
     document.body.classList.toggle('portrait', L.portrait);
     document.body.classList.toggle('compact', L.compact);
     document.body.classList.toggle('tall', L.tall);
+    document.body.classList.toggle('narrow', L.narrow);
+    const big = $('big');
+    if (L.readout) Object.assign(big.style, { left: L.readout.x + 'px', top: L.readout.y + 'px', width: L.readout.w + 'px', height: L.readout.h + 'px' });
+    buildLayers();
   }
 
   // ---- drawing ----------------------------------------------------------------------------------
+  // Galaxy look (SPEC §4–5). The dispatcher is a star in the middle. Each subagent is a small galaxy: its glow sphere's
+  // area follows its context (the same ruler as the star) and its dust grows with it, spinning while it works. An
+  // external AI is a black hole, dark inside because nothing of its context is in the transcript. Work goes out as a
+  // seed and comes back as a comet carrying the report's length. Nebula and stars are cached per screen size.
   const ease = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
   const easeIn = (p) => p * p * p;
+  const TAU = Math.PI * 2;
+  const DUST = 240;          // dust grains of a galaxy at the largest subagent peak; grows with tokens
+  let bgLayer = null, stars = [], drops = [];
+
+  function layerCanvas(paint) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(L.W * dpr); c.height = Math.round(L.H * dpr);
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paint(g);
+    return c;
+  }
+  function buildLayers() {
+    const W = L.W, H = L.H, M = Math.max(W, H);
+    bgLayer = layerCanvas((g) => {
+      g.fillStyle = TH.ink; g.fillRect(0, 0, W, H);
+      for (const [fx, fy, col, a, rr] of TH.nebula) {
+        const x = fx * W, y = fy * H, R = M * rr, gr = g.createRadialGradient(x, y, 0, x, y, R);
+        gr.addColorStop(0, hexA(col, a * 0.55)); gr.addColorStop(0.5, hexA(col, a * 0.18)); gr.addColorStop(1, hexA(col, 0));
+        g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      }
+      const v = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, M * 0.8);
+      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.55)');
+      g.fillStyle = v; g.fillRect(0, 0, W, H);
+    });
+    stars = Array.from({ length: Math.round((W * H) / 2600) }, (_, i) => ({
+      x: C.hash(i * 3 + 1) * W, y: C.hash(i * 3 + 2) * H, z: 0.2 + C.hash(i * 3 + 3) * 0.8, tw: C.hash(i * 7 + 5) * TAU,
+    }));
+  }
 
   function draw() {
     if (!model) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bgLayer, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const W = L.W, H = L.H;
-    const bg = ctx.createRadialGradient(W * 0.3, H * 0.45, 0, W * 0.3, H * 0.45, Math.max(W, H));
-    bg.addColorStop(0, '#0B1020'); bg.addColorStop(1, '#05070F');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#1A2340';
-    for (let x = 14; x < W; x += 28) for (let y = L.header + 10; y < L.stage.y + L.stage.h; y += 28) ctx.fillRect(x, y, 1.2, 1.2);
+    drawStars();
 
     const states = model.agents.map((a) => C.agentState(a, t, clock));
     const ending = Math.max(0, Math.min(1, (clock.play(t) - (clock.length - C.FX.tail)) / C.FX.tail));
@@ -201,16 +245,53 @@
     const ccR = Math.max(L.rUnit * 0.5, C.radiusFor(mainTokens, L.rUnit, model.maxPeak));
 
     ctx.globalAlpha = 1 - ending * 0.94;
+    drawOrbits();
     drawLinks(states);
     model.agents.forEach((a, i) => drawCell(a, states[i], L.cells[i]));
     if (!reduceMotion) drawSparks(ccR);
     ctx.globalAlpha = 1;
     drawAuthor();
-    drawCC(ccR, mainTokens, states);
+    ctx.globalAlpha = 1 - ending;   // the end view draws its own star next to the summed galaxy
+    drawCore(ccR, mainTokens, states, 1 - ending);
+    ctx.globalAlpha = 1;
     drawPackets(states);
     if (ending > 0) drawEnding(ending);
     drawTimeline();
+    drawCorners();
     updateDom(states, ending);
+  }
+
+  const spin = () => (reduceMotion ? 0 : clock.play(t));
+
+  function drawStars() {
+    const w = spin(), W = L.W;
+    ctx.fillStyle = TH.star;
+    for (const s of stars) {
+      let x = (s.x - w * s.z * 5) % W; if (x < 0) x += W;
+      ctx.globalAlpha = 0.2 + 0.6 * s.z * (0.6 + 0.4 * Math.sin(w * 1.7 + s.tw));
+      const size = s.z > 0.88 ? 1.8 : 1.1;
+      ctx.fillRect(x, s.y, size, size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawOrbits() {
+    const o = L.orbits;
+    if (o.grid) return;
+    const full = o.span >= TAU - 1e-6, w = spin(), base = ctx.globalAlpha;
+    ctx.lineWidth = 1;
+    o.rings.forEach((k, j) => {
+      ctx.strokeStyle = hexA(TH.orbit, 0.12); ctx.beginPath();
+      ctx.ellipse(L.cc.x, L.cc.y, o.ax * k, o.ay * k, 0, full ? 0 : o.a0 - 0.06, full ? TAU : o.a0 + o.span + 0.06);
+      ctx.stroke();
+      // a glint travelling along each orbit
+      const f = (w * 0.05 * (j % 2 ? -1 : 1) + j * 0.37) % 1, th = o.a0 + (full ? TAU : o.span) * ((f + 1) % 1);
+      const gx = L.cc.x + Math.cos(th) * o.ax * k, gy = L.cc.y + Math.sin(th) * o.ay * k;
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 8); g.addColorStop(0, hexA(TH.glint, 0.7 * base)); g.addColorStop(1, hexA(TH.glint, 0));
+      ctx.fillStyle = g; circle(gx, gy, 8); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    });
   }
 
   function linkPath(a, b, bend) {
@@ -225,28 +306,89 @@
       y: q * q * path.a.y + 2 * q * p * path.c.y + p * p * path.b.y,
     };
   }
-  function ccPath(i) { const c = L.cells[i]; return linkPath(L.cc, { x: c.cx, y: c.cy }, 0.12); }
+  function ccPath(i) { const c = L.cells[i]; return linkPath(L.cc, { x: c.cx, y: c.cy }, 0.14); }
 
+  // Live links: a faint tether with dashes flowing outwards from the star.
   function drawLinks(states) {
     const base = ctx.globalAlpha;
     ctx.lineWidth = 1;
+    ctx.setLineDash([2, 7]); ctx.lineDashOffset = -spin() * 26;
     states.forEach((s, i) => {
       if (s.phase === 'idle' || s.phase === 'done') return;
       const path = ccPath(i);
-      ctx.strokeStyle = C.agentColor(model.agents[i]);
-      ctx.globalAlpha = base * (s.phase === 'working' ? 0.13 : 0.32);
+      ctx.strokeStyle = colorOf(model.agents[i]);
+      ctx.globalAlpha = base * (s.phase === 'working' ? 0.3 : 0.6);
       ctx.beginPath(); ctx.moveTo(path.a.x, path.a.y); ctx.quadraticCurveTo(path.c.x, path.c.y, path.b.x, path.b.y); ctx.stroke();
     });
+    ctx.setLineDash([]); ctx.lineDashOffset = 0;
     ctx.globalAlpha = base;
   }
 
-  function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, Math.PI * 2); }
+  function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, TAU); }
 
-  function bubble(x, y, r, color, strength) {
-    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-    g.addColorStop(0, hexA(color, 0.55 * strength)); g.addColorStop(1, hexA(color, 0.12 * strength));
-    ctx.fillStyle = g; circle(x, y, r); ctx.fill();
-    ctx.strokeStyle = hexA(color, 0.9 * strength); ctx.lineWidth = 1.5; circle(x, y, r); ctx.stroke();
+  // A subagent as a small galaxy. R follows its context (area ∝ tokens); `fall` in [0, 1] pulls the dust into the core.
+  function galaxy(seed, x, y, R, color, k, w, fall, maxDust) {
+    const base = ctx.globalAlpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, R);
+    halo.addColorStop(0, hexA('#FFFFFF', 0.95 * k)); halo.addColorStop(0.06, hexA(color, 0.85 * k));
+    halo.addColorStop(0.3, hexA(color, 0.3 * k)); halo.addColorStop(0.75, hexA(color, 0.1 * k)); halo.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = halo; circle(x, y, R); ctx.fill();
+    ctx.strokeStyle = hexA(color, 0.28 * k); ctx.lineWidth = 1; circle(x, y, R * (1 - easeIn(fall || 0))); ctx.stroke();   // the ruler: area ∝ tokens
+    const n = Math.min(maxDust || 900, Math.round(DUST * (R / L.rUnit) ** 2));
+    const tilt = seed * 0.73, ct = Math.cos(tilt), st = Math.sin(tilt), shrink = 1 - easeIn(fall || 0);
+    for (const white of [false, true]) {
+      ctx.fillStyle = white ? '#FFFFFF' : color;
+      ctx.globalAlpha = base * k * (white ? 0.85 : 0.6);
+      for (let i = 0; i < n; i++) {
+        const u = C.hash(seed * 7919 + i * 3), v = C.hash(seed * 7919 + i * 3 + 1), q = C.hash(seed * 7919 + i * 3 + 2);
+        if ((q > 0.86) !== white) continue;
+        const f = 0.12 + 0.88 * Math.pow(u, 0.62), rr = R * f * shrink;
+        const ang = (i & 1) * Math.PI + f * 3.4 + (v - 0.5) * 1.1 + w * (0.5 + 1.6 * (1 - f)) * (1 + 2 * (fall || 0));
+        const px = Math.cos(ang) * rr, py = Math.sin(ang) * rr * 0.62;
+        const s = q > 0.95 ? 2 : 1.25;
+        ctx.fillRect(x + px * ct - py * st - s / 2, y + px * st + py * ct - s / 2, s, s);
+      }
+    }
+    ctx.globalAlpha = base;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // An external AI as a black hole: a glowing accretion disk around a black centre.
+  function blackHole(seed, x, y, b, color, k, w) {
+    const base = ctx.globalAlpha, tilt = -0.32 + (seed % 3) * 0.12;
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(x, y, b * 0.8, x, y, b * 2.8);
+    glow.addColorStop(0, hexA(color, 0.6 * k)); glow.addColorStop(0.3, hexA(color, 0.2 * k)); glow.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = glow; circle(x, y, b * 2.8); ctx.fill();
+    ctx.lineWidth = b * 0.34; ctx.strokeStyle = hexA(color, 0.5 * k);
+    ctx.beginPath(); ctx.ellipse(x, y, b * 2, b * 0.5, tilt, Math.PI, TAU); ctx.stroke();
+    ctx.fillStyle = TH.holeDust; ctx.globalAlpha = base * k * 0.8;
+    for (let i = 0; i < 46; i++) {
+      const u = C.hash(seed * 131 + i * 2), v = C.hash(seed * 131 + i * 2 + 1), ph = (v + w * 0.32) % 1;
+      const rr = b * (2.7 - 1.65 * ph), ang = u * TAU + ph * 6;
+      const px = Math.cos(ang) * rr, py = Math.sin(ang) * rr * 0.42;
+      ctx.fillRect(x + px * Math.cos(tilt) - py * Math.sin(tilt) - 0.7, y + px * Math.sin(tilt) + py * Math.cos(tilt) - 0.7, 1.4, 1.4);
+    }
+    ctx.globalAlpha = base;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000000'; circle(x, y, b); ctx.fill();          // event horizon: nothing inside is visible
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = hexA(TH.photon, 0.95 * k); ctx.lineWidth = 1.6; circle(x, y, b * 1.06); ctx.stroke();
+    ctx.lineWidth = b * 0.26; ctx.strokeStyle = hexA(color, 0.9 * k);
+    ctx.beginPath(); ctx.ellipse(x, y, b * 2, b * 0.5, tilt, 0, Math.PI); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // Four corner brackets around (x, y); `half` is half the box side.
+  function brackets(x, y, half, color, a, lw) {
+    const k = Math.max(4, half * 0.3);
+    ctx.strokeStyle = hexA(color, a); ctx.lineWidth = lw || 1.5; ctx.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const cx = x + sx * half, cy = y + sy * half;
+      ctx.moveTo(cx, cy - sy * k); ctx.lineTo(cx, cy); ctx.lineTo(cx - sx * k, cy);
+    }
+    ctx.stroke();
   }
 
   function hexA(hex, a) {
@@ -254,44 +396,58 @@
     return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + Math.max(0, Math.min(1, a)).toFixed(3) + ')';
   }
 
-  function text(str, x, y, size, color, align, weight) {
-    ctx.font = (weight || 400) + ' ' + size + 'px ' + FONT;
+  function text(str, x, y, size, color, align, weight, font) {
+    ctx.font = (weight || 400) + ' ' + size + 'px ' + (font || FONT);
     ctx.fillStyle = color; ctx.textAlign = align || 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(str, x, y);
   }
 
+  const holeR = () => L.rUnit * 0.5;
+
   function drawCell(a, s, c) {
-    const color = C.agentColor(a);
-    const r0 = L.rUnit;
+    const color = colorOf(a);
+    const r0 = L.rUnit, w = spin();
     const base = ctx.globalAlpha;
     const sel = selected === a.index;
     if (s.phase === 'idle') {
-      ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA('#8A93B2', 0.28); ctx.lineWidth = 1;
-      circle(c.cx, c.cy, r0 * 0.35); ctx.stroke(); ctx.setLineDash([]);
-      text(fitLabel(a.label, c.w - 6, L.font, 400), c.cx, c.labelY + L.font, L.font, hexA('#8A93B2', 0.35));
+      ctx.fillStyle = hexA(TH.idle, 0.35); ctx.fillRect(c.cx - 1, c.cy - 1, 2, 2);
+      ctx.strokeStyle = hexA(TH.idle, 0.18); ctx.lineWidth = 1; circle(c.cx, c.cy, 5); ctx.stroke();
+      text(fitLabel(a.label, c.lw - 4, L.font, 400), c.cx, c.labelY + L.font, L.font, hexA(TH.dim, 0.65));
       return;
     }
-    const peakR = a.hasBubble ? C.radiusFor(a.peakTokens, r0, model.maxPeak) : r0 * 0.55;
-    const nowR = a.hasBubble ? C.radiusFor(s.tokens || 0, r0, model.maxPeak) : r0 * 0.55;
+    const peakR = a.hasBubble ? C.radiusFor(a.peakTokens, r0, model.maxPeak) : holeR();
+    const nowR = a.hasBubble ? C.radiusFor(s.tokens || 0, r0, model.maxPeak) : holeR();
     if (s.phase === 'dispatching' || s.phase === 'working') {
-      if (a.hasBubble) bubble(c.cx, c.cy, nowR, color, 1);
-      else drawBlock(c.cx, c.cy, nowR, color, 0.8 + 0.2 * Math.sin(clock.play(t) * 4));
-    } else if (s.phase === 'collapsing') {
-      const r = nowR + (3.5 - nowR) * easeIn(s.p);
-      ctx.strokeStyle = hexA(color, 0.6 * (1 - s.p)); ctx.lineWidth = 2;
-      if (a.hasBubble) { circle(c.cx, c.cy, nowR + 6 * s.p); ctx.stroke(); bubble(c.cx, c.cy, r, color, 1 + s.p * 0.5); }
-      else { blockPath(c.cx, c.cy, nowR + 6 * s.p); ctx.stroke(); drawBlock(c.cx, c.cy, r, color, 1); }
-    } else {
-      ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(color, 0.42); ctx.lineWidth = 1;
-      if (a.hasBubble) circle(c.cx, c.cy, peakR); else blockPath(c.cx, c.cy, peakR);
-      ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = hexA(color, 0.9); circle(c.cx, c.cy, 2.5); ctx.fill();
+      const grow = s.phase === 'dispatching' ? ease(s.p) : 1;
+      if (a.hasBubble) galaxy(a.index + 1, c.cx, c.cy, Math.max(nowR, 3) * grow, color, 1, w, 0);
+      else blackHole(a.index + 1, c.cx, c.cy, nowR * grow, color, 1, w);
+      if (s.phase === 'dispatching') {   // arrival: a shock ring and lock-on brackets snapping in
+        ctx.strokeStyle = hexA(color, 0.8 * (1 - s.p)); ctx.lineWidth = 1.5; circle(c.cx, c.cy, peakR * (0.4 + s.p)); ctx.stroke();
+        brackets(c.cx, c.cy, Math.max(nowR, r0 * 0.5) * (1.5 - 0.5 * ease(s.p)) + 6, color, 0.9 * (1 - s.p * 0.3));
+      }
+    } else if (s.phase === 'collapsing') {   // the galaxy falls into its core, the black hole closes
+      if (a.hasBubble) galaxy(a.index + 1, c.cx, c.cy, nowR * (1 - 0.7 * easeIn(s.p)), color, 1 + s.p, w, s.p);
+      else blackHole(a.index + 1, c.cx, c.cy, nowR * (1 - 0.7 * easeIn(s.p)), color, 1, w);
+      ctx.globalCompositeOperation = 'lighter';
+      const fl = ctx.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, 14 + 10 * s.p);
+      fl.addColorStop(0, hexA('#FFFFFF', 0.9 * s.p)); fl.addColorStop(1, hexA(color, 0));
+      ctx.fillStyle = fl; circle(c.cx, c.cy, 14 + 10 * s.p); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    } else {   // done: what is left is a small star and the outline of how big it got
+      ctx.setLineDash([2, 5]); ctx.strokeStyle = hexA(color, 0.35); ctx.lineWidth = 1;
+      circle(c.cx, c.cy, peakR); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalCompositeOperation = 'lighter';
+      const st = ctx.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, 7);
+      st.addColorStop(0, hexA('#FFFFFF', 0.9)); st.addColorStop(0.3, hexA(color, 0.7)); st.addColorStop(1, hexA(color, 0));
+      ctx.fillStyle = st; circle(c.cx, c.cy, 7); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      if (!a.hasBubble) { ctx.fillStyle = '#000'; circle(c.cx, c.cy, 2); ctx.fill(); }
     }
-    if (sel) { ctx.strokeStyle = hexA('#E8ECF8', 0.8); ctx.lineWidth = 1; ctx.strokeRect(c.x + 3, c.y + 3, c.w - 6, c.h - 6); }
+    if (sel) brackets(c.cx, c.cy, Math.max(peakR, r0 * 0.6) + 8, '#FFFFFF', 0.85, 1);
     ctx.globalAlpha = base;
     const f = L.font;
-    text(fitLabel(a.label, c.w - 6, f, 500), c.cx, c.labelY + f, f, hexA('#E8ECF8', s.phase === 'done' ? 0.62 : 0.95), 'center', 500);
-    if (!L.compact) {
+    text(fitLabel(a.label, c.lw - 4, f, 600), c.cx, c.labelY + f, f, hexA(TH.label, s.phase === 'done' ? 0.6 : 0.95), 'center', 600);
+    if (!L.oneLine) {
       let line;
       if (s.phase === 'done' || s.phase === 'returning' || s.phase === 'collapsing') {
         line = (a.hasBubble ? C.fmtTokensTight(a.peakTokens) : C.fmtClock(a.handbackT - a.dispatchT)) + '→' + C.fmtInt(a.handbackChars) + '字';
@@ -300,18 +456,18 @@
       } else {
         line = '已跑 ' + C.fmtClock(t - a.dispatchT);      // an external AI's inside is not in the transcript
       }
-      text(line, c.cx, c.labelY + f * 2 + 3, f - 1 >= C.MIN_FONT ? f - 1 : C.MIN_FONT, hexA(color, s.phase === 'done' ? 0.7 : 0.95));
+      text(line, c.cx, c.labelY + f * 2 + 3, f - 1 >= C.MIN_FONT ? f - 1 : C.MIN_FONT, hexA(color, s.phase === 'done' ? 0.7 : 1), 'center', 600, MONO);
     }
   }
 
-  // If any label is too wide for its cell, every label drops its first word ("事实核查 n14" → "n14"),
-  // so the grid stays consistent; whatever still does not fit gets an ellipsis.
+  // If any label is too wide for its slot, every label drops its first word ("事实核查 n14" → "n14"),
+  // so the labels stay consistent; whatever still does not fit gets an ellipsis.
   const fitCache = new Map();
   let shortLabels = null;
   function fitLabel(label, width, size, weight) {
     if (shortLabels === null) {
-      ctx.font = '500 ' + size + 'px ' + FONT;
-      shortLabels = model.agents.some((a) => ctx.measureText(a.label).width > width);
+      ctx.font = '600 ' + size + 'px ' + FONT;
+      shortLabels = model.agents.some((a, i) => ctx.measureText(a.label).width > L.cells[i].lw - 4);
     }
     const key = label + '|' + Math.round(width) + '|' + size + '|' + weight + '|' + shortLabels;
     if (fitCache.has(key)) return fitCache.get(key);
@@ -324,126 +480,181 @@
     return out;
   }
 
-  // External AIs: a solid square, so it never reads as a context bubble (its context is not in the transcript).
-  function blockPath(x, y, r) { ctx.beginPath(); ctx.roundRect(x - r, y - r, r * 2, r * 2, Math.min(5, r / 4)); }
-  function drawBlock(x, y, r, color, a) {
-    blockPath(x, y, r);
-    ctx.fillStyle = hexA(color, 0.9 * a); ctx.fill();
-    ctx.strokeStyle = hexA('#FFFFFF', 0.35 * a); ctx.lineWidth = 1; ctx.stroke();
-  }
-
   function toolsSoFar(a) {
     let n = 0;
     for (const x of a.tools) { if (x[0] <= t) n++; else break; }
     return n;
   }
 
+  // Tool calls: a streak falling into whoever made the call (it is reading something in).
   function drawSparks(ccR) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = 1.4;
     for (const sp of C.sparks(model, t, clock)) {
       let x, y, r;
       if (sp.owner < 0) { x = L.cc.x; y = L.cc.y; r = ccR; }
       else {
         const a = model.agents[sp.owner], c = L.cells[sp.owner];
         x = c.cx; y = c.cy;
-        r = a.hasBubble ? C.radiusFor(C.interp(a.ctxS, t), L.rUnit, model.maxPeak) : L.rUnit * 0.55;
+        r = a.hasBubble ? C.radiusFor(C.interp(a.ctxS, t), L.rUnit, model.maxPeak) : holeR();
       }
-      const ang = sp.seed * Math.PI * 2, d = r + 2 + sp.age * (8 + L.rUnit * 0.35);
-      const px = x + Math.cos(ang) * d, py = y + Math.sin(ang) * d;
-      ctx.fillStyle = hexA((C.GROUP[sp.group] || C.GROUP.other).color, 1 - sp.age);
-      circle(px, py, 2.1 * (1 - sp.age * 0.4)); ctx.fill();
+      const ang = sp.seed * TAU, far = r + 14 + L.rUnit * 0.5, near = r * 0.35;
+      const d = far + (near - far) * sp.age, d2 = d + 7;
+      ctx.strokeStyle = hexA((TH.group[sp.group] || TH.group.other), 0.9 * (1 - sp.age * 0.6));
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(ang) * d2, y + Math.sin(ang) * d2); ctx.lineTo(x + Math.cos(ang) * d, y + Math.sin(ang) * d); ctx.stroke();
     }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   function drawAuthor() {
-    const a = L.author;
-    ctx.save(); ctx.shadowColor = C.COLOR.author; ctx.shadowBlur = 14;
-    ctx.fillStyle = hexA(C.COLOR.author, 0.85); circle(a.x, a.y, a.r); ctx.fill(); ctx.restore();
-    text('作者', a.x, a.y + a.r + 16, Math.max(12, L.font), C.COLOR.text, 'center', 600);
+    const a = L.author, col = TH.author, w = spin();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.r * 2.2);
+    g.addColorStop(0, hexA('#FFFFFF', 0.95)); g.addColorStop(0.2, hexA(col, 0.9)); g.addColorStop(1, hexA(col, 0));
+    ctx.fillStyle = g; circle(a.x, a.y, a.r * 2.2); ctx.fill();
+    const fl = a.r * (2.2 + 0.4 * Math.sin(w * 2));
+    ctx.strokeStyle = hexA(col, 0.55); ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(a.x - fl, a.y); ctx.lineTo(a.x + fl, a.y); ctx.moveTo(a.x, a.y - fl); ctx.lineTo(a.x, a.y + fl); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    text('作者', a.x + a.r + 8, a.y + 4, Math.max(12, L.font), '#FFFFFF', 'left', 700);
   }
 
-  function drawCC(r, tokens, states) {
-    const c = L.cc;
-    // pulses where reports land
+  // The dispatcher: a star sized by its own context, with a corona of rays, pulses where reports land and a
+  // shock wave when its context is compacted.
+  function drawCore(r, tokens, states, k) {
+    const c = L.cc, gold = TH.cc, w = spin(), halo = L.ccHalo;
+    ctx.globalCompositeOperation = 'lighter';
+    const cor = ctx.createRadialGradient(c.x, c.y, r * 0.5, c.x, c.y, r + halo + r * 0.5);
+    cor.addColorStop(0, hexA(gold, 0.55 * k)); cor.addColorStop(0.5, hexA(TH.ccEdge, 0.15 * k)); cor.addColorStop(1, hexA(gold, 0));
+    ctx.fillStyle = cor; circle(c.x, c.y, r + halo + r * 0.5); ctx.fill();
+    ctx.fillStyle = hexA(TH.glintCore || '#FFE9B0', 0.28 * k); ctx.beginPath();
+    for (let i = 0; i < 18; i++) {
+      const ang = (i * TAU) / 18 + w * 0.05, len = r + halo * (0.45 + 0.55 * Math.abs(Math.sin(w * 1.2 + i * 1.9)));
+      ctx.moveTo(c.x + Math.cos(ang - 0.07) * r * 0.9, c.y + Math.sin(ang - 0.07) * r * 0.9);
+      ctx.lineTo(c.x + Math.cos(ang) * len, c.y + Math.sin(ang) * len);
+      ctx.lineTo(c.x + Math.cos(ang + 0.07) * r * 0.9, c.y + Math.sin(ang + 0.07) * r * 0.9);
+    }
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    const body = ctx.createRadialGradient(c.x - r * 0.25, c.y - r * 0.25, r * 0.05, c.x, c.y, r);
+    body.addColorStop(0, '#FFFFFF'); body.addColorStop(0.35, hexA('#FFEDB5', 0.97)); body.addColorStop(0.8, hexA(gold, 0.85)); body.addColorStop(1, hexA(TH.ccEdge, 0.75));
+    ctx.fillStyle = body; circle(c.x, c.y, r); ctx.fill();
+    ctx.strokeStyle = hexA('#FFF4D6', 0.8); ctx.lineWidth = 1; circle(c.x, c.y, r); ctx.stroke();
     states.forEach((s) => {
       if (s.phase === 'done' && s.since < C.FX.pulse) {
         const p = s.since / C.FX.pulse;
-        ctx.strokeStyle = hexA(C.COLOR.cc, 0.7 * (1 - p)); ctx.lineWidth = 2; circle(c.x, c.y, r + 4 + p * 18); ctx.stroke();
+        ctx.strokeStyle = hexA(gold, 0.85 * (1 - p)); ctx.lineWidth = 2; circle(c.x, c.y, r + 4 + p * (halo + 10)); ctx.stroke();
       }
     });
-    ctx.save(); ctx.shadowColor = C.COLOR.cc; ctx.shadowBlur = 24;
-    bubble(c.x, c.y, r, C.COLOR.cc, 1.25); ctx.restore();
-    const f = Math.max(12, L.font);
-    text('Claude Code · 总调度', c.x, c.y + r + f + 4, f, C.COLOR.text, 'center', 600);
-    text('上下文 ' + C.fmtTokens(tokens) + ' token', c.x, c.y + r + f * 2 + 8, Math.max(11, f - 1), hexA(C.COLOR.cc, 0.95));
+    for (const te of drops) {
+      const q = C.since(clock, t, te);
+      if (q >= 0 && q < 1.6) {
+        ctx.strokeStyle = hexA('#FFFFFF', 0.9 * (1 - q / 1.6)); ctx.lineWidth = 3 * (1 - q / 1.6) + 0.5;
+        circle(c.x, c.y, r + q * 70); ctx.stroke();
+      }
+    }
+    const f = L.narrow ? 12 : Math.max(12, L.font);
+    text('Claude Code · 总调度', c.x, c.y + r + halo + f + 2, f, '#FFFFFF', 'center', 700);
+    text('上下文 ' + C.fmtTokens(tokens) + ' token', c.x, c.y + r + halo + f * 2 + 6, Math.max(11, f - 1), hexA(gold, 0.95), 'center', 600, MONO);
   }
 
-  function packet(x, y, color, label) {
-    ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 12;
-    ctx.fillStyle = color; circle(x, y, 4.5); ctx.fill(); ctx.restore();
-    if (label) text(label, x + 8, y - 8, Math.max(11, L.font - 1), color, 'left', 600);
+  // A comet: bright head, fading tail along its path, optional label.
+  function comet(path, p, color, label, size) {
+    const s0 = size || 3;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = color;
+    for (let k = 16; k >= 1; k--) {
+      const q = along(path, Math.max(0, ease(p) - k * 0.012)), s = s0 * (1 - k / 18);
+      ctx.globalAlpha = 0.6 * (1 - k / 17); ctx.fillRect(q.x - s, q.y - s, 2 * s, 2 * s);
+    }
+    ctx.globalAlpha = 1;
+    const { x, y } = along(path, ease(p));
+    const g = ctx.createRadialGradient(x, y, 0, x, y, s0 * 4);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.3, hexA(color, 0.95)); g.addColorStop(1, hexA(color, 0));
+    ctx.fillStyle = g; circle(x, y, s0 * 4); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    if (label) {
+      ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 10;
+      text(label, x + 12, y - 10, Math.max(12, L.font), '#FFFFFF', 'left', 700, MONO);
+      ctx.restore();
+    }
   }
 
   function drawPackets(states) {
     states.forEach((s, i) => {
       const a = model.agents[i];
-      if (s.phase === 'dispatching') {
-        const pos = along(ccPath(i), ease(s.p));
-        packet(pos.x, pos.y, C.COLOR.cc);
-      } else if (s.phase === 'returning') {
+      if (s.phase === 'dispatching') comet(ccPath(i), s.p, TH.cc, null, 2.2);
+      else if (s.phase === 'returning') {
         const path = ccPath(i);
-        const pos = along({ a: path.b, b: path.a, c: path.c }, ease(s.p));
-        packet(pos.x, pos.y, C.agentColor(a), C.fmtInt(a.handbackChars) + ' 字');
+        comet({ a: path.b, b: path.a, c: path.c }, s.p, colorOf(a), C.fmtInt(a.handbackChars) + ' 字', 3.2);
       }
     });
     const task = model.task;
     const qt = task ? C.since(clock, t, task.t) : -1;
-    if (qt >= 0 && qt < C.FX.task) {
-      const pos = along(linkPath(L.author, L.cc, -0.15), ease(qt / C.FX.task));
-      packet(pos.x, pos.y, C.COLOR.author, '任务');
-    }
+    if (qt >= 0 && qt < C.FX.task) comet(linkPath(L.author, L.cc, -0.2), qt / C.FX.task, TH.author, '任务', 3.4);
     const rep = model.reply;
     const qr = rep ? C.since(clock, t, rep.t) : -1;
-    if (qr >= 0 && qr < C.FX.reply) {
-      const pos = along(linkPath(L.cc, L.author, -0.15), ease(qr / C.FX.reply));
-      packet(pos.x, pos.y, C.COLOR.cc, C.fmtInt(rep.chars) + ' 字');
-    }
+    if (qr >= 0 && qr < C.FX.reply) comet(linkPath(L.cc, L.author, -0.2), qr / C.FX.reply, TH.cc, C.fmtInt(rep.chars) + ' 字', 3.4);
   }
 
+  // End view: every subagent's peak gathered into one galaxy, next to the star on the same ruler.
   function drawEnding(k) {
-    const b = L.endBig, c = L.endCc;
+    const b = L.endBig, c = L.endCc, w = spin();
     ctx.globalAlpha = k;
-    ctx.setLineDash([4, 5]); ctx.strokeStyle = hexA('#FF8A4C', 0.8); ctx.lineWidth = 1.5;
-    circle(b.x, b.y, b.r); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = hexA('#FF8A4C', 0.08); circle(b.x, b.y, b.r); ctx.fill();
+    galaxy(97, b.x, b.y, b.r, TH.endGalaxy, 0.9, w * 0.4, 0, 1100);
+    ctx.setLineDash([3, 6]); ctx.strokeStyle = hexA(TH.glint, 0.7); ctx.lineWidth = 1.2; circle(b.x, b.y, b.r); ctx.stroke(); ctx.setLineDash([]);
     const f = Math.max(12, L.font);
-    text(model.nSub + ' 个子 agent 的上下文峰值加起来', b.x, b.y - 4, f, C.COLOR.text, 'center', 600);
-    text(C.fmtTokens(model.sumPeak) + ' token', b.x, b.y + f + 4, f + 4, '#FF8A4C', 'center', 700);
-    bubble(c.x, c.y, c.r, C.COLOR.cc, 1.2);
-    text('总调度自己', c.x, c.y + c.r + f + 4, f, C.COLOR.text, 'center', 600);
-    text(C.fmtTokens(model.mainMax) + ' token', c.x, c.y + c.r + f * 2 + 8, f, C.COLOR.cc, 'center', 700);
-    text('（同一把尺：面积对应 token 数）', b.x, b.y + b.r + f + 6, Math.max(11, f - 2), C.COLOR.dim);
+    ctx.save(); ctx.shadowColor = '#000'; ctx.shadowBlur = 12;
+    text(model.nSub + ' 个子 agent 的上下文峰值加起来', b.x, b.y - f * 0.6, f, '#FFFFFF', 'center', 700);
+    ctx.shadowColor = TH.endGalaxy; ctx.shadowBlur = 18;
+    text(C.fmtTokens(model.sumPeak) + ' token', b.x, b.y + f * 1.6, Math.round(f * 2), '#FFFFFF', 'center', 800, MONO);
+    ctx.restore();
+    const g = ctx.createRadialGradient(c.x - c.r * 0.25, c.y - c.r * 0.25, c.r * 0.05, c.x, c.y, c.r);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.35, hexA('#FFEDB5', 0.97)); g.addColorStop(0.8, hexA(TH.cc, 0.85)); g.addColorStop(1, hexA(TH.ccEdge, 0.75));
+    ctx.save(); ctx.shadowColor = TH.cc; ctx.shadowBlur = 30; ctx.fillStyle = g; circle(c.x, c.y, c.r); ctx.fill(); ctx.restore();
+    text('总调度自己', c.x, c.y + c.r + f + 6, f, '#FFFFFF', 'center', 700);
+    text(C.fmtTokens(model.mainMax) + ' token', c.x, c.y + c.r + f * 2 + 10, f, TH.cc, 'center', 700, MONO);
+    text('（同一把尺：面积对应 token 数）', b.x, b.y + b.r + f + 6, Math.max(11, f - 2), TH.dim);
     ctx.globalAlpha = 1;
   }
 
   function drawTimeline() {
     const tl = L.timeline, x = (v) => tl.x0 + (tl.x1 - tl.x0) * (v / endT);
-    ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.strokeStyle = '#1F2947'; ctx.beginPath(); ctx.moveTo(tl.x0, tl.y); ctx.lineTo(tl.x1, tl.y); ctx.stroke();
-    ctx.strokeStyle = hexA(C.COLOR.cc, 0.85); ctx.beginPath(); ctx.moveTo(tl.x0, tl.y); ctx.lineTo(x(t), tl.y); ctx.stroke();
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = hexA(TH.orbit, 0.16); ctx.beginPath(); ctx.moveTo(tl.x0, tl.y); ctx.lineTo(tl.x1, tl.y); ctx.stroke();
+    ctx.save(); ctx.shadowColor = TH.cc; ctx.shadowBlur = 10;
+    ctx.strokeStyle = hexA(TH.cc, 0.95); ctx.beginPath(); ctx.moveTo(tl.x0, tl.y); ctx.lineTo(x(t), tl.y); ctx.stroke(); ctx.restore();
+    ctx.lineWidth = 1;
     for (const a of model.agents) {
-      ctx.strokeStyle = hexA(C.agentColor(a), 0.8);
+      ctx.strokeStyle = hexA(colorOf(a), 0.85);
       ctx.beginPath(); ctx.moveTo(x(a.dispatchT), tl.y - 4); ctx.lineTo(x(a.dispatchT), tl.y - 10); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x(a.handbackT), tl.y + 4); ctx.lineTo(x(a.handbackT), tl.y + 10); ctx.stroke();
     }
-    if (model.task) { ctx.fillStyle = C.COLOR.author; circle(x(model.task.t), tl.y, 3.5); ctx.fill(); }
-    if (model.reply) { ctx.fillStyle = C.COLOR.cc; circle(x(model.reply.t), tl.y, 3.5); ctx.fill(); }
-    ctx.fillStyle = '#E8ECF8'; circle(x(t), tl.y, dragging ? 8 : 6); ctx.fill();
-    ctx.lineCap = 'butt';
+    if (model.task) { ctx.fillStyle = TH.author; circle(x(model.task.t), tl.y, 3.5); ctx.fill(); }
+    if (model.reply) { ctx.fillStyle = TH.cc; circle(x(model.reply.t), tl.y, 3.5); ctx.fill(); }
+    const hx = x(t);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(hx, tl.y, 0, hx, tl.y, dragging ? 14 : 11);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.35, hexA(TH.cc, 0.8)); g.addColorStop(1, hexA(TH.cc, 0));
+    ctx.fillStyle = g; circle(hx, tl.y, dragging ? 14 : 11); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // Small fixed readouts in the stage corners (skipped on narrow screens, where the caption needs the width).
+  function drawCorners() {
+    if (L.W < 560) return;
+    const y = L.stage.y + L.stage.h - 10;
+    text('DISPATCH REPLAY // ' + slug.toUpperCase(), 16, y, 10, hexA(TH.orbit, 0.5), 'left', 600, MONO);
+    text('T+' + C.fmtClock(Math.min(t, model.duration)) + ' / ' + C.fmtClock(model.duration), L.W - 16, y, 10, hexA(TH.orbit, 0.5), 'right', 600, MONO);
   }
 
   // ---- DOM overlays -----------------------------------------------------------------------------
   let lastCaption = null;
+  // Captions: escape, then light up the numbers (her rule: the point of a line should be big and bright).
+  function highlight(s) {
+    const esc = s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+    return esc.replace(/(\d[\d,.×]*(?:\s*万)?(?:\s*(?:token|字|分钟|小时|秒|位|个|次|篇))?)/g, '<em>$1</em>');
+  }
   function updateDom(states, ending) {
     const n = C.counters(model, Math.min(t, model.duration));
     $('clock').textContent = (playing && clock.isSlow(t) ? '慢放 · ' : '') + C.fmtClock(Math.min(t, model.duration)) + ' / ' + C.fmtClock(model.duration);
@@ -453,11 +664,18 @@
     $('c-live').textContent = C.fmtTokens(n.liveTokens);
     $('c-report').textContent = C.fmtInt(n.reportChars);
     $('c-tools').textContent = C.fmtInt(n.toolCalls);
+    const big = $('big');
+    big.hidden = !L.readout || ending > 0.3;
+    if (!big.hidden) {
+      $('big-v').textContent = C.fmtTokensTight(n.liveTokens).replace('万', '');
+      $('big-u').textContent = n.liveTokens >= 10000 ? '万 token' : 'token';
+      $('big-s').textContent = '在跑 ' + n.running + ' · 已交回 ' + n.returned + '/' + n.total;
+    }
 
     const cap = C.caption(model, t, clock);
     const el = $('caption');
     const key = cap ? cap.index : null;
-    if (key !== lastCaption) { el.textContent = cap ? cap.text : ''; lastCaption = key; }
+    if (key !== lastCaption) { el.innerHTML = cap ? '<span>' + highlight(cap.text) + '</span>' : ''; lastCaption = key; }
     let op = 0;
     if (cap) {
       const inP = C.since(clock, t, cap.start) / 0.35, outP = C.since(clock, cap.end, t) / 0.35;
@@ -512,7 +730,9 @@
       caption: cap ? cap.text : null,
       layout: { W: L.W, H: L.H, cols: L.cols, rows: L.rows, rUnit: L.rUnit, font: L.font, portrait: L.portrait, compact: L.compact,
         endRulerY: L.endBig.y + L.endBig.r + Math.max(12, L.font) + 6 },
-      cells: L.cells.map((c, i) => ({ x: c.cx, y: c.cy, kind: model.agents[i].kind, color: C.agentColor(model.agents[i]) })),
+      cells: L.cells.map((c, i) => ({ x: c.cx, y: c.cy, kind: model.agents[i].kind, color: colorOf(model.agents[i]) })),
+      timeline: L.timeline, play: clock.play(t),
+      orbit: !L.orbits.grid, readout: L.readout, readoutShown: !$('big').hidden,
       dpr,
       summaryShown: !$('summary').hidden,
     };

@@ -7,24 +7,25 @@
 <link rel="icon" href="data:,">
 <meta name="description" content="回放一次真实的 Claude Code 工作：总调度把活拆给一群子 agent，每个读了十几万 token，交回来只有几百字。">
 <style>
-:root{--text:#E8ECF8;--dim:#8A93B2;--cc:#F5B84B;--line:#1F2947;--font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif}
+:root{--text:#D8F6FF;--dim:#5F8796;--cc:#FFC94A;--hud:#00E5FF;--accent-rgb:0,229,255;--soft-rgb:160,230,255;--em:#8FF0FF;--panel:rgba(2,14,20,.94);--h1:linear-gradient(90deg,#FFFFFF 0%,#BFF3FF 45%,#FFD27A 100%);--line:#0E2A33;--font:"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif;--mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:#05070F;color:var(--text);font-family:var(--font);overflow:hidden;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#000305;color:var(--text);font-family:var(--font);overflow:hidden;-webkit-tap-highlight-color:transparent}
 canvas{position:fixed;inset:0;display:block;touch-action:none}
 header{position:fixed;left:0;right:0;top:0;height:60px;display:flex;align-items:center;gap:16px;padding:0 16px;pointer-events:none}
 header .titles{flex:1;min-width:0}
-h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--h1);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 8px rgba(var(--accent-rgb),.35))}
 #subtitle{margin:2px 0 0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #legend{display:flex;gap:10px;font-size:12px;color:var(--dim);white-space:nowrap}
-.key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:1px}
+.key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:1px;box-shadow:0 0 6px currentColor}
 .controls{display:flex;gap:8px;align-items:center;pointer-events:auto}
-button,select{font:inherit;font-size:13px;color:var(--text);background:#131A30;border:1px solid #2A355C;border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap}
-button:hover,select:hover{border-color:var(--cc)}
-#caption{position:fixed;left:50%;transform:translateX(-50%);width:min(760px,calc(100% - 24px));display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;line-height:1.45;color:var(--text);opacity:0;pointer-events:none;text-shadow:0 1px 8px #000}
+button,select{font:inherit;font-size:13px;color:var(--text);background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--accent-rgb),.35);border-radius:2px;padding:6px 10px;cursor:pointer;white-space:nowrap;letter-spacing:.04em}
+button:hover,select:hover{border-color:var(--hud);box-shadow:0 0 10px rgba(var(--accent-rgb),.35)}
+select option{background:#0A0E16;color:var(--text)}
+#caption{position:fixed;left:50%;transform:translateX(-50%);width:min(820px,calc(100% - 24px));display:flex;align-items:center;justify-content:center;text-align:center;font-size:19px;font-weight:600;line-height:1.4;letter-spacing:.03em;color:#F2FCFF;opacity:0;pointer-events:none;text-shadow:0 0 10px rgba(var(--accent-rgb),.45),0 1px 6px #000}
 #counters{position:fixed;left:16px;right:16px;display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--dim);pointer-events:none}
-#counters b{color:var(--text);font-weight:600;margin-left:4px;font-variant-numeric:tabular-nums}
-#clock{font-variant-numeric:tabular-nums;font-size:12px;color:var(--dim);min-width:130px;text-align:right}
-#detail{position:fixed;right:16px;top:72px;max-width:300px;background:rgba(14,19,38,.94);border:1px solid #2A355C;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;cursor:pointer}
+#counters b{color:var(--hud);font-weight:600;margin-left:5px;font-family:var(--mono);font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(var(--accent-rgb),.4)}
+#clock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:rgba(var(--accent-rgb),.7);min-width:150px;text-align:right}
+#detail{position:fixed;right:16px;top:72px;max-width:300px;background:var(--panel);border:1px solid rgba(var(--accent-rgb),.45);border-radius:2px;box-shadow:0 0 18px rgba(var(--accent-rgb),.15);padding:10px 12px;font-size:13px;line-height:1.5;cursor:pointer}
 #detail p{margin:0 0 2px}
 #detail .d-title{font-weight:700;margin-bottom:4px}
 #detail .d-hint{color:var(--dim);font-size:11px;margin-top:4px}
@@ -34,11 +35,25 @@ button:hover,select:hover{border-color:var(--cc)}
 body.portrait header{height:56px;flex-wrap:wrap;gap:4px 10px;padding:6px 10px;align-content:center}
 body.portrait h1{font-size:16px}
 body.portrait #legend,body.compact #legend{display:none}
-body.portrait #caption{font-size:14px}
+body.portrait #caption{font-size:15px}
 body.portrait #counters{gap:4px 12px;font-size:11px}
 body.portrait #detail{left:10px;right:10px;top:auto;bottom:118px;max-width:none}
 body.portrait #summary p{font-size:13px}
-body.tall header{height:92px;align-content:center}
+#caption span{display:block}
+#caption em{font-style:normal;color:var(--em);text-shadow:0 0 12px rgba(var(--accent-rgb),.75)}
+#big{position:fixed;pointer-events:none;text-align:right;font-family:var(--mono)}
+#big p{margin:0}
+#big .k{font-family:var(--font);font-size:11px;letter-spacing:.12em;color:rgba(var(--soft-rgb),.7)}
+#big .v{white-space:nowrap;font-size:40px;line-height:1.05;font-weight:800;color:#fff;text-shadow:0 0 18px rgba(var(--accent-rgb),.8),0 0 2px #fff}
+#big .v small{font-size:12px;font-weight:600;margin-left:6px;color:rgba(var(--soft-rgb),.85);text-shadow:none}
+#big .s{font-size:11px;color:rgba(var(--soft-rgb),.75);margin-top:2px}
+body.portrait #big .v{font-size:24px}
+body.portrait #big .k{font-size:10px}
+body.narrow #subtitle,body.narrow #counters .wide-only,body.narrow #big .s{display:none}
+body.narrow #counters{gap:4px 14px}
+body.tall header{height:74px;align-content:center}
+body.theme-cinnabar{--text:#FFF1E0;--dim:#8A6A55;--hud:#FFC94A;--accent-rgb:255,201,74;--soft-rgb:255,214,170;--em:#FFD36E;--panel:rgba(20,6,4,.94);--h1:linear-gradient(90deg,#FFF6E8 0%,#FFD36E 50%,#FF5A3C 100%)}
+body.theme-cinnabar,body.theme-cinnabar html{background:#060102}
 body.tall header .titles{flex:1 1 100%}
 body.tall header .controls{flex:1 1 100%;justify-content:flex-end}
 body.compact header{height:44px}
@@ -65,13 +80,14 @@ noscript{position:fixed;inset:0;display:grid;place-items:center;padding:24px;tex
   </div>
 </header>
 <div id="caption" role="status" aria-live="polite"></div>
+<div id="big" hidden><p class="k">正在读的上下文</p><p class="v"><span id="big-v">0</span><small id="big-u">token</small></p><p class="s" id="big-s"></p></div>
 <div id="counters">
   <span>在跑<b id="c-running">0</b></span>
   <span>已派出<b id="c-sent">0</b></span>
   <span>已交回<b id="c-back">0</b></span>
-  <span>正在读的上下文<b id="c-live">0</b> token</span>
+  <span class="wide-only">正在读的上下文<b id="c-live">0</b> token</span>
   <span>已交回报告<b id="c-report">0</b> 字</span>
-  <span>工具调用<b id="c-tools">0</b> 次</span>
+  <span class="wide-only">工具调用<b id="c-tools">0</b> 次</span>
 </div>
 <div id="detail" hidden></div>
 <div id="summary" hidden>
