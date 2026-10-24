@@ -30,6 +30,7 @@
 | [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
 | [齿轮返修](gear-repair/) · [看](https://aliceljy.github.io/playground/gear-repair/) | DeepSeek Harness 一次写出的齿轮页把渐开线方向写反了一个符号，两对齿轮帧帧穿模；作者只给症状和查法，它自己修好。一键切换原版与返修后，红点标出穿模处 | Three.js，两版齿形代码原样保留，穿模检测与页面共用一份代码，鼠标与触屏 |
 | [山河卷](shanhe-scroll/) · [看](https://aliceljy.github.io/playground/shanhe/) | 可以走进去的历史长卷：宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场 | Three.js 全景球，换一个数据文件就能换题材 |
+| [南禅寺大殿 · 一步步搭起来](nanchan-temple/) · [看](https://aliceljy.github.io/playground/nanchan-temple/) | 国内现存最早的木构建筑（唐建中三年 782 年重建）。11 个按钮一层层搭：台基、立柱、斗栱、梁架、椽、瓦，再拆开、装回。尺寸取自实测，剖视窗看屋顶的重量怎么经斗栱传到柱子，可切白天、黑夜 | Anatomy skill（MIT）生成的等轴 SVG，单文件，键鼠与触屏 |
 
 ## AI 幕后
 
