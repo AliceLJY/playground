@@ -1,0 +1,134 @@
+/* 界画 + 唐代朱白。浅色是绢底；深色是夜里的绢。每种矿物色三阶：顶面最亮，侧面渐暗。 */
+.iso[data-theme="light"]{
+  --anatomy-page:#e9dfc8;--anatomy-card:#f1e8d3;--anatomy-text:#4a3f33;--anatomy-strong:#231b14;--anatomy-muted:#7d6e5c;
+  --anatomy-paper:#f1e8d3;--anatomy-face:#f6eedc;--anatomy-top:#f8f1e1;
+  --anatomy-hi:#2a2119;--anatomy-mid:#5d4f40;--anatomy-lo:#8c7a64;--anatomy-faint:#b9a68b;--anatomy-lit:#000;
+  --anatomy-halo:#cdbf9f;--anatomy-halo-opacity:.8;--anatomy-dot:#2a2119;
+  --nc-ink:#2a2119;--nc-accent:#a2402a;--nc-chip:#eadfc6;--nc-btn:#f6efdf;--nc-btn-line:#bfae92;
+  --zhu-t:#c9694c;--zhu-1:#b35a3f;--zhu-0:#8f432f;
+  --zhu2-t:#b76248;--zhu2-1:#9e5139;--zhu2-0:#7f3e2b;
+  --bai-t:#f7f1e3;--bai-1:#e9dfca;--bai-0:#d2c4a8;
+  --shi-t:#c2c0b3;--shi-1:#a8a598;--shi-0:#8a877a;
+  --zhuan-t:#b9b2a2;--zhuan-1:#a09888;--zhuan-0:#857d6d;
+  --fz-t:#cfc6b2;--fz-1:#b8ae98;--fz-0:#9d937d;
+  --wa-t:#77736c;--wa-1:#5f5b55;--wa-0:#47443f;
+  --tu-t:#e2d6ba;--tu-1:#d3c5a5;--tu-0:#c0b190;
+  --qing-t:#6f93b0;--qing-1:#557a98;--qing-0:#40617c;
+  --lv-t:#7fa592;--lv-1:#628b77;--lv-0:#4a6f5d;
+}
+.iso[data-theme="dark"]{
+  --anatomy-page:#16130f;--anatomy-card:#1d1915;--anatomy-text:#cbbfa9;--anatomy-strong:#f1e7d3;--anatomy-muted:#958774;
+  --anatomy-paper:#1d1915;--anatomy-face:#26211b;--anatomy-top:#2a241d;
+  --anatomy-hi:#f0e6d2;--anatomy-mid:#b3a58e;--anatomy-lo:#7c6f5e;--anatomy-faint:#4d443a;--anatomy-lit:#fff;
+  --anatomy-halo:#000;--anatomy-halo-opacity:.55;--anatomy-dot:#f0e6d2;
+  --nc-ink:#f0e6d2;--nc-accent:#e0795c;--nc-chip:#2a241d;--nc-btn:#26211b;--nc-btn-line:#5b5044;
+  --zhu-t:#a9533b;--zhu-1:#8b4330;--zhu-0:#6c3324;
+  --zhu2-t:#984a35;--zhu2-1:#7c3c2b;--zhu2-0:#602e21;
+  --bai-t:#cfc5b2;--bai-1:#b0a693;--bai-0:#8f8674;
+  --shi-t:#7f7d73;--shi-1:#69675e;--shi-0:#53524a;
+  --zhuan-t:#77705f;--zhuan-1:#625c4e;--zhuan-0:#4d483d;
+  --fz-t:#837b69;--fz-1:#6d6657;--fz-0:#585245;
+  --wa-t:#5a5752;--wa-1:#46433f;--wa-0:#33312e;
+  --tu-t:#3a332a;--tu-1:#312b23;--tu-0:#28231d;
+  --qing-t:#557a98;--qing-1:#43637d;--qing-0:#324b5f;
+  --lv-t:#628b77;--lv-1:#4e7362;--lv-0:#3b584b;
+}
+/* 材质：把纸色、顶面、四阶侧面换成这种颜色的三阶 */
+.m-zhu,.m-zhubai{--anatomy-paper:var(--zhu-1);--anatomy-top:var(--zhu-t);--anatomy-shade-3:var(--zhu-1);--anatomy-shade-2:var(--zhu-1);--anatomy-shade-1:var(--zhu-0);--anatomy-shade-0:var(--zhu-0)}
+.m-zhu2{--anatomy-paper:var(--zhu2-1);--anatomy-top:var(--zhu2-t);--anatomy-shade-3:var(--zhu2-1);--anatomy-shade-2:var(--zhu2-1);--anatomy-shade-1:var(--zhu2-0);--anatomy-shade-0:var(--zhu2-0)}
+.m-zhubai{--anatomy-top:var(--bai-t)}
+.m-bai{--anatomy-paper:var(--bai-1);--anatomy-top:var(--bai-t);--anatomy-shade-3:var(--bai-1);--anatomy-shade-2:var(--bai-1);--anatomy-shade-1:var(--bai-0);--anatomy-shade-0:var(--bai-0)}
+.m-shi{--anatomy-paper:var(--shi-1);--anatomy-top:var(--shi-t);--anatomy-shade-3:var(--shi-1);--anatomy-shade-2:var(--shi-1);--anatomy-shade-1:var(--shi-0);--anatomy-shade-0:var(--shi-0)}
+.m-zhuan{--anatomy-paper:var(--zhuan-1);--anatomy-top:var(--zhuan-t);--anatomy-shade-3:var(--zhuan-1);--anatomy-shade-2:var(--zhuan-1);--anatomy-shade-1:var(--zhuan-0);--anatomy-shade-0:var(--zhuan-0)}
+.m-fangzhuan{--anatomy-paper:var(--fz-1);--anatomy-top:var(--fz-t);--anatomy-shade-3:var(--fz-1);--anatomy-shade-2:var(--fz-1);--anatomy-shade-1:var(--fz-0);--anatomy-shade-0:var(--fz-0)}
+.m-wa{--anatomy-paper:var(--wa-1);--anatomy-top:var(--wa-t);--anatomy-shade-3:var(--wa-1);--anatomy-shade-2:var(--wa-1);--anatomy-shade-1:var(--wa-0);--anatomy-shade-0:var(--wa-0);--anatomy-lo:var(--wa-0)}
+.m-tu{--anatomy-paper:var(--tu-1);--anatomy-top:var(--tu-t);--anatomy-shade-3:var(--tu-1);--anatomy-shade-2:var(--tu-1);--anatomy-shade-1:var(--tu-0);--anatomy-shade-0:var(--tu-0)}
+.m-qing{--anatomy-paper:var(--qing-1);--anatomy-top:var(--qing-t);--anatomy-shade-3:var(--qing-1);--anatomy-shade-2:var(--qing-1);--anatomy-shade-1:var(--qing-0);--anatomy-shade-0:var(--qing-0)}
+.m-lv{--anatomy-paper:var(--lv-1);--anatomy-top:var(--lv-t);--anatomy-shade-3:var(--lv-1);--anatomy-shade-2:var(--lv-1);--anatomy-shade-1:var(--lv-0);--anatomy-shade-0:var(--lv-0)}
+.iso[data-theme="light"] .m-wa .iso-line[data-tone="lo"]{stroke:#3b3833}
+.iso[data-theme="dark"] .m-wa .iso-line[data-tone="lo"]{stroke:#2a2825}
+.nc-baidian circle{fill:var(--bai-t)!important;opacity:.95!important}
+/* 墨线略粗一点，像界画 */
+.nc .iso-svg{--anatomy-weight:.7px}
+.nc .iso-line.iso-edge{stroke-width:.75px}
+/* 投影：短、硬边、暖灰，落在正后方 */
+.nc-shadow{filter:none!important;transform:translate(-6px,-3px)!important;opacity:calc(.55*var(--base-fill,1))!important}
+.iso[data-theme="light"] .nc-shadow{fill:#cbbd9c!important}
+.it[data-hide]{opacity:0;pointer-events:none}
+.it{transition:opacity .28s ease}
+.it[data-piece="stand"]{opacity:var(--base-fill,1)}
+.it[data-piece="stand"][data-hide]{opacity:0}
+.it[data-on]{--anatomy-top:#ffe9a6;--anatomy-shade-3:#f2b33d;--anatomy-shade-2:#f2b33d;--anatomy-shade-1:#d18f1f;--anatomy-shade-0:#d18f1f;--anatomy-paper:#f2b33d}
+.it[data-on] .iso-edge{stroke:var(--nc-accent)!important;stroke-width:1.3px!important}
+
+/* 版面 */
+.nc .iso-plate{padding:46px 20px 40px}
+.nc-layout{display:grid;grid-template-columns:200px 1fr;gap:18px;align-items:start}
+.nc-side{display:flex;flex-direction:column;gap:10px;position:sticky;top:12px}
+.nc-mode{display:flex;border:1px solid var(--nc-btn-line);border-radius:999px;overflow:hidden}
+.nc-mode button{flex:1;padding:6px 0;font:13px "Noto Serif SC",serif;color:var(--anatomy-muted);background:transparent;border:0;cursor:pointer}
+.nc-mode button[aria-pressed="true"]{background:var(--nc-ink);color:var(--anatomy-card)}
+.nc-steps{display:flex;flex-direction:column;gap:6px}
+.nc-step{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;border:1px solid var(--nc-btn-line);background:var(--nc-btn);color:var(--anatomy-strong);font:15px "Noto Serif SC",serif;text-align:left;cursor:pointer;transition:opacity .2s,transform .2s,background .2s}
+.nc-step:disabled{cursor:default;opacity:.38}
+.nc-step[data-done]{opacity:.55}
+.nc-step[data-run]{opacity:1;background:var(--nc-accent);border-color:var(--nc-accent);color:#fff8ec}
+.nc-step[data-next]{opacity:1;border-color:var(--nc-accent);animation:nc-bob 1.6s ease-in-out infinite}
+.nc-num{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid currentColor;font:12px var(--anatomy-mono);flex:none}
+.nc-step[data-next] .nc-num{background:var(--nc-accent);color:#fff8ec;border-color:var(--nc-accent)}
+@keyframes nc-bob{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+.nc-reset{font:13px "Noto Serif SC",serif;color:var(--anatomy-muted);text-decoration:underline;text-underline-offset:3px;padding-left:8px}
+.nc-main{min-width:0}
+.nc-stage{position:relative;outline:none}
+.nc-stage:focus-visible{outline:1px solid var(--anatomy-muted);outline-offset:6px}
+.nc-tip{font:17px/1.5 "Noto Serif SC",serif;color:var(--anatomy-strong);min-height:52px;padding:2px 2px 6px;max-width:60ch}
+.nc-tiprow{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.nc-speed{flex:none;margin-top:4px;font:11px var(--anatomy-mono);letter-spacing:.06em;color:var(--nc-accent);border:1px solid var(--nc-accent);border-radius:4px;padding:2px 6px}
+.nc-sound{position:absolute;transform:translate(-50%,-50%) rotate(-7deg);font:34px "Ma Shan Zheng","STKaiti","KaiTi",cursive;color:var(--nc-accent);pointer-events:none;opacity:0;white-space:nowrap;text-shadow:0 1px 0 var(--anatomy-card),0 -1px 0 var(--anatomy-card),1px 0 0 var(--anatomy-card),-1px 0 0 var(--anatomy-card)}
+.nc-sound[data-pop]{animation:nc-pop 1.5s ease-out forwards}
+@keyframes nc-pop{0%{opacity:0;transform:translate(-50%,-30%) rotate(-7deg) scale(.7)}14%{opacity:1;transform:translate(-50%,-50%) rotate(-7deg) scale(1.08)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-80%) rotate(-7deg) scale(1)}}
+.nc-inset{position:relative;margin-top:6px;background:var(--anatomy-card);border:1px solid var(--nc-btn-line);border-radius:10px;padding:6px 8px 8px;box-shadow:0 2px 0 var(--nc-btn-line)}
+.nc-inset-win{border-radius:8px;overflow:hidden;background:var(--anatomy-face)}
+.nc-inset-cap{font:12px/1.45 "Noto Serif SC",serif;color:var(--anatomy-text);margin-top:4px}
+.nc-inset-cap b{display:block;font-weight:600;color:var(--anatomy-strong);margin-bottom:2px}
+.nc-inset-cap ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr;gap:1px}
+.nc-inset-cap li{display:flex;gap:4px;align-items:baseline;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nc-inset-cap li span{font:10px var(--anatomy-mono);color:var(--anatomy-muted)}
+.nc-inset-cap li em{display:none}
+.nc-inset-cap li[data-on]{opacity:1;color:var(--nc-accent)}
+.nc-inset-cap li[data-on] em{display:inline;font-style:normal;font-size:11px;color:var(--anatomy-muted)}
+.nc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.nc-chip{display:inline-flex;gap:6px;align-items:baseline;background:var(--nc-chip);border-radius:6px;padding:3px 8px;font:12px "Noto Serif SC",serif;color:var(--anatomy-text)}
+.nc-chip b{font-weight:600;color:var(--anatomy-strong)}
+.nc-chip i{font-style:normal;font-variant-numeric:tabular-nums}
+.nc-slider{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font:13px "Noto Serif SC",serif;color:var(--anatomy-text)}
+.nc-slider input{width:180px;accent-color:var(--nc-accent)}
+.nc-slider output{font:12px var(--anatomy-mono);min-width:56px}
+.nc-slider em{font-style:normal;font-size:12px;color:var(--anatomy-muted)}
+.nc .iso-plate-corner{font-family:"Noto Serif SC",serif;font-size:12px;letter-spacing:.02em;text-transform:none}
+.nc-swatches{display:flex;flex-wrap:wrap;gap:6px 16px;font:13px "Noto Serif SC",serif}
+.nc-swatches span{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:14px;height:10px;border-radius:2px;border:1px solid var(--anatomy-hi)}
+.sw-zhu{background:var(--zhu-t)}.sw-bai{background:var(--bai-t)}.sw-wa{background:var(--wa-t)}.sw-shi{background:var(--shi-t)}
+.nc .iso-caption{font:14px/1.75 "Noto Serif SC",serif;color:var(--anatomy-text)}
+.nc .iso-caption strong{color:var(--anatomy-strong);font-weight:600}
+.nc-small{display:block;font-size:12.5px;color:var(--anatomy-muted);margin-top:4px}
+@media (max-width:720px){
+  .nc-layout{grid-template-columns:1fr}
+  .nc-side{position:static}
+  .nc-steps{flex-direction:row;flex-wrap:wrap}
+  .nc-step{font-size:13px;padding:4px 10px 4px 4px}
+  .nc-num{width:20px;height:20px}
+  .nc-inset{position:static;width:auto;display:grid;grid-template-columns:120px 1fr;gap:8px;margin-top:6px}
+  .nc-inset[hidden]{display:none}
+  .nc-tip{font-size:15px;min-height:46px}
+  .nc-sound{font-size:24px}
+  .nc-stage{overflow:hidden}
+  .nc-svg{width:108%!important;max-width:none;margin:-32% -4% 0;transition:margin-top .6s ease}
+  .nc-stage[data-apart] .nc-svg{margin-top:-4%}
+  .nc .iso-plate-corner[data-corner="hint"]{display:none}
+}
+@media (prefers-reduced-motion:reduce){.nc-step[data-next]{animation:none}.nc-sound[data-pop]{animation:none;opacity:1;transform:translate(-50%,-50%) rotate(-7deg)}.it{transition:none}}
+.nc[data-manual] .it{transition:none}.nc[data-manual] .nc-sound{display:none}
+.iso[data-theme="dark"] .nc-shadow{opacity:calc(.35*var(--base-fill,1))!important}
+.nc-theme{margin-top:8px}
