@@ -29,7 +29,9 @@ try{
  const heldControls=new Map();
  function syncInput(){input={};for(const action of heldControls.values())input[action]=true;}
  function clear(){heldControls.clear();input={};document.querySelectorAll('.held').forEach(el=>el.classList.remove('held'));}
- function newRace(){clear();inspect=false;state=C.create(options);C.start(state);cameraMode=0;snapCamera=true;oldPhase='';$('inspect').textContent='近看小橘';playTone(440,.18);}
+ // A fresh field every race; ?seed=N pins it for screenshots and repro.
+ function raceSeed(){const q=new URLSearchParams(location.search).get('seed');return q!==null&&Number.isFinite(+q)?(+q)>>>0:(Math.random()*4294967296)>>>0;}
+ function newRace(){clear();inspect=false;state=C.create({...options,seed:raceSeed()});C.start(state);cameraMode=0;snapCamera=true;oldPhase='';$('inspect').textContent='近看小橘';playTone(440,.18);}
  function menu(){clear();state=C.create(options);snapCamera=true;oldPhase='';inspect=false;$('inspect').textContent='近看小橘';}
  $('start').onclick=newRace;$('restart').onclick=newRace;$('restart-paused').onclick=newRace;$('return-menu').onclick=menu;$('exit').onclick=menu;
  function pause(){C.pause(state);clear();} $('pause').onclick=pause;$('resume').onclick=pause;
