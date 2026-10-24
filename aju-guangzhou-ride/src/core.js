@@ -100,9 +100,14 @@
   const side=((s.x-n.x)*Math.cos(s.heading)-(s.z-n.z)*Math.sin(s.heading))>0?-1:1;
   s.crash={time:0,kind,side,from:{x:s.x,z:s.z,heading:s.heading,y:s.y},safe};s.phase='crash';s.speed=0;s.boosting=false;s.collisions++;s.manual=0;
  }
+ const RIVAL={pace:14.4,push:.9};
  function advanceRace(s,dt,playerCanPass=true){
   const race=s.race;if(race?.status!=='racing')return;
-  race.time+=dt;race.aiAt=Math.min(GATES.at(-1)+3,race.aiAt+(13.4+Math.sin(race.time*.6)*.7)*dt);
+  race.time+=dt;
+  // Calico rides a touch faster than plain pedalling and leans in when orange gets ahead, so only a clean,
+  // well-timed boost run wins; the push is capped so a real lead still holds.
+  const lead=nearest(s.x,s.z,[MAIN]).at-race.aiAt,push=clamp(lead/25,0,1)*RIVAL.push;
+  race.aiAt=Math.min(GATES.at(-1)+3,race.aiAt+(RIVAL.pace+push+Math.sin(race.time*.6)*.7)*dt);
   const ai=at(MAIN,race.aiAt);
   if(playerCanPass&&race.gate<GATES.length&&gatePass(s.x,s.z,race.gate))race.gate++;
   if(race.aiGate<GATES.length&&gatePass(ai.x,ai.z,race.aiGate))race.aiGate++;
@@ -154,6 +159,6 @@
   if(!s.encountered&&s.distance>21&&Math.hypot(s.x-at(MAIN,30).x,s.z-at(MAIN,30).z)<10){challenge(s);return;}
   advanceRace(s,dt);
  }
- const api={END,MAIN,BRANCH,ROADS,PATHS,COURT,SHORE,DESTINATIONS,planRoute,navigate,isWater,groundY,surface,GATES,STOPS,create,start,step,near,interact,close,pause,challenge,accept,decline,at,nearest,clamp,wrap,sweep};
+ const api={END,MAIN,BRANCH,ROADS,PATHS,COURT,SHORE,DESTINATIONS,planRoute,navigate,isWater,groundY,surface,GATES,STOPS,create,start,step,near,interact,close,pause,challenge,accept,decline,RIVAL,at,nearest,clamp,wrap,sweep};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RideCore=api;
 })(typeof window!=='undefined'?window:globalThis);

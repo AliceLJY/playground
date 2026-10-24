@@ -11,6 +11,14 @@ test('boost accelerates, depletes and recovers while released',()=>{const s=ridi
 test('free driving crosses grass without a road corridor wall or heading correction',()=>{const s=riding();s.assist=false;s.x=-99;s.z=-65;s.heading=0;seconds(s,{forward:true},2);assert.equal(s.heading,0);assert.equal(s.collisions,0);assert.equal(s.phase,'ride');assert(s.z<-80);assert(C.nearest(s.x,s.z).distance>10);});
 test('countdown prevents false start and pause freezes both riders',()=>{const s=riding();C.accept(s);const p=[s.x,s.z,s.race.aiAt];seconds(s,{forward:true,boost:true},2);assert.deepEqual([s.x,s.z,s.race.aiAt],p);C.pause(s);const r=JSON.stringify(s);seconds(s,{forward:true},10);assert.equal(JSON.stringify(s),r);C.pause(s);seconds(s,{forward:true},2);assert.equal(s.race.status,'racing');assert(s.speed>0);});
 test('orange can win by accelerating and boosting through ordered checkpoints',()=>{const s=riding();C.accept(s);seconds(s,{forward:true,boost:true},50);assert.equal(s.phase,'result');assert.equal(s.race.winner,'orange');assert.equal(s.race.gate,5);assert.equal(s.collisions,0);});
+// 2026-10-24 playtest: "毫无难度" — holding boost won by 3.6 s against a fixed-pace calico. Both sides asserted.
+test('calico race is contested: a clean boost run wins narrowly, a slow start loses',()=>{
+ const run=input=>{const s=riding();C.accept(s);let t=0;while(s.phase!=='result'&&t<80){C.step(s,input(s),1/60);t+=1/60;}return {winner:s.race.winner,gap:C.nearest(s.x,s.z,[C.MAIN]).at-s.race.aiAt};};
+ const best=run(()=>({forward:true,boost:true}));assert.equal(best.winner,'orange','a clean full-boost run must win');
+ assert.ok(best.gap<25,`winning margin ${best.gap.toFixed(1)} m: calico should stay close`);
+ assert.equal(run(s=>({forward:true,boost:s.race.time>14})).winner,'calico','wasting the first 14 s of boost should lose');
+ assert.equal(run(()=>({forward:true})).winner,'calico','pedalling without boost should lose');
+});
 test('calico wins against cruise-only play; no unearned completion',()=>{const s=riding();C.accept(s);seconds(s,{},50);assert.equal(s.phase,'result');assert.equal(s.race.winner,'calico');assert(s.race.gate<5);});
 test('skip ahead cannot collect a later gate before earlier ones',()=>{const s=riding();C.accept(s);seconds(s,{},3.1);const p=C.at(C.MAIN,C.GATES[3]);Object.assign(s,{x:p.x,z:p.z,heading:p.heading});C.step(s,{},1/60);assert.equal(s.race.gate,0);});
 test('optional stops are spatial, pause progress and award only once',()=>{const s=riding(),p=C.at(C.MAIN,C.STOPS[0].at);Object.assign(s,{x:p.x,z:p.z});assert(C.interact(s));const d=s.distance;seconds(s,{forward:true},3);assert.equal(s.distance,d);C.close(s);assert(C.interact(s));assert.deepEqual(s.visits,['tea']);});
