@@ -39,14 +39,28 @@ function rider(i){
  const progress=-7-Math.floor(i/2)*4.5,lateral=(i%2?1:-1)*2.25,p=at(progress,lateral);
  return {id:i,name:names[i],color:colors[i],x:p.x,z:p.z,y:p.y,heading:p.heading,velocityHeading:p.heading,speed:0,progress,lap:1,nextGate:L/8,gate:0,lateral,pedal:0,charge:0,nitro:i===0?1:0,boost:0,mini:0,drift:0,driftSide:0,drifting:false,lastDrift:false,steer:0,hit:0,collisions:0,jumpY:0,jumpV:0,jumpReady:true,finished:false,finishTime:null,lastPad:-100,trail:0};
 }
+/* Bot field per difficulty. base/spread: cruise pace (m/s) and how far the field fans out, so places are
+   contested instead of one bunched train. mistake: seconds between wobbles. catchUp/easeOff: mild pack
+   pressure relative to the player, capped so a clean lead still holds. */
+const FIELD={
+ easy:{base:17.4,spread:1.2,mistake:[6,10],catchUp:.04,easeOff:.06},
+ normal:{base:21.6,spread:1.6,mistake:[9,15],catchUp:.06,easeOff:.05},
+ hard:{base:22.2,spread:1.5,mistake:[14,22],catchUp:.07,easeOff:.03}
+};
+function rnd(s){let t=s.rngState=(s.rngState+0x6D2B79F5)>>>0;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
 function create(options={}){
  const laps=[1,2,3].includes(Number(options.laps))?Number(options.laps):2;
  const difficulty=['easy','normal','hard'].includes(options.difficulty)?options.difficulty:'normal';
- return {phase:'menu',resumePhase:null,laps,difficulty,time:0,countdown:3,go:0,riders:names.map((_,i)=>rider(i)),events:[],lapTime:0,lastLapTime:null,bestLap:null,rank:1,finishOrder:[],finishDelay:0};
+ const seed=Number.isFinite(Number(options.seed))?Number(options.seed)>>>0:1;
+ const s={phase:'menu',resumePhase:null,laps,difficulty,seed,rngState:seed,time:0,countdown:3,go:0,riders:names.map((_,i)=>rider(i)),events:[],lapTime:0,lastLapTime:null,bestLap:null,rank:1,finishOrder:[],finishDelay:0};
+ // Shuffle who is fast each race; offsets span the field evenly around the difficulty base.
+ const f=FIELD[difficulty],slots=[-1,-.5,0,.5,1];for(let i=slots.length-1;i>0;i--){const j=Math.floor(rnd(s)*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
+ s.riders.slice(1).forEach((r,i)=>{r.pace=f.base+slots[i]*f.spread;r.mistakeIn=f.mistake[0]+rnd(s)*(f.mistake[1]-f.mistake[0]);r.wobble=0;r.wobbleDir=0;r.lineBias=(rnd(s)-.5)*2;});
+ return s;
 }
 function start(s){if(s.phase!=='menu'&&s.phase!=='result')return false;s.phase='countdown';return true;}
 function pause(s){if(s.phase==='paused'){s.phase=s.resumePhase;s.resumePhase=null;}else if(['racing','countdown'].includes(s.phase)){s.resumePhase=s.phase;s.phase='paused';}}
-function reset(s){const fresh=create({laps:s.laps,difficulty:s.difficulty});Object.assign(s,fresh);start(s);}
+function reset(s){const fresh=create({laps:s.laps,difficulty:s.difficulty,seed:s.seed+1});Object.assign(s,fresh);start(s);}
 function recover(s){
  if(s.phase!=='racing'||s.riders[0].finished)return;const r=s.riders[0],n=nearest(r.x,r.z),p=at(n.s,0);r.x=p.x;r.z=p.z;r.y=p.y;r.heading=p.heading;r.velocityHeading=p.heading;r.speed=0;r.drifting=false;r.drift=0;r.jumpY=0;r.jumpV=0;r.hit=.5;
 }
@@ -67,10 +81,14 @@ function updateProgress(s,r,oldS,newS,dt){
   if(r.id===0){s.lastLapTime=r.finishTime-s.lapTime;s.bestLap=s.bestLap===null?s.lastLapTime:Math.min(s.bestLap,s.lastLapTime);s.finishDelay=1.8;}
  }
 }
-function botInput(s,r){
- const n=nearest(r.x,r.z),ahead=at(n.s+9+r.speed*.32,Math.sin(s.time*.42+r.id*2.1)*2.6),desired=Math.atan2(-(ahead.x-r.x),-(ahead.z-r.z)),error=wrap(desired-r.heading),curvature=Math.abs(wrap(at(n.s+18).heading-n.heading));
- const pace={easy:16.5,normal:19.6,hard:22.2}[s.difficulty]+(r.id%3)*.45;
- return {throttle:true,steer:clamp(-error*2.8,-1,1),target:pace*(1-Math.min(.32,curvature*.34)),drift:curvature>.46&&r.speed>13,boost:(Math.sin(s.time*.45+r.id*5)>.94&&curvature<.28),brake:false,jump:false};
+function botInput(s,r,dt){
+ const f=FIELD[s.difficulty],me=s.riders[0];
+ // Occasional wobble: a short wrong steer that can clip a rail. Fewer on harder fields.
+ if(r.wobble>0)r.wobble=Math.max(0,r.wobble-dt);else{r.mistakeIn-=dt;if(r.mistakeIn<=0){r.wobble=.45+rnd(s)*.35;r.wobbleDir=rnd(s)<.5?-1:1;r.mistakeIn=f.mistake[0]+rnd(s)*(f.mistake[1]-f.mistake[0]);}}
+ const n=nearest(r.x,r.z),ahead=at(n.s+9+r.speed*.32,Math.sin(s.time*.42+r.id*2.1)*2.6+r.lineBias),desired=Math.atan2(-(ahead.x-r.x),-(ahead.z-r.z)),error=wrap(desired-r.heading),curvature=Math.abs(wrap(at(n.s+18).heading-n.heading));
+ const lead=me.finished?0:me.progress-r.progress,pack=1+clamp(lead/45,-f.easeOff,f.catchUp);
+ const steer=r.wobble>0?r.wobbleDir*.75:clamp(-error*2.8,-1,1);
+ return {throttle:true,steer,target:r.pace*pack*(1-Math.min(.32,curvature*.34)),drift:curvature>.46&&r.speed>13,boost:(Math.sin(s.time*.45+r.id*5)>.94&&curvature<.28),brake:false,jump:false};
 }
 function integrate(s,r,input,dt){
  if(r.finished){r.speed*=Math.exp(-dt*1.8);return;}
@@ -109,7 +127,7 @@ function substep(s,input,dt){
  s.time+=dt;s.go=Math.max(0,s.go-dt);
  const controls={throttle:!!input.forward,brake:!!input.brake,steer:(input.right?1:0)-(input.left?1:0),drift:!!input.drift,jump:!!input.jump};
  const wasFinished=s.riders[0].finished;
- for(const r of s.riders)integrate(s,r,r.id===0?controls:botInput(s,r),dt);
+ for(const r of s.riders)integrate(s,r,r.id===0?controls:botInput(s,r,dt),dt);
  s.finishOrder.sort((a,b)=>s.riders[a].finishTime-s.riders[b].finishTime);
  // Soft body contacts: small separation and speed transfer, no teleporting or deadlock.
  for(let i=0;i<s.riders.length;i++)for(let j=i+1;j<s.riders.length;j++){
@@ -127,6 +145,6 @@ function step(s,input,dt){
  let remaining=Math.min(dt,.12);while(remaining>1e-8){const h=Math.min(remaining,1/90);substep(s,input,h);remaining-=h;}
 }
 function order(s){return [...s.riders].sort((a,b)=>a.finished&&b.finished?a.finishTime-b.finishTime:a.finished?-1:b.finished?1:b.progress-a.progress);}
-const api={track,L,at,nearest,elevation,pads,names,create,start,pause,reset,recover,boost,step,order,clamp,wrap};
+const api={track,L,at,nearest,elevation,pads,names,create,start,pause,reset,recover,boost,step,order,clamp,wrap,FIELD};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RaceCore=api;
 })(typeof window!=='undefined'?window:globalThis);
