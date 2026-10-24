@@ -7,7 +7,7 @@ html = (ROOT / "index.html").read_text(encoding="utf-8")
 marker = '<link rel="stylesheet" href="src/style.css">'
 assert html.count(marker) == 1
 html = html.replace(marker, '<style>\n' + (ROOT / 'src/style.css').read_text(encoding='utf-8') + '\n</style>')
-for name in ('vendor/three.min.js', 'src/arena.js', 'src/core.js', 'src/world.js', 'src/game.js'):
+for name in ('vendor/three.min.js', 'src/arena.js', 'src/core.js', 'src/feel.js', 'src/world.js', 'src/game.js'):
     marker = '<script src="' + name + '"></script>'
     assert html.count(marker) == 1, name
     js = (ROOT / name).read_text(encoding='utf-8').replace('</script', '<\\/script')
