@@ -35,7 +35,7 @@
   <div class="radar-wrap"><canvas id="radar" width="152" height="192" aria-label="队友位置小地图"></canvas><span>ROOFTOP / 夏日天台</span></div>
   <div class="hud-top-right"><button id="sound" aria-label="关闭声音">声音 开</button><button id="pause-button">暂停 Ⅱ</button></div>
   <div id="feed" aria-live="polite"></div>
-  <div id="crosshair"><i></i><i></i><i></i><i></i></div><div id="hitmarker">×</div><div id="scope" hidden></div><div id="wet-flash"></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div><div id="hitmarker">×</div><div id="hurt-dir"></div><div id="scope" hidden></div><div id="wet-flash"></div>
   <div id="hint" role="status"></div>
   <div class="bottom-hud"><div class="health-box"><span>干爽值 <b id="health">100</b></span><div class="health-track"><i id="health-fill"></i></div><small id="personal">打湿 0 · 归队 0</small></div><div class="weapon-box"><span id="weapon-name">泡泡连发</span><div><b id="ammo">28</b><span id="capacity">/ 28</span></div><small id="reload-note">R 补水 · 1 / 2 / 3 换枪</small></div></div>
   <div id="weapon-strip"><span data-slot="0">1 泡泡连发</span><span data-slot="1">2 高压水炮</span><span data-slot="2">3 口袋水枪</span><span id="bomb-count">G 水球 × 2</span></div>
@@ -48,5 +48,5 @@
 <div id="scoreboard" class="overlay" hidden><section class="panel"><h2>天台战报</h2><div id="live-table"></div><p>松开 Tab 返回</p></section></div>
 <div id="help" class="overlay" hidden><section class="panel help-panel"><span class="eyebrow">HOW TO SPLASH</span><h2>玩水，很简单。</h2><p>把对手的干爽值降到 0，队伍得 1 分。先到目标分数获胜；3 分钟结束时比分高的一队获胜。打湿后 3 秒自动归队，出生保护 2.4 秒，开火会提前解除。</p><dl><dt>W A S D / 方向键</dt><dd>移动；Shift 快跑；空格跳跃；C 蹲下</dd><dt>鼠标左键 / 右键</dt><dd>开火 / 按住瞄准，高压水炮可以放大</dd><dt>1 / 2 / 3 · Q / 滚轮</dt><dd>选择三把水枪 / 轮换水枪</dd><dt>R · G</dt><dd>补水 / 扔水球；每次归队补充两颗</dd><dt>Tab · Esc</dt><dd>查看计分板 / 暂停</dd></dl><p class="touch-help">触屏：左手摇杆移动，右手拖动画面转头，右侧按钮开火、补水、跳跃。横屏视野更好。</p><button id="help-close" class="primary">知道啦 ↗</button></section></div>
 <div id="error" class="overlay" hidden><section class="panel"><h2>天台暂时没打开</h2><p id="error-text"></p><button onclick="location.reload()" class="primary">重新打开</button></section></div>
-<script src="vendor/three.min.js"></script><script src="src/arena.js"></script><script src="src/core.js"></script><script src="src/world.js"></script><script src="src/game.js"></script>
+<script src="vendor/three.min.js"></script><script src="src/arena.js"></script><script src="src/core.js"></script><script src="src/feel.js"></script><script src="src/world.js"></script><script src="src/game.js"></script>
 </body></html>
