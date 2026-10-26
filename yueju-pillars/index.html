@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>你是撑起粤剧团的哪一根柱？</title>
+<meta name="description" content="粤剧剧团靠六位主演撑起整台戏，叫六柱制。答八道题，看你是哪一根柱。">
+<style>
+:root{
+  --paper:#F3EAD9;--paper2:#EADDC4;--ink:#2B211C;--ink2:#6B5A4E;
+  --red:#B3261E;--red2:#8E1B15;--gold:#D9A93B;--gold2:#F2D27A;
+  --serif:"Songti SC","STSong","Noto Serif SC","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif;
+  --kai:"Kaiti SC","STKaiti","KaiTi","Noto Serif SC",serif;
+  --pc:#B3261E;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);font-family:var(--serif);-webkit-text-size-adjust:100%}
+body{min-height:100vh;min-height:100dvh}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding:0 18px calc(28px + env(safe-area-inset-bottom))}
+.screen{display:none}.screen.on{display:block;animation:in .35s ease}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 戏台：横楣加六根柱，开场和结果页共用 */
+.stage{position:relative;margin:0 -18px;padding:22px 18px 0;background:linear-gradient(#5A1410,#7E1C16 60%,#8E2218)}
+.beam{height:18px;border-radius:3px;background:linear-gradient(var(--gold2),var(--gold) 55%,#9C7522);box-shadow:0 3px 0 #3A0C08}
+.pillars{display:flex;justify-content:space-between;gap:6px;padding:0 4px;height:210px}
+.pl{flex:1;position:relative;background:linear-gradient(90deg,#6E140F,#C23A2B 35%,#E0574A 50%,#B3261E 65%,#6E140F);border-radius:0 0 2px 2px;display:flex;align-items:center;justify-content:center;transition:filter .3s,transform .3s}
+.pl::before,.pl::after{content:"";position:absolute;left:-3px;right:-3px;height:10px;background:linear-gradient(var(--gold2),var(--gold));border-radius:2px}
+.pl::before{top:0}.pl::after{bottom:0}
+.pl span{writing-mode:vertical-rl;letter-spacing:.12em;font-weight:900;font-size:clamp(15px,4.4vw,20px);color:#FFF4DA;text-shadow:0 1px 0 #5A0E0A}
+.stage.pick .pl{filter:brightness(.45) saturate(.6)}
+.stage.pick .pl.me{filter:none;transform:scaleY(1.04);background:linear-gradient(90deg,#9C7522,var(--gold) 35%,var(--gold2) 50%,var(--gold) 65%,#9C7522)}
+.stage.pick .pl.me span{color:var(--red2);text-shadow:none}
+.floor{height:16px;background:linear-gradient(#3A0C08,#5A1410)}
+
+/* 开场 */
+.title{padding:26px 0 8px}
+.title h1{font-size:clamp(30px,9vw,44px);line-height:1.18;font-weight:900;letter-spacing:.02em}
+.title h1 em{font-style:normal;color:var(--red)}
+.title p{margin-top:14px;font-size:17px;line-height:1.75;color:var(--ink2)}
+.go{display:block;width:100%;margin-top:22px;padding:17px 0;border-radius:14px;background:var(--red);color:#FFF4DA;font-size:21px;font-weight:900;letter-spacing:.2em;box-shadow:0 4px 0 var(--red2)}
+.go:active{transform:translateY(3px);box-shadow:0 1px 0 var(--red2)}
+.small{margin-top:14px;font-size:13px;color:var(--ink2);line-height:1.7;text-align:center}
+
+/* 答题 */
+.qtop{display:flex;align-items:center;justify-content:space-between;padding:18px 0 6px}
+.dots{display:flex;gap:6px}
+.dots i{width:22px;height:6px;border-radius:3px;background:var(--paper2)}
+.dots i.done{background:var(--red)}
+.back{font-size:15px;color:var(--ink2);padding:6px 2px}
+.qnum{margin-top:18px;font-size:15px;color:var(--red);font-weight:900;letter-spacing:.15em}
+.qtext{margin-top:8px;font-size:clamp(25px,7vw,32px);font-weight:900;line-height:1.35}
+.opts{margin-top:22px;display:grid;gap:12px}
+.opt{display:flex;gap:10px;align-items:baseline;text-align:left;padding:17px 18px;border-radius:14px;background:#FFF8EA;border:2px solid var(--paper2);font-size:18px;line-height:1.5;transition:border-color .15s,background .15s}
+.opt b{flex:0 0 22px;color:var(--red)}
+.opt:active,.opt.hit{border-color:var(--red);background:#FCE9DC}
+
+/* 结果 */
+.rhead{margin:0 -18px;padding:22px 18px 26px;background:var(--pc);color:#FFF7E6;position:relative;overflow:hidden}
+.rhead .you{font-size:16px;letter-spacing:.2em;opacity:.85}
+.rhead .name{margin-top:6px;font-family:var(--kai);font-size:clamp(68px,22vw,104px);font-weight:900;line-height:1.05;letter-spacing:.04em}
+.rhead .label{margin-top:8px;font-size:clamp(20px,5.6vw,25px);font-weight:900}
+.rhead .seal{position:absolute;right:16px;top:20px;width:66px;height:66px;border:3px solid #FFF7E6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--kai);font-size:20px;line-height:1.05;text-align:center;transform:rotate(6deg);opacity:.9}
+.art{margin:18px auto 0;width:100%;aspect-ratio:3/4;border-radius:16px;background:radial-gradient(circle at 50% 38%,#fff8,transparent 60%),var(--paper2);display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid var(--paper2)}
+.art img{width:100%;height:100%;object-fit:cover}
+.art .ph{font-family:var(--kai);font-size:120px;font-weight:900;color:var(--pc);opacity:.85}
+.sec{margin-top:24px}
+.sec h2{font-size:15px;letter-spacing:.2em;color:var(--pc);font-weight:900}
+.sec .lead{margin-top:8px;font-size:19px;line-height:1.75}
+.facts{margin-top:8px;list-style:none;display:grid;gap:10px}
+.facts li{position:relative;padding-left:20px;font-size:16.5px;line-height:1.75}
+.facts li::before{content:"";position:absolute;left:2px;top:.72em;width:8px;height:8px;border-radius:2px;background:var(--pc);transform:rotate(45deg)}
+.facts sup{font-size:11px;color:var(--ink2);margin-left:2px}
+.role{margin-top:10px;display:flex;align-items:baseline;gap:10px;padding:14px 16px;border-radius:14px;background:#FFF8EA;border:2px solid var(--paper2)}
+.role b{flex:0 0 auto;white-space:nowrap;font-family:var(--kai);font-size:28px;color:var(--pc)}
+.role span{font-size:15px;color:var(--ink2)}
+.btns{margin-top:26px;display:grid;gap:12px}
+.btn2{padding:15px 0;border-radius:14px;border:2px solid var(--ink);font-size:18px;font-weight:900;letter-spacing:.1em;background:#FFF8EA}
+.others{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+.others button{padding:9px 14px;border-radius:999px;background:#FFF8EA;border:2px solid var(--paper2);font-size:15px}
+.others button.cur{border-color:var(--pc);color:var(--pc);font-weight:900}
+.viewing{margin-top:14px;padding:10px 14px;border-radius:10px;background:#FCE9DC;font-size:14px;line-height:1.6;display:none}
+.viewing.on{display:block}
+.foot{margin-top:30px;padding-top:18px;border-top:1px solid var(--paper2);font-size:13px;line-height:1.75;color:var(--ink2)}
+.foot details{margin-top:10px}
+.foot summary{cursor:pointer;color:var(--ink)}
+.foot ol{margin:8px 0 0 18px}
+.foot a{color:var(--ink2);word-break:break-all}
+
+/* 分享图浮层 */
+.modal{position:fixed;inset:0;background:#000c;display:none;flex-direction:column;align-items:center;justify-content:center;padding:18px;z-index:9}
+.modal.on{display:flex}
+.modal img{max-width:100%;max-height:78vh;border-radius:10px;box-shadow:0 8px 30px #0008}
+.modal p{margin-top:14px;color:#fff;font-size:16px}
+.modal .row{margin-top:12px;display:flex;gap:12px}
+.modal a,.modal button{padding:10px 18px;border-radius:10px;background:#fff;color:var(--ink);font-size:15px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section class="screen on" id="s-start">
+  <div class="stage" id="stage0">
+    <div class="beam"></div>
+    <div class="pillars"></div>
+    <div class="floor"></div>
+  </div>
+  <div class="title">
+    <h1>你是撑起<em>粤剧团</em>的<br>哪一根柱？</h1>
+    <p>粤剧的剧团靠六位主演撑起整台戏，就像六根梁柱，所以叫「六柱制」。答八道题，看你是哪一根。</p>
+  </div>
+  <button class="go" id="go">开 锣</button>
+  <p class="small">八道题，一分钟左右。没有对错，按第一反应选。</p>
+</section>
+
+<section class="screen" id="s-q">
+  <div class="qtop"><button class="back" id="back">‹ 上一题</button><div class="dots" id="dots"></div></div>
+  <div class="qnum" id="qnum"></div>
+  <div class="qtext" id="qtext"></div>
+  <div class="opts" id="opts"></div>
+</section>
+
+<section class="screen" id="s-r">
+  <div class="rhead" id="rhead">
+    <div class="you" id="you">你是</div>
+    <div class="name" id="rname"></div>
+    <div class="label" id="rlabel"></div>
+    <div class="seal">六柱<br>之一</div>
+  </div>
+  <div class="stage pick" id="stage1">
+    <div class="pillars"></div>
+    <div class="floor"></div>
+  </div>
+  <div class="viewing" id="viewing"></div>
+  <div class="art" id="art"></div>
+  <div class="sec"><h2>你的样子</h2><p class="lead" id="portrait"></p></div>
+  <div class="sec"><h2>这一柱在粤剧里</h2><ul class="facts" id="facts"></ul></div>
+  <div class="sec"><h2>你在《帝女花》里</h2><div class="role"><b id="role"></b><span>任剑辉、白雪仙的仙凤鸣名剧，六柱各有一个角色</span></div></div>
+  <div class="btns">
+    <button class="go" id="card">生成分享图</button>
+    <button class="btn2" id="again">再测一次</button>
+  </div>
+  <div class="sec"><h2>看看其他五根柱</h2><div class="others" id="others"></div></div>
+  <div class="foot">
+    <p>六柱是粤剧剧团的编制。像花脸（净）、公脚、彩旦这些行当，六柱里没有专门的位置，这次没有收进来。</p>
+    <p>「你的样子」是测试的趣味解读；「这一柱在粤剧里」每一条都有出处，并请研究戏曲的朋友逐条核对过。题目和文案由 AI 协作写成。</p>
+    <details><summary>资料来源</summary><ol id="srcs"></ol></details>
+    <p style="margin-top:12px">我的AI小木屋 · <a href="../">更多小玩意</a></p>
+  </div>
+</section>
+
+</div>
+<div class="modal" id="modal">
+  <img id="cardimg" alt="分享图">
+  <p>长按图片保存，发给朋友</p>
+  <div class="row"><a id="dl" download="粤剧六柱.png">下载</a><button id="close">关闭</button></div>
+</div>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
