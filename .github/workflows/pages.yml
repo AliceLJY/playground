@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Check Xiguan House
+        working-directory: xiguan-house
+        run: |
+          node --check src/model.js
+          node --check src/view.js
+          node --test tests/*.test.cjs
+
       - name: Check aju game and navigation
         working-directory: aju-guangzhou-ride
         run: |
@@ -287,6 +294,12 @@ jobs:
           # 南禅寺大殿：Anatomy 生成的单文件页面（构建要本机的 Anatomy skill，这里只发布产物）
           mkdir -p _site/nanchan-temple
           cp nanchan-temple/index.html nanchan-temple/ANATOMY-LICENSE.txt _site/nanchan-temple/
+
+      - name: Assemble Xiguan House
+        run: |
+          mkdir -p _site/xiguan-house/src
+          cp xiguan-house/index.html _site/xiguan-house/
+          cp xiguan-house/src/model.js xiguan-house/src/view.js _site/xiguan-house/src/
 
       - name: Show what will be published
         run: find _site -type f | sort
