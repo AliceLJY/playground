@@ -60,6 +60,7 @@ function result(id,peek){
   else v.classList.remove('on');
   const art=$('art');art.innerHTML='';
   const img=new Image();img.alt=p.name+'插画';
+  st.img=img;st.imgId=p.id;
   img.onload=()=>{art.innerHTML='';art.appendChild(img);};
   img.onerror=()=>{art.innerHTML=`<div class="ph">${GLYPH[p.id]}</div>`;};
   img.src=`img/${p.id}.webp`;
@@ -89,7 +90,7 @@ function sources(){
 
 function start(){st.answers=[];drawPillars(document.querySelector('#stage0 .pillars'),null);show('s-start');}
 
-// 分享图：1080×1620（2:3），与结果页同一套颜色与字。微信里长按图片即可保存或转发。
+// 分享图：宽 1080，高按内容裁（有插画约 1800），与结果页同一套颜色与字；有插画就放在右侧。微信里长按图片即可保存或转发。
 function lines(ctx,text,maxW){
   const out=[];let line='';
   for(const ch of text){
@@ -101,7 +102,7 @@ function lines(ctx,text,maxW){
   return out;
 }
 function card(){
-  const p=C.pillar(st.result),W=1080,H=1620;
+  const p=C.pillar(st.result),W=1080,H=2400;  // 先画在高画布上，最后按内容裁高
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d');
   const css=getComputedStyle(document.documentElement);
   const serif=css.getPropertyValue('--serif'),kai=css.getPropertyValue('--kai');
@@ -120,29 +121,42 @@ function card(){
   g.fillStyle='#FFF7E6';g.font=`900 40px ${serif}`;g.fillText('我是撑起粤剧团的',70,110);
   g.font=`900 210px ${kai}`;g.fillText(p.name,62,320);
   g.font=`900 46px ${serif}`;g.fillText(p.label,70,405);
-  // 版面从下往上排：页脚 200，冷知识框按行数定高，《帝女花》一行，剩下的给「你的样子」；放不下就缩字
-  const foot=H-200,fact=p.facts[p.hook].t;
-  let fs=36,lh=56,fl;
-  for(;;){g.font=`400 ${fs}px ${serif}`;fl=lines(g,fact,W-190).length;if(fl<=4||fs<=28)break;fs-=2;lh=Math.round(fs*1.55);}
-  const boxH=78+fl*lh+20,boxY=foot-36-boxH;
-  const roleY=boxY-40;                       // 角色名基线
+  // 正文区：有插画时插画靠右、文字走左栏；冷知识框通栏放在两者下面。放不下就缩字，各块位置记进 st.cardLayout 供验收。
+  const fact=p.facts[p.hook].t,top0=660;
+  const art=st.img&&st.imgId===p.id&&st.img.complete&&st.img.naturalWidth>0?st.img:null;
+  const iw=art?480:0,ih=art?Math.round(iw*art.naturalHeight/art.naturalWidth):0,ix=W-60-iw;
+  const colR=art?ix-40:W-70,colW=colR-70;
+  if(art){
+    g.save();const r=24;g.beginPath();g.moveTo(ix+r,top0);g.arcTo(ix+iw,top0,ix+iw,top0+ih,r);g.arcTo(ix+iw,top0+ih,ix,top0+ih,r);g.arcTo(ix,top0+ih,ix,top0,r);g.arcTo(ix,top0,ix+iw,top0,r);g.closePath();g.clip();
+    g.drawImage(art,ix,top0,iw,ih);g.restore();
+  }
   let ps=40,plh=64,pl;
-  for(;;){g.font=`400 ${ps}px ${serif}`;pl=lines(g,p.portrait,W-140).length;if(700+pl*plh+130<=roleY-60||ps<=30)break;ps-=2;plh=Math.round(ps*1.6);}
-  g.fillStyle='#2B211C';g.font=`400 ${ps}px ${serif}`;
-  lines(g,p.portrait,W-140).forEach((t,k)=>g.fillText(t,70,700+k*plh));
-  g.fillStyle=p.color;g.font=`900 34px ${serif}`;g.fillText('在《帝女花》里，我是',70,roleY-86);
-  g.font=`900 70px ${kai}`;g.fillText(p.role,70,roleY);
+  for(;;){g.font=`400 ${ps}px ${serif}`;pl=lines(g,p.portrait,colW);if(pl.length<=6||ps<=30)break;ps-=2;plh=Math.round(ps*1.6);}
+  g.fillStyle='#2B211C';
+  pl.forEach((t,k)=>g.fillText(t,70,top0+48+k*plh));
+  const portraitBottom=top0+48+(pl.length-1)*plh;
+  const roleTop=portraitBottom+70;
+  g.fillStyle=p.color;g.font=`900 34px ${serif}`;g.fillText('在《帝女花》里，我是',70,roleTop+34);
+  let rs=70;for(;;){g.font=`900 ${rs}px ${kai}`;if(g.measureText(p.role).width<=colW||rs<=40)break;rs-=4;}
+  g.fillText(p.role,70,roleTop+34+20+rs);
+  const roleBottom=roleTop+34+20+rs+16,roleRight=70+g.measureText(p.role).width;
+  let fs=36,lh=56,fl;
+  for(;;){g.font=`400 ${fs}px ${serif}`;fl=lines(g,fact,W-190);if(fl.length<=4||fs<=28)break;fs-=2;lh=Math.round(fs*1.55);}
+  const boxY=Math.max(roleBottom,top0+ih)+40,boxH=78+fl.length*lh+20;
   g.fillStyle='#FFF8EA';g.fillRect(50,boxY,W-100,boxH);
   g.fillStyle=p.color;g.fillRect(50,boxY,10,boxH);
   g.font=`900 32px ${serif}`;g.fillText('这一柱在粤剧里',90,boxY+56);
   g.fillStyle='#2B211C';g.font=`400 ${fs}px ${serif}`;
-  lines(g,fact,W-190).forEach((t,k)=>g.fillText(t,90,boxY+56+lh*(k+1)));
-  st.cardLayout={portraitBottom:700+(pl-1)*plh,roleTop:roleY-86-34,boxY,boxBottom:boxY+boxH,foot};
-  g.fillStyle='#B3261E';g.fillRect(0,H-200,W,200);
-  g.fillStyle='#FFF7E6';g.font=`900 44px ${serif}`;g.fillText('你是哪一根柱？',70,H-118);
-  g.font=`400 30px ${serif}`;g.fillText('aliceljy.github.io/playground/yueju-pillars',70,H-62);
-  g.textAlign='right';g.font=`900 32px ${serif}`;g.fillText('我的AI小木屋',W-70,H-118);
-  const url=cv.toDataURL('image/png');
+  fl.forEach((t,k)=>g.fillText(t,90,boxY+56+lh*(k+1)));
+  const foot=boxY+boxH+56,FH=200;
+  st.cardLayout={hasArt:!!art,portraitBottom,roleTop,roleBottom,roleRight,imgLeft:art?ix:W,imgBottom:top0+ih,boxY,boxBottom:boxY+boxH,foot,height:foot+FH};
+  const out=document.createElement('canvas');out.width=W;out.height=foot+FH;const o=out.getContext('2d');
+  o.drawImage(cv,0,0);
+  o.fillStyle='#B3261E';o.fillRect(0,foot,W,FH);
+  o.fillStyle='#FFF7E6';o.font=`900 44px ${serif}`;o.fillText('你是哪一根柱？',70,foot+82);
+  o.font=`400 30px ${serif}`;o.fillText('aliceljy.github.io/playground/yueju-pillars',70,foot+138);
+  o.textAlign='right';o.font=`900 32px ${serif}`;o.fillText('我的AI小木屋',W-70,foot+82);
+  const url=out.toDataURL('image/png');
   $('cardimg').src=url;$('dl').href=url;$('modal').classList.add('on');
 }
 
