@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>西关大屋 · 推开看</title>
+<meta name="description" content="一座可以点开的西关大屋等距线稿：趟栊拉进墙里，大门推开，屋面折起，三面墙倒下，看见门官厅、天井、满洲窗和正厅。">
+<style>
+  :root { --paper: #efe9dc; --ink: #2c3833; --muted: rgba(44,56,51,.62); --accent: #9e3b2b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); overflow: hidden; }
+  body { font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif; -webkit-tap-highlight-color: transparent; }
+  #scene { position: fixed; inset: 0; display: block; cursor: pointer; touch-action: manipulation; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 0 40px calc(30px + env(safe-area-inset-bottom)); pointer-events: none; }
+  .title { font-size: 15px; letter-spacing: .12em; white-space: nowrap; }
+  .title b { font-weight: 700; letter-spacing: .2em; }
+  .title span { color: var(--muted); margin-left: .6em; font-size: 13px; letter-spacing: .08em; }
+  #toggle { pointer-events: auto; font: inherit; font-size: 15px; letter-spacing: .3em; padding: 11px 26px 11px 32px; min-height: 44px; min-width: 112px;
+    color: var(--ink); background: rgba(255,255,255,.35); border: 1px solid var(--ink); border-radius: 2px; cursor: pointer; }
+  #toggle:hover { background: rgba(255,255,255,.7); }
+  #toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .hint { font-size: 12px; letter-spacing: .14em; color: var(--muted); white-space: nowrap; text-align: right; }
+  .note { position: fixed; top: 26px; left: 40px; right: 40px; font-size: 12px; letter-spacing: .08em; color: var(--muted); line-height: 1.7; pointer-events: none; max-width: 520px; }
+  @media (max-width: 640px) {
+    .bar { flex-wrap: wrap; justify-content: center; padding: 0 16px calc(18px + env(safe-area-inset-bottom)); gap: 8px 14px; }
+    .title { width: 100%; text-align: center; }
+    .hint { width: 100%; text-align: center; order: 3; }
+    .note { top: 12px; left: 16px; right: 16px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="西关大屋等距线稿，点击推开或合上"></canvas>
+<p class="note">三件头：脚门、趟栊、大门。趟栊 13 根圆木，取单数；楼梯也是 13 级。</p>
+<div class="bar">
+  <div class="title"><b>西关大屋</b><span>门官厅 · 天井 · 正厅</span></div>
+  <button id="toggle" type="button" aria-pressed="false">推开</button>
+  <div class="hint">点屋子，或按空格 / 回车</div>
+</div>
+<script src="src/model.js"></script>
+<script src="src/view.js"></script>
+</body>
+</html>
