@@ -70,6 +70,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Which Pillar Are You
+        working-directory: yueju-pillars
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Dispatch Replay
         working-directory: dispatch-replay
         run: |
@@ -190,6 +197,13 @@ jobs:
           mkdir -p _site/herb-match
           cp herb-match/index.html _site/herb-match/index.html
           cp -R herb-match/src _site/herb-match/
+
+      - name: Assemble Which Pillar Are You
+        run: |
+          # 粤剧六柱测试：八道题测你是六柱里的哪一柱，没有构建步骤，页面、源码和插画原样发布
+          mkdir -p _site/yueju-pillars
+          cp yueju-pillars/index.html _site/yueju-pillars/index.html
+          cp -R yueju-pillars/src yueju-pillars/img _site/yueju-pillars/
 
       - name: Assemble Back to the Pit
         run: |

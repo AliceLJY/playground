@@ -8,6 +8,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
+| [你是哪一根柱](yueju-pillars/) · [玩](https://aliceljy.github.io/playground/yueju-pillars/) | 粤剧剧团靠六位主演撑起整台戏，叫六柱制。答八道日常小题，看你是哪一柱，读几条有出处的粤剧知识、看你在《帝女花》里演谁，长按保存分享图 | 普通 HTML 加画布分享图；题目、事实与计分在 Node 可测的核心里，测试穷举 4^8 种答法检查结果分布；手机竖屏 |
 | [细雨剑门](jianmen-drizzle/) · [玩](https://aliceljy.github.io/playground/jianmen-drizzle/) | 走进高剑父 1926 年的《山水》（写陆游「细雨骑驴入剑门」诗意），细雨和流云里转头找诗里写的四处，每看准一处诗笺写出一句；转过身，是画家没画的那一半 | PINOC（Viggle JST-2）一张画生成的高斯泼溅场景 + PlayCanvas，着色器里的流云与飞瀑，合成雨声，键鼠与触屏 |
 | [打回乐池](yingge-pit/) · [玩](https://aliceljy.github.io/playground/yingge-pit/) | 英歌小戏台上，白衣木偶从乐池往上爬，铁枝一亮就点那一道，英歌纸偶出槌把它打回去；三波、大锣「大英歌」，两个人可以同一台手机一起打 | 二维画布，短片素材拼的戏台与纸偶，代码画的木偶，合成锣鼓，触屏与键盘，竖屏横屏都行 |
 | [药性配对](herb-match/) · [玩](https://aliceljy.github.io/playground/herb-match/) | 药材从药柜上落下，赶在落地前分进寒、凉、温、热四个药篓；分错了药签翻面讲为什么。只为认识四气，不是医疗建议 | 二维画布，代码画的扁平药材，合成音效，触屏与鼠标，竖屏横屏都行 |
