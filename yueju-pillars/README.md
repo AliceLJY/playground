@@ -25,4 +25,4 @@ node --test tests/*.test.cjs
 ## Who it's for, AI assets
 
 - Who it's for: People who like Cantonese opera or want a first taste of it, and people who enjoy personality quizzes and passing them on.
-- AI assets: Questions and copy written through human–AI collaboration, facts checked by people; no AI-generated images or sounds yet (result illustrations to come, and will be listed here); code written through human–AI collaboration.
+- AI assets: The six result illustrations are AI-generated (Codex image generation, contemporary opera-comic style; costumes described in words from two Cantonese opera stage photos and a face-painting reference, no photo was fed to the generator); questions and copy written through human–AI collaboration, facts checked by people; no sound; code written through human–AI collaboration.
