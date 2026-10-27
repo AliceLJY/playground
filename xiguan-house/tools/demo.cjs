@@ -56,22 +56,20 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
         <text x="540" y="842">灵感：Ian (@ianneo_ai) 的折叠庭院小屋</text>
         <text x="540" y="912" font-size="25" fill="#8a7a65">在线玩：aliceljy.github.io/playground/xiguan-house</text>
       </g>
-      <g transform="translate(505,1250)">
-        <text id="ecHand" x="-40" y="34" font-size="62" text-anchor="end" font-family="Kaiti SC,STKaiti,serif" font-weight="700" fill="#1a1a1a" opacity="0">我的AI小木屋</text>
-        <g id="seal" transform="translate(-20,0)" opacity="0"><g id="sealS">
-          <rect x="-10" y="-80" width="150" height="150" rx="10" fill="#C8352B"/>
-          <rect x="0" y="-70" width="130" height="130" rx="6" fill="none" stroke="#efe9dc" stroke-width="4"/>
-          <text x="65" y="-12" font-size="54" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="900" fill="#efe9dc">小试</text>
-          <text x="65" y="48" font-size="54" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="900" fill="#efe9dc">AI</text>
-        </g></g>
-      </g>
-      <g id="thumb" transform="translate(540,1560)" opacity="0"><g id="thumbS">
+      <text id="ecHand" x="540" y="1140" font-size="64" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="700" fill="#1a1a1a" opacity="0">我的AI小木屋</text>
+      <g id="seal" transform="translate(540,1262)" opacity="0"><g id="sealS">
+        <rect x="-75" y="-75" width="150" height="150" rx="10" fill="#C8352B"/>
+        <rect x="-65" y="-65" width="130" height="130" rx="6" fill="none" stroke="#efe9dc" stroke-width="4"/>
+        <text x="0" y="-7" font-size="54" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="900" fill="#efe9dc">小试</text>
+        <text x="0" y="53" font-size="54" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="900" fill="#efe9dc">AI</text>
+      </g></g>
+      <g id="thumb" transform="translate(540,1630)" opacity="0"><g id="thumbS">
         <clipPath id="tclip"><circle cx="0" cy="0" r="100"/></clipPath>
-        <circle cx="0" cy="0" r="100" fill="#C8352B" opacity=".18"/>
-        <g clip-path="url(#tclip)" fill="none" stroke="#C8352B" stroke-width="7" stroke-linecap="round">${ridges}</g>
-        <path d="M0 -100 q-4 -50 16 -90" stroke="#C8352B" stroke-width="7" fill="none" stroke-linecap="round"/>
-        <circle cx="16" cy="-196" r="17" fill="#C8352B"/>
-        <path d="M-30 96 l-6 50 M30 96 l6 50" stroke="#C8352B" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="0" cy="0" r="100" fill="#1a1a1a" opacity=".16"/>
+        <g clip-path="url(#tclip)" fill="none" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round">${ridges}</g>
+        <path d="M0 -100 q-4 -50 16 -90" stroke="#1a1a1a" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <circle cx="16" cy="-196" r="17" fill="#E98AA8"/>
+        <path d="M-30 96 l-6 50 M30 96 l6 50" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round"/>
       </g></g>
     </svg>`;
     document.body.appendChild(ec);
