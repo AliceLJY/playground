@@ -56,6 +56,7 @@ English: [README.md](README.md)
 - `src/view.js`：等距投影、面排序、绘制和交互。
 - `tests/geometry.test.cjs`：几何与机构检查，`node --test tests/*.test.cjs`。
 - `tools/browser-check.cjs`、`tools/shots.cjs`、`tools/perf.cjs`：浏览器检查、截图、帧率，用法写在各自开头。
+- `tools/demo.cjs`、`tools/demo-music.py`：竖屏演示片的逐帧录屏和按动作卡点合成的配乐。
 - `facts.md`：事实表与出处。
 
 ## 谁会点开、AI 素材
