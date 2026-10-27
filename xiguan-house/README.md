@@ -56,6 +56,7 @@ An isometric line drawing of a Xiguan house, the traditional courtyard townhouse
 - `src/view.js`: isometric projection, face sorting, drawing and controls.
 - `tests/geometry.test.cjs`: geometry and mechanism checks, `node --test tests/*.test.cjs`.
 - `tools/browser-check.cjs`, `tools/shots.cjs`, `tools/perf.cjs`: browser checks, screenshots and frame rate; usage is at the top of each file.
+- `tools/demo.cjs`, `tools/demo-music.py`: frame-by-frame recorder for the vertical demo video, and its music, synthesised to land on the motion.
 - `facts.md`: facts and sources.
 
 ## Who opens it, AI assets

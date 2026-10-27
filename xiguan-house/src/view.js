@@ -68,7 +68,10 @@
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     const note = document.querySelector('.note');
     const pad = W < 640 ? 14 : 40, top = (note ? note.getBoundingClientRect().bottom : 0) + (W < 640 ? 14 : 18);
-    const aw = W - 2 * pad, ah = H - top - UI_BAND() - 8;
+    // 底部留给按钮栏（以及带 data-reserve-bottom 的元素）：按它们实际的上沿算
+    const low = [...document.querySelectorAll('.bar > *, [data-reserve-bottom]')].filter((e) => e.getClientRects().length).map((e) => e.getBoundingClientRect().top);
+    const bottom = low.length ? Math.min(...low) - 14 : H - UI_BAND();
+    const aw = W - 2 * pad, ah = bottom - top;
     K = Math.min(aw / (RANGE.x1 - RANGE.x0), ah / (RANGE.y1 - RANGE.y0));
     OX = pad + (aw - K * (RANGE.x1 - RANGE.x0)) / 2 - K * RANGE.x0;
     OY = top + (ah - K * (RANGE.y1 - RANGE.y0)) / 2 - K * RANGE.y0;
