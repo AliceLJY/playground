@@ -4,8 +4,8 @@
 用法（需要 numpy，例如 ~/.venv-kokoro/bin/python3）：
     python3 tools/demo-music.py <events.json> <输出.wav> [种子]
 
-作曲意图：G 徵调五声（G A B D E），扬琴的味道（两根弦微微失谐、亮的起音、金属泛音），84 BPM 轻快往前走。
-- 底：低音 G、D 持续音；每小节一个和弦根音（G E C D 循环），八分音符扬琴琶音；每拍一声轻梆子。
+作曲意图：G 宫五声，广东音乐的明亮味道，96 BPM 往上走：高胡（拉弦、揉音）唱一条原创旋律，扬琴轻轻弹上行分解和弦，和弦只用大调（G C D G ｜ G C G D），每两小节一声碰铃。
+- 10-27 第一版用了低音持续嗡声、短促琶音、满拍梆子和一个小调和弦，Alice 听成「日本鬼子进村那种鬼鬼祟祟的感觉」，这几样都去掉了。
 - 卡点全部由模型时间线推出来：events.json 里记了每次推开 / 合上的起点、方向、速度，加上 model.js 的 TIMELINE。
   推开时：趟栊滑进墙里一段木头摩擦声；大门贴墙、前坡扣上、三面墙落地各一声闷响（落在「碰到」那一刻，即每段的 78%）；
   屋面掀起一声风；满洲窗推到顶一串玻璃清响。合上时：每样东西回到原位一声轻木鱼。
@@ -128,29 +128,59 @@ def at(run, s):
     return run["t"] + (TT - s) / run["speed"]
 
 
-# ---------- 底 ----------
-t = np.arange(N) / SR
-fade = np.clip(t / 1.0, 0, 1) * np.clip((T - t) / 2.0, 0, 1)
-drone = (0.6 * np.sin(2 * np.pi * hz("G2") * t) + 0.6 * np.sin(2 * np.pi * hz("D3") * t + 0.7)) * (0.8 + 0.2 * np.sin(2 * np.pi * 0.11 * t)) * fade * 0.028
-mix += drone[:, None]
+# ---------- 底：明亮、连贯，往上走（10-27 第一版低音嗡声＋短促琶音＋满拍梆子，被听成「鬼子进村」那种鬼祟感，改掉） ----------
+def gaohu(f, dur):
+    """高胡：拉弦，60 ms 起音、带 5.5 Hz 揉音，音头稍亮。"""
+    n = int((dur + 0.25) * SR)
+    t = np.arange(n) / SR
+    vib = 1 + 0.006 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.12) / 0.2, 0, 1)
+    ph = 2 * np.pi * np.cumsum(f * vib) / SR
+    y = np.zeros(n)
+    for k, amp in ((1, 1), (2, 0.55), (3, 0.38), (4, 0.22), (5, 0.12), (6, 0.07)):
+        y += amp * np.sin(k * ph)
+    env = np.minimum(1, t / 0.06) * np.clip((dur + 0.25 - t) / 0.25, 0, 1)
+    return y * env / 2.3
 
-BEAT = 60 / 84
-ROOTS = [("G3", "D4", "G4", "B4", "D5", "B4", "G4", "D4"),
-         ("E3", "B3", "E4", "G4", "B4", "G4", "E4", "B3"),
-         ("C4", "G4", "C5", "E5", "G5", "E5", "C5", "G4"),
-         ("D3", "A3", "D4", "E4", "A4", "E4", "D4", "A3")]
-tb, bar = 0.25, 0
-while tb < END + 0.1:
-    pat = ROOTS[bar % 4]
-    for k, nme in enumerate(pat):
+
+def bell(f=2637, dur=1.6):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    return (np.sin(2 * np.pi * f * t) + 0.4 * np.sin(2 * np.pi * f * 2.76 * t)) * np.exp(-t * 3.2) * np.minimum(1, t / 0.001)
+
+
+BPM = 96
+BEAT = 60 / BPM
+# 全用大调和弦：G C D G ｜ G C G D
+CHORDS = [("G3", "B3", "D4"), ("C4", "E4", "G4"), ("D4", "F#4", "A4"), ("G3", "B3", "D4"),
+          ("G3", "B3", "D4"), ("C4", "E4", "G4"), ("G3", "B3", "D4"), ("D4", "F#4", "A4")]
+BASS = ["G2", "C3", "D3", "G2", "G2", "C3", "G2", "D3"]
+# 原创旋律，G 宫五声，一句一句往上走（每小节四拍，元组：音名、拍数）
+MELODY = [[("D5", 1), ("E5", 1), ("G5", 1), ("A5", 1)], [("B5", 1.5), ("A5", 0.5), ("G5", 1), ("E5", 1)],
+          [("D5", 1), ("E5", 1), ("G5", 1), ("B5", 1)], [("A5", 3), ("G5", 1)],
+          [("G5", 1), ("A5", 1), ("B5", 1), ("D6", 1)], [("E6", 1.5), ("D6", 0.5), ("B5", 1), ("A5", 1)],
+          [("G5", 1), ("A5", 1), ("B5", 0.5), ("A5", 0.5), ("G5", 1)], [("G5", 4)]]
+tb, bar = 0.2, 0
+while tb < END - 0.05:
+    ch, mel = CHORDS[bar % 8], MELODY[bar % 8]
+    # 扬琴：柔和的上行分解和弦，每拍两个音，力度轻
+    notes = [ch[0], ch[1], ch[2], ch[1]] * 2
+    for k, nme in enumerate(notes):
         te = tb + k * BEAT / 2
         if te >= END:
             break
-        put(te, yangqin(hz(nme), 1.4, 0.8), (0.17 if k == 0 else 0.11) * min(1, te / 1.2), (k % 4 - 1.5) * 0.15)
-    for beat in range(4):
-        tt = tb + beat * BEAT
-        if 0.8 < tt < END:
-            put(tt, bangzi(), 0.07 if beat % 2 else 0.11, 0.35)
+        put(te, yangqin(hz(nme) * 2, 1.8, 0.7), (0.10 if k % 4 == 0 else 0.065) * min(1, te / 1.0), (k % 4 - 1.5) * 0.18)
+    # 低音：只在第一拍轻轻一下，不持续
+    put(tb, yangqin(hz(BASS[bar % 8]), 2.2, 0.5), 0.12, -0.1)
+    # 高胡旋律（开头一小节只有伴奏，第二小节起进）
+    if bar >= 1:
+        tt = tb
+        for nme, beats in mel:
+            d = beats * BEAT
+            if tt + 0.05 < END:
+                put(tt, gaohu(hz(nme), min(d, END - tt) * 0.96), 0.13, 0.15)
+            tt += d
+    if bar % 2 == 0 and tb > 0.5:
+        put(tb, bell(), 0.035, 0.4)
     tb += 4 * BEAT
     bar += 1
 
