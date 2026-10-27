@@ -64,12 +64,19 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
         <text x="0" y="53" font-size="54" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="900" fill="#efe9dc">AI</text>
       </g></g>
       <g id="thumb" transform="translate(540,1630)" opacity="0"><g id="thumbS">
-        <clipPath id="tclip"><circle cx="0" cy="0" r="100"/></clipPath>
-        <circle cx="0" cy="0" r="100" fill="#1a1a1a" opacity=".16"/>
-        <g clip-path="url(#tclip)" fill="none" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round">${ridges}</g>
-        <path d="M0 -100 q-4 -50 16 -90" stroke="#1a1a1a" stroke-width="7" fill="none" stroke-linecap="round"/>
-        <circle cx="16" cy="-196" r="17" fill="#E98AA8"/>
-        <path d="M-30 96 l-6 50 M30 96 l6 50" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round"/>
+        <!-- 小黑煤球（照 IP 母版 content-publisher/assets/ip/cobbler.png）：黑圆身、白圆眼、短横白嘴、直天线粉球、两条细腿、白色贴纸描边；身上一层淡指纹暗纹 -->
+        <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round">
+          <circle cx="0" cy="0" r="100"/><path d="M0 -100 V-136 M-28 92 V144 M28 92 V144"/><circle cx="0" cy="-152" r="17"/>
+        </g>
+        <circle cx="0" cy="0" r="100" fill="#111111"/>
+        <clipPath id="tclip"><circle cx="0" cy="0" r="96"/></clipPath>
+        <g clip-path="url(#tclip)" fill="none" stroke="#1e1e1e" stroke-width="3.5" stroke-linecap="round">${ridges}</g>
+        <path d="M0 -100 V-136" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="0" cy="-152" r="17" fill="#FF5DA2"/>
+        <path d="M-28 92 V144 M28 92 V144" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="-32" cy="144" r="4.5" fill="#111111"/><circle cx="32" cy="144" r="4.5" fill="#111111"/>
+        <circle cx="-47" cy="-4" r="9" fill="#ffffff"/><circle cx="47" cy="-4" r="9" fill="#ffffff"/>
+        <rect x="-10" y="0" width="20" height="4.5" rx="2.25" fill="#ffffff"/>
       </g></g>
     </svg>`;
     document.body.appendChild(ec);
@@ -140,7 +147,7 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
       document.getElementById('ecHand').setAttribute('opacity', cl((t - 0.5) / 0.5));
       const stamp = (id, t0) => { const f = cl((t - t0) / 0.22); const sc = t < t0 ? 0 : 1.6 - 0.6 * ease(f); document.getElementById(id).setAttribute('transform', `scale(${sc}) rotate(${-6 * (1 - f)})`); };
       stamp('sealS', 1.4); document.getElementById('seal').setAttribute('opacity', t >= 1.4 ? 1 : 0);
-      stamp('thumbS', 2.4); document.getElementById('thumb').setAttribute('opacity', t >= 2.4 ? 0.92 : 0);
+      stamp('thumbS', 2.4); document.getElementById('thumb').setAttribute('opacity', t >= 2.4 ? 1 : 0);
     }, t);
     await shot();
   }
