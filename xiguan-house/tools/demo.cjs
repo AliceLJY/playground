@@ -27,6 +27,13 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
     .vid-cursor{position:fixed;left:0;top:0;width:44px;height:44px;z-index:99;pointer-events:none;transform:translate(-5px,-3px)}
     .vid-cursor.down{transform:translate(-5px,-3px) scale(.85)}
     #endcard{position:fixed;inset:0;z-index:120;opacity:0;pointer-events:none}
+    #notes{position:fixed;inset:0;z-index:110;opacity:0;pointer-events:none;background:#efe9dc;font-family:"Noto Serif SC","Songti SC",serif;color:#2c3833}
+    #notes h2{margin:330px 0 0;text-align:center;font-size:64px;letter-spacing:.16em;font-weight:700}
+    #notes .rule{width:200px;height:3px;background:#9e3b2b;margin:26px auto 70px}
+    #notes .row{display:flex;gap:34px;margin:0 110px 50px;opacity:0}
+    #notes .lab{flex:0 0 auto;font-size:42px;font-weight:700;color:#9e3b2b;letter-spacing:.08em}
+    #notes .body{font-size:38px;line-height:1.55;letter-spacing:.03em}
+    #notes .foot{position:absolute;left:0;right:0;bottom:250px;text-align:center;font-size:32px;color:rgba(44,56,51,.62);letter-spacing:.06em}
     #endcard svg{width:100%;height:100%}
   `});
   await page.evaluate(() => {
@@ -45,17 +52,9 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
     ec.innerHTML = `<svg viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" font-family="Noto Serif SC,Songti SC,serif">
       <rect width="1080" height="1920" fill="#efe9dc"/>
       <rect x="40" y="40" width="1000" height="1840" fill="none" stroke="#2c3833" stroke-width="6"/>
-      <text x="540" y="330" font-size="44" text-anchor="middle" fill="#7a6a55" font-weight="700">playground · 等距线稿</text>
-      <text x="540" y="450" font-size="100" text-anchor="middle" font-weight="900" fill="#1a1a1a">西关大屋，推开看</text>
-      <path d="M290 510 h500" stroke="#1a1a1a" stroke-width="5"/>
-      <g font-size="31" fill="#333" text-anchor="middle">
-        <text x="540" y="610">作者：小试AI（与 Claude Code 协作完成）</text>
-        <text x="540" y="668">画面：代码按尺寸算出的等距线稿，无 AI 生图</text>
-        <text x="540" y="726">配乐与音效：代码合成，无配音</text>
-        <text x="540" y="784">资料：西关民俗馆介绍、新快报等，出处见页面 facts.md</text>
-        <text x="540" y="842">灵感：Ian (@ianneo_ai) 的折叠庭院小屋</text>
-        <text x="540" y="912" font-size="25" fill="#8a7a65">在线玩：aliceljy.github.io/playground/xiguan-house</text>
-      </g>
+      <text x="540" y="590" font-size="44" text-anchor="middle" fill="#7a6a55" font-weight="700">playground · 等距线稿</text>
+      <text x="540" y="710" font-size="100" text-anchor="middle" font-weight="900" fill="#1a1a1a">西关大屋，推开看</text>
+      <path d="M290 770 h500" stroke="#1a1a1a" stroke-width="5"/>
       <text id="ecHand" x="540" y="1140" font-size="64" text-anchor="middle" font-family="Kaiti SC,STKaiti,serif" font-weight="700" fill="#1a1a1a" opacity="0">我的AI小木屋</text>
       <g id="seal" transform="translate(540,1262)" opacity="0"><g id="sealS">
         <rect x="-75" y="-75" width="150" height="150" rx="10" fill="#C8352B"/>
@@ -80,6 +79,16 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
       </g></g>
     </svg>`;
     document.body.appendChild(ec);
+    const nt = document.createElement('div'); nt.id = 'notes';
+    const NOTES = [
+      ['资料', '门口三件头、趟栊 13 根圆木、大门厚约 8 厘米、花岗岩石脚与石门夹，取自西关民俗馆介绍和新快报报道；查不到的尺寸都标「示意」'],
+      ['画面', '代码按尺寸算出的等距线稿，每个部件挂在自己的铰链上；每一帧都检查过零件互不穿插'],
+      ['配乐', '原创五声小曲，高胡唱主旋律、扬琴伴奏；滑动、落地、玻璃声跟着动作卡点'],
+      ['借鉴', 'Ian（@ianneo_ai）的折叠庭院小屋，他参考了 Akshat Singh 的 404 页'],
+      ['构思', '小试AI · 与 AI 协作完成'],
+    ];
+    nt.innerHTML = '<h2>推开手记</h2><div class="rule"></div>' + NOTES.map(([l, b]) => `<div class="row"><div class="lab">${l}</div><div class="body">${b}</div></div>`).join('') + '<div class="foot">网页可以自己点：aliceljy.github.io/playground/xiguan-house</div>';
+    document.body.appendChild(nt);
     window.dispatchEvent(new Event('resize'));
   });
   await page.clock.runFor(100);
@@ -137,7 +146,18 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
   await run('open', SLOW, stages);
   await caption('13 级楼梯', '和趟栊的圆木一样多，也取单数');
   await hold(3.0);
-  // 5. 落款页
+  // 5. 推开手记（落款前的技术介绍页，停够读完）
+  ev.notes = n / fps;
+  for (let i = 0; i < Math.round(7.0 * fps); i++) {
+    const t = i / fps;
+    await page.evaluate((t) => {
+      const cl = (x) => Math.max(0, Math.min(1, x));
+      document.getElementById('notes').style.opacity = cl(t / 0.5);
+      document.querySelectorAll('#notes .row').forEach((r, k) => { r.style.opacity = cl((t - 0.5 - k * 0.25) / 0.5); });
+    }, t);
+    await shot();
+  }
+  // 6. 落款页
   ev.end = n / fps; ev.seal = ev.end + 1.4; ev.thumb = ev.end + 2.4;
   for (let i = 0; i < Math.round(5.2 * fps); i++) {
     const t = i / fps;
