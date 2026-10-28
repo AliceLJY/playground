@@ -91,7 +91,9 @@ scene.add(segs([[0, Y0, 0, 100, Y0, 0]], lineMat(1.2, '#8a90a3', { dashed: true,
 for (const [k, name] of [[1, 'F'], [2, '2F']]) for (const side of [-1, 1]) {
   const x = L + side * k * F;
   scene.add(segs([[x, Y0 - 1, 0, x, Y0 + 1, 0]], lineMat(2.2)));
-  const s = textSprite(name, INK, 44, 2.2); s.position.set(x, Y0 - 2.6, 0.5); scene.add(s);
+  // label on the rail's front face: below the ruler's numbers, and never behind the screen
+  scene.add(segs([[x, -0.2, 3.55, x, -1.1, 3.55]], lineMat(2.6, RED)));
+  const s = textSprite(name, RED, 44, 1.9); s.position.set(x, -2.1, 3.9); scene.add(s);
 }
 
 // ---------------- lens ----------------
@@ -107,7 +109,7 @@ lens.add(holder(Y0 - 3.6));
   const ring = []; for (let i = 0; i < 64; i++) { const a = (i / 64) * Math.PI * 2, b = ((i + 1) / 64) * Math.PI * 2; ring.push([0, Y0 + R * Math.sin(a), R * Math.cos(a), 0, Y0 + R * Math.sin(b), R * Math.cos(b)]); }
   lens.add(segs(ring, lineMat(2.4)));
   const clamp = inked(new THREE.BoxGeometry(1.6, 0.9, 1.6), hatchMat('#e8e1d1'), 1.4); clamp.position.y = Y0 - R - 0.2; lens.add(clamp);
-  const lab = textSprite('凸透镜', INK, 40, 2.2); lab.position.set(0, Y0 + R + 2.2, 0); lens.add(lab);
+  const lab = textSprite('凸透镜', INK, 40, 2.2); lab.position.set(0, Y0 + R + 4.2, 0); lens.add(lab);
 }
 
 // ---------------- candle ----------------
@@ -129,7 +131,7 @@ const glowTex = (() => { const c = document.createElement('canvas'); c.width = c
   r.addColorStop(0, 'rgba(255,190,110,.75)'); r.addColorStop(0.4, 'rgba(255,170,90,.25)'); r.addColorStop(1, 'rgba(255,160,80,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
 const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false })); glow.scale.set(9, 9, 1); glow.position.y = Y0 + 0.6; candle.add(glow);
-const candleLabel = textSprite('蜡烛', INK, 40, 2.2); candleLabel.position.set(-3, Y0 + C.OBJ_H + 2.4, 0); candle.add(candleLabel);
+const candleLabel = textSprite('蜡烛', INK, 40, 2.2); candleLabel.position.set(0, Y0 + C.OBJ_H + 2.2, 0); candle.add(candleLabel);
 
 // ---------------- screen ----------------
 const SCR = 26;                                  // board size, cm
@@ -178,9 +180,9 @@ if (q.get('found') === 'all') { st.focusFound = true; st.predicted = 1; C.REGION
 // ---------------- panel ----------------
 $('question').textContent = C.QUESTION;
 const stepsEl = $('steps');
-C.STEPS.forEach((s) => { const b = document.createElement('button'); b.title = s.title; b.tabIndex = -1; stepsEl.appendChild(b); });
+C.STEPS.forEach((s) => { const b = document.createElement('i'); b.title = s.title; stepsEl.appendChild(b); });
 const guessEl = $('guess');
-C.GUESS.forEach((g, i) => { const b = document.createElement('button'); b.className = 'opt'; b.textContent = g; b.onclick = () => { st.predicted = i; ding(660); }; guessEl.appendChild(b); });
+C.GUESS.forEach((g, i) => { const b = document.createElement('button'); b.className = 'opt'; b.textContent = g; b.onclick = () => { st.predicted = i; ding(660); $('guessNote').textContent = `记下了：你猜「${g}」。下一步做实验检验它。`; }; guessEl.appendChild(b); });
 const tbody = $('table');
 for (const k of C.REGION_ORDER) { const tr = document.createElement('tr'); tr.dataset.k = k; tr.innerHTML = '<td class="q">？</td><td class="q">？</td><td class="q">？</td><td class="q">？</td>'; tbody.appendChild(tr); }
 function fillRow(k) {
@@ -194,7 +196,21 @@ sl.candle.min = C.CANDLE[0]; sl.candle.max = C.CANDLE[1];
 sl.screen.min = C.SCREEN[0]; sl.screen.max = C.SCREEN[1];
 sl.candle.oninput = () => { st.candle = C.snapCandle(+sl.candle.value); };
 sl.screen.oninput = () => { st.screen = C.clampScreen(+sl.screen.value); };
-const tog = (id, key) => { $(id).onclick = () => { st[key] = !st[key]; if (key === 'sun' && st.sun) st.eye = false; if (key === 'eye' && st.eye) st.sun = false; }; };
+// a slider being held counts as dragging (nothing is "found" until the hand lets go); otherwise it always shows the bench
+let slHeld = null;
+for (const k of ['candle', 'screen']) sl[k].addEventListener('pointerdown', () => { slHeld = k; });
+for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, () => { slHeld = null; });
+// fine steps: a tap moves 0.5 cm, holding keeps going 0.2 cm at a time
+const nudge = (k, d) => { if (k === 'candle') st.candle = C.snapCandle(st.candle + d); else st.screen = C.clampScreen(st.screen + d); };
+let nudgeTimer = 0, nudgeHeld = false;
+for (const b of document.querySelectorAll('button.nudge')) {
+  const k = b.dataset.k, dir = +b.dataset.d;
+  const stop = () => { clearInterval(nudgeTimer); clearTimeout(nudgeTimer); nudgeHeld = false; };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); nudge(k, 0.5 * dir); nudgeHeld = true; nudgeTimer = setTimeout(() => { nudgeTimer = setInterval(() => nudge(k, 0.2 * dir), 70); }, 380); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(k, 0.5 * dir); } });
+}
+const tog = (id, key) => { $(id).onclick = () => { if ($(id).disabled) return; st[key] = !st[key]; if (key === 'sun' && st.sun) st.eye = false; if (key === 'eye' && st.eye) st.sun = false; }; };
 tog('sun', 'sun'); tog('eye', 'eye');
 $('ray').onclick = () => { rayOn = !rayOn; };
 
@@ -223,6 +239,7 @@ function onFound(k) {
   if (k === 'far' && st.predicted != null) msg += st.predicted === C.GUESS_RIGHT ? '　你猜对了。' : `　你猜的是「${C.GUESS[st.predicted]}」，没猜中。`;
   toast(msg); ding(k === 'focus' ? 660 : 880);
   if (k !== 'focus') fillRow(k);
+  if (k === 'focus') setTimeout(() => { st.sun = false; }, 1800);   // the next steps need the candle back
 }
 
 const fmt = (x) => (Math.round(x * 10) / 10).toFixed(1);
@@ -231,26 +248,28 @@ function updatePanel() {
   const step = C.currentStep(st), S = C.STEPS[step];
   [...stepsEl.children].forEach((b, i) => { b.className = i < step || (i === step && step === C.STEPS.length - 1) ? 'done' : i === step ? 'now' : ''; });
   $('stepNo').textContent = `第 ${step + 1} 步 / 共 ${C.STEPS.length} 步`;
-  $('stepTitle').textContent = S.title; $('stepGoal').textContent = S.goal;
+  $('stepTitle').textContent = S.title; $('stepGoal').textContent = (st.sun && step > 0 ? '先关掉「平行光」，' : '') + S.goal;
   guessEl.hidden = !(S.id === 'guess' || st.predicted != null && step <= 2);
   [...guessEl.children].forEach((b, i) => b.classList.toggle('picked', st.predicted === i));
   $('answer').hidden = S.id !== 'answer';
+  if (S.id === 'answer' && st.predicted != null) $('answerGuess').textContent = `你一开始猜蜡烛放远时是「${C.GUESS[st.predicted]}」，实验结果是「倒立、缩小」：${st.predicted === C.GUESS_RIGHT ? '猜对了。' : '没猜中，现在知道为什么了。'}`;
+  const nearNow = key === 'near' && !st.sun;
+  $('eye').disabled = !nearNow; $('eye').title = nearNow ? '' : '蜡烛放到焦点以内才用得上';
+  if (st.eye && !nearNow) st.eye = false;
   $('sun').setAttribute('aria-pressed', String(st.sun)); $('eye').setAttribute('aria-pressed', String(st.eye)); $('ray').setAttribute('aria-pressed', String(rayOn));
-  if (document.activeElement !== sl.candle) sl.candle.value = st.candle;
-  if (document.activeElement !== sl.screen) sl.screen.value = st.screen;
+  if (slHeld !== 'candle') sl.candle.value = st.candle;
+  if (slHeld !== 'screen') sl.screen.value = st.screen;
   $('candleOut').textContent = st.sun ? '—' : `${fmt(st.candle)} cm`; $('screenOut').textContent = `${fmt(st.screen)} cm`;
   $('u').textContent = st.sun ? '平行光' : `${fmt(u)} cm${key === 'two' ? '（= 2f）' : key === 'focal' ? '（= f）' : ''}`;
-  let v = '—', status = '', cls = '', bar = 0;
+  let v = st.sun ? '—' : '对清楚后显示', status = '', cls = '', bar = 0;
   if (st.sun) {
     const d = C.sunSpot(s); bar = 1 / (1 + d * 1.2);
     status = d < C.SHARP ? '光斑最小最亮！这里就是焦点' : `光斑直径 ${fmt(d)} cm，把光屏往${s > F ? '左' : '右'}移`; cls = d < C.SHARP ? 'ok' : '';
   } else if (st.eye) {
     if (im.kind === 'virtual') { status = '透过透镜看：一个正立、放大的虚像'; cls = 'ok'; v = `${fmt(-im.v)} cm（在蜡烛这一侧）`; }
-    else if (im.kind === 'real') { status = '透过透镜看：空中有个倒立的像，光屏放到那里就能接住'; v = `${fmt(im.v)} cm`; }
-    else status = '透过透镜看过去，一片模糊，看不到像';
-  } else if (key === 'focal') { status = '光屏上一直接不到清晰的像……来回多移几下'; cls = 'warn'; }
-  else if (key === 'near') { status = '光屏上接不到像。试试「用眼睛看」'; cls = 'warn'; }
-  else if (!scr.reachable) { status = `像在 ${fmt(scr.v)} cm 外，光屏够不着，把蜡烛挪远一点`; cls = 'warn'; }
+  } else if (key === 'focal') { v = '没有像'; status = '光屏上一直接不到清晰的像……来回多移几下'; cls = 'warn'; }
+  else if (key === 'near') { v = '光屏上没有'; status = '光屏上接不到像。试试「用眼睛看」'; cls = 'warn'; }
+  else if (!scr.reachable) { v = `${fmt(scr.v)} cm（够不着）`; status = `像在 ${fmt(scr.v)} cm 外，光屏够不着，把蜡烛挪远一点`; cls = 'warn'; }
   else {
     bar = 1 / (1 + scr.blur * 1.5);
     if (scr.sharp) { status = `清晰！${C.describe(key)}`; cls = 'ok'; v = `${fmt(scr.v)} cm`; }
@@ -351,9 +370,15 @@ function resize() {
   RES.set(w * DPR, h * DPR); lineMats.forEach((m) => m.resolution.copy(RES));
   applyFit();
   camera.position.copy(TARGET).addScaledVector(DIR, fitDistance()); controls.target.copy(TARGET);
-  const big = camera.aspect < 1 ? 1.7 : 1; labels.forEach((l) => l.scale.copy(l.userData.base).multiplyScalar(big));
+  const big = camera.aspect < 1 || w < 600 ? 1.7 : 1; labels.forEach((l) => l.scale.copy(l.userData.base).multiplyScalar(big));
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
+$('home').onclick = () => { camera.position.copy(TARGET).addScaledVector(DIR, fitDistance()); controls.target.copy(TARGET); controls.update(); };
+$('restart').onclick = () => location.reload();
+// portrait: the close-up of the screen moves into the panel next to the readings, where it can be large
+const narrow = matchMedia('(max-aspect-ratio: 1/1), (max-width: 760px)');
+const placeInset = () => { const host = narrow.matches ? $('zoomrow') : document.querySelector('.stage'); if ($('inset').parentElement !== host) host.prepend($('inset')); };
+narrow.addEventListener('change', placeInset); placeInset();
 
 // ---------------- dragging the candle and the screen ----------------
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hitP = new THREE.Vector3();
@@ -369,15 +394,20 @@ function pick(e) {
 canvas.addEventListener('pointerdown', (e) => {
   const hits = pick(e).intersectObjects(st.sun ? [screenHit] : st.eye ? [candleHit] : [candleHit, screenHit], false);
   if (!hits.length) return;
-  drag = { what: hits[0].object === candleHit ? 'candle' : 'screen', id: e.pointerId };
-  if (ray.ray.intersectPlane(plane, hitP)) drag.dx = (drag.what === 'candle' ? st.candle : st.screen) - hitP.x;
+  // the candle wins when both are under the finger: the screen's hit box reaches towards the viewer and covers the flame
+  drag = { what: hits.some((h) => h.object === candleHit) ? 'candle' : 'screen', id: e.pointerId };
+  if (ray.ray.intersectPlane(plane, hitP)) drag.x = hitP.x;
+  drag.raw = drag.what === 'candle' ? st.candle : st.screen;
   controls.enabled = false; canvas.setPointerCapture(e.pointerId); e.preventDefault();
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) { if (!drag && e.pointerType === 'mouse') canvas.style.cursor = pick(e).intersectObjects([candleHit, screenHit], false).length ? 'grab' : 'default'; return; }
   if (!pick(e).ray.intersectPlane(plane, hitP)) return;
-  const x = hitP.x + (drag.dx || 0);
-  if (drag.what === 'candle') st.candle = C.snapCandle(x); else st.screen = C.clampScreen(x);
+  // the object stays under the finger (1:1); fine focusing is what the ◀ ▶ buttons are for. A slowed-down "precision"
+  // drag was tried and dropped: the candle lagged behind a moderately slow finger (browser check B5t, 2026-10-29)
+  const dx = hitP.x - (drag.x ?? hitP.x); drag.x = hitP.x;
+  drag.raw += dx;   // unsnapped position, so a snap does not trap the hand
+  if (drag.what === 'candle') st.candle = C.snapCandle(drag.raw); else st.screen = C.clampScreen(drag.raw);
 });
 const release = (e) => { if (drag && (!e || e.pointerId === drag.id)) { drag = null; controls.enabled = true; } };
 canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release); canvas.addEventListener('lostpointercapture', release);
@@ -388,7 +418,8 @@ const clock = { last: performance.now(), t: 0 };
 let ready = false, lastCandle = null;
 function frame(now) {
   const dt = Math.min(0.05, (now - clock.last) / 1000); clock.last = now; clock.t += dt;
-  const hit = C.observe(st); if (hit) onFound(hit);
+  st.dragging = !!drag || !!slHeld || nudgeHeld;
+  const hit = C.observe(st, dt); if (hit) onFound(hit);
   if (lastCandle !== null && Math.abs(lastCandle - st.candle) > 1e-9 && C.snapCandle(st.candle) === st.candle && [L - F, L - 2 * F].includes(st.candle) && ![L - F, L - 2 * F].includes(lastCandle)) ding(520);
   lastCandle = st.candle;
   candle.position.x = st.candle; candle.visible = !st.sun; sun.visible = st.sun;
@@ -421,5 +452,6 @@ window.__lens = {
     return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height }; },
   bestScreen: () => C.bestScreen(L - st.candle),
 };
+window.__PLAYTEST__ = { get ready() { return window.__lens.ready; }, snapshot: () => window.__lens.state(), reset: () => location.reload() };
 resize();
 requestAnimationFrame(frame);

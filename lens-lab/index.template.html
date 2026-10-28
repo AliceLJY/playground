@@ -22,18 +22,21 @@
   .toast { position: absolute; left: 50%; top: 14px; transform: translate(-50%, -8px); max-width: min(92%, 520px); background: var(--ink); color: #fff; border-radius: 12px; padding: 10px 16px; font-size: 14px; line-height: 1.55; opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; box-shadow: 0 6px 24px rgba(31, 42, 68, .25); }
   .toast.on { opacity: 1; transform: translate(-50%, 0); }
   .toast b { color: #ffc98a; }
-  .inset { position: absolute; right: 12px; top: 12px; width: clamp(104px, 20%, 190px); border: 1.5px solid var(--ink); border-radius: 10px; background: #fff; padding: 4px; pointer-events: none; }
+  .viewbtn { position: absolute; left: 14px; bottom: 12px; font: inherit; font-size: 13px; color: var(--ink); background: rgba(251, 247, 238, .9); border: 1.5px solid var(--ink); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .inset { position: absolute; left: 14px; top: 52px; width: clamp(140px, 22%, 230px); border: 1.5px solid var(--ink); border-radius: 10px; background: #fff; padding: 4px; pointer-events: none; }
   .inset canvas { display: block; width: 100%; height: auto; border-radius: 6px; }
   .inset .it { font-size: 12px; color: var(--dim); padding: 1px 4px 4px; }
   aside { min-height: 0; overflow-y: auto; background: var(--paper); border-left: 1px solid var(--line); padding: 14px 16px max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; -webkit-overflow-scrolling: touch; }
   .steps { display: flex; gap: 5px; }
-  .steps button { flex: 1; height: 8px; border: 0; border-radius: 4px; background: var(--line); padding: 0; cursor: pointer; }
-  .steps button.done { background: var(--teal); }
-  .steps button.now { background: var(--amber); }
+  .steps i { flex: 1; height: 8px; border-radius: 4px; background: var(--line); }
+  .steps i.done { background: var(--teal); }
+  .steps i.now { background: var(--amber); }
   .card { border: 1.5px solid var(--ink); border-radius: 12px; padding: 12px 14px; background: #fff; }
   .card .k { font-size: 11.5px; letter-spacing: .12em; color: var(--dim); }
   .card h2 { margin: 3px 0 6px; font-family: var(--serif); font-size: 19px; }
-  .card .goal { margin: 0; font-size: 14px; line-height: 1.65; }
+  .card .goal { margin: 0; font-size: 15px; line-height: 1.65; }
+  .note { margin: 8px 0 0; font-size: 13px; color: var(--teal); min-height: 0; }
+  .note:empty { display: none; }
   .guess { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
   .guess[hidden] { display: none; }
   button.opt, .tools button { font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1.5px solid var(--ink); border-radius: 9px; min-height: 44px; padding: 6px 10px; cursor: pointer; touch-action: manipulation; }
@@ -42,19 +45,21 @@
   .tools button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
   .tools button[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: #fff; }
   .tools button:disabled { opacity: .35; cursor: default; }
-  .sl { display: grid; grid-template-columns: 4.6em 1fr 4.2em; align-items: center; gap: 8px; font-size: 13px; }
+  .sl { display: grid; grid-template-columns: 2.6em 36px 1fr 36px 4.4em; align-items: center; gap: 6px; font-size: 13.5px; }
+  button.nudge { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); font-size: 13px; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
   .sl output { text-align: right; font-variant-numeric: tabular-nums; }
   .sl input { width: 100%; height: 30px; accent-color: var(--ink); touch-action: pan-y; }
-  .meter { display: grid; gap: 6px; font-size: 13.5px; }
+  .meter { display: grid; gap: 6px; font-size: 14px; align-content: start; }
+  .zoomrow { display: contents; }
   .meter .row { display: flex; justify-content: space-between; gap: 8px; }
   .meter .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
   .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
   .bar i { display: block; height: 100%; width: 0; background: var(--teal); transition: width .12s; }
   #status { font-weight: 600; min-height: 1.6em; line-height: 1.6; }
   #status.ok { color: var(--teal); } #status.warn { color: var(--amber); }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th, td { border-bottom: 1px solid var(--line); padding: 6px 3px; text-align: left; vertical-align: top; }
-  th { font-weight: 600; color: var(--dim); font-size: 11.5px; }
+  th { font-weight: 600; color: var(--dim); font-size: 12.5px; }
   td.q { color: #b8bccb; }
   tr.hit td { animation: hit .9s ease-out; }
   @keyframes hit { 0% { background: #ffe2bd; } 100% { background: transparent; } }
@@ -63,9 +68,9 @@
   .answer .rule { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--red); }
   .answer { padding-top: 22px; }
   .stamp { position: absolute; right: 10px; top: -16px; transform: rotate(-12deg); border: 2.5px solid var(--red); color: var(--red); font-family: var(--serif); font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--paper); font-size: 14px; }
-  footer { font-size: 11px; color: var(--dim); line-height: 1.6; margin-top: auto; }
+  footer { font-size: 12.5px; color: var(--dim); line-height: 1.6; margin-top: auto; }
   @media (max-aspect-ratio: 1/1), (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 44%) minmax(0, 1fr); }
+    #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 36%) minmax(0, 1fr); }
     header { flex-direction: column; gap: 3px; padding: max(10px, env(safe-area-inset-top)) 14px 8px; }
     header h1 { font-size: 18px; }
     header p { font-size: 12.5px; }
@@ -73,8 +78,15 @@
     .tag { font-size: 11px; padding: 4px 8px; left: 8px; top: 8px; }
     .card h2 { font-size: 17px; }
     .toast { top: auto; bottom: 10px; font-size: 13px; padding: 8px 12px; }
-    .inset { width: 27%; padding: 3px; }
-    .inset .it { font-size: 10.5px; }
+    .card { padding: 9px 12px; }
+    .card h2 { margin: 1px 0 4px; }
+    .zoomrow { display: grid; grid-template-columns: 44% 1fr; gap: 12px; align-items: start; }
+    .zoomrow .inset { position: static; width: auto; padding: 3px; }
+    .zoomrow .inset .it { font-size: 12px; }
+    .meter { gap: 4px; font-size: 13.5px; }
+    .meter .row { flex-direction: column; gap: 0; }
+    .meter .row span:last-child { text-align: left; }
+    .viewbtn { left: auto; right: 10px; bottom: 10px; padding: 5px 11px; font-size: 12px; }
   }
 </style>
 </head>
@@ -88,6 +100,7 @@
     <canvas id="scene"></canvas>
     <div class="tag" id="tag">拖蜡烛 · 拖光屏 · 空白处拖动可转视角</div>
     <div class="toast" id="toast"></div>
+    <button class="viewbtn" id="home">↺ 视角回正</button>
     <div class="inset" id="inset"><div class="it" id="insetTitle">光屏上</div></div>
   </div>
   <aside>
@@ -97,20 +110,23 @@
       <h2 id="stepTitle"></h2>
       <p class="goal" id="stepGoal"></p>
       <div class="guess" id="guess" hidden></div>
+      <p class="note" id="guessNote"></p>
     </div>
     <div class="tools">
       <button id="sun" aria-pressed="false">☀ 平行光</button>
       <button id="eye" aria-pressed="false">👁 用眼睛看</button>
       <button id="ray" aria-pressed="true">光路</button>
     </div>
+    <div class="zoomrow" id="zoomrow">
     <div class="meter">
       <div class="row"><span>物距 u（蜡烛到透镜）</span><span id="u"></span></div>
       <div class="row"><span>像距 v（像到透镜）</span><span id="v"></span></div>
       <div class="bar"><i id="sharp"></i></div>
       <div id="status"></div>
     </div>
-    <label class="sl">蜡烛 <input id="candle" type="range" step="0.1"><output id="candleOut"></output></label>
-    <label class="sl">光屏 <input id="screen" type="range" step="0.1"><output id="screenOut"></output></label>
+    </div>
+    <div class="sl"><span>蜡烛</span><button class="nudge" data-k="candle" data-d="-1" aria-label="蜡烛往左 0.5 厘米">◀</button><input id="candle" type="range" step="0.1" aria-label="蜡烛位置"><button class="nudge" data-k="candle" data-d="1" aria-label="蜡烛往右 0.5 厘米">▶</button><output id="candleOut"></output></div>
+    <div class="sl"><span>光屏</span><button class="nudge" data-k="screen" data-d="-1" aria-label="光屏往左 0.5 厘米">◀</button><input id="screen" type="range" step="0.1" aria-label="光屏位置"><button class="nudge" data-k="screen" data-d="1" aria-label="光屏往右 0.5 厘米">▶</button><output id="screenOut"></output></div>
     <table>
       <thead><tr><th>物距</th><th>像</th><th>像距</th><th>用在</th></tr></thead>
       <tbody id="table"></tbody>
@@ -121,6 +137,8 @@
       <div>投影仪：胶片放在 1 倍到 2 倍焦距之间，投出<b>倒立、放大的实像</b>，所以胶片要倒着插。</div>
       <div>放大镜：东西放在 1 倍焦距以内，透过镜片看到<b>正立、放大的虚像</b>，它在光屏上接不到。</div>
       <div>同一块凸透镜，像正还是倒，看物体在焦点的哪一边。</div>
+      <div class="note" id="answerGuess"></div>
+      <button class="opt" id="restart" style="margin-top:10px">重新做一遍</button>
     </div>
     <footer>焦距 f = 10 cm，透镜固定在 40 cm 刻度处。理想薄透镜模型，像的亮度为示意。<br>我的AI小木屋 · 和 AI 一起做的</footer>
   </aside>

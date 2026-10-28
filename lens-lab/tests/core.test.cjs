@@ -79,24 +79,30 @@ test('SPEC 4: ray diagram — the three rays meet at the image point', async () 
 test('SPEC 5: a lesson is completed by hand, in any order, and cannot be faked by pressing a button', async () => {
   const c = await load(), L = c.LENS_X, f = c.F;
   const st = c.newState();
+  // hold the bench still for t seconds at 60 fps; returns the first thing found
+  const hold = (t = 0.6) => { let hit = null; for (let i = 0; i < Math.round(t * 60); i++) hit = hit || c.observe(st, 1 / 60); return hit; };
   assert.equal(c.currentStep(st), 0);
   // parallel light: only a screen at f makes the smallest spot
-  st.sun = true; st.screen = L + 14; assert.equal(c.observe(st), null);
-  st.screen = L + f; assert.equal(c.observe(st), 'focus');
+  st.sun = true; st.screen = L + 14; assert.equal(hold(), null);
+  st.screen = L + f; assert.equal(c.observe(st), null, 'one frame on the focal spot is not enough');
+  assert.equal(hold(), 'focus');
   st.sun = false; assert.equal(c.currentStep(st), 1);
   st.predicted = 2; assert.equal(c.currentStep(st), 2);
   // a blurred picture does not count
-  st.candle = L - 30; st.screen = c.bestScreen(30) + 2; assert.equal(c.observe(st), null);
-  st.screen = c.bestScreen(30); assert.equal(c.observe(st), 'far');
+  st.candle = L - 30; st.screen = c.bestScreen(30) + 2; assert.equal(hold(), null);
+  // sweeping through the sharp spot while dragging does not count, even if held there mid-drag
+  st.screen = c.bestScreen(30); st.dragging = true; assert.equal(hold(1), null);
+  st.dragging = false; assert.equal(hold(0.3), null, 'released for 0.3 s: not yet');
+  assert.equal(hold(0.3), 'far');
   // doing a later case first is remembered; the step bar skips it when it gets there
-  st.candle = L - 15; st.screen = c.bestScreen(15); assert.equal(c.observe(st), 'mid');
+  st.candle = L - 15; st.screen = c.bestScreen(15); assert.equal(hold(), 'mid');
   assert.equal(c.currentStep(st), 3);
-  st.candle = L - 20; st.screen = c.bestScreen(20); c.observe(st); assert.equal(c.currentStep(st), 5);
+  st.candle = L - 20; st.screen = c.bestScreen(20); hold(); assert.equal(c.currentStep(st), 5);
   // focal point: needs a real sweep of the screen
   st.candle = L - f; st.screen = L + 20; c.observe(st); st.screen = L + 30; assert.equal(c.observe(st), null);
   st.screen = L + 36; assert.equal(c.observe(st), 'focal');
   // inside f: looking at the screen finds nothing, looking through the lens does
-  st.candle = L - 6; st.screen = L + 30; assert.equal(c.observe(st), null);
+  st.candle = L - 6; st.screen = L + 30; assert.equal(hold(), null);
   st.eye = true; assert.equal(c.observe(st), 'near');
   assert.equal(c.currentStep(st), c.STEPS.length - 1);
   assert.equal(c.GUESS[c.GUESS_RIGHT], '倒立、缩小');
