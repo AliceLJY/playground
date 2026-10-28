@@ -99,14 +99,42 @@ const L = 40, F = 10, Y0 = 18;
   // R3, R2: grabbing at the flame moves the candle even with the screen behind it; a focused slider keeps up with 3D drags
   {
     const { ctx, page } = await open('', 1440, 860, 1);
-    await page.evaluate(() => window.__lens.set({ candle: 30, screen: 45 })); await page.waitForTimeout(80);
+    await page.evaluate(() => window.__lens.set({ candle: 30, screen: 50 })); await page.waitForTimeout(80);
     const a = await P(page, 30, Y0 + 1), b = await P(page, 22, Y0 + 1);
     await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(80);
     let s = await S(page);
-    check('R3', 'grabbing the flame drags the candle, not the screen behind it', s.candle < 29 && Math.abs(s.screen - 45) < 1e-6, `candle ${s.candle.toFixed(1)}, screen ${s.screen.toFixed(1)}`);
-    await page.focus('#screen'); await drag(page, 45, 70, Y0 - 13); s = await S(page);
+    check('R3', 'grabbing the flame drags the candle, not the screen behind it', s.candle < 29 && Math.abs(s.screen - 50) < 1e-6, `candle ${s.candle.toFixed(1)}, screen ${s.screen.toFixed(1)}`);
+    await page.focus('#screen'); await drag(page, 50, 70, Y0 - 13); s = await S(page);
     const sv = +(await page.$eval('#screen', (e) => e.value));
     check('R2', 'a slider that has keyboard focus still follows a 3D drag', Math.abs(sv - s.screen) < 0.15, `slider ${sv}, bench ${s.screen.toFixed(2)}`);
+    await ctx.close();
+  }
+  // R7-R10: second playtest round (2026-10-29)
+  {
+    const { ctx, page } = await open('', 1440, 860, 1);
+    const fine = [];
+    for (const ruler of [20, 30]) for (const d of [1, -1]) {
+      await page.evaluate((x) => window.__lens.set({ candle: x }), ruler); await page.waitForTimeout(40);
+      await page.click(`button.nudge[data-k="candle"][data-d="${d}"]`); await page.waitForTimeout(40);
+      fine.push(+((await S(page)).candle - ruler).toFixed(2));
+    }
+    check('R7', 'the fine-step buttons step off f and 2f instead of freezing there', fine.every((x, i) => Math.abs(x - (i % 2 ? -0.5 : 0.5)) < 1e-6), `steps from 2f, f: ${fine.join(', ')} cm`);
+    await page.evaluate(() => window.__lens.set({ sun: true })); await page.waitForTimeout(60);
+    const lab = await page.textContent('#uLabel');
+    check('R8', 'under parallel light the first reading is labelled as the light source, not object distance', lab === '光源', `"${lab}: ${await page.textContent('#u')}"`);
+    await page.evaluate(() => window.__lens.set({ screen: 50 })); await page.waitForTimeout(2600);
+    const s9 = await S(page);
+    check('R9', 'after the focal point the lesson stops on step 2 with the guesses showing', s9.step === 1 && await page.isVisible('#guess button'), `step ${s9.step + 1}, guesses visible ${await page.isVisible('#guess button')}`);
+    await page.evaluate(() => window.__lens.set({ candle: 30, sun: false })); await page.waitForTimeout(80);
+    const st6 = await page.textContent('#status');
+    check('R10', 'on the focal point the status shows how much of the 15 cm sweep is done', /\/ 15 cm/.test(st6), st6);
+    await ctx.close();
+  }
+  { // footer fully visible at the bottom of the answer page
+    const { ctx, page } = await open('?found=all', 1440, 860, 1);
+    await page.evaluate(() => { const a = document.querySelector('aside'); a.scrollTop = a.scrollHeight; }); await page.waitForTimeout(100);
+    const f = await page.evaluate(() => { const r = document.querySelector('footer').getBoundingClientRect(), a = document.querySelector('aside').getBoundingClientRect(); return { fb: r.bottom, ab: a.bottom }; });
+    check('R11', 'the footer is not cut off at the bottom of the panel', f.fb <= f.ab - 4, `footer bottom ${f.fb.toFixed(0)}, panel bottom ${f.ab.toFixed(0)}`);
     await ctx.close();
   }
   // B5: phone viewports with browser bars subtracted; the bench, panel controls and inset must not collide

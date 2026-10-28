@@ -10,8 +10,8 @@ export const LENS_X = 40;         // lens position on the ruler
 export const BENCH = [0, 100];
 export const APERTURE = 6;        // lens diameter, sets how fast the picture blurs off focus
 export const OBJ_H = 3;           // flame tip above the optical axis (the object point the ray diagram traces)
-export const CANDLE = [LENS_X - 37, LENS_X - 4.5]; // candle between the 3 and 35.5 cm marks: u from 4.5 (holders touch) to 37
-export const SCREEN = [LENS_X + 2, BENCH[1]];       // screen between 42 and 100: s from 2 to 60
+export const CANDLE = [LENS_X - 35, LENS_X - 4.5]; // candle between the 5 and 35.5 cm marks: u from 4.5 (holders touch) to 35
+export const SCREEN = [LENS_X + 6, BENCH[1]];       // screen between 46 and 100: closer, the tilted board covers the lens
 export const SHARP = 0.3;         // blur circle on the screen (cm) below which the picture counts as sharp
 export const SNAP = 0.6;          // the candle clicks onto f and 2f when dragged this close
 export const HOLD = 0.5;          // seconds a sharp picture (or the focal spot) must stay put, not merely be swept past
@@ -47,12 +47,18 @@ export function describe(key) {
   return `${r.upright ? '正立' : '倒立'}、${r.size}的${r.real ? '实像' : '虚像'}`;
 }
 
-// candle drag: clamp to the bench, click onto f and 2f
-export function snapCandle(x, f = F) {
+// candle drag: clamp to the bench, click onto f and 2f. Fine-step buttons pass a smaller reach (NUDGE_SNAP), so a step
+// away from f lands beside it instead of being pulled straight back (2026-10-29: buttons froze on f and 2f)
+export const NUDGE = 0.5, NUDGE_SNAP = 0.2;
+export function snapCandle(x, f = F, reach = SNAP) {
   x = clamp(x, CANDLE[0], CANDLE[1]);
-  for (const k of [2 * f, f]) if (Math.abs(LENS_X - x - k) < SNAP) return LENS_X - k;
+  for (const k of [2 * f, f]) if (Math.abs(LENS_X - x - k) < reach) return LENS_X - k;
   return x;
 }
+export const nudgeCandle = (x, d, f = F) => snapCandle(x + d, f, NUDGE_SNAP);
+// how far the screen has swept while the candle sits on f (cm), for the progress shown in step 6
+export const SWEEP_NEED = 15;
+export const sweepDone = (state) => (state.sweep ? state.sweep.hi - state.sweep.lo : 0);
 export const clampScreen = (x) => clamp(x, SCREEN[0], SCREEN[1]);
 
 // what the screen at distance s shows. blur: diameter of the blur circle in cm (Infinity: nothing lands as a picture)
@@ -103,7 +109,7 @@ export const STEPS = [
   { id: 'far', title: '放远处', goal: '把蜡烛放到 2 倍焦距以外，再拖光屏找到清晰的像', done: (s) => s.found.has('far') },
   { id: 'two', title: '2 倍焦距', goal: '把蜡烛拖到 2 倍焦距处（会自动卡住），找清晰的像', done: (s) => s.found.has('two') },
   { id: 'mid', title: '再近一点', goal: '把蜡烛放在 1 倍和 2 倍焦距之间，找清晰的像', done: (s) => s.found.has('mid') },
-  { id: 'focal', title: '放到焦点上', goal: '把蜡烛拖到焦点上，来回移动光屏，看看能不能找到像', done: (s) => s.found.has('focal') },
+  { id: 'focal', title: '放到焦点上', goal: '把蜡烛拖到焦点上（会自动卡住），再把光屏前后移动至少 15 cm，看看能不能找到像', done: (s) => s.found.has('focal') },
   { id: 'near', title: '比焦点还近', goal: '把蜡烛放到焦点以内，光屏上找不到像了，点「用眼睛看」', done: (s) => s.found.has('near') },
   { id: 'answer', title: '揭晓', goal: '规律都找齐了，回到开头那个问题', done: () => false },
 ];
@@ -125,7 +131,7 @@ export function observe(state, dt = 1 / 60, f = F) {
     state.hold = 0;
     state.sweep = state.sweep || { lo: s, hi: s };
     state.sweep.lo = Math.min(state.sweep.lo, s); state.sweep.hi = Math.max(state.sweep.hi, s);
-    if (state.sweep.hi - state.sweep.lo >= 15 && !state.found.has('focal')) { state.found.add('focal'); return 'focal'; }
+    if (state.sweep.hi - state.sweep.lo >= SWEEP_NEED && !state.found.has('focal')) { state.found.add('focal'); return 'focal'; }
     return null;
   }
   state.sweep = null;
