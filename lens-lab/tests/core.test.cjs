@@ -31,6 +31,13 @@ test('SPEC 2: the candle clicks onto f and 2f, and only there', async () => {
   assert.equal(c.snapCandle(L - 15), L - 15);
   assert.equal(c.snapCandle(-50), c.CANDLE[0]);
   assert.equal(c.snapCandle(L + 5), c.CANDLE[1]);
+  // fine-step buttons step off f and 2f (they froze there when they shared the drag's snap reach)
+  for (const k of [f, 2 * f]) for (const d of [c.NUDGE, -c.NUDGE]) {
+    const x = c.nudgeCandle(L - k, d);
+    assert.ok(Math.abs(x - (L - k + d)) < 1e-9, `nudge ${d} from u=${k} landed on ${L - x}`);
+  }
+  // and stepping back in 0.5 cm steps lands exactly on them again
+  let x = L - f - 1.5; for (let i = 0; i < 3; i++) x = c.nudgeCandle(x, 0.5); assert.equal(x, L - f);
   // every region can be reached by dragging
   const seen = new Set();
   for (let x = -5; x <= L + 5; x += 0.1) seen.add(c.region(L - c.snapCandle(x)));
@@ -51,6 +58,8 @@ test('SPEC 3: the screen is sharp only at the image distance, and every real cas
   }
   // just outside f the image lies past the end of the bench: the page must say so instead of pretending
   assert.equal(c.onScreen(11, 50).reachable, false);
+  assert.ok(c.SCREEN[0] - L >= 6, 'the screen stops clear of the lens (tilted board, holders)');
+  assert.ok(L - c.CANDLE[1] >= 4.4, 'the candle holder stops clear of the lens holder');
   for (const u of [10, 6]) assert.equal(c.onScreen(u, 30).sharp, false, 'no picture on the screen at or inside f');
 });
 

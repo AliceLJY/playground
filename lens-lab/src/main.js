@@ -54,13 +54,14 @@ function segs(list, mat) {   // list of [x0,y0,z0,x1,y1,z1]
   const g = new LineSegmentsGeometry(); g.setPositions(list.flat());
   const l = new LineSegments2(g, mat); l.computeLineDistances(); return l;
 }
+// names are drawn on top of everything, so the screen standing in front of the lens never hides them
 function textSprite(text, color = INK, px = 44, worldH = 2.6) {
   const c = document.createElement('canvas'), g = c.getContext('2d');
   g.font = `600 ${px}px ${getComputedStyle(document.body).fontFamily}`;
   c.width = Math.ceil(g.measureText(text).width) + 16; c.height = px + 16;
   g.font = `600 ${px}px ${getComputedStyle(document.body).fontFamily}`; g.fillStyle = color; g.textBaseline = 'middle'; g.fillText(text, 8, c.height / 2);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false }));
   s.scale.set((worldH * c.width) / c.height, worldH, 1); s.renderOrder = 10; s.userData.base = s.scale.clone(); labels.push(s); return s;
 }
 
@@ -139,7 +140,7 @@ const scrCanvas = document.createElement('canvas'); scrCanvas.width = scrCanvas.
 const scrTex = new THREE.CanvasTexture(scrCanvas); scrTex.colorSpace = THREE.SRGBColorSpace;
 const screen = new THREE.Group(); scene.add(screen);
 screen.add(holder(Y0 - SCR / 2));
-const board = new THREE.Group(); board.position.y = Y0; board.rotation.y = 0.5; screen.add(board);   // turned a little towards the viewer
+const board = new THREE.Group(); board.position.y = Y0; board.rotation.y = 0.36; screen.add(board);   // turned a little towards the viewer
 {
   const back = inked(new THREE.BoxGeometry(0.8, SCR + 1.2, SCR + 1.2), hatchMat('#e8e1d1'), 2); back.position.x = 0.45; board.add(back);
   const face = new THREE.Mesh(new THREE.PlaneGeometry(SCR, SCR), new THREE.MeshBasicMaterial({ map: scrTex }));
@@ -201,7 +202,7 @@ let slHeld = null;
 for (const k of ['candle', 'screen']) sl[k].addEventListener('pointerdown', () => { slHeld = k; });
 for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, () => { slHeld = null; });
 // fine steps: a tap moves 0.5 cm, holding keeps going 0.2 cm at a time
-const nudge = (k, d) => { if (k === 'candle') st.candle = C.snapCandle(st.candle + d); else st.screen = C.clampScreen(st.screen + d); };
+const nudge = (k, d) => { if (k === 'candle') st.candle = C.nudgeCandle(st.candle, d); else st.screen = C.clampScreen(st.screen + d); };
 let nudgeTimer = 0, nudgeHeld = false;
 for (const b of document.querySelectorAll('button.nudge')) {
   const k = b.dataset.k, dir = +b.dataset.d;
@@ -260,19 +261,20 @@ function updatePanel() {
   if (slHeld !== 'candle') sl.candle.value = st.candle;
   if (slHeld !== 'screen') sl.screen.value = st.screen;
   $('candleOut').textContent = st.sun ? '—' : `${fmt(st.candle)} cm`; $('screenOut').textContent = `${fmt(st.screen)} cm`;
-  $('u').textContent = st.sun ? '平行光' : `${fmt(u)} cm${key === 'two' ? '（= 2f）' : key === 'focal' ? '（= f）' : ''}`;
+  $('uLabel').textContent = st.sun ? '光源' : '物距 u（蜡烛到透镜）';
+  $('u').textContent = st.sun ? '平行光（像来自很远处）' : `${fmt(u)} cm${key === 'two' ? '（= 2f）' : key === 'focal' ? '（= f）' : ''}`;
   let v = st.sun ? '—' : '对清楚后显示', status = '', cls = '', bar = 0;
   if (st.sun) {
     const d = C.sunSpot(s); bar = 1 / (1 + d * 1.2);
     status = d < C.SHARP ? '光斑最小最亮！这里就是焦点' : `光斑直径 ${fmt(d)} cm，把光屏往${s > F ? '左' : '右'}移`; cls = d < C.SHARP ? 'ok' : '';
   } else if (st.eye) {
     if (im.kind === 'virtual') { status = '透过透镜看：一个正立、放大的虚像'; cls = 'ok'; v = `${fmt(-im.v)} cm（在蜡烛这一侧）`; }
-  } else if (key === 'focal') { v = '没有像'; status = '光屏上一直接不到清晰的像……来回多移几下'; cls = 'warn'; }
+  } else if (key === 'focal') { v = '没有像'; const d = C.sweepDone(st); status = st.found.has('focal') ? '怎么移都接不到像：出来的光是平行的' : `光屏上接不到清晰的像。已来回移了 ${fmt(Math.min(d, C.SWEEP_NEED))} / ${C.SWEEP_NEED} cm`; cls = 'warn'; }
   else if (key === 'near') { v = '光屏上没有'; status = '光屏上接不到像。试试「用眼睛看」'; cls = 'warn'; }
   else if (!scr.reachable) { v = `${fmt(scr.v)} cm（够不着）`; status = `像在 ${fmt(scr.v)} cm 外，光屏够不着，把蜡烛挪远一点`; cls = 'warn'; }
   else {
     bar = 1 / (1 + scr.blur * 1.5);
-    if (scr.sharp) { status = `清晰！${C.describe(key)}`; cls = 'ok'; v = `${fmt(scr.v)} cm`; }
+    if (scr.sharp) { status = `清晰！${C.describe(key)}${Math.abs(s - scr.v) > 0.05 ? `（光屏离正好的位置差 ${fmt(Math.abs(s - scr.v))} cm，眼睛已经看不出糊）` : ''}`; cls = 'ok'; v = `${fmt(scr.v)} cm`; }
     else status = `像是模糊的，把光屏往${s < scr.v ? '右' : '左'}移`;
   }
   if (cls === 'ok') bar = 1;
@@ -370,7 +372,7 @@ function resize() {
   RES.set(w * DPR, h * DPR); lineMats.forEach((m) => m.resolution.copy(RES));
   applyFit();
   camera.position.copy(TARGET).addScaledVector(DIR, fitDistance()); controls.target.copy(TARGET);
-  const big = camera.aspect < 1 || w < 600 ? 1.7 : 1; labels.forEach((l) => l.scale.copy(l.userData.base).multiplyScalar(big));
+  const big = camera.aspect < 1 || w < 600 ? 2.1 : 1; labels.forEach((l) => l.scale.copy(l.userData.base).multiplyScalar(big));
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
 $('home').onclick = () => { camera.position.copy(TARGET).addScaledVector(DIR, fitDistance()); controls.target.copy(TARGET); controls.update(); };
