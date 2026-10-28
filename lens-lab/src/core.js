@@ -10,10 +10,11 @@ export const LENS_X = 40;         // lens position on the ruler
 export const BENCH = [0, 100];
 export const APERTURE = 6;        // lens diameter, sets how fast the picture blurs off focus
 export const OBJ_H = 3;           // flame tip above the optical axis (the object point the ray diagram traces)
-export const CANDLE = [LENS_X - 37, LENS_X - 2];   // candle may stand between the 3 and 38 cm marks: u from 2 to 37
+export const CANDLE = [LENS_X - 37, LENS_X - 4.5]; // candle between the 3 and 35.5 cm marks: u from 4.5 (holders touch) to 37
 export const SCREEN = [LENS_X + 2, BENCH[1]];       // screen between 42 and 100: s from 2 to 60
 export const SHARP = 0.3;         // blur circle on the screen (cm) below which the picture counts as sharp
 export const SNAP = 0.6;          // the candle clicks onto f and 2f when dragged this close
+export const HOLD = 0.5;          // seconds a sharp picture (or the focal spot) must stay put, not merely be swept past
 
 // ---------------- the lens ----------------
 // image of an object u in front of the lens. kind: 'real' | 'virtual' | 'none' (object on the focal point)
@@ -110,32 +111,35 @@ export const GUESS = ['正立、放大', '倒立、缩小', '倒立、放大', '
 export const GUESS_RIGHT = 1;
 
 // fold one moment of the bench into the record of what has been found. Returns the newly found region or null.
-// a real image counts once it is sharp on the screen; the focal case once the screen has swept at least 15 cm
-// while the candle sat on f; the virtual case once the learner looks through the lens from the far side.
-export function observe(state, f = F) {
+// A real image (and the focal spot under parallel light) counts only after it has stayed sharp for HOLD seconds with
+// nothing being dragged: sweeping the screen through the sharp spot is not finding it. The focal case counts once the
+// screen has swept at least 15 cm while the candle sat on f; the virtual case once the learner looks through the lens.
+export function observe(state, dt = 1 / 60, f = F) {
   const u = LENS_X - state.candle, s = state.screen - LENS_X, key = region(u, f);
-  let hit = null;
+  const held = (ok) => { state.hold = ok && !state.dragging ? (state.hold || 0) + dt : 0; return state.hold >= HOLD; };
   if (state.sun) {
-    if (sunSpot(s, f) < SHARP && !state.focusFound) { state.focusFound = true; hit = 'focus'; }
-    return hit;
+    if (held(sunSpot(s, f) < SHARP) && !state.focusFound) { state.focusFound = true; return 'focus'; }
+    return null;
   }
   if (key === 'focal') {
+    state.hold = 0;
     state.sweep = state.sweep || { lo: s, hi: s };
     state.sweep.lo = Math.min(state.sweep.lo, s); state.sweep.hi = Math.max(state.sweep.hi, s);
-    if (state.sweep.hi - state.sweep.lo >= 15 && !state.found.has('focal')) { state.found.add('focal'); hit = 'focal'; }
-    return hit;
+    if (state.sweep.hi - state.sweep.lo >= 15 && !state.found.has('focal')) { state.found.add('focal'); return 'focal'; }
+    return null;
   }
   state.sweep = null;
   if (key === 'near') {
-    if (state.eye && !state.found.has('near')) { state.found.add('near'); hit = 'near'; }
-    return hit;
+    state.hold = 0;
+    if (state.eye && !state.found.has('near')) { state.found.add('near'); return 'near'; }
+    return null;
   }
-  if (onScreen(u, s, f).sharp && !state.found.has(key)) { state.found.add(key); hit = key; }
-  return hit;
+  if (held(onScreen(u, s, f).sharp) && !state.found.has(key)) { state.found.add(key); return key; }
+  return null;
 }
 
 export function newState() {
-  return { candle: LENS_X - 30, screen: LENS_X + 30, sun: false, eye: false, predicted: null, focusFound: false, found: new Set(), sweep: null };
+  return { candle: LENS_X - 30, screen: LENS_X + 30, sun: false, eye: false, predicted: null, focusFound: false, found: new Set(), sweep: null, hold: 0, dragging: false };
 }
 
 // the first step not yet done (the answer step once everything is found)
