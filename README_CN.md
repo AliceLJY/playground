@@ -24,6 +24,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
+| [凸透镜成像 · 自己找规律](lens-lab/) · [看](https://aliceljy.github.io/playground/lens-lab/) | 一张光具座：平行光找焦点，再拖蜡烛、拖光屏把像对清楚，五种成像情况一种种找出来、表格自己填满，最后回答放大镜和投影仪为什么一个正一个倒 | Three.js，薄透镜公式实时计算，鼠标与触屏，单文件离线可看 |
 | [机械沙虫](sandworm/) · [看](https://aliceljy.github.io/playground/sandworm/) | 一份虚构的工程设计档案：沙漠地下掘进的机械沙虫，六个机位、X 光看地下、拆开装甲看内部 | Three.js 程序化建模，键鼠与触屏，单文件离线可看 |
 | [户型图 · 三维小样](floorplan/) · [看](https://aliceljy.github.io/playground/floorplan/) | 从一张公有领域户型图读出墙、门窗和房间，拉成能转的三维，配上 CAD 平面图、光追效果图和冬至日照 | Three.js 手机竖屏页，数据与效果图来自本地出片工程 |
 | [走进户型图](floorplan-walk/) · [看](https://aliceljy.github.io/playground/floorplan-walk/) | 同一张户型图做成能摆家具的彩色平面图：从家具库拖进去，切到 3D 房子从图上长出来，转着看或者从入户门走进去；真实日照、夜景、剖切、整屋换木色 | SVG 平面图 + Three.js，60 种家具（图例与模型移植自 floorplan-3d，MIT），键鼠与触屏，单文件离线可看 |

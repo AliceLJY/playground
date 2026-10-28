@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>凸透镜成像 · 自己找出规律的实验台</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --ink: #1f2a44; --dim: #5d6680; --paper: #fbf7ee; --desk: #e9e4da; --line: rgba(31, 42, 68, .18); --red: #c2412d; --amber: #e2832a; --teal: #1a8f87;
+    --serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "STSong", Georgia, serif;
+    --sans: "PingFang SC", "Helvetica Neue", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--desk); color: var(--ink); font-family: var(--sans); overflow: hidden; -webkit-text-size-adjust: 100%; }
+  #app { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 360px; grid-template-rows: auto 1fr; }
+  header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 16px; padding: max(12px, env(safe-area-inset-top)) 22px 10px; border-bottom: 1px solid var(--line); background: var(--paper); }
+  header h1 { margin: 0; font-family: var(--serif); font-size: 21px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
+  header p { margin: 0; font-size: 13.5px; color: var(--dim); line-height: 1.5; }
+  header p b { color: var(--red); font-weight: 600; }
+  .stage { position: relative; min-height: 0; }
+  canvas#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .tag { position: absolute; left: 14px; top: 12px; font-size: 12px; color: var(--dim); background: rgba(251, 247, 238, .86); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; pointer-events: none; line-height: 1.5; }
+  .toast { position: absolute; left: 50%; top: 14px; transform: translate(-50%, -8px); max-width: min(92%, 520px); background: var(--ink); color: #fff; border-radius: 12px; padding: 10px 16px; font-size: 14px; line-height: 1.55; opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; text-align: center; box-shadow: 0 6px 24px rgba(31, 42, 68, .25); }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+  .toast b { color: #ffc98a; }
+  .inset { position: absolute; right: 12px; top: 12px; width: clamp(104px, 20%, 190px); border: 1.5px solid var(--ink); border-radius: 10px; background: #fff; padding: 4px; pointer-events: none; }
+  .inset canvas { display: block; width: 100%; height: auto; border-radius: 6px; }
+  .inset .it { font-size: 12px; color: var(--dim); padding: 1px 4px 4px; }
+  aside { min-height: 0; overflow-y: auto; background: var(--paper); border-left: 1px solid var(--line); padding: 14px 16px max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; -webkit-overflow-scrolling: touch; }
+  .steps { display: flex; gap: 5px; }
+  .steps button { flex: 1; height: 8px; border: 0; border-radius: 4px; background: var(--line); padding: 0; cursor: pointer; }
+  .steps button.done { background: var(--teal); }
+  .steps button.now { background: var(--amber); }
+  .card { border: 1.5px solid var(--ink); border-radius: 12px; padding: 12px 14px; background: #fff; }
+  .card .k { font-size: 11.5px; letter-spacing: .12em; color: var(--dim); }
+  .card h2 { margin: 3px 0 6px; font-family: var(--serif); font-size: 19px; }
+  .card .goal { margin: 0; font-size: 14px; line-height: 1.65; }
+  .guess { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+  .guess[hidden] { display: none; }
+  button.opt, .tools button { font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1.5px solid var(--ink); border-radius: 9px; min-height: 44px; padding: 6px 10px; cursor: pointer; touch-action: manipulation; }
+  button.opt.picked { background: var(--ink); color: #fff; }
+  .tools { display: flex; gap: 8px; }
+  .tools button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .tools button[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .tools button:disabled { opacity: .35; cursor: default; }
+  .sl { display: grid; grid-template-columns: 4.6em 1fr 4.2em; align-items: center; gap: 8px; font-size: 13px; }
+  .sl output { text-align: right; font-variant-numeric: tabular-nums; }
+  .sl input { width: 100%; height: 30px; accent-color: var(--ink); touch-action: pan-y; }
+  .meter { display: grid; gap: 6px; font-size: 13.5px; }
+  .meter .row { display: flex; justify-content: space-between; gap: 8px; }
+  .meter .row span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--teal); transition: width .12s; }
+  #status { font-weight: 600; min-height: 1.6em; line-height: 1.6; }
+  #status.ok { color: var(--teal); } #status.warn { color: var(--amber); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 3px; text-align: left; vertical-align: top; }
+  th { font-weight: 600; color: var(--dim); font-size: 11.5px; }
+  td.q { color: #b8bccb; }
+  tr.hit td { animation: hit .9s ease-out; }
+  @keyframes hit { 0% { background: #ffe2bd; } 100% { background: transparent; } }
+  .answer { border: 1.5px dashed var(--red); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.75; position: relative; }
+  .answer[hidden] { display: none; }
+  .answer .rule { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--red); }
+  .answer { padding-top: 22px; }
+  .stamp { position: absolute; right: 10px; top: -16px; transform: rotate(-12deg); border: 2.5px solid var(--red); color: var(--red); font-family: var(--serif); font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--paper); font-size: 14px; }
+  footer { font-size: 11px; color: var(--dim); line-height: 1.6; margin-top: auto; }
+  @media (max-aspect-ratio: 1/1), (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 44%) minmax(0, 1fr); }
+    header { flex-direction: column; gap: 3px; padding: max(10px, env(safe-area-inset-top)) 14px 8px; }
+    header h1 { font-size: 18px; }
+    header p { font-size: 12.5px; }
+    aside { border-left: 0; border-top: 1px solid var(--line); padding: 10px 12px max(12px, env(safe-area-inset-bottom)); gap: 10px; }
+    .tag { font-size: 11px; padding: 4px 8px; left: 8px; top: 8px; }
+    .card h2 { font-size: 17px; }
+    .toast { top: auto; bottom: 10px; font-size: 13px; padding: 8px 12px; }
+    .inset { width: 27%; padding: 3px; }
+    .inset .it { font-size: 10.5px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>凸透镜成像</h1>
+    <p>主线问题：<b id="question"></b></p>
+  </header>
+  <div class="stage">
+    <canvas id="scene"></canvas>
+    <div class="tag" id="tag">拖蜡烛 · 拖光屏 · 空白处拖动可转视角</div>
+    <div class="toast" id="toast"></div>
+    <div class="inset" id="inset"><div class="it" id="insetTitle">光屏上</div></div>
+  </div>
+  <aside>
+    <div class="steps" id="steps"></div>
+    <div class="card">
+      <div class="k" id="stepNo"></div>
+      <h2 id="stepTitle"></h2>
+      <p class="goal" id="stepGoal"></p>
+      <div class="guess" id="guess" hidden></div>
+    </div>
+    <div class="tools">
+      <button id="sun" aria-pressed="false">☀ 平行光</button>
+      <button id="eye" aria-pressed="false">👁 用眼睛看</button>
+      <button id="ray" aria-pressed="true">光路</button>
+    </div>
+    <div class="meter">
+      <div class="row"><span>物距 u（蜡烛到透镜）</span><span id="u"></span></div>
+      <div class="row"><span>像距 v（像到透镜）</span><span id="v"></span></div>
+      <div class="bar"><i id="sharp"></i></div>
+      <div id="status"></div>
+    </div>
+    <label class="sl">蜡烛 <input id="candle" type="range" step="0.1"><output id="candleOut"></output></label>
+    <label class="sl">光屏 <input id="screen" type="range" step="0.1"><output id="screenOut"></output></label>
+    <table>
+      <thead><tr><th>物距</th><th>像</th><th>像距</th><th>用在</th></tr></thead>
+      <tbody id="table"></tbody>
+    </table>
+    <div class="answer" id="answer" hidden>
+      <span class="stamp">规律找齐</span>
+      <div class="rule">一倍焦距分虚实，二倍焦距分大小</div>
+      <div>投影仪：胶片放在 1 倍到 2 倍焦距之间，投出<b>倒立、放大的实像</b>，所以胶片要倒着插。</div>
+      <div>放大镜：东西放在 1 倍焦距以内，透过镜片看到<b>正立、放大的虚像</b>，它在光屏上接不到。</div>
+      <div>同一块凸透镜，像正还是倒，看物体在焦点的哪一边。</div>
+    </div>
+    <footer>焦距 f = 10 cm，透镜固定在 40 cm 刻度处。理想薄透镜模型，像的亮度为示意。<br>我的AI小木屋 · 和 AI 一起做的</footer>
+  </aside>
+</div>
+<!--BUNDLE-->
+</body>
+</html>
