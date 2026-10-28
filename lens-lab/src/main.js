@@ -252,6 +252,7 @@ function updatePanel() {
   $('stepTitle').textContent = S.title; $('stepGoal').textContent = (st.sun && step > 0 ? '先关掉「平行光」，' : '') + S.goal;
   guessEl.hidden = !(S.id === 'guess' || st.predicted != null && step <= 2);
   [...guessEl.children].forEach((b, i) => b.classList.toggle('picked', st.predicted === i));
+  $('guessNote').hidden = S.id !== 'guess' && S.id !== 'far';   // shown while the guess is being tested (step 3); it returns on the answer card
   $('answer').hidden = S.id !== 'answer';
   if (S.id === 'answer' && st.predicted != null) $('answerGuess').textContent = `你一开始猜蜡烛放远时是「${C.GUESS[st.predicted]}」，实验结果是「倒立、缩小」：${st.predicted === C.GUESS_RIGHT ? '猜对了。' : '没猜中，现在知道为什么了。'}`;
   const nearNow = key === 'near' && !st.sun;

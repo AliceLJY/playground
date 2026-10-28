@@ -63,6 +63,7 @@ const L = 40, F = 10, Y0 = 18;
     check('R4', 'parallel light switches itself off after the focal point is found', s.focusFound && !s.sun, `focus ${s.focusFound}, sun ${s.sun}`);
     // step 2: guess
     await page.click('#guess button:nth-child(2)');
+    await page.waitForTimeout(150); const noteNow = await page.isVisible('#guessNote') && (await S(page)).step === 2;
     // steps 3-5: three real images, screen dragged to the sharp spot
     for (const [u, key] of [[30, 'far'], [20, 'two'], [15, 'mid']]) {
       s = await S(page); await drag(page, s.candle, L - u); await tune(page, 'candle', L - u, 0.25);
@@ -90,6 +91,8 @@ const L = 40, F = 10, Y0 = 18;
     check('B4', 'the whole lesson completes with real drags and clicks and ends on the answer', s.step === 7 && s.focusFound && s.predicted === 1 && answer, `step ${s.step + 1}/8, focus ${s.focusFound}, guess ${s.predicted}, answer visible ${answer}; focus toast "${(toastFocus || '').slice(0, 24)}…"`);
     const rows = await page.$$eval('#table tr td.q', (t) => t.length);
     check('B4t', 'the table is completely filled', rows === 0, `${rows} empty cells`);
+    const noteLater = await page.isVisible('#guessNote');
+    check('R12', 'the "guess noted" line shows while the guess is tested (step 3), not on every later step', noteNow && !noteLater, `on step 3 ${noteNow}, at the end ${noteLater}`);
     await page.screenshot({ path: path.join(out, 'desktop-answer.png') });
     const info = await page.evaluate(() => window.__lens.info());
     check('B6', 'draw calls within 120', info.calls <= 120, `${info.calls} calls, ${info.tris} triangles, renderer ${info.renderer}`);

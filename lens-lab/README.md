@@ -21,6 +21,10 @@ node --test tests/*.test.cjs       # optics and lesson logic
 
 Spec and acceptance checks: [SPEC.md](SPEC.md) (Chinese).
 
+## Demo video
+
+`node tools/build.mjs && NODE_PATH="$(npm root -g)" node tools/record.cjs <out.mp4>` records the whole lesson in portrait (1080×1920, real mouse drags) and writes when each case was found; `python3 tools/demo-music.py <out.events.json> <music.wav> <total seconds>` scores music to those moments.
+
 ## Who opens it, AI material
 
 For students meeting lenses for the first time, parents helping with homework, and anyone curious what a drag-to-understand lesson can look like. The page code, the optics and every drawing (ink-line bench, candle, rays) were written with AI; no generated images, models or sounds are used, and the chime is synthesised in code.
