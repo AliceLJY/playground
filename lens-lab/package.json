@@ -1,0 +1,14 @@
+{
+  "name": "lens-lab",
+  "private": true,
+  "type": "module",
+  "description": "凸透镜成像：拖蜡烛、拖光屏，自己找出成像规律的 3D 实验台. Build: npm ci && node tools/build.mjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
