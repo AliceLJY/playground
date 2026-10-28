@@ -21,6 +21,10 @@ node --test tests/*.test.cjs       # 物理与课件逻辑
 
 规格与验收见 [SPEC.md](SPEC.md)。
 
+## 演示片
+
+`node tools/build.mjs && NODE_PATH="$(npm root -g)" node tools/record.cjs <输出.mp4>` 录一遍完整的课（竖屏 1080×1920，真鼠标拖动，顺带写出各次「找到」的时刻）；`python3 tools/demo-music.py <输出.events.json> <配乐.wav> <总秒数>` 按这些时刻合成配乐。
+
 ## 谁会点开、AI 素材
 
 写给正在学透镜的初中生、陪孩子写作业的家长，和想看「拖一拖就懂」的课件能做成什么样的人。页面代码、物理计算和全部画面（墨线光具座、蜡烛、光线）由 AI 协作写成，没有用生成的图片、模型或声音；提示音是代码合成的。
