@@ -242,7 +242,7 @@
       { h: '这出戏', b: '<p>据公开报道，' + SHOW.kind + '《' + SHOW.name + '》由' + SHOW.troupe + '创排演出，以岭南民俗舞蹈英歌为载体，把传统英歌舞和木雕、嵌瓷、潮绣、铁枝木偶、潮州油纸灯笼这些非遗元素揉进现代舞台，讲的是民族危难之际同仇敌忾、舍家卫国的家国情怀。近年在各地巡演，二〇二六年八月在北京天桥剧场参加第七届全国少数民族文艺会演。</p>' },
       { h: '英歌是什么', b: '<p>英歌是流行于广东潮汕一带的民间广场舞蹈，舞者扮作水浒人物，脸上勾画脸谱，双手各持一根短槌，边击槌边行进起舞，配以大鼓和锣钹，阵势很大。二〇〇六年，英歌（普宁英歌、潮阳英歌）列入第一批国家级非物质文化遗产名录。</p><p class="small">候场时如果听见幕后有鼓点，那是在热身。</p>' },
       { h: '观演小贴士', b: '<p>开演前有三遍铃：一铃在开演前三分钟，二铃在前一分钟，三铃就开演，场灯会跟着渐暗。</p><p>候场时拍舞台随意，开演后请把手机收好，不拍照不录像。</p><p>迟到请在换场的间隙入场。</p><p class="small">这里一场候场是五分钟：真剧场的半小时，压成了五分钟。</p>' },
-      { h: '今晚谁来过', b: '<p>第 ' + S.me.hall + ' 厅 · 在场 ' + humansHere() + ' 人 · 点灯 ' + S.lamps.length + ' 盏 · 掌声 ' + S.claps + ' 次 · 递茶 ' + S.teas + ' 杯 · 拍舞台 ' + S.snaps.length + ' 张</p><p>' + ([S.phase === 'door' ? null : '我', ...others].filter(Boolean).join('　') || '还没有人落座') + '</p><p class="small">带「你」的是你自己前几次来的回放，灰色身影不计。</p><p><button class="close" id="progPhoto">生成合影图</button></p>' },
+      { h: '今晚谁来过', b: '<p>第 ' + S.me.hall + ' 厅 · 在场 ' + humansHere() + ' 人 · 点灯 ' + S.lamps.length + ' 盏 · 掌声 ' + S.claps + ' 次 · 递茶 ' + S.teas + ' 杯 · 拍舞台 ' + S.snaps.length + ' 张</p><p>' + ([S.phase === 'door' ? null : '我', ...others].filter(Boolean).join('　') || '还没有人落座') + '</p><p class="small">带「你」的是你自己前几次来的回放，灰色身影不计。这台手机的浏览器最多记 12 次，坐满一厅就开第 2 厅。</p><p><button class="close" id="progPhoto">生成合影图</button></p><p><button class="close" id="progClear">清场 · 删掉这台手机记着的 ' + visits.length + ' 次来访</button></p>' },
     ];
   }
   function openProgramme(p) { page = p || 0; renderProgramme(); show('programmeOverlay'); unlockAudio(); sfx.page(); }
@@ -251,6 +251,15 @@
     el('progTitle').textContent = pages[page].h; el('progBody').innerHTML = pages[page].b; el('progNo').textContent = (page + 1) + ' / ' + pages.length;
     el('progPrev').disabled = page === 0; el('progNext').disabled = page === pages.length - 1;
     const pb = el('progPhoto'); if (pb) pb.addEventListener('click', () => { hide('programmeOverlay'); photo(); });
+    const cb = el('progClear'); if (cb) { cb.disabled = visits.length === 0; cb.addEventListener('click', () => { if (!cb.dataset.armed) { cb.dataset.armed = '1'; cb.textContent = '再点一次就清了，回放全走、灰色身影补位'; return; } clearVisits(); }); }
+  }
+  // 清场：删掉本机记着的全部来访，重新进厅（只剩候场身影）。固定机位下不碰 localStorage。
+  function clearVisits() {
+    visits = [];
+    if (!FIXED) try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    hide('programmeOverlay'); hide('photoOverlay'); hide('curtainOverlay');
+    const shows = (S && S.shows) || 0; enterHall(); S.shows = shows;
+    S.lastSound = 'clear'; sfx.leave(); hint('清场了，厅里只剩候场身影');
   }
   function flip(d) { page += d; renderProgramme(); sfx.page(); }
 
@@ -471,7 +480,7 @@
     };
   }
   window.__foyer = {
-    get ready() { return !!S; }, act, snapshot, canAct, gong, photo, openProgramme, flip, nextShow, get state() { return S; }, get visits() { return visits; }, get frameStamp() { return frameStamp; },
+    get ready() { return !!S; }, act, snapshot, canAct, gong, photo, openProgramme, flip, nextShow, clearVisits, get state() { return S; }, get visits() { return visits; }, get frameStamp() { return frameStamp; },
     pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; },
     // 把开演时刻挪到「从现在起 sec 秒后」，用来在测试里快进到一铃 / 二铃 / 开演
     jumpTo(sec) { if (!S) return; S.curtain = S.lastClockMs + sec * 1000; updateTop(); },
