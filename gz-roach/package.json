@@ -1,0 +1,14 @@
+{
+  "name": "gz-roach",
+  "private": true,
+  "type": "module",
+  "description": "最靓的仔：广州小强（美洲大蠊）奔跑拆解台，一个速度驱动整只虫. Build: npm ci && node tools/build.mjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}

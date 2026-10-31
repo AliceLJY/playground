@@ -297,6 +297,14 @@ jobs:
           npm ci
           node tools/build.mjs
 
+      - name: Check and bundle Flashiest Roach
+        working-directory: gz-roach
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node --test tests/*.test.cjs
+          node tools/build.mjs
+
       - name: Check and bundle Lens Lab
         working-directory: lens-lab
         run: |
@@ -331,6 +339,9 @@ jobs:
           # 凸透镜成像：光具座课件；上面已打成单文件（Three.js 许可在文件开头注释里）
           mkdir -p _site/lens-lab
           cp lens-lab/dist/index.html _site/lens-lab/index.html
+          # 最靓的仔：广州小强奔跑拆解台；上面已打成单文件（Three.js 许可在文件开头注释里）
+          mkdir -p _site/gz-roach
+          cp gz-roach/dist/index.html _site/gz-roach/index.html
 
       - name: Assemble Clockwork
         run: |
