@@ -10,6 +10,13 @@
   const MAX_VISITS = 12;    // 本机最多记最近 12 次来访
   const MIN_GHOST_STAY = 45; // 幽灵在座至少这么多秒，免得一进门它就走了
   const MAX_DUR = 1800;     // 一次来访最长记半小时
+  const CLOSE = 300;        // 早市一共这么多秒真时间：进门是 7:00，收市是 11:00
+  const OPEN_HOUR = 7, CLOSE_HOUR = 11;
+  // 点心车上会出现的点心：名字、一句话（茶单上用）
+  const DIMSUM = [
+    { key: 'har', zh: '虾饺' }, { key: 'siu', zh: '烧卖' }, { key: 'bao', zh: '叉烧包' }, { key: 'feet', zh: '凤爪' },
+    { key: 'rib', zh: '排骨' }, { key: 'roll', zh: '肠粉' }, { key: 'cake', zh: '马拉糕' }, { key: 'tart', zh: '蛋挞' },
+  ];
 
   // 动作码。0–6 是玩家能按的七个，7 只给桌上的别人用（抿一口茶，没有按钮）
   const ACTS = [
@@ -152,18 +159,18 @@
   // 桌上「别人」少于 2 个就补灰色身影，补到 2 个；它们不算人数。
   function residentsFor(othersAtTable) { return Math.max(0, 2 - othersAtTable); }
 
-  // 灰影的日程：种子决定，每个灰影一张表，40 秒一轮，周而复始。
+  // 灰影的日程：种子决定，每个灰影一张表，32 秒一轮，周而复始。
   // 内容只有抿茶、翻报、偶尔斟茶（给全桌）——不落座、不离席、不揭盖、不夹件。
   function residentSchedule(seed, index) {
     const r = rng(seed * 7919 + index * 104729 + 17);
     const acts = [];
     let t = 2 + r() * 6;
-    while (t < 40) {
+    while (t < 32) {
       const p = r();
       acts.push([Math.round(t * 10) / 10, p < 0.55 ? 7 : p < 0.85 ? 4 : 1]);
-      t += 5 + r() * 9;
+      t += 4 + r() * 8;
     }
-    return { period: 40, acts };
+    return { period: 32, acts };
   }
 
   // 幽灵在时刻 tau（进门后的秒数）该做的事：返回 [start, end) 落在 (prev, tau] 内的动作
@@ -192,10 +199,70 @@
     return out;
   }
 
+  // ---------- 早市的钟 ----------
+  // tau 秒 → 「7:40」这样的早市时刻；收市后钉在 11:00
+  function clockAt(tau) {
+    const k = Math.max(0, Math.min(1, tau / CLOSE));
+    const mins = Math.round(k * (CLOSE_HOUR - OPEN_HOUR) * 60);
+    const h = OPEN_HOUR + Math.floor(mins / 60), m = mins % 60;
+    return `${h}:${m < 10 ? '0' : ''}${m}`;
+  }
+  // 0 早市 / 1 快收市（最后一刻钟，光变白、伙计开始收碟）/ 2 收市
+  function phaseAt(tau) { return tau >= CLOSE ? 2 : tau >= CLOSE - 45 ? 1 : 0; }
+
+  // ---------- 点心车 ----------
+  // 一个早市的点心车日程：种子决定。第一趟约 12 秒后到，之后每 30–42 秒一趟，收市前 40 秒不再来。
+  // 每趟 3 样不重复，每样 1–3 件；别人也会夹，件数是真的会少。
+  function cartPlan(seed) {
+    const r = rng(seed * 31337 + 7);
+    const carts = [];
+    let t = 10 + r() * 5;
+    let n = 0;
+    while (t < CLOSE - 40) {
+      const pool = DIMSUM.slice();
+      const items = [];
+      for (let i = 0; i < 3; i++) { const k = Math.floor(r() * pool.length); items.push({ kind: pool.splice(k, 1)[0].key, stock: 1 + Math.floor(r() * 3) }); }
+      carts.push({ index: n++, at: Math.round(t * 10) / 10, stay: 9, items });
+      t += 30 + r() * 12;
+    }
+    return carts;
+  }
+  function takeFromCart(cart, kind) {
+    const it = cart.items.find((x) => x.kind === kind);
+    if (!it || it.stock <= 0) return false;
+    it.stock--; return true;
+  }
+  // 灰影遇到第 c 趟车：夹不夹、几秒后伸筷子。约六成会夹，车到后 1.5–6 秒之间。
+  function residentCartMove(seed, cartIndex, residentIndex) {
+    const r = rng(seed * 4099 + cartIndex * 613 + residentIndex * 97 + 3);
+    const takes = r() < 0.6;
+    return { takes, delay: Math.round((1.5 + r() * 4.5) * 10) / 10, pick: Math.floor(r() * 3) };
+  }
+  function dimsumName(key) { const d = DIMSUM.find((x) => x.key === key); return d ? d.zh : key; }
+
+  // ---------- 茶单 ----------
+  // tally = { table, companions, seconds, pours, lids, knocksGiven, knocksGot, pages, pieces: {key: n}, closedOut, leftAt }
+  function billLines(tally) {
+    const sec = Math.max(0, Math.round(tally.seconds || 0));
+    const dur = sec < 60 ? `${sec} 秒` : `${Math.floor(sec / 60)} 分 ${sec % 60 < 10 ? '0' : ''}${sec % 60} 秒`;
+    const pieces = Object.entries(tally.pieces || {}).filter(([, n]) => n > 0);
+    const total = pieces.reduce((a, [, n]) => a + n, 0);
+    const lines = [
+      tally.companions > 0 ? `第 ${tally.table} 桌 · 搭了 ${tally.companions} 位` : `第 ${tally.table} 桌 · 没人搭台，两位常客陪坐`,
+      `${tally.leftAt || clockAt(0)} 离席 · 坐了 ${dur}${tally.closedOut ? ' · 坐到收市' : ''}`,
+      `一盅：斟了 ${tally.pours || 0} 巡 · 揭盖 ${tally.lids || 0} 次`,
+      total ? `${total} 件：` + pieces.map(([k, n]) => `${dimsumName(k)} ×${n}`).join('、') : '一件未夹',
+      `礼数：谢了 ${tally.knocksGiven || 0} 次 · 被谢 ${tally.knocksGot || 0} 次`,
+      `报纸翻了 ${tally.pages || 0} 版`,
+    ];
+    return lines;
+  }
+
   return {
-    CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, ACTS, PLAYER_ACTS,
+    CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, CLOSE, OPEN_HOUR, CLOSE_HOUR, DIMSUM, ACTS, PLAYER_ACTS,
     rng, createHall, seat, leave, tableOf, summary, tableList,
     newVisit, recordAct, closeVisit, isVisit, encodeVisits, decodeVisits, pushVisit,
     planGhosts, residentsFor, residentSchedule, dueActs, syntheticVisits,
+    clockAt, phaseAt, cartPlan, takeFromCart, residentCartMove, dimsumName, billLines,
   };
 });

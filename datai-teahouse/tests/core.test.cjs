@@ -118,14 +118,14 @@ test('验收 6 灰影补位：桌上别人不足 2 个就补到 2 个，够了�
   assert.equal(D.residentsFor(3), 0);
 });
 
-test('灰影日程可复现、只做抿茶 / 翻报 / 斟茶、40 秒一轮且时刻单调', () => {
+test('灰影日程可复现、只做抿茶 / 翻报 / 斟茶、32 秒一轮且时刻单调', () => {
   const a = D.residentSchedule(11, 0), b = D.residentSchedule(11, 0), c = D.residentSchedule(11, 1);
   assert.deepEqual(a, b, '同种子同序号该给同一张表');
   assert.notDeepEqual(a.acts, c.acts, '两个灰影不该做一模一样的事');
-  assert.equal(a.period, 40);
+  assert.equal(a.period, 32);
   assert.ok(a.acts.length >= 2 && a.acts.length <= 8, `一轮 ${a.acts.length} 个动作，应在 2–8 之间`);
   let last = -1;
-  for (const [t, code] of a.acts) { assert.ok(t > last && t < 40); assert.ok([7, 4, 1].includes(code), `灰影不该做动作 ${code}`); last = t; }
+  for (const [t, code] of a.acts) { assert.ok(t > last && t < 32); assert.ok([7, 4, 1].includes(code), `灰影不该做动作 ${code}`); last = t; }
   // 一百个种子里至少有一个灰影会给你斟茶，否则叩指永远按不了
   let pours = 0;
   for (let s = 0; s < 100; s++) for (let i = 0; i < 2; i++) pours += D.residentSchedule(s, i).acts.filter((x) => x[1] === 1).length;
@@ -138,4 +138,57 @@ test('dueActs 只取 (prev, tau] 之间的动作，一个动作不会被取两�
   assert.deepEqual(D.dueActs(acts, 1, 2.5), [[2.5, 4], [2.5, 7]]);
   assert.deepEqual(D.dueActs(acts, 2.5, 8.99), []);
   assert.deepEqual(D.dueActs(acts, 8.99, 100), [[9, 2]]);
+});
+
+test('验收 11 早市的钟：进门 7:00，一半 9:00，收市 11:00 后钉住；最后 45 秒是快收市', () => {
+  assert.equal(D.clockAt(0), '7:00');
+  assert.equal(D.clockAt(D.CLOSE / 2), '9:00');
+  assert.equal(D.clockAt(D.CLOSE), '11:00');
+  assert.equal(D.clockAt(D.CLOSE + 99), '11:00');
+  assert.equal(D.clockAt(25), '7:20', '300 秒对 4 小时，25 秒该是 20 分钟');
+  assert.deepEqual([D.phaseAt(0), D.phaseAt(D.CLOSE - 46), D.phaseAt(D.CLOSE - 45), D.phaseAt(D.CLOSE)], [0, 0, 1, 2]);
+  assert.ok(D.CLOSE >= 240 && D.CLOSE <= 360, '一个早市该在 4–6 分钟真时间');
+});
+
+test('验收 12 点心车日程：可复现、首趟 10–15 秒、间隔 30–42 秒、收市前 40 秒停、每趟 3 样不重样各 1–3 件', () => {
+  const a = D.cartPlan(5), b = D.cartPlan(5), c = D.cartPlan(6);
+  assert.deepEqual(a, b); assert.notDeepEqual(a.map((x) => x.at), c.map((x) => x.at));
+  assert.ok(a.length >= 6 && a.length <= 9, `一个早市 ${a.length} 趟车`);
+  assert.ok(a[0].at >= 10 && a[0].at <= 15);
+  for (let i = 1; i < a.length; i++) { const gap = a[i].at - a[i - 1].at; assert.ok(gap >= 30 && gap <= 42, `第 ${i} 趟间隔 ${gap}`); }
+  assert.ok(a[a.length - 1].at < D.CLOSE - 40);
+  for (const cart of a) {
+    assert.equal(cart.items.length, 3);
+    assert.equal(new Set(cart.items.map((x) => x.kind)).size, 3, '一趟车上三样不重样');
+    for (const it of cart.items) { assert.ok(it.stock >= 1 && it.stock <= 3); assert.ok(D.DIMSUM.some((d) => d.key === it.kind)); }
+    assert.ok(cart.stay >= 8 && cart.stay <= 12, '车停 8–12 秒，够看一眼再决定');
+  }
+  // 一个早市里总件数够一桌人分，又不至于人人都吃饱
+  const total = a.reduce((s, cart) => s + cart.items.reduce((x, it) => x + it.stock, 0), 0);
+  assert.ok(total >= 24 && total <= 60, `整个早市车上一共 ${total} 件`);
+  // 夹：有就减一，没了返回 false
+  const cart = JSON.parse(JSON.stringify(a[0])), k = cart.items[0].kind, n = cart.items[0].stock;
+  for (let i = 0; i < n; i++) assert.equal(D.takeFromCart(cart, k), true);
+  assert.equal(D.takeFromCart(cart, k), false, '卖完了不能再夹');
+  assert.equal(D.takeFromCart(cart, 'nope'), false);
+  // 灰影会跟你抢：100 趟里六成左右会伸筷子，都在车到后 1.5–6 秒
+  let takes = 0;
+  for (let i = 0; i < 100; i++) { const m = D.residentCartMove(1, i, 0); if (m.takes) takes++; assert.ok(m.delay >= 1.5 && m.delay <= 6); assert.ok(m.pick >= 0 && m.pick < 3); }
+  assert.ok(takes >= 45 && takes <= 75, `100 趟灰影夹了 ${takes} 次`);
+  assert.deepEqual(D.residentCartMove(1, 3, 1), D.residentCartMove(1, 3, 1));
+});
+
+test('验收 13 茶单：六行，时长格式、件数按样汇总、一件未夹有话说', () => {
+  const lines = D.billLines({ table: 2, companions: 3, seconds: 125, pours: 2, lids: 1, knocksGiven: 1, knocksGot: 2, pages: 3, pieces: { har: 2, bao: 1, siu: 0 }, leftAt: '8:40' });
+  assert.equal(lines.length, 6);
+  assert.equal(lines[0], '第 2 桌 · 搭了 3 位');
+  assert.equal(lines[1], '8:40 离席 · 坐了 2 分 05 秒');
+  assert.equal(lines[2], '一盅：斟了 2 巡 · 揭盖 1 次');
+  assert.equal(lines[3], '3 件：虾饺 ×2、叉烧包 ×1');
+  assert.equal(lines[4], '礼数：谢了 1 次 · 被谢 2 次');
+  assert.equal(lines[5], '报纸翻了 3 版');
+  const none = D.billLines({ table: 1, companions: 0, seconds: 8, pieces: {}, closedOut: true, leftAt: '11:00' });
+  assert.equal(none[0], '第 1 桌 · 没人搭台，两位常客陪坐', '没有真人搭台时不写「搭了 0 位」');
+  assert.equal(none[1], '11:00 离席 · 坐了 8 秒 · 坐到收市');
+  assert.equal(none[3], '一件未夹');
 });
