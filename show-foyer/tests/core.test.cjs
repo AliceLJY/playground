@@ -94,7 +94,7 @@ test('验收 6 灰影补位：厅里别人不足 3 个就补到 3 个，够了�
     assert.equal(s.period, 45);
     assert.ok(s.acts.length >= 2);
     let last = -1;
-    for (const a of s.acts) { assert.ok(a[0] > last && a[0] < 45); assert.ok(a[1] === 5 || a[1] === 6, '灰影不点灯、不鼓掌、不递茶'); last = a[0]; }
+    for (const a of s.acts) { assert.ok(a[0] > last && a[0] < 45); assert.ok(a[1] === 6 || a[1] === 7, '灰影不点灯、不鼓掌、不递茶、不拍照'); last = a[0]; }
   }
   assert.notDeepEqual(D.residentSchedule(11, 0), D.residentSchedule(11, 1), '不同灰影日程不同');
 });
@@ -124,12 +124,64 @@ test('验收 5 整点锣：下一声在下一个整点；跨过整点才算响�
   assert.equal(nextLocal, next, '整点在任何整小时时区下都是同一批时刻');
 });
 
-test('验收 5 开演倒计时：进厅按 30 分钟倒数，到点显示「开演」', () => {
+test('验收 5 开演倒计时：进厅按 5 分钟倒数，到点显示「开演」', () => {
   const at = 1700000000000;
   const c = D.curtainAt(at);
-  assert.equal(c - at, 30 * 60000);
-  assert.equal(D.countdown(at, c).text, '30:00');
-  assert.equal(D.countdown(at + 61000, c).text, '28:59');
+  assert.equal(c - at, 5 * 60000);
+  assert.equal(D.countdown(at, c).text, '05:00');
+  assert.equal(D.countdown(at + 61000, c).text, '03:59');
   assert.equal(D.countdown(c + 1, c).text, '开演');
   assert.equal(D.countdown(c + 1, c).left, 0);
+});
+
+test('验收 12 三遍铃：一铃开演前 3 分钟、二铃前 1 分钟、三铃开演；每遍只响一次；时间跳得多时一次补齐', () => {
+  const at = 1700000000000, c = D.curtainAt(at);
+  assert.deepEqual(D.BELLS, [[180, 1], [60, 2], [0, 3]]);
+  assert.deepEqual(D.bellsDue(at, at + 1000, c), []);
+  assert.deepEqual(D.bellsDue(c - 180500, c - 180000, c), [1], '恰好到一铃时刻算响');
+  assert.deepEqual(D.bellsDue(c - 180000, c - 179000, c), [], '响过一次不再响');
+  assert.deepEqual(D.bellsDue(c - 61000, c - 59000, c), [2]);
+  assert.deepEqual(D.bellsDue(c - 500, c, c), [3]);
+  assert.deepEqual(D.bellsDue(at, c + 5000, c), [1, 2, 3], '一次跨过三个时刻就三遍都补上');
+  assert.deepEqual(D.bellsDue(c + 1, c + 9000, c), [], '开演后不再响');
+});
+
+test('验收 12 场灯：二铃前全亮，二铃起一分钟内从 1 渐暗到 0.35，开演后 0.2', () => {
+  const at = 1700000000000, c = D.curtainAt(at);
+  assert.equal(D.houseLight(at, c), 1);
+  assert.equal(D.houseLight(c - 60001, c), 1);
+  const mid = D.houseLight(c - 30000, c);
+  assert.ok(mid > 0.6 && mid < 0.7, '二铃后半分钟该暗到六七成');
+  assert.ok(D.houseLight(c - 1, c) < 0.36 && D.houseLight(c - 1, c) >= 0.35);
+  assert.equal(D.houseLight(c, c), 0.2);
+  assert.equal(D.houseLight(c + 99999, c), 0.2);
+});
+
+test('验收 13 幕后动静：五分钟内每 20–40 秒一下，第一下不早于 12 秒，三种轮着不连续重复，可复现；backstageDue 不重取', () => {
+  const a = D.backstageSchedule(11), b = D.backstageSchedule(11);
+  assert.deepEqual(a, b, '同种子可复现');
+  assert.ok(a.length >= 6 && a.length <= 15, '五分钟该有 6 到 15 下，实际 ' + a.length);
+  assert.ok(a[0][0] >= 12);
+  for (let i = 0; i < a.length; i++) {
+    assert.ok(['drum', 'tune', 'curtain'].includes(a[i][1]));
+    assert.ok(a[i][0] < 300);
+    if (i) { const gap = a[i][0] - a[i - 1][0]; assert.ok(gap >= 20 && gap <= 40, '间隔 ' + gap); assert.notEqual(a[i][1], a[i - 1][1], '不连续两下同一种'); }
+  }
+  assert.ok(new Set(a.map((e) => e[1])).size === 3, '三种都该出现');
+  assert.notDeepEqual(D.backstageSchedule(12), a);
+  assert.deepEqual(D.backstageDue(a, -1, a[0][0]), [a[0]]);
+  assert.deepEqual(D.backstageDue(a, a[0][0], a[0][0] + 0.1), []);
+  assert.deepEqual(D.backstageDue([[10, 'drum'], [31, 'tune']], 5, 40).map((e) => e[1]), ['drum', 'tune']);
+});
+
+test('验收 14 拍舞台（动作码 5）记进来访、能被回放；6、7 不是观众动作', () => {
+  const v = D.newVisit(1);
+  assert.ok(D.recordAct(v, 2, 5)); assert.ok(!D.recordAct(v, 3, 6)); assert.ok(!D.recordAct(v, 3, 7));
+  assert.deepEqual(D.decodeVisits(D.encodeVisits([D.closeVisit(v, 20)]))[0].acts, [[2, 5]]);
+  assert.equal(D.MAX_ACT, 5);
+  assert.equal(D.ACTS.find((a) => a.code === 5).zh, '拍舞台');
+  const synth = D.syntheticVisits(9, 5);
+  assert.ok(synth.some((x) => x.acts.some((a) => a[1] === 5)), '合成来访里有人拍过舞台');
+  const plan = D.planGhosts(synth);
+  assert.ok(plan.ghosts.some((g) => g.acts.some((a) => a[1] === 5)), '拍舞台进了幽灵的动作表');
 });

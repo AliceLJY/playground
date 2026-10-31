@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>候场厅 · 开演前半小时</title>
+<title>候场厅 · 开演前五分钟</title>
 <meta name="description" content="一出戏开演前半小时的线上候场厅：一座小戏台、十二个座，和陌生人一起等开演。没有聊天框，能做的只有落座、点灯、鼓掌、给邻座递茶、离席。厅满了自动开下一厅，整点一声锣；厅里的别人是你自己前几次来的回放，没人时坐着几个标注过的灰色身影。散场领一张「今晚谁来过」的合影图。">
 <style>
   :root { --wood: #2a1e16; --deep: #1a120d; --gold: #e0b25a; --gold2: #f7dc9a; --red: #9b2d20; --ink: #f3e9d6; --dim: #a08f78; --bar: #140e0a; }
@@ -44,6 +44,20 @@
   .overlay p { margin: 0; font-size: 13px; color: var(--dim); text-align: center; line-height: 1.7; max-width: 420px; }
   .overlay img { max-width: 100%; max-height: 62vh; border-radius: 8px; border: 1px solid #5a4a3a; }
   .overlay .close { margin-top: 4px; font: inherit; border: 1px solid var(--gold); background: none; color: var(--gold2); border-radius: 999px; padding: 8px 22px; font-size: 14px; cursor: pointer; }
+  .overlay .close:disabled { opacity: .3; cursor: default; }
+  /* 节目单：一本米色小册子，一页一页翻 */
+  .book { width: min(360px, 100%); background: #efe6d2; color: #2a2118; border-radius: 6px; padding: 18px 18px 12px; box-shadow: 0 10px 40px rgba(0,0,0,.5); border-left: 6px solid #9b2d20; display: flex; flex-direction: column; gap: 8px; max-height: 78vh; }
+  .book h3 { margin: 0; font-size: 18px; letter-spacing: .1em; font-weight: 600; font-family: "Songti SC", "STSong", "Noto Serif SC", serif; }
+  .book .body { font-size: 14px; line-height: 1.75; overflow: auto; min-height: 150px; }
+  .book .body p { margin: 0 0 8px; text-align: justify; }
+  .book .body p.big { font-size: 22px; letter-spacing: .12em; margin-top: 8px; font-family: "Songti SC", "STSong", "Noto Serif SC", serif; }
+  .book .body p.small { font-size: 12px; color: rgba(42,33,24,.62); line-height: 1.6; }
+  .book .body .close { color: #9b2d20; border-color: #9b2d20; }
+  .book .nav { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(42,33,24,.18); padding-top: 8px; font-size: 12px; color: rgba(42,33,24,.6); }
+  .book .nav button { font: inherit; font-size: 14px; background: none; border: 1px solid rgba(42,33,24,.4); color: #2a2118; border-radius: 4px; padding: 5px 14px; cursor: pointer; }
+  .book .nav button:disabled { opacity: .3; cursor: default; }
+  .curtain-box { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .curtain-box .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 </style>
 </head>
 <body>
@@ -53,7 +67,7 @@
     <span id="count">0 / 12</span>
     <span>· 开演 <b id="countdown">30:00</b></span>
     <button class="gongbtn" id="gongBtn" title="整点一声锣，点一下先听听" aria-label="下一声锣，点一下试听">· 锣 <b id="nextGong">--:00</b></button>
-    <button class="info" id="infoBtn" aria-label="关于这出戏">i</button>
+    <button class="info" id="infoBtn" aria-label="节目单">i</button>
   </div>
 </div>
 <canvas id="scene" aria-label="戏台与候场的座席"></canvas>
@@ -79,10 +93,20 @@
   <p>长按图片保存。图上只有座席上的身影和「你 · 几天前」这样的标记，没有任何个人信息。</p>
   <button class="close" data-close="photoOverlay">收起</button>
 </div>
-<div class="overlay" id="infoOverlay" role="dialog" aria-label="关于这出戏">
-  <h2>关于这出戏</h2>
-  <p>《英歌》是广州歌舞剧院创排、近年在各地巡演的舞剧，剧目名与演出单位取自公开报道，是真实信息。这个候场厅是个人做着玩的小玩意，不是剧院或剧目的官方页面，不售票、不联网；以后有新戏上演，这里的戏名也会跟着换。<br><br>厅里的别人：带「你 · 几天前」标记的是你自己前几次来的回放（只存在这台手机的浏览器里，最多 12 次）；灰色的是候场身影，标着「非真人」，不计人数。每到整点响一声锣，是戏园开场前催场的老规矩。</p>
-  <button class="close" data-close="infoOverlay">知道了</button>
+<div class="overlay" id="programmeOverlay" role="dialog" aria-label="节目单">
+  <div class="book">
+    <h3 id="progTitle">节目单</h3>
+    <div class="body" id="progBody"></div>
+    <div class="nav"><button id="progPrev" aria-label="上一页">‹ 上一页</button><span id="progNo">1 / 5</span><button id="progNext" aria-label="下一页">下一页 ›</button></div>
+    <button class="close" data-close="programmeOverlay" style="align-self:center;color:#9b2d20;border-color:#9b2d20">合上</button>
+  </div>
+</div>
+<div class="overlay" id="curtainOverlay" role="dialog" aria-label="开演">
+  <div class="curtain-box">
+    <h2>开演</h2>
+    <p id="curtainText"></p>
+    <div class="row"><button class="close" id="curtainPhotoBtn">看合影</button><button class="close" id="nextShowBtn">等下一场</button></div>
+  </div>
 </div>
 
 <script src="src/core.js"></script>

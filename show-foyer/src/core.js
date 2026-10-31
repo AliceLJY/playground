@@ -10,21 +10,24 @@
   const CAP = COLS * ROWS;
   const MAX_VISITS = 12;             // 本机最多记最近 12 次来访
   const MIN_GHOST_STAY = 60;         // 回放的「你」至少坐这么多秒，免得一进厅它就走了
-  const MAX_DUR = 2700;              // 一次来访最长记 45 分钟（候场厅开 30 分钟，留余量）
-  const OPEN_MINUTES = 30;           // 开演前多少分钟开厅
+  const MAX_DUR = 600;               // 一次来访最长记 10 分钟（一场候场 5 分钟，留余量）
+  const OPEN_MINUTES = 5;            // 进厅即开演前 5 分钟：真剧场的半小时压成五分钟一场
   const RESIDENTS = 3;               // 厅里「别人」不足 3 个就补灰色身影到 3 个
+  const BELLS = [[180, 1], [60, 2], [0, 3]];   // 开演前几秒响第几遍铃：一铃三分钟、二铃一分钟、三铃开演
 
-  // 动作码。0–4 是观众能按的五个；5、6 只给厅里的别人用（抬头看台、挪一挪），没有按钮
+  // 动作码。0–4 是观众能按的五个按钮；5 是点戏台拍照（没有按钮，也记进来访）；6、7 只给厅里的别人用（抬头看台、挪一挪）
   const ACTS = [
     { code: 0, key: 'sit',   zh: '落座' },
     { code: 1, key: 'lamp',  zh: '点灯' },
     { code: 2, key: 'clap',  zh: '鼓掌' },
     { code: 3, key: 'tea',   zh: '递茶' },
     { code: 4, key: 'leave', zh: '离席' },
-    { code: 5, key: 'look',  zh: '看台' },
-    { code: 6, key: 'shift', zh: '挪一挪' },
+    { code: 5, key: 'snap',  zh: '拍舞台' },
+    { code: 6, key: 'look',  zh: '看台' },
+    { code: 7, key: 'shift', zh: '挪一挪' },
   ];
   const PLAYER_ACTS = ACTS.slice(0, 5);
+  const MAX_ACT = 5;
 
   // ---------- 带种子随机（测试与固定机位可复现） ----------
   function rng(seed) {
@@ -110,7 +113,7 @@
   function newVisit(at) { return { v: 1, at: at, dur: 0, acts: [] }; }
 
   function recordAct(visit, t, code) {
-    if (!(t >= 0) || !Number.isInteger(code) || code < 0 || code > 4) return false;
+    if (!(t >= 0) || !Number.isInteger(code) || code < 0 || code > MAX_ACT) return false;
     const last = visit.acts.length ? visit.acts[visit.acts.length - 1][0] : 0;
     visit.acts.push([Math.round(Math.max(t, last) * 10) / 10, code]);
     return true;
@@ -127,7 +130,7 @@
     let last = -1;
     for (const a of x.acts) {
       if (!Array.isArray(a) || a.length !== 2 || typeof a[0] !== 'number' || !Number.isInteger(a[1])) return false;
-      if (a[0] < last || a[1] < 0 || a[1] > 4) return false;
+      if (a[0] < last || a[1] < 0 || a[1] > MAX_ACT) return false;
       last = a[0];
     }
     return true;
@@ -175,17 +178,34 @@
   // 厅里「别人」少于 RESIDENTS 个就补灰色身影，补到 RESIDENTS 个；它们不算人数，不点灯、不鼓掌、不递茶。
   function residentsFor(othersInHall) { return Math.max(0, RESIDENTS - othersInHall); }
 
-  // 灰影的日程：种子决定，每个灰影一张表，45 秒一轮，周而复始。内容只有抬头看台（5）和挪一挪（6）。
+  // 灰影的日程：种子决定，每个灰影一张表，45 秒一轮，周而复始。内容只有抬头看台（6）和挪一挪（7）。
   function residentSchedule(seed, index) {
     const r = rng(seed * 7919 + index * 104729 + 29);
     const acts = [];
     let t = 3 + r() * 8;
     while (t < 45) {
-      acts.push([Math.round(t * 10) / 10, r() < 0.7 ? 5 : 6]);
+      acts.push([Math.round(t * 10) / 10, r() < 0.7 ? 6 : 7]);
       t += 7 + r() * 11;
     }
     return { period: 45, acts };
   }
+
+  // 幕后动静：种子决定，一场 5 分钟内每 20–40 秒一下——鼓点热身（drum）、调音（tune）、幕布被碰一下（curtain）。
+  // 第一下不早于 12 秒，免得刚坐下就响；三种轮着来，不连续两下同一种。
+  function backstageSchedule(seed, seconds) {
+    const r = rng(seed * 31337 + 7);
+    const kinds = ['drum', 'tune', 'curtain'];
+    const out = [];
+    let t = 12 + r() * 10, last = -1;
+    while (t < (seconds || OPEN_MINUTES * 60)) {
+      let k = Math.floor(r() * 3); if (k === last) k = (k + 1) % 3; last = k;
+      out.push([Math.round(t * 10) / 10, kinds[k]]);
+      t += 20 + r() * 20;
+    }
+    return out;
+  }
+  // (prev, tau] 之间该发生的幕后动静
+  function backstageDue(sched, prev, tau) { return sched.filter((e) => e[0] > prev && e[0] <= tau); }
 
   // 幽灵在时刻 tau（进厅后的秒数）该做的事：返回落在 (prev, tau] 内的动作
   function dueActs(acts, prev, tau) {
@@ -209,6 +229,19 @@
   }
   // 开演时刻：进厅即按「开演前 OPEN_MINUTES 分钟」倒计时
   function curtainAt(enterMs, minutes) { return enterMs + (minutes || OPEN_MINUTES) * 60000; }
+  // (prev, now] 之间跨过了哪几遍铃：返回 [1]、[2]、[3] 或多个（时间跳得多时一次补齐），没有返回 []
+  function bellsDue(prevMs, nowMs, curtainMs) {
+    const out = [];
+    for (const [sec, n] of BELLS) { const at = curtainMs - sec * 1000; if (at > prevMs && at <= nowMs) out.push(n); }
+    return out;
+  }
+  // 场灯亮度：二铃（开演前 60 秒）起从 1 渐暗到 0.35，开演后 0.2
+  function houseLight(nowMs, curtainMs) {
+    const left = (curtainMs - nowMs) / 1000;
+    if (left > 60) return 1;
+    if (left <= 0) return 0.2;
+    return 0.35 + 0.65 * (left / 60);
+  }
   function countdown(nowMs, curtainMs) {
     const left = Math.max(0, curtainMs - nowMs);
     const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
@@ -225,7 +258,7 @@
       const count = 3 + Math.floor(r() * 4);
       for (let k = 0; k < count; k++) {
         const p = r();
-        recordAct(v, t, p < 0.4 ? 1 : p < 0.75 ? 2 : 3);
+        recordAct(v, t, p < 0.35 ? 1 : p < 0.65 ? 2 : p < 0.85 ? 3 : 5);
         t += 6 + r() * 10;
       }
       closeVisit(v, stay || 120 + r() * 120);
@@ -235,10 +268,10 @@
   }
 
   return {
-    COLS, ROWS, CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, OPEN_MINUTES, RESIDENTS, ACTS, PLAYER_ACTS, ORDER,
+    COLS, ROWS, CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, OPEN_MINUTES, RESIDENTS, BELLS, ACTS, PLAYER_ACTS, MAX_ACT, ORDER,
     rng, seatOrder, adjacent, createHouse, seat, leave, hallOf, summary, hallList,
     newVisit, recordAct, closeVisit, isVisit, encodeVisits, decodeVisits, pushVisit,
-    planGhosts, residentsFor, residentSchedule, dueActs,
-    nextGong, gongCrossed, curtainAt, countdown, syntheticVisits,
+    planGhosts, residentsFor, residentSchedule, dueActs, backstageSchedule, backstageDue,
+    nextGong, gongCrossed, curtainAt, countdown, bellsDue, houseLight, syntheticVisits,
   };
 });
