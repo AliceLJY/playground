@@ -43,7 +43,7 @@ It is the first thing in this playground with other people in it, but there is n
 | 9 | Nothing borrowed from the temple site: no temple words, the verbs are the teahouse's own | `tests/publish.test.cjs` | pass |
 | 10 | First 30 seconds with real input: sit → pour → page → pick → pour until empty → lid → refill → leave → sit again and see "you · just now" → it pours → tap | `tools/walkthrough.cjs` (390×664, real clicks) | 11 of 11 pass |
 
-Not tried on a real phone; the sounds have only been judged by the author's ears.
+Not tried on a real phone, and nobody has listened to the sounds yet: they were written to the spec above and the browser check only confirms that each action triggers its sound; how they feel is for a playtest.
 
 ## Fixed views
 
