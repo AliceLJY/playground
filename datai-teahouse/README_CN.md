@@ -97,6 +97,7 @@ cd datai-teahouse && python3 -m http.server 8793 --bind 127.0.0.1
 - `src/game.js`：画面、动作状态机、合成音效、本机存储、固定机位、钩子。
 - `tests/core.test.cjs`、`tests/publish.test.cjs`：规则与发布扫描，`node --test tests/*.test.cjs`。
 - `tools/browser-check.cjs`、`tools/walkthrough.cjs`：四视口浏览器检查（含点心车与收市茶单两档）、开局真实输入流程。
+- `tools/demo.cjs`、`tools/demo-music.py`：竖屏体验片（真点击走完一市，游戏时间按帧推，接署名页）和按游戏音效日志卡点的合成配乐；用法写在各自开头。
 
 ## 谁会点开、AI 素材
 

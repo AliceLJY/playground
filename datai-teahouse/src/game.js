@@ -458,21 +458,24 @@
     const g = ac.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(opts.vol || 0.3, t + (opts.attack || 0.005)); g.gain.exponentialRampToValueAtTime(0.001, t + opts.dur);
     o.connect(g); g.connect(master); o.start(t); o.stop(t + opts.dur + 0.05);
   }
+  // 每个音效先记一笔：lastSound 给检查脚本看，sounds 给录屏配乐卡点（最多留 400 条）
+  const soundLog = []; // 跨「再开一市」保留
+  function mark(name) { S.lastSound = name; soundLog.push([Math.round(S.tau * 1000) / 1000, name]); if (soundLog.length > 600) soundLog.shift(); }
   const sfx = {
-    sit() { S.lastSound = 'sit'; noise({ type: 'lowpass', f0: 260, dur: 0.28, vol: 0.5, attack: 0.04 }); tone({ f0: 110, f1: 70, dur: 0.25, vol: 0.12, wave: 'triangle', delay: 0.05 }); },
-    pour() { S.lastSound = 'pour'; noise({ f0: 420, f1: 1300, q: 2.5, dur: 1.3, vol: 0.4, attack: 0.15 }); tone({ f0: 520, f1: 1180, dur: 1.2, vol: 0.05, delay: 0.1 }); },
-    knock() { S.lastSound = 'knock'; tone({ f0: 1750, f1: 900, dur: 0.07, vol: 0.35, wave: 'triangle' }); tone({ f0: 1750, f1: 900, dur: 0.07, vol: 0.35, wave: 'triangle', delay: 0.16 }); noise({ f0: 2400, q: 3, dur: 0.05, vol: 0.2 }); noise({ f0: 2400, q: 3, dur: 0.05, vol: 0.2, delay: 0.16 }); },
-    lid() { S.lastSound = 'lid'; tone({ f0: 2650, f1: 2500, dur: 0.35, vol: 0.28 }); tone({ f0: 3950, f1: 3700, dur: 0.18, vol: 0.1, delay: 0.02 }); },
-    paper() { S.lastSound = 'paper'; noise({ type: 'highpass', f0: 1500, dur: 0.13, vol: 0.4, rate: 1.6 }); noise({ type: 'highpass', f0: 1200, dur: 0.18, vol: 0.3, rate: 1.3, delay: 0.17 }); },
-    pick() { S.lastSound = 'pick'; noise({ f0: 900, q: 4, dur: 0.08, vol: 0.3, rate: 0.8 }); tone({ f0: 3100, f1: 2900, dur: 0.12, vol: 0.14, delay: 0.55 }); },
-    leave(v) { S.lastSound = 'leave'; const vol = v || 1; noise({ type: 'lowpass', f0: 300, dur: 0.3, vol: 0.45 * vol, attack: 0.03 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.3 * vol, delay: 0.45 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.25 * vol, delay: 0.8 }); },
-    dry() { S.lastSound = 'dry'; noise({ f0: 700, q: 6, dur: 0.2, vol: 0.2, rate: 0.6 }); },
-    refill() { S.lastSound = 'refill'; noise({ f0: 300, f1: 900, q: 2, dur: 1.0, vol: 0.3, attack: 0.1 }); tone({ f0: 2650, f1: 2500, dur: 0.3, vol: 0.2, delay: 1.0 }); },
-    call() { S.lastSound = 'call'; tone({ f0: 660, f1: 880, dur: 0.14, vol: 0.18, wave: 'triangle' }); tone({ f0: 880, f1: 760, dur: 0.18, vol: 0.14, wave: 'triangle', delay: 0.16 }); },
-    pen() { S.lastSound = 'pen'; noise({ type: 'highpass', f0: 2500, dur: 0.08, vol: 0.25, rate: 1.8 }); noise({ type: 'highpass', f0: 2500, dur: 0.1, vol: 0.2, rate: 1.6, delay: 0.14 }); },
-    potdown() { S.lastSound = 'potdown'; tone({ f0: 2400, f1: 2200, dur: 0.3, vol: 0.22 }); noise({ type: 'lowpass', f0: 400, dur: 0.12, vol: 0.3, delay: 0.02 }); tone({ f0: 1900, f1: 1800, dur: 0.25, vol: 0.12, delay: 0.3 }); },
-    cart(v) { S.lastSound = 'cart'; const vol = v || 1; for (let i = 0; i < 4; i++) noise({ type: 'lowpass', f0: 500, dur: 0.09, vol: 0.22 * vol, rate: 0.7 + i * 0.1, delay: i * 0.13 }); tone({ f0: 180, f1: 150, dur: 0.5, vol: 0.06 * vol, wave: 'triangle' }); },
-    steamer(v) { S.lastSound = 'steamer'; const vol = v || 0.6; noise({ f0: 1100, q: 2, dur: 0.12, vol: 0.35 * vol, rate: 0.9 }); noise({ f0: 1300, q: 2, dur: 0.1, vol: 0.25 * vol, rate: 1.1, delay: 0.09 }); },
+    sit() { mark('sit'); noise({ type: 'lowpass', f0: 260, dur: 0.28, vol: 0.5, attack: 0.04 }); tone({ f0: 110, f1: 70, dur: 0.25, vol: 0.12, wave: 'triangle', delay: 0.05 }); },
+    pour() { mark('pour'); noise({ f0: 420, f1: 1300, q: 2.5, dur: 1.3, vol: 0.4, attack: 0.15 }); tone({ f0: 520, f1: 1180, dur: 1.2, vol: 0.05, delay: 0.1 }); },
+    knock() { mark('knock'); tone({ f0: 1750, f1: 900, dur: 0.07, vol: 0.35, wave: 'triangle' }); tone({ f0: 1750, f1: 900, dur: 0.07, vol: 0.35, wave: 'triangle', delay: 0.16 }); noise({ f0: 2400, q: 3, dur: 0.05, vol: 0.2 }); noise({ f0: 2400, q: 3, dur: 0.05, vol: 0.2, delay: 0.16 }); },
+    lid() { mark('lid'); tone({ f0: 2650, f1: 2500, dur: 0.35, vol: 0.28 }); tone({ f0: 3950, f1: 3700, dur: 0.18, vol: 0.1, delay: 0.02 }); },
+    paper() { mark('paper'); noise({ type: 'highpass', f0: 1500, dur: 0.13, vol: 0.4, rate: 1.6 }); noise({ type: 'highpass', f0: 1200, dur: 0.18, vol: 0.3, rate: 1.3, delay: 0.17 }); },
+    pick() { mark('pick'); noise({ f0: 900, q: 4, dur: 0.08, vol: 0.3, rate: 0.8 }); tone({ f0: 3100, f1: 2900, dur: 0.12, vol: 0.14, delay: 0.55 }); },
+    leave(v) { mark('leave'); const vol = v || 1; noise({ type: 'lowpass', f0: 300, dur: 0.3, vol: 0.45 * vol, attack: 0.03 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.3 * vol, delay: 0.45 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.25 * vol, delay: 0.8 }); },
+    dry() { mark('dry'); noise({ f0: 700, q: 6, dur: 0.2, vol: 0.2, rate: 0.6 }); },
+    refill() { mark('refill'); noise({ f0: 300, f1: 900, q: 2, dur: 1.0, vol: 0.3, attack: 0.1 }); tone({ f0: 2650, f1: 2500, dur: 0.3, vol: 0.2, delay: 1.0 }); },
+    call() { mark('call'); tone({ f0: 660, f1: 880, dur: 0.14, vol: 0.18, wave: 'triangle' }); tone({ f0: 880, f1: 760, dur: 0.18, vol: 0.14, wave: 'triangle', delay: 0.16 }); },
+    pen() { mark('pen'); noise({ type: 'highpass', f0: 2500, dur: 0.08, vol: 0.25, rate: 1.8 }); noise({ type: 'highpass', f0: 2500, dur: 0.1, vol: 0.2, rate: 1.6, delay: 0.14 }); },
+    potdown() { mark('potdown'); tone({ f0: 2400, f1: 2200, dur: 0.3, vol: 0.22 }); noise({ type: 'lowpass', f0: 400, dur: 0.12, vol: 0.3, delay: 0.02 }); tone({ f0: 1900, f1: 1800, dur: 0.25, vol: 0.12, delay: 0.3 }); },
+    cart(v) { mark('cart'); const vol = v || 1; for (let i = 0; i < 4; i++) noise({ type: 'lowpass', f0: 500, dur: 0.09, vol: 0.22 * vol, rate: 0.7 + i * 0.1, delay: i * 0.13 }); tone({ f0: 180, f1: 150, dur: 0.5, vol: 0.06 * vol, wave: 'triangle' }); },
+    steamer(v) { mark('steamer'); const vol = v || 0.6; noise({ f0: 1100, q: 2, dur: 0.12, vol: 0.35 * vol, rate: 0.9 }); noise({ f0: 1300, q: 2, dur: 0.1, vol: 0.25 * vol, rate: 1.1, delay: 0.09 }); },
   };
   function setMuted(m) {
     muted = m; if (!FIXED) try { localStorage.setItem('datai-muted', m ? '1' : '0'); } catch (e) {}
@@ -948,7 +951,7 @@
   }
   window.__datai = {
     get ready() { return !!S; }, act, snapshot, canAct, get state() { return S; }, get visits() { return visits; }, get frameStamp() { return frameStamp; },
-    pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; }, chooseTea, order: placeOrder, openOrder, dimsumIcon,
+    pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; }, chooseTea, order: placeOrder, openOrder, dimsumIcon, get sounds() { return soundLog.slice(); },
   };
   window.__PLAYTEST__ = {
     get ready() { return !!S; }, snapshot,
