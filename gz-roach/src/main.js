@@ -9,6 +9,7 @@ const ACCENT = '#12a58f';
 const q = new URLSearchParams(location.search);
 const CAPTURE = q.has('capture');
 const $ = (s) => document.querySelector(s);
+if (CAPTURE) document.body.classList.add('capture');
 
 // ---------------- 舞台 ----------------
 const canvas = $('#scene');
@@ -173,6 +174,12 @@ function moveCursor(cur) {
   const el = panels.cursor;
   if (!cur || mode !== 'tour' && mode !== 'frozen') { el.style.opacity = 0; return; }
   const tgt = document.querySelector(`[data-tour="${cur.target}"]`); if (!tgt) return;
+  // 手机上按钮在一行横滑里：先把目标滑到可见处，光标才不会飞出屏幕
+  const row = tgt.closest('.row');
+  if (row && row.scrollWidth > row.clientWidth + 1) {
+    const want = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, tgt.offsetLeft - row.offsetLeft - row.clientWidth / 2 + tgt.offsetWidth / 2));
+    row.scrollLeft += (want - row.scrollLeft) * Math.min(1, cur.moving * 1.5);
+  }
   const r = tgt.getBoundingClientRect(), x1 = r.left + r.width * (cur.target === 'speed' ? 0.62 : 0.5), y1 = r.top + r.height * 0.55;
   const x0 = innerWidth * 0.62, y0 = innerHeight * 0.45;
   const k = cur.moving, x = x0 + (x1 - x0) * k, y = y0 + (y1 - y0) * k - Math.sin(Math.PI * k) * 40;

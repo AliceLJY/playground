@@ -43,11 +43,25 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check   # 浏
 
 规格、数字来源与验收条目见 [SPEC.md](SPEC.md)。
 
+## 录一段演示视频
+
+可选，不进 CI。`tools/record.cjs` 逐帧调用页面的 `render(t)` 再截图，录出来的帧率和机器快慢无关；录的就是那 36 秒导览，光标会把手机上横滑的按钮行先滑到目标处再按。同时写一份事件表（每只脚着地、光标按下、墨镜落下的时刻），`tools/score.py` 按它合成配乐：底下四个和弦循环，每只脚着地一声很轻的「嗒」，按钮一声「咔」，墨镜落下一记低音加一串铃。全是算出来的，没有采样和现成音乐。
+
+```bash
+node tools/build.mjs
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./横屏.mp4                           # 1920×1080
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./竖屏.mp4 --size 540x960 --dpr 2    # 1080×1920，用手机排版
+uv run --with numpy python -I tools/score.py ./横屏.events.json ./配乐.wav           # 需要 numpy
+ffmpeg -i 横屏.mp4 -i 配乐.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart 成片.mp4
+```
+
+录片时面板不带毛玻璃（无头浏览器截图偶尔会丢掉毛玻璃面板里的内容）。2026-11-01 实测：成片响度 -14.6 LUFS，真峰值 -1.2 dBFS。
+
 ## 已知的边界
 
 - 速度、步频、换步态的区间是实测；换档的两个具体点、骨长、关节姿态是估值。
 - 「最靓的仔」姿态和墨镜是虚构的。
-- 没在真手机上试过；帧率只在一台 Mac mini 上量过。页面没有声音。
+- 没在真手机上试过；帧率只在一台 Mac mini 上量过。页面没有声音；录片的配乐还没人听过。
 
 ## 许可
 
@@ -56,4 +70,4 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check   # 浏
 ## 谁会点开、AI 素材
 
 - 谁会点开：在广州被小强吓过、又想知道它为什么跑那么快的人。
-- AI 素材清单：没有用任何图片、模型或声音；虫的形体全部代码生成；代码由人与 AI 协作完成。
+- AI 素材清单：没有用任何图片、模型或采样声音（录片配乐是代码合成的）；虫的形体全部代码生成；代码由人与 AI 协作完成。

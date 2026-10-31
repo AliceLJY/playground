@@ -75,6 +75,9 @@
   body.swag .zone { background: rgba(255, 211, 138, .16); color: #ffd38a; }
   body.swag .caption { font-family: var(--serif); font-size: 26px; font-weight: 800; letter-spacing: .2em; background: rgba(30, 22, 18, .6); color: #ffd38a; border-color: rgba(255, 211, 138, .3); }
   body.bare .readout, body.bare .charts, body.bare .credit, body.bare #callout, body.bare svg.lines { display: none; }
+  /* 录片时不用毛玻璃：无头浏览器截图偶尔会丢掉毛玻璃面板里的内容 */
+  body.capture .glass { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(250, 246, 239, .92); }
+  body.capture.swag .caption { background: rgba(30, 22, 18, .85); }
   .nogl-msg { display: none; }
   body.nogl .nogl-msg { display: grid; position: fixed; inset: 0; place-items: center; text-align: center; padding: 40px; color: var(--dim); line-height: 1.9; }
   @media (max-width: 900px) {

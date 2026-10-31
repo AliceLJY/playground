@@ -43,11 +43,25 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check   # bro
 
 The spec, number sources and acceptance items are in [SPEC.md](SPEC.md) (Chinese).
 
+## Record a demo video
+
+Optional, not part of CI. `tools/record.cjs` calls the page's `render(t)` frame by frame and screenshots each frame, so the frame rate does not depend on how fast the machine is. It records the 36-second tour; on the phone layout the cursor first scrolls the button row to its target. It also writes an event list (every footfall, every cursor press, the moment the sunglasses drop), and `tools/score.py` synthesises a soundtrack from it: a four-chord bed, a faint tick for every footfall, a click for every press, a low hit and a run of bells for the sunglasses. Everything is computed; no samples or existing music.
+
+```bash
+node tools/build.mjs
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./landscape.mp4                          # 1920x1080
+NODE_PATH="$(npm root -g)" node tools/record.cjs ./portrait.mp4 --size 540x960 --dpr 2    # 1080x1920, phone layout
+uv run --with numpy python -I tools/score.py ./landscape.events.json ./score.wav         # needs numpy
+ffmpeg -i landscape.mp4 -i score.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart final.mp4
+```
+
+Panels drop their frosted-glass blur while recording (headless screenshots sometimes lose the content of blurred panels). Measured on 2026-11-01: -14.6 LUFS integrated, true peak -1.2 dBFS.
+
 ## Known limits
 
 - Speeds, stride frequency and the speed range of the gait changes are measured values; the two exact switch points, the leg segment lengths and the joint poses are estimates.
 - The flashiest pose and the sunglasses are made up.
-- Not tried on a real phone; frame rate measured on one Mac mini only. The page has no sound.
+- Not tried on a real phone; frame rate measured on one Mac mini only. The page has no sound; nobody has listened to the video soundtrack yet.
 
 ## Licence
 
@@ -56,4 +70,4 @@ The page source belongs to the author. The bundled Three.js keeps its own MIT li
 ## Who opens this, and AI material
 
 - Who opens this: anyone who has been startled by a cockroach in Guangzhou and wondered how it runs so fast.
-- AI material: no images, models or sounds are used; the insect is generated entirely in code; the code was written by a person working with AI.
+- AI material: no images, models or recorded sounds are used (the video soundtrack is synthesised in code); the insect is generated entirely in code; the code was written by a person working with AI.
