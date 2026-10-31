@@ -59,11 +59,12 @@ test('验收 9 不抄寺庙站：页面与文案里不出现寺庙词汇，动�
   for (const a of D.PLAYER_ACTS) assert.ok(html.includes(`>${a.zh}<`), `页面上缺「${a.zh}」按钮`);
 });
 
-test('验收 10 剧目信息只用公开事实，并在页面里写明来源与「以后会换」', () => {
-  const html = read('index.html');
-  assert.ok(html.includes('取自公开报道'), '页面要写明剧目名与演出单位取自公开报道');
-  assert.ok(/不是.{0,8}官方页面/.test(html), '页面要写明不是官方页面');
-  assert.ok(/新戏.{0,12}换/.test(html), '页面要写明以后有新戏会换');
+test('验收 10 剧目信息只用公开事实，并在节目单里写明来源与「以后会换」', () => {
+  const html = read('index.html') + read('src/game.js');
+  assert.ok(html.includes('取自公开报道'), '节目单要写明剧目名与演出单位取自公开报道');
+  assert.ok(/不是.{0,8}官方页面/.test(html), '节目单要写明不是官方页面');
+  assert.ok(/新戏.{0,12}换/.test(html), '节目单要写明以后有新戏会换');
+  assert.ok(/据公开报道/.test(read('src/game.js')), '「这出戏」一页要标明据公开报道');
   for (const f of [...PAGE_FILES, 'README.md', 'README_CN.md']) {
     if (!fs.existsSync(path.join(root, f))) continue;
     const text = read(f);

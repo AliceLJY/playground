@@ -58,7 +58,23 @@ const fs = require('node:fs'), path = require('node:path');
       await ctx.close();
     }
   }
+  // 第 13 组：手机竖屏 + full 机位，时间线推到 301 秒——三遍铃都补上、幕布拉开、场灯最暗、动作按钮全禁
+  {
+    const ctx = await b.newContext({ viewport: { width: 390, height: 664 }, deviceScaleFactor: 2, hasTouch: true });
+    const p = await ctx.newPage();
+    const errors = []; p.on('pageerror', (e) => errors.push(e.message));
+    await p.goto(`${url}${sep}view=full&t=301&mute=1`);
+    await p.waitForFunction(() => window.__foyer && window.__foyer.ready, null, { polling: 100 });
+    await p.waitForTimeout(3000);
+    const r = await p.evaluate(() => ({ snap: window.__foyer.snapshot(), off: [...document.querySelectorAll('#bar button[data-act]')].every((e) => e.disabled) }));
+    await p.screenshot({ path: path.join(out, 'iphone-390x664-curtain.png') });
+    const checks = { noPageErrors: errors.length === 0, bellsAll: JSON.stringify(r.snap.bells) === '[1,2,3]', curtainPhase: r.snap.phase === 'curtain' && r.snap.curtainOpen, lightLow: r.snap.light === 0.2, buttonsOff: r.off, overlay: r.snap.curtainOverlay };
+    const bad = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k);
+    if (bad.length) fail++;
+    console.log(`${bad.length ? 'FAIL' : 'ok  '} iphone-390x664 curtain(t=301)  bells=${JSON.stringify(r.snap.bells)} light=${r.snap.light}${bad.length ? '  ← ' + bad.join(', ') : ''}`);
+    await ctx.close();
+  }
   await b.close();
-  console.log(fail ? `${fail} 组未过` : `全部 ${VPS.length * VIEWS.length} 组通过`);
+  console.log(fail ? `${fail} 组未过` : `全部 ${VPS.length * VIEWS.length + 1} 组通过`);
   process.exit(fail ? 1 : 0);
 })();
