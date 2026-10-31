@@ -12,6 +12,7 @@
   const whereEl = document.getElementById('where'), hallEl = document.getElementById('hall'), hintEl = document.getElementById('hint');
   const buttons = [...document.querySelectorAll('#bar button[data-act]')];
   const muteBtn = document.getElementById('mute');
+  const cartEl = document.getElementById('cart'), billEl = document.getElementById('bill'), billImg = document.getElementById('billImg'), againBtn = document.getElementById('again');
 
   // ---------- 颜色（sRGB） ----------
   const C = {
@@ -55,16 +56,19 @@
     const ghosts = plan.ghosts.map((g, i) => ({
       ...g, kind: 'ghost', color: C.ghost[i % C.ghost.length], label: '你 · ' + ago(now - g.at),
       prev: 0, here: g.table === plan.me.table, gone: false, fade: 1, pose: 'idle', poseUntil: 0, cup: 0.6, page: 0,
+      greedy: g.acts.filter((a) => a[1] === 5).length >= 2,
     }));
     S = {
       phase: 'door', tau: 0, seatT: 0, hall: plan.hall, me: plan.me, ghosts, residents: [],
       pot: { level: 1, lidOff: false, refillAt: -1 }, myCup: 0, myPlate: 0, myPage: 0, myPose: 'idle', myPoseUntil: 0,
-      steamer: { count: 3, nextAt: -1 }, effects: [], knockUntil: -1, knockBacks: [], lastSound: null,
+      steamer: ['har', 'siu', 'har'], effects: [], knockUntil: -1, knockBacks: [], lastSound: null,
       visit: null, fan: 0, hintUntil: 0,
+      carts: D.cartPlan(seed), cartIdx: 0, cart: null, cartMoves: [], tally: null, closed: false, dayPhase: 0, plates: {},
     };
     for (const g of mine) g.here = true;
     syncResidents();
     updateBars();
+    cartEl.classList.remove('show'); billEl.classList.remove('show');
     hint(S.me.table === 1 && !mine.length ? '早市刚开，拣张桌落座' : `伙计指了指第 ${S.me.table} 桌：那边有位，搭台吧`);
   }
 
@@ -98,7 +102,8 @@
   const KNOCK_WINDOW = 8;
   function canAct(code) {
     if (!S) return false;
-    if (code === 0) return S.phase === 'door';
+    if (S.phase === 'bill') return false;
+    if (code === 0) return S.phase === 'door' && !S.closed;
     if (S.phase !== 'seated') return false;
     if (code === 2) return S.tau <= S.knockUntil;
     if (code === 3) return !S.pot.lidOff;
@@ -106,9 +111,9 @@
     return true;
   }
 
-  function act(code, by) {
-    // by: undefined = 玩家；否则是桌上的别人（幽灵或灰影）
-    if (!by && !canAct(code)) { if (code === 1 && S.phase === 'seated') {} return false; }
+  function act(code, by, kind) {
+    // by: undefined = 玩家；否则是桌上的别人（幽灵或灰影）；kind 只给夹一件用（点心车上选哪样）
+    if (!by && !canAct(code)) return false;
     const t = S.tau;
     if (!by) {
       if (S.visit && code !== 0) D.recordAct(S.visit, t - S.seatT, code);
@@ -116,8 +121,9 @@
     switch (code) {
       case 0: // 落座
         S.phase = 'seated'; S.seatT = t; S.visit = D.newVisit(Date.now());
+        S.tally = { pours: 0, lids: 0, knocksGiven: 0, knocksGot: 0, pages: 0, pieces: {} };
         S.myPose = 'sit'; S.myPoseUntil = t + 0.8; S.effects.push({ kind: 'sitdown', t0: t, dur: 0.8 });
-        sfx.sit(); hint(`第 ${S.me.table} 桌 · 一盅两件，各看各的`);
+        sfx.sit(); hint(`第 ${S.me.table} 桌 · 一盅两件，各看各的`); renderCart();
         break;
       case 1: { // 斟茶：给全桌
         if (S.pot.level < 0.24) { sfx.dry(); if (!by) hint('壶空了。揭盖，伙计就来加水'); S.effects.push({ kind: 'shake', t0: t, dur: 0.4 }); break; }
@@ -126,48 +132,60 @@
         S.effects.push({ kind: 'pour', t0: t, dur: 1.6, from });
         S.myCup = 1; for (const g of othersHere()) g.cup = 1; for (const r of S.residents) r.cup = 1;
         setPose(by, 'pour', 1.6);
-        sfx.pour();
+        sfx.pour(); if (!by) S.tally.pours++;
         if (by) { S.knockUntil = t + KNOCK_WINDOW; hint(`${by.label.split(' · ')[0] === '你' ? '上次的你' : '邻座'}给你斟了茶 · 叩指谢一下`); }
         else {
           hint('给全桌斟了一巡');
-          for (const o of [...othersHere(), ...S.residents]) if (o.kind === 'resident' || o.knocks) S.knockBacks.push({ who: o, at: t + 1.4 + rnd() * 1.2 });
+          for (const o of [...othersHere(), ...S.residents]) if (o.kind === 'resident' || o.knocks) { o.thanking = true; S.knockBacks.push({ who: o, at: t + 1.4 + rnd() * 1.2 }); }
         }
         break;
       }
       case 2: // 叩指
         S.effects.push({ kind: 'knock', t0: t, dur: 0.6, slot: by ? slotOf(by.seat) : 0 });
         setPose(by, 'knock', 0.6); sfx.knock();
-        if (!by) { S.knockUntil = -1; hint('叩指两下 · 多谢'); }
+        if (!by) { S.knockUntil = -1; S.tally.knocksGiven++; hint('叩指两下 · 多谢'); }
+        else if (by.thanking) { by.thanking = false; if (S.tally) S.tally.knocksGot++; }
         break;
       case 3: // 揭盖
         S.pot.lidOff = true; S.pot.refillAt = t + 3.5; S.effects.push({ kind: 'lid', t0: t, dur: 0.5 }); sfx.lid();
-        if (!by) hint('壶盖搁在壶口 · 伙计看见就来加水');
+        if (!by) { S.tally.lids++; hint('壶盖搁在壶口 · 伙计看见就来加水'); }
         break;
       case 4: // 翻报纸
-        if (by) by.page++; else S.myPage++;
+        if (by) by.page++; else { S.myPage++; S.tally.pages++; }
         S.effects.push({ kind: 'paper', t0: t, dur: 0.7, slot: by ? slotOf(by.seat) : 0 });
         setPose(by, 'paper', 6 + rnd() * 6); sfx.paper();
         if (!by) hint(['翻到港闻', '翻到体育', '翻到副刊', '翻到马经', '翻到讣闻', '翻到广告'][S.myPage % 6]);
         break;
-      case 5: // 夹一件
-        if (S.steamer.count <= 0) { sfx.dry(); if (!by) hint('笼空了 · 伙计换一笼'); break; }
-        S.steamer.count--; if (S.steamer.count === 0) S.steamer.nextAt = t + 4;
-        if (by) {} else S.myPlate++;
-        S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: by ? slotOf(by.seat) : 0 });
+      case 5: { // 夹一件：车在桌边就从车上夹（选哪样是这件玩意里唯一要抢的事），不在就从自己那笼里夹
+        let got = null;
+        if (S.cart) {
+          let it = kind ? S.cart.items.find((x) => x.kind === kind) : null;
+          if (!it || it.stock <= 0) it = S.cart.items.find((x) => x.stock > 0) || null;
+          if (kind && (!S.cart.items.find((x) => x.kind === kind) || S.cart.items.find((x) => x.kind === kind).stock <= 0) && !by) { sfx.dry(); hint(`${D.dimsumName(kind)}卖完了`); if (!it) break; }
+          if (!it) { if (!by) { sfx.dry(); hint('车上卖完了 · 等下一趟'); } break; }
+          D.takeFromCart(S.cart, it.kind); got = it.kind; renderCart();
+          S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: by ? slotOf(by.seat) : 0, fromCart: true });
+        } else {
+          if (by) break; // 别人不动你那笼
+          if (!S.steamer.length) { sfx.dry(); hint('笼空了 · 等点心车来'); break; }
+          got = S.steamer.shift();
+          S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: 0 });
+        }
+        if (by) by.plate = (by.plate || 0) + 1; else { S.myPlate++; S.tally.pieces[got] = (S.tally.pieces[got] || 0) + 1; }
         setPose(by, 'pick', 1.1); sfx.pick();
-        if (!by) hint(['虾饺', '烧卖', '叉烧包', '凤爪', '排骨'][S.myPlate % 5] + ' · 夹到碟里');
+        if (!by) hint(`${D.dimsumName(got)} · 夹到碟里`);
+        else if (S.cart && S.cart.items.every((x) => x.stock <= 0)) hint('车上被夹空了');
         break;
-      case 6: { // 离席
+      }
+      case 6: { // 离席：这一趟记下，开茶单；「再开一市」才重新进门
         const dur = t - S.seatT;
         D.closeVisit(S.visit, dur);
         visits = D.pushVisit(visits, S.visit); saveVisits();
         S.visit = null; sfx.leave();
-        const sat = Math.round(dur);
-        hint(sat < 5 ? '坐了一会儿就走' : `坐了 ${sat} 秒 · 这一趟记下了，下次会坐在桌上`);
-        // 重新进门：大堂按新的历史重排，刚才的你坐进去
-        const keepHint = hintEl.textContent;
-        enterHall(); hint(keepHint);
-        S.effects.push({ kind: 'reenter', t0: 0, dur: 1.0 });
+        const companions = new Set(S.ghosts.filter((g) => g.here && g.seatedWithMe !== false).map((g) => g.id)).size;
+        const tally = { ...S.tally, table: S.me.table, companions: Math.max(companions, S.metOthers || 0), seconds: dur, closedOut: !!kind, leftAt: D.clockAt(t) };
+        S.phase = 'bill'; S.lastBill = D.billLines(tally);
+        showBill(tally);
         break;
       }
       case 7: // 抿茶（只给别人）
@@ -184,7 +202,12 @@
   let rngState = D.rng(SEED0);
   function rnd() { return rngState(); }
 
-  function hint(text) { hintEl.textContent = text; hintEl.classList.add('show'); S.hintUntil = S.tau + 4; }
+  // 横屏时提示在顶栏下，和点心车选择条同一个位置：车在就不弹提示（文字照记，钩子读得到）
+  function hint(text) {
+    hintEl.textContent = text; S.hintUntil = S.tau + 4;
+    const clash = cartEl.classList.contains('show') && window.matchMedia('(max-height: 420px)').matches;
+    hintEl.classList.toggle('show', !clash);
+  }
 
   // ---------- 时间推进 ----------
   function tick(dt) {
@@ -211,10 +234,36 @@
     }
     // 回叩
     for (let i = S.knockBacks.length - 1; i >= 0; i--) if (t >= S.knockBacks[i].at) { act(2, S.knockBacks[i].who); S.knockBacks.splice(i, 1); }
-    // 伙计加水、换笼
+    // 伙计加水
     if (S.pot.lidOff && t >= S.pot.refillAt) { S.pot.lidOff = false; S.pot.level = 1; S.effects.push({ kind: 'refill', t0: t, dur: 1.2 }); sfx.refill(); if (S.phase === 'seated') hint('加了水 · 壶满了'); }
-    if (S.steamer.count === 0 && t >= S.steamer.nextAt) { S.steamer.count = 3; S.effects.push({ kind: 'newsteamer', t0: t, dur: 0.9 }); sfx.steamer(); }
+    // 点心车：到、停、走；桌上别人也伸筷子
+    if (!S.cart && S.cartIdx < S.carts.length && t >= S.carts[S.cartIdx].at && S.phase !== 'bill') {
+      const plan = S.carts[S.cartIdx++];
+      S.cart = { index: plan.index, items: plan.items.map((x) => ({ ...x })), arrivedAt: t, leaveAt: t + plan.stay };
+      S.cartMoves = [];
+      S.residents.forEach((r, i) => { const m = D.residentCartMove(seed, plan.index, i); if (m.takes) S.cartMoves.push({ who: r, at: t + m.delay, pick: m.pick }); });
+      othersHere().forEach((g, i) => { if (g.greedy) S.cartMoves.push({ who: g, at: t + 2 + ((i * 7 + plan.index * 3) % 5) * 0.8, pick: (i + plan.index) % 3 }); });
+      sfx.cart(); renderCart();
+      if (S.phase === 'seated') hint('点心车到了 · ' + S.cart.items.map((x) => D.dimsumName(x.kind)).join('、'));
+    }
+    if (S.cart) {
+      for (let i = S.cartMoves.length - 1; i >= 0; i--) if (t >= S.cartMoves[i].at) { const m = S.cartMoves.splice(i, 1)[0]; const it = S.cart.items[m.pick] && S.cart.items[m.pick].stock > 0 ? S.cart.items[m.pick] : null; act(5, m.who, it ? it.kind : undefined); }
+      if (t >= S.cart.leaveAt) { S.cart = null; S.cartMoves = []; renderCart(); sfx.cart(0.5); if (S.phase === 'seated') hint('点心车走了'); updateBars(); }
+    }
+    // 早市过去：快收市变光、收市清场
+    const ph = D.phaseAt(t);
+    if (ph !== S.dayPhase) {
+      S.dayPhase = ph;
+      if (ph === 1) { if (S.phase !== 'bill') hint('快收市了 · 伙计开始收碟'); sfx.steamer(0.5); }
+      if (ph === 2) {
+        S.closed = true;
+        if (S.phase === 'seated') { act(6, undefined, true); }
+        else if (S.phase === 'door') { hint('收市了 · 明早再来'); S.reopenAt = t + 2.5; }
+      }
+    }
+    if (S.closed && S.phase === 'door' && S.reopenAt && t >= S.reopenAt) { enterHall(); return; }
     if (S.knockUntil > 0 && t > S.knockUntil) { S.knockUntil = -1; updateBars(); }
+    if (S.phase === 'seated') S.metOthers = Math.max(S.metOthers || 0, othersHere().length);
     if (S.myPose !== 'idle' && t > S.myPoseUntil) S.myPose = 'idle';
     for (const o of [...S.ghosts, ...S.residents]) if (o.pose !== 'idle' && t > o.poseUntil) o.pose = 'idle';
     S.effects = S.effects.filter((e) => t - e.t0 < e.dur);
@@ -230,11 +279,56 @@
     const myCount = S.hall.tables.get(S.me.table) ? S.hall.tables.get(S.me.table).size : 0;
     const guests = sum.guests - (S.phase === 'seated' ? 0 : 1);
     whereEl.innerHTML = S.phase === 'door' ? `<b>搭台</b> · 第 ${S.me.table} 桌有位` : `<b>第 ${S.me.table} 桌</b> · ${myCount} / ${D.CAP}`;
-    hallEl.textContent = `大堂 ${sum.tables} 桌 · ${Math.max(guests, 0)} 人`;
+    hallEl.textContent = `${S.closed ? '收市' : '早市 ' + D.clockAt(S.tau)} · 大堂 ${sum.tables} 桌 ${Math.max(guests, 0)} 人`;
     void atMine;
     buttons.forEach((b) => { const code = +b.dataset.act; b.disabled = !canAct(code); b.classList.toggle('hot', code === 2 && canAct(2)); });
     muteBtn.textContent = muted ? '有声' : '静音'; muteBtn.setAttribute('aria-pressed', String(muted));
   }
+
+  // ---------- 点心车选择条 ----------
+  function renderCart() {
+    [...cartEl.querySelectorAll('button')].forEach((b) => b.remove());
+    if (!S.cart || S.phase !== 'seated') { cartEl.classList.remove('show'); return; }
+    for (const it of S.cart.items) {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.kind = it.kind;
+      b.textContent = `${D.dimsumName(it.kind)} ×${it.stock}`; b.disabled = it.stock <= 0;
+      b.addEventListener('click', () => { audio(); act(5, undefined, it.kind); });
+      cartEl.appendChild(b);
+    }
+    cartEl.classList.add('show');
+  }
+
+  // ---------- 茶单（离席时的一张图，长按可存） ----------
+  function showBill(tally) {
+    const lines = D.billLines(tally);
+    const Wc = 1080, Hc = 1180, c = document.createElement('canvas'); c.width = Wc; c.height = Hc;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f3ead6'; g.fillRect(0, 0, Wc, Hc);
+    // 纸纹：几道淡横线
+    g.strokeStyle = 'rgba(42,33,24,.06)'; g.lineWidth = 2; for (let y = 60; y < Hc; y += 46) { g.beginPath(); g.moveTo(60, y); g.lineTo(Wc - 60, y); g.stroke(); }
+    g.strokeStyle = '#6b4a2b'; g.lineWidth = 6; g.strokeRect(40, 40, Wc - 80, Hc - 80); g.lineWidth = 2; g.strokeRect(58, 58, Wc - 116, Hc - 116);
+    g.fillStyle = '#2a2118'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '600 88px "Noto Serif SC", "Songti SC", serif'; g.fillText('搭台 · 茶单', Wc / 2, 170);
+    g.font = '34px "Noto Serif SC", "Songti SC", serif'; g.fillStyle = 'rgba(42,33,24,.6)';
+    const d = new Date(); g.fillText(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} 早市`, Wc / 2, 240);
+    // 一张小桌
+    g.fillStyle = '#6b4a2b'; g.beginPath(); g.ellipse(Wc / 2, 340, 150, 56, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#efe6d2'; g.beginPath(); g.ellipse(Wc / 2, 334, 142, 50, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f7f3ea'; g.strokeStyle = '#3b5b9a'; g.lineWidth = 3;
+    for (const [dx, dy] of [[-80, 10], [80, 10], [-50, -24], [50, -24]]) { g.beginPath(); g.ellipse(Wc / 2 + dx, 334 + dy, 16, 9, 0, 0, Math.PI * 2); g.fill(); g.stroke(); }
+    g.fillStyle = '#c9a063'; g.beginPath(); g.ellipse(Wc / 2 - 10, 326, 28, 13, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f7f3ea'; g.beginPath(); g.ellipse(Wc / 2 + 30, 318, 22, 20, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#2a2118'; g.font = '44px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'left';
+    lines.forEach((ln, i) => g.fillText(ln, 120, 470 + i * 96));
+    // 红章
+    g.save(); g.translate(Wc - 230, Hc - 230); g.rotate(-0.18); g.strokeStyle = 'rgba(199,83,47,.85)'; g.lineWidth = 8; g.strokeRect(-80, -80, 160, 160);
+    g.fillStyle = 'rgba(199,83,47,.85)'; g.font = '600 64px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('多謝', 0, -2); g.restore();
+    g.fillStyle = 'rgba(42,33,24,.5)'; g.font = '28px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('playground · 小试AI', Wc / 2, Hc - 100);
+    billImg.src = c.toDataURL('image/png');
+    cartEl.classList.remove('show'); billEl.classList.add('show'); updateBars();
+    againBtn.textContent = S.closed ? '明早再来' : '再开一市';
+  }
+  againBtn.addEventListener('click', () => { audio(); const hadBill = S.phase === 'bill'; enterHall(); if (hadBill) S.effects.push({ kind: 'reenter', t0: 0, dur: 1.0 }); });
 
   // ---------- 声音（全部合成，首次触碰后才建） ----------
   let ac = null, master = null, noiseBuf = null, ambient = null;
@@ -285,6 +379,7 @@
     leave(v) { S.lastSound = 'leave'; const vol = v || 1; noise({ type: 'lowpass', f0: 300, dur: 0.3, vol: 0.45 * vol, attack: 0.03 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.3 * vol, delay: 0.45 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.25 * vol, delay: 0.8 }); },
     dry() { S.lastSound = 'dry'; noise({ f0: 700, q: 6, dur: 0.2, vol: 0.2, rate: 0.6 }); },
     refill() { S.lastSound = 'refill'; noise({ f0: 300, f1: 900, q: 2, dur: 1.0, vol: 0.3, attack: 0.1 }); tone({ f0: 2650, f1: 2500, dur: 0.3, vol: 0.2, delay: 1.0 }); },
+    cart(v) { S.lastSound = 'cart'; const vol = v || 1; for (let i = 0; i < 4; i++) noise({ type: 'lowpass', f0: 500, dur: 0.09, vol: 0.22 * vol, rate: 0.7 + i * 0.1, delay: i * 0.13 }); tone({ f0: 180, f1: 150, dur: 0.5, vol: 0.06 * vol, wave: 'triangle' }); },
     steamer(v) { S.lastSound = 'steamer'; const vol = v || 0.6; noise({ f0: 1100, q: 2, dur: 0.12, vol: 0.35 * vol, rate: 0.9 }); noise({ f0: 1300, q: 2, dur: 0.1, vol: 0.25 * vol, rate: 1.1, delay: 0.09 }); },
   };
   function setMuted(m) {
@@ -322,10 +417,15 @@
     return { x: L.cx + Math.cos(a) * L.rx * k, y: L.cy + Math.sin(a) * L.ry * k, back: slot === 1 || slot === 2 };
   }
 
+  // 早市的光：0 清早暖黄斜长，1 近午发白变短；快收市再带一点灰
+  function dayK() { return Math.max(0, Math.min(1, S.tau / D.CLOSE)); }
+  function lerp(a, b, k) { return a + (b - a) * k; }
   function draw() {
-    const L = layout(), t = S.tau;
+    const L = layout(), t = S.tau, k = dayK();
+    L.k = k;
     // 地板
     ctx.fillStyle = C.floor; ctx.fillRect(0, L.horizon, W, H - L.horizon);
+    if (k > 0.3) { ctx.fillStyle = `rgba(255,250,240,${(k - 0.3) * 0.18})`; ctx.fillRect(0, L.horizon, W, H - L.horizon); }
     ctx.strokeStyle = C.floorLine; ctx.lineWidth = 1;
     for (let i = 0; i < 9; i++) { const y = L.horizon + ((H - L.horizon) * Math.pow(i / 8, 1.6)); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
     for (let i = -6; i <= 6; i++) { ctx.beginPath(); ctx.moveTo(W / 2 + i * W * 0.045, L.horizon); ctx.lineTo(W / 2 + i * W * 0.22, H); ctx.stroke(); }
@@ -335,14 +435,17 @@
     const people = peopleAtTable();
     for (const p of people) if (p.back) drawPerson(L, p, t);
     drawTable(L, t);
+    if (S.cart) drawCart(L, t);
     for (const p of people) if (!p.back) drawPerson(L, p, t);
     drawEffects(L, t);
     if (S.phase === 'door') drawDoorVeil(L, t);
+    if (S.dayPhase >= 1) { ctx.fillStyle = `rgba(200,205,215,${S.dayPhase === 2 ? 0.22 : 0.1})`; ctx.fillRect(0, 0, W, H); }
   }
 
   function drawWall(L, t) {
     const g = ctx.createLinearGradient(0, 0, 0, L.horizon); g.addColorStop(0, C.wallDark); g.addColorStop(1, C.wall);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, L.horizon);
+    if (L.k > 0.3) { ctx.fillStyle = `rgba(255,250,240,${(L.k - 0.3) * 0.25})`; ctx.fillRect(0, 0, W, L.horizon); }
     // 护墙板
     ctx.fillStyle = C.woodDark; ctx.fillRect(0, L.horizon - 10, W, 10);
     // 满洲窗：三扇，彩色玻璃格
@@ -358,7 +461,10 @@
       }
       ctx.strokeStyle = C.rim; ctx.lineWidth = 2; ctx.strokeRect(x, y, ww, wh);
       // 晨光斜落到地上
-      ctx.fillStyle = C.sun; ctx.beginPath(); ctx.moveTo(x, y + wh); ctx.lineTo(x + ww, y + wh); ctx.lineTo(x + ww * 1.6, L.horizon + (H - L.horizon) * 0.25); ctx.lineTo(x - ww * 0.2, L.horizon + (H - L.horizon) * 0.25); ctx.closePath(); ctx.fill();
+      // 清早的光斜长偏黄，近午竖直变短发白
+      const reach = lerp(0.25, 0.06, L.k), skew = lerp(0.6, 0.05, L.k), warm = lerp(1, 0.35, L.k);
+      ctx.fillStyle = `rgba(${Math.round(lerp(255, 243, warm))},${Math.round(lerp(250, 217, warm))},${Math.round(lerp(235, 160, warm))},${lerp(0.5, 0.28, L.k)})`;
+      ctx.beginPath(); ctx.moveTo(x, y + wh); ctx.lineTo(x + ww, y + wh); ctx.lineTo(x + ww * (1 + skew), L.horizon + (H - L.horizon) * reach); ctx.lineTo(x - ww * skew * 0.35, L.horizon + (H - L.horizon) * reach); ctx.closePath(); ctx.fill();
     }
     // 木柱
     for (const x of [W * 0.06, W * 0.94]) { ctx.fillStyle = C.woodDark; ctx.fillRect(x - 9, 0, 18, L.horizon); ctx.fillStyle = C.woodLight; ctx.fillRect(x - 3, 0, 4, L.horizon); }
@@ -367,12 +473,14 @@
     ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(fx, 0); ctx.lineTo(fx, fy); ctx.stroke();
     ctx.fillStyle = C.rim; ell(fx, fy, 7, 3.5); ctx.fill();
     for (let i = 0; i < 4; i++) { const a = S.fan + i * Math.PI / 2; ctx.fillStyle = 'rgba(74,49,25,.85)'; ctx.beginPath(); ctx.ellipse(fx + Math.cos(a) * 17, fy + Math.sin(a) * 3.5, 15, 2.6, a, 0, Math.PI * 2); ctx.fill(); }
-    // 鸟笼
+    // 鸟笼：快收市时伙计取下
+    if (S.dayPhase < 1) {
     const bx = W * 0.88, by = L.horizon * 0.22, bw = 14, bh = 26;
     ctx.strokeStyle = C.rim; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx, by - bh * 0.5); ctx.stroke();
     ctx.beginPath(); ctx.arc(bx, by - bh * 0.3, bw, Math.PI, 0); ctx.moveTo(bx - bw, by - bh * 0.3); ctx.lineTo(bx - bw, by + bh * 0.5); ctx.lineTo(bx + bw, by + bh * 0.5); ctx.lineTo(bx + bw, by - bh * 0.3); ctx.stroke();
     for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(bx + i * bw * 0.45, by - bh * 0.3 - Math.sqrt(Math.max(0, bw * bw - (i * bw * 0.45) ** 2))); ctx.lineTo(bx + i * bw * 0.45, by + bh * 0.5); ctx.stroke(); }
     ctx.fillStyle = C.glass[2]; ell(bx + Math.sin(t * 1.3) * 3, by + bh * 0.1, 4, 3); ctx.fill();
+    }
     // 墙上的字牌（墙够高才挂）
     if (L.horizon > 150) {
       ctx.fillStyle = C.rim; ctx.fillRect(W * 0.5 - 34, L.horizon - 34, 68, 18);
@@ -418,7 +526,8 @@
       // 碟
       ctx.fillStyle = C.porcelain; ell(p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1), p.y + 2, 12 * (p.back ? 0.8 : 1), 5 * (p.back ? 0.8 : 1)); ctx.fill();
       ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ctx.stroke();
-      if (who && who.kind === 'me' && S.myPlate > 0) { ctx.fillStyle = '#f3dcc5'; ell(p.x + 14, p.y, 5, 3.4); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.stroke(); }
+      const onPlate = who ? (who.kind === 'me' ? S.myPlate : (who.plate || 0)) : 0;
+      for (let i = 0; i < Math.min(onPlate, 3); i++) { const px = p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1) + (i - 1) * 5, py = p.y + (p.back ? 1 : 0) - i * 1.5; ctx.fillStyle = i % 2 ? '#f6e3b4' : '#f3dcc5'; ell(px, py, 4.5 * (p.back ? 0.8 : 1), 3 * (p.back ? 0.8 : 1)); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.lineWidth = 1; ctx.stroke(); }
       // 茶盅
       const r = (p.back ? 6.5 : 8.5);
       ctx.fillStyle = C.porcelain; ell(p.x, p.y + 3, r, r * 0.5); ctx.fill(); ctx.fillRect(p.x - r, p.y - 4, r * 2, 7); ell(p.x, p.y - 4, r, r * 0.5); ctx.fill();
@@ -467,18 +576,44 @@
   }
   function drawSteamer(L, t) {
     const x = L.cx - L.rx * 0.42, y = L.cy - L.ry * 0.05, r = 17;
-    const e = S.effects.find((f) => f.kind === 'newsteamer'); const lift = e ? (1 - (t - e.t0) / e.dur) * 24 : 0;
     for (let k = 0; k < 2; k++) {
-      const yy = y - k * 9 - (k === 1 ? lift : 0);
+      const yy = y - k * 9;
       ctx.fillStyle = C.bambooDark; ell(x, yy + 4, r, r * 0.45); ctx.fill();
       ctx.fillStyle = C.bamboo; ctx.fillRect(x - r, yy - 5, r * 2, 9); ell(x, yy - 5, r, r * 0.45); ctx.fill();
       ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1; ell(x, yy - 5, r, r * 0.45); ctx.stroke();
     }
-    const top = y - 9 - lift;
-    // 上层笼里的点心
-    for (let i = 0; i < S.steamer.count; i++) { const a = i * 2.1 + 0.4; ctx.fillStyle = '#f3dcc5'; ell(x + Math.cos(a) * 7, top - 5 + Math.sin(a) * 3.5, 5, 3.4); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.stroke(); }
-    if (S.steamer.count > 0) drawSteam(x, top - 10, t * 1.2, 0.8);
-    if (S.steamer.count === 0) { ctx.fillStyle = 'rgba(42,33,24,.5)'; ctx.font = '10px serif'; ctx.textAlign = 'center'; ctx.fillText('空', x, top - 4); }
+    const top = y - 9;
+    for (let i = 0; i < S.steamer.length; i++) { const a = i * 2.1 + 0.4; ctx.fillStyle = S.steamer[i] === 'siu' ? '#f6e3b4' : '#f3dcc5'; ell(x + Math.cos(a) * 7, top - 5 + Math.sin(a) * 3.5, 5, 3.4); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.stroke(); }
+    if (S.steamer.length > 0) drawSteam(x, top - 10, t * 1.2, 0.8);
+    else { ctx.fillStyle = 'rgba(42,33,24,.5)'; ctx.font = '10px serif'; ctx.textAlign = 'center'; ctx.fillText('空', x, top - 4); }
+  }
+  // 点心车：从右边推到桌旁，停一会儿再走；车上三格，标着名字和剩几件
+  function cartPos(L, t) {
+    const inK = Math.min(1, (t - S.cart.arrivedAt) / 0.9), outK = Math.max(0, (t - (S.cart.leaveAt - 0.8)) / 0.8);
+    const ease = (v) => 1 - Math.pow(1 - v, 3);
+    const xHome = Math.min(W - 44, L.cx + L.rx * 1.12 + 10), xFar = W + 60;
+    const x = outK > 0 ? lerp(xHome, xFar, ease(outK)) : lerp(xFar, xHome, ease(inK));
+    return { x, y: L.cy - L.ry * 0.35, w: Math.min(78, W * 0.2), h: 26 };
+  }
+  function drawCart(L, t) {
+    const c = cartPos(L, t), x = c.x, y = c.y, w = c.w;
+    // 伙计
+    ctx.fillStyle = '#f0ebe0'; ctx.beginPath(); ctx.moveTo(x - 14, y - 2); ctx.lineTo(x - 14, y - 26); ctx.quadraticCurveTo(x, y - 36, x + 14, y - 26); ctx.lineTo(x + 14, y - 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.skin; ell(x, y - 36, 9, 10); ctx.fill(); ctx.fillStyle = '#2a2118'; ell(x, y - 42, 8.5, 4.5); ctx.fill();
+    // 车
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ell(x, y + c.h + 10, w * 0.6, 7); ctx.fill();
+    ctx.fillStyle = C.woodDark; ctx.fillRect(x - w / 2, y, w, c.h); ctx.fillStyle = C.woodLight; ctx.fillRect(x - w / 2, y, w, 4);
+    ctx.fillStyle = C.rim; ell(x - w * 0.3, y + c.h + 4, 6, 6); ctx.fill(); ell(x + w * 0.3, y + c.h + 4, 6, 6); ctx.fill();
+    ctx.strokeStyle = C.rim; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + w / 2, y + 6); ctx.lineTo(x + w / 2 + 12, y - 8); ctx.stroke();
+    // 三摞小笼与标签
+    S.cart.items.forEach((it, i) => {
+      const sx = x - w / 2 + w * (0.18 + i * 0.32), sy = y - 2;
+      for (let k = 0; k < (it.stock > 0 ? 2 : 1); k++) { ctx.fillStyle = k ? C.bamboo : C.bambooDark; ell(sx, sy - k * 5, 9, 4); ctx.fill(); }
+      if (it.stock <= 0) { ctx.strokeStyle = 'rgba(42,33,24,.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sx - 6, sy - 10); ctx.lineTo(sx + 6, sy + 2); ctx.stroke(); }
+      else drawSteam(sx, sy - 12, t + i, 0.5);
+    });
+    // 车身上写着字，不另挂牌子（免得压到邻座的标签）
+    ctx.fillStyle = '#f0d9a0'; ctx.font = '10px "Noto Serif SC", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('点 心 车', x, y + c.h - 7);
   }
   function drawSteam(x, y, t, k) {
     ctx.strokeStyle = C.steam; ctx.lineWidth = 1.2;
@@ -550,7 +685,8 @@
         ctx.strokeStyle = C.skin; ctx.lineWidth = 3; ctx.lineCap = 'round'; const dy = (k % 0.5) < 0.25 ? -4 : 0;
         ctx.beginPath(); ctx.moveTo(p.x + 12, p.y + 14 + dy); ctx.lineTo(p.x + 14, p.y + 6 + dy); ctx.moveTo(p.x + 17, p.y + 14 + dy); ctx.lineTo(p.x + 18, p.y + 6 + dy); ctx.stroke();
       } else if (e.kind === 'pick') {
-        const from = { x: L.cx - L.rx * 0.42, y: L.cy - L.ry * 0.05 - 14 }, to = slotPos(L, e.slot, 0.66);
+        const cp = e.fromCart && S.cart ? cartPos(L, t) : null;
+        const from = cp ? { x: cp.x, y: cp.y - 10 } : { x: L.cx - L.rx * 0.42, y: L.cy - L.ry * 0.05 - 14 }, to = slotPos(L, e.slot, 0.66);
         const x = from.x + (to.x + 14 - from.x) * k, y = from.y + (to.y - from.y) * k - Math.sin(k * Math.PI) * 18;
         ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 3, y + 2); ctx.lineTo(x - 10, y + 28); ctx.moveTo(x + 3, y + 2); ctx.lineTo(x - 4, y + 28); ctx.stroke();
         ctx.fillStyle = '#f3dcc5'; ell(x, y + 2, 5, 3.4); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.stroke();
@@ -571,7 +707,7 @@
     ctx.fillStyle = 'rgba(58,40,23,.18)'; ctx.fillRect(0, L.horizon, W, H - L.horizon);
     const p = slotPos(L, 0, 1.34), bob = Math.sin(t * 3) * 3;
     ctx.fillStyle = C.me; ctx.beginPath(); ctx.moveTo(p.x, p.y - 30 + bob); ctx.lineTo(p.x - 7, p.y - 44 + bob); ctx.lineTo(p.x + 7, p.y - 44 + bob); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#f3e6c8'; ctx.font = '12px "Noto Serif SC", serif'; ctx.textAlign = 'center'; ctx.fillText('你的位', p.x, p.y - 50 + bob);
+    ctx.fillStyle = '#f3e6c8'; ctx.font = '12px "Noto Serif SC", serif'; ctx.textAlign = 'center'; ctx.fillText(S.closed ? '收市了' : '你的位', p.x, p.y - 50 + bob);
   }
 
   // ---------- 主循环 ----------
@@ -602,8 +738,10 @@
       phase: S.phase, tau: +S.tau.toFixed(2), me: S.me, tables: D.tableList(S.hall),
       others: othersHere().map((g) => ({ id: g.id, table: g.table, seat: g.seat, pose: g.pose })),
       residents: S.residents.map((r) => ({ seat: r.seat, pose: r.pose })),
-      pot: { ...S.pot }, myCup: S.myCup, myPlate: S.myPlate, myPage: S.myPage, steamer: S.steamer.count,
+      pot: { ...S.pot }, myCup: S.myCup, myPlate: S.myPlate, myPage: S.myPage,
       knockOpen: S.tau <= S.knockUntil, lastSound: S.lastSound, effects: S.effects.map((e) => e.kind), visits: visits.length,
+      clock: D.clockAt(S.tau), dayPhase: S.dayPhase, closed: S.closed, cart: S.cart ? S.cart.items.map((x) => [x.kind, x.stock]) : null, cartChips: cartEl.querySelectorAll('button').length, cartShown: cartEl.classList.contains('show'),
+      tally: S.tally, bill: S.phase === 'bill' ? S.lastBill : null, billShown: billEl.classList.contains('show'), steamer: S.steamer.length,
       hint: hintEl.textContent, where: whereEl.textContent, hallText: hallEl.textContent, frameStamp,
     };
   }
