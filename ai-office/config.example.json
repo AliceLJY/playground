@@ -1,0 +1,104 @@
+{
+  "roster": [
+    {
+      "id": "director",
+      "name": "松果",
+      "role": "总监",
+      "color": "#D18A65",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "builder",
+      "name": "方糖",
+      "role": "构筑师",
+      "color": "#6D9D8E",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "twin-a",
+      "name": "蓝莓Ⅰ",
+      "role": "推理搭档",
+      "color": "#7F91BC",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "twin-b",
+      "name": "蓝莓Ⅱ",
+      "role": "推理搭档",
+      "color": "#849EBB",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "artist",
+      "name": "薄荷",
+      "role": "创意搭档",
+      "color": "#8DA66F",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "companion",
+      "name": "桃子",
+      "role": "陪伴搭档",
+      "color": "#D69A9E",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "scout",
+      "name": "墨镜",
+      "role": "探索员",
+      "color": "#6F8585",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "filmmaker",
+      "name": "胶片",
+      "role": "影像搭档",
+      "color": "#B397B8",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "writer",
+      "name": "豆沙",
+      "role": "写作搭档",
+      "color": "#C6A160",
+      "source": {
+        "type": "push"
+      }
+    },
+    {
+      "id": "helper",
+      "name": "点点",
+      "role": "候补搭档",
+      "color": "#9FA866",
+      "source": {
+        "type": "push",
+        "waitLabel": "等派活"
+      }
+    },
+    {
+      "id": "courier",
+      "name": "邮差",
+      "role": "送信员",
+      "color": "#BD8955",
+      "source": {
+        "type": "courier"
+      }
+    }
+  ]
+}

@@ -120,6 +120,14 @@ jobs:
           node --check src/board.js
           node --test tests/*.test.cjs
 
+      - name: Check Pixel Office
+        working-directory: ai-office
+        run: |
+          node --check office-core.js
+          node --check office.js
+          for f in server/*.mjs; do node --input-type=module --check < "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Gear Repair
         working-directory: gear-repair
         run: |
@@ -250,6 +258,12 @@ jobs:
           mkdir -p _site/dispatch-replay
           cp dispatch-replay/index.html _site/dispatch-replay/index.html
           cp -R dispatch-replay/src dispatch-replay/data _site/dispatch-replay/
+
+      - name: Assemble Pixel Office
+        run: |
+          # 像素办公室：线上只发演示版那五个静态文件；服务端、配置样例、测试和截图不发布
+          mkdir -p _site/ai-office
+          cp ai-office/index.html ai-office/office-core.js ai-office/office.js ai-office/style.css ai-office/demo-script.json _site/ai-office/
 
       - name: Assemble Agent Engine, Handwritten Board and Gear Repair
         run: |

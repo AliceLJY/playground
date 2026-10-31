@@ -44,6 +44,7 @@
 | [派活回放](dispatch-replay/) · [看](https://aliceljy.github.io/playground/dispatch-replay/) | 回放真实的 Claude Code 工作，两份可切换：总调度用 68 分钟把 15 篇文章的事实核查拆给 21 个子 agent，每个读进十几万 token，交回的报告只有几百字；做一支短片时派 8 个子 agent，另叫 8 次外部 AI Codex 画图，Codex 在记录里是个黑箱 | 二维画布，数据从本机会话记录抽取（只留标签、时间、token 数和字数），可暂停拖动，手机电脑都行 |
 | [agent 引擎是什么](agent-engine/) · [看](https://aliceljy.github.io/playground/agent-engine/) | 六个镜头讲清 API、引擎、harness 三层：只有 API 会卡在哪、加上循环能做什么、循环之外的失败怎么接住；页面里的循环是真跑的教学小实现 | 讲解页，纯前端，手动翻页或自动播放，手机电脑都行 |
 | [手写板书](handwritten-board/) · [看](https://aliceljy.github.io/playground/handwritten-board/) | 两页手写板书一笔一笔写出来，讲的是它自己怎么做出来的：龙藏行书逐字揭示，一只手跟着笔尖走，红笔圈重点；可暂停、倍速、翻页或长卷、换字体 | DOM 文字加 SVG，GSAP 时间线，字体子集打包在页面里，没有构建步骤 |
+| [像素办公室](ai-office/) · [看](https://aliceljy.github.io/playground/ai-office/) | 十一位 AI 伙伴各坐一张工位，按状态敲键盘、蹦跳撒彩带、到老板桌前排队敲门；送信员把推送当纸条递来，公告板留底。线上是演示版，真实版在自己机器上跑一个零依赖的小服务读本机状态 | Canvas 2D 像素风，演示剧本一分钟循环，白天傍晚夜晚按北京时间换灯，没有构建步骤 |
 
 ## 加一个新玩意
 

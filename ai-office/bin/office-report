@@ -1,0 +1,4 @@
+#!/bin/sh
+# Best effort: never delay or fail the calling workflow. No token in process arguments.
+node "$(dirname "$0")/send.mjs" report "$@" >/dev/null 2>&1 || :
+exit 0

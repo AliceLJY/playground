@@ -1,0 +1,5 @@
+tools/shots/
+tools/.test-data/
+tools/*.log
+tools/once.json
+tools/api-check.json

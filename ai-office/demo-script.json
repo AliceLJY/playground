@@ -1,0 +1,163 @@
+{
+  "duration": 60,
+  "roster": [
+    {
+      "id": "director",
+      "name": "松果",
+      "role": "总监",
+      "color": "#D18A65",
+      "status": "busy",
+      "badge": "2"
+    },
+    {
+      "id": "builder",
+      "name": "方糖",
+      "role": "构筑师",
+      "color": "#6D9D8E",
+      "status": "busy",
+      "badge": ""
+    },
+    {
+      "id": "twin-a",
+      "name": "蓝莓Ⅰ",
+      "role": "推理搭档",
+      "color": "#7F91BC",
+      "status": "busy",
+      "badge": ""
+    },
+    {
+      "id": "twin-b",
+      "name": "蓝莓Ⅱ",
+      "role": "推理搭档",
+      "color": "#849EBB",
+      "status": "busy",
+      "badge": ""
+    },
+    {
+      "id": "artist",
+      "name": "薄荷",
+      "role": "创意搭档",
+      "color": "#8DA66F",
+      "status": "busy",
+      "badge": ""
+    },
+    {
+      "id": "companion",
+      "name": "桃子",
+      "role": "陪伴搭档",
+      "color": "#D69A9E",
+      "status": "idle",
+      "badge": ""
+    },
+    {
+      "id": "scout",
+      "name": "墨镜",
+      "role": "探索员",
+      "color": "#6F8585",
+      "status": "away",
+      "badge": ""
+    },
+    {
+      "id": "filmmaker",
+      "name": "胶片",
+      "role": "影像搭档",
+      "color": "#B397B8",
+      "status": "away",
+      "badge": ""
+    },
+    {
+      "id": "writer",
+      "name": "豆沙",
+      "role": "写作搭档",
+      "color": "#C6A160",
+      "status": "busy",
+      "badge": ""
+    },
+    {
+      "id": "helper",
+      "name": "点点",
+      "role": "候补搭档",
+      "color": "#9FA866",
+      "status": "idle",
+      "badge": "等派活"
+    },
+    {
+      "id": "courier",
+      "name": "邮差",
+      "role": "送信员",
+      "color": "#BD8955",
+      "status": "idle",
+      "badge": ""
+    }
+  ],
+  "events": [
+    {
+      "at": 8,
+      "id": "builder",
+      "status": "done"
+    },
+    {
+      "at": 12,
+      "id": "artist",
+      "status": "done"
+    },
+    {
+      "at": 12,
+      "id": "director",
+      "status": "waiting"
+    },
+    {
+      "at": 15,
+      "id": "twin-a",
+      "status": "waiting"
+    },
+    {
+      "at": 18,
+      "id": "scout",
+      "status": "done"
+    },
+    {
+      "at": 24,
+      "id": "twin-b",
+      "status": "idle"
+    },
+    {
+      "at": 28,
+      "notice": "新点子到了：给忙碌留一点空白，也给好奇留一个位置。"
+    },
+    {
+      "at": 39,
+      "id": "filmmaker",
+      "status": "done"
+    },
+    {
+      "at": 42,
+      "id": "director",
+      "status": "busy"
+    },
+    {
+      "at": 43,
+      "id": "twin-a",
+      "status": "done"
+    },
+    {
+      "at": 48,
+      "id": "scout",
+      "status": "away"
+    },
+    {
+      "at": 50,
+      "id": "filmmaker",
+      "status": "away"
+    },
+    {
+      "at": 54,
+      "id": "writer",
+      "status": "unknown"
+    },
+    {
+      "at": 56,
+      "notice": "今天的小小进展，已整理成一张纸条。"
+    }
+  ]
+}

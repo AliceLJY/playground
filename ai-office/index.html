@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="一间会呼吸的像素小办公室：看看 AI 伙伴在忙什么，等一封新来的纸条。">
+  <title>像素办公室 · AI 幕后</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script src="office-core.js" defer></script>
+  <script src="office.js" defer></script>
+</head>
+<body>
+  <main class="office-app">
+    <header class="masthead">
+      <div><p class="eyebrow"><span class="tiny-square"></span> AI 幕后 <span class="edition">/ OFFICE 01</span></p><h1>像素办公室<span class="title-dot">.</span></h1></div>
+      <div class="clock"><span id="lighting">办公室</span><time id="clock">--:--</time><small>北京时间</small></div>
+    </header>
+    <div id="mode" class="mode" role="status">正在连接办公室…</div>
+    <section class="room-section" aria-label="像素办公室全景">
+      <div class="room-meta"><span id="room-caption">每个人都有自己的节奏</span><span id="occupancy">11 个工位</span></div>
+      <div id="canvas-wrap"><canvas id="office" width="720" height="840" aria-label="AI 伙伴在工位、沙发和老板桌之间活动。详细状态可在团队抽屉中阅读。"></canvas><div id="paper" class="paper" hidden role="status"><span>新来的纸条</span><p id="paper-text"></p></div></div>
+      <div class="room-foot"><span><i class="dot busy"></i>干活</span><span><i class="dot waiting"></i>等你拍板</span><span><i class="dot done"></i>交活了</span><span><i class="dot unknown"></i>信号不明</span></div>
+    </section>
+    <aside id="drawer" class="drawer" aria-label="团队状态和公告">
+      <button id="drawer-toggle" class="drawer-toggle" aria-expanded="false" aria-controls="drawer-body"><span><b>办公室手记</b><small id="team-count">11 位伙伴</small></span><span class="handle-icon" aria-hidden="true">⌃</span></button>
+      <div class="tabs"><button id="team-tab" class="active" aria-pressed="true">团队 <span>11</span></button><button id="board-tab" aria-pressed="false">公告板 <span id="notice-count">0</span></button></div>
+      <div id="drawer-body" class="drawer-body"><ul id="roster" aria-label="每个角色的状态"></ul><section id="board" hidden aria-label="最新的二十条公告"><p class="empty">还没有新纸条。<br><span>送信员在前台等候。</span></p><ol id="notices"></ol></section></div>
+      <p class="panel-foot">敲门，是有个决定在等你。</p>
+    </aside>
+    <footer class="signature">我的AI小木屋 <span>·</span> 一起工作，也一起发呆</footer>
+  </main>
+  <noscript>打开 JavaScript 后可以看到办公室动画。</noscript>
+</body>
+</html>
