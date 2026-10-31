@@ -26,6 +26,12 @@ jobs:
           node --check src/view.js
           node --test tests/*.test.cjs
 
+      - name: Check Shared Table
+        working-directory: datai-teahouse
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
       - name: Check aju game and navigation
         working-directory: aju-guangzhou-ride
         run: |
@@ -198,6 +204,12 @@ jobs:
           cp slipper-smash/index.html _site/slipper-smash/index.html
           cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
 
+      - name: Assemble Shared Table
+        run: |
+          # 搭台·茶楼早市：二维画布的共在小玩意，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/datai-teahouse
+          cp datai-teahouse/index.html _site/datai-teahouse/index.html
+          cp -R datai-teahouse/src _site/datai-teahouse/
       - name: Assemble Herb Match
         run: |
           # 药性配对：二维画布认药性小游戏，没有构建步骤，页面和源码原样发布
