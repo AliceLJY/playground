@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>候场厅 · 开演前半小时</title>
+<meta name="description" content="一出戏开演前半小时的线上候场厅：一座小戏台、十二个座，和陌生人一起等开演。没有聊天框，能做的只有落座、点灯、鼓掌、给邻座递茶、离席。厅满了自动开下一厅，整点一声锣；厅里的别人是你自己前几次来的回放，没人时坐着几个标注过的灰色身影。散场领一张「今晚谁来过」的合影图。">
+<style>
+  :root { --wood: #2a1e16; --deep: #1a120d; --gold: #e0b25a; --gold2: #f7dc9a; --red: #9b2d20; --ink: #f3e9d6; --dim: #a08f78; --bar: #140e0a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--deep); color: var(--ink); overflow: hidden; overscroll-behavior: none; }
+  body { font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif; -webkit-tap-highlight-color: transparent; display: flex; flex-direction: column; height: 100dvh; }
+  .top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 6px; background: var(--bar); border-bottom: 1px solid #3a2a1f; white-space: nowrap; }
+  .top .where { font-size: 15px; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; }
+  .top .where b { font-weight: 600; color: var(--gold2); }
+  .top .where small { color: var(--dim); font-size: 11px; margin-left: 4px; }
+  .top .right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+  .top .right b { color: var(--gold2); font-weight: 600; }
+  .top button.info { font: inherit; font-size: 12px; color: var(--dim); background: none; border: 1px solid #4a3a2c; border-radius: 999px; width: 24px; height: 24px; padding: 0; line-height: 22px; text-align: center; cursor: pointer; }
+  .top button.gongbtn { font: inherit; font-size: 12px; color: var(--dim); background: none; border: 0; padding: 0; cursor: pointer; }
+  .top button.gongbtn b { color: var(--gold2); }
+  #scene { flex: 1 1 auto; display: block; width: 100%; min-height: 0; touch-action: none; }
+  .hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(126px + env(safe-area-inset-bottom)); font-size: 12.5px; letter-spacing: .06em; color: var(--gold2); background: rgba(20,14,10,.9); border: 1px solid #5a4a3a; padding: 6px 14px; border-radius: 999px; pointer-events: none; opacity: 0; transition: opacity .3s; white-space: nowrap; max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis; }
+  .hint.show { opacity: 1; }
+  .bottom { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid #3a2a1f; }
+  .bottom button { font: inherit; font-size: 15px; letter-spacing: .1em; min-height: 46px; padding: 6px 4px; color: var(--ink); background: #241a13; border: 1px solid #4a3a2c; border-radius: 10px; cursor: pointer; }
+  .bottom button:disabled { color: rgba(243,233,214,.3); border-color: #2e241c; background: transparent; cursor: default; }
+  .bottom button.hot { border-color: var(--gold); color: var(--gold2); }
+  .bottom button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .bottom button.sub { font-size: 13px; color: var(--dim); letter-spacing: .04em; }
+  @media (min-width: 700px) {
+    .top .where { font-size: 17px; } .top .right { font-size: 14px; }
+    .bottom { grid-template-columns: repeat(6, 1fr); max-width: 980px; width: 100%; margin: 0 auto; }
+    .hint { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  }
+  @media (max-height: 420px) { .hint { bottom: auto; top: calc(44px + env(safe-area-inset-top)); } }
+  @media (max-width: 430px) { .top .where small { display: none; } .top .right { gap: 6px; font-size: 11.5px; } }
+  /* 覆盖层：整点锣 / 合影 / 关于 */
+  .overlay { position: fixed; inset: 0; background: rgba(10,6,4,.8); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 20px; z-index: 10; }
+  .overlay.show { display: flex; }
+  .gong { width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(circle at 50% 45%, #f7dc9a 0, #d9a845 28%, #8a5a1e 70%, #4a2e10 100%); box-shadow: 0 0 60px 20px rgba(224,178,90,.35); display: flex; align-items: center; justify-content: center; font-size: 42px; color: #2a1a08; font-weight: 700; letter-spacing: 4px; animation: ring 1.6s ease-out; }
+  @keyframes ring { 0% { transform: scale(.6); opacity: 0; } 25% { transform: scale(1.08); opacity: 1; } 45% { transform: scale(.98); } 100% { transform: scale(1); } }
+  .overlay h2 { margin: 0; font-size: 20px; color: var(--gold2); font-weight: 600; }
+  .overlay p { margin: 0; font-size: 13px; color: var(--dim); text-align: center; line-height: 1.7; max-width: 420px; }
+  .overlay img { max-width: 100%; max-height: 62vh; border-radius: 8px; border: 1px solid #5a4a3a; }
+  .overlay .close { margin-top: 4px; font: inherit; border: 1px solid var(--gold); background: none; color: var(--gold2); border-radius: 999px; padding: 8px 22px; font-size: 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="where" id="where"><b>《英歌》候场厅</b><small id="hallTag">入门</small></div>
+  <div class="right">
+    <span id="count">0 / 12</span>
+    <span>· 开演 <b id="countdown">30:00</b></span>
+    <button class="gongbtn" id="gongBtn" title="整点一声锣，点一下先听听" aria-label="下一声锣，点一下试听">· 锣 <b id="nextGong">--:00</b></button>
+    <button class="info" id="infoBtn" aria-label="关于这出戏">i</button>
+  </div>
+</div>
+<canvas id="scene" aria-label="戏台与候场的座席"></canvas>
+<div class="hint" id="hint"></div>
+<div class="bottom" id="bar">
+  <button data-act="0" id="btnSit">落座</button>
+  <button data-act="1" id="btnLamp">点灯</button>
+  <button data-act="2" id="btnClap">鼓掌</button>
+  <button data-act="3" id="btnTea">递茶</button>
+  <button data-act="4" id="btnLeave">离席</button>
+  <button class="sub" id="btnPhoto">合影</button>
+</div>
+
+<div class="overlay" id="gongOverlay" role="dialog" aria-label="整点锣">
+  <div class="gong">锣</div>
+  <h2 id="gongTitle">整点 · 一声锣</h2>
+  <p id="gongText"></p>
+  <button class="close" data-close="gongOverlay">知道了</button>
+</div>
+<div class="overlay" id="photoOverlay" role="dialog" aria-label="合影">
+  <h2>今晚谁来过</h2>
+  <img id="photoImg" alt="合影图：戏台、座席上的人影与名单">
+  <p>长按图片保存。图上只有座席上的身影和「你 · 几天前」这样的标记，没有任何个人信息。</p>
+  <button class="close" data-close="photoOverlay">收起</button>
+</div>
+<div class="overlay" id="infoOverlay" role="dialog" aria-label="关于这出戏">
+  <h2>关于这出戏</h2>
+  <p>《英歌》是广州歌舞剧院创排、近年在各地巡演的舞剧，剧目名与演出单位取自公开报道，是真实信息。这个候场厅是个人做着玩的小玩意，不是剧院或剧目的官方页面，不售票、不联网；以后有新戏上演，这里的戏名也会跟着换。<br><br>厅里的别人：带「你 · 几天前」标记的是你自己前几次来的回放（只存在这台手机的浏览器里，最多 12 次）；灰色的是候场身影，标着「非真人」，不计人数。每到整点响一声锣，是戏园开场前催场的老规矩。</p>
+  <button class="close" data-close="infoOverlay">知道了</button>
+</div>
+
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
