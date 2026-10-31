@@ -492,15 +492,17 @@
 
   // 布局：后墙占上 36%，地板往下；近桌中心在 68% 高
   function layout() {
-    const horizon = H * 0.36;
+    const horizon = H * 0.22;   // 后墙只留两成：满洲窗是背景，不是戏台
     const avail = H - horizon;
-    let rx = Math.min(W * 0.34, 190, avail * 0.40), ry = rx * 0.46;
+    // 桌子尽量大：宽度上要给左右两侧坐的人和他们的标签留 50 px
+    let rx = Math.min(W * 0.47, 250, avail * 0.50, (W / 2 - 50) / (0.64 * RING)), ry = rx * 0.46;
+    const ps = (r) => 1 + (r / 132 - 1) * 0.5;           // 人物随桌子放大一半的幅度
     // 近桌中心：默认在地板 56% 处；前排的人（头、身、标签）要留在画布里，不够就往上提、桌子再缩
     let cy = horizon + avail * 0.56;
-    const need = (r) => r * 0.46 * 1.34 * 0.77 + 48; // 前排人物从桌心到标签底的距离
+    const need = (r) => r * 0.46 * RING * 0.77 + 30 * ps(r) + 22; // 前排人物从桌心到标签底的距离
     if (cy + need(rx) > H - 4) { cy = H - 4 - need(rx); }
-    if (cy < horizon + avail * 0.40) { rx = Math.max(60, (H - 4 - horizon - avail * 0.40 - 48) / (0.46 * 1.34 * 0.77)); ry = rx * 0.46; cy = H - 4 - need(rx); }
-    return { horizon, cx: W / 2, cy, rx, ry, short: avail < 240 };
+    if (cy < horizon + avail * 0.40) { rx = Math.max(60, (H - 4 - horizon - avail * 0.40 - 52) / (0.46 * RING * 0.77 + 0.11)); ry = rx * 0.46; cy = H - 4 - need(rx); }
+    return { horizon, cx: W / 2, cy, rx, ry, short: avail < 240, s: rx / 132, ps: ps(rx) }; // s：桌上东西相对第一版（rx=132）的放大倍数；ps：人物的
   }
   function ell(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); }
   function teaColor() { const tea = S.tea ? D.teaOf(S.tea) : null; return tea ? tea.color : C.tea; }
@@ -569,8 +571,9 @@
     const url = c.toDataURL('image/png'); iconCache.set(key, url); return url;
   }
   // 自己桌上的笼：排在左前方，最多四笼
-  function basketPos(i) { const L = layout(); return { x: L.cx - L.rx * 0.52 + (i % 2) * 36, y: L.cy + L.ry * 0.02 + Math.floor(i / 2) * 22 - (i % 2) * 7 }; }
+  function basketPos(i) { const L = layout(); return { x: L.cx - L.rx * 0.52 + (i % 2) * 36 * L.s, y: L.cy + L.ry * 0.02 + Math.floor(i / 2) * 22 * L.s - (i % 2) * 7 * L.s }; }
   const SLOT_ANGLE = [Math.PI * 0.72, Math.PI * 1.22, Math.PI * 1.78, Math.PI * 0.28]; // 前左、后左、后右、前右
+  const RING = 1.26; // 人坐在桌沿外这么多倍半径处
   function slotPos(L, slot, k) {
     const a = SLOT_ANGLE[slot];
     return { x: L.cx + Math.cos(a) * L.rx * k, y: L.cy + Math.sin(a) * L.ry * k, back: slot === 1 || slot === 2 };
@@ -608,9 +611,9 @@
     // 护墙板
     ctx.fillStyle = C.woodDark; ctx.fillRect(0, L.horizon - 10, W, 10);
     // 满洲窗：三扇，彩色玻璃格
-    const n = W > 700 ? 5 : 3, ww = Math.min(W / (n + 1) * 0.78, 150), wh = L.horizon * 0.58, gap = (W - n * ww) / (n + 1);
+    const n = W > 700 ? 5 : 3, ww = Math.min(W / (n + 1) * 0.78, 150, L.horizon * 0.9), wh = L.horizon * 0.54, gap = (W - n * ww) / (n + 1);
     for (let i = 0; i < n; i++) {
-      const x = gap + i * (ww + gap), y = L.horizon * 0.2;
+      const x = gap + i * (ww + gap), y = L.horizon * 0.18;
       ctx.fillStyle = C.rim; ctx.fillRect(x - 6, y - 6, ww + 12, wh + 12);
       const cols = 3, rows = 4, cw = ww / cols, ch = wh / rows;
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
@@ -641,16 +644,16 @@
     ctx.fillStyle = C.glass[2]; ell(bx + Math.sin(t * 1.3) * 3, by + bh * 0.1, 4, 3); ctx.fill();
     }
     // 墙上的字牌（墙够高才挂）
-    if (L.horizon > 150) {
-      ctx.fillStyle = C.rim; ctx.fillRect(W * 0.5 - 34, L.horizon - 34, 68, 18);
-      ctx.fillStyle = '#f0d9a0'; ctx.font = `${11}px "Noto Serif SC", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('茶 靓 水 滚', W * 0.5, L.horizon - 25);
+    if (L.horizon > 95) {
+      ctx.fillStyle = C.rim; ctx.fillRect(W * 0.5 - 34, L.horizon - 24, 68, 18);
+      ctx.fillStyle = '#f0d9a0'; ctx.font = `${11}px "Noto Serif SC", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('茶 靓 水 滚', W * 0.5, L.horizon - 15);
     }
   }
 
   // 远处的桌子：大堂里除了自己这桌的其他桌，小椭圆加人头点
   function drawFarTables(L, t) {
     const tables = D.tableList(S.hall).filter((x) => x.no !== S.me.table);
-    const y0 = L.horizon + (H - L.horizon) * (L.short ? 0.05 : 0.10), step = Math.min(W / (tables.length + 1), 150);
+    const y0 = L.horizon + (H - L.horizon) * (L.short ? 0.05 : 0.08), step = Math.min(W / (tables.length + 1), 150);
     const total = tables.length;
     tables.forEach((tb, i) => {
       const x = W / 2 + (i - (total - 1) / 2) * step, y = y0 + (L.short ? 0 : (i % 2) * 14);
@@ -680,23 +683,23 @@
     ctx.fillStyle = g; ell(cx, cy, rx, ry); ctx.fill();
     // 每个位子的茶盅与碟
     for (let slot = 0; slot < 4; slot++) {
-      const p = slotPos(L, slot, 0.66), who = occupant(slot);
+      const p = slotPos(L, slot, 0.66), who = occupant(slot), sc = L.s;
       const cup = who ? (who.kind === 'me' ? S.myCup : who.cup) : 0;
       // 碟
-      ctx.fillStyle = C.porcelain; ell(p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1), p.y + 2, 12 * (p.back ? 0.8 : 1), 5 * (p.back ? 0.8 : 1)); ctx.fill();
+      ctx.fillStyle = C.porcelain; ell(p.x + (slot < 2 ? 14 : -14) * sc * (p.back ? 0.7 : 1), p.y + 2, 12 * sc * (p.back ? 0.8 : 1), 5 * sc * (p.back ? 0.8 : 1)); ctx.fill();
       ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ctx.stroke();
       const onPlate = who ? (who.kind === 'me' ? S.myPlate : (who.plate || 0)) : 0;
       for (let i = 0; i < Math.min(onPlate, 3); i++) {
-        const px = p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1) + (i - 1) * 6, py = p.y + (p.back ? 1 : 0) - i * 1.5;
+        const px = p.x + (slot < 2 ? 14 : -14) * sc * (p.back ? 0.7 : 1) + (i - 1) * 6 * sc, py = p.y + (p.back ? 1 : 0) - i * 1.5;
         const kind = who.kind === 'me' ? (S.plateKinds[S.plateKinds.length - Math.min(onPlate, 3) + i] || 'har') : ['siu', 'har', 'bao'][i];
-        drawDimsum(ctx, kind, px, py, p.back ? 8 : 11);
+        drawDimsum(ctx, kind, px, py, (p.back ? 8 : 11) * sc);
       }
       // 茶盅
-      const r = (p.back ? 6.5 : 8.5);
+      const r = (p.back ? 6.5 : 8.5) * sc;
       ctx.fillStyle = C.porcelain; ell(p.x, p.y + 3, r, r * 0.5); ctx.fill(); ctx.fillRect(p.x - r, p.y - 4, r * 2, 7); ell(p.x, p.y - 4, r, r * 0.5); ctx.fill();
       ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ell(p.x, p.y - 4, r, r * 0.5); ctx.stroke();
       if (cup > 0.05) { ctx.fillStyle = teaColor(); ell(p.x, p.y - 4, r * 0.8, r * 0.4); ctx.fill(); }
-      if (cup > 0.6 && Math.sin(t * 2 + slot) > 0) drawSteam(p.x, p.y - 8, t + slot, 0.5);
+      if (cup > 0.6 && Math.sin(t * 2 + slot) > 0) drawSteam(p.x, p.y - 8 * sc, t + slot, 0.5);
     }
     // 茶壶与大碗（茶到了才上桌）、自己的笼
     if (S.potHere) { drawPot(L, t); drawBowl(L, t); }
@@ -724,44 +727,44 @@
   }
 
   function drawPot(L, t) {
-    const x = L.cx + L.rx * 0.08, y = L.cy - L.ry * 0.25, r = 15;
-    ctx.fillStyle = 'rgba(0,0,0,.12)'; ell(x, y + 10, r + 3, 6); ctx.fill();
+    const x = L.cx + L.rx * 0.08, y = L.cy - L.ry * 0.25, r = 15 * L.s;
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; ell(x, y + r * 0.66, r + 3, r * 0.4); ctx.fill();
     ctx.fillStyle = C.porcelain; ell(x, y, r, r * 0.95); ctx.fill();
     ctx.strokeStyle = C.blue; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x, y + 2, r * 0.85, r * 0.35, 0, 0, Math.PI); ctx.stroke();
-    ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x + r * 0.8, y - 2); ctx.quadraticCurveTo(x + r * 1.5, y - 10, x + r * 1.45, y - 16); ctx.stroke();
-    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x - r * 0.9, y - 2, 8, Math.PI * 0.6, Math.PI * 1.5); ctx.stroke();
+    ctx.lineWidth = 2.5 * L.s; ctx.beginPath(); ctx.moveTo(x + r * 0.8, y - 2); ctx.quadraticCurveTo(x + r * 1.5, y - r * 0.66, x + r * 1.45, y - r * 1.06); ctx.stroke();
+    ctx.lineWidth = 2 * L.s; ctx.beginPath(); ctx.arc(x - r * 0.9, y - 2, r * 0.53, Math.PI * 0.6, Math.PI * 1.5); ctx.stroke();
     // 壶盖：揭开时搁在壶口边
     const lidOff = S.pot.lidOff, lx = lidOff ? x + r * 0.55 : x, ly = lidOff ? y - r * 0.55 : y - r * 0.9;
     ctx.fillStyle = C.porcelain; ell(lx, ly, r * 0.6, r * 0.28); ctx.fill(); ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = C.blue; ell(lx, ly - 3, 2.5, 2); ctx.fill();
+    ctx.fillStyle = C.blue; ell(lx, ly - 3 * L.s, 2.5 * L.s, 2 * L.s); ctx.fill();
     if (lidOff) drawSteam(x, y - r, t, 0.9);
     // 水位示意：壶身一条淡淡的刻度
     ctx.fillStyle = teaColor(); ctx.globalAlpha = 0.28; ctx.fillRect(x - r * 0.5, y + r * 0.6 - S.pot.level * r * 0.9, r, S.pot.level * r * 0.9); ctx.globalAlpha = 1;
   }
   function drawBaskets(L, t) {
     S.baskets.slice(0, 4).forEach((bk, i) => {
-      const { x, y } = basketPos(i), r = 17;
+      const { x, y } = basketPos(i), r = 17 * L.s, sc = L.s;
       ctx.fillStyle = C.bambooDark; ell(x, y + 4, r, r * 0.45); ctx.fill();
-      ctx.fillStyle = C.bamboo; ctx.fillRect(x - r, y - 5, r * 2, 9); ell(x, y - 5, r, r * 0.45); ctx.fill();
-      ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1; ell(x, y - 5, r, r * 0.45); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,.35)'; ell(x, y - 5, r * 0.8, r * 0.3); ctx.fill();
+      ctx.fillStyle = C.bamboo; ctx.fillRect(x - r, y - 5 * sc, r * 2, 9 * sc); ell(x, y - 5 * sc, r, r * 0.45); ctx.fill();
+      ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1; ell(x, y - 5 * sc, r, r * 0.45); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ell(x, y - 5 * sc, r * 0.8, r * 0.3); ctx.fill();
       const d = D.dimsum(bk.kind), n = d ? d.n : 3;
-      for (let k = 0; k < bk.left; k++) { const a = (k / n) * Math.PI * 2 + 0.6, rr = bk.left === 1 ? 0 : 7; drawDimsum(ctx, bk.kind, x + Math.cos(a) * rr, y - 7 + Math.sin(a) * rr * 0.5, 10.5); }
+      for (let k = 0; k < bk.left; k++) { const a = (k / n) * Math.PI * 2 + 0.6, rr = bk.left === 1 ? 0 : 7 * sc; drawDimsum(ctx, bk.kind, x + Math.cos(a) * rr, y - 7 * sc + Math.sin(a) * rr * 0.5, 10.5 * sc); }
       // 盖子斜靠在笼边
-      ctx.fillStyle = C.bamboo; ctx.beginPath(); ctx.ellipse(x + r * 0.9, y - 8, r * 0.9, r * 0.25, -0.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = C.bambooDark; ctx.stroke();
-      if (bk.left > 0) drawSteam(x, y - 12, t * 1.2 + i, 0.7);
+      ctx.fillStyle = C.bamboo; ctx.beginPath(); ctx.ellipse(x + r * 0.9, y - 8 * sc, r * 0.9, r * 0.25, -0.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = C.bambooDark; ctx.stroke();
+      if (bk.left > 0) drawSteam(x, y - 12 * sc, t * 1.2 + i, 0.7);
       else { ctx.fillStyle = 'rgba(42,33,24,.5)'; ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('空', x, y - 2); }
     });
-    if (S.baskets.length > 4) { ctx.fillStyle = 'rgba(42,33,24,.6)'; ctx.font = '10px serif'; ctx.textAlign = 'left'; ctx.fillText(`+${S.baskets.length - 4} 笼`, L.cx - L.rx * 0.5 + 62, L.cy + 18); }
+    if (S.baskets.length > 4) { ctx.fillStyle = 'rgba(42,33,24,.6)'; ctx.font = '10px serif'; ctx.textAlign = 'left'; ctx.fillText(`+${S.baskets.length - 4} 笼`, L.cx - L.rx * 0.5 + 62 * L.s, L.cy + 18 * L.s); }
   }
   // 洗杯的大碗：在你的位子旁边
   function drawBowl(L, t) {
-    const p = slotPos(L, 0, 0.66), x = p.x + 30, y = p.y - 10, r = 11;
+    const p = slotPos(L, 0, 0.66), x = p.x + 30 * L.s, y = p.y - 10, r = 11 * L.s;
     ctx.fillStyle = C.porcelain; ell(x, y + 4, r, r * 0.45); ctx.fill(); ctx.fillRect(x - r, y - 2, r * 2, 6); ell(x, y - 2, r, r * 0.5); ctx.fill();
     ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ell(x, y - 2, r, r * 0.5); ctx.stroke();
     if (S.rinsed) { ctx.fillStyle = teaColor(); ctx.globalAlpha = 0.5; ell(x, y - 2, r * 0.78, r * 0.36); ctx.fill(); ctx.globalAlpha = 1; }
     // 没洗杯前筷子横在碗上
-    if (!S.rinsed) { ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 14, y - 4); ctx.lineTo(x + 14, y - 1); ctx.moveTo(x - 14, y - 1); ctx.lineTo(x + 14, y + 2); ctx.stroke(); }
+    if (!S.rinsed) { ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 14 * L.s, y - 4); ctx.lineTo(x + 14 * L.s, y - 1); ctx.moveTo(x - 14 * L.s, y - 1); ctx.lineTo(x + 14 * L.s, y + 2); ctx.stroke(); }
   }
   // 伙计：从右边走到桌边又走开（送茶、出品、收碟都靠他）
   function drawWaiter(L, t, e) {
@@ -821,7 +824,7 @@
   }
 
   function drawPerson(L, p, t) {
-    const pos = slotPos(L, p.slot, 1.34), back = p.back, sc = back ? 0.72 : 1;
+    const pos = slotPos(L, p.slot, RING), back = p.back, sc = (back ? 0.72 : 1) * L.ps;
     const alpha = Math.max(0, Math.min(1, p.fade)) * (p.kind === 'resident' ? 0.6 : p.kind === 'ghost' ? 0.78 : 1);
     ctx.globalAlpha = alpha;
     const headR = 13 * sc, bodyW = 38 * sc, bodyH = 30 * sc;
@@ -846,9 +849,10 @@
     // 标签
     ctx.font = `${back ? 10.5 : 12}px "Noto Serif SC", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     const lab = p.label, lw = ctx.measureText(lab).width + 12, ly = back ? y - headR * 1.9 - 6 : y + bodyH + 16;
+    const lx = Math.max(4 + lw / 2, Math.min(W - 4 - lw / 2, x)); // 标签整块留在画布里，人可以贴边
     ctx.globalAlpha = alpha; ctx.fillStyle = p.kind === 'resident' ? 'rgba(90,86,80,.75)' : 'rgba(42,33,24,.78)';
-    ctx.fillRect(x - lw / 2, ly - 11, lw, 15);
-    ctx.fillStyle = p.kind === 'me' ? '#ffd9c7' : p.kind === 'resident' ? '#e6e2db' : '#f3e6c8'; ctx.fillText(lab, x, ly);
+    ctx.fillRect(lx - lw / 2, ly - 11, lw, 15);
+    ctx.fillStyle = p.kind === 'me' ? '#ffd9c7' : p.kind === 'resident' ? '#e6e2db' : '#f3e6c8'; ctx.fillText(lab, lx, ly);
     ctx.globalAlpha = 1;
   }
 
@@ -857,37 +861,37 @@
       const k = (t - e.t0) / e.dur;
       if (e.kind === 'pour') {
         // 从壶到各杯的一道茶流，按顺序一杯接一杯
-        const pot = { x: L.cx + L.rx * 0.08, y: L.cy - L.ry * 0.25 - 16 };
+        const pot = { x: L.cx + L.rx * 0.08, y: L.cy - L.ry * 0.25 - 16 * L.s };
         const order = [e.from, (e.from + 1) % 4, (e.from + 2) % 4, (e.from + 3) % 4];
         const idx = Math.min(3, Math.floor(k * 4)), target = slotPos(L, order[idx], 0.66);
         ctx.strokeStyle = C.tea; ctx.lineWidth = 2.2; ctx.globalAlpha = 0.9;
-        ctx.beginPath(); ctx.moveTo(pot.x + 14, pot.y); ctx.quadraticCurveTo((pot.x + target.x) / 2, Math.min(pot.y, target.y) - 24, target.x, target.y - 6); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pot.x + 14 * L.s, pot.y); ctx.quadraticCurveTo((pot.x + target.x) / 2, Math.min(pot.y, target.y) - 24, target.x, target.y - 6); ctx.stroke();
         ctx.globalAlpha = 1; drawSteam(target.x, target.y - 10, t, 0.6);
       } else if (e.kind === 'knock') {
         const p = slotPos(L, e.slot, 0.66), n = k < 0.5 ? 1 : 2;
         ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5;
-        for (let i = 0; i < n; i++) { ctx.globalAlpha = 1 - k; ctx.beginPath(); ctx.arc(p.x + 14, p.y + 4, 5 + i * 5 + k * 6, 0, Math.PI * 2); ctx.stroke(); }
+        for (let i = 0; i < n; i++) { ctx.globalAlpha = 1 - k; ctx.beginPath(); ctx.arc(p.x + 14 * L.s, p.y + 4, (5 + i * 5 + k * 6) * L.s, 0, Math.PI * 2); ctx.stroke(); }
         ctx.globalAlpha = 1;
         // 两根手指
         ctx.strokeStyle = C.skin; ctx.lineWidth = 3; ctx.lineCap = 'round'; const dy = (k % 0.5) < 0.25 ? -4 : 0;
-        ctx.beginPath(); ctx.moveTo(p.x + 12, p.y + 14 + dy); ctx.lineTo(p.x + 14, p.y + 6 + dy); ctx.moveTo(p.x + 17, p.y + 14 + dy); ctx.lineTo(p.x + 18, p.y + 6 + dy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(p.x + 12 * L.s, p.y + 14 + dy); ctx.lineTo(p.x + 14 * L.s, p.y + 6 + dy); ctx.moveTo(p.x + 17 * L.s, p.y + 14 + dy); ctx.lineTo(p.x + 18 * L.s, p.y + 6 + dy); ctx.stroke();
       } else if (e.kind === 'pick') {
         const cp = e.fromCart && S.cart ? cartPos(L, t) : null;
         const from = cp ? { x: cp.x, y: cp.y - 10 } : e.from ? { x: e.from.x, y: e.from.y - 14 } : { x: L.cx - L.rx * 0.42, y: L.cy - L.ry * 0.05 - 14 };
         const to = e.basket ? basketPos(Math.max(0, Math.min(3, S.baskets.length - 1))) : slotPos(L, e.slot, 0.66);
         const x = from.x + (to.x + 14 - from.x) * k, y = from.y + (to.y - from.y) * k - Math.sin(k * Math.PI) * 18;
         ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 3, y + 2); ctx.lineTo(x - 10, y + 28); ctx.moveTo(x + 3, y + 2); ctx.lineTo(x - 4, y + 28); ctx.stroke();
-        if (e.basket) { ctx.fillStyle = C.bamboo; ell(x, y + 2, 12, 5); ctx.fill(); ctx.strokeStyle = C.bambooDark; ctx.stroke(); } else drawDimsum(ctx, (e.from && S.plateKinds[S.plateKinds.length - 1]) || 'har', x, y + 2, 11);
+        if (e.basket) { ctx.fillStyle = C.bamboo; ell(x, y + 2, 12 * L.s, 5 * L.s); ctx.fill(); ctx.strokeStyle = C.bambooDark; ctx.stroke(); } else drawDimsum(ctx, (e.from && S.plateKinds[S.plateKinds.length - 1]) || 'har', x, y + 2, 11 * L.s);
       } else if (e.kind === 'rinse') {
-        const pot = { x: L.cx + L.rx * 0.08, y: L.cy - L.ry * 0.25 - 16 }, p = slotPos(L, 0, 0.66), bowl = { x: p.x + 30, y: p.y - 12 };
+        const pot = { x: L.cx + L.rx * 0.08, y: L.cy - L.ry * 0.25 - 16 * L.s }, p = slotPos(L, 0, 0.66), bowl = { x: p.x + 30 * L.s, y: p.y - 12 };
         ctx.strokeStyle = teaColor(); ctx.lineWidth = 2.2; ctx.globalAlpha = k < 0.6 ? 0.9 : 0.9 * (1 - (k - 0.6) / 0.4);
-        ctx.beginPath(); ctx.moveTo(pot.x + 14, pot.y); ctx.quadraticCurveTo((pot.x + bowl.x) / 2, Math.min(pot.y, bowl.y) - 26, bowl.x, bowl.y); ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.moveTo(pot.x + 14 * L.s, pot.y); ctx.quadraticCurveTo((pot.x + bowl.x) / 2, Math.min(pot.y, bowl.y) - 26, bowl.x, bowl.y); ctx.stroke(); ctx.globalAlpha = 1;
         ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1; for (let i = 0; i < 3; i++) { ctx.globalAlpha = Math.max(0, 1 - ((k * 3 + i * 0.33) % 1)); ell(bowl.x, bowl.y + 2, 6 + ((k * 3 + i * 0.33) % 1) * 10, 2.5 + ((k * 3 + i * 0.33) % 1) * 4); ctx.stroke(); } ctx.globalAlpha = 1;
         drawSteam(bowl.x, bowl.y - 6, t, 0.8);
       } else if (e.kind === 'waiter') {
         drawWaiter(L, t, e);
       } else if (e.kind === 'refill') {
-        const x = L.cx + L.rx * 0.08, y = L.cy - L.ry * 0.25 - 16;
+        const x = L.cx + L.rx * 0.08, y = L.cy - L.ry * 0.25 - 16 * L.s;
         ctx.strokeStyle = 'rgba(180,210,230,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y - 40); ctx.lineTo(x, y + 2); ctx.stroke(); drawSteam(x, y - 10, t, 1.2);
       } else if (e.kind === 'shake') {
         // 壶空了：壶身晃两下的提示
@@ -901,7 +905,7 @@
   function drawDoorVeil(L, t) {
     // 站在门口：近桌压暗一点，指示你的桌
     ctx.fillStyle = 'rgba(58,40,23,.18)'; ctx.fillRect(0, L.horizon, W, H - L.horizon);
-    const p = slotPos(L, 0, 1.34), bob = Math.sin(t * 3) * 3;
+    const p = slotPos(L, 0, RING), bob = Math.sin(t * 3) * 3;
     ctx.fillStyle = C.me; ctx.beginPath(); ctx.moveTo(p.x, p.y - 30 + bob); ctx.lineTo(p.x - 7, p.y - 44 + bob); ctx.lineTo(p.x + 7, p.y - 44 + bob); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#f3e6c8'; ctx.font = '12px "Noto Serif SC", serif'; ctx.textAlign = 'center'; ctx.fillText(S.closed ? '收市了' : '你的位', p.x, p.y - 50 + bob);
   }
