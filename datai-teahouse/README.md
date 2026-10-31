@@ -97,6 +97,7 @@ Open `http://127.0.0.1:8793/`. Tests: `node --test tests/*.test.cjs`. Browser ch
 - `src/game.js`: drawing, action state machine, synthesised sound, local storage, fixed views, hooks.
 - `tests/core.test.cjs`, `tests/publish.test.cjs`: rules and publish scan, `node --test tests/*.test.cjs`.
 - `tools/browser-check.cjs`, `tools/walkthrough.cjs`: four-viewport browser check (plus the cart and the closing bill) and the opening walkthrough with real input.
+- `tools/demo.cjs`, `tools/demo-music.py`: the portrait demo film (real clicks through one morning, game time stepped per frame, signature card at the end) and its synthesised score cued from the game's sound log; usage at the top of each file.
 
 ## Who opens it, AI assets
 
