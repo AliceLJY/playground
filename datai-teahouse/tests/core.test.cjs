@@ -178,17 +178,54 @@ test('验收 12 点心车日程：可复现、首趟 10–15 秒、间隔 30–4
   assert.deepEqual(D.residentCartMove(1, 3, 1), D.residentCartMove(1, 3, 1));
 });
 
-test('验收 13 茶单：六行，时长格式、件数按样汇总、一件未夹有话说', () => {
-  const lines = D.billLines({ table: 2, companions: 3, seconds: 125, pours: 2, lids: 1, knocksGiven: 1, knocksGot: 2, pages: 3, pieces: { har: 2, bao: 1, siu: 0 }, leftAt: '8:40' });
+test('验收 13 埋单：六行，茶位加点心按档算钱，时长与笼件格式；没叫茶、一笼未点也有话说', () => {
+  const tally = { table: 2, companions: 3, seconds: 125, tea: 'puer', pours: 2, lids: 1, knocksGiven: 1, knocksGot: 2, pages: 3, baskets: { har: 1, bao: 2, siu: 0 }, pieces: { har: 4, bao: 5 }, leftAt: '8:40' };
+  const lines = D.billLines(tally);
   assert.equal(lines.length, 6);
   assert.equal(lines[0], '第 2 桌 · 搭了 3 位');
   assert.equal(lines[1], '8:40 离席 · 坐了 2 分 05 秒');
-  assert.equal(lines[2], '一盅：斟了 2 巡 · 揭盖 1 次');
-  assert.equal(lines[3], '3 件：虾饺 ×2、叉烧包 ×1');
-  assert.equal(lines[4], '礼数：谢了 1 次 · 被谢 2 次');
-  assert.equal(lines[5], '报纸翻了 3 版');
-  const none = D.billLines({ table: 1, companions: 0, seconds: 8, pieces: {}, closedOut: true, leftAt: '11:00' });
+  assert.equal(lines[2], '茶位 普洱 ¥6 · 斟了 2 巡 · 揭盖 1 次');
+  assert.equal(lines[3], '虾饺 顶点 ×1、叉烧包 中点 ×2');
+  assert.equal(lines[4], '3 笼 9 件 · 礼数：谢了 1 次 · 被谢 2 次 · 报纸 3 版');
+  assert.deepEqual(D.billTotal(tally), { tea: 6, dim: 28 + 16 * 2, total: 66 });
+  assert.equal(lines[5], '合计 ¥66');
+  const none = D.billLines({ table: 1, companions: 0, seconds: 8, baskets: {}, pieces: {}, closedOut: true, leftAt: '11:00' });
   assert.equal(none[0], '第 1 桌 · 没人搭台，两位常客陪坐', '没有真人搭台时不写「搭了 0 位」');
   assert.equal(none[1], '11:00 离席 · 坐了 8 秒 · 坐到收市');
-  assert.equal(none[3], '一件未夹');
+  assert.equal(none[2], '未叫茶 · 斟了 0 巡 · 揭盖 0 次');
+  assert.equal(none[3], '一笼未点');
+  assert.equal(none[5], '合计 ¥0');
+});
+
+test('验收 14 点心纸：十四样五档不重名、价钱随档递增、车上八样都在纸上；五种茶各有茶色', () => {
+  assert.equal(D.DIMSUM.length, 14);
+  assert.equal(new Set(D.DIMSUM.map((d) => d.zh)).size, 14);
+  for (const d of D.DIMSUM) { assert.ok(D.TIERS[d.tier], `${d.zh} 的档位 ${d.tier} 不存在`); assert.ok(d.n >= 2 && d.n <= 4, `${d.zh} 一笼 ${d.n} 件`); }
+  const prices = ['s', 'm', 'l', 'x', 't'].map((k) => D.TIERS[k].price);
+  for (let i = 1; i < prices.length; i++) assert.ok(prices[i] > prices[i - 1], '小点 < 中点 < 大点 < 特点 < 顶点');
+  assert.equal(new Set(D.DIMSUM.map((d) => d.tier)).size, 5, '五档都有东西');
+  for (const k of D.CART_KEYS) assert.ok(D.dimsum(k), `车上的 ${k} 不在点心纸上`);
+  assert.equal(D.TEAS.length, 5);
+  assert.equal(new Set(D.TEAS.map((x) => x.color)).size, 5, '五种茶的茶色要分得开');
+  assert.equal(D.teaOf('puer').zh, '普洱');
+  assert.equal(D.teaOf('nope'), null);
+});
+
+test('验收 15 下单出品：一张纸最多三样，第一样 18–30 秒到，之后每样隔 12–25 秒，可复现', () => {
+  const a = D.kitchenPlan(3, 0, ['har', 'siu', 'bao', 'feet']);
+  assert.equal(a.length, 3, '勾了四样只做前三样');
+  assert.deepEqual(a.map((x) => x.kind), ['har', 'siu', 'bao']);
+  assert.ok(a[0].at >= 18 && a[0].at <= 30, `第一样 ${a[0].at} 秒到`);
+  for (let i = 1; i < a.length; i++) { const gap = a[i].at - a[i - 1].at; assert.ok(gap >= 12 && gap <= 25, `第 ${i + 1} 样隔了 ${gap} 秒`); }
+  assert.deepEqual(D.kitchenPlan(3, 0, ['har', 'siu', 'bao']), a.slice(0, 3));
+  assert.notDeepEqual(D.kitchenPlan(3, 1, ['har', 'siu', 'bao']).map((x) => x.at), a.map((x) => x.at), '第二张单不该和第一张同一个时间表');
+  assert.equal(D.ORDER_MAX, 3);
+});
+
+test('记录里允许「唔该」（动作码 8），仍不收抿茶（7）', () => {
+  const v = D.newVisit(1);
+  assert.equal(D.recordAct(v, 1, 8), true);
+  assert.equal(D.recordAct(v, 2, 7), false);
+  assert.equal(D.decodeVisits(JSON.stringify([D.closeVisit(v, 5)])).length, 1);
+  assert.deepEqual(D.decodeVisits(JSON.stringify([{ v: 1, at: 1, dur: 2, acts: [[0, 7]] }])), []);
 });

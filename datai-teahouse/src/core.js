@@ -12,11 +12,23 @@
   const MAX_DUR = 1800;     // 一次来访最长记半小时
   const CLOSE = 300;        // 早市一共这么多秒真时间：进门是 7:00，收市是 11:00
   const OPEN_HOUR = 7, CLOSE_HOUR = 11;
-  // 点心车上会出现的点心：名字、一句话（茶单上用）
+  // 点心纸上的十四样：名字、档位（小点 / 中点 / 大点 / 特点 / 顶点，价钱跟档走）、一笼几件。
+  // 档位按广州茶楼常见的分法，价钱取 2020 年代中档茶楼的大概数，不是哪一家的真价目。
+  const TIERS = { s: { zh: '小点', price: 12 }, m: { zh: '中点', price: 16 }, l: { zh: '大点', price: 20 }, x: { zh: '特点', price: 24 }, t: { zh: '顶点', price: 28 } };
   const DIMSUM = [
-    { key: 'har', zh: '虾饺' }, { key: 'siu', zh: '烧卖' }, { key: 'bao', zh: '叉烧包' }, { key: 'feet', zh: '凤爪' },
-    { key: 'rib', zh: '排骨' }, { key: 'roll', zh: '肠粉' }, { key: 'cake', zh: '马拉糕' }, { key: 'tart', zh: '蛋挞' },
+    { key: 'har', zh: '虾饺', tier: 't', n: 4 }, { key: 'siu', zh: '烧卖', tier: 'x', n: 4 }, { key: 'bao', zh: '叉烧包', tier: 'm', n: 3 }, { key: 'feet', zh: '凤爪', tier: 'm', n: 3 },
+    { key: 'rib', zh: '豉汁排骨', tier: 'm', n: 3 }, { key: 'roll', zh: '肠粉', tier: 'l', n: 3 }, { key: 'cake', zh: '马拉糕', tier: 's', n: 3 }, { key: 'tart', zh: '蛋挞', tier: 'm', n: 3 },
+    { key: 'rice', zh: '糯米鸡', tier: 'l', n: 2 }, { key: 'turnip', zh: '萝卜糕', tier: 's', n: 3 }, { key: 'lava', zh: '流沙包', tier: 'm', n: 3 }, { key: 'beef', zh: '牛肉球', tier: 'm', n: 3 },
+    { key: 'spring', zh: '春卷', tier: 's', n: 3 }, { key: 'ham', zh: '咸水角', tier: 's', n: 3 },
   ];
+  // 点心车上只推最常见的八样（点心纸上另外六样要喊伙计下单）
+  const CART_KEYS = ['har', 'siu', 'bao', 'feet', 'rib', 'roll', 'cake', 'tart'];
+  // 茶位：五种茶，各一个茶汤颜色（sRGB）；茶位费每位一样
+  const TEAS = [
+    { key: 'puer', zh: '普洱', color: '#7a3b1e' }, { key: 'jupu', zh: '菊普', color: '#a8571f' }, { key: 'tgy', zh: '铁观音', color: '#c9b24a' },
+    { key: 'shoumei', zh: '寿眉', color: '#c48a3a' }, { key: 'jasmine', zh: '香片', color: '#d9c66a' },
+  ];
+  const TEA_FEE = 6;
 
   // 动作码。0–6 是玩家能按的七个，7 只给桌上的别人用（抿一口茶，没有按钮）
   const ACTS = [
@@ -28,8 +40,10 @@
     { code: 5, key: 'pick',  zh: '夹一件' },
     { code: 6, key: 'leave', zh: '离席' },
     { code: 7, key: 'sip',   zh: '抿茶' },
+    { code: 8, key: 'call',  zh: '唔该' },
   ];
-  const PLAYER_ACTS = ACTS.slice(0, 7);
+  const PLAYER_ACTS = ACTS.filter((a) => a.code !== 7);
+  const isPlayerCode = (c) => Number.isInteger(c) && c >= 0 && c <= 8 && c !== 7;
 
   // ---------- 带种子随机（测试与固定机位可复现） ----------
   function rng(seed) {
@@ -94,7 +108,7 @@
   function newVisit(at) { return { v: 1, at: at, dur: 0, acts: [] }; }
 
   function recordAct(visit, t, code) {
-    if (!(t >= 0) || !Number.isInteger(code) || code < 0 || code > 6) return false;
+    if (!(t >= 0) || !isPlayerCode(code)) return false;
     const last = visit.acts.length ? visit.acts[visit.acts.length - 1][0] : 0;
     visit.acts.push([Math.round(Math.max(t, last) * 10) / 10, code]);
     return true;
@@ -111,7 +125,7 @@
     let last = -1;
     for (const a of x.acts) {
       if (!Array.isArray(a) || a.length !== 2 || typeof a[0] !== 'number' || !Number.isInteger(a[1])) return false;
-      if (a[0] < last || a[1] < 0 || a[1] > 6) return false;
+      if (a[0] < last || !isPlayerCode(a[1])) return false;
       last = a[0];
     }
     return true;
@@ -219,9 +233,9 @@
     let t = 10 + r() * 5;
     let n = 0;
     while (t < CLOSE - 40) {
-      const pool = DIMSUM.slice();
+      const pool = CART_KEYS.slice();
       const items = [];
-      for (let i = 0; i < 3; i++) { const k = Math.floor(r() * pool.length); items.push({ kind: pool.splice(k, 1)[0].key, stock: 1 + Math.floor(r() * 3) }); }
+      for (let i = 0; i < 3; i++) { const k = Math.floor(r() * pool.length); items.push({ kind: pool.splice(k, 1)[0], stock: 1 + Math.floor(r() * 3) }); }
       carts.push({ index: n++, at: Math.round(t * 10) / 10, stay: 9, items });
       t += 30 + r() * 12;
     }
@@ -239,30 +253,48 @@
     return { takes, delay: Math.round((1.5 + r() * 4.5) * 10) / 10, pick: Math.floor(r() * 3) };
   }
   function dimsumName(key) { const d = DIMSUM.find((x) => x.key === key); return d ? d.zh : key; }
+  function dimsum(key) { return DIMSUM.find((x) => x.key === key) || null; }
+  function tierOf(key) { const d = dimsum(key); return d ? TIERS[d.tier] : null; }
+  function teaOf(key) { return TEAS.find((x) => x.key === key) || null; }
 
-  // ---------- 茶单 ----------
-  // tally = { table, companions, seconds, pours, lids, knocksGiven, knocksGot, pages, pieces: {key: n}, closedOut, leftAt }
+  // ---------- 喊伙计下单 ----------
+  const ORDER_MAX = 3; // 一张点心纸一次最多勾三样，食完再叫
+  // 一张单上的几样什么时候出品：每样之间隔 12–25 秒，第一样 18–30 秒后到
+  function kitchenPlan(seed, orderIndex, kinds) {
+    const r = rng(seed * 2003 + orderIndex * 389 + 11);
+    let t = 18 + r() * 12;
+    return kinds.slice(0, ORDER_MAX).map((kind) => { const at = Math.round(t * 10) / 10; t += 12 + r() * 13; return { kind, at }; });
+  }
+
+  // ---------- 埋单 ----------
+  // tally = { table, companions, seconds, tea, pours, lids, knocksGiven, knocksGot, pages, baskets: {key: 笼数}, pieces: {key: 件数}, closedOut, leftAt }
+  function billTotal(tally) {
+    let dim = 0;
+    for (const [k, n] of Object.entries(tally.baskets || {})) { const tier = tierOf(k); if (tier && n > 0) dim += tier.price * n; }
+    return { tea: tally.tea ? TEA_FEE : 0, dim, total: (tally.tea ? TEA_FEE : 0) + dim };
+  }
   function billLines(tally) {
     const sec = Math.max(0, Math.round(tally.seconds || 0));
     const dur = sec < 60 ? `${sec} 秒` : `${Math.floor(sec / 60)} 分 ${sec % 60 < 10 ? '0' : ''}${sec % 60} 秒`;
-    const pieces = Object.entries(tally.pieces || {}).filter(([, n]) => n > 0);
-    const total = pieces.reduce((a, [, n]) => a + n, 0);
-    const lines = [
+    const baskets = Object.entries(tally.baskets || {}).filter(([, n]) => n > 0);
+    const pieces = Object.values(tally.pieces || {}).reduce((a, n) => a + n, 0);
+    const money = billTotal(tally);
+    const tea = tally.tea ? teaOf(tally.tea) : null;
+    return [
       tally.companions > 0 ? `第 ${tally.table} 桌 · 搭了 ${tally.companions} 位` : `第 ${tally.table} 桌 · 没人搭台，两位常客陪坐`,
       `${tally.leftAt || clockAt(0)} 离席 · 坐了 ${dur}${tally.closedOut ? ' · 坐到收市' : ''}`,
-      `一盅：斟了 ${tally.pours || 0} 巡 · 揭盖 ${tally.lids || 0} 次`,
-      total ? `${total} 件：` + pieces.map(([k, n]) => `${dimsumName(k)} ×${n}`).join('、') : '一件未夹',
-      `礼数：谢了 ${tally.knocksGiven || 0} 次 · 被谢 ${tally.knocksGot || 0} 次`,
-      `报纸翻了 ${tally.pages || 0} 版`,
+      tea ? `茶位 ${tea.zh} ¥${TEA_FEE} · 斟了 ${tally.pours || 0} 巡 · 揭盖 ${tally.lids || 0} 次` : `未叫茶 · 斟了 ${tally.pours || 0} 巡 · 揭盖 ${tally.lids || 0} 次`,
+      baskets.length ? baskets.map(([k, n]) => `${dimsumName(k)} ${tierOf(k).zh} ×${n}`).join('、') : '一笼未点',
+      `${baskets.reduce((a, [, n]) => a + n, 0)} 笼 ${pieces} 件 · 礼数：谢了 ${tally.knocksGiven || 0} 次 · 被谢 ${tally.knocksGot || 0} 次 · 报纸 ${tally.pages || 0} 版`,
+      `合计 ¥${money.total}`,
     ];
-    return lines;
   }
 
   return {
-    CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, CLOSE, OPEN_HOUR, CLOSE_HOUR, DIMSUM, ACTS, PLAYER_ACTS,
+    CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, CLOSE, OPEN_HOUR, CLOSE_HOUR, DIMSUM, TIERS, CART_KEYS, TEAS, TEA_FEE, ORDER_MAX, ACTS, PLAYER_ACTS, isPlayerCode,
     rng, createHall, seat, leave, tableOf, summary, tableList,
     newVisit, recordAct, closeVisit, isVisit, encodeVisits, decodeVisits, pushVisit,
     planGhosts, residentsFor, residentSchedule, dueActs, syntheticVisits,
-    clockAt, phaseAt, cartPlan, takeFromCart, residentCartMove, dimsumName, billLines,
+    clockAt, phaseAt, cartPlan, takeFromCart, residentCartMove, dimsumName, dimsum, tierOf, teaOf, kitchenPlan, billTotal, billLines,
   };
 });
