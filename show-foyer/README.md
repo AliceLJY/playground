@@ -19,7 +19,8 @@ This is a personal toy, not an official page of the theatre or the production; i
 - Clap (third button): a ripple around your seat. After the hourly gong and at curtain-up, replays who clapped back then clap again.
 - Tea (fourth button): only when a neighbour (adjacent seat, diagonals included) is present; the cup flies over and they nod.
 - Photograph the stage: tap the stage. A flash, and a small instant print appears by your seat (up to three). Replays who took pictures flash at the same moment they did. Not allowed once the show has started.
-- Programme: tap the booklet at stage left (or the "i" button). Five pages: cover, about the show, what is Yingge, house notes, who was here tonight (with a button to render the group picture).
+- Programme: tap the booklet at stage left (or the "i" button). Five pages: cover, about the show, what is Yingge, house notes, who was here tonight (with a button to render the group picture, and a "clear the house" button: tap twice to delete every visit this browser remembers; replays leave, grey figures fill in).
+- Trace limit: the browser keeps at most 12 visits, exactly one hall; with a full hall you are seated in hall 2, and replays leave on their own once they have sat as long as they did.
 - Leave (fifth button): this visit is recorded; next time you enter you are already in the hall. The hall re-seats on the new history and you see "you · just now" sit down.
 - Bells: first bell three minutes before curtain, second one minute before with the house lights fading over that minute, third bell at curtain: the drapes part on a row of Yingge dancers in silhouette, the visit is recorded, the five action buttons go dark, and an overlay offers the group picture or the next show.
 - The gong time in the top bar is the next gong; tap it to hear one.
@@ -54,7 +55,7 @@ This is a personal toy, not an official page of the theatre or the production; i
 | 8 | Reads as a theatre foyer (curtain, proscenium lanterns, seats, programme); an action changes the frame within 100 ms with a sound name | author read four-viewport screenshots + browser check after clap | author only; no stranger yet |
 | 9 | Not a copy of the temple site: no temple vocabulary, theatre verbs | `tests/publish.test.cjs` | pass |
 | 10 | Show facts public only; programme states source and "will change"; no business figures | `tests/publish.test.cjs` | pass |
-| 11 | Real taps: sit → lantern → clap → tap stage for a photo → programme to page 3 → leave → sit again and see "you · just now" → pass tea → gong → picture → jump to bell 1, bell 2 (lights down), bell 3 (curtain up, overlay, buttons off) → next show | `tools/walkthrough.cjs` (390×664, real clicks) | 19/19 pass |
+| 11 | Real taps: sit → lantern → clap → tap stage for a photo → programme to page 3 → leave → sit again and see "you · just now" → pass tea → gong → picture → jump to bell 1, bell 2 (lights down), bell 3 (curtain up, overlay, buttons off) → next show → clear the house from the programme's last page (two taps, storage emptied, grey figures back) | `tools/walkthrough.cjs` (390×664, real clicks) | 21/21 pass |
 | 12 | Bell times, each once, catch-up on a jump; house-light curve | `tests/core.test.cjs` | pass |
 | 13 | Backstage schedule: first ≥12 s, gaps 20–40 s, three kinds without immediate repeats, reproducible | `tests/core.test.cjs` | pass |
 | 14 | Stage photos recorded and replayed; frozen at t=301: all bells caught up, curtain open, light 0.2, buttons off, overlay shown | Node test + `tools/browser-check.cjs` group 13 (`?view=full&t=301`) | pass |

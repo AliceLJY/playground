@@ -49,6 +49,13 @@ const fs = require('node:fs'), path = require('node:path');
   await p.waitForTimeout(2600); const s13 = await shot('13-curtain-overlay');
   const buttonsOff = await p.$$eval('#bar button[data-act]', (els) => els.every((e) => e.disabled));
   await p.click('#nextShowBtn'); await p.waitForTimeout(500); const s14 = await shot('14-next-show');
+  // 清场：节目单翻到最后一页，点两下「清场」→ 来访归零，回放全走，三个灰影补位
+  await p.evaluate(() => window.__foyer.openProgramme(4)); await p.waitForTimeout(300);
+  const clearLabel = await p.$eval('#progClear', (e) => e.textContent);
+  await p.click('#progClear'); await p.waitForTimeout(200); const armedLabel = await p.$eval('#progClear', (e) => e.textContent);
+  const s15a = await snap();
+  await p.click('#progClear'); await p.waitForTimeout(500); const s15 = await shot('15-cleared');
+  const stored = await p.evaluate(() => localStorage.getItem('show-foyer-visits'));
   const checks = {
     '00 进门站着，顶栏有位': s0.phase === 'door' && /有位/.test(s0.hallTag),
     '01 落座后在第 1 厅，三个灰影陪坐': s1.phase === 'seated' && s1.hall === 1 && s1.residents === 3 && s1.lastSound === 'sit',
@@ -68,6 +75,8 @@ const fs = require('node:fs'), path = require('node:path');
     '12 三铃开演：phase=curtain，幕布拉开，来访已记下（2 次）': s12.phase === 'curtain' && s12.curtainOpen === true && s12.visits === 2,
     '13 开演覆盖层打开，五个动作按钮全部不可按': s13.curtainOverlay === true && buttonsOff === true,
     '14 等下一场：重新进厅，shows=1，「你 · 刚才」在座': s14.phase === 'door' && s14.shows === 1 && s14.ghostsHere === 2 && s14.curtainOverlay === false,
+    '15a 清场要点两下：第一下只是确认，来访还在': /2 次来访/.test(clearLabel) && /再点一次/.test(armedLabel) && s15a.visits === 2,
+    '15 清场：来访归零、本机记录删掉、回放全走、三个灰影补位': s15.visits === 0 && stored === null && s15.ghostsHere === 0 && s15.residents === 3 && s15.programmeOpen === false,
     '页面无报错': errors.length === 0,
   };
   const bad = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k);
