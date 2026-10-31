@@ -13,6 +13,7 @@
   const buttons = [...document.querySelectorAll('#bar button[data-act]')];
   const muteBtn = document.getElementById('mute');
   const cartEl = document.getElementById('cart'), billEl = document.getElementById('bill'), billImg = document.getElementById('billImg'), againBtn = document.getElementById('again');
+  const orderEl = document.getElementById('order'), orderGrid = document.getElementById('orderGrid'), orderGo = document.getElementById('orderGo'), orderCancel = document.getElementById('orderCancel'), orderNote = document.getElementById('orderNote');
 
   // ---------- 颜色（sRGB） ----------
   const C = {
@@ -61,14 +62,15 @@
     S = {
       phase: 'door', tau: 0, seatT: 0, hall: plan.hall, me: plan.me, ghosts, residents: [],
       pot: { level: 1, lidOff: false, refillAt: -1 }, myCup: 0, myPlate: 0, myPage: 0, myPose: 'idle', myPoseUntil: 0,
-      steamer: ['har', 'siu', 'har'], effects: [], knockUntil: -1, knockBacks: [], lastSound: null,
+      baskets: [], plateKinds: [], effects: [], knockUntil: -1, knockBacks: [], lastSound: null,
+      tea: null, askTea: false, potHere: false, teaAt: -1, rinsed: false, kitchen: [], orders: 0, picked: new Set(),
       visit: null, fan: 0, hintUntil: 0,
       carts: D.cartPlan(seed), cartIdx: 0, cart: null, cartMoves: [], tally: null, closed: false, dayPhase: 0, plates: {},
     };
     for (const g of mine) g.here = true;
     syncResidents();
     updateBars();
-    cartEl.classList.remove('show'); billEl.classList.remove('show');
+    cartEl.classList.remove('show'); billEl.classList.remove('show'); orderEl.classList.remove('show');
     hint(S.me.table === 1 && !mine.length ? '早市刚开，拣张桌落座' : `伙计指了指第 ${S.me.table} 桌：那边有位，搭台吧`);
   }
 
@@ -105,9 +107,10 @@
     if (S.phase === 'bill') return false;
     if (code === 0) return S.phase === 'door' && !S.closed;
     if (S.phase !== 'seated') return false;
+    if (code === 1) return S.potHere;
     if (code === 2) return S.tau <= S.knockUntil;
-    if (code === 3) return !S.pot.lidOff;
-    if (code === 6) return true;
+    if (code === 3) return S.potHere && !S.pot.lidOff;
+    if (code === 8) return !orderEl.classList.contains('show');
     return true;
   }
 
@@ -121,13 +124,19 @@
     switch (code) {
       case 0: // 落座
         S.phase = 'seated'; S.seatT = t; S.visit = D.newVisit(Date.now());
-        S.tally = { pours: 0, lids: 0, knocksGiven: 0, knocksGot: 0, pages: 0, pieces: {} };
+        S.tally = { pours: 0, lids: 0, knocksGiven: 0, knocksGot: 0, pages: 0, pieces: {}, baskets: {} };
         S.myPose = 'sit'; S.myPoseUntil = t + 0.8; S.effects.push({ kind: 'sitdown', t0: t, dur: 0.8 });
-        sfx.sit(); hint(`第 ${S.me.table} 桌 · 一盅两件，各看各的`); renderCart();
+        sfx.sit(); S.askTea = true; renderStrip(); hint('伙计过来：饮乜茶？');
         break;
-      case 1: { // 斟茶：给全桌
+      case 1: { // 斟茶：给全桌；头一泡不入口，洗杯
+        if (!S.potHere) { if (!by) { sfx.dry(); hint(S.tea ? '茶未到 · 伙计拎壶去了' : '先拣茶 · 唔该'); } break; }
+        if (by && !S.rinsed && by.kind !== 'resident') break; // 你还没洗杯，别人不给你斟
         if (S.pot.level < 0.24) { sfx.dry(); if (!by) hint('壶空了。揭盖，伙计就来加水'); S.effects.push({ kind: 'shake', t0: t, dur: 0.4 }); break; }
         S.pot.level = Math.max(0, S.pot.level - 0.25);
+        if (!by && !S.rinsed) {
+          S.rinsed = true; S.effects.push({ kind: 'rinse', t0: t, dur: 2.2 }); setPose(by, 'pour', 2.0); sfx.pour();
+          hint('头泡洗杯 · 筷子碗碟在大碗里涮一遍'); break;
+        }
         const from = by ? slotOf(by.seat) : 0;
         S.effects.push({ kind: 'pour', t0: t, dur: 1.6, from });
         S.myCup = 1; for (const g of othersHere()) g.cup = 1; for (const r of S.residents) r.cup = 1;
@@ -156,34 +165,42 @@
         setPose(by, 'paper', 6 + rnd() * 6); sfx.paper();
         if (!by) hint(['翻到港闻', '翻到体育', '翻到副刊', '翻到马经', '翻到讣闻', '翻到广告'][S.myPage % 6]);
         break;
-      case 5: { // 夹一件：车在桌边就从车上夹（选哪样是这件玩意里唯一要抢的事），不在就从自己那笼里夹
-        let got = null;
-        if (S.cart) {
+      case 5: { // 夹一件：点选择条上的一样（带 kind）是向点心车要一笼（阿姨搁下盖印）；按钮本身是从自己桌上的笼里夹一件
+        if (S.cart && kind) {
           let it = kind ? S.cart.items.find((x) => x.kind === kind) : null;
+          if (kind && (!it || it.stock <= 0) && !by) { sfx.dry(); hint(`${D.dimsumName(kind)}卖完了`); break; }
           if (!it || it.stock <= 0) it = S.cart.items.find((x) => x.stock > 0) || null;
-          if (kind && (!S.cart.items.find((x) => x.kind === kind) || S.cart.items.find((x) => x.kind === kind).stock <= 0) && !by) { sfx.dry(); hint(`${D.dimsumName(kind)}卖完了`); if (!it) break; }
           if (!it) { if (!by) { sfx.dry(); hint('车上卖完了 · 等下一趟'); } break; }
-          D.takeFromCart(S.cart, it.kind); got = it.kind; renderCart();
-          S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: by ? slotOf(by.seat) : 0, fromCart: true });
-        } else {
-          if (by) break; // 别人不动你那笼
-          if (!S.steamer.length) { sfx.dry(); hint('笼空了 · 等点心车来'); break; }
-          got = S.steamer.shift();
-          S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: 0 });
+          D.takeFromCart(S.cart, it.kind); renderStrip();
+          S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: by ? slotOf(by.seat) : 0, fromCart: true, basket: true });
+          if (by) { by.plate = (by.plate || 0) + 1; setPose(by, 'pick', 1.1); if (S.cart.items.every((x) => x.stock <= 0)) hint('车上被拿空了'); }
+          else { addBasket(it.kind); setPose(undefined, 'pick', 1.1); hint(`阿姨搁下一笼${D.dimsumName(it.kind)} · 点心纸上盖了个印`); }
+          sfx.pick();
+          break;
         }
-        if (by) by.plate = (by.plate || 0) + 1; else { S.myPlate++; S.tally.pieces[got] = (S.tally.pieces[got] || 0) + 1; }
-        setPose(by, 'pick', 1.1); sfx.pick();
-        if (!by) hint(`${D.dimsumName(got)} · 夹到碟里`);
-        else if (S.cart && S.cart.items.every((x) => x.stock <= 0)) hint('车上被夹空了');
+        if (by) break; // 别人不动你的笼
+        const bk = S.baskets.find((b) => b.left > 0);
+        if (!bk) { sfx.dry(); hint(S.cart ? '桌上没点心 · 点上面点心车的一样要一笼' : S.baskets.length ? '笼都空了 · 唔该叫一笼，或等点心车' : '桌上还没点心 · 唔该叫伙计，或等点心车'); break; }
+        bk.left--; if (bk.left === 0) bk.emptiedAt = t;
+        S.myPlate++; S.plateKinds.push(bk.kind); if (S.plateKinds.length > 3) S.plateKinds.shift();
+        S.tally.pieces[bk.kind] = (S.tally.pieces[bk.kind] || 0) + 1;
+        S.effects.push({ kind: 'pick', t0: t, dur: 1.1, slot: 0, from: basketPos(S.baskets.indexOf(bk)) });
+        setPose(undefined, 'pick', 1.1); sfx.pick();
+        hint(`${D.dimsumName(bk.kind)} · 夹到碟里${bk.left === 0 ? ' · 这笼空了' : ''}`);
         break;
       }
+      case 8: // 唔该：喊伙计。没拣茶先拣茶，拣了就拿点心纸
+        if (by) break;
+        if (!S.tea) { S.askTea = true; renderStrip(); hint('伙计过来：饮乜茶？'); sfx.call(); break; }
+        sfx.call(); openOrder();
+        break;
       case 6: { // 离席：这一趟记下，开茶单；「再开一市」才重新进门
         const dur = t - S.seatT;
         D.closeVisit(S.visit, dur);
         visits = D.pushVisit(visits, S.visit); saveVisits();
         S.visit = null; sfx.leave();
         const companions = new Set(S.ghosts.filter((g) => g.here && g.seatedWithMe !== false).map((g) => g.id)).size;
-        const tally = { ...S.tally, table: S.me.table, companions: Math.max(companions, S.metOthers || 0), seconds: dur, closedOut: !!kind, leftAt: D.clockAt(t) };
+        const tally = { ...S.tally, tea: S.tea, table: S.me.table, companions: Math.max(companions, S.metOthers || 0), seconds: dur, closedOut: !!kind, leftAt: D.clockAt(t) };
         S.phase = 'bill'; S.lastBill = D.billLines(tally);
         showBill(tally);
         break;
@@ -234,6 +251,15 @@
     }
     // 回叩
     for (let i = S.knockBacks.length - 1; i >= 0; i--) if (t >= S.knockBacks[i].at) { act(2, S.knockBacks[i].who); S.knockBacks.splice(i, 1); }
+    // 茶到了：壶、大碗一起上桌
+    if (S.tea && !S.potHere && t >= S.teaAt) { S.potHere = true; S.pot.level = 1; S.pot.lidOff = false; sfx.potdown(); if (S.phase === 'seated') hint(`${D.teaOf(S.tea).zh}到 · 头泡洗杯`); updateBars(); }
+    // 厨房出品
+    for (let i = S.kitchen.length - 1; i >= 0; i--) if (t >= S.kitchen[i].at) {
+      const k = S.kitchen.splice(i, 1)[0]; addBasket(k.kind); S.effects.push({ kind: 'waiter', t0: t, dur: 2.4 }); sfx.steamer();
+      if (S.phase === 'seated') hint(`出品 · ${D.dimsumName(k.kind)}`);
+    }
+    // 空笼放 6 秒伙计来收
+    for (let i = S.baskets.length - 1; i >= 0; i--) if (S.baskets[i].left === 0 && t - S.baskets[i].emptiedAt > 6) { S.baskets.splice(i, 1); S.effects.push({ kind: 'waiter', t0: t, dur: 1.8 }); }
     // 伙计加水
     if (S.pot.lidOff && t >= S.pot.refillAt) { S.pot.lidOff = false; S.pot.level = 1; S.effects.push({ kind: 'refill', t0: t, dur: 1.2 }); sfx.refill(); if (S.phase === 'seated') hint('加了水 · 壶满了'); }
     // 点心车：到、停、走；桌上别人也伸筷子
@@ -243,12 +269,12 @@
       S.cartMoves = [];
       S.residents.forEach((r, i) => { const m = D.residentCartMove(seed, plan.index, i); if (m.takes) S.cartMoves.push({ who: r, at: t + m.delay, pick: m.pick }); });
       othersHere().forEach((g, i) => { if (g.greedy) S.cartMoves.push({ who: g, at: t + 2 + ((i * 7 + plan.index * 3) % 5) * 0.8, pick: (i + plan.index) % 3 }); });
-      sfx.cart(); renderCart();
+      sfx.cart(); renderStrip();
       if (S.phase === 'seated') hint('点心车到了 · ' + S.cart.items.map((x) => D.dimsumName(x.kind)).join('、'));
     }
     if (S.cart) {
       for (let i = S.cartMoves.length - 1; i >= 0; i--) if (t >= S.cartMoves[i].at) { const m = S.cartMoves.splice(i, 1)[0]; const it = S.cart.items[m.pick] && S.cart.items[m.pick].stock > 0 ? S.cart.items[m.pick] : null; act(5, m.who, it ? it.kind : undefined); }
-      if (t >= S.cart.leaveAt) { S.cart = null; S.cartMoves = []; renderCart(); sfx.cart(0.5); if (S.phase === 'seated') hint('点心车走了'); updateBars(); }
+      if (t >= S.cart.leaveAt) { S.cart = null; S.cartMoves = []; renderStrip(); sfx.cart(0.5); if (S.phase === 'seated') hint('点心车走了'); updateBars(); }
     }
     // 早市过去：快收市变光、收市清场
     const ph = D.phaseAt(t);
@@ -285,18 +311,81 @@
     muteBtn.textContent = muted ? '有声' : '静音'; muteBtn.setAttribute('aria-pressed', String(muted));
   }
 
-  // ---------- 点心车选择条 ----------
-  function renderCart() {
+  // ---------- 拣茶、下单、桌上的笼 ----------
+  function chooseTea(key) {
+    if (!D.teaOf(key) || S.tea) return false;
+    S.tea = key; S.askTea = false; S.teaAt = S.tau + 3; if (S.tally) S.tally.tea = key;
+    S.effects.push({ kind: 'waiter', t0: S.tau, dur: 3.2 }); renderStrip(); updateBars();
+    hint(`${D.teaOf(key).zh} · 伙计拎壶去了`); return true;
+  }
+  function addBasket(kind) {
+    const d = D.dimsum(kind); if (!d) return;
+    S.baskets.push({ kind, left: d.n, at: S.tau });
+    if (S.tally) S.tally.baskets[kind] = (S.tally.baskets[kind] || 0) + 1;
+  }
+  function openOrder() {
+    S.picked = new Set();
+    orderGrid.innerHTML = '';
+    for (const d of D.DIMSUM) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'item'; b.dataset.kind = d.key;
+      const img = document.createElement('img'); img.src = dimsumIcon(d.key, 30); img.alt = '';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = d.zh;
+      const tier = document.createElement('span'); tier.className = 'tier'; tier.textContent = `${D.TIERS[d.tier].zh} ¥${D.TIERS[d.tier].price} · ${d.n} 件`; nm.appendChild(tier);
+      const tick = document.createElement('span'); tick.className = 'tick';
+      b.append(img, nm, tick);
+      b.addEventListener('click', () => {
+        if (S.picked.has(d.key)) S.picked.delete(d.key); else if (S.picked.size < D.ORDER_MAX) S.picked.add(d.key); else { hint(`一次最多勾 ${D.ORDER_MAX} 样 · 食完再叫`); return; }
+        refreshOrder();
+      });
+      orderGrid.appendChild(b);
+    }
+    refreshOrder(); orderEl.classList.add('show'); updateBars();
+  }
+  function refreshOrder() {
+    for (const b of orderGrid.children) { const on = S.picked.has(b.dataset.kind); b.classList.toggle('on', on); b.disabled = !on && S.picked.size >= D.ORDER_MAX; }
+    orderGo.disabled = S.picked.size === 0;
+    orderNote.textContent = S.picked.size ? `勾了 ${S.picked.size} 样 · 合计 ¥${[...S.picked].reduce((a, k) => a + D.tierOf(k).price, 0)}` : `一次最多勾 ${D.ORDER_MAX} 样`;
+  }
+  function placeOrder(kinds) {
+    const list = (kinds || [...S.picked]).filter((k) => D.dimsum(k)).slice(0, D.ORDER_MAX);
+    if (!list.length) return false;
+    const plan = D.kitchenPlan(seed, S.orders++, list);
+    for (const k of plan) S.kitchen.push({ kind: k.kind, at: S.tau + k.at });
+    orderEl.classList.remove('show'); S.picked = new Set();
+    S.effects.push({ kind: 'waiter', t0: S.tau, dur: 2.4 }); sfx.pen();
+    hint(`伙计收了单：${list.map(D.dimsumName).join('、')} · 等出品`); updateBars();
+    return true;
+  }
+  orderGo.addEventListener('click', () => { audio(); if (S.phase === 'seated') placeOrder(); });
+  orderCancel.addEventListener('click', () => { orderEl.classList.remove('show'); updateBars(); });
+
+  // ---------- 顶栏下的选择条：拣茶 / 点心车 ----------
+  function renderStrip() {
     [...cartEl.querySelectorAll('button')].forEach((b) => b.remove());
-    if (!S.cart || S.phase !== 'seated') { cartEl.classList.remove('show'); return; }
-    for (const it of S.cart.items) {
-      const b = document.createElement('button'); b.type = 'button'; b.dataset.kind = it.kind;
-      b.textContent = `${D.dimsumName(it.kind)} ×${it.stock}`; b.disabled = it.stock <= 0;
-      b.addEventListener('click', () => { audio(); act(5, undefined, it.kind); });
-      cartEl.appendChild(b);
+    const who = cartEl.querySelector('.who');
+    cartEl.classList.remove('tea');
+    if (S.phase !== 'seated' || (!S.cart && !S.askTea)) { cartEl.classList.remove('show'); return; }
+    if (S.cart) {
+      who.textContent = '点心车';
+      for (const it of S.cart.items) {
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.kind = it.kind;
+        const img = document.createElement('img'); img.src = dimsumIcon(it.kind, 22); img.alt = '';
+        b.append(img, document.createTextNode(`${D.dimsumName(it.kind)} ×${it.stock}`)); b.disabled = it.stock <= 0;
+        b.addEventListener('click', () => { audio(); act(5, undefined, it.kind); });
+        cartEl.appendChild(b);
+      }
+    } else {
+      who.textContent = '饮乜茶？'; cartEl.classList.add('tea');
+      for (const tea of D.TEAS) {
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.tea = tea.key; b.textContent = tea.zh;
+        b.style.borderColor = tea.color;
+        b.addEventListener('click', () => { audio(); chooseTea(tea.key); });
+        cartEl.appendChild(b);
+      }
     }
     cartEl.classList.add('show');
   }
+  const renderCart = renderStrip;
 
   // ---------- 茶单（离席时的一张图，长按可存） ----------
   function showBill(tally) {
@@ -308,7 +397,7 @@
     g.strokeStyle = 'rgba(42,33,24,.06)'; g.lineWidth = 2; for (let y = 60; y < Hc; y += 46) { g.beginPath(); g.moveTo(60, y); g.lineTo(Wc - 60, y); g.stroke(); }
     g.strokeStyle = '#6b4a2b'; g.lineWidth = 6; g.strokeRect(40, 40, Wc - 80, Hc - 80); g.lineWidth = 2; g.strokeRect(58, 58, Wc - 116, Hc - 116);
     g.fillStyle = '#2a2118'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = '600 88px "Noto Serif SC", "Songti SC", serif'; g.fillText('搭台 · 茶单', Wc / 2, 170);
+    g.font = '600 88px "Noto Serif SC", "Songti SC", serif'; g.fillText('搭台 · 埋单', Wc / 2, 170);
     g.font = '34px "Noto Serif SC", "Songti SC", serif'; g.fillStyle = 'rgba(42,33,24,.6)';
     const d = new Date(); g.fillText(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} 早市`, Wc / 2, 240);
     // 一张小桌
@@ -319,7 +408,7 @@
     g.fillStyle = '#c9a063'; g.beginPath(); g.ellipse(Wc / 2 - 10, 326, 28, 13, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#f7f3ea'; g.beginPath(); g.ellipse(Wc / 2 + 30, 318, 22, 20, 0, 0, Math.PI * 2); g.fill(); g.stroke();
     g.fillStyle = '#2a2118'; g.font = '44px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'left';
-    lines.forEach((ln, i) => g.fillText(ln, 120, 470 + i * 96));
+    lines.forEach((ln, i) => { let fs = 44; g.font = `${fs}px "Noto Serif SC", "Songti SC", serif`; while (g.measureText(ln).width > Wc - 240 && fs > 26) { fs -= 2; g.font = `${fs}px "Noto Serif SC", "Songti SC", serif`; } g.fillText(ln, 120, 470 + i * 96); });
     // 红章
     g.save(); g.translate(Wc - 230, Hc - 230); g.rotate(-0.18); g.strokeStyle = 'rgba(199,83,47,.85)'; g.lineWidth = 8; g.strokeRect(-80, -80, 160, 160);
     g.fillStyle = 'rgba(199,83,47,.85)'; g.font = '600 64px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('多謝', 0, -2); g.restore();
@@ -379,6 +468,9 @@
     leave(v) { S.lastSound = 'leave'; const vol = v || 1; noise({ type: 'lowpass', f0: 300, dur: 0.3, vol: 0.45 * vol, attack: 0.03 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.3 * vol, delay: 0.45 }); noise({ type: 'lowpass', f0: 180, dur: 0.1, vol: 0.25 * vol, delay: 0.8 }); },
     dry() { S.lastSound = 'dry'; noise({ f0: 700, q: 6, dur: 0.2, vol: 0.2, rate: 0.6 }); },
     refill() { S.lastSound = 'refill'; noise({ f0: 300, f1: 900, q: 2, dur: 1.0, vol: 0.3, attack: 0.1 }); tone({ f0: 2650, f1: 2500, dur: 0.3, vol: 0.2, delay: 1.0 }); },
+    call() { S.lastSound = 'call'; tone({ f0: 660, f1: 880, dur: 0.14, vol: 0.18, wave: 'triangle' }); tone({ f0: 880, f1: 760, dur: 0.18, vol: 0.14, wave: 'triangle', delay: 0.16 }); },
+    pen() { S.lastSound = 'pen'; noise({ type: 'highpass', f0: 2500, dur: 0.08, vol: 0.25, rate: 1.8 }); noise({ type: 'highpass', f0: 2500, dur: 0.1, vol: 0.2, rate: 1.6, delay: 0.14 }); },
+    potdown() { S.lastSound = 'potdown'; tone({ f0: 2400, f1: 2200, dur: 0.3, vol: 0.22 }); noise({ type: 'lowpass', f0: 400, dur: 0.12, vol: 0.3, delay: 0.02 }); tone({ f0: 1900, f1: 1800, dur: 0.25, vol: 0.12, delay: 0.3 }); },
     cart(v) { S.lastSound = 'cart'; const vol = v || 1; for (let i = 0; i < 4; i++) noise({ type: 'lowpass', f0: 500, dur: 0.09, vol: 0.22 * vol, rate: 0.7 + i * 0.1, delay: i * 0.13 }); tone({ f0: 180, f1: 150, dur: 0.5, vol: 0.06 * vol, wave: 'triangle' }); },
     steamer(v) { S.lastSound = 'steamer'; const vol = v || 0.6; noise({ f0: 1100, q: 2, dur: 0.12, vol: 0.35 * vol, rate: 0.9 }); noise({ f0: 1300, q: 2, dur: 0.1, vol: 0.25 * vol, rate: 1.1, delay: 0.09 }); },
   };
@@ -411,6 +503,73 @@
     return { horizon, cx: W / 2, cy, rx, ry, short: avail < 240 };
   }
   function ell(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); }
+  function teaColor() { const tea = S.tea ? D.teaOf(S.tea) : null; return tea ? tea.color : C.tea; }
+
+  // 十四样点心各画各的样子，s 是基准尺寸（一件约 s 宽）。g 可以是任意 2D 上下文（页面、图标、茶单共用）。
+  function drawDimsum(g, kind, x, y, s) {
+    const E = (cx, cy, rx, ry) => { g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); };
+    g.lineWidth = Math.max(0.8, s * 0.08);
+    switch (kind) {
+      case 'har': // 虾饺：半透明月牙皮，透出粉红虾肉，皮上褶
+        g.fillStyle = '#f0a3a0'; E(x, y + s * 0.05, s * 0.5, s * 0.3); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.72)'; g.beginPath(); g.moveTo(x - s * 0.52, y + s * 0.1); g.quadraticCurveTo(x, y - s * 0.55, x + s * 0.52, y + s * 0.1); g.quadraticCurveTo(x, y + s * 0.4, x - s * 0.52, y + s * 0.1); g.fill();
+        g.strokeStyle = 'rgba(200,170,170,.8)'; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(x + i * s * 0.14, y - s * 0.3 + Math.abs(i) * s * 0.06); g.lineTo(x + i * s * 0.17, y + s * 0.02); g.stroke(); } break;
+      case 'siu': // 烧卖：黄皮直筒，橙红肉顶，一点蟹籽
+        g.fillStyle = '#e9c35a'; g.fillRect(x - s * 0.36, y - s * 0.15, s * 0.72, s * 0.5); E(x, y + s * 0.35, s * 0.36, s * 0.14); g.fill();
+        g.fillStyle = '#e07a4a'; E(x, y - s * 0.15, s * 0.34, s * 0.2); g.fill();
+        g.fillStyle = '#f0b040'; E(x + s * 0.08, y - s * 0.2, s * 0.08, s * 0.06); g.fill(); break;
+      case 'bao': // 叉烧包：白胖圆，顶上开口露出酱红
+        g.fillStyle = '#fbf7ef'; E(x, y, s * 0.5, s * 0.42); g.fill(); g.strokeStyle = '#e4dccb'; g.stroke();
+        g.fillStyle = '#9c3b22'; g.beginPath(); g.moveTo(x - s * 0.16, y - s * 0.3); g.lineTo(x + s * 0.16, y - s * 0.3); g.lineTo(x + s * 0.02, y - s * 0.05); g.closePath(); g.fill(); break;
+      case 'feet': // 凤爪：酱红亮，三根趾
+        g.fillStyle = '#b4452a'; E(x, y + s * 0.1, s * 0.3, s * 0.26); g.fill();
+        g.strokeStyle = '#b4452a'; g.lineWidth = s * 0.16; g.lineCap = 'round'; for (const a of [-0.9, -0.45, 0]) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a - 1.2) * s * 0.55, y + Math.sin(a - 1.2) * s * 0.55); g.stroke(); }
+        g.fillStyle = 'rgba(255,220,200,.5)'; E(x - s * 0.08, y, s * 0.08, s * 0.05); g.fill(); break;
+      case 'rib': // 豉汁排骨：三块褐色，黑豆豉点
+        g.fillStyle = '#8a5a35'; for (const [dx, dy] of [[-0.3, 0.05], [0.05, -0.12], [0.32, 0.1]]) { E(x + dx * s, y + dy * s, s * 0.22, s * 0.17); g.fill(); }
+        g.fillStyle = '#2a1a10'; for (const [dx, dy] of [[-0.25, 0], [0.1, -0.15], [0.3, 0.08], [-0.05, 0.1]]) { E(x + dx * s, y + dy * s, s * 0.04, s * 0.03); g.fill(); } break;
+      case 'roll': // 肠粉：两条白卷，泡在酱油里
+        g.fillStyle = 'rgba(90,50,20,.55)'; E(x, y + s * 0.15, s * 0.6, s * 0.22); g.fill();
+        g.fillStyle = '#fbf8f2'; g.strokeStyle = '#e8e0d0'; for (const dy of [-0.08, 0.14]) { g.beginPath(); g.roundRect ? g.roundRect(x - s * 0.52, y + dy * s - s * 0.1, s * 1.04, s * 0.2, s * 0.1) : g.rect(x - s * 0.52, y + dy * s - s * 0.1, s * 1.04, s * 0.2); g.fill(); g.stroke(); } break;
+      case 'cake': // 马拉糕：棕黄方块，气孔
+        g.fillStyle = '#c98a3e'; g.fillRect(x - s * 0.4, y - s * 0.3, s * 0.8, s * 0.6); g.fillStyle = '#e0a452'; g.fillRect(x - s * 0.4, y - s * 0.3, s * 0.8, s * 0.14);
+        g.fillStyle = 'rgba(80,40,10,.35)'; for (const [dx, dy] of [[-0.2, 0.05], [0.1, 0.15], [0.25, -0.05], [-0.05, -0.08]]) { E(x + dx * s, y + dy * s, s * 0.04, s * 0.04); g.fill(); } break;
+      case 'tart': // 蛋挞：花边酥皮，黄蛋心
+        g.fillStyle = '#d9a95a'; E(x, y, s * 0.5, s * 0.36); g.fill(); g.strokeStyle = '#b88638'; g.lineWidth = s * 0.1; g.setLineDash([s * 0.12, s * 0.08]); E(x, y, s * 0.46, s * 0.32); g.stroke(); g.setLineDash([]);
+        g.fillStyle = '#f2c43a'; E(x, y, s * 0.34, s * 0.23); g.fill(); break;
+      case 'rice': // 糯米鸡：荷叶包，捆绳
+        g.fillStyle = '#5f7a3a'; g.beginPath(); g.roundRect ? g.roundRect(x - s * 0.5, y - s * 0.32, s, s * 0.64, s * 0.12) : g.rect(x - s * 0.5, y - s * 0.32, s, s * 0.64); g.fill();
+        g.strokeStyle = '#3f5526'; g.beginPath(); g.moveTo(x - s * 0.5, y); g.lineTo(x + s * 0.5, y); g.moveTo(x, y - s * 0.32); g.lineTo(x, y + s * 0.32); g.stroke(); break;
+      case 'turnip': // 萝卜糕：煎到两面焦黄的厚片
+        g.fillStyle = '#f0e2c4'; g.fillRect(x - s * 0.45, y - s * 0.22, s * 0.9, s * 0.44); g.fillStyle = 'rgba(190,120,50,.55)'; g.fillRect(x - s * 0.45, y - s * 0.22, s * 0.9, s * 0.1); g.fillRect(x - s * 0.45, y + s * 0.12, s * 0.9, s * 0.1);
+        g.fillStyle = '#c9553a'; for (const [dx, dy] of [[-0.2, 0.02], [0.15, -0.04], [0.3, 0.08]]) { E(x + dx * s, y + dy * s, s * 0.05, s * 0.04); g.fill(); } break;
+      case 'lava': // 流沙包：雪白圆包，顶一点黄
+        g.fillStyle = '#fdfbf5'; E(x, y, s * 0.46, s * 0.4); g.fill(); g.strokeStyle = '#e8e0d0'; g.stroke();
+        g.fillStyle = '#f0c040'; E(x, y - s * 0.3, s * 0.1, s * 0.06); g.fill(); break;
+      case 'beef': // 牛肉球：两个灰褐圆球，垫腐皮
+        g.fillStyle = '#e8d9b8'; E(x, y + s * 0.2, s * 0.55, s * 0.16); g.fill();
+        g.fillStyle = '#8f7a66'; E(x - s * 0.22, y, s * 0.24, s * 0.24); g.fill(); E(x + s * 0.22, y - s * 0.02, s * 0.24, s * 0.24); g.fill();
+        g.fillStyle = '#4f7a3a'; E(x - s * 0.2, y - s * 0.1, s * 0.05, s * 0.03); g.fill(); break;
+      case 'spring': // 春卷：金黄两条
+        g.fillStyle = '#d9962f'; for (const dy of [-0.1, 0.12]) { g.beginPath(); g.roundRect ? g.roundRect(x - s * 0.5, y + dy * s - s * 0.1, s, s * 0.2, s * 0.1) : g.rect(x - s * 0.5, y + dy * s - s * 0.1, s, s * 0.2); g.fill(); }
+        g.strokeStyle = 'rgba(120,70,10,.5)'; g.beginPath(); g.moveTo(x - s * 0.3, y - s * 0.1); g.lineTo(x + s * 0.3, y - s * 0.1); g.stroke(); break;
+      case 'ham': // 咸水角：枣形金黄，表面起泡
+        g.fillStyle = '#e0a93f'; E(x, y, s * 0.52, s * 0.3); g.fill();
+        g.fillStyle = 'rgba(255,240,200,.6)'; for (const [dx, dy] of [[-0.25, -0.08], [0.05, -0.14], [0.3, -0.02], [-0.05, 0.08]]) { E(x + dx * s, y + dy * s, s * 0.05, s * 0.04); g.fill(); } break;
+      default:
+        g.fillStyle = '#f3dcc5'; E(x, y, s * 0.45, s * 0.3); g.fill();
+    }
+  }
+  const iconCache = new Map();
+  function dimsumIcon(kind, size) {
+    const key = kind + '@' + size;
+    if (iconCache.has(key)) return iconCache.get(key);
+    const c = document.createElement('canvas'); c.width = c.height = size * 2;
+    const g = c.getContext('2d'); g.scale(2, 2); drawDimsum(g, kind, size / 2, size / 2 + 1, size * 0.78);
+    const url = c.toDataURL('image/png'); iconCache.set(key, url); return url;
+  }
+  // 自己桌上的笼：排在左前方，最多四笼
+  function basketPos(i) { const L = layout(); return { x: L.cx - L.rx * 0.52 + (i % 2) * 36, y: L.cy + L.ry * 0.02 + Math.floor(i / 2) * 22 - (i % 2) * 7 }; }
   const SLOT_ANGLE = [Math.PI * 0.72, Math.PI * 1.22, Math.PI * 1.78, Math.PI * 0.28]; // 前左、后左、后右、前右
   function slotPos(L, slot, k) {
     const a = SLOT_ANGLE[slot];
@@ -527,16 +686,21 @@
       ctx.fillStyle = C.porcelain; ell(p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1), p.y + 2, 12 * (p.back ? 0.8 : 1), 5 * (p.back ? 0.8 : 1)); ctx.fill();
       ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ctx.stroke();
       const onPlate = who ? (who.kind === 'me' ? S.myPlate : (who.plate || 0)) : 0;
-      for (let i = 0; i < Math.min(onPlate, 3); i++) { const px = p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1) + (i - 1) * 5, py = p.y + (p.back ? 1 : 0) - i * 1.5; ctx.fillStyle = i % 2 ? '#f6e3b4' : '#f3dcc5'; ell(px, py, 4.5 * (p.back ? 0.8 : 1), 3 * (p.back ? 0.8 : 1)); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.lineWidth = 1; ctx.stroke(); }
+      for (let i = 0; i < Math.min(onPlate, 3); i++) {
+        const px = p.x + (slot < 2 ? 14 : -14) * (p.back ? 0.7 : 1) + (i - 1) * 6, py = p.y + (p.back ? 1 : 0) - i * 1.5;
+        const kind = who.kind === 'me' ? (S.plateKinds[S.plateKinds.length - Math.min(onPlate, 3) + i] || 'har') : ['siu', 'har', 'bao'][i];
+        drawDimsum(ctx, kind, px, py, p.back ? 8 : 11);
+      }
       // 茶盅
       const r = (p.back ? 6.5 : 8.5);
       ctx.fillStyle = C.porcelain; ell(p.x, p.y + 3, r, r * 0.5); ctx.fill(); ctx.fillRect(p.x - r, p.y - 4, r * 2, 7); ell(p.x, p.y - 4, r, r * 0.5); ctx.fill();
       ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ell(p.x, p.y - 4, r, r * 0.5); ctx.stroke();
-      if (cup > 0.05) { ctx.fillStyle = C.tea; ell(p.x, p.y - 4, r * 0.8, r * 0.4); ctx.fill(); }
+      if (cup > 0.05) { ctx.fillStyle = teaColor(); ell(p.x, p.y - 4, r * 0.8, r * 0.4); ctx.fill(); }
       if (cup > 0.6 && Math.sin(t * 2 + slot) > 0) drawSteam(p.x, p.y - 8, t + slot, 0.5);
     }
-    // 茶壶（中偏后）与蒸笼（中偏左前）
-    drawPot(L, t); drawSteamer(L, t);
+    // 茶壶与大碗（茶到了才上桌）、自己的笼
+    if (S.potHere) { drawPot(L, t); drawBowl(L, t); }
+    drawBaskets(L, t);
     // 报纸：翻报的人手里
     for (let slot = 0; slot < 4; slot++) {
       const who = occupant(slot); if (!who) continue;
@@ -572,20 +736,43 @@
     ctx.fillStyle = C.blue; ell(lx, ly - 3, 2.5, 2); ctx.fill();
     if (lidOff) drawSteam(x, y - r, t, 0.9);
     // 水位示意：壶身一条淡淡的刻度
-    ctx.fillStyle = 'rgba(184,118,42,.25)'; ctx.fillRect(x - r * 0.5, y + r * 0.6 - S.pot.level * r * 0.9, r, S.pot.level * r * 0.9);
+    ctx.fillStyle = teaColor(); ctx.globalAlpha = 0.28; ctx.fillRect(x - r * 0.5, y + r * 0.6 - S.pot.level * r * 0.9, r, S.pot.level * r * 0.9); ctx.globalAlpha = 1;
   }
-  function drawSteamer(L, t) {
-    const x = L.cx - L.rx * 0.42, y = L.cy - L.ry * 0.05, r = 17;
-    for (let k = 0; k < 2; k++) {
-      const yy = y - k * 9;
-      ctx.fillStyle = C.bambooDark; ell(x, yy + 4, r, r * 0.45); ctx.fill();
-      ctx.fillStyle = C.bamboo; ctx.fillRect(x - r, yy - 5, r * 2, 9); ell(x, yy - 5, r, r * 0.45); ctx.fill();
-      ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1; ell(x, yy - 5, r, r * 0.45); ctx.stroke();
-    }
-    const top = y - 9;
-    for (let i = 0; i < S.steamer.length; i++) { const a = i * 2.1 + 0.4; ctx.fillStyle = S.steamer[i] === 'siu' ? '#f6e3b4' : '#f3dcc5'; ell(x + Math.cos(a) * 7, top - 5 + Math.sin(a) * 3.5, 5, 3.4); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.stroke(); }
-    if (S.steamer.length > 0) drawSteam(x, top - 10, t * 1.2, 0.8);
-    else { ctx.fillStyle = 'rgba(42,33,24,.5)'; ctx.font = '10px serif'; ctx.textAlign = 'center'; ctx.fillText('空', x, top - 4); }
+  function drawBaskets(L, t) {
+    S.baskets.slice(0, 4).forEach((bk, i) => {
+      const { x, y } = basketPos(i), r = 17;
+      ctx.fillStyle = C.bambooDark; ell(x, y + 4, r, r * 0.45); ctx.fill();
+      ctx.fillStyle = C.bamboo; ctx.fillRect(x - r, y - 5, r * 2, 9); ell(x, y - 5, r, r * 0.45); ctx.fill();
+      ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1; ell(x, y - 5, r, r * 0.45); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ell(x, y - 5, r * 0.8, r * 0.3); ctx.fill();
+      const d = D.dimsum(bk.kind), n = d ? d.n : 3;
+      for (let k = 0; k < bk.left; k++) { const a = (k / n) * Math.PI * 2 + 0.6, rr = bk.left === 1 ? 0 : 7; drawDimsum(ctx, bk.kind, x + Math.cos(a) * rr, y - 7 + Math.sin(a) * rr * 0.5, 10.5); }
+      // 盖子斜靠在笼边
+      ctx.fillStyle = C.bamboo; ctx.beginPath(); ctx.ellipse(x + r * 0.9, y - 8, r * 0.9, r * 0.25, -0.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = C.bambooDark; ctx.stroke();
+      if (bk.left > 0) drawSteam(x, y - 12, t * 1.2 + i, 0.7);
+      else { ctx.fillStyle = 'rgba(42,33,24,.5)'; ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('空', x, y - 2); }
+    });
+    if (S.baskets.length > 4) { ctx.fillStyle = 'rgba(42,33,24,.6)'; ctx.font = '10px serif'; ctx.textAlign = 'left'; ctx.fillText(`+${S.baskets.length - 4} 笼`, L.cx - L.rx * 0.5 + 62, L.cy + 18); }
+  }
+  // 洗杯的大碗：在你的位子旁边
+  function drawBowl(L, t) {
+    const p = slotPos(L, 0, 0.66), x = p.x + 30, y = p.y - 10, r = 11;
+    ctx.fillStyle = C.porcelain; ell(x, y + 4, r, r * 0.45); ctx.fill(); ctx.fillRect(x - r, y - 2, r * 2, 6); ell(x, y - 2, r, r * 0.5); ctx.fill();
+    ctx.strokeStyle = C.blue; ctx.lineWidth = 1; ell(x, y - 2, r, r * 0.5); ctx.stroke();
+    if (S.rinsed) { ctx.fillStyle = teaColor(); ctx.globalAlpha = 0.5; ell(x, y - 2, r * 0.78, r * 0.36); ctx.fill(); ctx.globalAlpha = 1; }
+    // 没洗杯前筷子横在碗上
+    if (!S.rinsed) { ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 14, y - 4); ctx.lineTo(x + 14, y - 1); ctx.moveTo(x - 14, y - 1); ctx.lineTo(x + 14, y + 2); ctx.stroke(); }
+  }
+  // 伙计：从右边走到桌边又走开（送茶、出品、收碟都靠他）
+  function drawWaiter(L, t, e) {
+    const k = (t - e.t0) / e.dur, ease = (v) => 1 - Math.pow(1 - v, 3);
+    const xHome = Math.min(W - 30, L.cx + L.rx * 1.12), xFar = W + 40;
+    const x = k < 0.4 ? lerp(xFar, xHome, ease(k / 0.4)) : k < 0.6 ? xHome : lerp(xHome, xFar, ease((k - 0.6) / 0.4));
+    const y = L.cy - L.ry * 0.55;
+    ctx.fillStyle = '#f0ebe0'; ctx.beginPath(); ctx.moveTo(x - 13, y); ctx.lineTo(x - 13, y - 24); ctx.quadraticCurveTo(x, y - 34, x + 13, y - 24); ctx.lineTo(x + 13, y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.skin; ell(x, y - 34, 8.5, 9.5); ctx.fill(); ctx.fillStyle = '#2a2118'; ell(x, y - 40, 8, 4.2); ctx.fill();
+    // 手里托着东西
+    ctx.fillStyle = C.bamboo; ell(x - 16, y - 14, 9, 4); ctx.fill();
   }
   // 点心车：从右边推到桌旁，停一会儿再走；车上三格，标着名字和剩几件
   function cartPos(L, t) {
@@ -608,9 +795,9 @@
     // 三摞小笼与标签
     S.cart.items.forEach((it, i) => {
       const sx = x - w / 2 + w * (0.18 + i * 0.32), sy = y - 2;
-      for (let k = 0; k < (it.stock > 0 ? 2 : 1); k++) { ctx.fillStyle = k ? C.bamboo : C.bambooDark; ell(sx, sy - k * 5, 9, 4); ctx.fill(); }
+      for (let k = 0; k < Math.max(1, Math.min(it.stock, 3)); k++) { ctx.fillStyle = k === Math.min(it.stock, 3) - 1 ? C.bamboo : C.bambooDark; ell(sx, sy - k * 4, 9, 4); ctx.fill(); }
       if (it.stock <= 0) { ctx.strokeStyle = 'rgba(42,33,24,.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sx - 6, sy - 10); ctx.lineTo(sx + 6, sy + 2); ctx.stroke(); }
-      else drawSteam(sx, sy - 12, t + i, 0.5);
+      else { drawDimsum(ctx, it.kind, sx, sy - Math.min(it.stock, 3) * 4 - 3, 9); drawSteam(sx, sy - 16, t + i, 0.5); }
     });
     // 车身上写着字，不另挂牌子（免得压到邻座的标签）
     ctx.fillStyle = '#f0d9a0'; ctx.font = '10px "Noto Serif SC", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('点 心 车', x, y + c.h - 7);
@@ -686,10 +873,19 @@
         ctx.beginPath(); ctx.moveTo(p.x + 12, p.y + 14 + dy); ctx.lineTo(p.x + 14, p.y + 6 + dy); ctx.moveTo(p.x + 17, p.y + 14 + dy); ctx.lineTo(p.x + 18, p.y + 6 + dy); ctx.stroke();
       } else if (e.kind === 'pick') {
         const cp = e.fromCart && S.cart ? cartPos(L, t) : null;
-        const from = cp ? { x: cp.x, y: cp.y - 10 } : { x: L.cx - L.rx * 0.42, y: L.cy - L.ry * 0.05 - 14 }, to = slotPos(L, e.slot, 0.66);
+        const from = cp ? { x: cp.x, y: cp.y - 10 } : e.from ? { x: e.from.x, y: e.from.y - 14 } : { x: L.cx - L.rx * 0.42, y: L.cy - L.ry * 0.05 - 14 };
+        const to = e.basket ? basketPos(Math.max(0, Math.min(3, S.baskets.length - 1))) : slotPos(L, e.slot, 0.66);
         const x = from.x + (to.x + 14 - from.x) * k, y = from.y + (to.y - from.y) * k - Math.sin(k * Math.PI) * 18;
         ctx.strokeStyle = C.bambooDark; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 3, y + 2); ctx.lineTo(x - 10, y + 28); ctx.moveTo(x + 3, y + 2); ctx.lineTo(x - 4, y + 28); ctx.stroke();
-        ctx.fillStyle = '#f3dcc5'; ell(x, y + 2, 5, 3.4); ctx.fill(); ctx.strokeStyle = '#d9a07a'; ctx.stroke();
+        if (e.basket) { ctx.fillStyle = C.bamboo; ell(x, y + 2, 12, 5); ctx.fill(); ctx.strokeStyle = C.bambooDark; ctx.stroke(); } else drawDimsum(ctx, (e.from && S.plateKinds[S.plateKinds.length - 1]) || 'har', x, y + 2, 11);
+      } else if (e.kind === 'rinse') {
+        const pot = { x: L.cx + L.rx * 0.08, y: L.cy - L.ry * 0.25 - 16 }, p = slotPos(L, 0, 0.66), bowl = { x: p.x + 30, y: p.y - 12 };
+        ctx.strokeStyle = teaColor(); ctx.lineWidth = 2.2; ctx.globalAlpha = k < 0.6 ? 0.9 : 0.9 * (1 - (k - 0.6) / 0.4);
+        ctx.beginPath(); ctx.moveTo(pot.x + 14, pot.y); ctx.quadraticCurveTo((pot.x + bowl.x) / 2, Math.min(pot.y, bowl.y) - 26, bowl.x, bowl.y); ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1; for (let i = 0; i < 3; i++) { ctx.globalAlpha = Math.max(0, 1 - ((k * 3 + i * 0.33) % 1)); ell(bowl.x, bowl.y + 2, 6 + ((k * 3 + i * 0.33) % 1) * 10, 2.5 + ((k * 3 + i * 0.33) % 1) * 4); ctx.stroke(); } ctx.globalAlpha = 1;
+        drawSteam(bowl.x, bowl.y - 6, t, 0.8);
+      } else if (e.kind === 'waiter') {
+        drawWaiter(L, t, e);
       } else if (e.kind === 'refill') {
         const x = L.cx + L.rx * 0.08, y = L.cy - L.ry * 0.25 - 16;
         ctx.strokeStyle = 'rgba(180,210,230,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y - 40); ctx.lineTo(x, y + 2); ctx.stroke(); drawSteam(x, y - 10, t, 1.2);
@@ -724,7 +920,7 @@
   muteBtn.addEventListener('click', () => { audio(); setMuted(!muted); });
   window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
-    const map = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6 };
+    const map = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 8, '8': 6 };
     if (e.key in map) { audio(); act(map[e.key]); e.preventDefault(); }
     else if (e.key === 'm' || e.key === 'M') setMuted(!muted);
   });
@@ -741,13 +937,14 @@
       pot: { ...S.pot }, myCup: S.myCup, myPlate: S.myPlate, myPage: S.myPage,
       knockOpen: S.tau <= S.knockUntil, lastSound: S.lastSound, effects: S.effects.map((e) => e.kind), visits: visits.length,
       clock: D.clockAt(S.tau), dayPhase: S.dayPhase, closed: S.closed, cart: S.cart ? S.cart.items.map((x) => [x.kind, x.stock]) : null, cartChips: cartEl.querySelectorAll('button').length, cartShown: cartEl.classList.contains('show'),
-      tally: S.tally, bill: S.phase === 'bill' ? S.lastBill : null, billShown: billEl.classList.contains('show'), steamer: S.steamer.length,
+      tally: S.tally, bill: S.phase === 'bill' ? S.lastBill : null, billShown: billEl.classList.contains('show'),
+      tea: S.tea, askTea: S.askTea, potHere: S.potHere, rinsed: S.rinsed, baskets: S.baskets.map((b) => [b.kind, b.left]), kitchen: S.kitchen.length, orders: S.orders, orderShown: orderEl.classList.contains('show'), plateKinds: S.plateKinds.slice(), stripKind: cartEl.classList.contains('show') ? (S.cart ? 'cart' : 'tea') : null,
       hint: hintEl.textContent, where: whereEl.textContent, hallText: hallEl.textContent, frameStamp,
     };
   }
   window.__datai = {
     get ready() { return !!S; }, act, snapshot, canAct, get state() { return S; }, get visits() { return visits; }, get frameStamp() { return frameStamp; },
-    pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; },
+    pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; }, chooseTea, order: placeOrder, openOrder, dimsumIcon,
   };
   window.__PLAYTEST__ = {
     get ready() { return !!S; }, snapshot,
@@ -761,7 +958,7 @@
   visits = loadVisits();
   enterHall();
   if (FIXED) {
-    if (Q.get('door') !== '1') act(0);
+    if (Q.get('door') !== '1') { act(0); if (Q.get('ask') !== '1') chooseTea(Q.get('tea') || 'puer'); }
     const t = +Q.get('t');
     if (t > 0) { const steps = Math.ceil(t / 0.05); for (let i = 0; i < steps; i++) tick(t / steps); paused = true; }
   }

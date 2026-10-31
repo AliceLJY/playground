@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>搭台 · 茶楼早市</title>
-<meta name="description" content="广州茶楼早市，和陌生人搭一张桌：一盅两件，各看各的报纸，没有聊天框。能做的只有落座、斟茶、叩指、揭盖、翻报纸、夹一件、离席。点心车来了要抢，早市五分钟会过去，离席给你一张茶单。桌满了自动开下一桌；别人是你自己前几次来的回放，没人时坐着两个标注过的灰色身影。">
+<meta name="description" content="广州茶楼早市，和陌生人搭一张桌：一盅两件，各看各的报纸，没有聊天框。能做的只有落座、斟茶、叩指、揭盖、翻报纸、夹一件、唔该、离席。坐下先拣茶，喊伙计拿点心纸下单，点心车来了要抢，早市五分钟会过去，离席埋单。桌满了自动开下一桌；别人是你自己前几次来的回放，没人时坐着两个标注过的灰色身影。">
 <style>
   :root { --wood: #6b4a2b; --paper: #efe6d2; --ink: #2a2118; --muted: rgba(42,33,24,.6); --accent: #c7532f; --bar: #f6efe0; }
   * { box-sizing: border-box; }
@@ -13,7 +13,8 @@
   .top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px; background: var(--bar); border-bottom: 1px solid rgba(0,0,0,.12); white-space: nowrap; }
   .top .where { font-size: 15px; letter-spacing: .08em; }
   .top .where b { font-weight: 700; }
-  .top .hall { font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+  .top .hall { font-size: 12px; color: var(--muted); letter-spacing: .06em; margin-left: auto; }
+  .top .mute { font: inherit; font-size: 12px; letter-spacing: .06em; min-height: 32px; padding: 2px 8px; color: var(--muted); background: transparent; border: 1px solid rgba(42,33,24,.3); border-radius: 3px; cursor: pointer; }
   #scene { flex: 1 1 auto; display: block; width: 100%; min-height: 0; touch-action: none; }
   .bottom { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid rgba(0,0,0,.12); }
   .bottom button { font: inherit; font-size: 15px; letter-spacing: .12em; min-height: 46px; padding: 6px 4px; color: var(--ink); background: #fffaf0; border: 1px solid rgba(42,33,24,.45); border-radius: 4px; cursor: pointer; }
@@ -26,7 +27,28 @@
   .cart { position: fixed; left: 50%; transform: translateX(-50%); top: calc(50px + env(safe-area-inset-top)); display: none; gap: 8px; padding: 6px 8px; background: rgba(42,33,24,.86); border-radius: 4px; max-width: calc(100vw - 16px); }
   .cart.show { display: flex; }
   .cart .who { color: #f3e6c8; font-size: 12px; letter-spacing: .08em; align-self: center; white-space: nowrap; }
-  .cart button { font: inherit; font-size: 14px; letter-spacing: .06em; min-height: 40px; padding: 4px 10px; color: #2a2118; background: #f6efe0; border: 1px solid #c9a063; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+  .cart button { font: inherit; font-size: 13.5px; letter-spacing: .04em; min-height: 40px; padding: 3px 8px; color: #2a2118; background: #f6efe0; border: 1px solid #c9a063; border-radius: 3px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+  .cart button img { width: 22px; height: 22px; display: block; }
+  .cart.tea button { padding: 3px 10px; }
+  .order { position: fixed; inset: 0; display: none; align-items: flex-end; justify-content: center; background: rgba(42,33,24,.55); z-index: 6; }
+  .order.show { display: flex; }
+  .order .sheet { background: #f6efe0; border-radius: 10px 10px 0 0; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); width: 100%; max-width: 560px; max-height: 88dvh; display: flex; flex-direction: column; background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(42,33,24,.06) 27px 28px); }
+  .order .head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 8px; border-bottom: 2px solid rgba(42,33,24,.5); }
+  .order .head b { font-size: 18px; letter-spacing: .3em; }
+  .order .head span { font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+  .order .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 8px 0; overflow: auto; min-height: 0; }
+  .order .item { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 4px 8px 4px 6px; font: inherit; color: var(--ink); background: rgba(255,250,240,.7); border: 1px solid rgba(42,33,24,.25); border-radius: 4px; cursor: pointer; text-align: left; }
+  .order .item img { width: 30px; height: 30px; flex: 0 0 30px; }
+  .order .item .nm { font-size: 14px; letter-spacing: .04em; flex: 1 1 auto; }
+  .order .item .tier { font-size: 11px; color: var(--muted); display: block; letter-spacing: .04em; }
+  .order .item .tick { width: 20px; height: 20px; border: 1.5px solid rgba(42,33,24,.5); border-radius: 2px; flex: 0 0 20px; position: relative; }
+  .order .item.on { border-color: var(--accent); background: #fff5ee; }
+  .order .item.on .tick::after { content: ''; position: absolute; left: 5px; top: 1px; width: 6px; height: 11px; border: solid var(--accent); border-width: 0 2.5px 2.5px 0; transform: rotate(40deg); }
+  .order .item:disabled { opacity: .45; cursor: default; }
+  .order .foot { display: flex; gap: 8px; justify-content: flex-end; padding-top: 6px; border-top: 1px solid rgba(42,33,24,.2); }
+  .order .foot button { font: inherit; font-size: 15px; letter-spacing: .14em; min-height: 46px; padding: 6px 22px; color: #fffaf0; background: var(--accent); border: 0; border-radius: 4px; cursor: pointer; }
+  .order .foot button:disabled { background: rgba(42,33,24,.25); }
+  .order .foot .ghostbtn { background: transparent; color: var(--ink); border: 1px solid rgba(42,33,24,.4); }
   .cart button:disabled { color: rgba(42,33,24,.35); background: rgba(246,239,224,.5); border-color: rgba(201,160,99,.4); }
   .bill { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(42,33,24,.72); padding: 16px; z-index: 5; }
   .bill.show { display: flex; }
@@ -36,6 +58,7 @@
   .bill button { margin-top: 10px; font: inherit; font-size: 15px; letter-spacing: .14em; min-height: 46px; padding: 8px 28px; color: #fffaf0; background: var(--accent); border: 0; border-radius: 4px; cursor: pointer; }
   @media (min-width: 700px) {
     .top .where { font-size: 17px; } .top .hall { font-size: 14px; }
+    .order .grid { grid-template-columns: repeat(3, 1fr); } .order { align-items: center; } .order .sheet { border-radius: 10px; }
     .bottom { grid-template-columns: repeat(8, 1fr); max-width: 980px; width: 100%; margin: 0 auto; }
     .hint { bottom: calc(84px + env(safe-area-inset-bottom)); }
     .cart { top: calc(58px + env(safe-area-inset-top)); }
@@ -47,6 +70,7 @@
 <div class="top">
   <div class="where" id="where"><b>搭台</b> · 入门</div>
   <div class="hall" id="hall">大堂 0 桌 · 0 人</div>
+  <button type="button" class="mute" id="mute" aria-pressed="false" aria-label="静音">静音</button>
 </div>
 <canvas id="scene" aria-label="茶楼大堂与你这一桌"></canvas>
 <div class="hint" id="hint"></div>
@@ -59,9 +83,14 @@
   <button type="button" data-act="3">揭盖</button>
   <button type="button" data-act="4">翻报纸</button>
   <button type="button" data-act="5">夹一件</button>
+  <button type="button" data-act="8">唔该</button>
   <button type="button" data-act="6">离席</button>
-  <button type="button" class="sub" id="mute" aria-pressed="false">静音</button>
 </div>
+<div class="order" id="order" role="dialog" aria-label="点心纸"><div class="sheet">
+  <div class="head"><b>点心纸</b><span id="orderNote">一次最多勾三样</span></div>
+  <div class="grid" id="orderGrid"></div>
+  <div class="foot"><button type="button" class="ghostbtn" id="orderCancel">唔使了</button><button type="button" id="orderGo">落单</button></div>
+</div></div>
 <script src="src/core.js"></script>
 <script src="src/game.js"></script>
 </body>

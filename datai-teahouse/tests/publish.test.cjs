@@ -54,7 +54,7 @@ test('验收 9 不抄寺庙站：页面与文案里不出现寺庙词汇，动�
     for (const w of TEMPLE) assert.ok(!text.includes(w), `${f} 出现了寺庙词「${w}」`);
   }
   const D = require('../src/core.js');
-  assert.deepEqual(D.PLAYER_ACTS.map((a) => a.zh), ['落座', '斟茶', '叩指', '揭盖', '翻报纸', '夹一件', '离席']);
+  assert.deepEqual(D.PLAYER_ACTS.map((a) => a.zh), ['落座', '斟茶', '叩指', '揭盖', '翻报纸', '夹一件', '离席', '唔该'], '八个动作，goal 允许 5–8 个');
   const html = read('index.html');
   for (const a of D.PLAYER_ACTS) assert.ok(html.includes(`>${a.zh}<`), `页面上缺「${a.zh}」按钮`);
 });
