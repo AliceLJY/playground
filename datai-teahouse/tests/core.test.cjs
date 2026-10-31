@@ -1,0 +1,141 @@
+// 分桌规则、来访记录与灰影补位：node --test tests/*.test.cjs
+// 每条断言对应 README「验收」里的条目号。分桌四条（验收 1）是这件玩意的骨架，先写它们。
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const D = require('../src/core.js');
+
+const fill = (hall, ids) => ids.map((id) => D.seat(hall, id).table);
+
+test('验收 1a 满桌开新桌：四位坐满第 1 桌，第五位开第 2 桌', () => {
+  const h = D.createHall(4);
+  assert.deepEqual(fill(h, ['a', 'b', 'c', 'd']), [1, 1, 1, 1], '前四位都该在第 1 桌');
+  assert.equal(D.seat(h, 'e').table, 2, '第 1 桌满了，第五位该开第 2 桌');
+  assert.deepEqual(D.tableList(h), [{ no: 1, count: 4, cap: 4 }, { no: 2, count: 1, cap: 4 }]);
+});
+
+test('验收 1b 新人进最满的未满桌：第 1 桌 2 人、第 2 桌 3 人，新人到第 2 桌', () => {
+  const h = D.createHall(4);
+  fill(h, ['a', 'b', 'c', 'd']);      // 第 1 桌满
+  fill(h, ['e', 'f', 'g']);           // 第 2 桌 3 人
+  D.leave(h, 'a'); D.leave(h, 'b');   // 第 1 桌剩 2 人
+  assert.deepEqual(D.tableList(h).map((t) => t.count), [2, 3]);
+  assert.equal(D.seat(h, 'x').table, 2, '该进更满的第 2 桌，不是桌号更小的第 1 桌');
+  // 第 2 桌现在满了，再来一位：第 1 桌（2 人）是唯一未满桌
+  assert.equal(D.seat(h, 'y').table, 1);
+});
+
+test('验收 1c 平手取最小编号', () => {
+  // 先坐满三桌，再让人离席，摆出 [2, 4, 2] 的局面（直接按规则坐是摆不出来的，新人总往最满的桌去）
+  const h = D.createHall(4);
+  fill(h, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']);
+  D.leave(h, 'c'); D.leave(h, 'd'); D.leave(h, 'k'); D.leave(h, 'l');
+  assert.deepEqual(D.tableList(h).map((t) => [t.no, t.count]), [[1, 2], [2, 4], [3, 2]]);
+  assert.equal(D.seat(h, 'x').table, 1, '第 1、3 桌各 2 人，取桌号小的第 1 桌');
+  // 第 1 桌被撤后，第 2、3 桌平手时取第 2 桌
+  const h2 = D.createHall(4);
+  fill(h2, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']);
+  for (const id of ['a', 'b', 'c', 'd']) D.leave(h2, id);   // 第 1 桌撤掉
+  D.leave(h2, 'e'); D.leave(h2, 'f'); D.leave(h2, 'i'); D.leave(h2, 'j');
+  assert.deepEqual(D.tableList(h2).map((t) => [t.no, t.count]), [[2, 2], [3, 2]]);
+  assert.equal(D.seat(h2, 'x').table, 2);
+});
+
+test('验收 1d 空桌删除，新桌取最小未用号', () => {
+  const h = D.createHall(4);
+  fill(h, ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.deepEqual(D.tableList(h).map((t) => [t.no, t.count]), [[1, 4], [2, 2]], 'f 该和 e 搭第 2 桌');
+  assert.equal(D.leave(h, 'e'), 2);
+  assert.equal(D.leave(h, 'f'), 2);
+  assert.equal(h.tables.has(2), false, '最后一位走了，第 2 桌该撤掉');
+  assert.deepEqual(D.summary(h), { tables: 1, guests: 4 });
+  assert.equal(D.seat(h, 'g').table, 2, '第 1 桌满，再开桌取最小未用号 2，不是 3');
+  // 撤掉中间一桌后的编号：1、2、3 都有人，撤 2，再开新桌取 2
+  const h2 = D.createHall(1);
+  fill(h2, ['a', 'b', 'c']);
+  D.leave(h2, 'b');
+  assert.deepEqual(D.tableList(h2).map((t) => t.no), [1, 3]);
+  assert.equal(D.seat(h2, 'd').table, 2);
+});
+
+test('同一个人不能坐两桌；给不在座的人办离席返回 null；座位号取桌上最小空位', () => {
+  const h = D.createHall(4);
+  const a = D.seat(h, 'a'), b = D.seat(h, 'b'), c = D.seat(h, 'c');
+  assert.deepEqual([a.seat, b.seat, c.seat], [0, 1, 2]);
+  assert.throws(() => D.seat(h, 'a'), /已经坐在/);
+  assert.equal(D.leave(h, 'zz'), null);
+  D.leave(h, 'b');
+  assert.equal(D.seat(h, 'd').seat, 1, '空出来的 1 号位该被补上');
+});
+
+test('验收 2 来访记录往返：录 → 编码 → 解码 → 同一条时间线；坏数据被丢掉；最多留 12 次', () => {
+  const v = D.newVisit(1700000000000);
+  assert.equal(D.recordAct(v, 3.14, 1), true);
+  assert.equal(D.recordAct(v, 2.0, 2), true, '时间倒退时不丢，钉到上一条的时刻');
+  assert.equal(D.recordAct(v, 9.5, 4), true);
+  assert.equal(D.recordAct(v, 10, 7), false, '抿茶不是玩家动作，不该进记录');
+  assert.equal(D.recordAct(v, -1, 1), false);
+  D.closeVisit(v, 61.26);
+  assert.deepEqual(v.acts, [[3.1, 1], [3.1, 2], [9.5, 4]]);
+  assert.equal(v.dur, 61.3);
+  const back = D.decodeVisits(D.encodeVisits([v]));
+  assert.deepEqual(back, [v]);
+  // 坏数据
+  assert.deepEqual(D.decodeVisits('not json'), []);
+  assert.deepEqual(D.decodeVisits(JSON.stringify([{ v: 1, at: 1, dur: 2, acts: [[0, 9]] }])), [], '动作码越界的记录整条丢');
+  assert.deepEqual(D.decodeVisits(JSON.stringify([{ v: 1, at: 1, dur: 2, acts: [[5, 1], [3, 1]] }])), [], '时间不单调的记录整条丢');
+  assert.deepEqual(D.decodeVisits(JSON.stringify([{ v: 1, at: 1, dur: 2, acts: [[1, 1, 'text']] }])), [], '多出来的字段（比如文字）不接受');
+  // 上限
+  let list = [];
+  for (let i = 0; i < 15; i++) list = D.pushVisit(list, D.closeVisit(D.newVisit(i), 10));
+  assert.equal(list.length, 12);
+  assert.equal(list[0].at, 3, '丢的是最旧的');
+  assert.equal(D.decodeVisits(JSON.stringify(Array.from({ length: 20 }, (_, i) => D.closeVisit(D.newVisit(i), 1)))).length, 12);
+});
+
+test('验收 3 幽灵与玩家走同一套分桌：6 次来访 → 第 1 桌满、第 2 桌 2 个幽灵，玩家进第 2 桌成 3 人', () => {
+  const plan = D.planGhosts(D.syntheticVisits(6, 7), 4);
+  assert.deepEqual(D.tableList(plan.hall).map((t) => [t.no, t.count]), [[1, 4], [2, 3]]);
+  assert.equal(plan.me.table, 2, '玩家该被排到最满的未满桌');
+  assert.equal(plan.ghosts.length, 6);
+  for (const g of plan.ghosts) {
+    assert.ok(g.end >= D.MIN_GHOST_STAY, '幽灵至少在座 45 秒');
+    assert.ok(g.acts.every((a) => a[1] !== 0 && a[1] !== 6), '落座与离席不进回放动作');
+  }
+  // 没有历史：玩家一个人开第 1 桌
+  const alone = D.planGhosts([], 4);
+  assert.deepEqual(alone.me, { table: 1, seat: 0 });
+  assert.equal(alone.ghosts.length, 0);
+  // 幽灵按当年进门先后落座，与数组顺序无关
+  const vs = D.syntheticVisits(3, 3);
+  const p1 = D.planGhosts(vs, 4), p2 = D.planGhosts(vs.slice().reverse(), 4);
+  assert.deepEqual(p1.ghosts.map((g) => [g.at, g.table, g.seat]), p2.ghosts.map((g) => [g.at, g.table, g.seat]));
+});
+
+test('验收 6 灰影补位：桌上别人不足 2 个就补到 2 个，够了就一个不补', () => {
+  assert.equal(D.residentsFor(0), 2);
+  assert.equal(D.residentsFor(1), 1);
+  assert.equal(D.residentsFor(2), 0);
+  assert.equal(D.residentsFor(3), 0);
+});
+
+test('灰影日程可复现、只做抿茶 / 翻报 / 斟茶、40 秒一轮且时刻单调', () => {
+  const a = D.residentSchedule(11, 0), b = D.residentSchedule(11, 0), c = D.residentSchedule(11, 1);
+  assert.deepEqual(a, b, '同种子同序号该给同一张表');
+  assert.notDeepEqual(a.acts, c.acts, '两个灰影不该做一模一样的事');
+  assert.equal(a.period, 40);
+  assert.ok(a.acts.length >= 2 && a.acts.length <= 8, `一轮 ${a.acts.length} 个动作，应在 2–8 之间`);
+  let last = -1;
+  for (const [t, code] of a.acts) { assert.ok(t > last && t < 40); assert.ok([7, 4, 1].includes(code), `灰影不该做动作 ${code}`); last = t; }
+  // 一百个种子里至少有一个灰影会给你斟茶，否则叩指永远按不了
+  let pours = 0;
+  for (let s = 0; s < 100; s++) for (let i = 0; i < 2; i++) pours += D.residentSchedule(s, i).acts.filter((x) => x[1] === 1).length;
+  assert.ok(pours > 20, `100 个种子里灰影只斟了 ${pours} 次茶`);
+});
+
+test('dueActs 只取 (prev, tau] 之间的动作，一个动作不会被取两次', () => {
+  const acts = [[1, 1], [2.5, 4], [2.5, 7], [9, 2]];
+  assert.deepEqual(D.dueActs(acts, 0, 1), [[1, 1]]);
+  assert.deepEqual(D.dueActs(acts, 1, 2.5), [[2.5, 4], [2.5, 7]]);
+  assert.deepEqual(D.dueActs(acts, 2.5, 8.99), []);
+  assert.deepEqual(D.dueActs(acts, 8.99, 100), [[9, 2]]);
+});
