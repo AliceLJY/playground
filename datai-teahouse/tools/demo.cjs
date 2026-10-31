@@ -1,5 +1,5 @@
 // 竖屏体验片（1080×1920）：真点击走完一市——进门、拣茶、洗杯、斟茶、翻报、唔该下单、点心车要笼、夹件、出品、揭盖、
-// 邻座斟茶后叩指、离席埋单、再开一市看见「刚才的你」——最后接署名页。
+// 邻座斟茶后叩指、离席埋单——最后接署名页。进门时桌上已坐着「你 · 昨天」「你 · 3 天前」。
 //   NODE_PATH="$(npm root -g)" node tools/demo.cjs <page-url> <out-dir> <endcard.js 路径>
 // 做法：暂停页面自己的动画循环，用钩子 step(1000/30) 一帧一帧推游戏时间再截图（page.clock 只管 Date，拿来算「你 · 昨天」）；
 // 等菜等车的空档只推不拍。每帧之后读游戏的音效日志，按视频时间记进 events.json，配乐由 tools/demo-music.py 按它合成。
@@ -124,9 +124,7 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
   await skipUntil(() => window.__datai.snapshot().knockOpen, 60); await hold(1.3);
   await tapAt(act(2), '叩指'); await hold(1.6);
   // 8. 离席埋单
-  await tapAt(act(6), '离席'); await hold(4.2);
-  await tapAt('#again', '再开一市'); await hold(2.2);
-  await tapAt(act(0), '再落座'); await hold(2.4);
+  await tapAt(act(6), '离席'); await hold(4.6); // 埋单停够看清，直接接署名页（埋了单不再坐回去；「刚才的你会坐进来」片头进门时已经看见了）
   // 9. 署名页
   ev.marks.end = n / fps;
   const EC = await page.evaluate(() => window.SignatureEndcard ? { dur: window.SignatureEndcard.DURATION, sfx: window.SignatureEndcard.SFX_AT } : null);
