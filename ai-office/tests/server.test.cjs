@@ -188,3 +188,24 @@ test('stat-only artifacts: day subfolder mtime without listing, root alone is em
   const r=await statOnlyMtime(root,now); assert.ok(Math.abs(r.mtime-fs.statSync(today).mtimeMs)<1);
   await assert.rejects(statOnlyMtime(path.join(root,'nope'),now));
 });
+
+test('guest feed: same desks, no board, no badge text, CORS only for the public page origin, nothing else under /guest',async t=>{
+  const {createOffice}=await import('../server/office-server.mjs');
+  await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
+  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const token=randomBytes(24).toString('hex');
+  const office=await createOffice({config,token,stateFile,clock:()=>DAY,collector:async()=>({})});await office.poll();
+  office.server.listen(0,'127.0.0.1');await once(office.server,'listening');
+  t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
+  const base=`http://127.0.0.1:${office.server.address().port}`;
+  await fetch(base+'/api/notice',{method:'POST',headers:{'content-type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({text:'private board line'})});
+  const full=await (await fetch(base+'/api/state')).json(); assert.equal(full.notices.length,1);
+  const r=await fetch(base+'/guest/api/state',{headers:{Origin:'https://aliceljy.github.io'}}); const g=await r.json();
+  assert.equal(r.headers.get('access-control-allow-origin'),'https://aliceljy.github.io');
+  assert.equal(g.guest,true); assert.equal(g.demo,false); assert.deepEqual(g.notices,[]); assert.equal(g.roster.length,11);
+  assert.deepEqual(g.roster.map(a=>a.id),full.roster.map(a=>a.id)); assert.ok(g.roster.every(a=>a.badge===''));
+  const other=await fetch(base+'/guest/api/state',{headers:{Origin:'https://evil.example'}}); assert.equal(other.headers.get('access-control-allow-origin'),null);
+  assert.equal((await fetch(base+'/guest/api/notice',{method:'POST'})).status,404);
+  assert.equal((await fetch(base+'/guest/index.html')).status,404);
+});
