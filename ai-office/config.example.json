@@ -2,7 +2,7 @@
   "roster": [
     {
       "id": "director",
-      "name": "松果",
+      "name": "CC",
       "role": "总监",
       "color": "#D18A65",
       "source": {
@@ -11,7 +11,7 @@
     },
     {
       "id": "builder",
-      "name": "方糖",
+      "name": "Codex",
       "role": "构筑师",
       "color": "#6D9D8E",
       "source": {
@@ -20,7 +20,7 @@
     },
     {
       "id": "twin-a",
-      "name": "蓝莓Ⅰ",
+      "name": "Kimi 1",
       "role": "推理搭档",
       "color": "#7F91BC",
       "source": {
@@ -29,7 +29,7 @@
     },
     {
       "id": "twin-b",
-      "name": "蓝莓Ⅱ",
+      "name": "Kimi 2",
       "role": "推理搭档",
       "color": "#849EBB",
       "source": {
@@ -38,7 +38,7 @@
     },
     {
       "id": "artist",
-      "name": "薄荷",
+      "name": "Agy",
       "role": "创意搭档",
       "color": "#8DA66F",
       "source": {
@@ -47,7 +47,7 @@
     },
     {
       "id": "companion",
-      "name": "桃子",
+      "name": "etwin",
       "role": "陪伴搭档",
       "color": "#D69A9E",
       "source": {
@@ -56,7 +56,7 @@
     },
     {
       "id": "scout",
-      "name": "墨镜",
+      "name": "Grok Bot",
       "role": "探索员",
       "color": "#6F8585",
       "source": {
@@ -65,7 +65,7 @@
     },
     {
       "id": "filmmaker",
-      "name": "胶片",
+      "name": "Muse",
       "role": "影像搭档",
       "color": "#B397B8",
       "source": {
@@ -74,7 +74,7 @@
     },
     {
       "id": "writer",
-      "name": "豆沙",
+      "name": "豆包",
       "role": "写作搭档",
       "color": "#C6A160",
       "source": {
@@ -83,7 +83,7 @@
     },
     {
       "id": "helper",
-      "name": "点点",
+      "name": "Dots",
       "role": "候补搭档",
       "color": "#9FA866",
       "source": {
@@ -93,7 +93,7 @@
     },
     {
       "id": "courier",
-      "name": "邮差",
+      "name": "Cobbler",
       "role": "送信员",
       "color": "#BD8955",
       "source": {
