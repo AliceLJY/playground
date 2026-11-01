@@ -90,6 +90,21 @@ export async function statusFiles(dir, fallbackDir) {
   return { slips, fallback };
 }
 
+// A folder on a TCC-protected volume (a removable disk) can be stat'ed but never listed from launchd: listing hangs
+// in open() for good. So for those, read only the folder's own mtime and that of its day subfolders (Beijing dates,
+// today and yesterday), which change when a file lands in them. Nothing is enumerated.
+export const beijingDate = (ms) => new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+export async function statOnlyMtime(root, now = Date.now()) {
+  const targets = [root, path.join(root, beijingDate(now)), path.join(root, beijingDate(now - 86_400_000))];
+  let latest = 0, seen = false;
+  for (const t of targets) {
+    try { const info = await stat(t); if (!info.isDirectory()) continue; seen = true; if (t !== root) latest = Math.max(latest, info.mtimeMs); }
+    catch (e) { if (e.code === 'ENOENT' || e.code === 'ENOTDIR') continue; throw e; }
+  }
+  if (!seen) throw new Error('missing');
+  return latest ? { mtime: latest } : { empty: true };
+}
+
 // Read only new complete lines; never retain message text. Cursor is private/persistent.
 export async function etwinActivity(file, memory) {
   const handle = await open(file, 'r');
@@ -123,7 +138,7 @@ export async function collect(source, previous = {}) {
         if (source.type === 'etwin') return { running, mtime, ...await etwinActivity(file, previous.memory || {}) };
         return { running, mtime };
       }
-      case 'artifacts': return await latestMtime(expand(source.directory));
+      case 'artifacts': return source.statOnly ? await statOnlyMtime(expand(source.directory)) : await latestMtime(expand(source.directory));
       case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null);
       default: return { error: true };
     }

@@ -63,13 +63,29 @@ export async function createOffice({ config, token, stateFile, clock = Date.now,
     }), notices: state.notices.map(n => ({ ...n })), demo: false };
   }
 
+  const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
+  const log = (msg) => console.error(`${new Date().toISOString()} ${msg}`);
+  const suspended = new Map();
   async function poll({ save = true } = {}) {
     if (polling) return;
     polling = true;
     try {
       // A collector cannot overwrite a push arriving while it is reading the OS.
       const results = await Promise.all(config.roster.map(async a => {
-        try { return await collector(a.source, state.members[a.id] || {}); } catch { return { error: true }; }
+        // A collector that never returns (a TCC-blocked open on a protected folder hangs forever under launchd)
+        // must not freeze every other desk: race it against a timeout, then leave that source alone for a while,
+        // since each hung read also pins one of libuv's few worker threads.
+        if ((suspended.get(a.id) || 0) > clock()) return { error: true };
+        let timer;
+        try {
+          return await Promise.race([
+            collector(a.source, state.members[a.id] || {}),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), COLLECT_TIMEOUT); })
+          ]);
+        } catch (e) {
+          if (e?.message === 'timeout') { suspended.set(a.id, clock() + SUSPEND_AFTER_TIMEOUT); log(`collector ${a.id} timed out after ${COLLECT_TIMEOUT} ms; suspended for ${SUSPEND_AFTER_TIMEOUT / 60000} min`); }
+          return { error: true };
+        } finally { clearTimeout(timer); }
       }));
       const now = clock();
       config.roster.forEach((a, i) => {

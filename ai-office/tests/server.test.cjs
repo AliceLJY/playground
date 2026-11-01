@@ -178,3 +178,13 @@ test('status slip collector reads one-line json, skips bad or oversized files, m
   assert.ok(r.fallback.mtime>0); assert.equal('task' in r.slips[0],false,'task text never leaves the collector');
   const none=await statusFiles(path.join(dir,'missing'),mirror); assert.deepEqual(none.slips,[]);
 });
+
+test('stat-only artifacts: day subfolder mtime without listing, root alone is empty, missing root throws',async()=>{
+  const {statOnlyMtime,beijingDate}=await import('../server/collectors.mjs');
+  const fs=require('node:fs'); const os=require('node:os'); const path=require('node:path');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'statonly-')); const now=Date.now();
+  assert.deepEqual(await statOnlyMtime(root,now),{empty:true});
+  const today=path.join(root,beijingDate(now)); fs.mkdirSync(today); fs.writeFileSync(path.join(today,'clip.mp4'),'x');
+  const r=await statOnlyMtime(root,now); assert.ok(Math.abs(r.mtime-fs.statSync(today).mtimeMs)<1);
+  await assert.rejects(statOnlyMtime(path.join(root,'nope'),now));
+});
