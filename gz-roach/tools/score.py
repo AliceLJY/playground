@@ -1,7 +1,8 @@
 """给导览录片配声音：读 tools/record.cjs 写的 <片名>.events.json，按同一时间轴合成。
 全是算出来的，没有采样和现成音乐。需要 numpy。
 
-    python3 tools/score.py <片名>.events.json <out.wav>
+    python3 tools/score.py <片名>.events.json <out.wav> [--tail 秒]
+    --tail：片尾再接一段（如 5.6 秒署名页），和弦铺底接着垫到最后，事件不变
     ffmpeg -i 片.mp4 -i out.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart 成片.mp4
 
 声音分层：底下一层暖和弦（四个和弦循环）；每只脚着地一声很轻的「嗒」，后足低一点、跑得越快越响；
@@ -12,7 +13,8 @@ import numpy as np
 
 SR = 48000
 ev = json.load(open(sys.argv[1])); out = sys.argv[2]
-dur = ev["duration"]; n = int(SR * dur)
+tail = float(sys.argv[sys.argv.index("--tail") + 1]) if "--tail" in sys.argv else 0.0
+dur = ev["duration"] + tail; n = int(SR * dur)
 L = np.zeros(n); R = np.zeros(n)
 rng = np.random.default_rng(11)
 
@@ -87,4 +89,4 @@ pcm = (np.stack([L, R], 1) * 32767).astype("<i2")
 import wave
 with wave.open(out, "wb") as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())
-print(f"wrote {out}: {dur:.1f}s, {len(ev['steps'])} steps, {len(ev['presses'])} presses, swag at {ev.get('swag')}")
+print(f"wrote {out}: {dur:.1f}s (tail {tail}), {len(ev['steps'])} steps, {len(ev['presses'])} presses, swag at {ev.get('swag')}")

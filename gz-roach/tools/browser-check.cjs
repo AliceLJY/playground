@@ -112,6 +112,16 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
     check('B8', '第 0 帧画面里就有整只虫', box.x0 > 0.05 && box.x1 < 0.95 && box.y0 > 0.02 && box.y1 < 0.98, `虫身 x ${box.x0.toFixed(2)}–${box.x1.toFixed(2)}，y ${box.y0.toFixed(2)}–${box.y1.toFixed(2)}`);
     await ctx.close(); }
 
+  // B10 亮相之后背景要能恢复：同一时刻先直接拍，再「跳到亮相→跳回来」拍，背景像素应一致（2026-11-01 背景常量被插值改暗，循环一圈后整页发暗）
+  { const px = async (page) => { const buf = await page.screenshot({ clip: { x: 760, y: 40, width: 20, height: 20 } }); return page.evaluate(async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = 20; c.height = 20; const g = c.getContext('2d'); g.drawImage(img, 0, 0); const d = g.getImageData(10, 10, 1, 1).data; return [d[0], d[1], d[2]]; }, buf.toString('base64')); };
+    const { ctx, page } = await open('?at=1.5', 1440, 900); await page.waitForTimeout(300);
+    const before = await px(page);
+    await page.evaluate(() => { window.__roach.render(32.4); window.__roach.render(1.5); }); await page.waitForTimeout(100);
+    const after = await px(page);
+    const diff = Math.max(...before.map((v, i) => Math.abs(v - after[i])));
+    check('B10', '亮相之后跳回开场，背景颜色恢复原样', diff <= 4, `之前 rgb(${before})，跳回后 rgb(${after})，最大差 ${diff}`);
+    await ctx.close(); }
+
   if (base.startsWith('file:')) { const kb = fs.statSync(pageUrl.replace('file://', '')).size / 1024; check('B9', '单文件小于 1 MB（链接预览卡要求）', kb < 1024, `${kb.toFixed(0)} KB`); }
   check('B1', '页面无报错、不向外部请求任何东西', errors.length === 0 && external.length === 0, `报错 ${errors.length} 条${errors.length ? '：' + errors.slice(0, 3).join(' | ') : ''}；外部请求 ${external.length} 个${external.length ? '：' + external.slice(0, 3).join(' ') : ''}`);
   report.errors = errors; report.external = external;

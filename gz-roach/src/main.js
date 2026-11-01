@@ -19,8 +19,9 @@ catch (e) { document.body.classList.add('nogl'); throw e; }
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
-const BG = new THREE.Color(0xebe4d8);
-const scene = new THREE.Scene(); scene.background = BG; scene.fog = new THREE.Fog(BG, 95, 230);
+const BG = new THREE.Color(0xebe4d8), STAGE = new THREE.Color(0x2a2220);
+// 背景要克隆：applyState 每帧按亮相程度插值，直接用 BG 会把常量本身改暗，亮相后再也回不来
+const scene = new THREE.Scene(); scene.background = BG.clone(); scene.fog = new THREE.Fog(BG, 95, 230);
 const camera = new THREE.PerspectiveCamera(34, 1, 0.5, 600);
 
 scene.add(new THREE.HemisphereLight(0xfff6ea, 0x8a6a52, 1.15));
@@ -199,7 +200,7 @@ function applyState(st, ground) {
   if (mkey !== appliedMode) { roach.setMode({ focus: st.focus, xray: st.xray, accent: 0x12a58f }); appliedMode = mkey; }
   floorTex.offset.x = (ground / (TILE * 2)) % 1;
   spot.intensity = 260 * st.swag; key.intensity = 2.6 - 1.1 * st.swag;
-  scene.background.copy(BG).lerp(new THREE.Color(0x2a2220), st.swag * 0.82); scene.fog.color.copy(scene.background);
+  scene.background.copy(BG).lerp(STAGE, st.swag * 0.82); scene.fog.color.copy(scene.background);
 }
 function renderTour(t) {
   const s = tourAt(t);
