@@ -48,3 +48,12 @@ body.mv .paper span{font-size:11px}
 #mv-sign{position:fixed;left:0;right:0;top:830px;text-align:center;font-size:11px;letter-spacing:.12em;color:var(--mv-muted)}
 #mv-dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:10}
 body.mv *,body.mv *::before,body.mv *::after{transition:none!important;animation:none!important}
+/* Wallpaper mode (?wall=1, for Plash): the room in the empty part of the desktop on a dark ground, so the white
+   labels under the desktop icons stay readable. Only the caption line and the room; the banner shows only when not live. */
+body.wall{background-color:#2b302c;background-image:radial-gradient(#ffffff14 .7px,transparent .7px);background-size:6px 6px;overflow:hidden;min-height:100vh}
+body.wall .office-app{display:flex;flex-direction:column;position:fixed;left:var(--wl);top:var(--wt);width:var(--ww);height:var(--wh);padding:0;margin:0;gap:6px}
+body.wall .masthead,body.wall .room-foot,body.wall .drawer,body.wall .signature,body.wall .treat,body.wall .photo,body.wall .mode.live{display:none!important}
+body.wall .mode{border:0;color:#e2c98f;font-size:11px;padding:0}
+body.wall .room-section{flex:1;min-height:0}
+body.wall .room-meta{color:#d9d3c3;font-size:12px}body.wall .room-meta span:last-child{font-size:11px}
+body.wall #canvas-wrap{max-height:calc(100% - 26px);box-shadow:0 10px 30px #00000055}
