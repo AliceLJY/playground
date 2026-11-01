@@ -187,7 +187,7 @@
     const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
     const order = [...sim.actors].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.i - b.i).map(a => a.id);
     const list = $('#roster');
-    if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); for (const id of order) { const li = list.querySelector(`li[data-id="${id}"]`); if (li) list.append(li); } }
+    if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
       li.querySelector('.status').textContent = a.badge === '等派活' && a.status === 'idle' ? '等派活' : labels[a.status];
@@ -219,6 +219,7 @@
     lastUI = -10; light = ''; buildRoster(); modeBanner();
   }
   function advance(ms) {
+    if (!sim) return;
     for (let left = ms; left > 0; left -= 20) {
       const part = Math.min(left, 20);
       if (demo) {
@@ -238,9 +239,10 @@
   }
   function validateState(data) {
     if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000)) || (data.visitorsTotal !== undefined && !(Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 && data.visitorsTotal <= 1e9))) throw new Error('Invalid state');
-    const ids = new Set(), slots = new Set();
-    data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince)) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
-    if (data.notices.some(n => typeof n.text !== 'string' || !Number.isFinite(Date.parse(n.at)))) throw new Error('Invalid notice');
+    // Shapes, character sets, lengths and date ranges all checked here, so nothing downstream has to trust the feed.
+    const ids = new Set(), slots = new Set(), sane = t => { const v = Date.parse(t); return Number.isFinite(v) && v > 946684800000 && v < 4102444800000; };
+    data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (!/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || ids.has(a.id) || typeof a.name !== 'string' || !a.name.length || a.name.length > 40 || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !sane(a.statusSince) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.badge !== undefined && (typeof a.badge !== 'string' || a.badge.length > 16)) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
+    if (data.notices.some(n => typeof n.text !== 'string' || n.text.length > 500 || !sane(n.at))) throw new Error('Invalid notice');
     return data;
   }
   // Where the live office answers when this page is served elsewhere (GitHub Pages): a read-only guest feed behind a
@@ -289,7 +291,7 @@
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();
-    } catch { if (!demo && ++misses >= 3) resetDemo(); }
+    } catch { if (!sim || (!demo && ++misses >= 3)) resetDemo(); }
     draw();
   }
   $('#drawer-toggle').addEventListener('click', () => {
@@ -316,12 +318,15 @@
     ready = true; draw();
     setInterval(() => { if (!forced && !paused) loadLive(); }, 10000);
     function frame(ts) {
-      if (ts - lastFrame >= 1000 / 30 - .5) {
-        const dt = lastFrame ? Math.min(100, ts - lastFrame) : 33.333;
-        lastFrame = ts;
-        if (!paused && !document.hidden) advance(dt);
-        draw();
-      }
+      // One bad frame must not end the render loop: the next frame is always scheduled.
+      try {
+        if (ts - lastFrame >= 1000 / 30 - .5) {
+          const dt = lastFrame ? Math.min(100, ts - lastFrame) : 33.333;
+          lastFrame = ts;
+          if (!paused && !document.hidden) advance(dt);
+          draw();
+        }
+      } catch (e) { console.error('frame', e); }
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);

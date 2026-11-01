@@ -128,8 +128,24 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   // only. It is what a path-limited public proxy (tailscale funnel /office -> /guest) exposes; nothing else is reachable.
   const GUEST_ORIGINS = new Set(['https://aliceljy.github.io']);
   function guestSnapshot() {
-    const full = snapshot();
-    return { ...full, roster: full.roster.map(a => ({ ...a, badge: '' })), notices: [], guest: true };
+    // The public feed is the show, not a log: times are rounded to the minute so nobody can read a work diary
+    // off it with a script; the board and badge text stay private.
+    const full = snapshot(), minute = ms => Math.floor(ms / 60_000) * 60_000;
+    return { ...full, roster: full.roster.map(a => ({ ...a, badge: '', statusSince: iso(minute(Date.parse(a.statusSince))), workedToday: minute(a.workedToday) })), notices: [], guest: true };
+  }
+  // Everything under /guest/ sits on the public internet through the funnel: a per-address budget keeps one
+  // script from turning the machine into a free ping target. The page itself needs 12 requests a minute per tab.
+  const GUEST_LIMIT = 120, GUEST_WINDOW = 60_000, guestHits = new Map();
+  function guestAllowed(req, now) {
+    // The funnel sets X-Forwarded-For; the last entry is the one the proxy itself appended.
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean);
+    const ip = forwarded.at(-1) || req.socket?.remoteAddress || 'unknown';
+    for (const [k, rec] of guestHits) if (now - rec.start > GUEST_WINDOW * 2) guestHits.delete(k);
+    if (guestHits.size > 10_000) guestHits.clear();
+    let rec = guestHits.get(ip);
+    if (!rec || now - rec.start > GUEST_WINDOW) { rec = { start: now, n: 0 }; guestHits.set(ip, rec); }
+    rec.n++;
+    return rec.n <= GUEST_LIMIT ? null : Math.ceil((GUEST_WINDOW - (now - rec.start)) / 1000);
   }
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -138,6 +154,10 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     try {
       const url = new URL(req.url, 'http://127.0.0.1:3091');
       if (req.method === 'GET' && url.pathname === '/api/state') return reply(res, 200, snapshot());
+      if (url.pathname.startsWith('/guest/')) {
+        const retry = guestAllowed(req, clock());
+        if (retry !== null) { req.resume(); return reply(res, 429, { error: 'Rate limited' }, { 'Retry-After': String(retry), 'Cache-Control': 'no-store' }); }
+      }
       if (req.method === 'GET' && url.pathname === '/guest/api/state') {
         const origin = req.headers.origin;
         return reply(res, 200, guestSnapshot(), { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
