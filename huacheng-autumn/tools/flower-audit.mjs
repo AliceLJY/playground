@@ -28,6 +28,6 @@ window.__flowerAudit=()=>{
  }
  animate(0);return {width:W,height:H,mask:Array.from(mask)};
 };`;
-const result=await build({stdin:{contents:readFileSync(path.join(root,'src/main.js'),'utf8')+audit+readFileSync(new URL('./arch-instrument.js',import.meta.url),'utf8'),resolveDir:path.join(root,'src'),sourcefile:'audit.js'},nodePaths:[path.resolve('node_modules')],bundle:true,format:'iife',minify:true,write:false,target:'es2020',legalComments:'none'});
+const result=await build({stdin:{contents:readFileSync(path.join(root,'src/main.js'),'utf8')+audit+readFileSync(new URL('./arch-instrument.js',import.meta.url),'utf8')+readFileSync(new URL('./r5-instrument.js',import.meta.url),'utf8'),resolveDir:path.join(root,'src'),sourcefile:'audit.js'},nodePaths:[path.resolve('node_modules')],bundle:true,format:'iife',minify:true,write:false,target:'es2020',legalComments:'none'});
 const html=readFileSync(path.join(root,'index.template.html'),'utf8').replace('<!--BUNDLE-->',()=>'<script>'+result.outputFiles[0].text.replace(/<\/script/g,'<\\/script')+'</script>');
 mkdirSync(path.dirname(out),{recursive:true});writeFileSync(out,html);console.log(out);

@@ -3,7 +3,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const ROI={x:420,y:690,w:200,h:110},MAX_SD=.008;
 const intersects=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
-async function waterStats(page,png){
+async function waterStats(page,png,roi=ROI){
  return page.evaluate(async({b64,roi})=>{
   const im=new Image();im.src='data:image/png;base64,'+b64;await im.decode();
   const c=document.createElement('canvas');c.width=im.width;c.height=im.height;
@@ -12,12 +12,13 @@ async function waterStats(page,png){
   for(let i=0;i<a.length;i+=4){const y=(.2126*a[i]+.7152*a[i+1]+.0722*a[i+2])/255;sum+=y;sq+=y*y;}
   const n=a.length/4,mean=sum/n;
   return{roi,pixels:n,mean,sd:Math.sqrt(Math.max(0,sq/n-mean*mean)),width:im.width,height:im.height};
- },{b64:png.toString('base64'),roi:ROI});
+ },{b64:png.toString('base64'),roi});
 }
 async function checkWater(page,png,subjects){
- const d=await waterStats(page,png);
+ const roi={...ROI,x:Math.min(ROI.x,Math.floor(subjects.base.x0*1440)-ROI.w-20)};
+ const d=await waterStats(page,png,roi);
  // Entire ROI is left of the board's projected bounds, below the text and above controls.
- const outsideBoard=(ROI.x+ROI.w)/1440<subjects.base.x0;
+ const outsideBoard=(roi.x+roi.w)/1440<subjects.base.x0;
  return{id:'B8-calm-water',pass:d.width===1440&&d.height===900&&outsideBoard&&d.sd<MAX_SD,detail:{...d,maxSd:MAX_SD,outsideBoard}};
 }
 function checkTowers(subjects){

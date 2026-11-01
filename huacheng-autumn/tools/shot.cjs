@@ -3,7 +3,7 @@
 // One shot: node tools/shot.cjs out.png '?view=bridge' [width] [height] [dpr] [base-url]
 const {chromium}=require('playwright'),fs=require('fs'),path=require('path');
 (async()=>{const args=process.argv.slice(2),single=args[0]?.endsWith('.png'),out=args[0]||path.resolve(__dirname,'../shots/r1');
- const base=(single?args[5]:args[1])||'file://'+path.resolve(__dirname,'../dist/index.html'),w=single?+(args[2]||1440):1440,h=single?+(args[3]||900):900,dpr=single?+(args[4]||1):1;
+ const base=(single?args[5]:args[1])||'file://'+path.resolve(__dirname,'../dist/index.html'),w=single?+(args[2]||1440):1440,h=single?+(args[3]||900):900,dpr=single?+(args[4]||1):2;
  fs.mkdirSync(single?path.dirname(out):out,{recursive:true});
  const browser=await chromium.launch({channel:'chrome',headless:true}),reports=[];
  try{for(const entry of single?[{query:args[1]||'?view=hero'}]:[...['hero','bridge','pagoda','wide'].map(v=>({query:'?view='+v,name:v})),...[0,.55,1].map(h=>({query:'?view=hero&h='+h,name:'lighting-'+h}))]){const query=entry.query;

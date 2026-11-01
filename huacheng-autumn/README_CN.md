@@ -47,17 +47,18 @@
 npm ci
 node tools/build.mjs                    # 生成独立单文件 dist/index.html
 node --test tests/*.test.cjs
-node tools/flower-audit.mjs . shots/r4/audit.html
-NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r4/architecture
+node tools/flower-audit.mjs . shots/r5/audit.html
+NODE_PATH="$(npm root -g)" node tools/r5-check.cjs shots/r5/metrics
+NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r5/architecture
 NODE_PATH="$(npm root -g)" node tools/glare-check.cjs
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r4/browser
-NODE_PATH="$(npm root -g)" node tools/refinement-motion.cjs shots/r4/motion
-NODE_PATH="$(npm root -g)" node tools/layout.cjs shots/r4/mobile
-NODE_PATH="$(npm root -g)" node tools/phone-route.cjs shots/r4/phone-route
-NODE_PATH="$(npm root -g)" node tools/shot.cjs shots/r4
-NODE_PATH="$(npm root -g)" node tools/night-check.cjs shots/r4/night
-NODE_PATH="$(npm root -g)" node tools/performance-check.cjs shots/r4/performance
-NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r4/opening
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r5/browser
+NODE_PATH="$(npm root -g)" node tools/refinement-motion.cjs shots/r5/motion
+NODE_PATH="$(npm root -g)" node tools/layout.cjs shots/r5/mobile
+NODE_PATH="$(npm root -g)" node tools/phone-route.cjs shots/r5/phone-route
+NODE_PATH="$(npm root -g)" node tools/shot.cjs shots/r5
+NODE_PATH="$(npm root -g)" node tools/night-check.cjs shots/r5/night
+NODE_PATH="$(npm root -g)" node tools/performance-check.cjs shots/r5/performance
+NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r5/opening
 ```
 
 可以直接打开 `dist/index.html`，也可以启动本地服务：
@@ -65,27 +66,27 @@ NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r4/opening
 ```bash
 node tools/serve.cjs . 18954
 # 在另一终端检查源码入口：
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r4/source http://127.0.0.1:18954/dev.html
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r5/source http://127.0.0.1:18954/dev.html
 ```
 
 源码地址：`http://127.0.0.1:18954/dev.html`；打包地址：`http://127.0.0.1:18954/dist/index.html`。所有 GPU 检查按顺序运行。花量诊断页是隔离构建，不是发布产物。
 
 固定机位为 `?view=hero`、`?view=bridge`、`?view=pagoda`、`?view=wide`。加 `&h=0`、`&h=0.55`、`&h=1` 分别查看白天（默认）、黄昏、入夜；`&t=13` 固定模拟到第 13 秒。四机位沿用正常渲染路径。页面提供 `window.__huacheng`、`window.__PLAYTEST__` 检查钩子，正常操作不依赖它们。
 
-第三轮 `d1bcc77` 基线保留在 `shots/r4/baseline/`。用同一仪器重跑旧版校准：
+第四轮 `ca58b02` 基线保留在 `shots/r5/baseline/`。用同一仪器重跑旧版校准：
 
 ```bash
-node tools/flower-audit.mjs shots/r4/baseline shots/r4/baseline/audit.html
-NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r4/baseline/final-check "file://$PWD/shots/r4/baseline/audit.html" --baseline
+node tools/flower-audit.mjs shots/r5/baseline shots/r5/baseline/audit.html
+NODE_PATH="$(npm root -g)" node tools/r5-check.cjs shots/r5/baseline/metrics "file://$PWD/shots/r5/baseline/audit.html"
 ```
 
 ## 实测结果与边界
 
-第四轮截图、新旧读数、渲染器信息与边界见 [VERIFICATION_R4.md](VERIFICATION_R4.md)。改用倒角形体、向树冠外着色的小叶片、PCF 柔和投影与 GTAO 接触暗影，真正的后期渲染目标开启 MSAA。花色集中在天桥花瀑和异木棉树冠；站台加入钢拱玻璃雨棚，没有架空电线和受电弓。
+第五轮截图、新旧读数、渲染器信息与边界见 [VERIFICATION_R5.md](VERIFICATION_R5.md)。 **第五轮尚未通过完整验收：hero / bridge 的桥体结构色不足 30%，hero 桥框花色不足 25%；旧 B7 桥焦点检查也因此失败。**使用倒角形体、细碎的外侧花帘、缓存的 PCF 柔和投影与半分辨率 GTAO 接触暗影，色调映射后使用 FXAA，设备 DPR2 时实际像素比不低于 1.5。花色集中在天桥花瀑和异木棉树冠；站台加入钢拱玻璃雨棚，没有架空电线和受电弓。
 
-道路为双向两条 3.5 米车道，电车宽约 2.65 米、高约 3.6 米；步道补长椅、单车、垃圾桶和小咖啡摊。总体布局与地标高度仍经过压缩，是建筑意象，不能当测绘图。
+桥面为留空的 3.8 米混凝土步行道，桥栏、扶手与桥墩外露；3.4 米宽的楼梯只在栏杆外侧挂花。灰蓝江水与清楚可读的对岸分开；六辆小车实测约 4.57×1.86×1.45 米。道路为双向两条 3.5 米车道，电车宽约 2.65 米、高约 3.6 米；步道补长椅、单车、垃圾桶和小咖啡摊。总体布局与地标高度仍经过压缩，是建筑意象，不能当测绘图。
 
-未测真手机、Safari 和部署后的线上入口。桌面模拟帧率不代表手机性能，自适应分辨率保留。玻璃、水面使用程序近似反射；近景不额外加景深虚化，保持细节可读。本轮不提交、不发布。
+未测真手机、Safari 和部署后的线上入口。桌面模拟帧率不代表手机性能，自适应分辨率在画质底线以上调整。阳光阴影图仅首帧和时间变化时更新，移动车辆使用独立软接触暗影。玻璃、水面使用程序近似反射；近景不额外加景深虚化，保持细节可读。本轮不提交、不发布。
 
 ## 许可
 
