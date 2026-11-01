@@ -6,12 +6,15 @@
   const bg = backdrop.getContext('2d');
   const $ = s => document.querySelector(s), params = new URLSearchParams(location.search);
   const view = ['hero', 'queue', 'notice'].includes(params.get('view')) ? params.get('view') : null;
-  const forced = params.get('demo') === '1' || view === 'queue' || view === 'notice';
+  // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
+  const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
+  const forced = params.get('demo') === '1' || view === 'queue' || view === 'notice' || mvMode;
+  let mv = null, mvUI = null;
   const labels = { busy: '干活中', waiting: '等你拍板', done: '交活了', idle: '休息中', away: '出差中', off: '下班了', unknown: '信号不明' };
   let script, sim, demo = false, ready = false, seed = 7, elapsed = 0, cursor = 0, cycle = 0, paused = false, wallBase = Date.now(), lastUI = -10, light = '', currentRoster = [], seen = new Set(), modeKey = '', metrics = [], lastFrame = 0;
   const beijing = n => new Date(n + 8 * 3600000);
   const formatClock = n => beijing(n).toISOString().slice(11, 16);
-  const now = () => demo ? wallBase + elapsed : Date.now();
+  const now = () => mv ? mv.clock(elapsed) : demo ? wallBase + elapsed : Date.now();
   const r = (g, color, x, y, w, h) => { g.fillStyle = color; g.fillRect(Math.round(x), Math.round(y), w, h); };
   const text = (g, value, x, y, size = 8, color = '#45534b', align = 'center') => { g.fillStyle = color; g.font = `${size}px "PingFang SC",system-ui,sans-serif`; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(value, x, y); };
 
@@ -30,53 +33,55 @@
     r(g, '#e1d8ba', x - 9, y + 9, 18, 4); r(g, '#768474', x - 7, y + 10, 14, 1); r(g, color, x + 18, y - 2, 5, 7); r(g, '#e2ceac', x + 23, y, 2, 3);
     r(g, '#d9b98b', x - 23, y + 34, 46, 9); text(g, owner?.name || '', x, y + 41, 7, '#574e3b');
   }
-  function room() {
-    bg.setTransform(2, 0, 0, 2, 0, 0); bg.clearRect(0, 0, 360, 420);
-    const sky = light === 'night' ? '#30465a' : light === 'dusk' ? '#dca879' : '#a5c6bf';
-    r(bg, '#a49b8640', 16, 16, 338, 396); r(bg, '#6d725e', 10, 10, 340, 398); r(bg, '#dedbc3', 14, 14, 332, 68);
-    r(bg, '#f1e7ce', 17, 17, 326, 62); r(bg, '#c7c7ac', 14, 73, 332, 10); r(bg, '#8c967d', 14, 79, 332, 5);
-    r(bg, '#b58c63', 14, 84, 332, 317);
+  // The room is cached on the backdrop for the office page; the MV draws it straight onto the canvas every frame
+  // (through its camera, blending two lights), so it takes the target and the light as arguments.
+  function room(g = bg, L = light) {
+    if (g === bg) { bg.setTransform(2, 0, 0, 2, 0, 0); bg.clearRect(0, 0, 360, 420); }
+    const sky = L === 'night' ? '#30465a' : L === 'dusk' ? '#dca879' : '#a5c6bf';
+    r(g, '#a49b8640', 16, 16, 338, 396); r(g, '#6d725e', 10, 10, 340, 398); r(g, '#dedbc3', 14, 14, 332, 68);
+    r(g, '#f1e7ce', 17, 17, 326, 62); r(g, '#c7c7ac', 14, 73, 332, 10); r(g, '#8c967d', 14, 79, 332, 5);
+    r(g, '#b58c63', 14, 84, 332, 317);
     for (let y = 84; y < 401; y += 18) for (let x = 14 - ((y / 18 | 0) % 2) * 24; x < 345; x += 48) {
       const left = Math.max(14, x), width = Math.min(345, x + 47) - left;
-      r(bg, ((x + y) / 6 | 0) % 3 ? '#c9a27a' : '#d1ad83', left, y, width, 17);
-      r(bg, '#bd946c', left + 3, y + 12, Math.max(0, width - 9), 1);
+      r(g, ((x + y) / 6 | 0) % 3 ? '#c9a27a' : '#d1ad83', left, y, width, 17);
+      r(g, '#bd946c', left + 3, y + 12, Math.max(0, width - 9), 1);
     }
-    r(bg, '#8a785e', 14, 400, 332, 5); r(bg, '#e5c498', 14, 397, 332, 3);
+    r(g, '#8a785e', 14, 400, 332, 5); r(g, '#e5c498', 14, 397, 332, 3);
     // Windows, curtains and a tiny skyline.
     for (const x of [25, 98]) {
-      r(bg, '#aaa98e', x, 25, 61, 43); r(bg, '#4e756e', x + 2, 25, 57, 39); r(bg, sky, x + 5, 28, 51, 32);
-      r(bg, light === 'night' ? '#243a47' : '#83a69c', x + 8, 49, 10, 11); r(bg, light === 'night' ? '#294050' : '#91b3a6', x + 22, 43, 12, 17); r(bg, '#74988c', x + 39, 52, 13, 8);
-      r(bg, '#e8e3c9', x + 29, 27, 3, 35); r(bg, '#eee3c8', x + 4, 43, 53, 2); r(bg, '#f4ebd8', x - 2, 24, 7, 41); r(bg, '#ddd9bd', x + 57, 24, 6, 41); r(bg, '#8d9d7c', x - 2, 64, 66, 4);
-      if (light === 'night') { r(bg, '#edcf82', x + 13, 52, 2, 2); r(bg, '#edcf82', x + 26, 48, 3, 2); }
+      r(g, '#aaa98e', x, 25, 61, 43); r(g, '#4e756e', x + 2, 25, 57, 39); r(g, sky, x + 5, 28, 51, 32);
+      r(g, L === 'night' ? '#243a47' : '#83a69c', x + 8, 49, 10, 11); r(g, L === 'night' ? '#294050' : '#91b3a6', x + 22, 43, 12, 17); r(g, '#74988c', x + 39, 52, 13, 8);
+      r(g, '#e8e3c9', x + 29, 27, 3, 35); r(g, '#eee3c8', x + 4, 43, 53, 2); r(g, '#f4ebd8', x - 2, 24, 7, 41); r(g, '#ddd9bd', x + 57, 24, 6, 41); r(g, '#8d9d7c', x - 2, 64, 66, 4);
+      if (L === 'night') { r(g, '#edcf82', x + 13, 52, 2, 2); r(g, '#edcf82', x + 26, 48, 3, 2); }
     }
     // Back-wall notice board; actual notices also appear in the accessible drawer.
-    r(bg, '#8c6447', 226, 23, 103, 49); r(bg, '#b68d5f', 229, 26, 97, 43); text(bg, '公 告 板', 277, 36, 7, '#fff3cf');
-    for (let j = 0; j < 4; j++) { const x = 236 + j * 21; r(bg, ['#fff0c9', '#d9e3c6', '#edc4a2', '#f3e6b2'][j], x, 41 + j % 2 * 3, 16, 20); r(bg, '#a56c4b', x + 7, 40 + j % 2 * 3, 2, 3); r(bg, '#b9b194', x + 3, 48 + j % 2 * 3, 10, 1); r(bg, '#c1b597', x + 3, 52 + j % 2 * 3, 7, 1); }
+    r(g, '#8c6447', 226, 23, 103, 49); r(g, '#b68d5f', 229, 26, 97, 43); text(g, '公 告 板', 277, 36, 7, '#fff3cf');
+    for (let j = 0; j < 4; j++) { const x = 236 + j * 21; r(g, ['#fff0c9', '#d9e3c6', '#edc4a2', '#f3e6b2'][j], x, 41 + j % 2 * 3, 16, 20); r(g, '#a56c4b', x + 7, 40 + j % 2 * 3, 2, 3); r(g, '#b9b194', x + 3, 48 + j % 2 * 3, 10, 1); r(g, '#c1b597', x + 3, 52 + j % 2 * 3, 7, 1); }
     // Wall clock and books.
-    r(bg, '#8d9279', 183, 30, 26, 25); r(bg, '#faf0d7', 186, 33, 20, 19); r(bg, '#6c725e', 195, 37, 2, 8); r(bg, '#6c725e', 195, 43, 6, 2);
-    text(bg, '一起把点子做出来', 190, 70, 6, '#7e856e');
+    r(g, '#8d9279', 183, 30, 26, 25); r(g, '#faf0d7', 186, 33, 20, 19); r(g, '#6c725e', 195, 37, 2, 8); r(g, '#6c725e', 195, 43, 6, 2);
+    text(g, '一起把点子做出来', 190, 70, 6, '#7e856e');
     // Director's partition has an open doorway onto the main aisle.
-    r(bg, '#8a9c8735', 20, 87, 91, 68); r(bg, '#8f9a7d', 20, 87, 91, 3); r(bg, '#8f9a7d', 20, 87, 3, 72); r(bg, '#96a38b', 109, 88, 3, 58);
-    r(bg, '#6d806a', 28, 91, 34, 10); text(bg, '总监室', 45, 99, 6, '#f2ebd3');
-    C.desks.forEach(([x, y], i) => { if (i !== 10) desk(bg, x, y, i); });
+    r(g, '#8a9c8735', 20, 87, 91, 68); r(g, '#8f9a7d', 20, 87, 91, 3); r(g, '#8f9a7d', 20, 87, 3, 72); r(g, '#96a38b', 109, 88, 3, 58);
+    r(g, '#6d806a', 28, 91, 34, 10); text(g, '总监室', 45, 99, 6, '#f2ebd3');
+    C.desks.forEach(([x, y], i) => { if (i !== 10) desk(g, x, y, i); });
     // Low bookshelf, reading lamp, patterned rug and two soft benches.
-    r(bg, '#775e45', 26, 173, 72, 29); r(bg, '#9b7854', 28, 175, 68, 24);
-    for (let j = 0; j < 9; j++) r(bg, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
-    r(bg, '#a8b39a', 23, 265, 84, 66); r(bg, '#dad7b4', 27, 269, 76, 58);
-    for (let y = 272; y < 325; y += 6) r(bg, '#c5c5a3', 29, y, 71, 1);
-    r(bg, '#506b5b', 23, 274, 78, 18); r(bg, '#739780', 25, 271, 74, 17); r(bg, '#8cac90', 27, 273, 70, 6);
-    r(bg, '#486354', 23, 287, 5, 12); r(bg, '#486354', 96, 287, 5, 12); r(bg, '#597462', 28, 292, 68, 5);
-    r(bg, '#8f6a4d', 27, 313, 71, 9); r(bg, '#c2976b', 26, 309, 73, 7);
-    r(bg, '#6d735b', 113, 267, 2, 20); r(bg, '#ead3a2', 108, 262, 12, 7); r(bg, '#7d7c60', 109, 287, 10, 2);
+    r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
+    for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
+    r(g, '#a8b39a', 23, 265, 84, 66); r(g, '#dad7b4', 27, 269, 76, 58);
+    for (let y = 272; y < 325; y += 6) r(g, '#c5c5a3', 29, y, 71, 1);
+    r(g, '#506b5b', 23, 274, 78, 18); r(g, '#739780', 25, 271, 74, 17); r(g, '#8cac90', 27, 273, 70, 6);
+    r(g, '#486354', 23, 287, 5, 12); r(g, '#486354', 96, 287, 5, 12); r(g, '#597462', 28, 292, 68, 5);
+    r(g, '#8f6a4d', 27, 313, 71, 9); r(g, '#c2976b', 26, 309, 73, 7);
+    r(g, '#6d735b', 113, 267, 2, 20); r(g, '#ead3a2', 108, 262, 12, 7); r(g, '#7d7c60', 109, 287, 10, 2);
     // Boss desk, mail reception and front door.
-    r(bg, '#90755c35', 143, 350, 99, 47); r(bg, '#82947b', 147, 347, 92, 45); r(bg, '#9daa8c', 151, 351, 84, 37);
-    r(bg, '#775841', 149, 369, 88, 23); r(bg, '#bf9568', 147, 365, 91, 15); r(bg, '#dcba87', 147, 363, 91, 5); r(bg, '#eddfb7', 180, 368, 25, 9); text(bg, '小试AI', 192, 375, 7, '#665c44');
-    r(bg, '#f3e9c8', 155, 368, 16, 9); r(bg, '#c7bc9a', 158, 370, 9, 1); r(bg, '#c7bc9a', 158, 373, 7, 1); r(bg, '#496f5d', 219, 367, 8, 8);
-    r(bg, '#865e43', 285, 340, 47, 23); r(bg, '#c09a69', 282, 337, 51, 10); r(bg, '#e5c595', 282, 337, 51, 2); text(bg, '前 台', 307, 356, 7, '#f2e6c7'); r(bg, '#f0e4c4', 312, 333, 14, 7); r(bg, '#9da384', 313, 335, 12, 1);
-    r(bg, '#556b5b', 329, 374, 17, 26); r(bg, '#99a288', 330, 376, 16, 22); r(bg, '#f5e3af', 333, 386, 2, 3); text(bg, 'OUT', 334, 371, 5, '#5b6857');
-    plant(bg, 329, 94, true); plant(bg, 32, 380, true); plant(bg, 124, 200); plant(bg, 271, 279);
+    r(g, '#90755c35', 143, 350, 99, 47); r(g, '#82947b', 147, 347, 92, 45); r(g, '#9daa8c', 151, 351, 84, 37);
+    r(g, '#775841', 149, 369, 88, 23); r(g, '#bf9568', 147, 365, 91, 15); r(g, '#dcba87', 147, 363, 91, 5); r(g, '#eddfb7', 180, 368, 25, 9); text(g, '小试AI', 192, 375, 7, '#665c44');
+    r(g, '#f3e9c8', 155, 368, 16, 9); r(g, '#c7bc9a', 158, 370, 9, 1); r(g, '#c7bc9a', 158, 373, 7, 1); r(g, '#496f5d', 219, 367, 8, 8);
+    r(g, '#865e43', 285, 340, 47, 23); r(g, '#c09a69', 282, 337, 51, 10); r(g, '#e5c595', 282, 337, 51, 2); text(g, '前 台', 307, 356, 7, '#f2e6c7'); r(g, '#f0e4c4', 312, 333, 14, 7); r(g, '#9da384', 313, 335, 12, 1);
+    r(g, '#556b5b', 329, 374, 17, 26); r(g, '#99a288', 330, 376, 16, 22); r(g, '#f5e3af', 333, 386, 2, 3); text(g, 'OUT', 334, 371, 5, '#5b6857');
+    plant(g, 329, 94, true); plant(g, 32, 380, true); plant(g, 124, 200); plant(g, 271, 279);
     // A warm lamp pool is strictly decorative: no overlay on text or characters.
-    if (light !== 'day') { bg.fillStyle = light === 'night' ? '#323d6220' : '#e79e4120'; bg.fillRect(14, 84, 332, 313); r(bg, '#f9d98c', 109, 263, 10, 3); }
+    if (L !== 'day') { g.fillStyle = L === 'night' ? '#323d6220' : '#e79e4120'; g.fillRect(14, 84, 332, 313); r(g, '#f9d98c', 109, 263, 10, 3); }
   }
 
   // Four pixel treats, 8 wide, drawn with the bottom-left at (x, y).
@@ -88,6 +93,7 @@
   }
   function person(a, boss = false) {
     if (!boss && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
+    if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     const bounce = !boss && a.status === 'done' && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
     let x = Math.round(a.x), y = Math.round(a.y - bounce - (moving ? Math.abs(Math.sin(t * 10 + (a.i || 0))) : 0));
@@ -191,9 +197,18 @@
   function draw() {
     if (!sim) return;
     const started = performance.now();
-    const hour = beijing(now()).getUTCHours(), nextLight = hour >= 23 || hour < 8 ? 'night' : hour >= 17 ? 'dusk' : 'day';
-    if (nextLight !== light) { light = nextLight; room(); }
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 720, 840); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
+    if (mv) {
+      // The MV draws the room every frame through its camera, the two lights of a dusk or night change blended.
+      const L = mv.light(elapsed), v = mv.view(elapsed); light = L.w > .5 ? L.b : L.a;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = mv.palette(elapsed)[0]; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(v.s, 0, 0, v.s, v.ox, v.oy); ctx.imageSmoothingEnabled = false;
+      room(ctx, L.a); if (L.w > 0) { ctx.globalAlpha = L.w; room(ctx, L.b); ctx.globalAlpha = 1; }
+      OfficeMV.drawUnder(ctx, sim, { C, r }, elapsed);
+    } else {
+      const hour = beijing(now()).getUTCHours(), nextLight = hour >= 23 || hour < 8 ? 'night' : hour >= 17 ? 'dusk' : 'day';
+      if (nextLight !== light) { light = nextLight; room(); }
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 720, 840); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
+    }
     if (visitorsTotal !== null && !demo) {
       // The guest book: a little standing sign beside the door with how many people have come by, ever.
       r(ctx, '#5a4a3a', 280, 385, 2, 11); r(ctx, '#5a4a3a', 324, 385, 2, 11);
@@ -205,12 +220,18 @@
     [...sim.actors, ...sim.visitors, { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     const latest = sim.notices.at(-1);
     if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
+    if (mv) {
+      OfficeMV.drawOver(ctx, sim, { C, r }, elapsed, mv.light(elapsed));
+      const dk = mv.darkness(elapsed);
+      if (dk > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(8, 12, 22, ${dk.toFixed(3)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+      OfficeMV.updateDom(mvUI, mv, elapsed, formatClock);
+    }
     const d = sim.delivery, holding = d?.phase === 'holding';
     $('#paper').hidden = !holding;
     if (holding) $('#paper-text').textContent = d.text;
     const hello = sim.greeting();
     if (hello) greeted = true;
-    if (hello && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
+    if (hello && !mv && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
     if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
@@ -284,13 +305,15 @@
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
     wallBase = view ? Date.parse('2026-01-01T02:00:00Z') : Date.now();
     currentRoster = script.roster; sim = C.create(currentRoster, seed);
-    for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
+    if (mv) mv.start(sim);
+    else for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
   }
   function advance(ms) {
     if (!sim) return;
     for (let left = ms; left > 0; left -= 20) {
       const part = Math.min(left, 20);
+      if (mv) { mv.tick(elapsed, sim); elapsed += part; sim.step(part); mv.observe(elapsed, sim); continue; }
       if (demo) {
         const local = elapsed - cycle * script.duration * 1000;
         sim.setVisitors(local >= 12_000 && local < 42_000 ? 1 : 0);
@@ -401,12 +424,18 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
+    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
-  window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
+  window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
-    script = await (await fetch('demo-script.json')).json();
+    if (mvMode) {
+      await new Promise((ok, fail) => { const s = document.createElement('script'); s.src = 'mv.js'; s.onload = ok; s.onerror = fail; document.head.append(s); });
+      script = await (await fetch('mv-script.json')).json(); seed = script.seed ?? seed;
+      mv = OfficeMV.create(script, C); mvUI = OfficeMV.mount(document);
+      canvas.width = 1080; canvas.height = 1176; paused = params.get('hold') === '1'; // the recorder holds it and steps frame by frame
+    } else script = await (await fetch('demo-script.json')).json();
     if (forced) resetDemo(); else await loadLive();
+    if (mv && mvFrom) advance(mvFrom * 1000);
     if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
