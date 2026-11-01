@@ -112,6 +112,8 @@
     if (i === 9) { r(ctx, '#66715d', x, y - 26, 1, 5); r(ctx, color, x - 1, y - 28, 3, 3); }
     if (i === 10) { r(ctx, color, x - 6, y - 23, 12, 5); r(ctx, '#eddca8', x - 8, y - 19, 16, 2); r(ctx, '#e6d2a7', x + 6, y - 5, 7, 5); }
     if (boss) { r(ctx, '#dcb159', x + 2, y - 22, 4, 3); r(ctx, '#5a4839', x - 7, y - 18, 3, 10); }
+    // A visitor: a lanyard badge on the chest, a little camera in hand, and a sun hat on every other one.
+    if (a.visitor) { r(ctx, '#f3ead6', x - 2, y - 9, 4, 5); r(ctx, '#c85b4a', x - 2, y - 9, 4, 1); r(ctx, '#3b4440', x + 5, y - 7, 5, 4); r(ctx, '#d9e2dc', x + 7, y - 6, 2, 2); if (a.i % 2) { r(ctx, '#e3cf9a', x - 8, y - 22, 16, 2); r(ctx, '#e3cf9a', x - 5, y - 25, 10, 3); } }
     if (!boss && a.status === 'unknown') { r(ctx, '#edf0df', x - 4, y - 32, 9, 10); text(ctx, '?', x + 1, y - 24, 9, '#707971'); }
     if (!boss && a.status === 'waiting') {
       const blink = Math.sin(t * 5) > 0;
@@ -131,7 +133,7 @@
     const hour = beijing(now()).getUTCHours(), nextLight = hour >= 23 || hour < 8 ? 'night' : hour >= 17 ? 'dusk' : 'day';
     if (nextLight !== light) { light = nextLight; room(); }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 720, 840); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
-    [...sim.actors, { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
+    [...sim.actors, ...sim.visitors, { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     const latest = sim.notices.at(-1);
     if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
     const d = sim.delivery, holding = d?.phase === 'holding';
@@ -168,7 +170,9 @@
     $('#clock').textContent = formatClock(now()); $('#lighting').textContent = { day: '窗边有光', dusk: '留一盏暖灯', night: '深夜值班室' }[light];
     const waiting = sim.actors.filter(a => a.status === 'waiting').length, busy = sim.actors.filter(a => a.status === 'busy').length;
     $('#room-caption').textContent = waiting ? `${waiting} 位伙伴，有事等你拍板` : busy ? '键盘声里，点子正在长大' : '这一刻，办公室很安静';
-    $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你`;
+    const visiting = sim.visitors.filter(v => v.phase === 'touring').length;
+    $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '');
+    if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
     // Whoever has something going sits on top: waiting for her, then at work, then just finished; the rest keep desk order.
     const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
     const order = [...sim.actors].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.i - b.i).map(a => a.id);
@@ -223,7 +227,7 @@
     }
   }
   function validateState(data) {
-    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20) throw new Error('Invalid state');
+    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000))) throw new Error('Invalid state');
     const ids = new Set(), slots = new Set();
     data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince)) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
     if (data.notices.some(n => typeof n.text !== 'string' || !Number.isFinite(Date.parse(n.at)))) throw new Error('Invalid notice');
@@ -233,6 +237,18 @@
   // path-limited public proxy. Same desks and statuses, no board. Unreachable (machine asleep) means the demo plays.
   const GUEST_API = 'https://mac-mini.tail791fb9.ts.net:8443/office/api/state';
   let guest = false;
+  // A visitor on the public page is drawn in the office: the page keeps a random tag for this tab (no identity, no
+  // cookie) and says hello with each poll while the live office answers. The tab closing is the visitor leaving.
+  let visitorTag = '';
+  try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
+  if (!/^[a-f0-9]{16}$/.test(visitorTag)) {
+    visitorTag = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
+    try { sessionStorage.setItem('office-visitor', visitorTag); } catch { /* fine without */ }
+  }
+  function sayHello() {
+    if (!guest || forced) return;
+    fetch(GUEST_API.replace(/api\/state$/, 'visit') + '?v=' + visitorTag, { mode: 'cors', cache: 'no-store', signal: AbortSignal.timeout(6000) }).catch(() => {});
+  }
   async function fetchState() {
     const sameOrigin = new URL('api/state', location.href);
     for (const [url, isGuest] of [[sameOrigin, false], [GUEST_API, true]]) {
@@ -259,6 +275,7 @@
         if (latest && Date.now() - Date.parse(latest.at) < 20_000) sim.deliveries.push(latest);
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', workedToday: a.workedToday || 0 }); }
+      sim.setVisitors(data.visitors || 0); sayHello();
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();
@@ -277,7 +294,7 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
+    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {

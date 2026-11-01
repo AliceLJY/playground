@@ -94,8 +94,31 @@
       }
       travel(sim.boss, dt * (waiting.length || sim.delivery ? 1 : 0.5));
     }
-    function step(ms) { for (let left = ms; left > 0; left -= 20) tick(Math.min(left, 20) / 1000); }
-    return Object.assign(sim, { step, setStatus, notice });
+    // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
+    // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
+    const tour = [{ x: 125, y: 169 }, { x: 198, y: 247 }, { x: 273, y: 300 }, { x: 115, y: 351 }];
+    sim.visitors = []; sim.visitorTarget = 0; sim.visitorSeq = 0;
+    function setVisitors(n) { sim.visitorTarget = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); }
+    function tickVisitors(dt) {
+      while (sim.visitors.filter(v => v.phase === 'touring').length < sim.visitorTarget && sim.visitors.length < 5) {
+        const seq = ++sim.visitorSeq;
+        sim.visitors.push({ id: `visitor-${seq}`, visitor: true, i: 20 + seq % 4, color: ['#a8b7c4', '#c4b2a8', '#b4c4a8', '#c4a8b9'][seq % 4], x: door.x, y: door.y, path: [], dest: null, phase: 'touring', until: null, status: 'visiting' });
+      }
+      let extra = sim.visitors.filter(v => v.phase === 'touring').length - sim.visitorTarget;
+      for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring') { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }
+      for (const v of sim.visitors) {
+        if (v.phase === 'leaving') { moveTo(v, door); travel(v, dt * 0.8); continue; }
+        if (!v.dest) { moveTo(v, tour[Math.floor(random() * tour.length)]); v.until = null; }
+        else if (!v.path.length) {
+          if (v.until == null) v.until = sim.time + 4 + random() * 6;
+          else if (sim.time >= v.until) { const next = tour.filter(t => distance(t, v) > 1); moveTo(v, next[Math.floor(random() * next.length)]); v.until = null; }
+        }
+        travel(v, dt * 0.7);
+      }
+      sim.visitors = sim.visitors.filter(v => !(v.phase === 'leaving' && distance(v, door) < 1));
+    }
+    function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickVisitors(dt); } }
+    return Object.assign(sim, { step, setStatus, notice, setVisitors });
   }
   const api = { W, H, desks, rest, home, door, handoff, bossDesk, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;

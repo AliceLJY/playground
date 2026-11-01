@@ -345,3 +345,23 @@ test('minutes at work today: busy ticks add up, a long gap is skipped, midnight 
   p=reduceMember(src,{running:false,processes:1},{...p,tickAt:midnight-5000,status:'busy'},midnight); assert.equal(p.workedMs,0,'a new Beijing day starts at zero'); assert.equal(p.workedDay,'2026-11-02');
   const pushed=reduceMember({type:'push'},{},{status:'busy',push:{at:DAY,status:'busy'},tickAt:DAY,workedDay:beijingDay(DAY),workedMs:0},DAY+5000); assert.equal(pushed.status,'busy'); assert.equal(pushed.workedMs,5000);
 });
+
+test('guest visits: a tagged hello counts for 45 s, bad tags 400, CORS only for the public page, count in both feeds',async t=>{
+  const {createOffice}=await import('../server/office-server.mjs');
+  await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
+  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/visit-'));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  let time=DAY; const office=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
+  await office.poll(); office.server.listen(0,'127.0.0.1'); await once(office.server,'listening');
+  t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
+  const base=`http://127.0.0.1:${office.server.address().port}`;
+  const hello=(tag,origin='https://aliceljy.github.io')=>fetch(`${base}/guest/visit?v=${tag}`,{headers:{origin}});
+  let r=await hello('0123456789abcdef'); assert.equal(r.status,200); assert.equal(r.headers.get('access-control-allow-origin'),'https://aliceljy.github.io'); assert.equal(r.headers.get('cache-control'),'no-store');
+  assert.equal((await hello('nope')).status,400); assert.equal((await hello('')).status,400);
+  r=await hello('fedcba9876543210','https://evil.example'); assert.equal(r.status,200); assert.equal(r.headers.get('access-control-allow-origin'),null,'no CORS for other origins');
+  assert.equal((await hello('0123456789abcdef')).status,429,'same tab twice within two seconds');
+  assert.equal((await (await fetch(base+'/api/state')).json()).visitors,2);
+  assert.equal((await (await fetch(base+'/guest/api/state')).json()).visitors,2,'the public feed carries only the count');
+  time+=46000; assert.equal((await (await fetch(base+'/api/state')).json()).visitors,0,'silent tabs have left');
+  assert.equal((await fetch(base+'/guest/visit',{method:'POST'})).status,404);
+});
