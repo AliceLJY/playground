@@ -87,6 +87,18 @@ export function deriveSignal(source, signal, previous = {}, now) {
     }
     return result(fallback, { lastSignalAt: signal.mtime });
   }
+  if (source.type === 'statusfiles') {
+    // A slip older than two hours is stale (the box sleeps and forgets to say done); then the mirror decides.
+    const fresh = (signal.slips || []).filter(s => validTime(s.at, now) && now - s.at < 120 * MINUTE);
+    const pick = (status) => fresh.filter(s => s.status === status);
+    const latestAt = (list) => Math.max(...list.map(s => s.at));
+    if (pick('waiting').length) return result('waiting', { lastSignalAt: latestAt(pick('waiting')), badge: String(pick('waiting').length) });
+    if (pick('busy').length) return result('busy', { lastSignalAt: latestAt(pick('busy')), badge: String(pick('busy').length) });
+    const done = pick('done').filter(s => now - s.at < 10 * MINUTE);
+    if (done.length) return result('done', { lastSignalAt: latestAt(done), badge: '' });
+    const via = deriveSignal({ type: 'artifacts', returnAway: source.returnAway }, signal.fallback, previous, now);
+    return { ...via, badge: '' };
+  }
   if (source.type === 'artifacts') {
     if (signal.empty) return result('away');
     if (!validTime(signal.mtime, now)) return result('unknown');

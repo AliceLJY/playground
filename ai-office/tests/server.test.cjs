@@ -148,3 +148,33 @@ test('etwin appended lines count only; initial/rotated logs do not replay; parti
   await fs.mkdir(path.join(dir,'nested'));await fs.writeFile(path.join(dir,'nested/new.txt'),'x');
   assert.ok((await latestMtime(dir)).mtime>0);await assert.rejects(latestMtime(dir,1));
 });
+
+test('status slips: waiting beats busy, done fades, stale slips fall back to the mirror, badge counts',async()=>{
+  const {reduceMember}=await core;
+  const src={type:'statusfiles'};
+  const sig=(slips,fallback={mtime:DAY-3*3600000})=>({slips,fallback});
+  let p=reduceMember(src,sig([{status:'busy',at:DAY-60000}]),{},DAY); assert.equal(p.status,'busy'); assert.equal(p.badge,'1');
+  p=reduceMember(src,sig([{status:'busy',at:DAY-60000},{status:'waiting',at:DAY-30000},{status:'busy',at:DAY-10000}]),p,DAY); assert.equal(p.status,'waiting'); assert.equal(p.badge,'1');
+  p=reduceMember(src,sig([{status:'done',at:DAY-5*60000}]),p,DAY); assert.equal(p.status,'done');
+  p=reduceMember(src,sig([{status:'done',at:DAY-11*60000}]),p,DAY); assert.equal(p.status,'away','old done → mirror says away (3h old)');
+  p=reduceMember(src,sig([{status:'busy',at:DAY-121*60000}]),p,DAY); assert.equal(p.status,'away','stale busy ignored');
+  p=reduceMember(src,sig([],{empty:true}),{},DAY); assert.equal(p.status,'away');
+  p=reduceMember(src,sig([{status:'busy',at:DAY+600000}]),{},DAY); assert.notEqual(p.status,'busy','future slip not trusted');
+  assert.equal(reduceMember(src,{error:true},{},DAY).status,'unknown');
+});
+
+test('status slip collector reads one-line json, skips bad or oversized files, missing dir is not fatal',async()=>{
+  const {statusFiles}=await import('../server/collectors.mjs');
+  const fs=require('node:fs'); const os=require('node:os'); const path=require('node:path');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'slips-')); const mirror=fs.mkdtempSync(path.join(os.tmpdir(),'mirror-'));
+  fs.writeFileSync(path.join(mirror,'a.txt'),'x');
+  fs.writeFileSync(path.join(dir,'媒体制作.json'),JSON.stringify({status:'busy',task:'做视频',at:'2026-11-01T14:30:00+08:00'}));
+  fs.writeFileSync(path.join(dir,'bad.json'),'{not json');
+  fs.writeFileSync(path.join(dir,'weird.json'),JSON.stringify({status:'off'}));
+  fs.writeFileSync(path.join(dir,'big.json'),JSON.stringify({status:'busy',pad:'x'.repeat(5000)}));
+  fs.writeFileSync(path.join(dir,'note.txt'),'{"status":"busy"}');
+  const r=await statusFiles(dir,mirror);
+  assert.equal(r.slips.length,1); assert.equal(r.slips[0].status,'busy'); assert.equal(r.slips[0].at,Date.parse('2026-11-01T14:30:00+08:00'));
+  assert.ok(r.fallback.mtime>0); assert.equal('task' in r.slips[0],false,'task text never leaves the collector');
+  const none=await statusFiles(path.join(dir,'missing'),mirror); assert.deepEqual(none.slips,[]);
+});
