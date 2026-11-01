@@ -15,6 +15,10 @@
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
   // card, no welcome wave, never counted as a visitor. wl/wt/ww/wh place it, in percent of the screen.
   const wallMode = params.get('wall') === '1';
+  // The wallpaper shows the main room only (the annex made the whole building too small to read on the desktop);
+  // ?wall=1&annex=1 brings the annex back. The totals go into the line above the room instead.
+  const wallRoom = wallMode && params.get('annex') !== '1';
+  if (wallRoom) { canvas.height = 840; document.body.classList.add('wall-room'); }
   if (wallMode) {
     document.body.classList.add('wall');
     const place = { wl: 12, wt: 6, ww: 44, wh: 84 };
@@ -25,7 +29,7 @@
   let script, sim, demo = false, ready = false, seed = 7, elapsed = 0, cursor = 0, cycle = 0, paused = false, wallBase = Date.now(), lastUI = -10, light = '', currentRoster = [], seen = new Set(), modeKey = '', metrics = [], lastFrame = 0;
   const beijing = n => new Date(n + 8 * 3600000);
   const formatClock = n => beijing(n).toISOString().slice(11, 16);
-  let stats = null, events = [];
+  let stats = null, events = [], nameplates = [], speechBoxes = [], build = '';
   const now = () => mv ? mv.clock(elapsed) : demo ? wallBase + elapsed : Date.now();
   const r = (g, color, x, y, w, h) => { g.fillStyle = color; g.fillRect(Math.round(x), Math.round(y), w, h); };
   const text = (g, value, x, y, size = 8, color = '#45534b', align = 'center') => { g.fillStyle = color; g.font = `${size}px "PingFang SC",system-ui,sans-serif`; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(value, x, y); };
@@ -260,6 +264,7 @@
         : hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
         : ['谢谢', '好耶', '谢啦', '太好了', '谢谢你', '哇', '开心', '干杯', '谢谢啦', '好香', '谢谢'][a.i % 11];
       const w = word.length * 6 + 6, bx = Math.max(22, Math.min(338 - w, x - w / 2 + 1));
+      speechBoxes.push({x:bx,y:y-36,w,h:10});
       r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
     } else r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
     const game = sim.gameActivity(a);
@@ -280,7 +285,7 @@
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
     // Eleven accessories: glasses, headset, twin pins, beret, bow, visor, film, scarf, antenna, mail cap.
-    const i = boss ? 11 : a.i;
+    const i = boss ? 11 : C.lookIndex(a, !!mv);
     if (i === 0) { r(ctx, '#3e4b47', x - 5, y - 14, 10, 1); r(ctx, '#3e4b47', x - 5, y - 14, 4, 4); r(ctx, '#b7d0b4', x - 4, y - 13, 2, 1); }
     if (i === 1) { r(ctx, color, x - 7, y - 19, 14, 2); r(ctx, '#697d74', x - 8, y - 16, 3, 6); r(ctx, '#697d74', x + 6, y - 16, 3, 6); }
     if (i === 2 || i === 3) { r(ctx, color, x + 2, y - 21, 4, 4); if (i === 3) r(ctx, '#eadfbe', x - 3, y - 20, 3, 3); }
@@ -295,6 +300,7 @@
     // A visitor: a lanyard badge on the chest, a little camera in hand, and a sun hat on every other one.
     if (a.visitor && a.carry) item(a.carry, x + 7, y - 12);
     if (a.visitor) {
+      speechBoxes.push({x:x-13,y:y-36,w:27,h:10});
       r(ctx, '#f3ead6', x - 2, y - 9, 4, 5); r(ctx, '#c85b4a', x - 2, y - 9, 4, 1); r(ctx, '#3b4440', x + 5, y - 7, 5, 4); r(ctx, '#d9e2dc', x + 7, y - 6, 2, 2);
       r(ctx, '#e3cf9a', x - 8, y - 22, 16, 2); r(ctx, '#e3cf9a', x - 5, y - 25, 10, 3); r(ctx, '#c85b4a', x - 5, y - 23, 10, 1);
       if (hello && hello.visitor === a.id && t - hello.at > 0.8) { r(ctx, '#fff6dc', x - 13, y - 36, 27, 10); r(ctx, '#c85b4a', x - 13, y - 36, 27, 1); text(ctx, '大家好', x + 1, y - 28, 6, '#8a4a3e'); }
@@ -349,7 +355,7 @@
   $('#photo-close').addEventListener('click', () => { $('#photo').hidden = true; });
   function draw() {
     if (!sim) return;
-    const started = performance.now();
+    const started = performance.now(); speechBoxes = []; nameplates = [];
     if (mv) {
       // The MV draws the room every frame through its camera, the two lights of a dusk or night change blended.
       const L = mv.light(elapsed), v = mv.view(elapsed); light = L.w > .5 ? L.b : L.a;
@@ -366,7 +372,23 @@
     const onDesks = sim.deskTreatNow();
     if (onDesks) for (const a of sim.actors) if (!['away', 'off'].includes(a.status) && a.i !== 10) item(onDesks.kind, C.desks[a.i][0] + 15, C.desks[a.i][1] + 6);
     [...sim.actors, ...sim.visitors, ...(sim.guard ? [sim.guard] : []), { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
-    if (!mv) sceneOver();
+    if (!mv) {
+      sceneOver();
+      ctx.font = '7px "PingFang SC",system-ui,sans-serif';
+      nameplates = C.nameplates([...sim.actors,...sim.visitors,...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}], value=>ctx.measureText(value).width, speechBoxes);
+      // Leaders first, then opaque labels: a later leader must never cross another name.
+      for(const p of nameplates) {
+        const center=Math.round(p.x+p.w/2);
+        if(center!==p.footX || p.y!==p.footY+6) {
+          r(ctx,'#b59b72',Math.min(center,p.footX),p.footY+5,Math.abs(center-p.footX)+1,1);
+          r(ctx,'#b59b72',center,p.footY+5,1,p.y-p.footY-4);
+        }
+      }
+      for(const p of nameplates) {
+        r(ctx,'#b59b72',p.x,p.y,p.w,p.h); r(ctx,'#fff6dc',p.x+1,p.y+1,p.w-2,p.h-2);
+        r(ctx,p.color,p.x+2,p.y+3,3,5); text(ctx,p.name,p.x+7,p.y+8,7,'#253334','left');
+      }
+    }
     const latest = sim.notices.at(-1);
     if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
     if (mv) {
@@ -414,7 +436,8 @@
     const waiting = sim.actors.filter(a => a.status === 'waiting').length, busy = sim.actors.filter(a => a.status === 'busy').length;
     $('#room-caption').textContent = waiting ? `${waiting} 位伙伴，有事等你拍板` : busy ? '键盘声里，点子正在长大' : '这一刻，办公室很安静';
     const visiting = sim.visitors.filter(v => v.phase === 'touring').length;
-    $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '');
+    $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '')
+      + (wallRoom && stats && !demo ? ` · 来过 ${stats.visitorsTotal} 位 · 礼物 ${stats.treatsTotal} · 开过会 ${stats.meetingsTotal}` : '');
     // The guest book total sits in the always-visible status line: most people never open the drawer or scroll to the
     // annex board. Live office only; the demo's numbers are made up.
     const book = $('#guestbook'), total = !demo && Number.isInteger(visitorsTotal) ? visitorsTotal : null;
@@ -514,7 +537,8 @@
     if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000)) || (data.visitorsTotal !== undefined && !(Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 && data.visitorsTotal <= 1e9)) || (data.treats !== undefined && !(Array.isArray(data.treats) && data.treats.length <= 10 && data.treats.every(t => t && Object.hasOwn(TREAT_NAMES,t.kind) && Number.isFinite(Date.parse(t.at)))))) throw new Error('Invalid state');
     // Shapes, character sets, lengths and date ranges all checked here, so nothing downstream has to trust the feed.
     const ids = new Set(), slots = new Set(), sane = t => { const v = Date.parse(t); return Number.isFinite(v) && v > 946684800000 && v < 4102444800000; };
-    data.roster.forEach((a, i) => { if (!a || typeof a !== 'object') throw new Error('Invalid role'); const slot = a.desk ?? i; if (typeof a.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || ids.has(a.id) || typeof a.name !== 'string' || !a.name.length || a.name.length > 40 || !/^#[0-9a-f]{6}$/i.test(a.color) || !Object.hasOwn(labels,a.status) || !sane(a.statusSince) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.badge !== undefined && (typeof a.badge !== 'string' || a.badge.length > 16)) || (a.awayLabel !== undefined && (typeof a.awayLabel !== 'string' || a.awayLabel.length > 16)) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
+    data.roster.forEach((a, i) => { if (!a || typeof a !== 'object') throw new Error('Invalid role'); const slot = a.desk ?? i; if (typeof a.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || ids.has(a.id) || typeof a.name !== 'string' || !a.name.length || a.name.length > 40 || !/^#[0-9a-f]{6}$/i.test(a.color) || !Object.hasOwn(labels,a.status) || !sane(a.statusSince) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.courier !== undefined && typeof a.courier !== 'boolean') || (a.look !== undefined && !(Number.isInteger(a.look) && a.look >= 0 && a.look <= 11)) || (a.badge !== undefined && (typeof a.badge !== 'string' || a.badge.length > 16)) || (a.awayLabel !== undefined && (typeof a.awayLabel !== 'string' || a.awayLabel.length > 16)) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
+    if (data.roster.filter(a=>a.courier===true).length>1) throw new Error('Invalid role');
     if (data.notices.some(n => !n || typeof n.text !== 'string' || n.text.length > 500 || !sane(n.at))) throw new Error('Invalid notice');
     return C.validateSceneFields(data);
   }
@@ -570,11 +594,14 @@
   // One missed poll (the office restarting, a phone network blip) must not throw the page into the demo, where the
   // scripted team is doing something else; three misses in a row (30 s) mean the office is really gone.
   let misses = 0;
+  const rosterIdentity = roster => JSON.stringify(roster.map((a,i)=>[a.id,a.desk??i,a.look,a.courier,a.name,a.color]));
   async function loadLive() {
     try {
       const data = await fetchState();
+      // A page left open for days (the wallpaper) reloads itself when the office's own files change.
+      if (!guest && typeof data.build === 'string') { if (!build) build = data.build; else if (data.build !== build) { location.reload(); return; } }
       misses = 0;
-      if (demo || !sim || currentRoster.map(a => a.id).join() !== data.roster.map(a => a.id).join()) {
+      if (demo || !sim || rosterIdentity(currentRoster) !== rosterIdentity(data.roster)) {
         demo = false; elapsed = 0; wallBase = Date.now(); currentRoster = data.roster; sim = C.create(currentRoster, seed); seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
         sim.notices = data.notices; buildRoster(); light = ''; lastUI = -10;
         const latest = data.notices.at(-1);
@@ -605,7 +632,7 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a,!!mv), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {

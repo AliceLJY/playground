@@ -25,6 +25,9 @@ export function validateConfig(config) {
     if (typeof a.name !== 'string' || !a.name.trim() || a.name.length > 24 || typeof a.role !== 'string' || a.role.length > 32 || !/^#[0-9a-f]{6}$/i.test(a.color)) throw new Error('Invalid role presentation');
     if (!['cc', 'codex', 'launchd', 'etwin', 'artifacts', 'statusfiles', 'push', 'courier'].includes(a.source?.type)) throw new Error('Invalid role source');
     if (a.source?.type === 'artifacts' && a.source.directories !== undefined && (!Array.isArray(a.source.directories) || !a.source.directories.length || a.source.directories.some(d => typeof d?.path !== 'string'))) throw new Error('Invalid directories');
+    // Looks follow the person, not the desk: `look` (0–11, default the desk number) picks the hair, colours and accessory,
+    // so two colleagues can swap desks without swapping faces.
+    if (a.look !== undefined && (!Number.isInteger(a.look) || a.look < 0 || a.look > 11)) throw new Error('Invalid look');
     // What "away" means for this desk, in the drawer: a box asleep in the cloud is not the same as a mirror that only syncs every two hours.
     if (a.awayLabel !== undefined && (typeof a.awayLabel !== 'string' || !a.awayLabel.trim() || Array.from(a.awayLabel).length > 16)) throw new Error('Invalid away label');
     if (a.desk !== undefined && (!Number.isInteger(a.desk) || a.desk < 0 || a.desk > 10 || desks.has(a.desk))) throw new Error('Invalid desk'); if (a.desk !== undefined) desks.add(a.desk);
@@ -76,6 +79,12 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return visitors.size;
   }
   let writes = Promise.resolve(), polling = false, updatedAt = iso(clock());
+  // The page files' newest mtime, refreshed each poll: a page that has been open for days (the desktop wallpaper) reloads
+  // itself when this changes, instead of running yesterday's script against today's feed.
+  let build = '';
+  async function readBuild() {
+    try { build = String(Math.max(...await Promise.all([...new Set([...ASSETS.values()].map(v => v[0]))].map(async f => (await stat(path.join(ROOT, f))).mtimeMs)))); } catch { /* keep the last one */ }
+  }
 
   function persist() {
     const body = JSON.stringify(state);
@@ -93,8 +102,8 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   function snapshot() {
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
-      return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), ...(a.awayLabel ? { awayLabel: cleanText(a.awayLabel, 16) } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), ...sceneSnapshot() };
+      return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), ...(a.awayLabel ? { awayLabel: cleanText(a.awayLabel, 16) } : {}), ...(a.look !== undefined ? { look: a.look } : {}), ...(a.source?.type === 'courier' ? { courier: true } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
+    }), notices: state.notices.map(n => ({ ...n })), demo: false, ...(build ? { build } : {}), visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), ...sceneSnapshot() };
   }
   function sceneSnapshot() {
     const view = sceneView(state.scene, rosterIds, clock());
@@ -150,7 +159,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
           return { error: true };
         } finally { clearTimeout(timer); }
       }));
-      const sceneSignal = await sceneOnce();
+      const sceneSignal = await sceneOnce(); await readBuild();
       const now = clock();
       state.scene = reduceScene(state.scene, sceneSignal, now);
       config.roster.forEach((a, i) => {
@@ -174,6 +183,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     // The public feed is the show, not a log: times are rounded to the minute so nobody can read a work diary
     // off it with a script; the board and badge text stay private.
     const full = snapshot(), minute = ms => Math.floor(ms / 60_000) * 60_000;
+    delete full.build; // the public page is served from elsewhere; its own files are not these
     return { ...full, roster: full.roster.map(a => ({ ...a, badge: '', statusSince: iso(minute(Date.parse(a.statusSince))), workedToday: minute(a.workedToday) })), notices: [], guest: true };
   }
   // Everything under /guest/ sits on the public internet through the funnel: a per-address budget keeps one

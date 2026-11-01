@@ -71,7 +71,8 @@
       "color": "#C6A160",
       "status": "busy",
       "badge": "",
-      "desk": 8
+      "desk": 10,
+      "look": 8
     },
     {
       "id": "helper",
@@ -89,7 +90,9 @@
       "color": "#BD8955",
       "status": "idle",
       "badge": "",
-      "desk": 10
+      "desk": 8,
+      "look": 10,
+      "courier": true
     }
   ],
   "events": [

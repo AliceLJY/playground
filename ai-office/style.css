@@ -79,3 +79,7 @@ body.wall #office{height:100%;width:100%}
 
 /* Keep the downstairs hint readable on short phones too. */
 @media(max-height:580px) and (max-width:700px){body:not(.mv) .room-meta{display:flex}}
+
+/* Foot plates extend below the game corner; keep mobile controls beneath their last row. */
+@media(max-width:700px){body:not(.mv):not(.wall) .treat{bottom:45%}}
+body.wall.wall-room #canvas-wrap{aspect-ratio:6/7}

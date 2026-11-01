@@ -29,7 +29,7 @@ test -f ~/.config/ai-office/token || (umask 077; openssl rand -hex 24 > ~/.confi
 chmod 600 ~/.config/ai-office/config.json ~/.config/ai-office/token
 ```
 
-Each roster entry may carry a `desk` slot (0–10, unique; defaults to its position): the slot decides the desk, the pixel look and the courier role (slot 10). Fewer than eleven entries simply leave desks empty.
+Each roster entry may carry a `desk` slot (0–10, unique; defaults to its position). Optional `look` (integer 0–11) selects the accessory independently, defaulting to the desk. Optional `courier` is boolean, with at most one true: that colleague delivers notes and stays at their own desk when idle. Only feeds with no courier fields fall back to desk 10; explicit false disables that fallback. Invalid identity fields reject the entire snapshot. Same-ID desk/look/courier changes take effect on the next valid poll. Fewer than eleven entries simply leave desks empty. The demo and example config place Cobbler at desk 8 with look 10 (mail cap), and 豆包 at desk 10 with look 8 (scarf). The example retains its existing source settings; the service supplies courier:true for the courier source.
 
 ## API and helpers
 
@@ -110,7 +110,9 @@ The published page first tries the same-origin `api/state`, then `https://mac-mi
 
 ## Downstairs annex and Today (phase 2 frontend)
 
-Idle colleagues now gather in the main room’s lower-left game corner: paired table tennis first, then paired chess, two arcade machines and nap/read beanbags; additional colleagues watch from separate spots. Dots’ desk is now at (229,269), opening space for the tennis table; its nameplate, treats and folders move with it. Cobbler stays at desk 10. Done colleagues celebrate at their desks and remain there. Assignments persist until membership changes, then only vacancies are refilled; see [SPEC.md](SPEC.md) for the desk-order rules.
+Idle colleagues now gather in the main room’s lower-left game corner: paired table tennis first, then paired chess, two arcade machines and nap/read beanbags; additional colleagues watch from separate spots. Dots’ desk is now at (229,269), opening space for the tennis table; its nameplate, treats and folders move with it. Cobbler stays at their assigned desk (8 in the demo). Treats follow physical desk size: desk 8 gets a cup, the small desk 10 does not. Done colleagues celebrate at their desks and remain there. Assignments persist until membership changes, then only vacancies are refilled; see [SPEC.md](SPEC.md) for the desk-order rules.
+
+Away from their own workstation, colleagues carry a cream nameplate below their feet: a colour chip and 7-pixel dark text. Spaces/hyphens are removed; names use at most 8 ASCII units or 4 non-ASCII characters (GrokBot, etwincc). Nearby plates stagger without overlapping; if the area is too crowded, foreground plates take priority. Speech bubbles stay above heads. Visitors keep 客, and the host has no plate. At home the desk nameplate is sufficient. MV retains the original desk identities, looks and artwork.
 
 Scroll the room vertically to visit the smaller four-seat meeting room (CC at the projector, additional members in the back row), one two-person audience bench, phone booth and storage. A lit “开会中 ↓” sign and room caption announce real meetings upstairs. The original 360×420 room keeps its coordinates outside the corner/old-desk and new-desk rectangles specified against da99a72; the canvas is now 360×740 logical pixels at 2× resolution. The cumulative wooden board replaces the door's visitor-total sign. Its full numbers are repeated in the **Today** drawer, followed by the latest 40 structured events in reverse time order. Guests can read Today; their notice board stays private.
 
@@ -131,7 +133,7 @@ Fixed seed 7 views (same simulation and rendering path):
 | `?mv=1&hold=1` | Original MV camera, no annex |
 | `?wall=1` | Live extended room fitted into the wallpaper placement |
 
-`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares main-room RGBA outside the two specified repair rectangles and an unchanged MV frame against `c216e84`. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
+`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares the entire stable main-room frame and the swapped-roster background against `70f5527`, plus byte-identical MV PNGs at 10, 31.5, 53.6 and 75.9 seconds. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
 
 ## Who might open this; AI materials
 

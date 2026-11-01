@@ -144,3 +144,17 @@ test('an away label per desk: carried in both feeds, trimmed to 16, rejected whe
   assert.equal(office.snapshot().roster[1].awayLabel, '云上打盹'); assert.equal(office.snapshot().roster[0].awayLabel, undefined);
   for (const bad of ['', '   ', 'x'.repeat(17), 5]) { const c = structuredClone(config); c.roster[1].awayLabel = bad; assert.throws(() => validateConfig(c), /away label/, String(bad)); }
 });
+
+test('looks follow the person and the courier is named in the feed, wherever their desks are', async () => {
+  const { createOffice, validateConfig } = await import('../server/office-server.mjs');
+  const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  const courier = config.roster.find(a => a.source.type === 'courier');
+  courier.look = 10;
+  await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
+  const dir = await fs.mkdtemp(path.join(root, 'tools/.test-data/look-'));
+  const office = await createOffice({ config, token: randomBytes(24).toString('hex'), stateFile: path.join(dir, 'state.json'), clock: () => DAY, collector: async () => ({}), sceneCollector: async () => ({}) });
+  await office.poll();
+  const feed = office.snapshot().roster;
+  assert.deepEqual(feed.filter(a => a.courier).map(a => a.id), [courier.id]); assert.equal(feed.find(a => a.id === courier.id).look, 10);
+  for (const bad of [-1, 12, 1.5, '3']) { const c = structuredClone(config); c.roster[0].look = bad; assert.throws(() => validateConfig(c), /look/, String(bad)); }
+});

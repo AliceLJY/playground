@@ -2,6 +2,17 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const C=require('../office-core.js'),script=require('../demo-script.json');
 function simulation(seed){const s=C.create(script.roster,seed);for(const a of script.roster)s.setStatus(a.id,a.status);return s;}
 function run(s,end){let index=0;for(let ms=0;ms<end;ms+=20){while(index<script.events.length&&script.events[index].at*1000<=ms){const e=script.events[index++];if(e.notice)s.notice({text:e.notice,at:new Date(0).toISOString()});else s.setStatus(e.id,e.status);}s.step(20);}return s;}
+test('validateState accepts optional identity fields and rejects every malformed roster as a whole',()=>{
+  const source=require('node:fs').readFileSync(require.resolve('../office.js'),'utf8');
+  const body=source.match(/function validateState\(data\) \{[\s\S]*?return C\.validateSceneFields\(data\);\n  \}/)[0];
+  const validate=require('node:vm').runInNewContext('('+body+')',{C,TREAT_NAMES:C.TREAT_NAMES,labels:Object.fromEntries(['busy','waiting','done','idle','away','off','unknown'].map(s=>[s,s]))});
+  const fresh=()=>structuredClone(require('./fixtures/state-scene.json'));
+  assert.doesNotThrow(()=>validate(fresh()));
+  for(const value of [0,8,10,11]){const d=fresh();d.roster[0].look=value;d.roster[0].courier=true;d.roster[1].courier=false;assert.doesNotThrow(()=>validate(d));}
+  for(const value of [null,'10',-1,12,1.5,NaN,Infinity,{},[]]){const d=fresh();d.roster[0].look=value;assert.throws(()=>validate(d),/Invalid role/);}
+  for(const value of [null,'true',0,1,{},[]]){const d=fresh();d.roster[0].courier=value;assert.throws(()=>validate(d),/Invalid role/);}
+  const two=fresh();two.roster[0].courier=true;two.roster[1].courier=true;assert.throws(()=>validate(two),/Invalid role/);
+});
 test('busy at desk, waiting at boss, departure actually exits, seed-reproducible movement',()=>{
   for(const seed of [1,7,31]){
     const s=run(simulation(seed),20000),waiting=s.actors.filter(a=>a.status==='waiting');
@@ -14,7 +25,7 @@ test('busy at desk, waiting at boss, departure actually exits, seed-reproducible
   }
 });
 test('courier arrives before notice view; paper holds eight seconds, multiple deliveries queue',()=>{
-  const s=run(simulation(7),35000);assert.equal(s.delivery.phase,'holding');assert.ok(C.distance(s.actors.find(a=>a.i===10),C.handoff)<1);
+  const s=run(simulation(7),35000);assert.equal(s.delivery.phase,'holding');assert.ok(C.distance(s.actors.find(a=>s.isCourier(a)),C.handoff)<1);
   const arrival=s.delivery.arrived;s.notice({text:'second',at:new Date(1).toISOString()});
   s.step((arrival+7.98-s.time)*1000);assert.equal(s.delivery.phase,'holding');
   s.step(40);assert.equal(s.delivery.phase,'returning');assert.equal(s.delivered,1);
@@ -36,10 +47,10 @@ test('every reported waiting state has a distinct reachable queue position',()=>
   assert.ok(C.distance(s.boss,C.bossDesk)<1);
 });
 test('a real notice waits for the roaming host before the eight-second handoff',()=>{
-  const s=simulation(7);s.step(5000);assert.ok(C.distance(s.boss,C.bossDesk)>30,'host must actually be away');
+  const s=simulation(7);s.step(5000);s.bossTarget={x:340,y:700};s.step(15000);s.bossTarget=null;assert.ok(C.distance(s.boss,C.bossDesk)>30,'host must actually be away');
   s.notice({text:'delivery',at:new Date(0).toISOString()});let waitedAtDesk=false;
   for(let i=0;i<1000&&s.delivery?.phase!=='holding';i++){
-    s.step(20);if(s.delivery?.phase==='walking'&&C.distance(s.actors.find(a=>a.i===10),C.handoff)<1&&C.distance(s.boss,C.bossDesk)>1)waitedAtDesk=true;
+    s.step(20);if(s.delivery?.phase==='walking'&&C.distance(s.actors.find(a=>s.isCourier(a)),C.handoff)<1&&C.distance(s.boss,C.bossDesk)>1)waitedAtDesk=true;
   }
   assert.equal(waitedAtDesk,true,'courier must really encounter an empty desk');assert.equal(s.delivery.phase,'holding');assert.ok(C.distance(s.boss,C.bossDesk)<1);
   s.step(7980);assert.equal(s.delivery.phase,'holding');s.step(40);assert.equal(s.delivery.phase,'returning');

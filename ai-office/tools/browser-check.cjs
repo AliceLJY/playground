@@ -4,6 +4,9 @@ const {chromium}=require('playwright');
 const fs=require('node:fs/promises'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 const {execFileSync}=require('node:child_process');
 const fixture=require('../tests/fixtures/state-scene.json');
+const swappedFeed=()=>{const d=structuredClone(fixture);d.roster.forEach(a=>{if(a.desk===10)Object.assign(a,{desk:8,look:10,courier:true});else if(a.desk===8)Object.assign(a,{desk:10,look:8});});return d;};
+const overlap=(p,q)=>p.x<q.x+q.w&&q.x<p.x+p.w&&p.y<q.y+q.h&&q.y<p.y+p.h;
+
 const base=process.argv[2]||'http://127.0.0.1:3191/',root=path.resolve(__dirname,'..'),out=path.join(__dirname,'shots');
 const report={checkedAt:new Date().toISOString(),base,checks:[],runs:[]};
 const check=(name,passed,details)=>{report.checks.push({name,passed:!!passed,details});assert.ok(passed,name+': '+JSON.stringify(details));};
@@ -36,13 +39,25 @@ let browser,staticServer;
     check(name+' canvas painted',layout.ink>.8,layout.ink);check(name+' no horizontal overflow',layout.scrollWidth<=layout.width,layout);
     if(!snapshot.mv&&!name.startsWith('wall'))check(name+' drawer inside viewport',layout.drawer.x>=0&&layout.drawer.right<=layout.width+.5&&layout.drawer.bottom<=layout.height+.5,layout.drawer);
     if(actual)check(name+' actual state',snapshot.actualView===actual,snapshot.actualView);
+    if(snapshot.nameplates) {
+      const plates=snapshot.nameplates;
+      check(name+' plates never overlap',plates.every((p,i)=>plates.slice(i+1).every(q=>!overlap({...p,w:p.w+1,h:p.h+1},q))),plates);
+      check(name+' plates clear speech bubbles',plates.every(p=>snapshot.speechBoxes.every(q=>!overlap(p,q))));
+      check(name+' plates below feet',plates.every(p=>p.y>=p.footY+6));
+      // The wallpaper draws the main room only (canvas 840 px high): plates of people downstairs are off the canvas.
+      const drawnH=await run.page.evaluate(()=>document.querySelector('#office').height/2);
+      plates.splice(0,plates.length,...plates.filter(p=>p.y+p.h<=drawnH));
+      const rendered=await run.page.evaluate(plates=>{const g=document.querySelector('#office').getContext('2d');return plates.map(p=>{const chip=Array.from(g.getImageData((p.x+3)*2,(p.y+5)*2,1,1).data);const pixels=g.getImageData((p.x+7)*2,(p.y+1)*2,(p.w-8)*2,8*2).data;let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]<130&&pixels[i+1]<140&&pixels[i+2]<130)ink++;return {id:p.id,chip,ink};});},plates);
+      check(name+' actual plate chips and text',rendered.every((r,i)=>r.chip.slice(0,3).map(v=>v.toString(16).padStart(2,'0')).join('')===plates[i].color.slice(1).toLowerCase()&&r.ink>=plates[i].name.length*2),rendered);
+    }
     await run.page.screenshot({path:path.join(out,name+'.png')});report.runs.push({name,snapshot,layout});return snapshot;
   }
   for(const name of ['hero','queue','notice','meeting','booth','handoff','board','night-guard','games']){
     const run=await open(`?demo=1&view=${name}`),s=await save(run,name,name);
     check(name+' labelled demo',s.demo&&s.stats?.visitorsTotal===137&&await run.page.locator('#mode').textContent().then(x=>x.includes('演示')));
     if(name==='meeting'){check('meeting seated and two listeners',s.actors.filter(a=>a.activity==='meeting').length===3&&s.visitors.filter(v=>v.listening).length===2);check('second slide visible',s.scene.meeting.round===2);check('meeting caption visible',await run.page.locator('#room-caption').textContent()==='楼下在开会');check('meeting sign is lit',s.meetingSign && await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(277*2,401*2,1,1).data].join()==='239,198,108,255'));await run.page.evaluate(()=>document.querySelector('#room-viewport').scrollTop=0);await save(run,'meeting-main');await run.page.locator('#pose').click();await run.page.evaluate(()=>window.__PLAYTEST__.step(300));check('greeting overrides meeting caption',await run.page.locator('#room-caption').textContent().then(x=>x.includes('打了个招呼')));}
-    if(name==='games'){check('six real idle colleagues play',s.actors.filter(a=>a.game).length===6&&s.actors.filter(a=>a.game).every(a=>a.status==='idle'));check('tennis pair plays in games view',s.actors.filter(a=>a.game==='pingpong').length===2&&s.pingPongBall?.size>=2);check('no meeting means no lit sign',!s.meetingSign && await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(277*2,401*2,1,1).data].join()!=='239,198,108,255'));}
+    if(name==='notice')check('desk 8 courier actually holding',s.actors.some(a=>a.courier&&a.desk===8&&a.look===10&&a.x===221&&a.y===352)&&s.delivery.phase==='holding');
+    if(name==='games'){check('each game participant has a foot plate',s.actors.filter(a=>a.game).every(a=>s.nameplates.some(p=>p.id===a.id)));check('six real idle colleagues play',s.actors.filter(a=>a.game).length===6&&s.actors.filter(a=>a.game).every(a=>a.status==='idle'));check('tennis pair plays in games view',s.actors.filter(a=>a.game==='pingpong').length===2&&s.pingPongBall?.size>=2);check('no meeting means no lit sign',!s.meetingSign && await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(277*2,401*2,1,1).data].join()!=='239,198,108,255'));}
     if(name==='booth')check('booth CC at target',s.actors.some(a=>a.activity==='call'&&a.x===296&&a.y===560));
     if(name==='handoff')check('folder is mid-flight',s.flights.length===1&&s.flights[0].progress>.4&&s.flights[0].progress<.6);
     if(name==='board'){check('today drawer visible',await run.page.locator('#today').isVisible());check('reverse chronological fixed templates',await run.page.locator('#events li').first().textContent().then(x=>x.includes('第 2 轮')));}
@@ -65,9 +80,11 @@ let browser,staticServer;
     await run.context.close();
   }
   for(const width of [390,320]) {
-    const run=await open('?view=games',{width,height:width===390?664:568});await save(run,'games-mobile-'+width,'games');await save(run,'mobile-'+width,'games');
+    const run=await open('?view=games',{width,height:width===390?664:568});check('nameplate type readable '+width,await run.page.evaluate(()=>document.querySelector('#office').getBoundingClientRect().width/360*7)>=(width===390?6:5));await save(run,'games-mobile-'+width,'games');await save(run,'mobile-'+width,'games');
     const visible=await run.page.evaluate(()=>{const c=document.querySelector('#office').getBoundingClientRect(),v=document.querySelector('#room-viewport'),b=v.getBoundingClientRect();return {scroll:v.scrollTop,top:c.y+240*c.width/360,bottom:c.y+344*c.width/360,left:c.x+20*c.width/360,right:c.x+192*c.width/360,clipBottom:b.bottom,clipTop:b.top,width:innerWidth};});
     check('games visible without scrolling '+width,visible.scroll===0&&visible.top>=visible.clipTop&&visible.bottom<=visible.clipBottom&&visible.left>=0&&visible.right<=visible.width,visible);
+    const plateVisibility=await run.page.evaluate(()=>{const c=document.querySelector('#office'),b=c.getBoundingClientRect(),v=document.querySelector('#room-viewport').getBoundingClientRect(),s=window.__PLAYTEST__.snapshot(),scale=b.width/360;return s.nameplates.filter(p=>s.actors.some(a=>a.id===p.id&&a.game)).map(p=>({id:p.id,inside:b.y+p.y*scale>=v.top&&b.y+(p.y+p.h)*scale<=v.bottom,clear:[.1,.5,.9].every(k=>[.1,.5,.9].every(j=>document.elementFromPoint(b.x+(p.x+p.w*k)*scale,b.y+(p.y+p.h*j)*scale)===c))}));});
+    check('all six game plates visible above mobile controls '+width,plateVisibility.length===6&&plateVisibility.every(p=>p.inside&&p.clear),plateVisibility);
     const regions=[[27,266,14,8],[27,275,18,9],[88,284,20,16],[84,288,30,7],[140,278,30,34],[158,266,12,14],[158,309,12,14]];
     const sample=()=>run.page.evaluate(regions=>regions.map(([x,y,w,h])=>Array.from(document.querySelector('#office').getContext('2d').getImageData(x*2,y*2,w*2,h*2).data)),regions);
     const first=await sample(),diff=regions.map(()=>0);
@@ -115,23 +132,58 @@ let browser,staticServer;
     if(n>1)check('ball pixels travel '+n,Math.max(...ballPositions)-Math.min(...ballPositions)>=25,ballPositions);
     await save(run,'games-'+n+'-idle');await run.context.close();
   }
-  // Main-room artwork outside the two intentional edits must match da99a72 byte for byte.
+  // Same roster IDs must still pick up a desk / look / courier change on the next valid poll.
+  let revision=0;
+  const identity=await open('',undefined,true,page=>page.route('**/api/state',route=>{
+    const d=revision?swappedFeed():structuredClone(fixture);d.roster.forEach(a=>a.status='busy');d.visitors=0;d.notices=[];d.events=[];d.treats=revision?[{kind:'milktea',at:'2026-11-01T07:30:10Z'}]:[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};return route.fulfill({json:d});
+  }));
+  let ident=await identity.page.evaluate(()=>window.__PLAYTEST__.snapshot());check('legacy courier at 10 before live swap',ident.actors.find(a=>a.courier)?.desk===10);
+  revision=1;await identity.page.clock.runFor(11000);await identity.page.waitForFunction(()=>window.__PLAYTEST__.snapshot().actors.some(a=>a.courier&&a.desk===8),null,{polling:100});
+  await identity.page.evaluate(()=>window.__PLAYTEST__.step(25000));ident=await save(identity,'identity-swapped');
+  check('same-ID live swap accepted',!ident.demo&&ident.actors.find(a=>a.courier)?.desk===8&&ident.actors.find(a=>a.desk===10)?.look===8);
+  check('at-home actors have no plates',ident.nameplates.length===0);check('swapped desks actually received treat',ident.deskTreat?.kind==='milktea');
+  const costume=await identity.page.evaluate(()=>{const s=window.__PLAYTEST__.snapshot(),g=document.querySelector('#office').getContext('2d'),pixel=(x,y)=>Array.from(g.getImageData(x*2,y*2,1,1).data).join(),c=s.actors.find(a=>a.courier),d=s.actors.find(a=>a.desk===10),C=window.OfficeCore;return {cap:pixel(c.x-7,c.y-19),scarf:pixel(d.x-3,d.y-10),cup8:pixel(C.desks[8][0]+18,C.desks[8][1]-3),cup10:pixel(C.desks[10][0]+18,C.desks[10][1]-3)};});
+  check('look 10 really paints mail cap at desk 8',costume.cap==='237,220,168,255',costume);
+  check('look 8 really paints scarf at desk 10',costume.scarf==='235,215,167,255',costume);
+  check('milk tea uses physical desk size',costume.cup8==='200,91,74,255'&&costume.cup10!=='200,91,74,255',costume);
+  await identity.context.close();
+  const trip=await open('?demo=1&hold=1');let tripState=await trip.page.evaluate(()=>window.__PLAYTEST__.snapshot());
+  const mailId=tripState.courierId;check('demo courier starts at desk 8',tripState.actors.some(a=>a.id===mailId&&a.desk===8&&a.x===301&&a.y===221));
+  await trip.page.evaluate(()=>window.__PLAYTEST__.step(28000));let walked=0,held=false;
+  for(let i=0;i<180;i++) {tripState=await trip.page.evaluate(()=>window.__PLAYTEST__.step(100));const a=tripState.actors.find(a=>a.id===tripState.courierId);if(a.moving)walked++;if(i===9)await save(trip,'notice-from-8');if(tripState.delivery?.phase==='holding')held=true;}
+  check('desk 8 actual outward and return delivery',walked>20&&held&&tripState.delivered===1&&tripState.delivery===null&&tripState.actors.some(a=>a.id===mailId&&a.x===301&&a.y===221));await trip.context.close();
+  // Rejected optional-field polls must not partially mutate names, desks or the scene.
+  let corruption=null;
+  const invalid=await open('',undefined,true,page=>page.route('**/api/state',route=>{if(route.request().url().startsWith('https:'))return route.abort();const d=swappedFeed();if(corruption){d.roster[0].name='REJECTED';d.scene.dispatched=[];corruption(d);}return route.fulfill({json:d});}));
+  for(const [label,mutate] of [['look range',d=>d.roster[0].look=12],['courier type',d=>d.roster[0].courier='true'],['two couriers',d=>d.roster[0].courier=true]]) {
+    corruption=mutate;await invalid.page.clock.runFor(11000);const state=await invalid.page.evaluate(()=>window.__PLAYTEST__.snapshot());check('atomic rejection '+label,!state.demo&&state.actors.find(a=>a.courier)?.desk===8&&state.scene.dispatched.join()===fixture.scene.dispatched.join()&&!(await invalid.page.locator('#roster').textContent()).includes('REJECTED'));
+    corruption=null;await invalid.page.clock.runFor(11000);
+  }
+  await invalid.context.close();
+  // The complete stable main room and the actual cached background must match the task baseline.
   // Identical busy-only feed avoids treating the requested idle routing changes as artwork regressions.
-  const originals=new Map(['index.html','office.js','office-core.js','style.css'].map(file=>[file,execFileSync('git',['show',`da99a72:ai-office/${file}`],{cwd:root,encoding:'utf8'})]));
+  const originals=new Map(['index.html','office.js','office-core.js','style.css'].map(file=>[file,execFileSync('git',['show',`70f5527:ai-office/${file}`],{cwd:root,encoding:'utf8'})]));
   const originalPage=async page=>{for(const [file,body]of originals)await page.route('**/'+file,route=>route.fulfill({body,contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'}));await page.route(new URL(base).href+'?*',route=>route.fulfill({body:originals.get('index.html'),contentType:'text/html'}));};
-  const stableFeed=async page=>page.route('**/demo-script.json',route=>{const d=structuredClone(require('../demo-script.json'));d.roster.forEach(a=>a.status='busy');d.events=[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};return route.fulfill({json:d});});
+  const stableFeed=async page=>page.route('**/demo-script.json',route=>{const d=JSON.parse(execFileSync('git',['show','70f5527:ai-office/demo-script.json'],{cwd:root,encoding:'utf8'}));d.roster.forEach(a=>a.status='busy');d.events=[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};return route.fulfill({json:d});});
   const pixels=page=>page.evaluate(()=>Array.from(document.querySelector('#office').getContext('2d').getImageData(0,0,720,840).data));
   const before=await open('?demo=1&view=hero',undefined,true,async page=>{await originalPage(page);await stableFeed(page);}),after=await open('?demo=1&view=hero',undefined,true,stableFeed);
-  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page),rectangles=[[20,240,192,346],[198,252,260,314]];let different=0,inside=0;
-  for(let i=0;i<rawBefore.length;i++)if(rawBefore[i]!==rawAfter[i]){const x=Math.floor(i/4)%720/2,y=Math.floor(i/4/720)/2;if(rectangles.some(([l,t,r,b])=>x>=l&&x<r&&y>=t&&y<b))inside++;else different++;}
-  check('da99a72 main room RGBA identical outside repair rectangles',different===0&&inside>0,{different,inside,rectangles});
+  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page);const different=rawBefore.filter((v,i)=>v!==rawAfter[i]).length;
+  check('70f5527 stable whole main room RGBA identical',different===0,{different});
   await before.page.screenshot({path:path.join(out,'room-before.png')});await after.page.screenshot({path:path.join(out,'room-after.png')});await before.context.close();await after.context.close();
+  const backgrounds=[];
+  for(const old of [true,false]) {
+    const run=await open('?demo=1&view=hero',undefined,true,async page=>{
+      if(old)await originalPage(page);
+      await page.addInitScript(()=>{const draw=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(source,...args){if(this.canvas.id==='office'&&source instanceof HTMLCanvasElement)window.roomRGBA=Array.from(source.getContext('2d').getImageData(0,0,720,840).data);return draw.call(this,source,...args);};});
+    });backgrounds.push(await run.page.evaluate(()=>window.roomRGBA));await run.context.close();
+  }
+  const backgroundDiff=backgrounds[0].filter((v,i)=>v!==backgrounds[1][i]).length;check('70f5527 swapped-roster background RGBA identical',backgroundDiff===0,{different:backgroundDiff});
   // Identical readback/capture steps on both sides: repeated getImageData can change Canvas rasterization.
   const mvTimes=[10,31.5,53.6,75.9],mvFrames=[];
   const mvBefore=await open('?mv=1&hold=1',{width:540,height:960},true,originalPage);let mvAt=0;
   for(const t of mvTimes){await mvBefore.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;await save(mvBefore,`mv-reference-${t}`);const png=await mvBefore.page.locator('#office').screenshot();mvFrames.push(png);await fs.writeFile(path.join(out,t===10?'mv-before.png':`mv-before-${t}.png`),png);}await mvBefore.context.close();
   const mv=await open('?mv=1&hold=1',{width:540,height:960});mvAt=0;
-  for(const [i,t] of mvTimes.entries()){await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;const m=await save(mv,t===10?'mv-hold':`mv-hold-${t}`);check('MV keeps original frame '+t,!!m.mv&&m.scene.meeting===null);check('MV exact screenshot matches da99a72 at '+t,mvFrames[i].equals(await mv.page.locator('#office').screenshot()));}await mv.context.close();
+  for(const [i,t] of mvTimes.entries()){await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;const m=await save(mv,t===10?'mv-hold':`mv-hold-${t}`);check('MV keeps original frame '+t,!!m.mv&&m.scene.meeting===null);check('MV exact screenshot matches 70f5527 at '+t,mvFrames[i].equals(await mv.page.locator('#office').screenshot()));}await mv.context.close();
   const wall=await open('?wall=1',{width:1440,height:900});await wall.page.evaluate(()=>window.__PLAYTEST__.step(35000));await save(wall,'wall');check('wall hides photo and controls',await wall.page.locator('#treat').isHidden()&&await wall.page.locator('#photo').isHidden());await wall.context.close();
   // Normal entrance, genuine UI actions and 30 seconds of default movement.
   const run=await open('?demo=1',{width:390,height:664});const phases=new Set();let moved=0,previous;

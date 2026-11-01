@@ -78,7 +78,8 @@
       "source": {
         "type": "push"
       },
-      "desk": 8
+      "desk": 10,
+      "look": 8
     },
     {
       "id": "helper",
@@ -99,7 +100,8 @@
       "source": {
         "type": "courier"
       },
-      "desk": 10
+      "desk": 8,
+      "look": 10
     }
   ]
 }
