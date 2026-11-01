@@ -55,3 +55,12 @@ test('visitors come in through the door, stroll only on walkable floor, and leav
   s.setVisitors(0); s.step(20000); assert.equal(s.visitors.length,0,'everyone left');
   s.setVisitors(50); s.step(100); assert.equal(s.visitors.length,5,'five at most on screen');
 });
+
+test('a visitor stepping in starts a three-second greeting; it ends on its own and restarts only with the next visitor',()=>{
+  const s=simulation(5); assert.equal(s.greeting(),null);
+  s.setVisitors(1); s.step(100); const g=s.greeting(); assert.ok(g,'greeting starts as the visitor appears'); assert.equal(g.visitor,'visitor-1');
+  s.step(2000); assert.ok(s.greeting(),'still greeting after two seconds');
+  s.step(1500); assert.equal(s.greeting(),null,'over after three seconds');
+  s.step(5000); assert.equal(s.greeting(),null,'the same visitor strolling does not restart it');
+  s.setVisitors(2); s.step(100); assert.equal(s.greeting().visitor,'visitor-2','a second visitor is greeted too');
+});
