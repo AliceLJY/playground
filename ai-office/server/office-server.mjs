@@ -41,9 +41,14 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   if (typeof token !== 'string' || token.trim().length < 24) throw new Error('Missing or invalid private token');
   const expected = createHash('sha256').update(`Bearer ${token.trim()}`).digest();
   // Per-bot keys for the public guest report path: a key moves only that one desk, nothing else. Cosmetic by design.
+  // A bot that cannot keep a secret (an agent with no credential store) may be marked "open" by the owner: its desk
+  // takes reports with no key. The harm is bounded the same way a leaked key would be: that one desk, five words,
+  // rate limited. Everything else still needs its key or the private token.
   const botKeys = new Map();
   for (const [id, key] of Object.entries(botKeys_ || {})) {
-    if (!config.roster.some(a => a.id === id) || typeof key !== 'string' || key.trim().length < 24) throw new Error(`Invalid bot key for ${id}`);
+    if (!config.roster.some(a => a.id === id)) throw new Error(`Unknown bot in keys: ${id}`);
+    if (key === 'open') { botKeys.set(id, 'open'); continue; }
+    if (typeof key !== 'string' || key.trim().length < 24) throw new Error(`Invalid bot key for ${id}`);
     botKeys.set(id, createHash('sha256').update(key.trim()).digest());
   }
   const state = await loadState(stateFile);
@@ -131,7 +136,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
       if (guestReport) {
         const id = guestReport[1], keyHash = botKeys.get(id);
         const got = createHash('sha256').update(String(req.headers['x-office-key'] || '').trim()).digest();
-        if (!keyHash || !timingSafeEqual(keyHash, got)) { req.resume(); return reply(res, 403, { error: 'Forbidden' }); }
+        if (!keyHash || (keyHash !== 'open' && !timingSafeEqual(keyHash, got))) { req.resume(); return reply(res, 403, { error: 'Forbidden' }); }
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) { req.resume(); return reply(res, 415, { error: 'JSON required' }); }
         if (Number(req.headers['content-length']) > 1024) { req.resume(); return reply(res, 413, { error: 'Body too large' }); }
         let size = 0, parts = [];
