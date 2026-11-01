@@ -12,10 +12,10 @@ async function share(page,b64,box){return page.evaluate(async({b64,box})=>{
  const d=g.getImageData(x0,y0,Math.max(1,x1-x0),Math.max(1,y1-y0)).data;let n=0;
  for(let i=0;i<d.length;i+=4)if(d[i]>240&&d[i+1]>220&&d[i+2]>150)n++;return n/(d.length/4);},{b64,box});}
 (async()=>{const args=process.argv.slice(2);
- const browser=await chromium.launch();const results=[];
+ const browser=await chromium.launch({channel:'chrome',headless:true});const results=[];
  try{
   {const base=args[0]||'file://'+path.resolve(__dirname,'../dist/index.html');
-   for(const [name,query,w,h,dpr] of [['pagoda','?view=pagoda',1440,900,1],['phone-hero','?view=hero',390,664,2]]){
+   for(const [name,query,w,h,dpr] of [['pagoda-day','?view=pagoda&h=0',1440,900,1],['pagoda-dusk','?view=pagoda&h=.55',1440,900,1],['phone-day','?view=hero&h=0',390,664,2],['phone-dusk','?view=hero&h=.55',390,664,2]]){
     const ctx=await browser.newContext({viewport:{width:w,height:h},deviceScaleFactor:dpr,isMobile:w<600,hasTouch:w<600}),page=await ctx.newPage();
     await page.goto(base+query);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100,timeout:30000});await page.waitForTimeout(1200);
     const view=await page.evaluate(()=>window.__huacheng.state().view);if(view!==new URLSearchParams(query).get('view'))throw Error('view '+view);

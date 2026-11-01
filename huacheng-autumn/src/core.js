@@ -8,12 +8,12 @@ export const smooth = t => t * t * (3 - 2 * t);
 export const dist = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 export const mulberry32 = seed => () => { let t = seed += 0x6d2b79f5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 export const SEED = 20261101, LOOP_S = 40, IDLE_S = 4.5, RETURN_S = 3;
-export const COLORS = ['#D6246E', '#F07A2A', '#F2B833', '#F6C9D8'];
+export const COLORS = ['#D6246E', '#F07A2A', '#F2B833', '#DA94B3'];
 export const BASE = { width: 44, depth: 33, radius: 2, top: 0, bottom: -1.6 };
 export const BRIDGE = { x: -5.5, z0: -7, z1: 10.5, width: 2.6, top: 5.6, bottom: 5.15, railTop: 6.6 };
 export const PAGODA = { x: 11.8, z: -6, base: 2.5, radius: 2.15, floorH: 1.65, floors: 9 };
 export const CANTON = { x: -33, z: -43, base: -0.8, height: 33, antenna: 9, twist: Math.PI * 0.72 };
-export const TRAM = { z: 0, floor: 0.65, height: 2.35, width: 1.65, carLength: 3.8, gap: 0.25, cars: 4, roofTop: 3.7, wheelBottom: 0.31, noseOverhang: 0.18, sideOverhang: 0.065, clipX: 21.3 };
+export const TRAM = { z: 0, floor: 0.65, height: 2.35, width: 2.65, carLength: 3.8, gap: 0.25, cars: 4, roofTop: 3.92, wheelBottom: 0.26, noseOverhang: 0.18, sideOverhang: 0.065, clipX: 21.3 };
 export const box = (id, center, size) => ({ id, center, size, min: center.map((v,i)=>v-size[i]/2), max: center.map((v,i)=>v+size[i]/2) });
 export const bounds = (points, pad = 0) => ({ min: [0,1,2].map(i=>Math.min(...points.map(p=>p[i]))-pad), max: [0,1,2].map(i=>Math.max(...points.map(p=>p[i]))+pad) });
 export const distanceBox = (p,b) => Math.hypot(...p.map((v,i)=>Math.max(b.min[i]-v, v-b.max[i], 0)));
@@ -24,8 +24,8 @@ export function makeLayout(seed=SEED, mobile=false) {
   const rnd=mulberry32(seed), R=(a,b)=>lerp(a,b,rnd());
   const surfaces=[
     box('base',[0,-0.8,0],[44,1.6,33]),
-    box('road',[0,0.1,6],[42.4,0.2,6.8]),
-    box('track-grass',[0,0.15,0],[42.4,0.3,3.5]),
+    box('road',[0,0.1,6],[42.4,0.2,7]),
+    box('track-grass',[0,0.15,0],[42.4,0.3,3.7]),
     box('front-walk',[0,0.2,12.5],[40.8,0.4,4.6]),
     box('promenade',[0,0.2,-6.1],[42,0.4,7.4]),
     box('bridge',[-5.5,5.375,1.75],[2.6,0.45,17.5]),
@@ -37,22 +37,22 @@ export function makeLayout(seed=SEED, mobile=false) {
   for(const z of [BRIDGE.z0,BRIDGE.z1]) {
     for(let i=0;i<stairCount;i++) { const top=BRIDGE.top-(i+1)*(BRIDGE.top-0.4)/stairCount; steps.push(box('stair',[-3.98+i*0.28,top/2,z],[0.28,top,2.5])); }
     for(const s of [-1,1]) {
-      for(let i=0;i<=stairCount;i+=2) {const x=-4.12+i*0.28, y=BRIDGE.top-i*(BRIDGE.top-0.4)/stairCount; rails.push(beam([x,y,z+s*1.2],[x,y+1,z+s*1.2],0.055));}
-      rails.push(beam([-4.12,6.6,z+s*1.2],[2.6,1.4,z+s*1.2],0.08));
+      for(let i=0;i<=stairCount;i+=4) {const x=-4.12+i*0.28, y=BRIDGE.top-i*(BRIDGE.top-0.4)/stairCount; rails.push(beam([x,y,z+s*1.2],[x,y+1,z+s*1.2],0.045));}
+      rails.push(beam([-4.12,6.6,z+s*1.2],[2.6,1.4,z+s*1.2],0.05));
     }
   }
   for(const side of [-1,1]) {
     const x=BRIDGE.x+side*1.24;
-    rails.push(beam([x,6.6,BRIDGE.z0],[x,6.6,BRIDGE.z1],0.08));
-    rails.push(beam([x,5.9,BRIDGE.z0],[x,5.9,BRIDGE.z1],0.055));
-    for(let z=BRIDGE.z0;z<=BRIDGE.z1;z+=0.25) rails.push(beam([x,5.6,z],[x,6.6,z],0.045));
+    rails.push(beam([x,6.6,BRIDGE.z0],[x,6.6,BRIDGE.z1],0.05));
+    rails.push(beam([x,5.9,BRIDGE.z0],[x,5.9,BRIDGE.z1],0.045));
+    for(let z=BRIDGE.z0;z<=BRIDGE.z1;z+=1.2) rails.push(beam([x,5.6,z],[x,6.6,z],0.04));
     for(let j=0;j<35;j++) {
-      const z=BRIDGE.z0+0.25+j*0.5, depth=R(0.65,1.95), color=(Math.floor(j/4)+ (side===1?1:0))%4;
-      clusters.push({ side, segment:j, center:[x+side*0.18,6.45,z], depth, radius:R(0.36,0.56), color });
+      const z=BRIDGE.z0+0.25+j*0.5, depth=R(1.65,Math.abs(z)<2?2.35:3.0), color=(Math.floor(j/4)+ (side===1?1:0))%4;
+      clusters.push({ side, segment:j, center:[x+side*0.18,6.45,z], depth, radius:R(.72,.95), color });
     }
   }
   // Flowers continue along the stair rails and climb the piers.
-  for(const z of [BRIDGE.z0,BRIDGE.z1]) for(const side of [-1,1]) for(let i=0;i<13;i++) clusters.push({side,segment:null,center:[-4+i*0.52,6.45-i*0.402,z+side*1.28],depth:R(0.4,1),radius:0.43,color:i%4});
+  for(const z of [BRIDGE.z0,BRIDGE.z1]) for(const side of [-1,1]) for(let i=0;i<13;i++) clusters.push({side,segment:null,center:[-4+i*0.52,6.45-i*0.402,z+side*1.28],depth:R(.95,1.8),radius:.72,color:i%4});
   for(const p of piers) for(let j=0;j<5;j++) clusters.push({side:1,segment:null,center:[p.center[0]+0.4,1+j*0.85,p.center[2]],depth:0.6,radius:0.32,color:j%4});
   // Full spirals show flowers on every pier face, including the hero-facing face.
   for(const p of piers)for(let j=0;j<15;j++){
@@ -60,10 +60,10 @@ export function makeLayout(seed=SEED, mobile=false) {
   }
   const bracts=[];
   clusters.forEach((c,ci)=>{
-    const n=mobile?100:180;
+    const n=mobile?400:900;
     for(let i=0;i<n;i++) {
       const a=R(0,Math.PI*2), k=R(0,1), rad=c.radius*Math.sqrt(rnd())*(1-0.55*k);
-      bracts.push({cluster:ci,color:c.color,shade:R(0.72,1.22),p:[c.center[0]+Math.cos(a)*rad,c.center[1]-k*c.depth+R(-0.1,0.15),c.center[2]+Math.sin(a)*rad],rot:[R(0,6.28),R(0,6.28),R(0,6.28)],scale:R(0.09,0.17)});
+      bracts.push({cluster:ci,color:c.color,shade:R(0.72,1.22),p:[c.center[0]+Math.cos(a)*rad,c.center[1]-k*c.depth+R(-0.1,0.15),c.center[2]+Math.sin(a)*rad],rot:[R(0,6.28),R(0,6.28),R(0,6.28)],scale:R(.12,.19)});
     }
   });
   const treeSpecs=[
@@ -75,7 +75,7 @@ export function makeLayout(seed=SEED, mobile=false) {
   const trees=treeSpecs.map(([x,z,y,kind],id)=>{
     const h=kind==='palm'?R(5,6.2):kind==='silk'?R(4.7,5.5):R(3.8,4.8), leaves=[], flowers=[], branches=[];
     const root=[x,y,z], crown=[x,y+h,z];
-    const leafCount=kind==='silk'?(mobile?110:190):(mobile?1600:3400);
+    const leafCount=kind==='silk'?(mobile?110:190):(mobile?2400:5200);
     const tips=[];
     if(kind==='palm') {
       // Ten curved rachises, each with paired pinnae pointing down and out.
@@ -96,12 +96,12 @@ export function makeLayout(seed=SEED, mobile=false) {
       }
       for(let j=0;j<leafCount;j++) {
         const tip=tips[j%tips.length],a=R(0,6.28),rad=Math.cbrt(rnd())*.95,vy=R(-.65,.65);
-        leaves.push({p:[tip[0]+Math.cos(a)*rad,tip[1]+vy,tip[2]+Math.sin(a)*rad],rot:[R(-1.2,1.2),R(0,6.28),R(-1.5,1.5)],scale:[R(.132,.216),R(.192,.3),1],shade:clamp(.12+.5*rad/.95+.25*vy/.65+R(-.15,.15),0,1)});
+        leaves.push({normal:[Math.cos(a)*rad,vy*1.5,Math.sin(a)*rad],p:[tip[0]+Math.cos(a)*rad,tip[1]+vy,tip[2]+Math.sin(a)*rad],rot:[R(-1.2,1.2),R(0,6.28),R(-1.5,1.5)],scale:[R(.095,.15),R(.15,.23),1],shade:clamp(.12+.5*rad/.95+.25*vy/.65+R(-.15,.15),0,1)});
       }
     }
-    if(kind==='silk') for(let j=0;j<(mobile?210:320);j++) {
+    if(kind==='silk') for(let j=0;j<(mobile?210:240);j++) {
       const tip=tips[j%tips.length],a=R(0,6.28),r=Math.sqrt(rnd())*1.12;
-      flowers.push({p:[tip[0]+Math.cos(a)*r,tip[1]+R(-0.55,0.65),tip[2]+Math.sin(a)*r],rot:[R(-1.2,1.2),R(0,6.28),R(0,6.28)],size:R(0.15,0.23),shade:R(0.7,1.15)});
+      flowers.push({p:[tip[0]+Math.cos(a)*r,tip[1]+R(-0.55,0.65),tip[2]+Math.sin(a)*r],rot:[R(-1.2,1.2),R(0,6.28),R(0,6.28)],size:R(.09,.14),shade:R(0.7,1.15)});
     }
     return {id,kind,root,h,branches,leaves,flowers,crownBox:bounds([...leaves,...flowers].map(a=>a.p),kind==='palm'?0.9:0.6)};
   });
@@ -121,7 +121,7 @@ export function makeLayout(seed=SEED, mobile=false) {
   const cantonBase=box('canton-bank',[CANTON.x,-1.325,-48],[10,1.05,18]);
   const waterSurface=box('board-water',[0,0.1,-13.15],[44,0,6.7]);
   const obstacles=[...surfaces.filter(s=>s.id==='bridge'),...piers,...steps,...trees.map(t=>({...t.crownBox,id:'tree-'+t.id})),pagodaBox,
-    box('tram-range',[0,1.95,0],[BASE.width,3.4,2]),
+    box('tram-range',[0,1.95,0],[BASE.width,3.7,2.8]),
     ...[-1,1].map(s=>box('bridge-rail',[BRIDGE.x+s*1.3,6.1,1.75],[0.16,1.1,17.5]))];
   return {cantonBase,waterSurface,surfaces,steps,piers,rails,clusters,bracts,trees,levels,lamps,obstacles,pagodaBox,cantonBox,baseBox:box('base',[0,-0.8,0],[44,1.6,33])};
 }
@@ -197,8 +197,8 @@ export function createRig({u=0,auto=true}={}) {
 }
 // Linear RGB light/sky values; material HEX colours are converted by Three.js.
 const HOURS=[
- {low:[0.62,0.76,0.84],mid:[0.075,0.25,0.49],top:[0.025,0.11,0.3],key:[1,0.91,0.76],keyInt:3.5,hemi:1.3,lights:0.01,sunY:0.8},
- {low:[.91,0.27,0.055],mid:[0.04,0.09,0.22],top:[0.012,0.028,0.09],key:[1,0.63,0.32],keyInt:3.0,hemi:1.35,lights:0.68,sunY:0.32},
- {low:[0.014,0.022,0.055],mid:[0.008,0.015,0.042],top:[0.003,0.006,0.019],key:[0.38,0.52,0.9],keyInt:0.32,hemi:0.38,lights:1,sunY:0.08}
+ {low:[.80,.75,.68],mid:[.76,.71,.65],top:[.73,.72,.70],key:[1,.94,.84],keyInt:3.1,hemi:1.35,lights:0,sunY:.8},
+ {low:[.59,.37,.18],mid:[.35,.32,.27],top:[.25,.28,.30],key:[1,.68,.33],keyInt:2.3,hemi:1.05,lights:.62,sunY:.32},
+ {low:[.014,.022,.055],mid:[.008,.015,.042],top:[.003,.006,.019],key:[.38,.52,.9],keyInt:.32,hemi:.38,lights:1,sunY:.08}
 ];
 export function skyAt(h){h=clamp(h,0,1);const i=h<=0.55?0:1,k=smooth(i===0?h/0.55:(h-0.55)/0.45),a=HOURS[i],b=HOURS[i+1];return Object.fromEntries(Object.keys(a).map(f=>[f,Array.isArray(a[f])?mix(a[f],b[f],k):lerp(a[f],b[f],k)]));}

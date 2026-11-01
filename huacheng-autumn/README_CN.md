@@ -1,6 +1,6 @@
 # 花城秋岸
 
-一块能拖着转的广州秋日江岸沙盘：簕杜鹃从天桥上垂下来，白色有轨电车从桥下经过，赤岗塔周围开着粉色异木棉，远处是广州塔。可以看看车流、凑近看花，也可以把下午慢慢拖进入夜。
+一块能拖着转的广州秋日江岸沙盘：簕杜鹃从天桥上垂下来，白色有轨电车从桥下经过，赤岗塔周围开着粉色异木棉，远处是广州塔。可以看看车流、凑近看花，也可以把白天慢慢拖进入夜。
 
 署名：**我的AI小木屋**。
 
@@ -9,7 +9,7 @@
 ## 能做什么
 
 - **转着看**：镜头约 40 秒绕一圈，依次经过天桥、赤岗塔和沙盘远景；随时拖动就能接管。
-- **换时间**：底部滑条从下午经过黄昏到入夜。太阳闪光逐渐消失，换成对岸灯光的柔和倒影，窗户和路灯陆续亮起。
+- **换时间**：默认是柔和的午后白天。底部滑条为 **白天 → 黄昏 → 入夜**；白天是暖灰薄雾、银白钢网和不发光的暗窗。太阳闪光逐渐消失，换成对岸灯光的柔和倒影，窗户和路灯陆续亮起。
 - **凑近看**：放大看电车曲面风挡与线路牌、花瀑、砖墙和独立叶片。
 
 ## 操作
@@ -47,44 +47,45 @@
 npm ci
 node tools/build.mjs                    # 生成独立单文件 dist/index.html
 node --test tests/*.test.cjs
-node tools/flower-audit.mjs . shots/r3/audit.html
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r3/browser
-NODE_PATH="$(npm root -g)" node tools/refinement-motion.cjs shots/r3/motion
-NODE_PATH="$(npm root -g)" node tools/layout.cjs shots/r3/mobile
-NODE_PATH="$(npm root -g)" node tools/phone-route.cjs shots/r3/phone-route
-NODE_PATH="$(npm root -g)" node tools/shot.cjs shots/r3
-NODE_PATH="$(npm root -g)" node tools/night-check.cjs shots/r3/night
-NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r3/opening
+node tools/flower-audit.mjs . shots/r4/audit.html
+NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r4/architecture
+NODE_PATH="$(npm root -g)" node tools/glare-check.cjs
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r4/browser
+NODE_PATH="$(npm root -g)" node tools/refinement-motion.cjs shots/r4/motion
+NODE_PATH="$(npm root -g)" node tools/layout.cjs shots/r4/mobile
+NODE_PATH="$(npm root -g)" node tools/phone-route.cjs shots/r4/phone-route
+NODE_PATH="$(npm root -g)" node tools/shot.cjs shots/r4
+NODE_PATH="$(npm root -g)" node tools/night-check.cjs shots/r4/night
+NODE_PATH="$(npm root -g)" node tools/performance-check.cjs shots/r4/performance
+NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r4/opening
 ```
 
 可以直接打开 `dist/index.html`，也可以启动本地服务：
 
 ```bash
-node tools/serve.cjs . 18953
+node tools/serve.cjs . 18954
 # 在另一终端检查源码入口：
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r3/source http://127.0.0.1:18953/dev.html
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r4/source http://127.0.0.1:18954/dev.html
 ```
 
-源码地址：`http://127.0.0.1:18953/dev.html`；打包地址：`http://127.0.0.1:18953/dist/index.html`。所有 GPU 检查按顺序运行。花量诊断页是隔离构建，不是发布产物。
+源码地址：`http://127.0.0.1:18954/dev.html`；打包地址：`http://127.0.0.1:18954/dist/index.html`。所有 GPU 检查按顺序运行。花量诊断页是隔离构建，不是发布产物。
 
-固定机位为 `?view=hero`、`?view=bridge`、`?view=pagoda`、`?view=wide`。加 `&h=0`、`&h=0.55`、`&h=1` 分别查看下午、黄昏、入夜；`&t=13` 固定模拟到第 13 秒。四机位沿用正常渲染路径。页面提供 `window.__huacheng`、`window.__PLAYTEST__` 检查钩子，正常操作不依赖它们。
+固定机位为 `?view=hero`、`?view=bridge`、`?view=pagoda`、`?view=wide`。加 `&h=0`、`&h=0.55`、`&h=1` 分别查看白天（默认）、黄昏、入夜；`&t=13` 固定模拟到第 13 秒。四机位沿用正常渲染路径。页面提供 `window.__huacheng`、`window.__PLAYTEST__` 检查钩子，正常操作不依赖它们。
 
-第二轮反例产物保留在 `shots/r3/baseline/`。以下命令应在水面平静度和双塔分离两项上失败：
+第三轮 `d1bcc77` 基线保留在 `shots/r4/baseline/`。用同一仪器重跑旧版校准：
 
 ```bash
-NODE_PATH="$(npm root -g)" node tools/refinement-check.cjs shots/r3/baseline/check "file://$PWD/shots/r3/baseline/index.html"
+node tools/flower-audit.mjs shots/r4/baseline shots/r4/baseline/audit.html
+NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r4/baseline/final-check "file://$PWD/shots/r4/baseline/audit.html" --baseline
 ```
 
 ## 实测结果与边界
 
-第三轮截图、渲染器信息、原始读数与复现记录见 [VERIFICATION_R3.md](VERIFICATION_R3.md)。构建成功，12 项 Node 测试全过；打包页和源码入口各 26 项浏览器检查全过，动态与夜景检查也通过。
+第四轮截图、新旧读数、渲染器信息与边界见 [VERIFICATION_R4.md](VERIFICATION_R4.md)。改用倒角形体、向树冠外着色的小叶片、PCF 柔和投影与 GTAO 接触暗影，真正的后期渲染目标开启 MSAA。花色集中在天桥花瀑和异木棉树冠；站台加入钢拱玻璃雨棚，没有架空电线和受电弓。
 
-- 闪光带外前景水面的截图亮度标准差从 0.02393 降到 0.00722，通过保持不变的 0.008 上限。
-- 赤岗塔机位的两塔投影框由相交变为分离；1440×900 下水平间隔约 222 像素。
-- 390×664、412×700 手机视口已在桌面 Chrome 模拟中测量，实际像素比为 2，约 60 fps：文字、按钮、滑条完整可见、互不重叠。完整 40 秒路线中，沙盘进入介绍文字区域前会先隐藏介绍，离开后恢复，显示时文字始终在沙盘下方。
-- **没试真手机，也没试 Safari。** 桌面模拟帧率不能当真机性能。自适应渲染比例保持开启。
-- 水面与玻璃是程序近似反射，不是物理镜面反射；灯光和建筑比例按画面设计。好不好看仍需人判断。
-- 本轮没有上线，没有接入首页或部署工作流。
+道路为双向两条 3.5 米车道，电车宽约 2.65 米、高约 3.6 米；步道补长椅、单车、垃圾桶和小咖啡摊。总体布局与地标高度仍经过压缩，是建筑意象，不能当测绘图。
+
+未测真手机、Safari 和部署后的线上入口。桌面模拟帧率不代表手机性能，自适应分辨率保留。玻璃、水面使用程序近似反射；近景不额外加景深虚化，保持细节可读。本轮不提交、不发布。
 
 ## 许可
 
