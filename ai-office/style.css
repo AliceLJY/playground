@@ -57,3 +57,22 @@ body.wall .mode{border:0;color:#e2c98f;font-size:11px;padding:0}
 body.wall .room-section{flex:1;min-height:0}
 body.wall .room-meta{color:#d9d3c3;font-size:12px}body.wall .room-meta span:last-child{font-size:11px}
 body.wall #canvas-wrap{max-height:calc(100% - 26px);box-shadow:0 10px 30px #00000055}
+
+/* The annex keeps the old room's coordinates. Scroll the room on a phone instead of shrinking its lettering. */
+#room-viewport{width:100%;min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;border-radius:2px}
+#canvas-wrap{width:min(100%,480px);height:auto;max-height:none;max-width:100%;aspect-ratio:18/37;margin:0 auto}
+#office{width:100%;height:auto;aspect-ratio:18/37}
+.room-meta{flex-wrap:wrap;gap:3px}.room-foot{flex-shrink:0}
+.treat{bottom:46%;max-width:67%}.paper{bottom:57%}.photo{bottom:45%}
+.tabs{gap:13px}.tabs button{min-width:48px}
+#totals{font-size:11px;line-height:1.7;color:#665636;border-bottom:1px solid #dfd7c6;padding-bottom:12px;overflow-wrap:anywhere}
+#events li{display:flex;align-items:baseline;gap:9px;padding:12px 0;border-bottom:1px solid #dfd7c6;font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+#events time{flex:none;font:10px Menlo,monospace;color:#72796e;font-variant-numeric:tabular-nums}#events span{min-width:0}
+body.mv #room-viewport{overflow:visible;height:100%}body.mv #office{aspect-ratio:auto;height:100%}
+body.wall #room-viewport{display:flex;justify-content:center;overflow:hidden;min-height:0}
+body.wall #canvas-wrap{width:auto;height:100%;max-height:none;max-width:100%;aspect-ratio:18/37;margin:0}
+body.wall #office{height:100%;width:100%}
+@media(max-width:700px){.photo{bottom:45%}.paper{bottom:57%}.treat button{min-height:44px}.tabs{gap:12px}#room-viewport{scroll-padding-top:8px}}
+
+/* A keepsake belongs to the visible room panel, outside its scrolling canvas. */
+.room-section>.photo{bottom:30px;right:3%}.photo-actions button{min-height:44px}

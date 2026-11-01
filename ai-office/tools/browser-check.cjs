@@ -1,98 +1,119 @@
-// Uses the existing global Playwright install. No browser downloads or dependencies.
-// NODE_PATH="$(npm root -g)" node tools/browser-check.cjs [http://127.0.0.1:3091/]
-const { chromium } = require('playwright');
-const fs = require('node:fs/promises'), path = require('node:path'), http = require('node:http');
-const assert = require('node:assert/strict');
-const base = process.argv[2] || 'http://127.0.0.1:3091/';
-const root = path.resolve(__dirname,'..'), out = path.join(__dirname,'shots');
-const report = { checkedAt: new Date().toISOString(), base, checks: [], runs: [] };
-const check = (name, passed, details) => {report.checks.push({name,passed:!!passed,details});assert.ok(passed,name+': '+JSON.stringify(details));};
-let browser, staticServer;
+// NODE_PATH="$(npm root -g)" node tools/browser-check.cjs [http://127.0.0.1:3191/]
+// Start tools/preview.cjs first. No real office writes, browser downloads, or dependencies.
+const {chromium}=require('playwright');
+const fs=require('node:fs/promises'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
+const {execFileSync}=require('node:child_process');
+const fixture=require('../tests/fixtures/state-scene.json');
+const base=process.argv[2]||'http://127.0.0.1:3191/',root=path.resolve(__dirname,'..'),out=path.join(__dirname,'shots');
+const report={checkedAt:new Date().toISOString(),base,checks:[],runs:[]};
+const check=(name,passed,details)=>{report.checks.push({name,passed:!!passed,details});assert.ok(passed,name+': '+JSON.stringify(details));};
+let browser,staticServer;
 (async()=>{
   await fs.mkdir(out,{recursive:true});
-  browser = await chromium.launch({headless:true,...(process.platform==='darwin'?{channel:'chrome',args:['--use-gl=angle','--use-angle=metal']}:{})});report.browser=browser.version();
-  async function open(url,viewport={width:390,height:664},clock=false){
+  browser=await chromium.launch({headless:true,...(process.platform==='darwin'?{channel:'chrome',args:['--use-gl=angle','--use-angle=metal']}:{})});report.browser=browser.version();
+  async function open(query,viewport={width:1280,height:1000},clock=true,prepare){
+    const url=new URL(query,base).href,origin=new URL(url).origin;
     const context=await browser.newContext({viewport,deviceScaleFactor:2,hasTouch:viewport.width<701,isMobile:viewport.width<701});
     const page=await context.newPage(),errors=[],external=[];
-    page.on('pageerror',e=>errors.push(e.message));
-    page.on('request',req=>{if(!req.url().startsWith(new URL(url).origin)&&!req.url().startsWith('data:'))external.push(req.url());});
-    if(clock)await page.clock.install({time:new Date('2026-11-01T06:00:00Z')});
-    await page.goto(url);await page.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100,timeout:15000});
+    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&m.text().startsWith('frame'))errors.push(m.text());});
+    // Missing API acceptance may attempt the documented public GET; block it and every other external request.
+    await page.route('https://**/*',route=>{const u=new URL(route.request().url());if(!(u.hostname==='mac-mini.tail791fb9.ts.net'&&u.pathname==='/office/api/state'&&route.request().method()==='GET'))external.push(u.origin+u.pathname);return route.abort();});
+    page.on('request',req=>{if(!req.url().startsWith(origin)&&!req.url().startsWith('data:')&&!req.url().startsWith('https:'))external.push(req.url());});
+    if(clock)await page.clock.install({time:new Date('2026-11-01T07:30:00Z')});
+    if(prepare)await prepare(page);
+    await page.goto(url);await page.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100,timeout:20000});
     return {context,page,errors,external};
   }
-  async function save(run,name){
+  async function save(run,name,actual){
     const snapshot=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot());
     const layout=await run.page.evaluate(()=>{
       const box=e=>{const b=e.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom,right:b.right};};
-      const g=document.querySelector('canvas').getContext('2d'),p=g.getImageData(0,0,720,840).data;let ink=0,total=0;
+      const c=document.querySelector('#office'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let ink=0,total=0;
       for(let i=3;i<p.length;i+=4*41){total++;if(p[i]>100)ink++;}
-      return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,canvas:box(document.querySelector('canvas')),drawer:box(document.querySelector('#drawer')),toggle:box(document.querySelector('#drawer-toggle')),banner:document.querySelector('#mode').textContent,ink:ink/total};
+      return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,canvas:box(c),canvasPixels:[c.width,c.height],room:box(document.querySelector('#room-viewport')),drawer:box(document.querySelector('#drawer')),banner:document.querySelector('#mode').textContent,ink:ink/total};
     });
-    check(name+' no page errors',run.errors.length===0,run.errors);
-    check(name+' no external requests',run.external.length===0,run.external);
-    check(name+' canvas painted',layout.ink>.8,layout.ink);
-    check(name+' no horizontal overflow',layout.scrollWidth<=layout.width,layout);
-    check(name+' drawer inside viewport',layout.drawer.x>=0&&layout.drawer.right<=layout.width+.5&&layout.drawer.bottom<=layout.height+.5,layout.drawer);
-    await run.page.screenshot({path:path.join(out,name+'.png')});
-    report.runs.push({name,snapshot,layout});return snapshot;
+    check(name+' no page errors',!run.errors.length,run.errors);check(name+' no external side effects',!run.external.length,run.external);
+    check(name+' canvas painted',layout.ink>.8,layout.ink);check(name+' no horizontal overflow',layout.scrollWidth<=layout.width,layout);
+    if(!snapshot.mv&&!name.startsWith('wall'))check(name+' drawer inside viewport',layout.drawer.x>=0&&layout.drawer.right<=layout.width+.5&&layout.drawer.bottom<=layout.height+.5,layout.drawer);
+    if(actual)check(name+' actual state',snapshot.actualView===actual,snapshot.actualView);
+    await run.page.screenshot({path:path.join(out,name+'.png')});report.runs.push({name,snapshot,layout});return snapshot;
   }
-  for(const [name,query,actual]of [['hero','?demo=1&view=hero','hero'],['queue','?view=queue','queue'],['notice','?view=notice','notice'],['hero-live','?view=hero',null]]){
-    const run=await open(new URL(query,base).href),s=await save(run,name);
-    if(actual)check(name+' actual state',s.actualView===actual&&s.demo,s);
-    if(name==='hero-live')check('live service uses real data',!s.demo,s);
-    if(name==='notice'){
-      check('paper readable and on-screen',await run.page.locator('#paper').isVisible());
-      await run.page.locator('#board-tab').click();await save(run,'notice-board');
-    }
+  for(const name of ['hero','queue','notice','meeting','booth','handoff','board','night-guard']){
+    const run=await open(`?demo=1&view=${name}`),s=await save(run,name,name);
+    check(name+' labelled demo',s.demo&&s.stats?.visitorsTotal===137&&await run.page.locator('#mode').textContent().then(x=>x.includes('演示')));
+    if(name==='meeting'){check('meeting seated and two listeners',s.actors.filter(a=>a.activity==='meeting').length===3&&s.visitors.filter(v=>v.listening).length===2);check('second slide visible',s.scene.meeting.round===2);}
+    if(name==='booth')check('booth CC at target',s.actors.some(a=>a.activity==='call'&&a.x===296&&a.y===560));
+    if(name==='handoff')check('folder is mid-flight',s.flights.length===1&&s.flights[0].progress>.4&&s.flights[0].progress<.6);
+    if(name==='board'){check('today drawer visible',await run.page.locator('#today').isVisible());check('reverse chronological fixed templates',await run.page.locator('#events li').first().textContent().then(x=>x.includes('第 2 轮')));}
+    if(name==='night-guard'){check('night guard moving',s.light==='night'&&s.guard?.moving);await run.page.evaluate(()=>document.querySelector('#room-viewport').scrollTop=600);await save(run,'night-guard-annex');}
     await run.context.close();
   }
-  const run=await open(new URL('?demo=1',base).href,undefined,true);
-  const phases=new Set();let moved=0,previous;
-  for(let s=0;s<=30;s++){
-    if(s)await run.page.clock.runFor(1000);
-    const snap=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot());
-    if(previous&&snap.actors.some((a,i)=>Math.hypot(a.x-previous[i].x,a.y-previous[i].y)>.1))moved++;
-    previous=snap.actors;snap.actors.forEach(a=>phases.add(a.status));
-    await run.page.screenshot({path:path.join(out,`opening-${String(s).padStart(2,'0')}.png`)});
+  // The fixture is served unchanged, not injected through a simulation shortcut.
+  const live=await open('?view=hero');await live.page.evaluate(()=>window.__PLAYTEST__.step(35000));await live.page.evaluate(()=>document.querySelector('#room-viewport').scrollTop=600);
+  const l=await save(live,'live-fixture','meeting');check('unchanged fixture live',!l.demo&&l.scene.disk.usedPct===93&&l.stats.visitorsTotal===137&&l.actors.some(a=>a.id==='cc'));
+  check('guest has Today, no notice tab',await live.page.locator('#today-tab').isVisible()&&await live.page.locator('#board-tab').isHidden());
+  await live.page.locator('#today-tab').click();await save(live,'live-fixture-today');
+  check('fixture event count',await live.page.locator('#events li').count()===fixture.events.length);
+  await live.context.close();
+  for(const width of [390,320]){
+    const run=await open('?demo=1&view=meeting',{width,height:width===390?664:568});await save(run,'mobile-'+width,'meeting');
+    const readable=await run.page.evaluate(()=>document.querySelector('#office').getBoundingClientRect().width/360*8);check('mobile projection type >=6 CSS pixels '+width,readable>=6,readable);
+    for(const id of ['team-tab','board-tab','today-tab','drawer-toggle']){const hit=await run.page.locator('#'+id).evaluate(el=>{const b=el.getBoundingClientRect();return b.height>=44&&b.y>=0&&b.bottom<=innerHeight&&el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));});check(width+' reachable '+id,hit);}
+    await run.page.locator('#today-tab').click();await save(run,'mobile-'+width+'-today');
+    await run.page.locator('#team-tab').click();for(const row of await run.page.locator('.member').all()){await row.scrollIntoViewIfNeeded();check(width+' roster row reachable',await row.evaluate(el=>{const b=el.getBoundingClientRect();return b.y>=0&&b.bottom<=innerHeight&&el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));}));}
+    await run.context.close();
   }
-  check('normal 30 seconds actually animates',moved>12,{moved,phases:[...phases]});
-  check('normal timeline has work, completion, waiting and departure',['busy','done','waiting','away'].every(s=>phases.has(s)));
-  const defaultState=await save(run,'default');
-  await run.page.locator('#drawer-toggle').click();await save(run,'drawer');
-  for(const row of await run.page.locator('.member').all()){
-    await row.scrollIntoViewIfNeeded();const b=await row.boundingBox();const hit=await row.evaluate(el=>{const b=el.getBoundingClientRect();return el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));});check('drawer row reachable',b.y>=0&&b.y+b.height<=664&&hit,b);
+  // Compare the unchanged original logical room and MV against this repository's starting revision.
+  const originals=new Map(['index.html','office.js','office-core.js','style.css'].map(file=>[file,execFileSync('git',['show',`1f13ea1:ai-office/${file}`],{cwd:root,encoding:'utf8'})]));
+  const originalPage=async page=>{for(const [file,body]of originals)await page.route('**/'+file,route=>route.fulfill({body,contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'}));await page.route(new URL('/',base).href+'?*',route=>route.fulfill({body:originals.get('index.html'),contentType:'text/html'}));};
+  const pixels=page=>page.evaluate(()=>Array.from(document.querySelector('#office').getContext('2d').getImageData(0,0,720,796).data));
+  const before=await open('?demo=1&view=hero',undefined,true,originalPage),after=await open('?demo=1&view=hero');
+  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page);let different=0;for(let i=0;i<rawBefore.length;i++)if(rawBefore[i]!==rawAfter[i])different++;
+  check('original room pixels retained above new doorway',different===0,different);await before.context.close();await after.context.close();
+  const mvBefore=await open('?mv=1&hold=1',{width:540,height:960},true,originalPage);await mvBefore.page.evaluate(()=>window.__PLAYTEST__.step(10000));const originalMV=await mvBefore.page.locator('#office').screenshot();await fs.writeFile(path.join(out,'mv-before.png'),originalMV);await mvBefore.context.close();
+  const mv=await open('?mv=1&hold=1',{width:540,height:960});await mv.page.evaluate(()=>window.__PLAYTEST__.step(10000));const m=await save(mv,'mv-hold');check('MV keeps original frame',!!m.mv&&m.scene.meeting===null);check('MV exact screenshot matches original',originalMV.equals(await mv.page.locator('#office').screenshot()));await mv.context.close();
+  const wall=await open('?wall=1',{width:1440,height:900});await wall.page.evaluate(()=>window.__PLAYTEST__.step(35000));await save(wall,'wall');check('wall hides photo and controls',await wall.page.locator('#treat').isHidden()&&await wall.page.locator('#photo').isHidden());await wall.context.close();
+  // Normal entrance, genuine UI actions and 30 seconds of default movement.
+  const run=await open('?demo=1',{width:390,height:664});const phases=new Set();let moved=0,previous;
+  for(let second=0;second<=30;second++){
+    if(second)await run.page.clock.runFor(1000);
+    const s=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot());
+    if(previous&&s.actors.some((a,i)=>Math.hypot(a.x-previous[i].x,a.y-previous[i].y)>.1))moved++;previous=s.actors;s.actors.forEach(a=>phases.add(a.status));
+    await run.page.screenshot({path:path.join(out,`opening-${String(second).padStart(2,'0')}.png`)});
   }
-  await run.context.close();
-  const realClock=await open(new URL('?demo=1',base).href);
-  await realClock.page.waitForTimeout(2000);
-  const perf=await save(realClock,'default-real-clock');
-  check('real clock render cost below spec',perf.renderP95Ms>0&&perf.renderP95Ms<12,perf.renderP95Ms);
-  report.renderer=await realClock.page.evaluate(()=>{const g=document.createElement('canvas').getContext('webgl');if(!g)return 'No WebGL context (scene is Canvas 2D)';const e=g.getExtension('WEBGL_debug_renderer_info');return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):'Renderer unavailable';});
-  await realClock.context.close();
-  for(const viewport of [{width:320,height:568},{width:412,height:700},{width:844,height:390},{width:1280,height:800}]){
-    const run=await open(new URL('?demo=1&view=hero',base).href,viewport);await save(run,`${viewport.width}x${viewport.height}`);await run.context.close();
-  }
-  // Publish exactly these five source assets; test the subdirectory path and missing API.
-  const assets=new Map([['index.html','text/html'],['office.js','text/javascript'],['office-core.js','text/javascript'],['style.css','text/css'],['demo-script.json','application/json']]);
-  staticServer=http.createServer(async(req,res)=>{
-    const file=new URL(req.url,'http://localhost').pathname.replace(/^\/playground\/ai-office\//,'')||'index.html';
-    if(!assets.has(file)){res.writeHead(404);res.end('not found');return;}
-    res.setHeader('content-type',assets.get(file));res.end(await fs.readFile(path.join(root,file)));
+  check('30s real default movement',moved>12,{moved,phases:[...phases]});check('default status variety',['busy','done','waiting','away'].every(x=>phases.has(x)));
+  check('default day has no guard',(await run.page.evaluate(()=>window.__PLAYTEST__.snapshot())).guard===null);
+  await save(run,'default');await run.page.locator('#pose').click();await run.page.clock.runFor(1800);
+  await run.page.waitForFunction(()=>document.querySelector('#photo-img').naturalWidth>0,null,{polling:100});
+  check('photo includes annex',await run.page.locator('#photo-img').evaluate(e=>e.naturalWidth===720&&e.naturalHeight===1570));
+  await run.page.clock.runFor(1500);await save(run,'photo');check('photo card fully visible',await run.page.locator('#photo').evaluate(el=>{const b=el.getBoundingClientRect(),room=document.querySelector('#room-viewport').getBoundingClientRect();return b.top>=room.top&&b.bottom<=room.bottom&&el.contains(document.elementFromPoint(b.x+b.width/2,b.y+2));}));check('photo card shown',await run.page.locator('#photo').isVisible());await run.page.locator('#photo-close').click();
+  await run.page.locator('#treat-toggle').click();check('treat menu works',await run.page.locator('#treat-menu').isVisible());await run.context.close();
+  // Incoming snapshot corruption must leave the current good scene intact on the first missed poll.
+  const gift=await open('',{width:390,height:664},true,async page=>{
+    await page.route('**/api/state',route=>route.fulfill({json:{...fixture,notices:[{at:fixture.updatedAt,text:'PRIVATE-NOTICE-CANARY'}]}}));
+    await page.route('**/treat',route=>route.fulfill({json:{at:'2026-11-01T07:30:01Z',ok:true}}));
   });
+  check('guest notice never reaches DOM or sim',!(await gift.page.content()).includes('PRIVATE-NOTICE-CANARY')&&(await gift.page.evaluate(()=>window.__PLAYTEST__.snapshot())).notices===0);
+  await gift.page.locator('#treat-toggle').click();await gift.page.locator('[data-kind="coffee"]').click();await gift.page.waitForFunction(()=>document.querySelector('#treat-note').textContent.includes('送出去了'),null,{polling:100});
+  await gift.page.evaluate(()=>window.__PLAYTEST__.step(25000));check('UI treat delivered through preview stub',(await gift.page.evaluate(()=>window.__PLAYTEST__.snapshot())).deskTreat?.kind==='coffee');await save(gift,'guest-treat');await gift.context.close();
+  const corrupt=await open('',undefined,true,async page=>{let polls=0;await page.route('**/api/state',route=>{if(route.request().url().startsWith('https:'))return route.abort();const d=structuredClone(fixture);if(++polls>1)d.scene.dispatched=['unknown'];return route.fulfill({json:d});});});
+  await corrupt.page.clock.runFor(11000);const stable=await corrupt.page.evaluate(()=>window.__PLAYTEST__.snapshot());check('reject entire malformed poll',!stable.demo&&stable.scene.dispatched.join()===fixture.scene.dispatched.join());await corrupt.context.close();
+  const legacy=await open('',undefined,true,page=>page.route('**/api/state',route=>{const d=structuredClone(fixture);delete d.scene;delete d.stats;delete d.events;return route.fulfill({json:d});}));
+  await legacy.page.evaluate(()=>window.__PLAYTEST__.step(15000));const old=await save(legacy,'legacy-empty');check('old server has empty annex',!old.demo&&!old.scene.meeting&&!old.scene.call&&!old.guard&&!old.diskLayers&&old.stats===null&&!old.events.length);await legacy.context.close();
+  const guard=await open('',undefined,true,page=>page.route('**/api/state',route=>{const d=structuredClone(fixture);d.scene.guard.ok=false;return route.fulfill({json:d});}));
+  await guard.page.clock.setSystemTime(new Date('2026-11-01T15:00:00Z'));await guard.page.evaluate(()=>window.__PLAYTEST__.step(1000));const fail=await save(guard,'guard-failed');check('failed backup visible at night',fail.guard&&fail.scene.guard.ok===false);check('red lamp survives actor drawing',await guard.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(324*2,377*2,1,1).data].join()==='217,86,77,255'));await guard.context.close();
+  const green=await open('');await green.page.clock.setSystemTime(new Date('2026-11-01T15:00:00Z'));await green.page.evaluate(()=>window.__PLAYTEST__.step(1000));check('green lamp survives actor drawing',await green.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(324*2,377*2,1,1).data].join()==='103,183,121,255'));await save(green,'guard-done');await green.context.close();
+  const real=await open('?demo=1',undefined,false);await real.page.waitForTimeout(2500);const perf=await save(real,'default-real-clock');check('render callback p95 under 12ms',perf.renderP95Ms>0&&perf.renderP95Ms<12,perf.renderP95Ms);
+  report.renderer=await real.page.evaluate(()=>{const g=document.createElement('canvas').getContext('webgl'),e=g?.getExtension('WEBGL_debug_renderer_info');return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):'unavailable (office uses Canvas 2D)';});await real.context.close();
+  // The actual static asset set at a Pages-style prefix, with both APIs unavailable.
+  const assets=new Map([['index.html','text/html'],['office.js','text/javascript'],['office-core.js','text/javascript'],['style.css','text/css'],['demo-script.json','application/json'],['mv.js','text/javascript'],['mv-script.json','application/json']]);
+  staticServer=http.createServer(async(req,res)=>{const file=new URL(req.url,'http://localhost').pathname.replace(/^\/playground\/ai-office\//,'')||'index.html';if(!assets.has(file)){res.writeHead(404);res.end();return;}res.setHeader('content-type',assets.get(file));res.end(await fs.readFile(path.join(root,file)));});
   await new Promise(resolve=>staticServer.listen(0,'127.0.0.1',resolve));
-  const fallback=await open(`http://127.0.0.1:${staticServer.address().port}/playground/ai-office/`);
-  const s=await save(fallback,'static-fallback');check('missing API enters labelled demo',s.demo&&(await fallback.page.locator('#mode').textContent()).includes('演示模式 · 模拟数据'));
-  await fallback.context.close();
-  // Contact sheets for human inspection, using only the installed browser's Canvas.
+  const fallback=await open(`http://127.0.0.1:${staticServer.address().port}/playground/ai-office/`,{width:390,height:664});const f=await save(fallback,'static-fallback');check('missing API labelled demo',f.demo&&await fallback.page.locator('#mode').textContent().then(x=>x.includes('演示模式 · 模拟数据')));await fallback.context.close();
+  // Every opening sample is visible in these two full-frame contact sheets.
   for(const first of [0,16]){
     const frames=[];for(let i=first;i<Math.min(31,first+16);i++)frames.push({name:`${i}s`,url:'data:image/png;base64,'+(await fs.readFile(path.join(out,`opening-${String(i).padStart(2,'0')}.png`))).toString('base64')});
-    const p=await browser.newPage({viewport:{width:1240,height:1456}});
-    const data=await p.evaluate(async frames=>{const c=document.createElement('canvas');c.width=1240;c.height=1456;const g=c.getContext('2d');g.fillStyle='#eee9dd';g.fillRect(0,0,c.width,c.height);for(let j=0;j<frames.length;j++){const im=new Image();im.src=frames[j].url;await im.decode();const x=j%4*310,y=Math.floor(j/4)*364;g.drawImage(im,85,260,610,690,x,y+18,305,345);g.fillStyle='#253334';g.font='12px monospace';g.fillText(frames[j].name,x+4,y+13);}return c.toDataURL('image/png').split(',')[1];},frames);
-    await fs.writeFile(path.join(out,`opening-contact-${first/16+1}.png`),Buffer.from(data,'base64'));await p.close();
+    const p=await browser.newPage();const data=await p.evaluate(async frames=>{const c=document.createElement('canvas');c.width=1170;c.height=2040;const g=c.getContext('2d');g.fillStyle='#eee9dd';g.fillRect(0,0,c.width,c.height);for(let j=0;j<frames.length;j++){const im=new Image();im.src=frames[j].url;await im.decode();const x=j%4*292,y=Math.floor(j/4)*510;g.drawImage(im,x,y+16,292,497);g.fillStyle='#253334';g.font='13px monospace';g.fillText(frames[j].name,x+4,y+13);}return c.toDataURL().split(',')[1];},frames);await fs.writeFile(path.join(out,`opening-contact-${first/16+1}.png`),Buffer.from(data,'base64'));await p.close();
   }
   report.result='passed';
-})().catch(e=>{report.result='failed';report.error=e.message;console.error(e.message);process.exitCode=1;}).finally(async()=>{
-  await browser?.close();if(staticServer)await new Promise(resolve=>staticServer.close(resolve));
-  await fs.writeFile(path.join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(JSON.stringify({result:report.result,checks:report.checks.length,runs:report.runs.length,error:report.error}));
-});
+})().catch(e=>{report.result='failed';report.error=e.stack;console.error(e.stack);process.exitCode=1;}).finally(async()=>{await browser?.close();if(staticServer)await new Promise(resolve=>staticServer.close(resolve));await fs.writeFile(path.join(out,'report.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({result:report.result,checks:report.checks.length,runs:report.runs.length,error:report.error}));});

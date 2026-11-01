@@ -1,5 +1,5 @@
 {
-  "duration": 60,
+  "duration": 150,
   "roster": [
     {
       "id": "director",
@@ -109,6 +109,15 @@
       "status": "waiting"
     },
     {
+      "at": 12,
+      "log": [
+        {
+          "kind": "visitor",
+          "n": 1
+        }
+      ]
+    },
+    {
       "at": 15,
       "id": "twin-a",
       "status": "waiting"
@@ -117,6 +126,15 @@
       "at": 18,
       "id": "scout",
       "status": "done"
+    },
+    {
+      "at": 20,
+      "log": [
+        {
+          "kind": "treat",
+          "treat": "milktea"
+        }
+      ]
     },
     {
       "at": 28,
@@ -138,6 +156,23 @@
       "status": "done"
     },
     {
+      "at": 45,
+      "scene": {
+        "dispatched": [
+          "builder"
+        ]
+      },
+      "log": [
+        {
+          "kind": "handoff",
+          "ids": [
+            "director",
+            "builder"
+          ]
+        }
+      ]
+    },
+    {
       "at": 48,
       "id": "scout",
       "status": "away"
@@ -148,6 +183,36 @@
       "status": "away"
     },
     {
+      "at": 50,
+      "scene": {
+        "meeting": {
+          "kind": "review",
+          "members": [
+            "director",
+            "builder",
+            "twin-a"
+          ],
+          "round": 1,
+          "slide": {
+            "adopted": 1,
+            "rejected": 0,
+            "open": 3
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "meeting",
+          "ids": [
+            "director",
+            "builder",
+            "twin-a"
+          ],
+          "review": true
+        }
+      ]
+    },
+    {
       "at": 54,
       "id": "writer",
       "status": "unknown"
@@ -155,6 +220,114 @@
     {
       "at": 56,
       "notice": "今天的小小进展，已整理成一张纸条。"
+    },
+    {
+      "at": 65,
+      "scene": {
+        "meeting": {
+          "kind": "review",
+          "members": [
+            "director",
+            "builder",
+            "twin-a"
+          ],
+          "round": 2,
+          "slide": {
+            "adopted": 3,
+            "rejected": 1,
+            "open": 0
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "round",
+          "round": 2
+        }
+      ]
+    },
+    {
+      "at": 85,
+      "scene": {
+        "meeting": null,
+        "dispatched": []
+      },
+      "log": [
+        {
+          "kind": "meeting-end",
+          "minutes": 12
+        },
+        {
+          "kind": "return",
+          "ids": [
+            "builder"
+          ]
+        }
+      ]
+    },
+    {
+      "at": 96,
+      "scene": {
+        "call": {}
+      },
+      "log": [
+        {
+          "kind": "call"
+        }
+      ]
+    },
+    {
+      "at": 120,
+      "scene": {
+        "call": null
+      },
+      "log": [
+        {
+          "kind": "call-end"
+        }
+      ]
+    },
+    {
+      "at": 136,
+      "scene": {
+        "guard": {
+          "phase": "done",
+          "ok": true
+        }
+      },
+      "log": [
+        {
+          "kind": "guard",
+          "ok": true
+        }
+      ]
     }
-  ]
+  ],
+  "scene": {
+    "meeting": null,
+    "dispatched": [],
+    "call": null,
+    "disk": {
+      "usedPct": 93
+    },
+    "guard": {
+      "phase": "patrol",
+      "ok": null
+    }
+  },
+  "stats": {
+    "since": "2026-11-01",
+    "visitorsTotal": 137,
+    "treatsTotal": 21,
+    "meetingsTotal": 4,
+    "handoffsTotal": 18,
+    "callsTotal": 2,
+    "today": {
+      "visitors": 23,
+      "treats": 3,
+      "meetings": 2,
+      "handoffs": 7,
+      "calls": 1
+    }
+  }
 }

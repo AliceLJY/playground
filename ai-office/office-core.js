@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  const W = 360, H = 420;
+  const W = 360, H = 740;
   const desks = [
     [65, 112], [157, 112], [229, 112], [301, 112], [157, 194],
     [53, 224], [229, 194], [301, 269], [301, 194], [157, 269], [308, 339]
@@ -11,10 +11,19 @@
   obstacles.push({ x: 150, y: 366, w: 84, h: 28 }, { x: 22, y: 269, w: 78, h: 10 });
   obstacles.push({ x: 26, y: 173, w: 72, h: 29 }, { x: 109, y: 88, w: 3, h: 58 });
   for (const [x, y] of [[119,198],[266,277],[323,93],[27,378]]) obstacles.push({ x, y, w: 12, h: 13 });
+  const podium = { x: 208, y: 536 }, booth = { x: 296, y: 560 };
+  const seats = [[88,548],[120,548],[152,548],[184,548],[52,584],[208,584],[52,620],[208,620],[104,648],[160,648]].map(([x,y]) => ({x,y}));
+  const audience = [{x:60,y:700},{x:100,y:700}];
+  const patrol = [door, {x:244,y:700}, {x:28,y:700}, {x:244,y:648}, {x:248,y:492}, {x:340,y:492}, door, {x:198,y:247}, {x:125,y:169}, door];
+  obstacles.push({x:76,y:566,w:108,h:64}, {x:20,y:490,w:3,h:176}, {x:236,y:490,w:3,h:144}, {x:20,y:666,w:184,h:3});
+  obstacles.push({x:268,y:494,w:3,h:66}, {x:332,y:494,w:3,h:66}, {x:310,y:512,w:12,h:26}, {x:266,y:616,w:64,h:60});
+  const emptyScene = () => ({meeting:null, dispatched:[], call:null, disk:null, guard:null});
+  const diskLayers = disk => disk ? Math.ceil(disk.usedPct / 12.5) : 0;
+  const isNight = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 23 || h < 8; };
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const home = i => ({ x: desks[i][0], y: desks[i][1] + 27 });
   const queuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
-  const blocked = (x, y) => x < 18 || x > 342 || y < 88 || y > 398 || obstacles.some(o => x > o.x - 4 && x < o.x + o.w + 4 && y > o.y - 3 && y < o.y + o.h + 3);
+  const blocked = (x, y) => x < 18 || x > 342 || y < 88 || y > 720 || (y > 398 && y < 490 && x < 312) || obstacles.some(o => x > o.x - 4 && x < o.x + o.w + 4 && y > o.y - 3 && y < o.y + o.h + 3);
 
   // Fixed 4-pixel floor grid. At this room size BFS is simpler than a navigation dependency.
   function route(from, to) {
@@ -41,6 +50,41 @@
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
     const sim = { time: 0, seed, actors: roster.map((r, i) => { const slot = Number.isInteger(r.desk) && r.desk >= 0 && r.desk < desks.length ? r.desk : i; return { ...r, i: slot, ...home(slot), status: 'idle', changed: 0, path: [], dest: null }; }), boss: { ...bossDesk, path: [], dest: null }, bossTarget: null, notices: [], deliveries: [], delivery: null, delivered: 0, nextWander: 0 };
+    sim.scene = emptyScene(); sim.flights = []; sim.night = false; sim.guard = null;
+    const director = () => sim.actors.find(a => a.id === 'cc') || sim.actors.find(a => a.i === 0);
+    const deskPoint = a => ({x:desks[a.i][0] + 17, y:desks[a.i][1] + 4});
+    const ccPoint = () => { const a = director(); return a && a.activity ? {x:a.x,y:a.y-12} : a ? deskPoint(a) : null; };
+    function setScene(value) {
+      const next = value || emptyScene(), before = sim.scene.dispatched;
+      for (const id of new Set([...before, ...next.dispatched])) {
+        if (before.includes(id) === next.dispatched.includes(id)) continue;
+        const a = sim.actors.find(a => a.id === id), cc = ccPoint(); if (!a || !cc) continue;
+        const returning = !next.dispatched.includes(id);
+        sim.flights = sim.flights.filter(f => f.id !== id);
+        sim.flights.push({id, returning, at:sim.time, from:returning ? deskPoint(a) : cc, to:returning ? deskPoint(director()) : deskPoint(a)});
+      }
+      if (next.guard?.at !== sim.scene.guard?.at || next.guard?.phase !== sim.scene.guard?.phase) sim.guard = null;
+      sim.scene = JSON.parse(JSON.stringify(next));
+    }
+    function flightPoints() {
+      return sim.flights.map(f => { const t = Math.min(1, (sim.time-f.at)); return {...f, x:f.from.x+(f.to.x-f.from.x)*t, y:f.from.y+(f.to.y-f.from.y)*t-48*4*t*(1-t), progress:t}; });
+    }
+    function meetingTarget(id) {
+      if (!sim.scene.meeting?.members.includes(id)) return null;
+      if (director()?.id === id) return podium;
+      return seats[sim.scene.meeting.members.filter(id => id !== director()?.id).indexOf(id)];
+    }
+    function tickGuard(dt) {
+      if (!sim.night || !sim.scene.guard) { sim.guard = null; return; }
+      if (!sim.guard) sim.guard = {id:'night-guard',i:30,color:'#526a83',status:'guard',...door,path:[],dest:null,lap:0,waypoint:1};
+      const a = sim.guard;
+      if (sim.scene.guard.phase === 'done' || a.lap) moveTo(a,door);
+      else {
+        moveTo(a,patrol[a.waypoint]);
+        if (distance(a,patrol[a.waypoint]) < 1) { if (++a.waypoint === patrol.length) { a.lap++; a.waypoint = 0; } }
+      }
+      travel(a,dt*.42);
+    }
     function moveTo(a, p) {
       if (a.dest && distance(a.dest, p) < 1) return;
       a.dest = { ...p }; a.path = route(a, p);
@@ -64,7 +108,7 @@
       }
     }
     function tick(dt) {
-      sim.time += dt;
+      sim.time += dt; sim.flights = sim.flights.filter(f => sim.time - f.at < 1); tickGuard(dt);
       const waiting = sim.actors.filter(a => a.status === 'waiting' && (a.i !== 10 || !sim.delivery));
       if (!sim.delivery && sim.deliveries.length) {
         sim.delivery = { ...sim.deliveries.shift(), phase: 'walking', arrived: null };
@@ -72,7 +116,10 @@
       }
       for (const a of sim.actors) {
         let target;
-        if (a.i === 10 && sim.delivery) target = sim.delivery.phase === 'returning' ? home(10) : handoff;
+        a.activity = a === director() && sim.scene.call ? 'call' : meetingTarget(a.id) ? 'meeting' : null;
+        if (a.activity === 'call') target = booth;
+        else if (a.activity === 'meeting') target = meetingTarget(a.id);
+        else if (a.i === 10 && sim.delivery) target = sim.delivery.phase === 'returning' ? home(10) : handoff;
         else if (a.status === 'busy' || a.status === 'unknown' || a.status === 'done' && (a.doneArrived == null || sim.time - a.doneArrived < 2)) target = home(a.i);
         else if (a.status === 'waiting') target = queuePoint(Math.max(0, waiting.indexOf(a)));
         else if (a.status === 'away' || a.status === 'off') target = door;
@@ -83,9 +130,9 @@
       }
       if (sim.delivery) {
         const d = sim.delivery, courier = sim.actors.find(a => a.i === 10);
-        if (d.phase === 'walking' && distance(courier, handoff) < 1 && distance(sim.boss, bossDesk) < 1) { d.phase = 'holding'; d.arrived = sim.time; }
+        if (d.phase === 'walking' && courier && !courier.activity && distance(courier, handoff) < 1 && distance(sim.boss, bossDesk) < 1) { d.phase = 'holding'; d.arrived = sim.time; }
         if (d.phase === 'holding' && sim.time - d.arrived >= 8) { d.phase = 'returning'; courier.dest = null; sim.delivered++; }
-        if (d.phase === 'returning' && distance(courier, home(10)) < 1) sim.delivery = null;
+        if (d.phase === 'returning' && courier && distance(courier, home(10)) < 1) sim.delivery = null;
       }
       // A scripted walk (the MV opening the door in the morning, turning the lights off at night) overrides the rest.
       if (sim.bossTarget) moveTo(sim.boss, sim.bossTarget);
@@ -142,7 +189,12 @@
       }
       let extra = touring() - sim.visitorTarget;
       for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring' && !v.runner && !v.carry) { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }
+      const listeners = sim.scene.meeting ? sim.visitors.filter(v => v.phase === 'touring' && !v.runner && !v.carry).slice(0,2) : [];
       for (const v of sim.visitors) {
+        const seat = listeners.indexOf(v), wasListening = v.listening;
+        v.listening = seat >= 0;
+        if (wasListening && !v.listening) { v.dest = null; v.until = null; }
+        if (v.listening) { moveTo(v,audience[seat]); travel(v,dt*.7); continue; }
         if (v.phase === 'leaving') { moveTo(v, door); travel(v, dt * 0.8); continue; }
         if (v.carry) { moveTo(v, pantry); travel(v, dt * 0.8); continue; }
         if (!v.dest) { moveTo(v, tour[Math.floor(random() * tour.length)]); v.until = null; }
@@ -155,9 +207,53 @@
       sim.visitors = sim.visitors.filter(v => !(v.phase === 'leaving' && distance(v, door) < 1));
     }
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickTreats(dt); tickVisitors(dt); } }
-    return Object.assign(sim, { step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { setScene, meetingTarget, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
-  const api = { W, H, desks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const TREAT_NAMES = {milktea:'奶茶',coffee:'咖啡',cake:'蛋糕',melon:'西瓜'};
+  // Structured public signals only. Missing extension fields mean an old office, not made-up zeros.
+  function validateSceneFields(data) {
+    const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+    const int = (v,max=1e9) => Number.isInteger(v) && v >= 0 && v <= max;
+    const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Date.parse(v) > 946684800000 && Date.parse(v) < 4102444800000 && new Date(v.slice(0,10)+'T00:00:00Z').toISOString().slice(0,10) === v.slice(0,10);
+    const ids = new Set(data.roster.map(a => a.id)), list = v => Array.isArray(v) && v.length <= 11 && v.every(id => ids.has(id)) && new Set(v).size === v.length;
+    const fail = () => { throw new Error('Invalid scene state'); };
+    if (data.scene !== undefined) {
+      const s = data.scene; if (!object(s) || !list(s.dispatched) || s.dispatched.some(id => id === 'cc' || data.roster.find(a=>a.id===id)?.desk === 0)) fail();
+      if (s.meeting !== null) { const m=s.meeting; if (!object(m) || !['review','huddle'].includes(m.kind) || !iso(m.since) || !list(m.members) || !m.members.length || !(m.round === null || int(m.round,10000)) || !(m.slide === null || object(m.slide) && ['adopted','rejected','open'].every(k=>int(m.slide[k],100000)))) fail(); }
+      if (s.call !== null && !(object(s.call) && iso(s.call.since))) fail();
+      if (s.disk !== null && !(object(s.disk) && Number.isFinite(s.disk.usedPct) && s.disk.usedPct >= 0 && s.disk.usedPct <= 100)) fail();
+      if (s.guard !== null && !(object(s.guard) && ['patrol','done'].includes(s.guard.phase) && iso(s.guard.at) && (s.guard.ok === null || typeof s.guard.ok === 'boolean'))) fail();
+    }
+    if (data.stats !== undefined) {
+      const s=data.stats; if (!object(s) || typeof s.since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s.since) || !iso(s.since+'T00:00:00Z') || new Date(s.since).toISOString().slice(0,10)!==s.since || !['visitorsTotal','treatsTotal','meetingsTotal','handoffsTotal','callsTotal'].every(k=>int(s[k])) || !object(s.today) || !['visitors','treats','meetings','handoffs','calls'].every(k=>int(s.today[k]))) fail();
+    }
+    if (data.events !== undefined) {
+      const keys = ['at','kind','ids','round','minutes','treat','n','ok','review'];
+      if (!Array.isArray(data.events) || data.events.length > 40) fail();
+      for (const e of data.events) {
+        if (!object(e) || Object.keys(e).some(k=>!keys.includes(k)) || !iso(e.at) || typeof e.kind !== 'string' || !/^[a-z-]{1,16}$/.test(e.kind) || (e.ids !== undefined && !list(e.ids)) || (e.round !== undefined && !int(e.round,10000)) || (e.minutes !== undefined && !int(e.minutes,1440)) || (e.n !== undefined && !int(e.n,100000)) || (e.treat !== undefined && !Object.hasOwn(TREAT_NAMES,e.treat)) || (e.ok !== undefined && typeof e.ok !== 'boolean') || (e.review !== undefined && typeof e.review !== 'boolean')) fail();
+        if ((e.kind === 'handoff' && e.ids?.length !== 2) || (e.kind === 'return' && e.ids?.length !== 1) || (e.kind === 'meeting' && !e.ids?.length) || (e.kind === 'round' && e.round === undefined) || (e.kind === 'meeting-end' && e.minutes === undefined) || (e.kind === 'treat' && e.treat === undefined) || (e.kind === 'visitor' && e.n === undefined) || (e.kind === 'guard' && e.ok === undefined)) fail();
+      }
+    }
+    return data;
+  }
+  function eventText(e,roster) {
+    const name = id => roster.find(a=>a.id===id)?.name || '', names = (e.ids || []).map(name);
+    switch(e.kind) {
+      case 'handoff': return `${names[0]} 把一份活递给 ${names[1]}`;
+      case 'return': return `${names[0]} 交回来了`;
+      case 'meeting': return `CC 叫上 ${names.filter(n=>n!=='CC').join('、')}${e.review ? ' 开互审会' : ' 碰了个头'}`;
+      case 'round': return `互审进到第 ${e.round} 轮`;
+      case 'meeting-end': return `散会，开了 ${e.minutes} 分钟`;
+      case 'call': return 'CC 去电话亭打长途（问外面的顾问）';
+      case 'call-end': return '电话打完了';
+      case 'treat': return `有人送来${['milktea','coffee'].includes(e.treat)?'一杯':e.treat==='cake'?'一块':'一份'}${TREAT_NAMES[e.treat]}`;
+      case 'visitor': return `来了 ${e.n} 位客人`;
+      case 'guard': return `夜班保安巡完一圈，备份${e.ok?' ✓':'没过'}`;
+      default: return null;
+    }
+  }
+  const api = { podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

@@ -1,0 +1,233 @@
+{
+ "updatedAt": "2026-11-01T07:30:00.000Z",
+ "roster": [
+  {
+   "id": "cc",
+   "desk": 0,
+   "name": "CC",
+   "role": "总监",
+   "color": "#D18A65",
+   "status": "busy",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 3600000
+  },
+  {
+   "id": "codex",
+   "desk": 1,
+   "name": "Codex",
+   "role": "构筑师",
+   "color": "#6D9D8E",
+   "status": "busy",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 3600000
+  },
+  {
+   "id": "kimi",
+   "desk": 2,
+   "name": "Kimi",
+   "role": "推理搭档",
+   "color": "#7F91BC",
+   "status": "busy",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 3600000
+  },
+  {
+   "id": "agy",
+   "desk": 4,
+   "name": "Agy",
+   "role": "创意搭档",
+   "color": "#8DA66F",
+   "status": "idle",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 0
+  },
+  {
+   "id": "etwin",
+   "desk": 5,
+   "name": "etwin-cc",
+   "role": "陪伴搭档",
+   "color": "#D69A9E",
+   "status": "idle",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 0
+  },
+  {
+   "id": "grok",
+   "desk": 6,
+   "name": "Grok Bot",
+   "role": "探索员",
+   "color": "#6F8585",
+   "status": "busy",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 3600000
+  },
+  {
+   "id": "muse",
+   "desk": 7,
+   "name": "Muse",
+   "role": "影像搭档",
+   "color": "#B397B8",
+   "status": "away",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 0
+  },
+  {
+   "id": "doubao",
+   "desk": 8,
+   "name": "豆包",
+   "role": "写作搭档",
+   "color": "#C6A160",
+   "status": "idle",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 0
+  },
+  {
+   "id": "dots",
+   "desk": 9,
+   "name": "Dots",
+   "role": "候补搭档",
+   "color": "#9FA866",
+   "status": "idle",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 0
+  },
+  {
+   "id": "cobbler",
+   "desk": 10,
+   "name": "Cobbler",
+   "role": "送信员",
+   "color": "#BD8955",
+   "status": "idle",
+   "statusSince": "2026-11-01T07:25:00.000Z",
+   "badge": "",
+   "workedToday": 0
+  }
+ ],
+ "notices": [],
+ "demo": false,
+ "guest": true,
+ "visitors": 1,
+ "visitorsTotal": 137,
+ "treats": [
+  {
+   "kind": "milktea",
+   "at": "2026-11-01T06:50:00.000Z"
+  }
+ ],
+ "treatsToday": {
+  "milktea": 2,
+  "coffee": 1
+ },
+ "scene": {
+  "meeting": {
+   "kind": "review",
+   "since": "2026-11-01T07:18:00.000Z",
+   "members": [
+    "cc",
+    "codex",
+    "kimi",
+    "grok"
+   ],
+   "round": 2,
+   "slide": {
+    "adopted": 3,
+    "rejected": 1,
+    "open": 0
+   }
+  },
+  "dispatched": [
+   "codex",
+   "kimi",
+   "grok"
+  ],
+  "call": null,
+  "disk": {
+   "usedPct": 93
+  },
+  "guard": {
+   "phase": "done",
+   "at": "2026-10-31T22:30:00.000Z",
+   "ok": true
+  }
+ },
+ "stats": {
+  "since": "2026-11-01",
+  "visitorsTotal": 137,
+  "treatsTotal": 21,
+  "meetingsTotal": 4,
+  "handoffsTotal": 18,
+  "callsTotal": 2,
+  "today": {
+   "visitors": 23,
+   "treats": 3,
+   "meetings": 2,
+   "handoffs": 7,
+   "calls": 1
+  }
+ },
+ "events": [
+  {
+   "at": "2026-10-31T22:30:00.000Z",
+   "kind": "guard",
+   "ok": true
+  },
+  {
+   "at": "2026-11-01T05:30:00.000Z",
+   "kind": "handoff",
+   "ids": [
+    "cc",
+    "codex"
+   ]
+  },
+  {
+   "at": "2026-11-01T05:55:00.000Z",
+   "kind": "return",
+   "ids": [
+    "codex"
+   ]
+  },
+  {
+   "at": "2026-11-01T06:30:00.000Z",
+   "kind": "visitor",
+   "n": 4
+  },
+  {
+   "at": "2026-11-01T06:50:00.000Z",
+   "kind": "treat",
+   "treat": "milktea"
+  },
+  {
+   "at": "2026-11-01T07:00:00.000Z",
+   "kind": "call"
+  },
+  {
+   "at": "2026-11-01T07:05:00.000Z",
+   "kind": "call-end"
+  },
+  {
+   "at": "2026-11-01T07:18:00.000Z",
+   "kind": "meeting",
+   "ids": [
+    "cc",
+    "codex",
+    "kimi",
+    "grok"
+   ],
+   "review": true
+  },
+  {
+   "at": "2026-11-01T07:25:00.000Z",
+   "kind": "round",
+   "round": 2
+  }
+ ]
+}
