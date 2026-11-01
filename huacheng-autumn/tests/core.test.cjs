@@ -44,3 +44,13 @@ test('Input and hour — held pointer never returns; auto off stays; generated l
  const c=await load(),r=c.createRig();r.grab();r.held=true;for(let i=0;i<600;i++)r.update(1/60);assert.equal(r.mode,'manual');r.held=false;r.setAuto(false);const p=r.pos.slice();for(let i=0;i<600;i++)r.update(1/60);assert.deepEqual(r.pos,p);
  let prev=c.skyAt(0);for(let i=1;i<=1000;i++){const s=c.skyAt(i/1000);for(const k of ['low','mid','top'])assert.ok(c.dist(s[k],prev[k])<0.02);assert.ok(s.lights>=prev.lights);prev=s;}assert.ok(c.skyAt(1).mid[2]>c.skyAt(1).mid[0]);
 });
+
+test('R2 foliage — real generated palm pinnae are paired, unique, and frond tips droop',async()=>{
+ const c=await load();for(const seed of [c.SEED,7,131]){
+  const palms=c.makeLayout(seed).trees.filter(t=>t.kind==='palm');assert.equal(palms.length,3);
+  for(const t of palms){assert.equal(t.branches.length,120);assert.equal(t.leaves.length,560);
+   for(let j=0;j<10;j++){const ribs=t.branches.slice(j*12,(j+1)*12);assert.ok(ribs[11].b[1]<t.root[1]+t.h-.8);assert.ok(Math.max(...ribs.map(r=>r.b[1]))>t.root[1]+t.h+.2);}
+   assert.ok(t.leaves.every(l=>l.scale[0]<.07),'pinnae must be narrow, not broad paper fans');
+  }
+ }
+});
