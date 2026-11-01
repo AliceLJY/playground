@@ -68,6 +68,28 @@ export async function latestMtime(root, limit = 20000) {
   return latest ? { mtime: latest } : { empty: true };
 }
 
+// Status slips other bots write for us (one-line JSON per bot: {status, task, at}); pulled by a mirror,
+// so they lag. Only the three words a bot may write are kept; `task` never leaves the collector.
+export async function statusFiles(dir, fallbackDir) {
+  const fallback = fallbackDir ? await latestMtime(fallbackDir).catch(() => ({ error: true })) : { empty: true };
+  let entries;
+  try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) { if (e.code !== 'ENOENT') throw e; return { slips: [], fallback }; }
+  const slips = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || entry.isSymbolicLink() || !entry.name.endsWith('.json') || entry.name.startsWith('.')) continue;
+    const file = path.join(dir, entry.name);
+    try {
+      const info = await stat(file);
+      if (info.size > 4096) continue;
+      const data = JSON.parse(await readFile(file, 'utf8'));
+      if (!data || typeof data !== 'object' || !['busy', 'waiting', 'done'].includes(data.status)) continue;
+      const at = sessionTime(data.at);
+      slips.push({ status: data.status, at: Number.isFinite(at) ? at : info.mtimeMs });
+    } catch { /* a half-written or odd slip is skipped, never fatal */ }
+  }
+  return { slips, fallback };
+}
+
 // Read only new complete lines; never retain message text. Cursor is private/persistent.
 export async function etwinActivity(file, memory) {
   const handle = await open(file, 'r');
@@ -102,6 +124,7 @@ export async function collect(source, previous = {}) {
         return { running, mtime };
       }
       case 'artifacts': return await latestMtime(expand(source.directory));
+      case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null);
       default: return { error: true };
     }
   } catch { return { error: true }; }

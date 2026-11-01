@@ -18,7 +18,7 @@ export function validateConfig(config) {
     if (!/^[a-z][a-z0-9_-]{0,31}$/.test(a.id) || ['constructor', 'prototype', '__proto__'].includes(a.id) || ids.has(a.id)) throw new Error('Invalid or duplicate role id');
     ids.add(a.id);
     if (typeof a.name !== 'string' || !a.name.trim() || a.name.length > 24 || typeof a.role !== 'string' || a.role.length > 32 || !/^#[0-9a-f]{6}$/i.test(a.color)) throw new Error('Invalid role presentation');
-    if (!['cc', 'codex', 'launchd', 'etwin', 'artifacts', 'push', 'courier'].includes(a.source?.type)) throw new Error('Invalid role source');
+    if (!['cc', 'codex', 'launchd', 'etwin', 'artifacts', 'statusfiles', 'push', 'courier'].includes(a.source?.type)) throw new Error('Invalid role source');
   }
   return config;
 }
