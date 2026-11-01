@@ -9,6 +9,14 @@
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
   const forced = params.get('demo') === '1' || view === 'queue' || view === 'notice' || mvMode;
+  // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
+  // card, no welcome wave, never counted as a visitor. wl/wt/ww/wh place it, in percent of the screen.
+  const wallMode = params.get('wall') === '1';
+  if (wallMode) {
+    document.body.classList.add('wall');
+    const place = { wl: 12, wt: 6, ww: 44, wh: 84 };
+    for (const k in place) { const v = Number(params.get(k)); document.body.style.setProperty(`--${k}`, `${Number.isFinite(v) && v >= 0 && v <= 100 && params.has(k) ? v : place[k]}${k === 'wl' || k === 'ww' ? 'vw' : 'vh'}`); }
+  }
   let mv = null, mvUI = null;
   const labels = { busy: '干活中', waiting: '等你拍板', done: '交活了', idle: '休息中', away: '出差中', off: '下班了', unknown: '信号不明' };
   let script, sim, demo = false, ready = false, seed = 7, elapsed = 0, cursor = 0, cycle = 0, paused = false, wallBase = Date.now(), lastUI = -10, light = '', currentRoster = [], seen = new Set(), modeKey = '', metrics = [], lastFrame = 0;
@@ -231,7 +239,7 @@
     if (holding) $('#paper-text').textContent = d.text;
     const hello = sim.greeting();
     if (hello) greeted = true;
-    if (hello && !mv && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
+    if (hello && !mv && !wallMode && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
     if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
@@ -373,7 +381,7 @@
     try { sessionStorage.setItem('office-visitor', visitorTag); } catch { /* fine without */ }
   }
   function sayHello() {
-    if (!guest || forced) return;
+    if (!guest || forced || wallMode) return;
     fetch(GUEST_API.replace(/api\/state$/, 'visit') + '?v=' + visitorTag, { mode: 'cors', cache: 'no-store', signal: AbortSignal.timeout(6000) }).catch(() => {});
   }
   async function fetchState() {
@@ -403,7 +411,7 @@
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', workedToday: a.workedToday || 0 }); }
       sim.setVisitors(data.visitors || 0); visitorsTotal = data.visitorsTotal ?? null; sayHello();
-      if (!welcomeTimer) welcomeTimer = setTimeout(() => { if (sim && !demo && !greeted && !sim.greeting() && !sim.thanksNow()) sim.wave('welcome'); }, 12_000);
+      if (!welcomeTimer && !wallMode) welcomeTimer = setTimeout(() => { if (sim && !demo && !greeted && !sim.greeting() && !sim.thanksNow()) sim.wave('welcome'); }, 12_000);
       treatsToday = data.treatsToday || {};
       for (const t of data.treats || []) { if (!seenTreats.has(t.at)) { seenTreats.add(t.at); if (Date.now() - Date.parse(t.at) < 60_000) sim.treat(t.kind, t.at); } }
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
