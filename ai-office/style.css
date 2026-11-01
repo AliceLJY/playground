@@ -30,3 +30,21 @@
 @media(prefers-reduced-motion:reduce){.mode:before{box-shadow:none}}
 @media(max-width:700px){.office-app{grid-template-rows:59px 28px minmax(0,1fr) 138px 14px}.drawer-toggle{min-height:44px}.tabs{height:44px;min-height:44px}.tabs button{min-height:44px;padding:10px 2px}.drawer-toggle,.tabs button{touch-action:manipulation}}
 @media(max-height:580px) and (max-width:700px){.office-app{grid-template-rows:50px 25px minmax(0,1fr) 132px 12px}}
+/* MV mode (?mv=1): a 540×960 portrait stage for the short film, recorded at 2× = 1080×1920. Only the room, a small
+   title above, one subtitle line below (its box ends at 740 CSS px = y 1480, above the 视频号 player's overlays). */
+body.mv{--mv-bg:#eee9dd;--mv-ink:#253334;--mv-muted:#72796e;background-color:var(--mv-bg);overflow:hidden}
+body.mv .office-app{display:block;width:540px;height:960px;padding:0;margin:0;position:relative}
+body.mv .masthead,body.mv .mode,body.mv .room-meta,body.mv .room-foot,body.mv .drawer,body.mv .signature,body.mv .treat,body.mv .photo{display:none!important}
+body.mv .room-section{position:absolute;left:0;top:116px;width:540px;height:588px;display:block}
+body.mv #canvas-wrap{width:540px;height:588px;max-height:none;aspect-ratio:auto}
+body.mv .paper{left:30%;bottom:21%;width:64%;font-size:15px;line-height:1.5;padding:10px 12px}
+body.mv .paper span{font-size:11px}
+#mv-title{position:fixed;left:24px;right:24px;top:86px;height:28px;display:flex;align-items:baseline;justify-content:space-between;color:var(--mv-ink)}
+#mv-title .mv-name{font:700 21px/28px Georgia,"Songti SC",serif;letter-spacing:.12em}
+#mv-title .mv-clock{font:20px/28px Menlo,monospace;letter-spacing:.06em;color:var(--mv-ink)}
+#mv-sub{position:fixed;left:0;right:0;top:706px;height:34px;display:flex;justify-content:center;opacity:0}
+#mv-sub span{display:block;height:34px;padding:0 16px;font:500 20px/30px "PingFang SC",system-ui,sans-serif;letter-spacing:.06em;color:#3c3020;background:#fff7d9;border:2px solid #786747;box-shadow:3px 3px 0 #25333430;white-space:nowrap}
+#mv-day{position:fixed;left:0;top:756px;width:540px;height:60px;image-rendering:pixelated}
+#mv-sign{position:fixed;left:0;right:0;top:830px;text-align:center;font-size:11px;letter-spacing:.12em;color:var(--mv-muted)}
+#mv-dark{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:10}
+body.mv *,body.mv *::before,body.mv *::after{transition:none!important;animation:none!important}

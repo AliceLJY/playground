@@ -40,7 +40,7 @@
   function create(roster, seed = 7) {
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
-    const sim = { time: 0, seed, actors: roster.map((r, i) => { const slot = Number.isInteger(r.desk) && r.desk >= 0 && r.desk < desks.length ? r.desk : i; return { ...r, i: slot, ...home(slot), status: 'idle', changed: 0, path: [], dest: null }; }), boss: { ...bossDesk, path: [], dest: null }, notices: [], deliveries: [], delivery: null, delivered: 0, nextWander: 0 };
+    const sim = { time: 0, seed, actors: roster.map((r, i) => { const slot = Number.isInteger(r.desk) && r.desk >= 0 && r.desk < desks.length ? r.desk : i; return { ...r, i: slot, ...home(slot), status: 'idle', changed: 0, path: [], dest: null }; }), boss: { ...bossDesk, path: [], dest: null }, bossTarget: null, notices: [], deliveries: [], delivery: null, delivered: 0, nextWander: 0 };
     function moveTo(a, p) {
       if (a.dest && distance(a.dest, p) < 1) return;
       a.dest = { ...p }; a.path = route(a, p);
@@ -87,12 +87,14 @@
         if (d.phase === 'holding' && sim.time - d.arrived >= 8) { d.phase = 'returning'; courier.dest = null; sim.delivered++; }
         if (d.phase === 'returning' && distance(courier, home(10)) < 1) sim.delivery = null;
       }
-      if (waiting.length || sim.delivery) moveTo(sim.boss, bossDesk);
+      // A scripted walk (the MV opening the door in the morning, turning the lights off at night) overrides the rest.
+      if (sim.bossTarget) moveTo(sim.boss, sim.bossTarget);
+      else if (waiting.length || sim.delivery) moveTo(sim.boss, bossDesk);
       else if (sim.time >= sim.nextWander) {
         moveTo(sim.boss, [{ x: 125, y: 169 }, { x: 198, y: 247 }, bossDesk, { x: 115, y: 351 }][Math.floor(random() * 4)]);
         sim.nextWander = sim.time + 7 + random() * 5;
       }
-      travel(sim.boss, dt * (waiting.length || sim.delivery ? 1 : 0.5));
+      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery ? 1 : 0.5));
     }
     // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
