@@ -245,7 +245,7 @@
     const cc=sim.actors.find(a=>a.activity==='call');
     if(cc && !cc.path.length) {
       r(ctx,'#354c47',cc.x+5,cc.y-18,3,11); r(ctx,'#354c47',cc.x+3,cc.y-18,5,3); r(ctx,'#354c47',cc.x+3,cc.y-9,5,3);
-      if(sim.time%8<2.5) { const word=['嗯…','这个思路有意思','我记一下'][Math.floor(sim.time/8)%3]; placed(ctx,C.boothOffset,()=>{r(ctx,'#fff4d5',258,531,84,12); text(ctx,word,300,540,8);}); }
+      if(sim.time%8<2.5) { const call=sim.scene.call, who=call?.kind==='dispatch' && sim.actors.find(a=>a.id===call.with)?.name; const word=who ? [`喂，${who}`,'交给你啦','做完叫我'][Math.floor(sim.time/8)%3] : ['嗯…','这个思路有意思','我记一下'][Math.floor(sim.time/8)%3]; placed(ctx,C.boothOffset,()=>{r(ctx,'#fff4d5',258,531,84,12); text(ctx,word,300,540,8);}); }
     }
     if(sim.guard) {
       const a=sim.guard;
