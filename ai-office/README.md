@@ -69,6 +69,8 @@ Paths below describe the configured adapters, not files bundled with the page. B
 | Dots | `push`, `waitLabel` | Initially idle with an awaiting-assignment badge. After a push, normal push expiry/inactivity applies. |
 | Cobbler | `courier`, notice endpoint | Delivery animation plus persisted notice board. |
 
+Every desk also carries `workedToday` (ms): minutes at work since Beijing midnight, summed from busy ticks (a gap over a minute, i.e. the office was down, is skipped). The team list shows it as `今日 1h 05m` once it reaches a minute.
+
 A known inactive source becomes idle after 30 minutes without a fresh signal, or off during Beijing 23:00–08:00. Explicit off, unknown, artifact away rules, and never-used push-only roles take precedence. CC timestamps are subject to this inactivity rule too. A running Codex process refreshes its signal; polling an absent process does not. Read errors, malformed status, future/invalid timestamps and incomplete scans are **unknown**, never silently idle.
 
 The bridge implementation uses the requested mtime fallback. Its source was outside this task's hard repository fence, so SQLite/A2A signals were not investigated. Mtime can reflect startup/housekeeping; mirror changes can arrive hours late. Neither is reliable evidence of task completion or a pending human decision; use push for that. Artifact walks ignore symlinks and `.git`, cap at 20,000 entries and return unknown on incomplete scans. A recent first artifact observation can show done once; an old first observation only establishes the baseline.

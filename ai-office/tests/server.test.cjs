@@ -117,7 +117,7 @@ test('real HTTP auth, payload cap, 429, privacy allowlist, persistence and push 
   assert.equal((await post('/api/report',{id,status:'busy'})).status,429);
   let publicState=await (await fetch(base+'/api/state')).json();
   assert.equal(publicState.roster[0].status,'waiting');assert.equal(publicState.notices[0].text,'hello');
-  assert.deepEqual(Object.keys(publicState.roster[0]).sort(),['badge','color','desk','id','name','role','status','statusSince']);
+  assert.deepEqual(Object.keys(publicState.roster[0]).sort(),['badge','color','desk','id','name','role','status','statusSince','workedToday']);
   for(const p of ['/server/office-server.mjs','/config.example.json','/state.json','/token','/%2e%2e/config.json'])assert.equal((await fetch(base+p)).status,404);
   for(let i=0;i<22;i++){time+=2000;assert.equal((await post('/api/notice',{text:'item '+i})).status,200);}
   const restart=await createOffice(options);await restart.poll();assert.equal(restart.snapshot().notices.length,20);assert.equal(restart.snapshot().roster[0].status,'waiting');
@@ -330,4 +330,18 @@ test('status slips from a sleeping box: busy is forgotten, waiting and done stil
   const slips=fs.mkdtempSync(path.join(os.tmpdir(),'slips-')); fs.writeFileSync(path.join(slips,'a.json'),JSON.stringify({status:'busy',at:'2026-11-01T14:30:00+08:00'}));
   fs.writeFileSync(f,'上次成功同步：11-01 14:59\n上次尝试：11-01 14:59 成功\n');
   const r=await statusFiles(slips,null,f); assert.equal(r.asleep,false); assert.equal(r.slips.length,1);
+});
+
+test('minutes at work today: busy ticks add up, a long gap is skipped, midnight restarts, pushes count too',async()=>{
+  const {reduceMember,beijingDay}=await core;
+  const src={type:'launchd',label:'x',log:'y',processes:['kimi']};
+  let p=reduceMember(src,{running:false,processes:1},{},DAY); assert.equal(p.status,'busy'); assert.equal(p.workedMs,0); assert.equal(p.workedDay,beijingDay(DAY));
+  p=reduceMember(src,{running:false,processes:1},p,DAY+10000); assert.equal(p.workedMs,10000);
+  p=reduceMember(src,{running:false,processes:0},p,DAY+20000); assert.equal(p.status,'done'); assert.equal(p.workedMs,20000,'the last busy interval counts');
+  p=reduceMember(src,{running:false,processes:0},p,DAY+30000); assert.equal(p.workedMs,20000,'resting adds nothing');
+  p=reduceMember(src,{running:false,processes:1},p,DAY+40000); p=reduceMember(src,{running:false,processes:1},p,DAY+40000+90000); assert.equal(p.workedMs,20000,'a 90 s gap (office down) is not counted');
+  p=reduceMember(src,{running:false,processes:1},p,DAY+40000+100000); assert.equal(p.workedMs,30000);
+  const midnight=Date.parse('2026-11-01T16:00:00Z');
+  p=reduceMember(src,{running:false,processes:1},{...p,tickAt:midnight-5000,status:'busy'},midnight); assert.equal(p.workedMs,0,'a new Beijing day starts at zero'); assert.equal(p.workedDay,'2026-11-02');
+  const pushed=reduceMember({type:'push'},{},{status:'busy',push:{at:DAY,status:'busy'},tickAt:DAY,workedDay:beijingDay(DAY),workedMs:0},DAY+5000); assert.equal(pushed.status,'busy'); assert.equal(pushed.workedMs,5000);
 });
