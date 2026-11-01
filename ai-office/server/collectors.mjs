@@ -170,7 +170,10 @@ export async function etwinActivity(file, memory) {
     if (end < 0) return { activity: false, memory: {} };
     const lines = bytes.subarray(0, end + 1).toString('utf8').split('\n');
     const count = lines.filter(l => /^\[bot\] (?:bot → |distill 完成:)/u.test(l)).length;
-    return { activity: count > 0, memory: { logIno: info.ino, logOffset: memory.logOffset + end + 1, activityCount: (memory.activityCount || 0) + count } };
+    // Work starts when the bot asks the model on her behalf (a reply, a distill). Its own self-loop wake-ups, where it
+    // asks whether to say anything and usually stays silent, are not a conversation and do not count.
+    const started = lines.filter(l => /^\[claude\] query kind=(?:reactive|distill)\b/u.test(l)).length;
+    return { activity: count > 0, started: started > 0, memory: { logIno: info.ino, logOffset: memory.logOffset + end + 1, activityCount: (memory.activityCount || 0) + count } };
   } finally { await handle.close(); }
 }
 

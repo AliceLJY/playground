@@ -59,12 +59,16 @@ test('artifact mtime edges, one-shot completion, stale mirror, Muse absence and 
     assert.equal(reduceMember(type,{empty:true},p,DAY+40000).status,'away');
   }
   assert.equal(reduceMember({type:'artifacts'},{mtime:DAY-7200000},{},DAY).status,'away');
-  const type={type:'etwin'}, sig={running:true,mtime:DAY,activity:true};
-  let p=reduceMember(type,sig,{},DAY); assert.equal(p.status,'busy');
-  p=reduceMember(type,{...sig,activity:false},p,DAY+59999);assert.equal(p.status,'busy');
-  p=reduceMember(type,{...sig,activity:false},p,DAY+60000);assert.equal(p.status,'done');
-  assert.equal(reduceMember(type,{...sig,activity:false},p,DAY+80000).status,'idle');
-  assert.equal(reduceMember(type,{...sig,activity:false},p,DAY+180000).status,'idle');
+  const type={type:'etwin'};
+  assert.equal(reduceMember(type,{running:true,mtime:DAY,activity:false,started:false},{},DAY).status,'idle','a fresh log alone (self-loop wake-up, heartbeat) is not work');
+  let p=reduceMember(type,{running:true,mtime:DAY,activity:false,started:true},{},DAY); assert.equal(p.status,'busy','a reply was requested');
+  p=reduceMember(type,{running:true,mtime:DAY+100000,activity:false,started:false},p,DAY+100000);assert.equal(p.status,'busy','still answering');
+  p=reduceMember(type,{running:true,mtime:DAY+120000,activity:true,started:false},p,DAY+120000);assert.equal(p.status,'done','the reply landed');
+  assert.equal(reduceMember(type,{running:true,mtime:DAY+120000,activity:false,started:false},p,DAY+139999).status,'done');
+  assert.equal(reduceMember(type,{running:true,mtime:DAY+130000,activity:false,started:false},p,DAY+140000).status,'idle');
+  p=reduceMember(type,{running:true,mtime:DAY,activity:false,started:true},{},DAY);
+  assert.equal(reduceMember(type,{running:true,mtime:DAY,activity:false,started:false},p,DAY+180000).status,'idle','a query that never answered times out of busy');
+  assert.equal(reduceMember(type,{running:false},p,DAY).status,'off');
 });
 
 test('80 Unicode characters, control stripping, notice first line and redaction',async()=>{
@@ -145,6 +149,12 @@ test('etwin appended lines count only; initial/rotated logs do not replay; parti
   read=await etwinActivity(file,memory);assert.equal(read.activity,false);
   await fs.appendFile(file,'\n');read=await etwinActivity(file,memory);assert.equal(read.activity,true);assert.equal(read.memory.activityCount,1);assert.ok(!JSON.stringify(read).includes('display'));memory={...memory,...read.memory};
   read=await etwinActivity(file,memory);assert.equal(read.activity,false);
+  await fs.appendFile(file,'[self-loop 2026-11-01T07:05:12.820Z] 醒来检查...\n[claude] query kind=self-loop toolMode=chat\n');
+  read=await etwinActivity(file,memory);assert.equal(read.started,false,'self-loop is not work');memory={...memory,...read.memory};
+  await fs.appendFile(file,'[claude] query kind=reactive toolMode=chat model=opus\n');
+  read=await etwinActivity(file,memory);assert.equal(read.started,true);assert.equal(read.activity,false);memory={...memory,...read.memory};
+  await fs.appendFile(file,'[claude] query kind=distill\n');
+  read=await etwinActivity(file,memory);assert.equal(read.started,true);memory={...memory,...read.memory};
   await fs.writeFile(file,'rotated\n');assert.equal((await etwinActivity(file,memory)).activity,false);
   await fs.mkdir(path.join(dir,'nested'));await fs.writeFile(path.join(dir,'nested/new.txt'),'x');
   assert.ok((await latestMtime(dir)).mtime>0);await assert.rejects(latestMtime(dir,1));

@@ -92,10 +92,14 @@ export function deriveSignal(source, signal, previous = {}, now) {
     if (fallback === 'off' && ranAt) return result(now - ranAt < 30 * MINUTE ? 'idle' : 'off', { lastSignalAt: ranAt, badge: '' });
     if (fallback === 'off' || fallback === 'unknown') return result(fallback, { badge: '' });
     if (source.type === 'etwin') {
-      if (signal.activity) { memory.activityAt = now; memory.activityMtime = signal.mtime; }
-      if (memory.activityAt && now - memory.activityAt < MINUTE) return result('busy', { lastSignalAt: memory.activityAt });
-      if (memory.activityAt && now - memory.activityAt < MINUTE + 20_000) return result('done', { lastSignalAt: memory.activityAt });
-      if (memory.activityAt && signal.mtime <= memory.activityMtime) return result(inactive(signal.mtime, now), { lastSignalAt: memory.activityAt });
+      // Busy from the moment a reply or distill is requested until it lands (3 minutes at most, the query timeout);
+      // the landed reply is a short done. A fresh log by itself (heartbeats, self-loop wake-ups, routing) is not work.
+      if (signal.started) memory.workAt = now;
+      if (signal.activity) { memory.activityAt = now; memory.workAt = 0; }
+      if (memory.workAt && now - memory.workAt < 3 * MINUTE) return result('busy', { lastSignalAt: memory.workAt, badge: '' });
+      if (memory.activityAt && now - memory.activityAt < 20_000) return result('done', { lastSignalAt: memory.activityAt, badge: '' });
+      const lastSignalAt = Math.max(signal.mtime, memory.activityAt || 0);
+      return result(inactive(lastSignalAt, now), { lastSignalAt, badge: '' });
     }
     if (fallback === 'busy') return result('busy', { lastSignalAt: signal.mtime, badge: '' });
     const lastSignalAt = Math.max(signal.mtime, ranAt);
