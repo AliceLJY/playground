@@ -4,7 +4,10 @@
   const $ = s => document.querySelector(s), params = new URLSearchParams(location.search);
   const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
   // MV helpers also read desks/home: give the entire film its original layout.
-  const Core=window.OfficeCore, C=mvMode ? {...Core,desks:Core.mvDesks,home:i=>Core.home(i,true)} : Core;
+  const Core=window.OfficeCore, landscapeQuery=matchMedia('(min-width:1000px) and (min-aspect-ratio:5/4)');
+  const layoutKey=()=>mvMode?'legacy':params.get('wall')!=='1' && landscapeQuery.matches?'landscape':'portrait';
+  const withLayout=key=>{const L=Core.layouts[key];return {...Core,...L,home:i=>Core.home(i,L),nameplates:(actors,measure,exclusions)=>Core.nameplates(actors,measure,exclusions,L)};};
+  let C=withLayout(layoutKey());
   const canvas = document.querySelector('#office'), ctx = canvas.getContext('2d');
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
@@ -29,10 +32,13 @@
   let script, sim, demo = false, ready = false, seed = 7, elapsed = 0, cursor = 0, cycle = 0, paused = false, wallBase = Date.now(), lastUI = -10, light = '', currentRoster = [], seen = new Set(), modeKey = '', metrics = [], lastFrame = 0;
   const beijing = n => new Date(n + 8 * 3600000);
   const formatClock = n => beijing(n).toISOString().slice(11, 16);
-  let stats = null, events = [], nameplates = [], speechBoxes = [], build = '';
+  let stats = null, events = [], nameplates = [], speechBoxes = [], build = '', noticesToday, boardRequested=false;
   const now = () => mv ? mv.clock(elapsed) : demo ? wallBase + elapsed : Date.now();
   const r = (g, color, x, y, w, h) => { g.fillStyle = color; g.fillRect(Math.round(x), Math.round(y), w, h); };
   const text = (g, value, x, y, size = 8, color = '#45534b', align = 'center') => { g.fillStyle = color; g.font = `${size}px "PingFang SC",system-ui,sans-serif`; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(value, x, y); };
+
+  const placed = (g,offset,draw) => { g.save(); g.translate(...offset); draw(); g.restore(); };
+  const wallBoard = () => Core.noticeBoard(sim.notices,now(),guest && !demo,noticesToday);
 
   function plant(g, x, y, large = false) {
     r(g, '#6f5946', x - 5, y, 11, 11); r(g, '#c79061', x - 6, y, 13, 4); r(g, '#bd885b', x - 3, y + 4, 7, 6);
@@ -63,6 +69,7 @@
       r(g, '#bd946c', left + 3, y + 12, Math.max(0, width - 9), 1);
     }
     r(g, '#8a785e', 14, 400, 332, 5); r(g, '#e5c498', 14, 397, 332, 3);
+    if(C.id==='landscape')wingFloor(g);
     // Windows, curtains and a tiny skyline.
     for (const x of [25, 98]) {
       r(g, '#aaa98e', x, 25, 61, 43); r(g, '#4e756e', x + 2, 25, 57, 39); r(g, sky, x + 5, 28, 51, 32);
@@ -72,7 +79,7 @@
     }
     // Back-wall notice board; actual notices also appear in the accessible drawer.
     r(g, '#8c6447', 226, 23, 103, 49); r(g, '#b68d5f', 229, 26, 97, 43); text(g, '公 告 板', 277, 36, 7, '#fff3cf');
-    for (let j = 0; j < 4; j++) { const x = 236 + j * 21; r(g, ['#fff0c9', '#d9e3c6', '#edc4a2', '#f3e6b2'][j], x, 41 + j % 2 * 3, 16, 20); r(g, '#a56c4b', x + 7, 40 + j % 2 * 3, 2, 3); r(g, '#b9b194', x + 3, 48 + j % 2 * 3, 10, 1); r(g, '#c1b597', x + 3, 52 + j % 2 * 3, 7, 1); }
+    if (mv) for (let j = 0; j < 4; j++) { const x = 236 + j * 21; r(g, ['#fff0c9', '#d9e3c6', '#edc4a2', '#f3e6b2'][j], x, 41 + j % 2 * 3, 16, 20); r(g, '#a56c4b', x + 7, 40 + j % 2 * 3, 2, 3); r(g, '#b9b194', x + 3, 48 + j % 2 * 3, 10, 1); r(g, '#c1b597', x + 3, 52 + j % 2 * 3, 7, 1); }
     // Wall clock and books.
     r(g, '#8d9279', 183, 30, 26, 25); r(g, '#faf0d7', 186, 33, 20, 19); r(g, '#6c725e', 195, 37, 2, 8); r(g, '#6c725e', 195, 43, 6, 2);
     text(g, '一起把点子做出来', 190, 70, 6, '#7e856e');
@@ -95,7 +102,9 @@
     r(g, '#90755c35', 143, 350, 99, 47); r(g, '#82947b', 147, 347, 92, 45); r(g, '#9daa8c', 151, 351, 84, 37);
     r(g, '#775841', 149, 369, 88, 23); r(g, '#bf9568', 147, 365, 91, 15); r(g, '#dcba87', 147, 363, 91, 5); r(g, '#eddfb7', 180, 368, 25, 9); text(g, '小试AI', 192, 375, 7, '#665c44');
     r(g, '#f3e9c8', 155, 368, 16, 9); r(g, '#c7bc9a', 158, 370, 9, 1); r(g, '#c7bc9a', 158, 373, 7, 1); r(g, '#496f5d', 219, 367, 8, 8);
+    placed(g,[C.desks[10][0]-308,C.desks[10][1]-339],()=>{
     r(g, '#865e43', 285, 340, 47, 23); r(g, '#c09a69', 282, 337, 51, 10); r(g, '#e5c595', 282, 337, 51, 2); text(g, '前 台', 307, 356, 7, '#f2e6c7'); r(g, '#f0e4c4', 312, 333, 14, 7); r(g, '#9da384', 313, 335, 12, 1);
+    });
     r(g, '#556b5b', 329, 374, 17, 26); r(g, '#99a288', 330, 376, 16, 22); r(g, '#f5e3af', 333, 386, 2, 3); text(g, 'OUT', 334, 371, 5, '#5b6857');
     plant(g, 329, 94, true); plant(g, 32, 380, true); plant(g, 124, 200); plant(g, 271, 279);
     // A warm lamp pool is strictly decorative: no overlay on text or characters.
@@ -137,7 +146,16 @@
     for(const [x,y,c] of [[92,286,'#33443f'],[100,294,'#fff4d5'],[playing?92+turn*4:96,290,'#33443f']]) r(ctx,c,x,y,2,2);
   }
 
+  function wingFloor(g) {
+      r(g,'#6d725e',346,10,284,398); r(g,'#f1e7ce',350,14,276,65);
+      r(g,'#c7c7ac',346,73,280,10); r(g,'#8c967d',346,79,280,5);
+      r(g,'#c9a27a',346,84,280,313);
+      for(let y=84;y<397;y+=18) {r(g,'#b58c63',346,y,280,1);for(let x=354+(y%36?24:0);x<626;x+=48)r(g,'#b58c63',x,y,1,Math.min(18,397-y));}
+      r(g,'#8a785e',346,400,280,5); r(g,'#e5c498',346,397,280,3);
+      if(light!=='day')r(g,light==='night'?'#323d6220':'#e79e4120',346,84,280,313);
+  }
   function annex(g) {
+    if (C.id!=='landscape') {
     // Downstairs: a narrow passage leaves the original room through a new south doorway.
     r(g,'#6d725e',308,400,38,94); r(g,'#c9a27a',312,398,30,98);
     for (let y=406;y<488;y+=12) r(g,'#b58c63',313,y,28,1);
@@ -145,22 +163,30 @@
     r(g,'#c9a27a',14,486,332,240);
     for(let y=488;y<724;y+=18) { r(g,'#b58c63',14,y,332,1); for(let x=22+(y%36?24:0);x<344;x+=48) r(g,'#b58c63',x,y,1,Math.min(18,724-y)); }
     r(g,'#c9a27a',312,420,30,72); text(g,'↓ 附楼',327,449,6);
+    }
+    placed(g,C.meetingOffset,()=>{
     r(g,'#6c897b',20,490,220,3); r(g,'#9cbab160',20,493,3,137);
     r(g,'#6c897b',236,490,3,108); r(g,'#9cbab140',224,493,12,105);
     r(g,'#6c897b',20,630,184,3); r(g,'#9cbab190',20,617,184,13);
     for(const x of [20,76,132,200]) r(g,'#6c897b',x,614,2,19);
     r(g,'#547064',28,496,168,31); r(g,'#fff4d5',30,498,164,27);
-    for(const p of C.seats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
+    for(const p of Core.seats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
     r(g,'#77563f',70,562,116,24); r(g,'#a97c52',70,562,116,20); r(g,'#dfb987',71,562,114,4);
     r(g,'#eee4c7',98,572,15,9); r(g,'#8d9a80',101,575,9,1); r(g,'#eee4c7',148,572,15,9);
     text(g,'会议室',130,600,7,'#655b40');
     r(g,'#71583f',76,650,52,17); r(g,'#a3ac8f',76,648,52,6); r(g,'#d2b285',76,660,52,5);
     r(g,'#71583f',78,667,3,3); r(g,'#71583f',123,667,3,3); text(g,'旁听席',102,684,7,'#655b40');
+    });
+    placed(g,C.boothOffset,()=>{
     r(g,'#6d806a',268,494,67,5); r(g,'#6d806a',268,499,3,61); r(g,'#6d806a',332,499,3,61); r(g,'#b4cdc14a',271,499,61,61);
     r(g,'#47625d',310,512,12,26); r(g,'#e7dbb8',312,515,7,10); r(g,'#364944',313,529,5,6);
-    text(g,'电话亭',300,579,7); text(g,'储物间',298,602,7);
+    text(g,'电话亭',300,579,7);
+    });
+    placed(g,C.storageOffset,()=>{
+    text(g,'储物间',298,602,7);
     r(g,'#8f785c',262,610,72,68); r(g,'#b6a58a',265,613,66,62); r(g,'#796b54',265,673,66,3);
-    r(g,'#77563f',24,426,276,52); r(g,'#a17c52',27,429,270,46);
+    });
+    placed(g,C.totalsOffset,()=>{r(g,'#77563f',24,426,276,52); r(g,'#a17c52',27,429,270,46);});
   }
   function folder(x,y) {
     r(ctx,'#8c6337',x-6,y-5,13,9); r(ctx,'#efc66c',x-5,y-4,11,7); r(ctx,'#efc66c',x-5,y-7,5,3); r(ctx,'#fff0bc',x-3,y-1,6,1);
@@ -175,8 +201,11 @@
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
     gamesUnder();
+    placed(ctx,C.totalsOffset,()=>{
     text(ctx,`办公室累计${demo?' · 演示':''}`,162,440,8,'#fff4d5');
     const lines=boardLines(); lines.forEach((line,i)=>text(ctx,line,162,450+i*10,i===2?7.5:8,'#fff4d5'));
+    });
+    placed(ctx,C.meetingOffset,()=>{
     if (m) {
       text(ctx,m.kind==='review'?`互审 · 第 ${m.round ?? '—'} 轮`:`碰头会 · ${m.members.length} 人`,112,509,9);
       if (m.kind==='review' && m.slide) text(ctx,`采纳 ${m.slide.adopted} · 反驳 ${m.slide.rejected} · 待议 ${m.slide.open}`,112,521,8);
@@ -185,6 +214,8 @@
       const last=[...events].filter(e=>e.kind==='meeting').sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))[0];
       text(ctx,last?`上次开会 ${formatClock(Date.parse(last.at))}`:'今天还没开会',112,515,8);
     }
+    });
+    placed(ctx,C.storageOffset,()=>{
     const layers=C.diskLayers(s.disk);
     for(let j=0;j<layers;j++) for(let i=0;i<3;i++) {
       const x=268+i*20,y=666-j*7;
@@ -192,7 +223,8 @@
     }
     if (s.disk) text(ctx,`${s.disk.usedPct}%`,298,690,7);
     if (s.disk?.usedPct>=92) { r(ctx,'#ba5045',276,604,47,11); text(ctx,'快满了',299,612,8,'#fff4d5'); }
-    r(ctx,s.call?'#e8bc55':'#84917c',296,490,9,4);
+    });
+    placed(ctx,C.boothOffset,()=>r(ctx,s.call?'#e8bc55':'#84917c',296,490,9,4));
     if(sim.guard && s.guard.phase==='patrol' && sim.guard.path.length) {
       const a=sim.guard,p=a.path[0],angle=Math.atan2(p.y-a.y,p.x-a.x);
       ctx.fillStyle='#fff0ab38'; ctx.beginPath(); ctx.moveTo(a.x,a.y-8);
@@ -204,7 +236,8 @@
   function sceneOver() {
     const ball=sim.pingPongBall();
     if(ball)r(ctx,'#fff4d5',ball.x,ball.y,ball.size,ball.size);
-    if(sim.scene.meeting) {
+    if(C.id==='landscape')r(ctx,sim.scene.meeting?'#efc66c':'#84917c',588,210,9,4);
+    else if(sim.scene.meeting) {
       r(ctx,'#77563f',274,398,68,18); r(ctx,'#efc66c',276,400,64,14);
       r(ctx,'#fff4d5',278,404,3,3); text(ctx,'开会中 ↓',311,410,8,'#45534b');
     }
@@ -212,7 +245,7 @@
     const cc=sim.actors.find(a=>a.activity==='call');
     if(cc && !cc.path.length) {
       r(ctx,'#354c47',cc.x+5,cc.y-18,3,11); r(ctx,'#354c47',cc.x+3,cc.y-18,5,3); r(ctx,'#354c47',cc.x+3,cc.y-9,5,3);
-      if(sim.time%8<2.5) { const word=['嗯…','这个思路有意思','我记一下'][Math.floor(sim.time/8)%3]; r(ctx,'#fff4d5',258,531,84,12); text(ctx,word,300,540,8); }
+      if(sim.time%8<2.5) { const word=['嗯…','这个思路有意思','我记一下'][Math.floor(sim.time/8)%3]; placed(ctx,C.boothOffset,()=>{r(ctx,'#fff4d5',258,531,84,12); text(ctx,word,300,540,8);}); }
     }
     if(sim.guard) {
       const a=sim.guard;
@@ -263,7 +296,7 @@
       const word = hello?.kind === 'pose' ? ['茄子', '耶', '✌', '茄子', '笑一个', '耶', '看这里', '茄子', '比心', '耶', '茄子'][a.i % 11]
         : hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
         : ['谢谢', '好耶', '谢啦', '太好了', '谢谢你', '哇', '开心', '干杯', '谢谢啦', '好香', '谢谢'][a.i % 11];
-      const w = word.length * 6 + 6, bx = Math.max(22, Math.min(338 - w, x - w / 2 + 1));
+      const w = word.length * 6 + 6, bx = Math.max(22, Math.min(C.W-22 - w, x - w / 2 + 1));
       speechBoxes.push({x:bx,y:y-36,w,h:10});
       r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
     } else r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
@@ -390,7 +423,8 @@
       }
     }
     const latest = sim.notices.at(-1);
-    if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
+    if (mv && latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
+    if (!mv) drawWallBoard();
     if (mv) {
       OfficeMV.drawOver(ctx, sim, { C, r, text, says: script.says }, elapsed, mv.light(elapsed));
       const dk = mv.darkness(elapsed);
@@ -406,6 +440,16 @@
     if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
+  }
+  function drawWallBoard() {
+    const b=wallBoard();
+    for(let j=0;j<b.sheets;j++) {
+      const x=236+j%4*21,y=41+Math.floor(j/4)*14;
+      r(ctx,['#fff0c9','#d9e3c6','#edc4a2','#f3e6b2'][j%4],x,y,16,11);
+      r(ctx,'#b9b194',x+3,y+5,10,1); r(ctx,'#c1b597',x+3,y+8,7,1);
+      r(ctx,b.recent && j===b.sheets-1 && sim.time%1.6<.4?'#d9564d':'#a56c4b',x+7,y-1,2,3);
+    }
+    if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
@@ -443,7 +487,7 @@
     const book = $('#guestbook'), total = !demo && Number.isInteger(visitorsTotal) ? visitorsTotal : null;
     book.hidden = total === null; if (total !== null) book.textContent = `来过 ${total.toLocaleString('zh-CN')} 位客人`;
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
-    if (sim.scene.meeting) $('#room-caption').textContent = '楼下在开会';
+    if (sim.scene.meeting) $('#room-caption').textContent = C.id==='landscape'?'会议室在开会':'楼下在开会';
     if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
     const thanks = sim.thanksNow(), carrier = sim.visitors.find(v => v.carry);
     if (carrier) $('#room-caption').textContent = `有人拎着${TREAT_NAMES[carrier.carry]}来探班了`;
@@ -463,7 +507,11 @@
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
       li.querySelector('.member-work').textContent = workedLabel(a.workedToday);
     }
+    const board=wallBoard();
     $('#notice-count').textContent = sim.notices.length;
+    $('#wall-board').setAttribute('aria-label',`公告板${board.count===null?'':`，今天 ${board.count} 张纸条`}，点开手记`);
+    $('#guest-notices').hidden=!(guest && !demo && boardRequested);
+    $('#guest-notices').textContent='公告板的纸条只在本人内网地址可见'+(board.count===null?'':`，今天共 ${board.count} 张`);
     const timelineKey=JSON.stringify([events,stats,demo,visitorsTotal]);
     if ($('#events').dataset.key !== timelineKey) {
       $('#events').dataset.key=timelineKey; $('#events').replaceChildren();
@@ -494,8 +542,8 @@
   function resetDemo() {
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
     wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : '2026-11-01T02:00:00Z');
-    currentRoster = script.roster; sim = C.create(currentRoster, seed, !!mv);
-    stats = !mv ? script.stats : null; events = []; treatsToday = {};
+    currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id);
+    stats = !mv ? script.stats : null; events = []; treatsToday = {}; noticesToday=undefined;
     if (!mv) sim.setScene(demoScene(script.scene));
     if (mv) mv.start(sim);
     else for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
@@ -602,13 +650,13 @@
       if (!guest && typeof data.build === 'string') { if (!build) build = data.build; else if (data.build !== build) { location.reload(); return; } }
       misses = 0;
       if (demo || !sim || rosterIdentity(currentRoster) !== rosterIdentity(data.roster)) {
-        demo = false; elapsed = 0; wallBase = Date.now(); currentRoster = data.roster; sim = C.create(currentRoster, seed); seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
+        demo = false; elapsed = 0; wallBase = Date.now(); currentRoster = data.roster; sim = C.create(currentRoster, seed, C.id); seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
         sim.notices = data.notices; buildRoster(); light = ''; lastUI = -10;
         const latest = data.notices.at(-1);
         if (latest && Date.now() - Date.parse(latest.at) < 20_000) sim.deliveries.push(latest);
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', awayLabel: a.awayLabel || '', workedToday: a.workedToday || 0 }); }
-      sim.setScene(data.scene); stats=data.stats ?? null; events=data.events || [];
+      sim.setScene(data.scene); noticesToday=data.noticesToday; stats=data.stats ?? null; events=data.events || [];
       sim.setVisitors(data.visitors || 0); visitorsTotal = data.stats?.visitorsTotal ?? data.visitorsTotal ?? null; sayHello();
       if (!welcomeTimer && !wallMode) welcomeTimer = setTimeout(() => { if (sim && !demo && !greeted && !sim.greeting() && !sim.thanksNow()) sim.wave('welcome'); }, 12_000);
       treatsToday = data.treatsToday || {};
@@ -630,9 +678,34 @@
       $('#drawer').classList.add('expanded'); $('#drawer-toggle').setAttribute('aria-expanded',true);
     });
   }
+  $('#wall-board').addEventListener('click',()=>{
+    boardRequested=true; $(`#${guest && !demo?'today':'board'}-tab`).click(); $('#drawer-body').scrollTop=0; updateUI();
+  });
+  function fitRoom() {
+    if(C.id!=='landscape')return;
+    const v=$('#room-viewport'); $('#canvas-wrap').style.width=`${Math.min(v.clientWidth,v.clientHeight*C.W/C.H)}px`;
+  }
+  function layoutUI() {
+    const wide=C.id==='landscape'; document.body.classList.toggle('landscape',wide);
+    if(wide)$('#drawer').insertBefore($('#treat'),$('.tabs')); else $('#canvas-wrap').append($('#treat'));
+    $('#canvas-wrap').style.width=''; $('#room-viewport').scrollTop=0;
+    $('#room-viewport').setAttribute('aria-label',wide?'办公室全景，整栋楼同屏':'办公室与附楼，可上下滚动');
+    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏角、会议室和电话亭之间活动。整栋楼同屏，详细状态可在手记中阅读。':'AI 伙伴在工位、游戏角和老板桌之间活动。下方附楼有会议室、电话亭和累计看板，可上下滚动。');
+    const b=C.noticeRect,button=$('#wall-board'); button.hidden=mvMode || wallMode;
+    Object.assign(button.style,{left:`${b.x/C.W*100}%`,top:`${b.y/C.H*100}%`,width:`${b.w/C.W*100}%`,height:`${b.h/C.H*100}%`});
+    fitRoom();
+  }
+  landscapeQuery.addEventListener('change',()=>{
+    const key=layoutKey(); if(C.id===key)return;
+    C=withLayout(key); if(sim)sim=sim.relayout(key);
+    canvas.width=backdrop.width=C.W*2; canvas.height=backdrop.height=C.H*2;
+    light=''; lastUI=-10; layoutUI(); if(sim)draw();
+  });
+  new ResizeObserver(fitRoom).observe($('#room-viewport'));
+  layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a,!!mv), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a,!!mv), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
@@ -649,7 +722,7 @@
     if (view === 'hero' && !demo) advance(7000);
     ready = true; draw();
     if (view === 'board') $('#today-tab').click();
-    if (['meeting','booth','board','night-guard'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
+    if (C.id!=='landscape' && ['meeting','booth','board','night-guard'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
     setInterval(() => { if (!forced && !paused) loadLive(); }, 10000);
     function frame(ts) {
       // One bad frame must not end the render loop: the next frame is always scheduled.
