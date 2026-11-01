@@ -1,21 +1,23 @@
 (function (root) {
   'use strict';
   const W = 360, H = 740;
-  const desks = [
+  const mvDesks = [
     [65, 112], [157, 112], [229, 112], [301, 112], [157, 194],
     [53, 224], [229, 194], [301, 269], [301, 194], [157, 269], [308, 339]
   ];
+  const desks = mvDesks.map((p,i)=>i===9 ? [229,269] : p);
   const mvRest = [[35, 294], [61, 294], [87, 294], [35, 324], [61, 324], [87, 324], [116, 294], [116, 323], [35, 351], [68, 351], [308, 362]];
-  const games = [[80,304,'chess'],[116,304,'chess'],[36,294,'arcade'],[60,294,'arcade'],[36,328,'nap'],[64,328,'read'],[88,332,'watch'],[116,332,'watch'],[36,356,'watch'],[64,356,'watch']].map(([x,y,kind])=>({x,y,kind}));
-  const rest = [...games.map(p=>[p.x,p.y]),[308,366]], gameWatch = {x:92,y:356};
+  const games = [[156,268,'pingpong'],[156,332,'pingpong'],[80,304,'chess'],[116,304,'chess'],[36,294,'arcade'],[60,294,'arcade'],[36,328,'nap'],[60,328,'read'],[88,340,'watch'],[116,340,'watch']].map(([x,y,kind])=>({x,y,kind}));
+  const rest = [...games.map(p=>[p.x,p.y]),[308,366]], gameWatch = {x:92,y:372};
   const door = { x: 340, y: 388 }, bossDesk = { x: 195, y: 352 }, handoff = { x: 221, y: 352 }, pantry = { x: 198, y: 247 };
-  const obstacles = desks.map(([x, y], i) => ({ x: x - (i === 10 ? 23 : 27), y: y - 9, w: i === 10 ? 46 : 54, h: 29 }));
+  const deskObstacles = layout => layout.map(([x, y], i) => ({ x: x - (i === 10 ? 23 : 27), y: y - 9, w: i === 10 ? 46 : 54, h: 29 }));
+  const obstacles = deskObstacles(desks);
   obstacles.push({ x: 150, y: 366, w: 84, h: 28 });
   obstacles.push({ x: 26, y: 173, w: 72, h: 29 }, { x: 109, y: 88, w: 3, h: 58 });
   for (const [x, y] of [[119,198],[266,277],[323,93],[27,378]]) obstacles.push({ x, y, w: 12, h: 13 });
   // The fixed MV keeps its old lounge; ordinary pages use the corner's solid cabinets and seat backs.
-  const mvObstacles = [...obstacles,{x:22,y:269,w:78,h:10}];
-  obstacles.push({x:24,y:260,w:20,h:22},{x:48,y:260,w:20,h:22},{x:88,y:284,w:20,h:16},{x:26,y:312,w:20,h:6},{x:54,y:312,w:20,h:6});
+  const mvObstacles = [...deskObstacles(mvDesks),...obstacles.slice(desks.length),{x:22,y:269,w:78,h:10}];
+  obstacles.push({x:24,y:260,w:20,h:22},{x:48,y:260,w:20,h:22},{x:88,y:284,w:20,h:16},{x:26,y:312,w:20,h:6},{x:50,y:312,w:20,h:6},{x:136,y:276,w:40,h:40});
   const podium = { x: 208, y: 536 }, booth = { x: 296, y: 560 };
   const seats = [[76,548],[108,548],[140,548],[172,548]].map(([x,y]) => ({x,y}));
   const standing = [40,72,104,136,168,200].map(x=>({x,y:612}));
@@ -27,7 +29,7 @@
   const diskLayers = disk => disk ? Math.ceil(disk.usedPct / 12.5) : 0;
   const isNight = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 23 || h < 8; };
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const home = i => ({ x: desks[i][0], y: desks[i][1] + 27 });
+  const home = (i,legacy=false) => { const p=(legacy?mvDesks:desks)[i]; return {x:p[0],y:p[1]+27}; };
   const queuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const blocked = (x, y, legacy = false) => x < 18 || x > 342 || y < 88 || y > 720 || (y > 398 && y < 490 && x < 312) || (legacy ? mvObstacles : obstacles).some(o => x > o.x - 4 && x < o.x + o.w + 4 && y > o.y - 3 && y < o.y + o.h + 3);
 
@@ -53,12 +55,13 @@
   }
 
   function create(roster, seed = 7, legacy = false) {
+    const layout = legacy ? mvDesks : desks, home = i => ({x:layout[i][0],y:layout[i][1]+27});
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
     const sim = { time: 0, seed, actors: roster.map((r, i) => { const slot = Number.isInteger(r.desk) && r.desk >= 0 && r.desk < desks.length ? r.desk : i; return { ...r, i: slot, ...home(slot), status: 'idle', changed: 0, path: [], dest: null }; }), boss: { ...bossDesk, path: [], dest: null }, bossTarget: null, notices: [], deliveries: [], delivery: null, delivered: 0, nextWander: 0 };
     sim.scene = emptyScene(); sim.flights = []; sim.night = false; sim.guard = null;
     const director = () => sim.actors.find(a => a.id === 'cc') || sim.actors.find(a => a.i === 0);
-    const deskPoint = a => ({x:desks[a.i][0] + 17, y:desks[a.i][1] + 4});
+    const deskPoint = a => ({x:layout[a.i][0] + 17, y:layout[a.i][1] + 4});
     const ccPoint = () => { const a = director(); return a && a.activity ? {x:a.x,y:a.y-12} : a ? deskPoint(a) : null; };
     function setScene(value) {
       const next = value || emptyScene(), before = sim.scene.dispatched;
@@ -87,7 +90,7 @@
       if (legacy) return;
       const idle=sim.actors.filter(a=>a.status==='idle' && a.i!==10 && !meetingTarget(a.id) && !(a===director() && sim.scene.call)).sort((a,b)=>a.i-b.i);
       const key=idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=idle.length===1 ? [2] : games.slice(0,idle.length).map((_,i)=>i);
+      const slots=idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,idle.length).map((_,i)=>i);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot)) pending.shift().gameSlot=slot;
@@ -95,8 +98,14 @@
     function gameActivity(a) {
       if(legacy || a.status!=='idle' || a.activity || a.gameSlot==null || a.path.length || distance(a,games[a.gameSlot])>=1) return null;
       const p=games[a.gameSlot];
-      if(p.kind==='chess' && ![0,1].every(slot=>sim.actors.some(b=>b.gameSlot===slot && b.status==='idle' && !b.activity && !b.path.length && distance(b,games[slot])<1))) return null;
+      const pair=p.kind==='pingpong' ? [0,1] : p.kind==='chess' ? [2,3] : null;
+      if(pair && !pair.every(slot=>sim.actors.some(b=>b.gameSlot===slot && b.status==='idle' && !b.activity && !b.path.length && distance(b,games[slot])<1))) return null;
       return p.kind;
+    }
+    function pingPongBall() {
+      if(!sim.actors.some(a=>gameActivity(a)==='pingpong')) return null;
+      const phase=(sim.time%1.6)/.8, travel=phase<=1?phase:2-phase;
+      return {x:154+Math.round(Math.sin(sim.time*Math.PI/1.6)*7),y:279+Math.round(travel*30),size:3};
     }
     function tickGuard(dt) {
       if (!sim.night || !sim.scene.guard) { sim.guard = null; return; }
@@ -162,14 +171,14 @@
       if (sim.bossTarget) moveTo(sim.boss, sim.bossTarget);
       else if (waiting.length || sim.delivery) moveTo(sim.boss, bossDesk);
       else if (sim.time >= sim.nextWander) {
-        moveTo(sim.boss, [{ x: 125, y: 169 }, { x: 198, y: 247 }, bossDesk, { x: 115, y: 351 }][Math.floor(random() * 4)]);
+        moveTo(sim.boss, [{ x: 125, y: 169 }, { x: 198, y: 247 }, bossDesk, legacy ? {x:115,y:351} : {x:124,y:372}][Math.floor(random() * 4)]);
         sim.nextWander = sim.time + 7 + random() * 5;
       }
       travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery ? 1 : 0.5));
     }
     // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
-    const tour = [{ x: 125, y: 169 }, { x: 198, y: 247 }, { x: 273, y: 300 }, { x: 115, y: 351 }, ...(!legacy ? [gameWatch] : [])];
+    const tour = [{ x: 125, y: 169 }, { x: 198, y: 247 }, { x: 273, y: 300 }, legacy ? {x:115,y:351} : {x:124,y:372}, ...(!legacy ? [gameWatch] : [])];
     sim.visitors = []; sim.visitorTarget = 0; sim.visitorSeq = 0; sim.hello = null;
     // Treats: a visitor picks something from the menu; a visitor figure carries it to the pantry spot, everyone at
     // work says thanks for a few seconds, and a cup sits on every occupied desk for a while.
@@ -231,7 +240,7 @@
       sim.visitors = sim.visitors.filter(v => !(v.phase === 'leaving' && distance(v, door) < 1));
     }
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickTreats(dt); tickVisitors(dt); } }
-    return Object.assign(sim, { setScene, meetingTarget, meetingStanding, gameActivity, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   const TREAT_NAMES = {milktea:'奶茶',coffee:'咖啡',cake:'蛋糕',melon:'西瓜'};
   // Structured public signals only. Missing extension fields mean an old office, not made-up zeros.
@@ -277,7 +286,7 @@
       default: return null;
     }
   }
-  const api = { games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
