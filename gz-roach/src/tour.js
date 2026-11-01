@@ -43,6 +43,7 @@ function track(keys, t) {
   return val;
 }
 const step = (keys, t) => { let v = keys[0][1]; for (const k of keys) if (t >= k[0]) v = k[1]; else break; return v; };
+const stepAt = (keys, t) => { let at = keys[0][0]; for (const k of keys) if (t >= k[0]) at = k[0]; else break; return at; };
 
 /** 镜头：切到新机位后 1.6 s 缓动过去 */
 function viewAt(t) {
@@ -77,7 +78,7 @@ export function tourAt(t) {
     t,
     v: Math.min(SPEED_MAX, Math.max(0, track(tracks.v, t))),
     swag: track(tracks.swag, t), wings: track(tracks.wings, t), explode: track(tracks.explode, t), xray: track(tracks.xray, t) > 0.5,
-    focus: step(steps.focus, t), view: viewAt(t), cursor: cursorAt(t), caption: step(steps.caption, t),
+    focus: step(steps.focus, t), view: viewAt(t), cursor: cursorAt(t), caption: step(steps.caption, t), captionAt: stepAt(steps.caption, t),
     cycle: table(CYC, t), ground: table(DIST, t),
   };
 }

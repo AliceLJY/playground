@@ -209,6 +209,8 @@ function renderTour(t) {
   applyCam(s.view.from, s.view.to, s.view.k);
   updatePanels(st, frame);
   panels.caption.textContent = s.caption; panels.caption.classList.toggle('on', !!s.caption);
+  // 录片：CSS 过渡跟着真实时间走、不跟逐帧时钟，这里改用导览时间算字幕淡入（2026-11-01 录出过空字幕框残影）
+  if (CAPTURE) panels.caption.style.opacity = s.caption ? Math.min(1, (s.t - s.captionAt) / 0.3).toFixed(3) : '0';
   moveCursor(s.cursor);
   renderer.render(scene, camera);
   return { st, s };
