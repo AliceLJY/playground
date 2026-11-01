@@ -39,7 +39,7 @@ NIGHT = first("night") or OFFICE
 LIGHTS = first("lights-off") or OFFICE - 3
 CARD = ev.get("endcard", {}).get("start")
 
-BPM = 100
+BPM = round(100 * ev.get("speed", 1))   # the film played 1.2× faster gets a 120 bpm score
 BEAT = 60 / BPM
 BAR = 4 * BEAT
 NAMES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
