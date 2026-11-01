@@ -44,3 +44,14 @@ test('a real notice waits for the roaming host before the eight-second handoff',
   assert.equal(waitedAtDesk,true,'courier must really encounter an empty desk');assert.equal(s.delivery.phase,'holding');assert.ok(C.distance(s.boss,C.bossDesk)<1);
   s.step(7980);assert.equal(s.delivery.phase,'holding');s.step(40);assert.equal(s.delivery.phase,'returning');
 });
+
+test('visitors come in through the door, stroll only on walkable floor, and leave when the count drops',()=>{
+  const s=simulation(3); s.setVisitors(2); s.step(15000);
+  assert.equal(s.visitors.length,2);
+  for(const v of s.visitors){assert.ok(C.distance(v,C.door)>8,`${v.id} still at the door`);assert.ok(!C.blocked(Math.round(v.x),Math.round(v.y)),`${v.id} inside furniture at ${v.x},${v.y}`);}
+  const seen=new Set(); for(let i=0;i<40;i++){s.step(1000);for(const v of s.visitors){assert.ok(!C.blocked(Math.round(v.x),Math.round(v.y)));seen.add(`${Math.round(v.x/50)}`);}}
+  assert.ok(seen.size>=2,'visitors move between spots');
+  s.setVisitors(1); s.step(20000); assert.equal(s.visitors.length,1);
+  s.setVisitors(0); s.step(20000); assert.equal(s.visitors.length,0,'everyone left');
+  s.setVisitors(50); s.step(100); assert.equal(s.visitors.length,5,'five at most on screen');
+});

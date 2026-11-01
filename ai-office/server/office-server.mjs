@@ -54,6 +54,14 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   }
   const state = await loadState(stateFile);
   const limiter = new RateLimiter();
+  // People looking at the public page: each page keeps a random tag for its tab and says hello every ten seconds;
+  // a tag silent for 45 s has left. Only a count ever leaves the server. Capped so a flood cannot grow memory.
+  const VISIT_TTL = 45_000, VISIT_CAP = 200;
+  const visitors = new Map();
+  function visitorCount(now) {
+    for (const [tag, at] of visitors) if (now - at > VISIT_TTL) visitors.delete(tag);
+    return visitors.size;
+  }
   let writes = Promise.resolve(), polling = false, updatedAt = iso(clock());
 
   function persist() {
@@ -73,7 +81,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
       return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false };
+    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()) };
   }
 
   const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
@@ -132,6 +140,16 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
       if (req.method === 'GET' && url.pathname === '/guest/api/state') {
         const origin = req.headers.origin;
         return reply(res, 200, guestSnapshot(), { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
+      }
+      if (req.method === 'GET' && url.pathname === '/guest/visit') {
+        const origin = req.headers.origin, tag = url.searchParams.get('v') || '';
+        const cors = { Vary: 'Origin', 'Cache-Control': 'no-store', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) };
+        if (!/^[a-f0-9]{16,32}$/.test(tag)) return reply(res, 400, { error: 'Invalid visitor tag' }, cors);
+        const now = clock();
+        if (!limiter.take(`visit:${tag}`, now)) return reply(res, 429, { error: 'Rate limited' }, cors);
+        visitorCount(now);
+        if (visitors.has(tag) || visitors.size < VISIT_CAP) visitors.set(tag, now);
+        return reply(res, 200, { ok: true, visitors: visitors.size }, cors);
       }
       const guestReport = req.method === 'POST' && url.pathname.match(/^\/guest\/report\/([a-z][a-z0-9_-]{0,31})$/);
       if (guestReport) {
