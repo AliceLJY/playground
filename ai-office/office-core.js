@@ -6,7 +6,7 @@
     [53, 224], [229, 194], [301, 269], [301, 194], [157, 269], [308, 339]
   ];
   const rest = [[35, 294], [61, 294], [87, 294], [35, 324], [61, 324], [87, 324], [116, 294], [116, 323], [35, 351], [68, 351], [308, 362]];
-  const door = { x: 340, y: 388 }, bossDesk = { x: 195, y: 352 }, handoff = { x: 221, y: 352 };
+  const door = { x: 340, y: 388 }, bossDesk = { x: 195, y: 352 }, handoff = { x: 221, y: 352 }, pantry = { x: 198, y: 247 };
   const obstacles = desks.map(([x, y], i) => ({ x: x - (i === 10 ? 23 : 27), y: y - 9, w: i === 10 ? 46 : 54, h: 29 }));
   obstacles.push({ x: 150, y: 366, w: 84, h: 28 }, { x: 22, y: 269, w: 78, h: 10 });
   obstacles.push({ x: 26, y: 173, w: 72, h: 29 }, { x: 109, y: 88, w: 3, h: 58 });
@@ -98,6 +98,32 @@
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
     const tour = [{ x: 125, y: 169 }, { x: 198, y: 247 }, { x: 273, y: 300 }, { x: 115, y: 351 }];
     sim.visitors = []; sim.visitorTarget = 0; sim.visitorSeq = 0; sim.hello = null;
+    // Treats: a visitor picks something from the menu; a visitor figure carries it to the pantry spot, everyone at
+    // work says thanks for a few seconds, and a cup sits on every occupied desk for a while.
+    const TREATS = ['milktea', 'coffee', 'cake', 'melon'];
+    sim.treats = []; sim.thanks = null; sim.deskTreat = null; sim.carrier = null;
+    function treat(kind, at) { if (TREATS.includes(kind)) sim.treats.push({ kind, at }); }
+    const thanksNow = () => sim.thanks && sim.time - sim.thanks.at < GREET_SECONDS ? sim.thanks : null;
+    const deskTreatNow = () => sim.deskTreat && sim.time < sim.deskTreat.until ? sim.deskTreat : null;
+    function tickTreats(dt) {
+      if (!sim.carrier && sim.treats.length) {
+        const next = sim.treats.shift();
+        let v = sim.visitors.find(x => x.phase === 'touring' && !x.carry);
+        if (!v) {
+          const seq = ++sim.visitorSeq;
+          v = { id: `runner-${seq}`, visitor: true, runner: true, i: 20 + seq % 4, color: '#c9a35b', x: door.x, y: door.y, path: [], dest: null, phase: 'touring', until: null, status: 'visiting' };
+          sim.visitors.push(v);
+        }
+        v.carry = next.kind; v.dest = null; sim.carrier = v.id;
+      }
+      const v = sim.carrier && sim.visitors.find(x => x.id === sim.carrier);
+      if (!v) { sim.carrier = null; return; }
+      if (distance(v, pantry) < 1) {
+        sim.thanks = { at: sim.time, kind: v.carry }; sim.deskTreat = { kind: v.carry, until: sim.time + 120 };
+        v.carry = null; sim.carrier = null; v.dest = null; v.until = null;
+        if (v.runner) { v.phase = 'leaving'; }
+      }
+    }
     const GREET_SECONDS = 3;
     const greeting = () => sim.hello && sim.time - sim.hello.at < GREET_SECONDS ? sim.hello : null;
     function setVisitors(n) { sim.visitorTarget = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); }
@@ -112,6 +138,7 @@
       for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring') { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }
       for (const v of sim.visitors) {
         if (v.phase === 'leaving') { moveTo(v, door); travel(v, dt * 0.8); continue; }
+        if (v.carry) { moveTo(v, pantry); travel(v, dt * 0.8); continue; }
         if (!v.dest) { moveTo(v, tour[Math.floor(random() * tour.length)]); v.until = null; }
         else if (!v.path.length) {
           if (v.until == null) v.until = sim.time + 4 + random() * 6;
@@ -121,10 +148,10 @@
       }
       sim.visitors = sim.visitors.filter(v => !(v.phase === 'leaving' && distance(v, door) < 1));
     }
-    function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickVisitors(dt); } }
-    return Object.assign(sim, { step, setStatus, notice, setVisitors, greeting, GREET_SECONDS });
+    function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickTreats(dt); tickVisitors(dt); } }
+    return Object.assign(sim, { step, setStatus, notice, setVisitors, greeting, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
-  const api = { W, H, desks, rest, home, door, handoff, bossDesk, blocked, queuePoint, create, distance, route };
+  const api = { W, H, desks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

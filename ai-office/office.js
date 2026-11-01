@@ -79,6 +79,13 @@
     if (light !== 'day') { bg.fillStyle = light === 'night' ? '#323d6220' : '#e79e4120'; bg.fillRect(14, 84, 332, 313); r(bg, '#f9d98c', 109, 263, 10, 3); }
   }
 
+  // Four pixel treats, 8 wide, drawn with the bottom-left at (x, y).
+  function item(kind, x, y) {
+    if (kind === 'milktea') { r(ctx, '#e9c9a0', x, y - 8, 7, 8); r(ctx, '#7a4b2a', x + 1, y - 5, 5, 4); r(ctx, '#3b2a1e', x + 2, y - 3, 1, 1); r(ctx, '#3b2a1e', x + 4, y - 3, 1, 1); r(ctx, '#c85b4a', x + 3, y - 12, 1, 5); }
+    if (kind === 'coffee') { r(ctx, '#f6f1e6', x, y - 7, 6, 7); r(ctx, '#5a3b26', x + 1, y - 6, 4, 2); r(ctx, '#f6f1e6', x + 6, y - 6, 2, 3); r(ctx, '#d9d2c2', x + 1, y - 10, 1, 2); r(ctx, '#d9d2c2', x + 3, y - 11, 1, 3); }
+    if (kind === 'cake') { r(ctx, '#f3d9a4', x, y - 6, 8, 6); r(ctx, '#e8a3a8', x, y - 4, 8, 2); r(ctx, '#f8f1e2', x, y - 7, 8, 1); r(ctx, '#c84a4a', x + 3, y - 9, 2, 2); }
+    if (kind === 'melon') { r(ctx, '#4f8a4b', x, y - 3, 8, 3); r(ctx, '#e7504e', x + 1, y - 7, 6, 4); r(ctx, '#f3f0e4', x + 1, y - 3, 6, 1); r(ctx, '#2b2b2b', x + 2, y - 6, 1, 1); r(ctx, '#2b2b2b', x + 5, y - 5, 1, 1); }
+  }
   function person(a, boss = false) {
     if (!boss && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
@@ -92,9 +99,10 @@
     }
     r(ctx, '#33443f', x - 6, y - 18, 12, 15); r(ctx, color, x - 5, y - 10, 10, 8);
     r(ctx, '#e3b58d', x - 5, y - 16, 10, 7); r(ctx, '#4b4639', x - 6, y - 21, 12, 6); r(ctx, '#544c3a', x - 6, y - 16, 2, 5);
-    // A visitor just walked in: everyone in the room looks toward the door and waves hello for three seconds.
-    const hello = sim.greeting(), greets = !!hello && !boss && !a.visitor && !['away', 'off'].includes(a.status);
-    const look = greets ? Math.sign(hello.x - a.x) : 0;
+    // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
+    const hello = sim.greeting(), thanks = sim.thanksNow(), present = !boss && !a.visitor && !['away', 'off'].includes(a.status);
+    const greets = present && !!(hello || thanks);
+    const look = greets ? Math.sign((hello ? hello.x : C.pantry.x) - a.x) : 0;
     r(ctx, '#273a34', x - 3 + look, y - 13, 2, 2); r(ctx, '#273a34', x + 2 + look, y - 13, 2, 2);
     const leg = moving ? Math.sin(t * 11) > 0 ? 2 : -2 : 0;
     r(ctx, '#34483e', x - 5, y - 2, 4, 3 + leg); r(ctx, '#34483e', x + 2, y - 2, 4, 3 - leg);
@@ -106,7 +114,8 @@
       // Right arm up, hand swinging: a wave. Then a word above the head, each desk its own.
       const swing = Math.sin(t * 9) > 0 ? 2 : -1;
       r(ctx, '#33443f', x + 5, y - 10, 3, 6); r(ctx, color, x + 5, y - 17, 3, 7); r(ctx, '#e4bb91', x + 5 + swing, y - 20, 3, 3);
-      const word = ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11];
+      const word = hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
+        : ['谢谢', '好耶', '谢啦', '太好了', '谢谢你', '哇', '开心', '干杯', '谢谢啦', '好香', '谢谢'][a.i % 11];
       const w = word.length * 6 + 6, bx = Math.max(22, Math.min(338 - w, x - w / 2 + 1));
       r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
     } else r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
@@ -124,6 +133,7 @@
     if (i === 10) { r(ctx, color, x - 6, y - 23, 12, 5); r(ctx, '#eddca8', x - 8, y - 19, 16, 2); r(ctx, '#e6d2a7', x + 6, y - 5, 7, 5); }
     if (boss) { r(ctx, '#dcb159', x + 2, y - 22, 4, 3); r(ctx, '#5a4839', x - 7, y - 18, 3, 10); }
     // A visitor: a lanyard badge on the chest, a little camera in hand, and a sun hat on every other one.
+    if (a.visitor && a.carry) item(a.carry, x + 7, y - 12);
     if (a.visitor) {
       r(ctx, '#f3ead6', x - 2, y - 9, 4, 5); r(ctx, '#c85b4a', x - 2, y - 9, 4, 1); r(ctx, '#3b4440', x + 5, y - 7, 5, 4); r(ctx, '#d9e2dc', x + 7, y - 6, 2, 2);
       r(ctx, '#e3cf9a', x - 8, y - 22, 16, 2); r(ctx, '#e3cf9a', x - 5, y - 25, 10, 3); r(ctx, '#c85b4a', x - 5, y - 23, 10, 1);
@@ -185,6 +195,8 @@
       r(ctx, '#f4e7c6', 276, 376, 50, 11); r(ctx, '#c9a96e', 276, 376, 50, 1); r(ctx, '#c9a96e', 276, 386, 50, 1);
       text(ctx, `来过 ${visitorsTotal} 位客人`, 301, 384, 6, '#6a5a3c');
     }
+    const onDesks = sim.deskTreatNow();
+    if (onDesks) for (const a of sim.actors) if (!['away', 'off'].includes(a.status) && a.i !== 10) item(onDesks.kind, C.desks[a.i][0] + 15, C.desks[a.i][1] + 6);
     [...sim.actors, ...sim.visitors, { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     const latest = sim.notices.at(-1);
     if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
@@ -229,6 +241,11 @@
     $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '') + (visitorsTotal !== null && !demo ? ` · 来过 ${visitorsTotal} 位` : '');
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
     if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
+    const thanks = sim.thanksNow(), carrier = sim.visitors.find(v => v.carry);
+    if (carrier) $('#room-caption').textContent = `有人拎着${TREAT_NAMES[carrier.carry]}来探班了`;
+    if (thanks) $('#room-caption').textContent = `${TREAT_NAMES[thanks.kind]}到了，大家说谢谢`;
+    const tally = Object.entries(treatsToday).filter(([, n]) => n > 0).map(([k, n]) => `${TREAT_NAMES[k]} ×${n}`).join('、');
+    if (!waiting && !busy && !thanks && !carrier && !sim.greeting() && tally) $('#room-caption').textContent = `今天收到 ${tally}`;
     // Whoever has something going sits on top: waiting for her, then at work, then just finished; the rest keep desk order.
     const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
     const order = [...sim.actors].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.i - b.i).map(a => a.id);
@@ -271,6 +288,7 @@
       if (demo) {
         const local = elapsed - cycle * script.duration * 1000;
         sim.setVisitors(local >= 12_000 && local < 42_000 ? 1 : 0);
+        if (local >= 20_000 && local < 20_000 + part) sim.treat(['milktea', 'coffee', 'cake', 'melon'][cycle % 4], new Date(wallBase + elapsed).toISOString());
         while (cursor < script.events.length && script.events[cursor].at * 1000 <= local) {
           const e = script.events[cursor++], at = new Date(wallBase + elapsed).toISOString();
           if (e.notice) sim.notice({ text: e.notice, at });
@@ -285,7 +303,7 @@
     }
   }
   function validateState(data) {
-    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000)) || (data.visitorsTotal !== undefined && !(Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 && data.visitorsTotal <= 1e9))) throw new Error('Invalid state');
+    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000)) || (data.visitorsTotal !== undefined && !(Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 && data.visitorsTotal <= 1e9)) || (data.treats !== undefined && !(Array.isArray(data.treats) && data.treats.length <= 10 && data.treats.every(t => t && TREAT_NAMES[t.kind] && Number.isFinite(Date.parse(t.at)))))) throw new Error('Invalid state');
     // Shapes, character sets, lengths and date ranges all checked here, so nothing downstream has to trust the feed.
     const ids = new Set(), slots = new Set(), sane = t => { const v = Date.parse(t); return Number.isFinite(v) && v > 946684800000 && v < 4102444800000; };
     data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (!/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || ids.has(a.id) || typeof a.name !== 'string' || !a.name.length || a.name.length > 40 || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !sane(a.statusSince) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.badge !== undefined && (typeof a.badge !== 'string' || a.badge.length > 16)) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
@@ -298,7 +316,24 @@
   let guest = false;
   // A visitor on the public page is drawn in the office: the page keeps a random tag for this tab (no identity, no
   // cookie) and says hello with each poll while the live office answers. The tab closing is the visitor leaving.
-  let visitorTag = '', visitorsTotal = null;
+  let visitorTag = '', visitorsTotal = null, treatsToday = {};
+  const TREAT_NAMES = { milktea: '奶茶', coffee: '咖啡', cake: '蛋糕', melon: '西瓜' }, seenTreats = new Set();
+  // Treats sent from this page: the office answers with the time it was filed, which marks it as already shown here.
+  async function sendTreat(kind) {
+    const target = guest ? GUEST_API.replace(/api\/state$/, 'treat') : new URL('guest/treat', location.href);
+    const note = $('#treat-note'), buttons = [...document.querySelectorAll('#treat-menu button')];
+    buttons.forEach(b => { b.disabled = true; });
+    try {
+      const r = await fetch(target, { method: 'POST', mode: 'cors', cache: 'no-store', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, v: visitorTag }), signal: AbortSignal.timeout(6000) });
+      if (r.status === 429) { note.textContent = '一分钟送一次就够啦，他们还没喝完'; }
+      else if (!r.ok) throw new Error(String(r.status));
+      else { const { at } = await r.json(); seenTreats.add(at); sim.treat(kind, at); note.textContent = `${TREAT_NAMES[kind]}送出去了，看他们走过去`; }
+    } catch { note.textContent = demo ? '演示模式里送不出去，等办公室醒着再来' : '没送到，办公室这会儿没接上'; }
+    $('#treat-menu').hidden = true; $('#treat-toggle').setAttribute('aria-expanded', false);
+    setTimeout(() => { buttons.forEach(b => { b.disabled = false; }); note.textContent = ''; }, 60_000);
+  }
+  $('#treat-toggle').addEventListener('click', () => { const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
+  document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
   try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
   if (!/^[a-f0-9]{16}$/.test(visitorTag)) {
     visitorTag = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
@@ -335,6 +370,8 @@
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', workedToday: a.workedToday || 0 }); }
       sim.setVisitors(data.visitors || 0); visitorsTotal = data.visitorsTotal ?? null; sayHello();
+      treatsToday = data.treatsToday || {};
+      for (const t of data.treats || []) { if (!seenTreats.has(t.at)) { seenTreats.add(t.at); if (Date.now() - Date.parse(t.at) < 60_000) sim.treat(t.kind, t.at); } }
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();
@@ -353,7 +390,7 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
+    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
