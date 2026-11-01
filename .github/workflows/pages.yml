@@ -266,8 +266,9 @@ jobs:
           cp ai-office/index.html ai-office/office-core.js ai-office/office.js ai-office/style.css ai-office/demo-script.json _site/ai-office/
           # Pages 把文件缓存 10 分钟：给脚本和样式的引用带上本次提交号，新 index.html 永远拉到配套的 JS / CSS，
           # 不会再出现「按钮有了、点了没反应」（2026-11-01 探班菜单那次就是新 HTML 配旧 JS）
-          sed -i "s#\(office-core.js\|office.js\|style.css\)\"#\1?v=${GITHUB_SHA::8}\"#g" _site/ai-office/index.html
-          grep -c "?v=${GITHUB_SHA::8}" _site/ai-office/index.html | grep -qx 3
+          V="${GITHUB_SHA::8}"
+          sed -i -e "s#\"office-core.js\"#\"office-core.js?v=$V\"#" -e "s#\"office.js\"#\"office.js?v=$V\"#" -e "s#\"style.css\"#\"style.css?v=$V\"#" _site/ai-office/index.html
+          test "$(grep -o "?v=$V" _site/ai-office/index.html | wc -l)" -eq 3
 
       - name: Assemble Agent Engine, Handwritten Board and Gear Repair
         run: |
