@@ -209,3 +209,18 @@ test('guest feed: same desks, no board, no badge text, CORS only for the public 
   assert.equal((await fetch(base+'/guest/api/notice',{method:'POST'})).status,404);
   assert.equal((await fetch(base+'/guest/index.html')).status,404);
 });
+
+test('codex: a fresh rollout counts as busy without a process; old rollouts rest; rollout reader picks today/yesterday folders',async()=>{
+  const {reduceMember}=await core; const src={type:'codex'};
+  assert.equal(reduceMember(src,{running:false,rolloutMtime:DAY-60000},{},DAY).status,'busy');
+  assert.equal(reduceMember(src,{running:false,rolloutMtime:DAY-4*60000},{},DAY).status,'idle');
+  assert.equal(reduceMember(src,{running:false,rolloutMtime:DAY-40*60000},{},DAY).status,'idle');
+  assert.equal(reduceMember(src,{running:true,rolloutMtime:DAY-40*60000},{},DAY).status,'busy');
+  assert.equal(reduceMember(src,{running:false},{},DAY).status,'idle');
+  const {latestRollout}=await import('../server/collectors.mjs');
+  const fs=require('node:fs'); const os=require('node:os'); const path=require('node:path');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'codex-')); const now=Date.now(); const d=new Date(now).toISOString().slice(0,10).split('-');
+  const day=path.join(root,...d); fs.mkdirSync(day,{recursive:true}); fs.writeFileSync(path.join(day,'rollout-x.jsonl'),'{}'); fs.writeFileSync(path.join(day,'other.txt'),'x');
+  const r=await latestRollout(root,now); assert.ok(Math.abs(r.rolloutMtime-fs.statSync(path.join(day,'rollout-x.jsonl')).mtimeMs)<1);
+  assert.deepEqual(await latestRollout(path.join(root,'nope'),now),{});
+});

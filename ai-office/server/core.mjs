@@ -59,6 +59,12 @@ export function deriveSignal(source, signal, previous = {}, now) {
   if (source.type === 'codex') {
     if (signal.running === true) return result('busy', { lastSignalAt: now });
     if (signal.running !== false) return result('unknown');
+    // No interactive process: the Codex app shows only through its rollout file, written while a turn runs.
+    if (validTime(signal.rolloutMtime, now)) {
+      if (now - signal.rolloutMtime < 3 * MINUTE) return result('busy', { lastSignalAt: signal.rolloutMtime });
+      const lastSignalAt = Math.max(signal.rolloutMtime, previous.lastSignalAt || 0);
+      return result(inactive(lastSignalAt, now), { lastSignalAt });
+    }
     const lastSignalAt = previous.lastSignalAt || now;
     return result(inactive(lastSignalAt, now), { lastSignalAt });
   }
