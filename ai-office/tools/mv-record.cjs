@@ -52,7 +52,7 @@ function serve(dir) {
   }
 
   const from = Number(opt('--from') || 0), to = Number(opt('--to') || seconds);
-  const frames = path.join(outDir, 'frames'); fs.rmSync(frames, { recursive: true, force: true }); fs.mkdirSync(frames, { recursive: true });
+  const frames = path.join(outDir, 'frames'); if(fs.existsSync(frames)) throw new Error('frames already exists; use a fresh output directory'); fs.mkdirSync(frames, { recursive: true });
   await stepTo(from);
   const speed = Number(opt('--speed') || 1), total = Math.round((to - from) * fps / speed), safe = { subBottom: 0, subFrames: 0, titleTop: Infinity, paperBottom: 0 };
   for (let n = 0; n < total; n++) {
@@ -71,6 +71,9 @@ function serve(dir) {
     }
     if (n % 300 === 0) console.log('frame', n, '/', total);
   }
+  safe.passed=safe.subFrames>0&&safe.subBottom<=1480&&safe.titleTop>=172;
+  fs.writeFileSync(path.join(outDir,'safe-area-v5.json'),JSON.stringify(safe,null,2));
+  if(!safe.passed)throw new Error('Safe area failed: '+JSON.stringify(safe));
   const log = await page.evaluate(() => window.__PLAYTEST__.mvLog());
   await page.close();
   const officeMp4 = path.join(outDir, 'office.mp4');
@@ -85,7 +88,7 @@ function serve(dir) {
     await cp.goto('file://' + path.resolve(card, 'endcard.html'));
     await cp.waitForFunction(() => window.__ready === true, null, { polling: 100, timeout: 20000 });
     const dur = await cp.evaluate(() => window.__duration()), cf = path.join(outDir, 'endcard-frames');
-    fs.rmSync(cf, { recursive: true, force: true }); fs.mkdirSync(cf, { recursive: true });
+    if(fs.existsSync(cf)) throw new Error('endcard-frames already exists; use a fresh output directory'); fs.mkdirSync(cf, { recursive: true });
     const cn = Math.round(dur * fps);
     for (let n = 0; n < cn; n++) { await cp.evaluate(t => window.__seek(t), n / fps); await cp.screenshot({ path: path.join(cf, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); }
     const endcard = path.join(outDir, 'endcard.mp4');
@@ -93,6 +96,7 @@ function serve(dir) {
     fs.writeFileSync(path.join(outDir, 'concat.txt'), `file '${officeMp4}'\nfile '${endcard}'\n`);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(outDir, 'concat.txt'), '-c', 'copy', '-movflags', '+faststart', path.join(outDir, 'mv-noaudio.mp4')]);
     ev.endcard = { start: office, seconds: cn / fps, sfx: [1.8, 2.8] };
+    const audio=path.resolve(card,'audio.wav');if(fs.existsSync(audio))ev.endcard.audio=audio;
   }
   ev.seconds = office + (ev.endcard ? ev.endcard.seconds : 0);
   fs.writeFileSync(path.join(outDir, 'events.json'), JSON.stringify(ev, null, 2));

@@ -112,9 +112,9 @@ The published page first tries the same-origin `api/state`, then `https://mac-mi
 
 Idle colleagues now gather in the main room’s lower-left game corner: paired table tennis first, then paired chess, two arcade machines and nap/read beanbags; additional colleagues watch from separate spots. Dots’ desk is now at (229,269), opening space for the tennis table; its nameplate, treats and folders move with it. Cobbler stays at their assigned desk (8 in the demo). Treats follow physical desk size: desk 8 gets a cup, the small desk 10 does not. Done colleagues celebrate at their desks and remain there. Assignments persist until membership changes, then only vacancies are refilled; see [SPEC.md](SPEC.md) for the desk-order rules.
 
-Away from their own workstation, colleagues carry a cream nameplate below their feet: a colour chip and 7-pixel dark text. Spaces/hyphens are removed; names use at most 8 ASCII units or 4 non-ASCII characters (GrokBot, etwincc). Nearby plates stagger without overlapping; if the area is too crowded, foreground plates take priority. Speech bubbles stay above heads. Visitors keep 客, and the host has no plate. At home the desk nameplate is sufficient. MV retains the original desk identities, looks and artwork.
+Away from their own workstation, colleagues carry a cream nameplate below their feet: a colour chip and 7-pixel dark text. Spaces/hyphens are removed; names use at most 8 ASCII units or 4 non-ASCII characters (GrokBot, etwincc). Nearby plates stagger without overlapping; if the area is too crowded, foreground plates take priority. Speech bubbles stay above heads. Visitors keep 客, and the host has no plate. At home the desk nameplate is sufficient. MV v5 uses the current identities, accessories and nameplates.
 
-On phones and narrow windows, scroll the 360×740 logical room to visit the four-seat meeting room (CC at the projector, six additional back-row places), two-person audience bench, phone booth and storage. Meetings light the “开会中 ↓” sign upstairs. At width ≥1000 CSS px and aspect ratio ≥5/4, the same simulation uses a **640×420 horizontal floor**: main office on the left, meeting/booth/storage and totals on the right. The whole building fits without scrolling; the meeting doorway has a lamp. At 1455×782 the canvas is approximately 1027×674 CSS px (**1.605×**). Crossing the breakpoint rebuilds people at their current state’s destinations. Wallpaper retains the portrait main room; MV retains legacy layout. Photos copy the active canvas and add the same caption strip.
+On phones and narrow windows, scroll the 360×740 logical room to visit the four-seat meeting room (CC at the projector, six additional back-row places), two-person audience bench, phone booth and storage. Meetings light the “开会中 ↓” sign upstairs. At width ≥1000 CSS px and aspect ratio ≥5/4, the same simulation uses a **640×420 horizontal floor**: main office on the left, meeting/booth/storage and totals on the right. The whole building fits without scrolling; the meeting doorway has a lamp. At 1455×782 the canvas is approximately 1027×674 CSS px (**1.605×**). Crossing the breakpoint rebuilds people at their current state’s destinations. Wallpaper retains the portrait main room; MV uses the current portrait layout. Photos copy the active canvas and add the same caption strip.
 
 The back-wall board shows today’s Beijing-date note count as 0–8 pinned sheets, with **+N** for overflow. A note under ten minutes old blinks its red pin. Click or tap it to open the local notebook’s Board tab and read the complete notes. Guests see only the optional `noticesToday` count; clicking opens Today with an explanation that notes are private and today’s count. Missing counts draw no sheets and omit the number. The courier’s full-text delivery card is unchanged. The cumulative wooden board’s complete numbers and latest 40 structured events remain available in Today.
 
@@ -132,16 +132,24 @@ Fixed seed 7 views (same simulation and rendering path):
 | `?view=handoff` | 45.5 s, folder halfway through its arc |
 | `?view=board` | 73 s, cumulative board and Today drawer |
 | `?view=night-guard` | 8 s, nighttime patrol |
-| `?mv=1&hold=1` | Original MV camera, no annex |
+| `?mv=1&hold=1` | MV v5: current portrait office, games, nameplates and annex |
 | `?wall=1` | Portrait main room; `&annex=1` also includes the annex |
 
-`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares the stable main room and portrait hero cached backgrounds against `7e27359` outside the notice-board rectangle only, plus byte-identical MV PNGs at 10, 31.5, 53.6 and 75.9 seconds. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
+`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares the stable main room and portrait hero cached backgrounds against `7e27359` outside the notice-board rectangle only, while MV v5 is checked for actual scene states and close-up bounds instead of matching the old film. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
+
+## A Day in the Pixel Office — MV v5
+
+`?mv=1` plays a fictional day using the current portrait layout. `mv-script.json` drives real walking, games, the desk-8 courier, the phone call, visitors and milk tea, a two-round review downstairs and the night patrol. Close-ups retain foot nameplates; the camera follows the stairwell and a flying folder. No live state is requested.
+
+Record with `NODE_PATH="$(npm root -g)" node tools/mv-record.cjs OUT --speed 1.2 --endcard OUT/endcard`: 67 seconds of office plus the unchanged 5.6-second v4 endcard, 1080×1920 at 30 fps. Copy the v4 card without editing its config. Optional `endcard/audio.wav` preserves its PCM tail. The 30-second phone conversation is measured in story time; scripted pacing compresses transit and the complete guard patrol. `tools/mv-music.py` scores the recorded events at 120 bpm; mix with `loudnorm=I=-16:TP=-1.5`.
+
+`node --test tests/*.test.cjs`, `tools/browser-check.cjs` and `tools/mv-check.cjs` cover simulation, normal-office regression, moving nameplate pixels, readable shot bounds and B11 residual frames. See [HANDOFF-mv-v5.md](HANDOFF-mv-v5.md) for the shot list, export evidence and viewing limitations. Legacy geometry remains only for existing compatibility tests. No deployment or commit is part of this revision.
 
 ## Who might open this; AI materials
 
 For someone who enjoys seeing a tiny team turn ideas into work, or wants a quiet glance at local AI activity.
 
-Code, pixel drawing routines, animation and fictional demo writing were made through AI collaboration. There are no external images, models, animation assets or audio. Attribution: **我的AI小木屋 / @AliceLJY**.
+Code, pixel drawing routines, animation and fictional demo writing were made through AI collaboration. The office page uses no external images, models, animation assets or audio. The exported MV uses a procedural score and the v4 endcard’s licensed Mixkit sounds. Attribution: **我的AI小木屋 / @AliceLJY**.
 
 ## Rights
 

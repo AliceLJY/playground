@@ -1,3 +1,13 @@
+## MV v5 — current portrait office (2026-11-02)
+
+Supersedes the historical “MV stays legacy / no nameplates / no annex” exemptions below. Normal office behaviour is unchanged.
+
+- Experience: a warm, gently comic working day; sensory pleasure and immersion, watched muted on a phone. Arc, not a game. Existing sRGB palette and Canvas artwork; no generated assets, dependencies or live data.
+- Keep the 540×960 CSS / 1080×1920 output, 30 fps and 3-device-pixel wide framing. Close-ups use 5, 6 or 9 device pixels per logical pixel (zoom 5/3, 2 or 3). Camera may travel through the real portrait stairwell (logical y398–490) into the annex (y420–730). Fixed seed 7; all arrivals, games, deliveries, calls, meetings and patrol positions come from simulation, never posed teleports.
+- Script about 80 seconds; record at 1.2× for 60–70 seconds of office plus the unchanged v4 5.6-second endcard. Time-lapse compresses a 30-second story-time phone conversation and a complete patrol. Explicit scripted simulation pacing may compress transit; it never changes the normal office.
+- Checks: (1) current portrait geometry, identity-based desk-8 Cobbler with mail cap, Dots at new desk, absent/front-desk Doubao; (2) actual paired tennis with moving 3×3 ball, paired chess and arcade, visible >=36-device-pixel key speech and >=35-pixel name text in close-ups; (3) CC reaches booth, says both lines, 30 story seconds elapse before hangup, folder reaches Codex desk; (4) CC + four colleagues seat/stand in the meeting, two actual visitors on audience bench, >=2 projected rounds and all three verdict counts; (5) stairs and lit sign shown before annex, camera returns upstairs after meeting; (6) delivery, greeting, milk tea on occupied desks, totals, full patrol with flashlight and green door lamp, host exit and blackout; (7) Node suite + browser checks; non-MV stable pixels unchanged; (8) page-clock immediate vs 1-second-delayed screenshots <0.05% changed pixels, subtitles bottom <=1480 and title top >=172; (9) H.264 yuv420p TV range, 1080×1920/30fps, one AAC stream, loudnorm I=-16:TP=-1.5; (10) every-3-second final still viewed, identical-frame runs documented, handoff includes limitations.
+- Reproduction: `?mv=1&hold=1&from=<script-seconds>`; `tools/mv-record.cjs OUT --speed 1.2 --endcard OUT/endcard`. Source is the published artifact (no build step); no deployment in this task. Run `tools/mv-check.cjs` for shot/state/readability/B11 evidence. Budget: 30 fps Canvas2D, no GPU draw calls, normal office p95 <12 ms in browser suite; recording speed is not phone playback FPS.
+
 # Pixel office
 
 ## Landscape floor plan and count-only wall board (2026-11-01)

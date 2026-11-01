@@ -28,7 +28,20 @@ let browser,staticServer;
     return {context,page,errors,external};
   }
   async function save(run,name,actual){
-    const snapshot=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot());
+    // Snapshot and pixels must come from the SAME render. page.clock.install fixes Date,
+    // but its animation clock still runs between awaited CDP calls (including after midnight).
+    const sampled=await run.page.evaluate(()=>{
+      const snapshot=window.__PLAYTEST__.snapshot(),canvas=document.querySelector('#office'),g=canvas.getContext('2d');
+      const plates=snapshot.mv?[]:snapshot.nameplates.filter(p=>p.y+p.h<=canvas.height/2);
+      const rendered=plates.map(p=>{
+        const chip=Array.from(g.getImageData((p.x+3)*2,(p.y+5)*2,1,1).data);
+        const pixels=g.getImageData((p.x+7)*2,(p.y+1)*2,(p.w-8)*2,16).data;
+        let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]<130&&pixels[i+1]<140&&pixels[i+2]<130)ink++;
+        return {id:p.id,chip,ink};
+      });
+      return {snapshot,plates,rendered};
+    });
+    const {snapshot}=sampled;
     const layout=await run.page.evaluate(()=>{
       const box=e=>{const b=e.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom,right:b.right};};
       const c=document.querySelector('#office'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let ink=0,total=0;
@@ -40,18 +53,27 @@ let browser,staticServer;
     check(name+' canvas painted',layout.ink>.8,layout.ink);check(name+' no horizontal overflow',layout.scrollWidth<=layout.width,layout);
     if(!snapshot.mv&&!name.startsWith('wall'))check(name+' drawer inside viewport',layout.drawer.x>=0&&layout.drawer.right<=layout.width+.5&&layout.drawer.bottom<=layout.height+.5,layout.drawer);
     if(actual)check(name+' actual state',snapshot.actualView===actual,snapshot.actualView);
-    if(snapshot.nameplates) {
+    if(snapshot.nameplates && !snapshot.mv) {
       const plates=snapshot.nameplates;
       check(name+' plates never overlap',plates.every((p,i)=>plates.slice(i+1).every(q=>!overlap({...p,w:p.w+1,h:p.h+1},q))),plates);
       check(name+' plates clear speech bubbles',plates.every(p=>snapshot.speechBoxes.every(q=>!overlap(p,q))));
       check(name+' plates below feet',plates.every(p=>p.y>=p.footY+6));
       // The wallpaper draws the main room only (canvas 840 px high): plates of people downstairs are off the canvas.
-      const drawnH=await run.page.evaluate(()=>document.querySelector('#office').height/2);
-      plates.splice(0,plates.length,...plates.filter(p=>p.y+p.h<=drawnH));
-      const rendered=await run.page.evaluate(plates=>{const g=document.querySelector('#office').getContext('2d');return plates.map(p=>{const chip=Array.from(g.getImageData((p.x+3)*2,(p.y+5)*2,1,1).data);const pixels=g.getImageData((p.x+7)*2,(p.y+1)*2,(p.w-8)*2,8*2).data;let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]<130&&pixels[i+1]<140&&pixels[i+2]<130)ink++;return {id:p.id,chip,ink};});},plates);
+      plates.splice(0,plates.length,...sampled.plates);
+      const rendered=sampled.rendered;
       check(name+' actual plate chips and text',rendered.every((r,i)=>r.chip.slice(0,3).map(v=>v.toString(16).padStart(2,'0')).join('')===plates[i].color.slice(1).toLowerCase()&&r.ink>=plates[i].name.length*2),rendered);
     }
     await run.page.screenshot({path:path.join(out,name+'.png')});report.runs.push({name,snapshot,layout});return snapshot;
+  }
+  if(process.argv.includes('--plates-only')) {
+    for(const date of ['2026-11-01T15:59:59Z','2026-11-01T16:00:01Z'])for(const kind of ['landscape-photo','static-fallback']) {
+      const run=await open('?demo=1',kind==='landscape-photo'?{width:1455,height:782}:{width:390,height:664});
+      await run.page.clock.setSystemTime(new Date(date));
+      if(kind==='landscape-photo'){await run.page.locator('#pose').click();await run.page.clock.runFor(3400);}
+      for(let n=0;n<8;n++){await run.page.clock.runFor(137);await save(run,`${kind}-${date.includes('16:')?'after':'before'}-${n}`);}
+      await run.context.close();
+    }
+    report.result='passed';return;
   }
   for(const name of ['hero','queue','notice','meeting','booth','handoff','board','night-guard','games']){
     const run=await open(`?demo=1&view=${name}`),s=await save(run,name,name);
@@ -263,12 +285,17 @@ let browser,staticServer;
     }
     const backgroundDiff=backgrounds[0].filter((v,i)=>outsideBoard(i)&&v!==backgrounds[1][i]).length;check('7e27359 background RGBA identical outside board '+width,backgroundDiff===0,{different:backgroundDiff});
   }
-  // Identical readback/capture steps on both sides: repeated getImageData can change Canvas rasterization.
-  const mvTimes=[10,31.5,53.6,75.9],mvFrames=[];
-  const mvBefore=await open('?mv=1&hold=1',{width:540,height:960},true,originalPage);let mvAt=0;
-  for(const t of mvTimes){await mvBefore.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;await save(mvBefore,`mv-reference-${t}`);const png=await mvBefore.page.locator('#office').screenshot();mvFrames.push(png);await fs.writeFile(path.join(out,t===10?'mv-before.png':`mv-before-${t}.png`),png);}await mvBefore.context.close();
-  const mv=await open('?mv=1&hold=1',{width:540,height:960});mvAt=0;
-  for(const [i,t] of mvTimes.entries()){await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;const m=await save(mv,t===10?'mv-hold':`mv-hold-${t}`);check('MV keeps original frame '+t,!!m.mv&&m.scene.meeting===null);check('MV exact screenshot matches 7e27359 at '+t,mvFrames[i].equals(await mv.page.locator('#office').screenshot()));}await mv.context.close();
+  // v5 deliberately replaces legacy shots: assert current portrait states, not v4 pixel identity.
+  const mv=await open('?mv=1&hold=1',{width:540,height:960});let mvAt=0;
+  for(const t of [14,20,28,32,43,53,56,62,73.8,79.9]){
+    await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;
+    const m=await save(mv,`mv-v5-${t}`);
+    check('MV portrait '+t,m.layout==='portrait'&&m.actors.some(a=>a.courier&&a.desk===8&&a.look===10));
+    if(t===14)check('MV actual games and names',m.pingPongBall&&m.actors.filter(a=>a.game==='chess').length===2&&m.actors.some(a=>a.game==='arcade')&&m.nameplates.length>=5);
+    if(t===28)check('MV actual booth',m.actors.some(a=>a.activity==='call'&&!a.moving));
+    if(t===56)check('MV actual review with listeners',m.scene.meeting.round===2&&m.actors.filter(a=>a.activity==='meeting'&&!a.moving).length===5&&m.visitors.filter(v=>v.listening).length===2);
+    if(t===73.8)check('MV actual completed patrol',m.scene.guard?.phase==='done'&&m.scene.guard.ok===true);
+  }await mv.context.close();
   const wall=await open('?wall=1',{width:1440,height:900});await wall.page.evaluate(()=>window.__PLAYTEST__.step(35000));await save(wall,'wall');check('wall hides photo and controls',await wall.page.locator('#treat').isHidden()&&await wall.page.locator('#photo').isHidden());await wall.context.close();
   // Normal entrance, genuine UI actions and 30 seconds of default movement.
   const run=await open('?demo=1',{width:390,height:664});const phases=new Set();let moved=0,previous;
