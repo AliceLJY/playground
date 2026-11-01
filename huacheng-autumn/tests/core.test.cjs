@@ -64,7 +64,7 @@ test('R3 windows — actual generated upper floors stay sparse, night adds light
 
 
 test('R4 rail scale — generated deck posts spaced 1.2m, handrail 5cm',async()=>{
- const c=await load(),l=c.makeLayout();const rail=l.rails.filter(r=>Math.abs(r.a[0]-r.b[0])<1e-9&&Math.abs(r.a[2]-r.b[2])<1e-9&&Math.abs(r.a[0]-(c.BRIDGE.x+1.24))<1e-6).sort((a,b)=>a.a[2]-b.a[2]);
+ const c=await load(),l=c.makeLayout();const rail=l.rails.filter(r=>Math.abs(r.a[0]-r.b[0])<1e-9&&Math.abs(r.a[2]-r.b[2])<1e-9&&Math.abs(r.a[0]-(c.BRIDGE.x+c.BRIDGE.width/2-.06))<1e-6).sort((a,b)=>a.a[2]-b.a[2]);
  assert.ok(rail.length>=14);for(let i=1;i<rail.length;i++)assert.ok(Math.abs(rail[i].a[2]-rail[i-1].a[2]-1.2)<1e-6);
  const handrails=l.rails.filter(r=>r.a[1]===6.6&&r.b[1]===6.6);assert.ok(handrails.length===2&&handrails.every(r=>Math.abs(r.width-.05)<1e-8));
 });
@@ -73,5 +73,21 @@ test('R4 foliage — small leaves with outward crown normals on every generated 
  const c=await load();for(const seed of [c.SEED,7,131])for(const t of c.makeLayout(seed).trees.filter(t=>t.kind!=='palm')){
  assert.ok(t.leaves.every(l=>l.normal?.length===3&&Math.hypot(...l.normal)>0&&l.scale[0]<=.15&&l.scale[1]<=.23));
  const normals=t.leaves.map(l=>l.normal);assert.ok(normals.some(n=>n[1]>0)&&normals.some(n=>n[1]<0));
+ }
+});
+
+
+test('R5 exterior curtains — real bracts leave walkway/stairs/piers clear, 1–2 m varied drops',async()=>{
+ const c=await load();for(const seed of [c.SEED,7,131])for(const mobile of [false,true]){
+  const l=c.makeLayout(seed,mobile);
+  assert.ok(l.clusters.every(q=>q.segment!==null||q.stair),'piers must not be wrapped in flowers');
+  assert.ok(l.clusters.every(q=>q.depth>=.8&&q.depth<=2),'curtain drops must stay in 1–2 m');
+  assert.ok(l.bracts.every(b=>{const cl=l.clusters[b.cluster];return cl.stair?Math.abs(b.p[2]-cl.center[2])>=.04:Math.abs(b.p[0]-c.BRIDGE.x)>=c.BRIDGE.width/2&&b.p[1]<6.55;}),'bracts must hang outside rails, below clear handrail');
+ }
+});
+test('R5 fine flowers — generated bougainvillea and silk-floss petals are 60% of R4',async()=>{
+ const c=await load();for(const seed of [c.SEED,7,131])for(const mobile of [false,true]){
+  const l=c.makeLayout(seed,mobile);assert.ok(l.bracts.every(b=>b.scale>=.072&&b.scale<=.114));
+  const fs=l.trees.flatMap(t=>t.flowers);assert.ok(fs.length>=800&&fs.every(f=>f.size>=.054&&f.size<=.084));
  }
 });

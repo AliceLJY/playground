@@ -6,6 +6,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SEED, BASE, BRIDGE, PAGODA, CANTON, TRAM, COLORS, makeLayout, cantonStructure, tramAt, mulberry32, clamp, VIEWS, pathAt, createRig, fovFor, shiftFor, skyAt } from './core.js';
 const $=id=>document.getElementById(id),canvas=$('scene'),params=new URLSearchParams(location.search);
@@ -13,19 +15,19 @@ const number=(name,fallback)=>{const n=Number(params.get(name));return params.ha
 const mobile=innerWidth<600,layout=makeLayout(SEED,mobile),rnd=mulberry32(SEED+1),R=(a,b)=>a+(b-a)*rnd();
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});}catch(e){$('fail').style.display='grid';throw e;}
-renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.info.autoReset=false;renderer.localClippingEnabled=true;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;renderer.shadowMap.enabled=true;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.info.autoReset=false;renderer.localClippingEnabled=true;
 // r186 computes BRDFs even for point lights with exactly zero cutoff attenuation.
 // Skip only zero-contribution lights: same illumination, less work at default DPR 2.
 THREE.ShaderChunk.lights_fragment_begin=THREE.ShaderChunk.lights_fragment_begin.replaceAll('RE_Direct( directLight,','if ( directLight.visible ) RE_Direct( directLight,');
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(56,1,0.15,650);
 const boardBounds=new THREE.Box3(new THREE.Vector3(-22,-1.6,-16.5),new THREE.Vector3(22,0,16.5));
-scene.fog=new THREE.Fog('#E8E4DE',65,210);
+scene.fog=new THREE.Fog('#E8E4DE',100,340);
 const std=(color,extra={})=>new THREE.MeshStandardMaterial({color,roughness:0.78,...extra});
-const warm=new THREE.Color(1,0.62,0.28);
+const warm=new THREE.Color(1,.56,.20);
 const mats={
  base:std('#DEDCD5'),road:std('#41464A'),grass:std('#647660'),paving:std('#C6C4BA'),stone:std('#D5D4CC'),bridge:std('#DAD9D1'),
  brick:std('#9A5A3E',{roughness:.93}),cornice:std('#AF8D7C'),seam:std('#724B41'),rock:std('#987362'),soil:std('#746247'),
- bark:std('#756D5D'),iron:std('#3D494B',{metalness:0.5,roughness:0.4}),rail:std('#B6B9B0',{metalness:0.2,roughness:0.62}),
+ bark:std('#756D5D'),iron:std('#3D494B',{metalness:0.5,roughness:0.4}),rail:std('#CBCFCD',{metalness:.05,roughness:.78}),
  line:std('#DBDAD1'),white:std('#F4F4F0'),glass:std('#253B47',{metalness:0.3,roughness:0.2}),red:std('#C8272D'),gray:std('#777C7C'),
  lamp:new THREE.MeshBasicMaterial({color:new THREE.Color(2,1.24,0.56)}),window:std('#171614',{emissive:warm,emissiveIntensity:2}),
  darkWindow:std('#1D2222'),silk:std('#E87BA8',{side:THREE.DoubleSide}),leaf:std('#FFFFFF',{side:THREE.DoubleSide,emissive:'#45634B',emissiveIntensity:.10}),bract:std('#FFFFFF',{side:THREE.DoubleSide}),
@@ -227,9 +229,9 @@ for(const b of hillPlants)for(let i=0;i<12;i++)leafItems.push({p:[b.p[0]+R(-.25,
 const leafColors=[new THREE.Color('#2C5131'),new THREE.Color('#4C7249')];
 const leaves=inst('individual-leaves',leafGeometry(),mats.leaf,leafItems,(o,m)=>{if(!o.normal)return compose(m,o.p,o.scale,o.rot);const n=new THREE.Vector3(...o.normal).normalize();return m.compose(P.fromArray(o.p),Q.setFromUnitVectors(new THREE.Vector3(0,0,1),n),S.fromArray(o.scale));},o=>leafColors[0].clone().lerp(leafColors[1],o.shade));
 const flowers=inst('silk-five-petals',petalGeometry(),mats.silk,petals,(o,m)=>m.compose(P.fromArray(o.p),o.quat,S.set(o.size,o.size,1)),o=>new THREE.Color().setScalar(o.shade));
-inst('silk-centres',new THREE.SphereGeometry(0.035,5,4),mats.cornice,centres,(o,m)=>compose(m,o.p));
-inst('flower-vine-leaves',leafGeometry(),mats.leaf,layout.bracts.filter((_,i)=>i%12===0),(o,m)=>compose(m,[o.p[0],o.p[1]+.06,o.p[2]],[.18,.26,1],o.rot),()=>new THREE.Color('#426E35'),group('bridge'));
-const bracts=inst('bougainvillea-bracts',petalGeometry(3),mats.bract,layout.bracts,(o,m)=>compose(m,o.p,[o.scale*1.3,o.scale*1.8,o.scale],o.rot),o=>new THREE.Color(COLORS[o.color]).multiplyScalar(o.shade),group('bridge'));
+inst('silk-centres',new THREE.SphereGeometry(0.021,5,4),mats.cornice,centres,(o,m)=>compose(m,o.p));
+inst('flower-vine-leaves',leafGeometry(),mats.leaf,layout.bracts.filter((_,i)=>i%7<3),(o,m)=>compose(m,[o.p[0],o.p[1]+.06,o.p[2]],[.095,.16,1],o.rot),()=>new THREE.Color('#426340'),group('bridge'));
+const bracts=inst('bougainvillea-bracts',petalGeometry(2),mats.bract,layout.bracts,(o,m)=>compose(m,o.p,[o.scale*1.3,o.scale*1.8,o.scale],o.rot),o=>new THREE.Color(COLORS[o.color]).multiplyScalar(o.shade),group('bridge'));
 // Broad drifts on both walks, track margins, road median and around the terraces.
 // Blossoms are shallow five-petal cups, not flat coloured rugs.
 const gardens=[],gardenFlowers=[],gardenLeaves=[];
@@ -244,14 +246,18 @@ for(let x=-19;x<21;x+=3.1){
  if(x<5||x>18)bed(x,-5.2,2.6,2.05,Math.floor((x+22)/4)%4,.9,true);
  if(x<5)bed(x,-8.5,2.7,1.1,(Math.floor((x+22)/4)+2)%4,.85,true);
 }
-// The bridge-side palm has been a spike above the deck: put flower boxes in that sightline.
-for(const z of [-5.5,-1,3.5,8])bed(-5.5,z,.7,1.35,Math.floor(z+8)%4,6.05,true);
+// Narrow inner planters leave the middle of the pedestrian deck unobstructed.
+for(const side of [-1,1]){
+ const x=BRIDGE.x+side*(BRIDGE.width/2-.27);
+ put('bridge','stone',cube(.26,.30,17.1),[x,5.75,1.75]);
+ put('bridge','soil',cube(.20,.05,16.95),[x,5.925,1.75]);
+}
 for(const b of gardens){
  if(b.planter){put('ground','stone',new RoundedBoxGeometry(b.w,.4,b.d,1,.06),[b.x,b.y-.3,b.z]);put('ground','soil',cube(b.w-.1,.08,b.d-.1),[b.x,b.y-.07,b.z]);}
  const spacing=mobile?.22:.15;
  for(let xx=-b.w/2;xx<b.w/2;xx+=spacing)for(let zz=-b.d/2;zz<b.d/2;zz+=spacing){
   const x=b.x+xx+R(0,spacing),z=b.z+zz+R(0,spacing),yy=b.y+.10+R(0,.35)+.2*Math.cos(xx*2)*Math.cos(zz*3);
-  if(b.y>5||rnd()<.025)gardenFlowers.push({p:[x,yy,z],size:R(.085,.13),rot:[R(-.85,.85),R(0,6.28),R(-.75,.75)],color:b.color,shade:R(.78,1.22)});
+  if(b.y>5||rnd()<.12)gardenFlowers.push({p:[x,yy,z],size:R(.085,.13),rot:[R(-.85,.85),R(0,6.28),R(-.75,.75)],color:b.color,shade:R(.78,1.22)});
   if(b.y<5||rnd()<.3)gardenLeaves.push({p:[x,yy-.2,z],scale:[.17,.34,1],rot:[R(-1,1),R(0,6.28),R(-2,2)],shade:R(.2,.8)});
  }
 }
@@ -296,11 +302,11 @@ mats.tower.onBeforeCompile=shader=>{
 };
 const beacon=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),new THREE.MeshBasicMaterial({color:0xff1812}));beacon.position.set(CANTON.x,CANTON.base+CANTON.height+9,CANTON.z);group('canton').add(beacon);
 // The bank joins the horizon: continuous embankment, tree line, no floating platform.
-const cityWindows=[],distantTrees=[];
+const cityWindows=[],distantTrees=[],skylineReflection=[];
 for(let i=0;i<105;i++){
  const x=-180+i*3.5,h=R(4,15),w=R(1.8,3.1),z=R(-65,-54);
  if(Math.abs(x-CANTON.x)<4)continue;
- const style=i%4;
+ const style=i%4;skylineReflection.push({x,w,h:h+(style===0?3:0)});
  put('city','skyline',cube(w,h,3),[x,h/2-1.2,z]);
  if(style===0){put('city','skyline',cube(w*.74,2.2,2.3),[x,h-.1,z]);put('city','skyline',cube(w*.45,1.7,1.6),[x,h+1.85,z]);}
  if(style===1)put('city','skyline',cube(w*.85,1.7,2.7),[x,h-.4,z]);
@@ -319,10 +325,10 @@ for(let x=-190;x<=190;x+=1.2){
 }
 // The far bank also has porous foliage, not a chain of solid model-making spheres.
 const farLeafRandom=mulberry32(SEED+83),farLeafParts=[];
-for(let i=0;i<72;i++){
+for(let i=0;i<36;i++){
  const y=farLeafRandom()*2-1,a=farLeafRandom()*Math.PI*2,r=Math.sqrt(1-y*y),n=new THREE.Vector3(r*Math.cos(a),y,r*Math.sin(a));
  const p=n.clone().multiplyScalar(.25+.75*Math.cbrt(farLeafRandom())),g=leafGeometry();
- g.translate(0,-.5,0);g.scale(.42+farLeafRandom()*.22,.5+farLeafRandom()*.25,1);g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),n));g.translate(...p.toArray());farLeafParts.push(g);
+ g.translate(0,-.5,0);g.scale(.55+farLeafRandom()*.22,.65+farLeafRandom()*.25,1);g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),n));g.translate(...p.toArray());farLeafParts.push(g);
 }
 const farCanopy=mergeGeometries(farLeafParts);farLeafParts.forEach(g=>g.dispose());
 const farTrees=inst('distant-trees',farCanopy,mats.cityLeaf,distantTrees,(o,m)=>compose(m,o.p,o.scale,[0,o.p[0]*2.1,0]),o=>new THREE.Color().setScalar(o.shade),group('city'));
@@ -337,7 +343,7 @@ function distantShader(shader,windows=false){
  shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n vec4 cityPos=vec4(transformed,1.);\n #ifdef USE_INSTANCING\n cityPos=instanceMatrix*cityPos;\n #endif\n vCity=(modelMatrix*cityPos).xyz;');
  shader.fragmentShader='varying vec3 vCity;uniform float uCityLevel;uniform vec3 uCityHaze,uCityLow,uCityTop;\n'+shader.fragmentShader;
  if(windows)shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n if(vColor.r>uCityLevel)discard; diffuseColor.rgb=vec3(1.0,.54,.19)*(1.+uCityLevel);');
- shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','vec3 n=normalize(vCity-cameraPosition);float side=pow(max(0.,dot(normalize(n.xz),normalize(vec2(-.6,-1.)))),3.);vec3 haze=mix(uCityHaze,uCityTop,smoothstep(-.08,.40,n.y));haze=mix(haze,uCityLow,exp(-pow((n.y+.20)/.16,2.))*side*.86);float bankFade=.35+.65*max(smoothstep(40.,140.,abs(vCity.x+15.)),smoothstep(120.,270.,distance(cameraPosition,vCity))); outgoingLight=mix(outgoingLight,haze,bankFade);\n #include <opaque_fragment>');
+ shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','vec3 n=normalize(vCity-cameraPosition);float side=pow(max(0.,dot(normalize(n.xz),normalize(vec2(-.6,-1.)))),3.);vec3 haze=mix(uCityHaze,uCityTop,smoothstep(-.08,.40,n.y));haze=mix(haze,uCityLow,exp(-pow((n.y+.20)/.16,2.))*side*.86);float bankFade=.08+.92*max(smoothstep(60.,180.,abs(vCity.x+15.)),smoothstep(150.,350.,distance(cameraPosition,vCity))); outgoingLight=mix(outgoingLight,haze,bankFade);\n #include <opaque_fragment>');
 }
 for(const mat of [mats.skyline,mats.cityLeaf,mats.bank,mats.cityGlass]){mat.fog=false;mat.onBeforeCompile=shader=>distantShader(shader);}cityWindowMaterial.fog=false;
 cityWindowMaterial.onBeforeCompile=shader=>distantShader(shader,true);
@@ -415,38 +421,79 @@ const clip=[new THREE.Plane(new THREE.Vector3(1,0,0),TRAM.clipX),new THREE.Plane
 // Commit collected geometry. Every tram material (including lamps) uses the same world-space boundary.
 for(const [key,gs] of bins){const [owner,mat]=key.split('|'),material=owner==='tram'||owner==='city'&&['stone','white','gray'].includes(mat)?mats[mat].clone():mats[mat];if(owner==='tram'){material.clippingPlanes=clip;material.clipShadows=true;material.onBeforeCompile=mats[mat].onBeforeCompile;}if(owner==='city'&&['stone','white','gray'].includes(mat)){material.fog=false;material.onBeforeCompile=shader=>distantShader(shader);}const mesh=new THREE.Mesh(mergeGeometries(gs),material);if(owner==='tram'){mesh.geometry.scale(1,1.25,2.65/1.65);mesh.geometry.translate(0,-.10,0);}mesh.name=owner+'-'+mat;mesh.castShadow=!['city','canton'].includes(owner)&&!['lamp','windscreen','route'].includes(mat);mesh.receiveShadow=true;group(owner).add(mesh);gs.forEach(g=>g.dispose());}
 // Moving traffic: one draw per repeated car part, seeded positions, no imported assets.
-const carSpecs=Array.from({length:8},(_,i)=>({i,lane:i%2,z:4.25+(i%2)*3.5,color:['#B7C7CC','#E6CB86','#AB4238','#F1ECE3'][i%4],phase:Math.floor(i/2)*12+(i%2)*4,speed:1.65+(i%2)*.1}));
-const carBodies=inst('car-bodies',new RoundedBoxGeometry(4.1,0.70,1.75,3,0.20),mats.white,carSpecs,(o,m)=>compose(m,[0,.76,o.z]),o=>new THREE.Color(o.color),group('cars'));
-const carCabins=inst('car-cabins',new RoundedBoxGeometry(2.1,0.60,1.56,3,0.20),mats.glass,carSpecs,(o,m)=>compose(m,[0,1.58,o.z]),null,group('cars'));
-const carWheels=inst('car-wheels',cyl(0.29,0.29,0.15,12),mats.iron,carSpecs.flatMap(c=>[-1.2,1.2].flatMap(x=>[-.87,.87].map(z=>({c,x,z})))),(o,m)=>compose(m,[o.x,0.49,o.c.z+o.z],[1,1,1],[Math.PI/2,0,0]),null,group('cars'));
-// Painted roof and bumpers break up the dark cabin; each end has its own light colour.
-const carRoof=inst('car-roofs',new RoundedBoxGeometry(1.85,.10,1.40,2,.06),mats.white,carSpecs,(o,m)=>compose(m,[0,1.58,o.z]),o=>new THREE.Color(o.color),group('cars'));
-function pairGeometry(x,y){const parts=[];for(const z of [-.62,.62]){const g=new THREE.BoxGeometry(.05,.10,.2);g.translate(x,y,z);parts.push(g);}const g=mergeGeometries(parts);parts.forEach(p=>p.dispose());return g;}
+const carSpecs=Array.from({length:6},(_,i)=>({i,lane:i%2,z:4.25+(i%2)*3.5,color:['#E2E5E3','#9DA5A8','#454D52','#D5D9D9','#DDE0DC','#47677B'][i],phase:Math.floor(i/2)*16+(i%2)*5,speed:1.65+(i%2)*.1}));
+function carBodyGeometry(){
+ const g=new RoundedBoxGeometry(4.5,.62,1.8,3,.17),p=g.attributes.position;
+ for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),end=THREE.MathUtils.smoothstep(Math.abs(x),1.4,2.25);p.setY(i,y-end*.10*Math.max(0,y/.31));p.setZ(i,p.getZ(i)*(1-.06*end));}g.computeVertexNormals();return g;
+}
+function carCabinGeometry(){
+ const g=new RoundedBoxGeometry(2.65,.62,1.60,3,.10),p=g.attributes.position;
+ for(let i=0;i<p.count;i++){const y=p.getY(i),k=(y+.31)/.62;p.setX(i,p.getX(i)*(1-.30*k)-.12*k);p.setZ(i,p.getZ(i)*(1-.16*k));}g.computeVertexNormals();return g;
+}
+const carBodies=inst('car-bodies',carBodyGeometry(),mats.white,carSpecs,(o,m)=>compose(m,[0,.82,o.z]),o=>new THREE.Color(o.color),group('cars'));
+const carCabins=inst('car-cabins',carCabinGeometry(),mats.glass,carSpecs,(o,m)=>compose(m,[0,1.27,o.z]),null,group('cars'));
+const carWheels=inst('car-wheels',cyl(.31,.31,.16,16),mats.iron,carSpecs.flatMap(c=>[-1.43,1.43].flatMap(x=>[-.85,.85].map(z=>({c,x,z})))),(o,m)=>compose(m,[o.x,.51,o.c.z+o.z],[1,1,1],[Math.PI/2,0,0]),null,group('cars'));
+// Paintwork includes a continuous belt line, roof pillars and bumpers, batched with each roof.
+const trim=[];
+function trimPart(w,h,d,x,y,z){const g=new RoundedBoxGeometry(w,h,d,2,Math.min(.04,h*.2));g.translate(x,y,z);trim.push(g);}
+trimPart(1.94,.10,1.37,-.18,1.60,0);
+for(const side of [-1,1]){
+ trimPart(3.9,.065,.045,0,1.03,side*.885);
+ trimPart(.095,.43,.06,-.12,1.30,side*.74);
+ trimPart(.48,.045,.03,-.58,1.01,side*.91);
+}
+for(const side of [-1,1])trimPart(.07,.13,1.45,side*2.22,.60,0);
+const carRoof=inst('car-roofs',mergeGeometries(trim),mats.white,carSpecs,(o,m)=>compose(m,[0,0,o.z]),o=>new THREE.Color(o.color),group('cars'));trim.forEach(g=>g.dispose());
+function pairGeometry(x,y){const parts=[];for(const z of [-.62,.62]){const g=new RoundedBoxGeometry(.06,.12,.30,2,.025);g.translate(x,y,z);parts.push(g);}const g=mergeGeometries(parts);parts.forEach(p=>p.dispose());return g;}
 const headMat=new THREE.MeshBasicMaterial({color:0xffd39a}),tailMat=new THREE.MeshBasicMaterial({color:0x7e130a});
-const carHeads=inst('car-headlights',pairGeometry(2.04,.76),headMat,carSpecs,(o,m)=>compose(m,[0,0,o.z]),null,group('cars'));
-const carTails=inst('car-taillights',pairGeometry(-2.04,.76),tailMat,carSpecs,(o,m)=>compose(m,[0,0,o.z]),null,group('cars'));
-const carGrilles=inst('car-grilles',cube(.035,.13,.4),mats.iron,carSpecs,(o,m)=>compose(m,[2.05,.66,o.z]),null,group('cars'));
-carHeads.castShadow=carTails.castShadow=false;
+const carHeads=inst('car-headlights',pairGeometry(2.255,.87),headMat,carSpecs,(o,m)=>compose(m,[0,0,o.z]),null,group('cars'));
+const carTails=inst('car-taillights',pairGeometry(-2.255,.87),tailMat,carSpecs,(o,m)=>compose(m,[0,0,o.z]),null,group('cars'));
+const carGrilles=inst('car-grilles',cube(.035,.16,.75),mats.iron,carSpecs,(o,m)=>compose(m,[2.25,.71,o.z]),null,group('cars'));
 for(const mesh of [carBodies,carCabins,carWheels,carRoof,carHeads,carTails,carGrilles]){mesh.material=mesh.material.clone();mesh.material.clippingPlanes=clip;mesh.material.clipShadows=true;mesh.frustumCulled=false;}
+// Static sunlight is cached. Moving vehicles use soft independent road/track contact shadows.
+const contactMat=new THREE.MeshBasicMaterial({color:'#080B0C',transparent:true,depthWrite:false,opacity:.35});
+contactMat.onBeforeCompile=shader=>{
+ shader.vertexShader='varying vec2 vContact;\n'+shader.vertexShader;
+ shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n vContact=uv;');
+ shader.fragmentShader='varying vec2 vContact;\n'+shader.fragmentShader;
+ shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n vec2 edge=abs(vContact*2.-1.);diffuseColor.a*=(1.-smoothstep(.45,1.,edge.x))*(1.-smoothstep(.35,1.,edge.y));');
+};
+const carContacts=inst('car-contact',new THREE.PlaneGeometry(4.8,2.15),contactMat,carSpecs,(o,m)=>compose(m,[0,.265,o.z],[1,1,1],[-Math.PI/2,0,0]),null,group('cars'));carContacts.material.clippingPlanes=clip;carContacts.frustumCulled=false;carContacts.castShadow=carContacts.receiveShadow=false;
+const tramContact=inst('tram-contact',new THREE.PlaneGeometry(16.2,2.74),contactMat.clone(),[0],(_,m)=>compose(m,[0,.355,0],[1,1,1],[-Math.PI/2,0,0]),null,group('tram'));tramContact.material.opacity=.4;tramContact.material.onBeforeCompile=contactMat.onBeforeCompile;tramContact.castShadow=tramContact.receiveShadow=false;
 // Low excursion boats on the river.
+for(const k of ['cars','tram'])group(k).traverse(o=>{o.castShadow=false;});
 const boatSpecs=[{x:-25,z:-22,phase:0},{x:6,z:-30,phase:2.2},{x:27,z:-19,phase:4.1}];
 const boatHulls=inst('boat-hulls',new RoundedBoxGeometry(3.8,0.6,1.35,3,0.3),mats.white,boatSpecs,(o,m)=>compose(m,[o.x,-1.55,o.z]),null,group('boats'));
 const boatCabins=inst('boat-cabins',new RoundedBoxGeometry(2.3,0.7,1,2,0.12),mats.window,boatSpecs,(o,m)=>compose(m,[o.x,-0.95,o.z]),null,group('boats'));
-for(const mesh of [boatHulls,boatCabins])mesh.frustumCulled=false;
+for(const mesh of [boatHulls,boatCabins]){mesh.frustumCulled=false;mesh.castShadow=false;}
 // A narrow sun path, sparse near glints and separate soft night reflections. No texture files.
-const waterU={time:{value:0},water:{value:new THREE.Color('#3E5F7A')},low:{value:new THREE.Color()},mid:{value:new THREE.Color()},top:{value:new THREE.Color()},lights:{value:0},sunset:{value:0}};
-const water=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),new THREE.ShaderMaterial({uniforms:waterU,vertexShader:'varying vec3 vWorld;void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',fragmentShader:`varying vec3 vWorld;uniform float time,lights,sunset;uniform vec3 water,low,mid,top;
+const reflectionCanvas=document.createElement('canvas');reflectionCanvas.width=1024;reflectionCanvas.height=128;
+const reflectionCtx=reflectionCanvas.getContext('2d');reflectionCtx.filter='blur(2px)';reflectionCtx.fillStyle='#72818A';
+for(const b of skylineReflection)reflectionCtx.fillRect((b.x+190)/380*1024,128-b.h/24*128,b.w/380*1024,b.h/24*128);
+const reflectionMap=new THREE.CanvasTexture(reflectionCanvas);reflectionMap.colorSpace=THREE.SRGBColorSpace;
+const waterU={shore:{value:reflectionMap},time:{value:0},water:{value:new THREE.Color('#3E5F7A')},low:{value:new THREE.Color()},mid:{value:new THREE.Color()},top:{value:new THREE.Color()},lights:{value:0},sunset:{value:0}};
+const water=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),new THREE.ShaderMaterial({uniforms:waterU,vertexShader:'varying vec3 vWorld;void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}',fragmentShader:`varying vec3 vWorld;uniform float time,lights,sunset;uniform sampler2D shore;uniform vec3 water,low,mid,top;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 // All reflection paths begin at their actual far-bank source and extend towards the viewer.
 vec2 pathCoords(vec2 p,vec2 source){vec2 d=normalize(cameraPosition.xz-source);vec2 v=p-source;return vec2(dot(v,vec2(d.y,-d.x)),dot(v,d));}
 void main(){
  vec2 p=vWorld.xz;vec3 eye=normalize(cameraPosition-vWorld);float grazing=pow(1.-abs(eye.y),2.);float horizon=exp(-abs(eye.y)*3.);
- vec3 reflection=mix(top,mid,horizon);reflection=mix(reflection,low,.34*horizon);vec3 c=mix(water*.17,reflection,.55+.4*grazing);
+ // Fine low-amplitude normal, not a tessellated choppy sea.
+ vec3 normal=normalize(vec3(.009*sin(p.x*3.1+p.y*.6+time*.6),1.,.012*sin(p.y*4.2-p.x*.45+time*.7)));
+ vec3 reflected=reflect(-eye,normal);float fresnel=pow(1.-max(dot(eye,normal),0.),3.);
+ vec3 reflection=mix(top,mid,horizon);reflection=mix(reflection,low,.34*horizon);
+ vec3 c=mix(water*(.75-.68*lights),reflection,.20+.28*fresnel);
+ float rayT=(-57.-vWorld.z)/min(reflected.z,-.001);vec3 shoreHit=vWorld+reflected*max(rayT,0.);
+ vec2 shoreUv=vec2((shoreHit.x+190.)/380.,shoreHit.y/24.);
+ vec4 cityReflection=texture2D(shore,clamp(shoreUv,vec2(0.),vec2(1.)));
+ float reflectedBank=step(0.,rayT)*step(0.,shoreUv.y)*step(shoreUv.y,1.)*exp(-abs(vWorld.z+39.)*.08);
+ c=mix(c,cityReflection.rgb*.65+mid*.12,cityReflection.a*reflectedBank*.30*(1.-lights));
+ c+=vec3(.002)*sin(p.y*3.8+p.x*.6+time*.7)*(1.-lights);
  vec2 q=pathCoords(p,vec2(-33.,-43.));float width=1.25+max(q.y,0.)*.022;
  float band=(1.-smoothstep(width*.55,width,abs(q.x)))*smoothstep(0.,3.,q.y);
  vec2 cellPos=q/vec2(.82,.68),cell=floor(cellPos);float glints=0.;
  // Jittered anisotropic patches, not intersecting sine waves. Skip more cells nearer the viewer.
- for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
+ if(sunset>.001)for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
   vec2 id=cell+vec2(float(i),float(j));float h=hash(id),h2=hash(id+19.71),h3=hash(id+53.17);
   vec2 centre=id+vec2(.12+.76*h,.1+.8*h2);vec2 delta=cellPos-centre;
   float a=.12+.38*h2,b=.018+.065*h3,aa=max(fwidth(cellPos.y),.008);
@@ -458,7 +505,7 @@ void main(){
  c+=low*vec3(1.5,.95,.45)*glints*band*sunset*mix(1.4,.75,smoothstep(20.,100.,q.y));
  // A handful of vertically stretched, blurred city-light reflections take over after dusk.
  float night=smoothstep(.78,1.,lights)*(1.-sunset);
- for(int i=0;i<5;i++){
+ if(night>.001)for(int i=0;i<5;i++){
   float k=float(i);vec2 r=pathCoords(p,vec2(-57.+k*17.,-40.));
   float lengthFade=exp(-max(0.,r.y)/mix(18.,30.,hash(vec2(k,7.))));
   float soft=exp(-pow(r.x/(.48+max(r.y,0.)*.022),2.))*smoothstep(0.,2.,r.y)*lengthFade;
@@ -468,7 +515,7 @@ void main(){
  }
  vec3 n=normalize(vWorld-cameraPosition);float side=pow(max(0.,dot(normalize(n.xz),normalize(vec2(-.6,-1.)))),3.);
  vec3 haze=mix(mid,top,smoothstep(-.08,.40,n.y));haze=mix(haze,low,exp(-pow((n.y+.20)/.16,2.))*side*.86);
- float distant=1.-exp(-max(0.,distance(cameraPosition.xz,p)-65.)*.035);c=mix(c,haze,distant);gl_FragColor=vec4(c,1.);
+ float distant=1.-exp(-max(0.,distance(cameraPosition.xz,p)-150.)*.012);c=mix(c,haze,distant);gl_FragColor=vec4(c,1.);
 }`}));water.rotation.x=-Math.PI/2;water.position.y=-1.85;scene.add(water);
 // Water occupies the back of the board as well as the surrounding river; the rear corners follow the base.
 {const b=layout.waterSurface,hw=b.size[0]/2,f=-b.max[2],back=-b.min[2],r=BASE.radius,s=new THREE.Shape();s.moveTo(-hw,f);s.lineTo(hw,f);s.lineTo(hw,back-r);s.quadraticCurveTo(hw,back,hw-r,back);s.lineTo(-hw+r,back);s.quadraticCurveTo(-hw,back,-hw,back-r);s.lineTo(-hw,f);const g=new THREE.ShapeGeometry(s,12);g.rotateX(-Math.PI/2);const m=new THREE.Mesh(g,water.material);m.position.y=b.center[1];scene.add(m);}
@@ -476,28 +523,29 @@ const skyU={low:{value:new THREE.Color()},mid:{value:new THREE.Color()},top:{val
 const sky=new THREE.Mesh(new THREE.SphereGeometry(550,24,12),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:skyU,vertexShader:'varying vec3 d;void main(){d=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_Position.z=gl_Position.w;}',fragmentShader:'varying vec3 d;uniform vec3 low,mid,top;void main(){vec3 n=normalize(d);float h=n.y;vec3 c=mix(mid,top,smoothstep(-.08,.40,h));float side=pow(max(0.,dot(normalize(n.xz),normalize(vec2(-.6,-1.)))),3.);float glow=exp(-pow((h+.20)/.16,2.))*side;c=mix(c,low,glow*.86);gl_FragColor=vec4(c,1.);}'}));sky.renderOrder=-10;sky.frustumCulled=false;scene.add(sky);
 const sun=new THREE.DirectionalLight(0xffa564,2.2);sun.castShadow=true;sun.shadow.mapSize.set(mobile?2048:4096,mobile?2048:4096);Object.assign(sun.shadow.camera,{left:-31,right:31,top:31,bottom:-31,near:1,far:180});sun.shadow.bias=-0.00008;sun.shadow.normalBias=0.025;sun.shadow.radius=3;scene.add(sun,sun.target);
 const hemi=new THREE.HemisphereLight(0xe8eceb,0x8d887c,1);scene.add(hemi);
-// Multisample the actual offscreen scene, not only the unused default framebuffer.
-const sceneTarget=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:mobile||devicePixelRatio>1.5?2:4,depthTexture:new THREE.DepthTexture(1,1)});
+// Single-sample HDR target; FXAA after output avoids costly multisample resolves at DPR 2.
+const sceneTarget=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:0,depthTexture:new THREE.DepthTexture(1,1)});
 const composer=new EffectComposer(renderer,sceneTarget);composer.addPass(new RenderPass(scene,camera));
-const savedRandom=Math.random;let gtao;try{Math.random=mulberry32(SEED+72);gtao=new GTAOPass(scene,camera,1,1);}finally{Math.random=savedRandom;}gtao.updateGtaoMaterial({radius:.7,thickness:1.2,distanceExponent:2,samples:12});gtao.updatePdMaterial({radius:5,samples:8});gtao.blendIntensity=.8;gtao.setSceneClipBox(new THREE.Box3(new THREE.Vector3(-24,-1.9,-17),new THREE.Vector3(24,22,18)));
+const savedRandom=Math.random;let gtao;try{Math.random=mulberry32(SEED+72);gtao=new GTAOPass(scene,camera,1,1);}finally{Math.random=savedRandom;}gtao.updateGtaoMaterial({radius:.7,thickness:1.2,distanceExponent:2,samples:8});gtao.updatePdMaterial({radius:5,samples:6});gtao.blendIntensity=.8;gtao.setSceneClipBox(new THREE.Box3(new THREE.Vector3(-24,-1.9,-17),new THREE.Vector3(24,22,18)));
 // AO is a soft low-frequency effect: half-resolution integration, full-resolution scene depth.
 const resizeAO=gtao.setSize.bind(gtao);gtao.setSize=(w,h)=>resizeAO(Math.max(1,Math.ceil(w*.5)),Math.max(1,Math.ceil(h*.5)));
 // Reconstruct normals from the exact scene depth, including wind/clipping, with no second scene draw.
 const renderAO=gtao.render.bind(gtao);gtao.render=(r,write,read,...args)=>{gtao.setGBuffer(read.depthTexture);renderAO(r,write,read,...args);};composer.addPass(gtao);
 const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),0.28,0.45,1.05);composer.addPass(bloom);composer.addPass(new OutputPass());
+const fxaa=new ShaderPass(FXAAShader);composer.addPass(fxaa);
 const requested=params.get('view'),validView=Object.hasOwn(VIEWS,requested),fixedTime=validView?Math.max(0,number('t',13)):null;
 let view=validView?requested:'auto',frozen=validView,hour=clamp(number('h',0),0,1),t=fixedTime??0;
 const rig=createRig({u:validView?VIEWS[requested]:0,auto:!matchMedia('(prefers-reduced-motion: reduce)').matches});
-let W=1,H=1,aspect=1,copyTop=1,scaleIdx=0,pixelRatio=1,frames=0,calls=0,tris=0,fps=60,meanFrameTime=1/60,slow=0,fast=0;
-const scales=[1,0.85,0.7,0.55];
+let W=1,H=1,aspect=1,copyTop=1,scaleIdx=0,pixelRatio=1,frames=0,shadowRefreshes=0,calls=0,tris=0,fps=60,meanFrameTime=1/60,slow=0,fast=0;
+const scales=[1,.9,.8,.75];
 document.body.classList.toggle('detail',validView&&['bridge','pagoda'].includes(requested));
-function resize(){W=innerWidth;H=innerHeight;aspect=W/H;copyTop=document.querySelector('.copy').getBoundingClientRect().top/H;pixelRatio=Math.min(devicePixelRatio||1,2)*scales[scaleIdx];renderer.setPixelRatio(pixelRatio);renderer.setSize(W,H,false);composer.setPixelRatio(pixelRatio);composer.setSize(W,H);camera.aspect=aspect;camera.fov=fovFor(aspect);camera.updateProjectionMatrix();const sh=shiftFor(aspect);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
+function resize(){const oldAspect=aspect;W=innerWidth;H=innerHeight;aspect=W/H;copyTop=document.querySelector('.copy').getBoundingClientRect().top/H;pixelRatio=Math.max(Math.min(devicePixelRatio||1,1.5),Math.min(devicePixelRatio||1,2)*scales[scaleIdx]);renderer.setPixelRatio(pixelRatio);renderer.setSize(W,H,false);composer.setPixelRatio(pixelRatio);composer.setSize(W,H);fxaa.uniforms.resolution.value.set(1/(W*pixelRatio),1/(H*pixelRatio));camera.aspect=aspect;if(aspect!==oldAspect)camera.fov=fovFor(aspect,rig.pos);camera.updateProjectionMatrix();const sh=shiftFor(aspect);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
 addEventListener('resize',resize);resize();
 let hoverId=null;
 const tramLamps=group('tram').children.find(m=>m.name==='tram-lamp').material;
 const tramWindows=group('tram').children.find(m=>m.name==='tram-window').material;
 let appliedHour=NaN,appliedHover=null;
-function applyHour(){const h=skyAt(hour);towerU.time.value=t;beacon.material.color.setRGB(3,.015,.006).multiplyScalar(h.lights*(Math.sin(t*3.6-1)>.4?1:.05));if(appliedHour===hour&&appliedHover===hoverId)return;appliedHour=hour;appliedHover=hoverId;renderer.toneMappingExposure=1+.10*Math.sin(Math.PI*hour);bloom.enabled=hour>.4;bloom.strength=.16;document.body.classList.toggle('night',hour>.72);document.querySelector('.tele').textContent='珠江南岸 · '+(hour<.28?'白天':hour<.77?'黄昏':'入夜')+' · 建筑意象，非测绘';for(const k of ['low','mid','top'])skyU[k].value.setRGB(...h[k]);waterU.low.value.setRGB(...h.low);waterU.mid.value.setRGB(...h.mid);waterU.top.value.setRGB(...h.top);waterU.lights.value=h.lights;waterU.sunset.value=Math.sin(Math.PI*hour)*(1-THREE.MathUtils.smoothstep(hour,.66,.94));pagodaHour.value=hour;pagodaWindowMat.emissiveIntensity=1.4*h.lights*(hoverId==='pagoda'?1.18:1);glazingU.top.value.setRGB(...h.mid).multiplyScalar(1.7).lerp(new THREE.Color(.3,.4,.48),.26*(1-hour));glazingU.bottom.value.setRGB(.012,.025,.034).multiplyScalar(1-.65*hour);scene.fog.color.setRGB(...h.mid);cityU.haze.value.copy(scene.fog.color);cityU.low.value.setRGB(...h.low);cityU.top.value.setRGB(...h.top);cityU.level.value=Math.max(0,(h.lights-.3)*.75);towerU.level.value=Math.pow(h.lights,2)*.9;towerU.time.value=t;beacon.material.color.setRGB(3,.015,.006).multiplyScalar(h.lights*(Math.sin(t*3.6-1)>.4?1:.05));sun.color.setRGB(...h.key);sun.intensity=h.keyInt;scene.environmentIntensity=.35*(1-.8*hour);sun.position.set(-42,80*h.sunY,64);hemi.intensity=h.hemi;headMat.color.setRGB(1,.75,.45).multiplyScalar(.04+2.8*h.lights);tailMat.color.setRGB(1,.014,.004).multiplyScalar(.12+1.7*h.lights);mats.lamp.color.copy(warm).multiplyScalar(0.12+4.6*h.lights);mats.window.emissiveIntensity=1.4*h.lights*(hoverId==='pagoda'?1.18:1);tramWindows.emissiveIntensity=1.35*h.lights;tramLamps.color.copy(warm).multiplyScalar(.15+3*h.lights);mats.tower.emissiveIntensity=h.lights*1.15;for(const l of lampLights){l.intensity=30*h.lights;l.visible=h.lights>.001;}bridgeLight.visible=h.lights>.001;bridgeLight.intensity=26*h.lights*(hoverId==='bridge'?1.25:1);}
+function applyHour(){const h=skyAt(hour);towerU.time.value=t;beacon.material.color.setRGB(3,.015,.006).multiplyScalar(h.lights*(Math.sin(t*3.6-1)>.4?1:.05));if(appliedHour===hour&&appliedHover===hoverId)return;if(appliedHour!==hour)renderer.shadowMap.needsUpdate=true;appliedHour=hour;appliedHover=hoverId;renderer.toneMappingExposure=1+.30*Math.sin(Math.PI*hour);bloom.enabled=hour>.4;bloom.strength=.16;document.body.classList.toggle('night',hour>.72);document.querySelector('.tele').textContent='珠江南岸 · '+(hour<.28?'白天':hour<.77?'黄昏':'入夜')+' · 建筑意象，非测绘';for(const k of ['low','mid','top'])skyU[k].value.setRGB(...h[k]);waterU.low.value.setRGB(...h.low);waterU.mid.value.setRGB(...h.mid);waterU.top.value.setRGB(...h.top);waterU.lights.value=h.lights;waterU.sunset.value=Math.sin(Math.PI*hour)*(1-THREE.MathUtils.smoothstep(hour,.66,.94));pagodaHour.value=hour;pagodaWindowMat.emissiveIntensity=1.4*h.lights*(hoverId==='pagoda'?1.18:1);glazingU.top.value.setRGB(...h.mid).multiplyScalar(1.7).lerp(new THREE.Color(.3,.4,.48),.26*(1-hour));glazingU.bottom.value.setRGB(.012,.025,.034).multiplyScalar(1-.65*hour);scene.fog.color.setRGB(...h.mid);cityU.haze.value.copy(scene.fog.color);cityU.low.value.setRGB(...h.low);cityU.top.value.setRGB(...h.top);cityU.level.value=Math.max(0,(h.lights-.3)*.75);towerU.level.value=Math.pow(h.lights,2)*.9;towerU.time.value=t;beacon.material.color.setRGB(3,.015,.006).multiplyScalar(h.lights*(Math.sin(t*3.6-1)>.4?1:.05));sun.color.setRGB(...h.key);sun.intensity=h.keyInt;scene.environmentIntensity=.35*(1-.8*hour);sun.position.set(-42,80*h.sunY,64);hemi.intensity=h.hemi;carHeads.material.color.setRGB(1,.75,.45).multiplyScalar(.04+2.8*h.lights);carTails.material.color.setRGB(1,.014,.004).multiplyScalar(.12+1.7*h.lights);mats.lamp.color.copy(warm).multiplyScalar(0.12+4.6*h.lights);mats.window.emissiveIntensity=1.4*h.lights*(hoverId==='pagoda'?1.18:1);tramWindows.emissiveIntensity=1.35*h.lights;tramLamps.color.copy(warm).multiplyScalar(.15+3*h.lights);mats.tower.emissiveIntensity=h.lights*1.15;for(const l of lampLights){l.intensity=30*h.lights;l.visible=h.lights>.001;}bridgeLight.visible=h.lights>.001;bridgeLight.intensity=26*h.lights*(hoverId==='bridge'?1.25:1);}
 $('hour').value=String(hour*1000);$('hour').addEventListener('input',()=>hour=Number($('hour').value)/1000);
 const syncAuto=()=>document.querySelector('[data-act=auto]').setAttribute('aria-pressed',String(rig.auto));syncAuto();
 const touchRig=()=>{frozen=false;view='manual';rig.grab();};
@@ -511,21 +559,25 @@ const release=e=>{pointers.delete(e.pointerId);pinch=0;rig.held=pointers.size>0;
 for(const name of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(name,release);
 const clearPointers=()=>{pointers.clear();pinch=0;rig.held=false;rig.idle=0;};addEventListener('blur',clearPointers);document.addEventListener('visibilitychange',clearPointers);canvas.addEventListener('pointerleave',()=>hoverId=null);
 canvas.addEventListener('wheel',e=>{e.preventDefault();if(frozen)touchRig();rig.zoom(Math.exp(clamp(e.deltaY,-120,120)*0.0014));},{passive:false});
-function animate(dt){if(!frozen)t+=dt;const pose=rig.update(frozen?0:dt);camera.position.fromArray(pose.pos);camera.lookAt(...pose.target);camera.updateMatrixWorld();sky.position.copy(camera.position);if(!frozen){view=rig.mode;document.body.classList.toggle('detail',camera.position.distanceTo(new THREE.Vector3(0,4,0))<40||(aspect<.8&&projected(boardBounds).y1>copyTop-.02));}wind.value=t;waterU.time.value=t;group('tram').position.x=tramAt(t).x;
- const xx=[];carSpecs.forEach((c,i)=>{const dir=c.lane===0?1:-1,x=(((t*c.speed+c.phase)%48)-24)*dir;xx.push(x);carBodies.setMatrixAt(i,compose(M,[x,.76,c.z]));carCabins.setMatrixAt(i,compose(M,[x-dir*.15,1.3,c.z]));carRoof.setMatrixAt(i,compose(M,[x-dir*.17,1.58,c.z]));for(const mesh of [carHeads,carTails])mesh.setMatrixAt(i,compose(M,[x,0,c.z],[1,1,1],[0,dir===1?0:Math.PI,0]));carGrilles.setMatrixAt(i,compose(M,[x+dir*2.05,.66,c.z]));});
- let wi=0;for(const c of carSpecs)for(const x of [-1.2,1.2])for(const z of [-.87,.87])carWheels.setMatrixAt(wi++,compose(M,[xx[c.i]+x,0.49,c.z+z],[1,1,1],[Math.PI/2,0,0]));for(const mesh of [carBodies,carCabins,carWheels,carRoof,carHeads,carTails,carGrilles])mesh.instanceMatrix.needsUpdate=true;
+function animate(dt){if(!frozen)t+=dt;const pose=rig.update(frozen?0:dt);camera.position.fromArray(pose.pos);
+ // Hold the current lens during manual zoom; otherwise widening FOV cancels the dolly.
+ const fov=frozen||rig.mode==='auto'?fovFor(aspect,pose.pos):rig.mode==='return'?THREE.MathUtils.lerp(camera.fov,fovFor(aspect,pathAt(rig.u).pos),Math.min(1,dt*5)):camera.fov;
+ if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();const sh=shiftFor(aspect);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
+ camera.lookAt(...pose.target);camera.updateMatrixWorld();sky.position.copy(camera.position);if(!frozen){view=rig.mode;document.body.classList.toggle('detail',camera.position.distanceTo(new THREE.Vector3(0,4,0))<40||(aspect<.8&&projected(boardBounds).y1>copyTop-.02));}wind.value=t;waterU.time.value=t;group('tram').position.x=tramAt(t).x;
+ const xx=[];carSpecs.forEach((c,i)=>{const dir=c.lane===0?1:-1,x=(((t*c.speed+c.phase)%48)-24)*dir;xx.push(x);carBodies.setMatrixAt(i,compose(M,[x,.82,c.z]));carCabins.setMatrixAt(i,compose(M,[x,1.27,c.z],[1,1,1],[0,dir===1?0:Math.PI,0]));carRoof.setMatrixAt(i,compose(M,[x,0,c.z],[1,1,1],[0,dir===1?0:Math.PI,0]));carContacts.setMatrixAt(i,compose(M,[x,.265,c.z],[1,1,1],[-Math.PI/2,0,0]));for(const mesh of [carHeads,carTails])mesh.setMatrixAt(i,compose(M,[x,0,c.z],[1,1,1],[0,dir===1?0:Math.PI,0]));carGrilles.setMatrixAt(i,compose(M,[x+dir*2.25,.71,c.z]));});
+ let wi=0;for(const c of carSpecs)for(const x of [-1.43,1.43])for(const z of [-.85,.85])carWheels.setMatrixAt(wi++,compose(M,[xx[c.i]+x,.51,c.z+z],[1,1,1],[Math.PI/2,0,0]));for(const mesh of [carBodies,carCabins,carWheels,carRoof,carHeads,carTails,carGrilles,carContacts])mesh.instanceMatrix.needsUpdate=true;
  boatSpecs.forEach((b,i)=>{const x=b.x+Math.sin(t*0.018+b.phase)*7,y=Math.sin(t*0.7+b.phase)*0.045;boatHulls.setMatrixAt(i,compose(M,[x,-1.55+y,b.z]));boatCabins.setMatrixAt(i,compose(M,[x,-0.95+y,b.z]));});boatHulls.instanceMatrix.needsUpdate=true;boatCabins.instanceMatrix.needsUpdate=true;applyHour();
  // Keep local light evaluation bounded: the closest pools matter at this miniature scale.
  if(hour>0){const nearest=lampLights.slice().sort((a,b)=>a.position.distanceToSquared(camera.position)-b.position.distanceToSquared(camera.position));const active=new Set(nearest.slice(0,mobile?3:4));for(const l of lampLights)l.visible=active.has(l);}
- renderer.info.reset();composer.render();calls=renderer.info.render.calls;tris=renderer.info.render.triangles;frames++;}
-let last=performance.now();function frame(now){const raw=(now-last)/1000;last=now;if(raw>0){meanFrameTime+=(raw-meanFrameTime)*.05;fps=1/meanFrameTime;if(fps<59){slow+=raw;fast=0;}else if(fps>59.5){fast+=raw;slow=0;}else{fast=slow=0;}}if(slow>1&&scaleIdx<3){scaleIdx++;slow=0;resize();}if(fast>60&&scaleIdx>0){scaleIdx--;fast=0;resize();}animate(Math.min(raw,0.1));requestAnimationFrame(frame);}requestAnimationFrame(frame);
+ renderer.info.reset();if(renderer.shadowMap.needsUpdate)shadowRefreshes++;composer.render();calls=renderer.info.render.calls;tris=renderer.info.render.triangles;frames++;}
+let last=performance.now();function frame(now){const raw=(now-last)/1000;last=now;if(raw>0){meanFrameTime+=(raw-meanFrameTime)*.05;fps=1/meanFrameTime;if(fps<56){slow+=raw;fast=0;}else if(fps>59.5){fast+=raw;slow=0;}else{fast=slow=0;}}if(slow>1&&scaleIdx<3){scaleIdx++;slow=0;resize();}if(fast>60&&scaleIdx>0){scaleIdx--;fast=0;resize();}animate(Math.min(raw,0.1));requestAnimationFrame(frame);}requestAnimationFrame(frame);
 const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info'),rendererName=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
 const rectOf=el=>{const r=el.getBoundingClientRect();return{x0:r.left/W,x1:r.right/W,y0:r.top/H,y1:r.bottom/H};};
 // Project actual rendered geometry bounds with the actual Three camera, including its view shift.
 function projected(b){const ps=[];for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])ps.push(new THREE.Vector3(x,y,z).project(camera));return{x0:(Math.min(...ps.map(p=>p.x))+1)/2,x1:(Math.max(...ps.map(p=>p.x))+1)/2,y0:(1-Math.max(...ps.map(p=>p.y)))/2,y1:(1-Math.min(...ps.map(p=>p.y)))/2,front:ps.every(p=>p.z<1)};}
 const staticBoxes=Object.fromEntries(['pagoda','canton','bridge'].map(k=>[k,new THREE.Box3().setFromObject(group(k))]));
 window.__huacheng={get ready(){return frames>3;},state:()=>({view,requestedView:requested,mode:rig.mode,auto:rig.auto,cam:camera.position.toArray(),target:rig.look.slice(),u:rig.u,t,hour,hover:hoverId,held:rig.held,tram:tramAt(t),frozen}),
-info:()=>({calls,tris,fps,renderer:rendererName,shadowMap:sun.shadow.mapSize.x,exposure:renderer.toneMappingExposure,sunElevation:Math.atan2(sun.position.y,Math.hypot(sun.position.x,sun.position.z))*180/Math.PI,msaa:sceneTarget.samples,aoResolution:[gtao.width,gtao.height],activePointLights:lampLights.filter(l=>l.visible).length+Number(bridgeLight.visible),ao:gtao.enabled,bloom:bloom.enabled,w:W,h:H,dpr:devicePixelRatio,pixelRatio,scaleIdx,density:mobile?'mobile':'desktop',instances:instances.reduce((s,m)=>s+m.count,0),inventory:instances.map(m=>({name:m.name,count:m.count,type:m.type,isInstancedMesh:m.isInstancedMesh})),lightLevel:skyAt(hour).lights,pagodaLitByFloor:layout.levels.map(l=>l.windows.filter(w=>hour>=w.onAt).length),lighting:{lamps:lampLights[0].intensity,tramWindows:tramWindows.emissiveIntensity,towerWindows:pagodaWindowMat.emissiveIntensity}}),
+info:()=>({calls,tris,fps,shadowRefreshes,renderer:rendererName,shadowMap:sun.shadow.mapSize.x,exposure:renderer.toneMappingExposure,sunElevation:Math.atan2(sun.position.y,Math.hypot(sun.position.x,sun.position.z))*180/Math.PI,msaa:sceneTarget.samples,antialiasing:'FXAA',aoResolution:[gtao.width,gtao.height],activePointLights:lampLights.filter(l=>l.visible).length+Number(bridgeLight.visible),ao:gtao.enabled,bloom:bloom.enabled,w:W,h:H,dpr:devicePixelRatio,pixelRatio,scaleIdx,density:mobile?'mobile':'desktop',instances:instances.reduce((s,m)=>s+m.count,0),inventory:instances.map(m=>({name:m.name,count:m.count,type:m.type,isInstancedMesh:m.isInstancedMesh})),lightLevel:skyAt(hour).lights,pagodaLitByFloor:layout.levels.map(l=>l.windows.filter(w=>hour>=w.onAt).length),lighting:{lamps:lampLights[0].intensity,tramWindows:tramWindows.emissiveIntensity,towerWindows:pagodaWindowMat.emissiveIntensity}}),
 setHour:h=>{if(Number.isFinite(h)){hour=clamp(h,0,1);$('hour').value=String(hour*1000);}},
 tramGeometryBounds:()=>{const b=new THREE.Box3().setFromObject(group('tram'));return {min:b.min.toArray(),max:b.max.toArray()};},
 subjectBoxes:()=>{const tr=tramAt(t);return{...Object.fromEntries(Object.entries(staticBoxes).map(([k,b])=>[k,projected(b)])),tram:projected(new THREE.Box3(new THREE.Vector3(...tr.clipped.min),new THREE.Vector3(...tr.clipped.max))),base:projected(new THREE.Box3(new THREE.Vector3(-22,-1.6,-16.5),new THREE.Vector3(22,0,16.5))) };},

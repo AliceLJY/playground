@@ -4,8 +4,8 @@
 const {chromium}=require('playwright'),fs=require('fs'),path=require('path');
 const coverage=require('./flower-coverage.cjs');
 const refinement=require('./refinement-check.cjs'),{inspectLayout,sampleFrames}=require('./layout.cjs');
-const out=path.resolve(process.argv[2]||'shots/r4/browser'),base=process.argv[3]||'file://'+path.resolve(__dirname,'../dist/index.html');
-const auditBase=process.argv[4]||'file://'+path.resolve(__dirname,'../shots/r4/audit.html');
+const out=path.resolve(process.argv[2]||'shots/r5/browser'),base=process.argv[3]||'file://'+path.resolve(__dirname,'../dist/index.html');
+const auditBase=process.argv[4]||'file://'+path.resolve(__dirname,'../shots/r5/audit.html');
 fs.mkdirSync(out,{recursive:true});
 const contains=b=>b.front&&b.x0>=0&&b.x1<=1&&b.y0>=0&&b.y1<=1;
 const overlaps=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
@@ -22,15 +22,15 @@ const overlaps=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
  // The audit build has identical visuals; verify this before trusting its object mask.
  {const ctx=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1}),pg=await ctx.newPage();await pg.goto(auditBase+'?view=hero&h=0');await pg.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});await pg.waitForTimeout(500);
  const data=await coverage(pg,out,fs.readFileSync(path.join(out,'hero.png')));fs.writeFileSync(path.join(out,'flower-mask.png'),Buffer.from(data.maskPng.split(',')[1],'base64'));delete data.maskPng;
- report.flowers=data;check('B7-flowers',data.share>=.06&&data.share<=.14&&data.bridgeColourShare>=.25&&data.sceneDifference<=.001,data);await ctx.close();}
+ report.flowers=data;check('B7-flowers',data.share>=.06&&data.share<=.14&&data.bridgeColourShare>=.10&&data.sceneDifference<=.001,data);await ctx.close();}
  const hero=report.views[0];check('B2', ['canton','pagoda','bridge','tram'].every(k=>contains(hero.subjects[k]))&&(hero.subjects.bridge.x1-hero.subjects.bridge.x0)*(hero.subjects.bridge.y1-hero.subjects.bridge.y0)>=.04&&hero.subjects.pagoda.y1-hero.subjects.pagoda.y0>=.15,hero.subjects);
  check('B5-desktop',hero.subjects.base.x0>hero.ui['.copy'].x1,{boardLeft:hero.subjects.base.x0,copyRight:hero.ui['.copy'].x1});
  // B3 counts BRIGHT warm pixels. B6 counts the full red/orange/yellow hue range (HSV H -15..65, S > .15, luminance > .08), including sunlit flowers and masonry.
  const hours={};for(const h of [0,.55,1]){const{ctx,pg}=await open('?view=hero&h='+h);await pg.waitForTimeout(350);const png=await pg.screenshot({path:path.join(out,'hour-'+h+'.png')});hours[h]={...await stats(png),...(await info(pg)).info};await ctx.close();}
  check('B3-dusk',hours[.55].warm>=.003&&hours[.55].warm<=.08,{warmShare:hours[.55].warm});check('B3-night',hours[1].topLum>=.04&&hours[1].topLum<=.2&&hours[1].blueOverRed>1,{upperMean:hours[1].topLum,blueOverRed:hours[1].blueOverRed});
  check('B6-hour',hours[1].lum<hours[0].lum&&hours[1].lum<hours[.55].lum&&hours[.55].warmHue>hours[0].warmHue&&hours[.55].warmHue>hours[1].warmHue&&Object.keys(hours[1].lighting).every(k=>hours[1].lighting[k]>hours[.55].lighting[k]&&hours[.55].lighting[k]>hours[0].lighting[k]),{day:hours[0].lum,dusk:hours[.55].lum,night:hours[1].lum,warmHue:[hours[0].warmHue,hours[.55].warmHue,hours[1].warmHue],lights:[hours[0].lighting,hours[.55].lighting,hours[1].lighting]});report.hours=hours;
- {const{ctx,pg}=await open('',1440,900,2),a=await info(pg);await pg.waitForTimeout(6000);const performanceSample=await sampleFrames(pg);const b=await info(pg);b.performanceSample=performanceSample;await pg.screenshot({path:path.join(out,'default.png')});report.default=b;
- check('B4-default',b.state.u!==a.state.u&&b.state.mode==='auto'&&b.info.calls<=160&&b.info.pixelRatio<=2,{performanceSample,u:[a.state.u,b.state.u],...b.info});
+ {const{ctx,pg}=await open('',1440,900,2),a=await info(pg);await pg.waitForTimeout(10000);const performanceSample=await sampleFrames(pg);const b=await info(pg);b.performanceSample=performanceSample;await pg.screenshot({path:path.join(out,'default.png')});report.default=b;
+ check('B4-default',b.state.u!==a.state.u&&b.state.mode==='auto'&&b.info.calls<=160&&b.info.pixelRatio>=1.5&&b.info.pixelRatio<=2&&performanceSample.meanFps>=55,{performanceSample,u:[a.state.u,b.state.u],...b.info});
  check('instancing',b.info.inventory.every(m=>m.isInstancedMesh)&&b.info.inventory.some(m=>m.name==='bougainvillea-bracts'&&m.count>=4000),b.info.inventory.map(m=>[m.name,m.count]));
  await pg.mouse.move(1030,530);await pg.mouse.down();const held=await pg.evaluate(()=>window.__huacheng.state());await pg.mouse.move(900,560,{steps:18});const dragged=await pg.evaluate(()=>window.__huacheng.state());await pg.mouse.up();await pg.waitForTimeout(7800);const after=await pg.evaluate(()=>window.__huacheng.state());check('input-drag',held.mode==='manual'&&dragged.mode==='manual'&&Math.hypot(...held.cam.map((x,i)=>x-dragged.cam[i]))>1&&after.mode==='auto',{held:held.mode,drag:dragged.mode,after:after.mode});
  const bounds=await pg.evaluate(()=>({actual:window.__huacheng.tramGeometryBounds(),model:window.__huacheng.state().tram.raw}));check('tram-bounds',bounds.actual.min.every((v,i)=>v>=bounds.model.min[i]-.001)&&bounds.actual.max.every((v,i)=>v<=bounds.model.max[i]+.001),bounds);
