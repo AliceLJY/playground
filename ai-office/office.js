@@ -179,7 +179,7 @@
       reader.readAsDataURL(blob);
     }, 'image/png');
   }
-  let photoBlob = null, photoReady = false;
+  let photoBlob = null, photoReady = false, photoTimer = null;
   async function savePhoto() {
     if (!photoBlob) return;
     const file = new File([photoBlob], `像素办公室-合照-${beijing(now()).toISOString().slice(0, 10)}.png`, { type: 'image/png' });
@@ -211,7 +211,7 @@
     const hello = sim.greeting();
     if (hello) greeted = true;
     if (hello && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
-    if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; }
+    if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
   }
