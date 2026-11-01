@@ -5,7 +5,7 @@ const {chromium}=require('playwright'),fs=require('fs'),path=require('path');
 const coverage=require('./flower-coverage.cjs');
 const refinement=require('./refinement-check.cjs'),{inspectLayout,sampleFrames}=require('./layout.cjs');
 const out=path.resolve(process.argv[2]||'shots/r5/browser'),base=process.argv[3]||'file://'+path.resolve(__dirname,'../dist/index.html');
-const auditBase=process.argv[4]||'file://'+path.resolve(__dirname,'../shots/r5/audit.html');
+const auditBase=process.argv[4]||'file://'+path.resolve(__dirname,'../shots/r6/audit.html');
 fs.mkdirSync(out,{recursive:true});
 const contains=b=>b.front&&b.x0>=0&&b.x1<=1&&b.y0>=0&&b.y1<=1;
 const overlaps=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
