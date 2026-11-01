@@ -96,6 +96,10 @@ This uses the already installed Playwright and browser (system Google Chrome wit
 
 There is no build step. Publish only `index.html`, `office-core.js`, `office.js`, `style.css`, and `demo-script.json`. The owner adds the homepage card, runs `node --test tests/*.test.cjs` in CI, and copies those five assets to the Pages directory. Those integration files are outside this task's edit scope. See [SPEC.md](SPEC.md) and [HANDOFF.md](HANDOFF.md) for acceptance and remaining work.
 
+## Guest view (one URL for everyone)
+
+The published page first tries the same-origin `api/state`, then `https://mac-mini.tail791fb9.ts.net:8443/office/api/state` (a tailscale funnel maps only the `/office` path onto the server's `/guest` subtree), and plays the demo only if both are unreachable. Guests see the same desks and statuses, with no board and no badge text; the write endpoints are not reachable from the public side (404). The banner says which of the three it is showing.
+
 ## Who might open this; AI materials
 
 For someone who enjoys seeing a tiny team turn ideas into work, or wants a quiet glance at local AI activity.
