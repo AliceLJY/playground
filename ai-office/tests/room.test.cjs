@@ -158,3 +158,19 @@ test('looks follow the person and the courier is named in the feed, wherever the
   assert.deepEqual(feed.filter(a => a.courier).map(a => a.id), [courier.id]); assert.equal(feed.find(a => a.id === courier.id).look, 10);
   for (const bad of [-1, 12, 1.5, '3']) { const c = structuredClone(config); c.roster[0].look = bad; assert.throws(() => validateConfig(c), /look/, String(bad)); }
 });
+
+test('the guest feed counts today\'s notes without carrying any of them', async t => {
+  const { createOffice } = await import('../server/office-server.mjs');
+  const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
+  const dir = await fs.mkdtemp(path.join(root, 'tools/.test-data/notes-'));
+  let time = DAY; const token = randomBytes(24).toString('hex');
+  const office = await createOffice({ config, token, stateFile: path.join(dir, 'state.json'), clock: () => time, collector: async () => ({}), sceneCollector: async () => ({}) });
+  await office.poll(); office.server.listen(0, '127.0.0.1'); await once(office.server, 'listening');
+  t.after(() => new Promise(resolve => { office.server.close(resolve); office.server.closeAllConnections(); }));
+  const base = `http://127.0.0.1:${office.server.address().port}`;
+  for (const text of ['one', 'two']) { time += 3000; assert.equal((await fetch(base + '/api/notice', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ text }) })).status, 200); }
+  const guest = await (await fetch(base + '/guest/api/state')).json();
+  assert.equal(guest.noticesToday, 2); assert.deepEqual(guest.notices, []);
+  assert.equal(JSON.stringify(guest).includes('two'), false);
+});
