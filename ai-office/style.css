@@ -76,3 +76,6 @@ body.wall #office{height:100%;width:100%}
 
 /* A keepsake belongs to the visible room panel, outside its scrolling canvas. */
 .room-section>.photo{bottom:30px;right:3%}.photo-actions button{min-height:44px}
+
+/* Keep the downstairs hint readable on short phones too. */
+@media(max-height:580px) and (max-width:700px){body:not(.mv) .room-meta{display:flex}}

@@ -20,14 +20,14 @@ test('courier arrives before notice view; paper holds eight seconds, multiple de
   s.step(40);assert.equal(s.delivery.phase,'returning');assert.equal(s.delivered,1);
   s.step(16000);assert.equal(s.delivered,2);assert.equal(s.notices.length,2);
 });
-test('real movement samples stay inside floor and outside furniture; completion reaches rest',()=>{
+test('real movement samples stay inside floor and outside furniture; completion stays at its desk',()=>{
   const s=simulation(13);let moved=0;
   s.setStatus(s.actors.find(a=>a.i===1).id,'done');
   for(let i=0;i<1200;i++){
     s.step(20);
     for(const a of s.actors){assert.ok(a.x>=18&&a.x<=342&&a.y>=88&&a.y<=398);if(a.path.length){moved++;assert.equal(C.blocked(a.x,a.y),false,`${a.id} walks through furniture at ${a.x},${a.y}`);}}
   }
-  assert.ok(moved>100,'movement must actually occur');assert.ok(C.distance(s.actors.find(a=>a.i===1),{x:C.rest[1][0],y:C.rest[1][1]})<1);
+  assert.ok(moved>100,'movement must actually occur');assert.ok(C.distance(s.actors.find(a=>a.i===1),C.home(1))<1);
 });
 test('every reported waiting state has a distinct reachable queue position',()=>{
   const s=simulation(7);for(const a of s.actors)s.setStatus(a.id,'waiting');s.step(20000);

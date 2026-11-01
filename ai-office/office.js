@@ -6,7 +6,7 @@
   const bg = backdrop.getContext('2d');
   const $ = s => document.querySelector(s), params = new URLSearchParams(location.search);
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'board', 'night-guard'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'board', 'night-guard', 'games'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
@@ -74,14 +74,16 @@
     r(g, '#8a9c8735', 20, 87, 91, 68); r(g, '#8f9a7d', 20, 87, 91, 3); r(g, '#8f9a7d', 20, 87, 3, 72); r(g, '#96a38b', 109, 88, 3, 58);
     r(g, '#6d806a', 28, 91, 34, 10); text(g, '总监室', 45, 99, 6, '#f2ebd3');
     C.desks.forEach(([x, y], i) => { if (i !== 10) desk(g, x, y, i); });
-    // Low bookshelf, reading lamp, patterned rug and two soft benches.
+    // The bookshelf stays put; the little lounge becomes a game corner on the office page.
     r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
     for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
+    if (mv) {
     r(g, '#a8b39a', 23, 265, 84, 66); r(g, '#dad7b4', 27, 269, 76, 58);
     for (let y = 272; y < 325; y += 6) r(g, '#c5c5a3', 29, y, 71, 1);
     r(g, '#506b5b', 23, 274, 78, 18); r(g, '#739780', 25, 271, 74, 17); r(g, '#8cac90', 27, 273, 70, 6);
     r(g, '#486354', 23, 287, 5, 12); r(g, '#486354', 96, 287, 5, 12); r(g, '#597462', 28, 292, 68, 5);
     r(g, '#8f6a4d', 27, 313, 71, 9); r(g, '#c2976b', 26, 309, 73, 7);
+    } else gameFurniture(g);
     r(g, '#6d735b', 113, 267, 2, 20); r(g, '#ead3a2', 108, 262, 12, 7); r(g, '#7d7c60', 109, 287, 10, 2);
     // Boss desk, mail reception and front door.
     r(g, '#90755c35', 143, 350, 99, 47); r(g, '#82947b', 147, 347, 92, 45); r(g, '#9daa8c', 151, 351, 84, 37);
@@ -95,6 +97,34 @@
     if (!mv) annex(g);
   }
 
+  function gameFurniture(g) {
+    r(g,'#91a38a',22,260,104,77); r(g,'#dad7b4',24,262,100,73);
+    text(g,'游戏角',95,278,7,'#45534b');
+    for(const x of [24,48]) {
+      r(g,'#35474a',x,260,20,29); r(g,'#739780',x+1,261,18,4);
+      r(g,'#213b40',x+3,266,14,10); r(g,'#90b8a3',x+5,268,4,2);
+      r(g,'#c2976b',x,278,20,6); r(g,'#d1ad83',x,278,20,2);
+      r(g,'#33443f',x+4,276,2,5); r(g,'#d96952',x+3,275,4,3); r(g,'#efc66c',x+13,280,3,2);
+      r(g,'#506b5b',x+2,284,16,7); r(g,'#213b40',x+8,286,5,2);
+    }
+    r(g,'#77563f',88,284,20,20); r(g,'#dfb987',88,284,20,16);
+    for(let y=0;y<4;y++) for(let x=0;x<4;x++) r(g,(x+y)%2?'#9b7854':'#eee4c7',90+x*4,284+y*4,4,4);
+    for(const [x,color] of [[26,'#739780'],[54,'#b397b8']]) {
+      r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3);
+      r(g,'#d2d3b1',x+3,324,14,5);
+    }
+  }
+  function gamesUnder() {
+    for(const [j,x] of [24,48].entries()) {
+      const active=sim.actors.some(a=>a.gameSlot===j+2 && sim.gameActivity(a)==='arcade');
+      r(ctx,active && Math.floor(sim.time*3)%2?'#90b8a3':'#213b40',x+3,266,14,8);
+      if(active) { const shift=Math.floor(sim.time*4)%4; r(ctx,'#efc66c',x+5+shift,268,3,3); r(ctx,'#f4ebd8',x+12,271-shift%2*2,2,2); }
+      else r(ctx,'#739780',x+7,269,6,2);
+    }
+    const playing=sim.actors.some(a=>sim.gameActivity(a)==='chess'),turn=Math.floor(sim.time/3)%4;
+    for(const [x,y,c] of [[92,286,'#33443f'],[100,294,'#fff4d5'],[playing?92+turn*4:96,290,'#33443f']]) r(ctx,c,x,y,2,2);
+  }
+
   function annex(g) {
     // Downstairs: a narrow passage leaves the original room through a new south doorway.
     r(g,'#6d725e',308,400,38,94); r(g,'#c9a27a',312,398,30,98);
@@ -103,17 +133,17 @@
     r(g,'#c9a27a',14,486,332,240);
     for(let y=488;y<724;y+=18) { r(g,'#b58c63',14,y,332,1); for(let x=22+(y%36?24:0);x<344;x+=48) r(g,'#b58c63',x,y,1,Math.min(18,724-y)); }
     r(g,'#c9a27a',312,420,30,72); text(g,'↓ 附楼',327,449,6);
-    r(g,'#6c897b',20,490,220,3); r(g,'#9cbab160',20,493,3,173);
-    r(g,'#6c897b',236,490,3,144); r(g,'#9cbab140',224,493,12,141);
-    r(g,'#6c897b',20,666,184,3); r(g,'#9cbab190',20,653,184,13);
-    for(const x of [20,76,132,200]) r(g,'#6c897b',x,650,2,19);
+    r(g,'#6c897b',20,490,220,3); r(g,'#9cbab160',20,493,3,137);
+    r(g,'#6c897b',236,490,3,108); r(g,'#9cbab140',224,493,12,105);
+    r(g,'#6c897b',20,630,184,3); r(g,'#9cbab190',20,617,184,13);
+    for(const x of [20,76,132,200]) r(g,'#6c897b',x,614,2,19);
     r(g,'#547064',28,496,168,31); r(g,'#fff4d5',30,498,164,27);
     for(const p of C.seats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
-    r(g,'#77563f',76,566,108,64); r(g,'#a97c52',76,566,108,57); r(g,'#dfb987',77,566,106,5);
-    r(g,'#ba8c60',128,572,2,48); r(g,'#eee4c7',98,583,15,9); r(g,'#8d9a80',101,586,9,1); r(g,'#eee4c7',148,604,15,9);
-    text(g,'会议室',130,642,7,'#655b40');
-    for(const p of C.audience) { r(g,'#71583f',p.x-10,p.y-7,20,9); r(g,'#a3ac8f',p.x-10,p.y-12,20,5); r(g,'#71583f',p.x-8,p.y+2,3,3); }
-    text(g,'旁听席',80,716,7,'#655b40');
+    r(g,'#77563f',70,562,116,24); r(g,'#a97c52',70,562,116,20); r(g,'#dfb987',71,562,114,4);
+    r(g,'#eee4c7',98,572,15,9); r(g,'#8d9a80',101,575,9,1); r(g,'#eee4c7',148,572,15,9);
+    text(g,'会议室',130,600,7,'#655b40');
+    r(g,'#71583f',76,650,52,17); r(g,'#a3ac8f',76,648,52,6); r(g,'#d2b285',76,660,52,5);
+    r(g,'#71583f',78,667,3,3); r(g,'#71583f',123,667,3,3); text(g,'旁听席',102,684,7,'#655b40');
     r(g,'#6d806a',268,494,67,5); r(g,'#6d806a',268,499,3,61); r(g,'#6d806a',332,499,3,61); r(g,'#b4cdc14a',271,499,61,61);
     r(g,'#47625d',310,512,12,26); r(g,'#e7dbb8',312,515,7,10); r(g,'#364944',313,529,5,6);
     text(g,'电话亭',300,579,7); text(g,'储物间',298,602,7);
@@ -132,6 +162,7 @@
   };
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
+    gamesUnder();
     text(ctx,`办公室累计${demo?' · 演示':''}`,162,440,8,'#fff4d5');
     const lines=boardLines(); lines.forEach((line,i)=>text(ctx,line,162,450+i*10,i===2?7.5:8,'#fff4d5'));
     if (m) {
@@ -159,6 +190,10 @@
     for(const id of s.dispatched) { const a=sim.actors.find(a=>a.id===id); if(a && !sim.flights.some(f=>f.id===id && !f.returning)) folder(C.desks[a.i][0]+17,C.desks[a.i][1]+4); }
   }
   function sceneOver() {
+    if(sim.scene.meeting) {
+      r(ctx,'#77563f',274,398,68,18); r(ctx,'#efc66c',276,400,64,14);
+      r(ctx,'#fff4d5',278,404,3,3); text(ctx,'开会中 ↓',311,410,8,'#45534b');
+    }
     for(const f of sim.flightPoints()) folder(f.x,f.y);
     const cc=sim.actors.find(a=>a.activity==='call');
     if(cc && !cc.path.length) {
@@ -183,7 +218,7 @@
   function person(a, boss = false) {
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    const seated = (a.activity === 'meeting' && a.i !== 0 || a.listening) && !a.path.length;
+    const seated = (a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening) && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     const bounce = !boss && a.status === 'done' && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
@@ -217,6 +252,18 @@
       const w = word.length * 6 + 6, bx = Math.max(22, Math.min(338 - w, x - w / 2 + 1));
       r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
     } else r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
+    const game = sim.gameActivity(a);
+    if (!greets && game === 'arcade') {
+      const shift=Math.sin(t*8)>0?1:0;
+      r(ctx,color,x-8,y-16,3,8); r(ctx,'#e4bb91',x-9+shift,y-18,3,3);
+      r(ctx,color,x+5,y-14,3,6); r(ctx,'#e4bb91',x+5,y-16+shift,3,3);
+    }
+    if (!greets && game === 'chess' && Math.floor(t/3)%2===a.gameSlot && t%3<.8) {
+      const right=a.gameSlot===0;
+      r(ctx,color,right?x+5:x-10,y-12,6,3); r(ctx,'#e4bb91',right?x+10:x-12,y-14,3,3);
+    }
+    if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
+    if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
     // Eleven accessories: glasses, headset, twin pins, beret, bow, visor, film, scarf, antenna, mail cap.
     const i = boss ? 11 : a.i;
     if (i === 0) { r(ctx, '#3e4b47', x - 5, y - 14, 10, 1); r(ctx, '#3e4b47', x - 5, y - 14, 4, 4); r(ctx, '#b7d0b4', x - 4, y - 13, 2, 1); }
@@ -358,12 +405,13 @@
     const book = $('#guestbook'), total = !demo && Number.isInteger(visitorsTotal) ? visitorsTotal : null;
     book.hidden = total === null; if (total !== null) book.textContent = `来过 ${total.toLocaleString('zh-CN')} 位客人`;
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
+    if (sim.scene.meeting) $('#room-caption').textContent = '楼下在开会';
     if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
     const thanks = sim.thanksNow(), carrier = sim.visitors.find(v => v.carry);
     if (carrier) $('#room-caption').textContent = `有人拎着${TREAT_NAMES[carrier.carry]}来探班了`;
     if (thanks) $('#room-caption').textContent = `${TREAT_NAMES[thanks.kind]}到了，大家说谢谢`;
     const tally = Object.entries(treatsToday).filter(([, n]) => n > 0).map(([k, n]) => `${TREAT_NAMES[k]} ×${n}`).join('、');
-    if (!waiting && !busy && !thanks && !carrier && !sim.greeting() && tally) $('#room-caption').textContent = `今天收到 ${tally}`;
+    if (!waiting && !busy && !thanks && !carrier && !sim.greeting() && !sim.scene.meeting && tally) $('#room-caption').textContent = `今天收到 ${tally}`;
     // Whoever has something going sits on top: waiting for her, then at work, then just finished; the rest keep desk order.
     const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
     const order = [...sim.actors].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.i - b.i).map(a => a.id);
@@ -408,7 +456,7 @@
   function resetDemo() {
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
     wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : '2026-11-01T02:00:00Z');
-    currentRoster = script.roster; sim = C.create(currentRoster, seed);
+    currentRoster = script.roster; sim = C.create(currentRoster, seed, !!mv);
     stats = !mv ? script.stats : null; events = []; treatsToday = {};
     if (!mv) sim.setScene(demoScene(script.scene));
     if (mv) mv.start(sim);
@@ -542,7 +590,7 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, activity:a.activity, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
@@ -554,7 +602,7 @@
     } else script = await (await fetch('demo-script.json')).json();
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
-    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:45500, board:73000, 'night-guard':8000 }[view]); paused = true; }
+    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:45500, board:73000, 'night-guard':8000, games:138000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
     ready = true; draw();
