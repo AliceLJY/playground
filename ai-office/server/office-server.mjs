@@ -110,13 +110,19 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         // since each hung read also pins one of libuv's few worker threads.
         if ((suspended.get(a.id) || 0) > clock()) return { error: true };
         let timer;
+        const started = clock(), work = collector(a.source, state.members[a.id] || {});
         try {
           return await Promise.race([
-            collector(a.source, state.members[a.id] || {}),
+            work,
             new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), COLLECT_TIMEOUT); })
           ]);
         } catch (e) {
-          if (e?.message === 'timeout') { suspended.set(a.id, clock() + SUSPEND_AFTER_TIMEOUT); log(`collector ${a.id} timed out after ${COLLECT_TIMEOUT} ms; suspended for ${SUSPEND_AFTER_TIMEOUT / 60000} min`); }
+          if (e?.message === 'timeout') {
+            suspended.set(a.id, clock() + SUSPEND_AFTER_TIMEOUT); log(`collector ${a.id} timed out after ${COLLECT_TIMEOUT} ms; suspended for ${SUSPEND_AFTER_TIMEOUT / 60000} min`);
+            // Slow is not hung: a read that does come back frees its worker thread, so the desk is polled again at once
+            // (Grok Bot showed 信号不明 for 30 min twice on 11-01 after single timeouts). A real TCC hang never settles.
+            work.finally(() => { suspended.delete(a.id); log(`collector ${a.id} came back after ${clock() - started} ms; resumed`); }).catch(() => {});
+          }
           return { error: true };
         } finally { clearTimeout(timer); }
       }));
