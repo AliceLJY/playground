@@ -1,6 +1,19 @@
 # Pixel office
 
+## Desk move and table-tennis repair (2026-11-01)
+
+- Normal office: Dots (desk 9) moves from (157,269) to **(229,269)**; home is (229,296). Its nameplate, cups and dispatch folders use that same desk coordinate. MV retains (157,269), the old lounge, obstacles and paths.
+- Extend the rug to **[22,260,188,338)**. Add a vertical teal table at **[136,276,176,316)**, with a net across y=295. Players stand at (156,268)/(156,332). Keep the bookshelf, lamp, pantry (198,247), plant (266,277), Muse desk (301,269) and boss desk. The 26-pixel gap between the table and Dots' desk obstacle leaves an 18-pixel walking corridor after the existing clearance is applied.
+- Ten places in priority order: table tennis (156,268)/(156,332), chess (80,304)/(116,304), arcade (36,294)/(60,294), nap/read (36,328)/(60,328), spectators (88,340)/(116,340). One idle colleague uses an arcade; three use a tennis pair and an arcade; four or more fill pairs, arcades, beanbags, then spectators. Preserve valid assignments and move only occupants needed to fill changed vacancies. Both partners must arrive before either paired game plays. The tennis ball is **3×3 logical pixels**, bouncing along the tabletop every 1.6 seconds; no ball when unpaired.
+- Move the old boss/visitor tour point (115,351) to **(124,372)** because spectators now stand nearby; visitor observation moves from (92,356) to **(92,372)**. Both remain separate from activity slots. Legacy tours keep the original point.
+- Baseline becomes **da99a72**. Compare the 720×840 main-room RGBA bytes outside logical rectangles **[20,240,192,346)** (expanded corner and old desk) and **[198,252,260,314)** (new desk). No meeting-sign exemption. Same busy feed, seed and frozen time; MV screenshots must match with no exemption.
+- Keep the existing muted sRGB palette, Canvas renderer, device scale and performance budget. At 390×664 and 320×568 the entire corner, including players/spectators through y=344, must fit the first viewport without scrolling or horizontal overflow.
+
+Acceptance: Node tests must prove busy Dots returns to the new home, dispatch uses its new desk, both games require two arrivals, the tennis ball moves only when paired, 1–10 idle assignments have non-overlapping 18×32 character bounds, and membership changes retain unaffected places. Sample all activity routes from every desk, door and boss desk at <=1 logical-pixel intervals, plus left desk/bookshelf routes to boss, door and pantry; no blocked sample is allowed. Browser checks must measure the relocated nameplate/cup/folder and 3×3 ball pixels, capture games and mobile first views, recheck meeting-main/hero/wall, and compare MV at several times. Record results and limitations in HANDOFF-phase2.md.
+
 ## Game-corner repair (2026-11-01)
+
+Historical first-repair specification; the desk-move section above supersedes its layout, allocation, tour points and baseline.
 
 - Replace only the lounge furniture inside logical rectangle **[20,260,128,338)**. Keep the bookshelf at (26,173), lamp, desks and other main-room artwork. The only other permitted main-room pixel change is the meeting sign in **[274,398,342,418)**. Browser tests compare RGBA bytes outside these rectangles against **c216e84**, with identical busy actors/time; MV keeps its original lounge and routing.
 - Only idle colleagues use the corner, excluding Cobbler (desk 10), who stays on duty at home. Done returns home, celebrates for 2 seconds, then remains there. Call/meeting and courier delivery keep their existing priority. Busy/waiting/away/off/unknown routing is unchanged.

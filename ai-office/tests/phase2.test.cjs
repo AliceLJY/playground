@@ -60,8 +60,10 @@ test('event templates cover every public event, use fixed treat names, ignore un
 });
 
 function idleGroup(n,seed=7){const s=C.create(Array.from({length:11},(_,desk)=>({id:desk?'a'+desk:'cc',desk})),seed);for(const a of s.actors)s.setStatus(a.id,a.i<n?'idle':'busy');s.step(15000);return s;}
-test('idle only: paired chess, machines, beanbags, spectators; Cobbler remains at desk 10',()=>{
-  for(const n of [1,2,4,5,6,10,11]){const s=idleGroup(n),idle=s.actors.filter(a=>a.status==='idle'&&a.i!==10);assert.equal(idle.filter(a=>a.gameSlot!=null&&a.gameSlot<2).length,n===1?0:2);
+test('idle only: tennis, chess, machines, beanbags, spectators; 1–10 never overlap; Cobbler stays home',()=>{
+  for(let n=1;n<=11;n++){const s=idleGroup(n),idle=s.actors.filter(a=>a.status==='idle'&&a.i!==10);assert.equal(idle.filter(a=>a.gameSlot!=null&&a.gameSlot<2).length,n===1?0:2);
+    assert.deepEqual(idle.map(a=>s.gameActivity(a)),n===1?['arcade']:n===2?['pingpong','pingpong']:n===3?['pingpong','pingpong','arcade']:['pingpong','pingpong','chess','chess','arcade','arcade','nap','read','watch','watch'].slice(0,n));
+    for(let i=0;i<s.actors.length;i++)for(const b of s.actors.slice(i+1)){const a=s.actors[i];assert.ok(Math.abs(a.x-b.x)>=18||Math.abs(a.y-b.y)>=32,`${n} idle: overlapping ${a.id}/${b.id}`);}
     for(const a of idle){assert.ok(Number.isInteger(a.gameSlot));assert.ok(C.distance(a,C.games[a.gameSlot])<1);assert.equal(s.gameActivity(a),C.games[a.gameSlot].kind);}
     assert.equal(new Set(idle.map(a=>a.gameSlot)).size,idle.length);for(const a of s.actors.filter(a=>a.status==='busy'||a.i===10)){assert.ok(C.distance(a,C.home(a.i))<1);assert.equal(s.gameActivity(a),null);}
   }
@@ -71,7 +73,7 @@ test('idle allocation is stable, sorted initially, and each 5 to 4 removal moves
     s.step(8000);assert.deepEqual(s.actors.map(a=>a.gameSlot),before);const gone=s.actors[removed];s.setStatus(gone.id,'busy');s.step(15000);
     const changed=s.actors.filter(a=>a.i!==removed&&a.gameSlot!==before[a.i]);assert.deepEqual(changed.map(a=>a.i),removed===4?[]:[4]);assert.ok(C.distance(gone,C.home(gone.i))<1);assert.equal(s.actors.filter(a=>a.gameSlot!=null&&a.gameSlot<2).length,2);
   }
-  const s=idleGroup(1);assert.equal(s.actors[0].gameSlot,2);s.setStatus('a1','idle');s.step(15000);assert.deepEqual(s.actors.slice(0,2).map(a=>a.gameSlot),[0,1]);s.setStatus('a1','busy');s.step(15000);assert.equal(s.actors[0].gameSlot,2);assert.equal(s.gameActivity(s.actors[0]),'arcade');
+  const s=idleGroup(1);assert.equal(s.actors[0].gameSlot,4);s.setStatus('a1','idle');s.step(15000);assert.deepEqual(s.actors.slice(0,2).map(a=>a.gameSlot),[0,1]);s.setStatus('a1','busy');s.step(15000);assert.equal(s.actors[0].gameSlot,4);assert.equal(s.gameActivity(s.actors[0]),'arcade');
 });
 test('games, rear row and visitor observation stay reachable; actual travel never crosses new furniture',()=>{
   const targets=[...C.games,...C.standing,C.gameWatch,{x:125,y:169},C.bossDesk,C.door];for(const start of [...C.desks.map((_,i)=>C.home(i)),C.door,C.bossDesk])for(const p of targets){assert.equal(C.blocked(p.x,p.y),false);assert.ok(C.route(start,p).length,JSON.stringify({start,p}));}
@@ -82,12 +84,41 @@ test('meeting has four chairs, extra members stand separately; clearing it resum
   scene(s,{});walk(s,35);assert.equal(s.actors.filter(a=>s.gameActivity(a)).length,10);
 });
 
-test('chess waits for both arrivals; shuffled feed order uses desks, spectators and visitors have separate spots',()=>{
+test('tennis waits for both arrivals; shuffled feed order uses desks, spectators and visitors have separate spots',()=>{
   const s=idleGroup(0);s.setStatus('a9','idle');s.setStatus('cc','idle');let loneArrival=false;
   for(let i=0;i<750;i++){s.step(20);const pair=s.actors.filter(a=>a.status==='idle');if(pair.filter(a=>!a.path.length).length===1){loneArrival=true;pair.forEach(a=>assert.equal(s.gameActivity(a),null));}}
-  assert.ok(loneArrival,'must sample a real unmatched arrival');assert.equal(s.actors.filter(a=>s.gameActivity(a)==='chess').length,2);
+  assert.ok(loneArrival,'must sample a real unmatched arrival');assert.equal(s.actors.filter(a=>s.gameActivity(a)==='pingpong').length,2);
   const sorted=idleGroup(10),reverse=C.create([...sorted.actors].reverse().map(({id,i})=>({id,desk:i})));reverse.step(15000);for(const a of reverse.actors)assert.equal(a.gameSlot,sorted.actors.find(b=>b.id===a.id).gameSlot);
   sorted.setVisitors(1);let watched=false;for(let i=0;i<3000;i++){sorted.step(20);if(sorted.visitors.some(v=>!v.path.length&&C.distance(v,C.gameWatch)<1))watched=true;}
   assert.ok(watched,'visitor really used the observation point');for(const a of sorted.actors.filter(a=>a.gameSlot!=null))assert.ok(C.distance(a,C.gameWatch)>=24);
   sorted.setStatus('a4','done');walk(sorted,15);const done=sorted.actors.find(a=>a.i===4);assert.ok(C.distance(done,C.home(4))<1);assert.equal(sorted.gameActivity(done),null);
+});
+
+test('Dots returns to moved desk, dispatch follows it, legacy desk and routes stay old',()=>{
+  const s=idleGroup(10),dots=s.actors.find(a=>a.i===9);s.setStatus(dots.id,'busy');assert.ok(walk(s,15)>0);assert.deepEqual([dots.x,dots.y],[229,296]);
+  scene(s,{dispatched:[dots.id]});assert.deepEqual(s.flights[0].to,{x:246,y:273});
+  const old=C.create(s.actors.map(a=>({id:a.id,desk:a.i})),7,true);old.setStatus(dots.id,'busy');old.step(15000);const oldDots=old.actors.find(a=>a.i===9);assert.deepEqual([oldDots.x,oldDots.y],[157,296]);
+});
+test('tennis ball moves on tabletop only after two arrivals; three never play solo chess',()=>{
+  const s=idleGroup(1);assert.equal(s.pingPongBall(),null);s.setStatus('a1','idle');let unmatched=0,playing=0;const ys=[];
+  for(let i=0;i<750;i++){s.step(20);const pair=s.actors.filter(a=>a.gameSlot<2&&a.gameSlot!=null),ball=s.pingPongBall();if(pair.filter(a=>!a.path.length).length===1){unmatched++;assert.equal(ball,null);}if(ball){playing++;assert.ok(ball.x>=136&&ball.x+ball.size<=176&&ball.y>=276&&ball.y+ball.size<=316);assert.ok(ball.size>=2);ys.push(ball.y);}}
+  assert.ok(unmatched>0&&playing>50,'both waiting and play actually sampled');assert.ok(Math.max(...ys)-Math.min(...ys)>25,'ball traverses the table');
+  s.setStatus('a2','idle');s.step(15000);assert.equal(s.actors.filter(a=>s.gameActivity(a)==='chess').length,0);assert.equal(s.gameActivity(s.actors[2]),'arcade');
+  s.setStatus('a1','busy');s.setStatus('a2','busy');s.step(20);assert.equal(s.pingPongBall(),null);
+});
+test('every 1–10 membership change preserves valid places; chess also waits for two arrivals',()=>{
+  const slots=n=>n===1?[4]:n===3?[0,1,4]:Array.from({length:n},(_,i)=>i);
+  for(let n=2;n<=10;n++)for(let removed=0;removed<n;removed++){
+    const s=idleGroup(n),before=s.actors.map(a=>a.gameSlot);s.setStatus(s.actors[removed].id,'busy');s.step(15000);
+    for(const a of s.actors.filter(a=>a.status==='idle'))if(slots(n-1).includes(before[a.i]))assert.equal(a.gameSlot,before[a.i],`${n}→${n-1}, removal ${removed}: unaffected ${a.id} moved`);
+    assert.deepEqual(s.actors.filter(a=>a.status==='idle').map(a=>a.gameSlot).sort((a,b)=>a-b),slots(n-1));
+  }
+  const s=idleGroup(3);s.setStatus('a9','idle');let unmatched=0;
+  for(let i=0;i<750;i++){s.step(20);const pair=s.actors.filter(a=>[2,3].includes(a.gameSlot));if(pair.filter(a=>!a.path.length).length===1){unmatched++;assert.ok(pair.every(a=>s.gameActivity(a)===null));}}
+  assert.ok(unmatched>0);assert.equal(s.actors.filter(a=>s.gameActivity(a)==='chess').length,2);
+});
+test('all activity routes and left-workstation routes are free at subpixel travel samples',()=>{
+  function clearRoute(from,to){const path=C.route(from,to);assert.ok(path.length,JSON.stringify({from,to}));let previous=from;for(const p of path){const n=Math.max(1,Math.ceil(C.distance(previous,p)));for(let i=0;i<=n;i++){const x=previous.x+(p.x-previous.x)*i/n,y=previous.y+(p.y-previous.y)*i/n;assert.equal(C.blocked(x,y),false,JSON.stringify({from,to,x,y}));}previous=p;}}
+  for(const start of [...C.desks.map((_,i)=>C.home(i)),C.door,C.bossDesk])for(const p of [...C.games,C.gameWatch,{x:124,y:372}])clearRoute(start,p);
+  for(const start of [C.home(5),{x:64,y:208}])for(const end of [C.bossDesk,C.door,C.pantry])clearRoute(start,end);
 });

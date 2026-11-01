@@ -1,14 +1,16 @@
 /* All artwork is drawn here: no spritesheets, web fonts, or image requests. */
 (() => {
   'use strict';
-  const C = window.OfficeCore, canvas = document.querySelector('#office'), ctx = canvas.getContext('2d');
+  const $ = s => document.querySelector(s), params = new URLSearchParams(location.search);
+  const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
+  // MV helpers also read desks/home: give the entire film its original layout.
+  const Core=window.OfficeCore, C=mvMode ? {...Core,desks:Core.mvDesks,home:i=>Core.home(i,true)} : Core;
+  const canvas = document.querySelector('#office'), ctx = canvas.getContext('2d');
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
-  const $ = s => document.querySelector(s), params = new URLSearchParams(location.search);
   $('.room-section').append($('#photo'));
   const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'board', 'night-guard', 'games'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
-  const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
   // card, no welcome wave, never counted as a visitor. wl/wt/ww/wh place it, in percent of the screen.
@@ -98,7 +100,7 @@
   }
 
   function gameFurniture(g) {
-    r(g,'#91a38a',22,260,104,77); r(g,'#dad7b4',24,262,100,73);
+    r(g,'#91a38a',22,260,166,78); r(g,'#dad7b4',24,262,162,74);
     text(g,'游戏角',95,278,7,'#45534b');
     for(const x of [24,48]) {
       r(g,'#35474a',x,260,20,29); r(g,'#739780',x+1,261,18,4);
@@ -109,14 +111,20 @@
     }
     r(g,'#77563f',88,284,20,20); r(g,'#dfb987',88,284,20,16);
     for(let y=0;y<4;y++) for(let x=0;x<4;x++) r(g,(x+y)%2?'#9b7854':'#eee4c7',90+x*4,284+y*4,4,4);
-    for(const [x,color] of [[26,'#739780'],[54,'#b397b8']]) {
+    for(const [x,color] of [[26,'#739780'],[50,'#b397b8']]) {
       r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3);
       r(g,'#d2d3b1',x+3,324,14,5);
     }
+    r(g,'#77563f',138,308,4,12); r(g,'#77563f',170,308,4,12);
+    r(g,'#35474a',136,276,40,40); r(g,'#527d72',138,278,36,36);
+    r(g,'#c8d8bc',138,278,36,2); r(g,'#c8d8bc',138,312,36,2);
+    r(g,'#c8d8bc',138,278,2,36); r(g,'#c8d8bc',172,278,2,36); r(g,'#90b8a3',155,280,1,32);
+    r(g,'#33443f',134,295,44,3); r(g,'#eee4c7',134,294,44,2);
+    for(let x=136;x<176;x+=4)r(g,'#9cbab1',x,296,2,2);
   }
   function gamesUnder() {
     for(const [j,x] of [24,48].entries()) {
-      const active=sim.actors.some(a=>a.gameSlot===j+2 && sim.gameActivity(a)==='arcade');
+      const active=sim.actors.some(a=>a.gameSlot===j+4 && sim.gameActivity(a)==='arcade');
       r(ctx,active && Math.floor(sim.time*3)%2?'#90b8a3':'#213b40',x+3,266,14,8);
       if(active) { const shift=Math.floor(sim.time*4)%4; r(ctx,'#efc66c',x+5+shift,268,3,3); r(ctx,'#f4ebd8',x+12,271-shift%2*2,2,2); }
       else r(ctx,'#739780',x+7,269,6,2);
@@ -190,6 +198,8 @@
     for(const id of s.dispatched) { const a=sim.actors.find(a=>a.id===id); if(a && !sim.flights.some(f=>f.id===id && !f.returning)) folder(C.desks[a.i][0]+17,C.desks[a.i][1]+4); }
   }
   function sceneOver() {
+    const ball=sim.pingPongBall();
+    if(ball)r(ctx,'#fff4d5',ball.x,ball.y,ball.size,ball.size);
     if(sim.scene.meeting) {
       r(ctx,'#77563f',274,398,68,18); r(ctx,'#efc66c',276,400,64,14);
       r(ctx,'#fff4d5',278,404,3,3); text(ctx,'开会中 ↓',311,410,8,'#45534b');
@@ -258,9 +268,14 @@
       r(ctx,color,x-8,y-16,3,8); r(ctx,'#e4bb91',x-9+shift,y-18,3,3);
       r(ctx,color,x+5,y-14,3,6); r(ctx,'#e4bb91',x+5,y-16+shift,3,3);
     }
-    if (!greets && game === 'chess' && Math.floor(t/3)%2===a.gameSlot && t%3<.8) {
-      const right=a.gameSlot===0;
+    if (!greets && game === 'chess' && Math.floor(t/3)%2===a.gameSlot-2 && t%3<.8) {
+      const right=a.gameSlot===2;
       r(ctx,color,right?x+5:x-10,y-12,6,3); r(ctx,'#e4bb91',right?x+10:x-12,y-14,3,3);
+    }
+    if (!greets && game === 'pingpong') {
+      const top=a.gameSlot===0,swing=Math.sin(t*Math.PI/0.8+(top?0:Math.PI))>0?2:0,handY=top?y+1:y-18;
+      r(ctx,color,x+5,y-9,3,top?12:5); r(ctx,'#e4bb91',x+5-swing,handY,4,3);
+      r(ctx,'#77563f',x+7-swing,handY,2,5); r(ctx,top?'#d96952':'#efc66c',x+5-swing,handY+(top?3:-3),6,4);
     }
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
@@ -590,7 +605,7 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, requestedView: view, actualView: view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:!mv && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
