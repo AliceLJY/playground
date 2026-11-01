@@ -83,3 +83,15 @@ body.wall #office{height:100%;width:100%}
 /* Foot plates extend below the game corner; keep mobile controls beneath their last row. */
 @media(max-width:700px){body:not(.mv):not(.wall) .treat{bottom:45%}}
 body.wall.wall-room #canvas-wrap{aspect-ratio:6/7}
+/* Desktop and landscape tablets: the title, status line and notebook stack in the right column so the room gets the
+   whole height; it grows until the main room (the top 420 of 740 logical rows) fills that height, instead of stopping
+   at 480 px wide. The annex stays a scroll away. */
+@media(min-width:1000px) and (min-aspect-ratio:5/4){
+  body:not(.mv):not(.wall) .office-app{width:min(1440px,100%);grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:auto auto minmax(0,1fr) 22px;gap:10px 30px}
+  body:not(.mv):not(.wall) .masthead{grid-column:2;grid-row:1;align-items:flex-start}
+  body:not(.mv):not(.wall) .mode{grid-column:2;grid-row:2;flex-wrap:wrap;row-gap:4px;padding:6px 2px}
+  body:not(.mv):not(.wall) .guestbook{margin-left:0;flex-basis:100%;font-size:13px}
+  body:not(.mv):not(.wall) .room-section{grid-column:1;grid-row:1/4}
+  body:not(.mv):not(.wall) .drawer{grid-column:2;grid-row:3}
+  body:not(.mv):not(.wall) #canvas-wrap{width:min(100%,max(480px,calc((100dvh - 120px) * .857)))}
+}
