@@ -19,6 +19,7 @@ export function validateConfig(config) {
     ids.add(a.id);
     if (typeof a.name !== 'string' || !a.name.trim() || a.name.length > 24 || typeof a.role !== 'string' || a.role.length > 32 || !/^#[0-9a-f]{6}$/i.test(a.color)) throw new Error('Invalid role presentation');
     if (!['cc', 'codex', 'launchd', 'etwin', 'artifacts', 'statusfiles', 'push', 'courier'].includes(a.source?.type)) throw new Error('Invalid role source');
+    if (a.source?.type === 'artifacts' && a.source.directories !== undefined && (!Array.isArray(a.source.directories) || !a.source.directories.length || a.source.directories.some(d => typeof d?.path !== 'string'))) throw new Error('Invalid directories');
     if (a.desk !== undefined && (!Number.isInteger(a.desk) || a.desk < 0 || a.desk > 10 || desks.has(a.desk))) throw new Error('Invalid desk'); if (a.desk !== undefined) desks.add(a.desk);
   }
   return config;

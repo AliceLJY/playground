@@ -262,3 +262,14 @@ test('an open bot desk takes reports with no key; other desks still refuse',asyn
   assert.equal((await rep(open_,{status:'nope'})).status,400);
   const g=await (await fetch(base+'/guest/api/state')).json(); assert.equal(g.roster.find(a=>a.id===open_).status,'busy');
 });
+
+test('artifacts with several drop points: newest anywhere counts, an optional missing one is skipped',async()=>{
+  const {collect}=await import('../server/collectors.mjs');
+  const fs=require('node:fs'); const os=require('node:os'); const path=require('node:path');
+  const a=fs.mkdtempSync(path.join(os.tmpdir(),'dropA-')), b=fs.mkdtempSync(path.join(os.tmpdir(),'dropB-'));
+  fs.writeFileSync(path.join(a,'old.json'),'x'); const past=new Date(Date.now()-3600000); fs.utimesSync(path.join(a,'old.json'),past,past);
+  fs.writeFileSync(path.join(b,'new.mp4'),'x');
+  const r=await collect({type:'artifacts',directories:[{path:a},{path:b},{path:path.join(b,'nope'),optional:true}]});
+  assert.ok(Math.abs(r.mtime-fs.statSync(path.join(b,'new.mp4')).mtimeMs)<1);
+  const missing=await collect({type:'artifacts',directories:[{path:path.join(b,'nope')}]}); assert.equal(missing.error,true);
+});
