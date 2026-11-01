@@ -106,6 +106,10 @@ export function deriveSignal(source, signal, previous = {}, now) {
     return result(inactive(lastSignalAt, now), { lastSignalAt, badge: '' });
   }
   if (source.type === 'statusfiles') {
+    // A live local CLI run of the same engine is work at this desk too; its end is a short done, then half an hour of idle.
+    if (Number.isInteger(signal.processes) && signal.processes > 0) { memory.processAt = now; return result('busy', { lastSignalAt: now, badge: String(signal.processes) }); }
+    if (memory.processAt && now - memory.processAt < 20_000) return result('done', { lastSignalAt: memory.processAt, badge: '' });
+    const ranAt = validTime(memory.processAt, now) && now - memory.processAt < 30 * MINUTE ? memory.processAt : 0;
     // A slip older than two hours is stale (the box sleeps and forgets to say done); then the mirror decides.
     // A busy slip from a box that no longer answers ssh is a forgotten slip, not work: nobody works asleep.
     const fresh = (signal.slips || []).filter(s => validTime(s.at, now) && now - s.at < 120 * MINUTE && !(signal.asleep && s.status === 'busy'));
@@ -115,6 +119,7 @@ export function deriveSignal(source, signal, previous = {}, now) {
     if (pick('busy').length) return result('busy', { lastSignalAt: latestAt(pick('busy')), badge: String(pick('busy').length) });
     const done = pick('done').filter(s => now - s.at < 10 * MINUTE);
     if (done.length) return result('done', { lastSignalAt: latestAt(done), badge: '' });
+    if (ranAt) return result('idle', { lastSignalAt: ranAt, badge: '' });
     if (signal.asleep) return result('away', { badge: '' });
     const via = deriveSignal({ type: 'artifacts', returnAway: source.returnAway }, signal.fallback, previous, now);
     return { ...via, badge: '' };

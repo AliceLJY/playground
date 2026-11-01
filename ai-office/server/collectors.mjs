@@ -221,7 +221,12 @@ export async function collect(source, previous = {}) {
         if (!seen) throw new Error('missing');
         return latest ? { mtime: latest } : { empty: true };
       }
-      case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null, source.awakeFile ? expand(source.awakeFile) : null);
+      case 'statusfiles': {
+        // The same engine also runs as a local CLI (Grok CLI next to Grok Bot); a live run counts at the same desk.
+        const r = await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null, source.awakeFile ? expand(source.awakeFile) : null);
+        if (source.processes?.length) r.processes = processCount(await ps(), source.processes);
+        return r;
+      }
       default: return { error: true };
     }
   } catch { return { error: true }; }

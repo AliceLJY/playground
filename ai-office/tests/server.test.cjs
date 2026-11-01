@@ -313,6 +313,11 @@ test('status slips from a sleeping box: busy is forgotten, waiting and done stil
   assert.equal(reduceMember(src,sig([],true),{},DAY).status,'away','asleep with a fresh mirror is still away, not idle');
   assert.equal(reduceMember(src,sig([],false),{memory:{seenMtime:DAY-60*60000}},DAY).status,'idle');
   assert.equal(reduceMember(src,sig([{status:'busy',at:DAY-60000}],undefined),{},DAY).status,'busy','no marker file: old behaviour');
+  let p=reduceMember(src,{...sig([],true),processes:1},{},DAY); assert.equal(p.status,'busy','a local Grok CLI run counts at the bot desk'); assert.equal(p.badge,'1');
+  p=reduceMember(src,{...sig([],true),processes:0},p,DAY+10000); assert.equal(p.status,'done');
+  p=reduceMember(src,{...sig([],true),processes:0},p,DAY+60000); assert.equal(p.status,'idle','run ended a minute ago, box asleep: idle, not away');
+  p=reduceMember(src,{...sig([],true),processes:0},p,DAY+31*60000); assert.equal(p.status,'away');
+  p=reduceMember(src,{...sig([{status:'waiting',at:DAY+40*60000}],true),processes:1},p,DAY+40*60000); assert.equal(p.status,'busy','a live run outranks a waiting slip for the moment');
   const fs=require('node:fs'); const os=require('node:os'); const path=require('node:path');
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'awake-'));
   const f=path.join(dir,'上次同步.txt');
