@@ -162,7 +162,12 @@
     const waiting = sim.actors.filter(a => a.status === 'waiting').length, busy = sim.actors.filter(a => a.status === 'busy').length;
     $('#room-caption').textContent = waiting ? `${waiting} 位伙伴，有事等你拍板` : busy ? '键盘声里，点子正在长大' : '这一刻，办公室很安静';
     $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你`;
-    for (const li of $('#roster').children) {
+    // Whoever has something going sits on top: waiting for her, then at work, then just finished; the rest keep desk order.
+    const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
+    const order = [...sim.actors].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.i - b.i).map(a => a.id);
+    const list = $('#roster');
+    if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); for (const id of order) { const li = list.querySelector(`li[data-id="${id}"]`); if (li) list.append(li); } }
+    for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
       li.querySelector('.status').textContent = a.badge === '等派活' && a.status === 'idle' ? '等派活' : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
