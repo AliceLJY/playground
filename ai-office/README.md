@@ -110,16 +110,19 @@ The published page first tries the same-origin `api/state`, then `https://mac-mi
 
 ## Downstairs annex and Today (phase 2 frontend)
 
-Scroll the room vertically to visit the meeting room, two audience seats, phone booth and storage. The original 360×420 room keeps its coordinates; the canvas is now 360×740 logical pixels at 2× resolution. The cumulative wooden board replaces the door's visitor-total sign. Its full numbers are repeated in the **Today** drawer, followed by the latest 40 structured events in reverse time order. Guests can read Today; their notice board stays private.
+Idle colleagues now gather in the main room’s lower-left game corner: a paired chess table, two arcade machines and nap/read beanbags; additional colleagues watch from separate spots. Cobbler stays at desk 10. Done colleagues celebrate at their desks and remain there. Assignments persist until membership changes, then only vacancies are refilled; see [SPEC.md](SPEC.md) for the desk-order rules.
 
-The renderer consumes optional `scene`, `stats`, and `events` from either state feed. Missing extension fields leave empty rooms and unavailable totals. Invalid extensions reject the entire snapshot. The frontend never infers meetings, calls, dispatches, disk use or guard work from activity status. CC's call takes priority over a simultaneous meeting; other members stay seated. Ending a scene restores each member's ordinary status routing. One dispatch delta makes one 1-second folder flight; polling an unchanged list does not replay it. Guard patrols only appear at Beijing 23:00–08:00 with a guard signal, and each timestamp triggers one lap.
+Scroll the room vertically to visit the smaller four-seat meeting room (CC at the projector, additional members in the back row), one two-person audience bench, phone booth and storage. A lit “开会中 ↓” sign and room caption announce real meetings upstairs. The original 360×420 room keeps its coordinates outside the corner/sign rectangles; the canvas is now 360×740 logical pixels at 2× resolution. The cumulative wooden board replaces the door's visitor-total sign. Its full numbers are repeated in the **Today** drawer, followed by the latest 40 structured events in reverse time order. Guests can read Today; their notice board stays private.
 
-The deterministic 150-second demo includes dispatch at 45 s, review at 50 s, round 2 at 65 s, meeting end/return at 85 s, call at 96–120 s, and a completed guard at 136 s in the night preview. Demo totals are fixed examples, labelled **演示** both on the board and in Today. `?demo=1&night=1` previews the guard; the default demo is daytime. `night=1` never changes live time or invents a live guard.
+The renderer consumes optional `scene`, `stats`, and `events` from either state feed. Missing extension fields leave empty rooms and unavailable totals. Invalid extensions reject the entire snapshot. The frontend never infers meetings, calls, dispatches, disk use or guard work from activity status. CC's call takes priority over a simultaneous meeting; other members keep their meeting positions. Ending a scene restores each member's ordinary status routing. One dispatch delta makes one 1-second folder flight; polling an unchanged list does not replay it. Guard patrols only appear at Beijing 23:00–08:00 with a guard signal, and each timestamp triggers one lap.
+
+The deterministic 150-second demo includes dispatch at 45 s, review at 50 s, round 2 at 65 s, meeting end/return at 85 s, call at 96–120 s, idle colleagues joining the game corner at 121 s, and a completed guard at 136 s in the night preview. Demo totals are fixed examples, labelled **演示** both on the board and in Today. `?demo=1&night=1` previews the guard; the default demo is daytime. `night=1` never changes live time or invents a live guard.
 
 Fixed seed 7 views (same simulation and rendering path):
 
 | URL | Actual timeline position |
 | --- | --- |
+| `?view=games` | 138 s, six idle colleagues playing/relaxing, visible without scrolling on 390×664 and 320×568 |
 | `?view=meeting` | 73 s, round 2, seated members and two listeners |
 | `?view=booth` | 112.5 s, CC in the lit booth with receiver and a fixed phrase |
 | `?view=handoff` | 45.5 s, folder halfway through its arc |
@@ -128,7 +131,7 @@ Fixed seed 7 views (same simulation and rendering path):
 | `?mv=1&hold=1` | Original MV camera, no annex |
 | `?wall=1` | Live extended room fitted into the wallpaper placement |
 
-`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares original-room pixels and an MV frame against `1f13ea1`. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
+`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares main-room RGBA outside the two specified repair rectangles and an unchanged MV frame against `c216e84`. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
 
 ## Who might open this; AI materials
 

@@ -288,6 +288,26 @@
       ]
     },
     {
+      "at": 121,
+      "id": "builder",
+      "status": "idle"
+    },
+    {
+      "at": 121,
+      "id": "twin-a",
+      "status": "idle"
+    },
+    {
+      "at": 121,
+      "id": "artist",
+      "status": "idle"
+    },
+    {
+      "at": 121,
+      "id": "writer",
+      "status": "idle"
+    },
+    {
       "at": 136,
       "scene": {
         "guard": {
