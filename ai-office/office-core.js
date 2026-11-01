@@ -128,14 +128,16 @@
     const greeting = () => sim.hello && sim.time - sim.hello.at < GREET_SECONDS ? sim.hello : null;
     function setVisitors(n) { sim.visitorTarget = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); }
     function tickVisitors(dt) {
-      while (sim.visitors.filter(v => v.phase === 'touring').length < sim.visitorTarget && sim.visitors.length < 5) {
+      // Runners (sent with a treat when nobody is visiting) are not counted against the visitor target.
+      const touring = () => sim.visitors.filter(v => v.phase === 'touring' && !v.runner).length;
+      while (touring() < sim.visitorTarget && sim.visitors.length < 5) {
         const seq = ++sim.visitorSeq;
         sim.visitors.push({ id: `visitor-${seq}`, visitor: true, i: 20 + seq % 4, color: ['#e9a23b', '#d9605a', '#5fa8d3', '#8f6fd6'][seq % 4], x: door.x, y: door.y, path: [], dest: null, phase: 'touring', until: null, status: 'visiting' });
         // Someone just came in: everyone at work looks up from the keyboard and says hello for a few seconds.
         sim.hello = { at: sim.time, visitor: `visitor-${seq}`, x: door.x, y: door.y };
       }
-      let extra = sim.visitors.filter(v => v.phase === 'touring').length - sim.visitorTarget;
-      for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring') { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }
+      let extra = touring() - sim.visitorTarget;
+      for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring' && !v.runner && !v.carry) { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }
       for (const v of sim.visitors) {
         if (v.phase === 'leaving') { moveTo(v, door); travel(v, dt * 0.8); continue; }
         if (v.carry) { moveTo(v, pantry); travel(v, dt * 0.8); continue; }
