@@ -173,7 +173,20 @@ export async function collect(source, previous = {}) {
         if (source.type === 'etwin') return { running: true, mtime: best.mtime, ...await etwinActivity(best.file, previous.memory || {}) };
         return { running: true, mtime: best.mtime };
       }
-      case 'artifacts': return source.statOnly ? await statOnlyMtime(expand(source.directory)) : await latestMtime(expand(source.directory));
+      case 'artifacts': {
+        // One desk may watch several drop points (a media folder on the removable disk, a chat snapshot folder on the
+        // internal one); the newest arrival anywhere counts. A missing optional folder is skipped, not an error.
+        const spots = source.directories || [{ path: source.directory, statOnly: source.statOnly }];
+        let latest = 0, seen = false;
+        for (const spot of spots) {
+          try {
+            const r = spot.statOnly ? await statOnlyMtime(expand(spot.path)) : await latestMtime(expand(spot.path));
+            seen = true; if (r.mtime) latest = Math.max(latest, r.mtime);
+          } catch (e) { if (!(spot.optional && (e.code === 'ENOENT' || e.message === 'missing'))) throw e; }
+        }
+        if (!seen) throw new Error('missing');
+        return latest ? { mtime: latest } : { empty: true };
+      }
       case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null);
       default: return { error: true };
     }
