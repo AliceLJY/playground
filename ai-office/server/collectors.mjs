@@ -158,12 +158,20 @@ export async function collect(source, previous = {}) {
         return { running, ...rollouts };
       }
       case 'launchd': case 'etwin': {
-        const running = await launchd(source.label);
-        if (running !== true) return { running };
-        const file = expand(source.log);
-        const mtime = (await stat(file)).mtimeMs;
-        if (source.type === 'etwin') return { running, mtime, ...await etwinActivity(file, previous.memory || {}) };
-        return { running, mtime };
+        // Several instances behind one desk (two TG bridges of the same engine): at work if any is, off only if all are.
+        const instances = source.instances || [{ label: source.label, log: source.log }];
+        const seen = [];
+        for (const inst of instances) {
+          const running = await launchd(inst.label);
+          if (running !== true) { seen.push({ running }); continue; }
+          const file = expand(inst.log);
+          seen.push({ running, mtime: (await stat(file)).mtimeMs, file });
+        }
+        const up = seen.filter(x => x.running === true);
+        if (!up.length) return { running: seen.every(x => x.running === false) ? false : undefined };
+        const best = up.reduce((a, b) => (b.mtime > a.mtime ? b : a));
+        if (source.type === 'etwin') return { running: true, mtime: best.mtime, ...await etwinActivity(best.file, previous.memory || {}) };
+        return { running: true, mtime: best.mtime };
       }
       case 'artifacts': return source.statOnly ? await statOnlyMtime(expand(source.directory)) : await latestMtime(expand(source.directory));
       case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null);

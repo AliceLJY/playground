@@ -7,7 +7,8 @@
       "role": "总监",
       "color": "#D18A65",
       "status": "busy",
-      "badge": "2"
+      "badge": "2",
+      "desk": 0
     },
     {
       "id": "builder",
@@ -15,23 +16,17 @@
       "role": "构筑师",
       "color": "#6D9D8E",
       "status": "busy",
-      "badge": ""
+      "badge": "",
+      "desk": 1
     },
     {
       "id": "twin-a",
-      "name": "Kimi 1",
+      "name": "Kimi",
       "role": "推理搭档",
       "color": "#7F91BC",
       "status": "busy",
-      "badge": ""
-    },
-    {
-      "id": "twin-b",
-      "name": "Kimi 2",
-      "role": "推理搭档",
-      "color": "#849EBB",
-      "status": "busy",
-      "badge": ""
+      "badge": "",
+      "desk": 2
     },
     {
       "id": "artist",
@@ -39,7 +34,8 @@
       "role": "创意搭档",
       "color": "#8DA66F",
       "status": "busy",
-      "badge": ""
+      "badge": "",
+      "desk": 4
     },
     {
       "id": "companion",
@@ -47,7 +43,8 @@
       "role": "陪伴搭档",
       "color": "#D69A9E",
       "status": "idle",
-      "badge": ""
+      "badge": "",
+      "desk": 5
     },
     {
       "id": "scout",
@@ -55,7 +52,8 @@
       "role": "探索员",
       "color": "#6F8585",
       "status": "away",
-      "badge": ""
+      "badge": "",
+      "desk": 6
     },
     {
       "id": "filmmaker",
@@ -63,7 +61,8 @@
       "role": "影像搭档",
       "color": "#B397B8",
       "status": "away",
-      "badge": ""
+      "badge": "",
+      "desk": 7
     },
     {
       "id": "writer",
@@ -71,7 +70,8 @@
       "role": "写作搭档",
       "color": "#C6A160",
       "status": "busy",
-      "badge": ""
+      "badge": "",
+      "desk": 8
     },
     {
       "id": "helper",
@@ -79,7 +79,8 @@
       "role": "候补搭档",
       "color": "#9FA866",
       "status": "idle",
-      "badge": "等派活"
+      "badge": "等派活",
+      "desk": 9
     },
     {
       "id": "courier",
@@ -87,7 +88,8 @@
       "role": "送信员",
       "color": "#BD8955",
       "status": "idle",
-      "badge": ""
+      "badge": "",
+      "desk": 10
     }
   ],
   "events": [
@@ -115,11 +117,6 @@
       "at": 18,
       "id": "scout",
       "status": "done"
-    },
-    {
-      "at": 24,
-      "id": "twin-b",
-      "status": "idle"
     },
     {
       "at": 28,
