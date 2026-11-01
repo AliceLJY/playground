@@ -73,7 +73,7 @@ function serve(dir) {
   const log = await page.evaluate(() => window.__PLAYTEST__.mvLog());
   await page.close();
   const office = path.join(outDir, 'office.mp4');
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', office]);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-vf', 'scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', office]);
 
   const ev = { fps, from, office: to - from, events: log.map(e => ({ ...e, t: +(e.t - from).toFixed(3) })).filter(e => e.t >= 0), safe, errors };
   const card = opt('--endcard');
@@ -87,7 +87,7 @@ function serve(dir) {
     const cn = Math.round(dur * fps);
     for (let n = 0; n < cn; n++) { await cp.evaluate(t => window.__seek(t), n / fps); await cp.screenshot({ path: path.join(cf, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); }
     const endcard = path.join(outDir, 'endcard.mp4');
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.5', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.5,scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
     fs.writeFileSync(path.join(outDir, 'concat.txt'), `file '${office}'\nfile '${endcard}'\n`);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(outDir, 'concat.txt'), '-c', 'copy', '-movflags', '+faststart', path.join(outDir, 'mv-noaudio.mp4')]);
     ev.endcard = { start: to - from, seconds: cn / fps, sfx: [1.8, 2.8] };
