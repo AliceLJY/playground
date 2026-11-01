@@ -109,7 +109,10 @@ export function makeLayout(seed=SEED, mobile=false) {
     const radius=PAGODA.radius-i*0.108, bottom=PAGODA.base+i*PAGODA.floorH;
     return {radius,bottom,top:bottom+PAGODA.floorH,windows:Array.from({length:8},(_,side)=>{
       const a=(side+0.5)*Math.PI/4, r=radius*Math.cos(Math.PI/8)+0.055;
-      const aboveDoor=i===0&&side===0;return {p:[PAGODA.x+Math.sin(a)*r,bottom+(aboveDoor?1.3:0.77),PAGODA.z+Math.cos(a)*r],angle:a,lit:side%3!==1,w:aboveDoor?0.28:0.38,h:aboveDoor?0.3:0.78};
+      const dusk=[[0,2,5],[0,3,6],[1,3,5],[0,4],[2],[5],[],[3],[]];
+      const extra=[[1,6],[2,5],[0,6],[2,6],[0,5],[1,3],[0,4],[6],[2]];
+      const onAt=dusk[i].includes(side)?.38+.035*((i+side)%4):extra[i].includes(side)?.72+.035*((i+side)%4):2;
+      const aboveDoor=i===0&&side===0;return {p:[PAGODA.x+Math.sin(a)*r,bottom+(aboveDoor?1.3:0.77),PAGODA.z+Math.cos(a)*r],angle:a,onAt,lit:onAt<.55,w:aboveDoor?0.28:0.38,h:aboveDoor?0.3:0.78};
     })};
   });
   const lamps=[];for(let x=-19;x<=20;x+=4.8) for(const z of [-9.1,14.7]) lamps.push([x,0.4,z]);
@@ -152,9 +155,9 @@ export const PATH_KEYS=[
   {name:'hero',pos:[35,32,49],target:[0,7,-3]},
   {name:'approach',pos:[-10,16,23],target:[-4,3,0]},
   {name:'bridge',pos:[-13.5,9.2,8],target:[-3.5,3.2,0]},
-  {name:'front',pos:[3,12,16],target:[4,7,-4]},
-  {name:'pagoda',pos:[27,15,8],target:[11.8,9.8,-6]},
-  {name:'rise',pos:[30,27,26],target:[2,6,-7]},
+  {name:'front',pos:[5,12,9],target:[4,7,-4]},
+  {name:'pagoda',pos:[13,20,28],target:[12,15,-8]},
+  {name:'rise',pos:[22,29,34],target:[2,6,-7]},
   {name:'wide',pos:[29,43,53],target:[0,7,-7]},
 ];
 const cr=(a,b,c,d,t)=>0.5*(2*b+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t);
