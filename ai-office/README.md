@@ -29,7 +29,7 @@ test -f ~/.config/ai-office/token || (umask 077; openssl rand -hex 24 > ~/.confi
 chmod 600 ~/.config/ai-office/config.json ~/.config/ai-office/token
 ```
 
-Keep the eleven roster entries in the example's order: director, builder, twin one, twin two, artist, companion, scout, filmmaker, writer, helper, courier. Each entry has `id`, `name`, `role`, `color` (six-digit HEX), and `source`. IDs are lowercase and unique. The host is a separate decorative character, not a twelfth API entry. Restart after editing config or rotating the token.
+Each roster entry may carry a `desk` slot (0–10, unique; defaults to its position): the slot decides the desk, the pixel look and the courier role (slot 10). Fewer than eleven entries simply leave desks empty.
 
 ## API and helpers
 

@@ -21,13 +21,14 @@
     if (large) { r(g, '#6d9172', x - 9, y - 27, 9, 7); r(g, '#5b7e63', x + 1, y - 23, 9, 7); r(g, '#6f9273', x - 1, y - 23, 3, 9); }
   }
   function desk(g, x, y, index) {
-    const color = currentRoster[index]?.color || '#829e87';
+    const owner = currentRoster.find((a, k) => (Number.isInteger(a.desk) ? a.desk : k) === index);
+    const color = owner?.color || '#829e87';
     r(g, '#4c4d4050', x - 25, y + 17, 56, 10);
     r(g, '#77563f', x - 26, y + 4, 52, 18); r(g, '#a97c52', x - 26, y + 4, 52, 11); r(g, '#d1a272', x - 28, y, 56, 10); r(g, '#e0b786', x - 28, y, 56, 2);
     r(g, '#715543', x - 24, y + 17, 4, 8); r(g, '#715543', x + 20, y + 17, 4, 8);
     r(g, '#35474a', x - 12, y - 12, 24, 16); r(g, '#213b40', x - 10, y - 10, 20, 12); r(g, '#71a29a', x - 8, y - 8, 15, 1); r(g, '#5c8d83', x - 8, y - 5, 9, 1); r(g, '#90b8a3', x - 8, y - 2, 12, 1); r(g, '#394947', x - 2, y + 4, 4, 3);
     r(g, '#e1d8ba', x - 9, y + 9, 18, 4); r(g, '#768474', x - 7, y + 10, 14, 1); r(g, color, x + 18, y - 2, 5, 7); r(g, '#e2ceac', x + 23, y, 2, 3);
-    r(g, '#d9b98b', x - 23, y + 34, 46, 9); text(g, currentRoster[index]?.name || '', x, y + 41, 7, '#574e3b');
+    r(g, '#d9b98b', x - 23, y + 34, 46, 9); text(g, owner?.name || '', x, y + 41, 7, '#574e3b');
   }
   function room() {
     bg.setTransform(2, 0, 0, 2, 0, 0); bg.clearRect(0, 0, 360, 420);
@@ -144,6 +145,7 @@
     return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m`;
   }
   function buildRoster() {
+    const n = currentRoster.length; $('#team-tab span').textContent = String(n); document.querySelectorAll('#drawer-toggle small').forEach(el => { if (/位伙伴/.test(el.textContent)) el.textContent = `${n} 位伙伴`; });
     $('#roster').replaceChildren();
     for (const a of sim.actors) {
       const li = document.createElement('li'); li.className = 'member'; li.dataset.id = a.id;
@@ -208,9 +210,9 @@
     }
   }
   function validateState(data) {
-    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length !== 11 || !Array.isArray(data.notices) || data.notices.length > 20) throw new Error('Invalid state');
-    const ids = new Set();
-    for (const a of data.roster) { if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince))) throw new Error('Invalid role'); ids.add(a.id); }
+    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20) throw new Error('Invalid state');
+    const ids = new Set(), slots = new Set();
+    data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince)) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot)) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
     if (data.notices.some(n => typeof n.text !== 'string' || !Number.isFinite(Date.parse(n.at)))) throw new Error('Invalid notice');
     return data;
   }

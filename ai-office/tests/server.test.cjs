@@ -113,7 +113,7 @@ test('real HTTP auth, payload cap, 429, privacy allowlist, persistence and push 
   assert.equal((await post('/api/report',{id,status:'busy'})).status,429);
   let publicState=await (await fetch(base+'/api/state')).json();
   assert.equal(publicState.roster[0].status,'waiting');assert.equal(publicState.notices[0].text,'hello');
-  assert.deepEqual(Object.keys(publicState.roster[0]).sort(),['badge','color','id','name','role','status','statusSince']);
+  assert.deepEqual(Object.keys(publicState.roster[0]).sort(),['badge','color','desk','id','name','role','status','statusSince']);
   for(const p of ['/server/office-server.mjs','/config.example.json','/state.json','/token','/%2e%2e/config.json'])assert.equal((await fetch(base+p)).status,404);
   for(let i=0;i<22;i++){time+=2000;assert.equal((await post('/api/notice',{text:'item '+i})).status,200);}
   const restart=await createOffice(options);await restart.poll();assert.equal(restart.snapshot().notices.length,20);assert.equal(restart.snapshot().roster[0].status,'waiting');
@@ -122,11 +122,12 @@ test('real HTTP auth, payload cap, 429, privacy allowlist, persistence and push 
   time+=10000;await restart.poll({save:false});assert.equal(await fs.readFile(stateFile,'utf8'),disk,'read-only once must not overwrite persistent state');
   time=DAY+600000;await restart.poll();assert.equal(restart.snapshot().roster[0].status,'idle');
   time=DAY+1200000;
+  const n=config.roster.length;
   for(let i=0;i<120;i++){
-    time=DAY+1200000+Math.floor(i/11)*2000;
-    assert.equal((await post('/api/report',{id:config.roster[i%11].id,status:'idle'})).status,200);
+    time=DAY+1200000+Math.floor(i/n)*2000;
+    assert.equal((await post('/api/report',{id:config.roster[i%n].id,status:'idle'})).status,200);
   }
-  assert.equal((await post('/api/report',{id:config.roster[10].id,status:'idle'})).status,429);
+  assert.equal((await post('/api/report',{id:config.roster.at(-1).id,status:'idle'})).status,429);
   const http=require('node:http');
   const streamed=await new Promise((resolve,reject)=>{
     const req=http.request(base+'/api/notice',{method:'POST',headers:{'content-type':'application/json',Authorization:`Bearer ${token}`}},res=>{res.resume();resolve(res.statusCode)});
@@ -203,7 +204,7 @@ test('guest feed: same desks, no board, no badge text, CORS only for the public 
   const full=await (await fetch(base+'/api/state')).json(); assert.equal(full.notices.length,1);
   const r=await fetch(base+'/guest/api/state',{headers:{Origin:'https://aliceljy.github.io'}}); const g=await r.json();
   assert.equal(r.headers.get('access-control-allow-origin'),'https://aliceljy.github.io');
-  assert.equal(g.guest,true); assert.equal(g.demo,false); assert.deepEqual(g.notices,[]); assert.equal(g.roster.length,11);
+  assert.equal(g.guest,true); assert.equal(g.demo,false); assert.deepEqual(g.notices,[]); assert.equal(g.roster.length,config.roster.length);
   assert.deepEqual(g.roster.map(a=>a.id),full.roster.map(a=>a.id)); assert.ok(g.roster.every(a=>a.badge===''));
   const other=await fetch(base+'/guest/api/state',{headers:{Origin:'https://evil.example'}}); assert.equal(other.headers.get('access-control-allow-origin'),null);
   assert.equal((await fetch(base+'/guest/api/notice',{method:'POST'})).status,404);
@@ -223,4 +224,25 @@ test('codex: a fresh rollout counts as busy without a process; old rollouts rest
   const day=path.join(root,...d); fs.mkdirSync(day,{recursive:true}); fs.writeFileSync(path.join(day,'rollout-x.jsonl'),'{}'); fs.writeFileSync(path.join(day,'other.txt'),'x');
   const r=await latestRollout(root,now); assert.ok(Math.abs(r.rolloutMtime-fs.statSync(path.join(day,'rollout-x.jsonl')).mtimeMs)<1);
   assert.deepEqual(await latestRollout(path.join(root,'nope'),now),{});
+});
+
+test('guest report: a bot key moves only its own desk; wrong key 403, no key for that bot 403, bad status 400, task text stays private',async t=>{
+  const {createOffice}=await import('../server/office-server.mjs');
+  await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
+  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const token=randomBytes(24).toString('hex'); const key=randomBytes(24).toString('hex'); const helper=config.roster.find(a=>a.id==='helper')?.id||config.roster[9].id;
+  let time=DAY; const office=await createOffice({config,token,botKeys:{[helper]:key},stateFile,clock:()=>time,collector:async()=>({})});await office.poll();
+  office.server.listen(0,'127.0.0.1');await once(office.server,'listening');
+  t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
+  const base=`http://127.0.0.1:${office.server.address().port}`;
+  const rep=(id,body,k=key)=>fetch(base+'/guest/report/'+id,{method:'POST',headers:{'content-type':'application/json','x-office-key':k},body:JSON.stringify(body)});
+  assert.equal((await rep(helper,{status:'busy'},'wrong')).status,403);
+  assert.equal((await rep(config.roster[0].id,{status:'busy'})).status,403,'key is bound to one desk');
+  assert.equal((await rep(helper,{status:'unknown'})).status,400);
+  assert.equal((await rep(helper,{status:'busy',task:'采集 /secret/path 很长'+'字'.repeat(100)})).status,200);
+  const g=await (await fetch(base+'/guest/api/state')).json(); const me=g.roster.find(a=>a.id===helper);
+  assert.equal(me.status,'busy'); assert.equal(JSON.stringify(g).includes('/secret'),false);
+  time+=3000; assert.equal((await rep(helper,{status:'done'})).status,200);
+  await assert.rejects(createOffice({config,token,botKeys:{nope:key},stateFile,clock:()=>time,collector:async()=>({})}));
 });

@@ -12,13 +12,14 @@ const PRIVATE = path.join(os.homedir(), '.config', 'ai-office');
 const ASSETS = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/office.js', ['office.js', 'text/javascript']], ['/office-core.js', ['office-core.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/demo-script.json', ['demo-script.json', 'application/json']]]);
 
 export function validateConfig(config) {
-  if (!config || !Array.isArray(config.roster) || config.roster.length !== 11) throw new Error('Config must define exactly 11 roles');
-  const ids = new Set();
+  if (!config || !Array.isArray(config.roster) || config.roster.length < 1 || config.roster.length > 11) throw new Error('Config must define 1 to 11 roles');
+  const ids = new Set(), desks = new Set();
   for (const a of config.roster) {
     if (!/^[a-z][a-z0-9_-]{0,31}$/.test(a.id) || ['constructor', 'prototype', '__proto__'].includes(a.id) || ids.has(a.id)) throw new Error('Invalid or duplicate role id');
     ids.add(a.id);
     if (typeof a.name !== 'string' || !a.name.trim() || a.name.length > 24 || typeof a.role !== 'string' || a.role.length > 32 || !/^#[0-9a-f]{6}$/i.test(a.color)) throw new Error('Invalid role presentation');
     if (!['cc', 'codex', 'launchd', 'etwin', 'artifacts', 'statusfiles', 'push', 'courier'].includes(a.source?.type)) throw new Error('Invalid role source');
+    if (a.desk !== undefined && (!Number.isInteger(a.desk) || a.desk < 0 || a.desk > 10 || desks.has(a.desk))) throw new Error('Invalid desk'); if (a.desk !== undefined) desks.add(a.desk);
   }
   return config;
 }
@@ -35,10 +36,16 @@ async function loadState(file) {
   }
 }
 
-export async function createOffice({ config, token, stateFile, clock = Date.now, collector = collect }) {
+export async function createOffice({ config, token, botKeys: botKeys_ = {}, stateFile, clock = Date.now, collector = collect }) {
   validateConfig(config);
   if (typeof token !== 'string' || token.trim().length < 24) throw new Error('Missing or invalid private token');
   const expected = createHash('sha256').update(`Bearer ${token.trim()}`).digest();
+  // Per-bot keys for the public guest report path: a key moves only that one desk, nothing else. Cosmetic by design.
+  const botKeys = new Map();
+  for (const [id, key] of Object.entries(botKeys_ || {})) {
+    if (!config.roster.some(a => a.id === id) || typeof key !== 'string' || key.trim().length < 24) throw new Error(`Invalid bot key for ${id}`);
+    botKeys.set(id, createHash('sha256').update(key.trim()).digest());
+  }
   const state = await loadState(stateFile);
   const limiter = new RateLimiter();
   let writes = Promise.resolve(), polling = false, updatedAt = iso(clock());
@@ -59,7 +66,7 @@ export async function createOffice({ config, token, stateFile, clock = Date.now,
   function snapshot() {
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
-      return { id: a.id, name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16) };
+      return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16) };
     }), notices: state.notices.map(n => ({ ...n })), demo: false };
   }
 
@@ -120,6 +127,26 @@ export async function createOffice({ config, token, stateFile, clock = Date.now,
         const origin = req.headers.origin;
         return reply(res, 200, guestSnapshot(), { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
       }
+      const guestReport = req.method === 'POST' && url.pathname.match(/^\/guest\/report\/([a-z][a-z0-9_-]{0,31})$/);
+      if (guestReport) {
+        const id = guestReport[1], keyHash = botKeys.get(id);
+        const got = createHash('sha256').update(String(req.headers['x-office-key'] || '').trim()).digest();
+        if (!keyHash || !timingSafeEqual(keyHash, got)) { req.resume(); return reply(res, 403, { error: 'Forbidden' }); }
+        if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) { req.resume(); return reply(res, 415, { error: 'JSON required' }); }
+        if (Number(req.headers['content-length']) > 1024) { req.resume(); return reply(res, 413, { error: 'Body too large' }); }
+        let size = 0, parts = [];
+        for await (const part of req) { size += part.length; if (size > 1024) { reply(res, 413, { error: 'Body too large' }); return; } parts.push(part); }
+        let data;
+        try { data = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { return reply(res, 400, { error: 'Invalid JSON' }); }
+        const allowed = ['busy', 'waiting', 'done', 'idle', 'away'];
+        if (!data || typeof data !== 'object' || !allowed.includes(data.status) || data.task != null && typeof data.task !== 'string') return reply(res, 400, { error: 'Invalid report' });
+        const now = clock();
+        if (!limiter.take(id, now)) return reply(res, 429, { error: 'Rate limited' });
+        const prev = state.members[id] || {};
+        state.members[id] = { ...prev, status: data.status, statusSince: prev.status === data.status ? prev.statusSince : iso(now), lastSignalAt: now, push: { at: now, status: data.status, summary: taskCategory(data.task) } };
+        updatedAt = iso(now); await persist();
+        return reply(res, 200, { ok: true });
+      }
       if (url.pathname.startsWith('/guest/')) return reply(res, 404, { error: 'Not found' });
       if (req.method === 'POST' && ['/api/report', '/api/notice'].includes(url.pathname)) {
         const got = createHash('sha256').update(req.headers.authorization || '').digest();
@@ -173,7 +200,9 @@ async function main() {
   for (const file of [configFile, tokenFile]) {
     if ((await stat(file)).mode & 0o077) throw new Error('Private config and token must have mode 600');
   }
-  const office = await createOffice({ config: JSON.parse(await readFile(configFile, 'utf8')), token: await readFile(tokenFile, 'utf8'), stateFile: path.join(PRIVATE, 'state.json') });
+  let botKeys = {};
+  try { botKeys = JSON.parse(await readFile(path.join(PRIVATE, 'botkeys.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  const office = await createOffice({ config: JSON.parse(await readFile(configFile, 'utf8')), token: await readFile(tokenFile, 'utf8'), botKeys, stateFile: path.join(PRIVATE, 'state.json') });
   if (process.argv.includes('--once')) {
     await office.poll({ save: false });
     process.stdout.write(JSON.stringify(office.snapshot()) + '\n'); return;
