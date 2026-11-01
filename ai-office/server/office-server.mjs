@@ -184,7 +184,9 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     // off it with a script; the board and badge text stay private.
     const full = snapshot(), minute = ms => Math.floor(ms / 60_000) * 60_000;
     delete full.build; // the public page is served from elsewhere; its own files are not these
-    return { ...full, roster: full.roster.map(a => ({ ...a, badge: '', statusSince: iso(minute(Date.parse(a.statusSince))), workedToday: minute(a.workedToday) })), notices: [], guest: true };
+    // The board's notes stay private; how many came in today is not, and the wall board pins that many.
+    const noticesToday = full.notices.filter(n => beijingDay(Date.parse(n.at)) === beijingDay(clock())).length;
+    return { ...full, roster: full.roster.map(a => ({ ...a, badge: '', statusSince: iso(minute(Date.parse(a.statusSince))), workedToday: minute(a.workedToday) })), notices: [], noticesToday, guest: true };
   }
   // Everything under /guest/ sits on the public internet through the funnel: a per-address budget keeps one
   // script from turning the machine into a free ping target. The page itself needs 12 requests a minute per tab.
