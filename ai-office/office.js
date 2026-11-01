@@ -237,9 +237,13 @@
     }
     throw new Error('Unavailable');
   }
+  // One missed poll (the office restarting, a phone network blip) must not throw the page into the demo, where the
+  // scripted team is doing something else; three misses in a row (30 s) mean the office is really gone.
+  let misses = 0;
   async function loadLive() {
     try {
       const data = await fetchState();
+      misses = 0;
       if (demo || !sim || currentRoster.map(a => a.id).join() !== data.roster.map(a => a.id).join()) {
         demo = false; elapsed = 0; wallBase = Date.now(); currentRoster = data.roster; sim = C.create(currentRoster, seed); seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
         sim.notices = data.notices; buildRoster(); light = ''; lastUI = -10;
@@ -250,7 +254,7 @@
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();
-    } catch { if (!demo) resetDemo(); }
+    } catch { if (!demo && ++misses >= 3) resetDemo(); }
     draw();
   }
   $('#drawer-toggle').addEventListener('click', () => {
