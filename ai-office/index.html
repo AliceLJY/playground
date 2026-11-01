@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="一间会呼吸的像素小办公室：看看 AI 伙伴在忙什么，等一封新来的纸条。">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://mac-mini.tail791fb9.ts.net:8443; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://mac-mini.tail791fb9.ts.net:8443; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <title>像素办公室 · AI 幕后</title>
   <link rel="icon" href="data:,">
@@ -21,7 +21,7 @@
     <div id="mode" class="mode" role="status">正在连接办公室…</div>
     <section class="room-section" aria-label="像素办公室全景">
       <div class="room-meta"><span id="room-caption">每个人都有自己的节奏</span><span id="occupancy">办公室</span></div>
-      <div id="canvas-wrap"><canvas id="office" width="720" height="840" aria-label="AI 伙伴在工位、沙发和老板桌之间活动。详细状态可在团队抽屉中阅读。"></canvas><div id="paper" class="paper" hidden role="status"><span>新来的纸条</span><p id="paper-text"></p></div></div>
+      <div id="canvas-wrap"><canvas id="office" width="720" height="840" aria-label="AI 伙伴在工位、沙发和老板桌之间活动。详细状态可在团队抽屉中阅读。"></canvas><div id="paper" class="paper" hidden role="status"><span>新来的纸条</span><p id="paper-text"></p></div><div id="photo" class="photo" hidden role="status"><img id="photo-img" alt="大家回头打招呼那一刻的合照"><p id="photo-text">刚才大家回头跟你打招呼，拍下来了</p><div class="photo-actions"><button id="photo-save" type="button">保存合照</button><button id="photo-close" type="button" aria-label="收起">×</button></div></div></div>
       <div class="room-foot"><span><i class="dot busy"></i>干活</span><span><i class="dot waiting"></i>等你拍板</span><span><i class="dot done"></i>交活了</span><span><i class="dot unknown"></i>信号不明</span></div>
     </section>
     <aside id="drawer" class="drawer" aria-label="团队状态和公告">

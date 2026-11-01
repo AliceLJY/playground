@@ -143,6 +143,36 @@
     if (!boss && a.i === 0 && a.badge) { r(ctx, '#f1d18d', x + 7, y - 30, 13, 10); text(ctx, a.badge, x + 13, y - 22, 7, '#5f5235'); }
   }
 
+  // The group photo: about a second into a greeting, when every word and the visitor's reply are on screen, the
+  // frame is copied into a keepsake with a caption strip, and offered as a polaroid in the corner. One per greeting.
+  let photoAt = null, photoUrl = '';
+  function takePhoto(hello) {
+    const keep = document.createElement('canvas'); keep.width = 720; keep.height = 930;
+    const k = keep.getContext('2d'); k.imageSmoothingEnabled = false;
+    k.fillStyle = '#f3eee2'; k.fillRect(0, 0, 720, 930); k.drawImage(canvas, 0, 0);
+    k.fillStyle = '#fffdf6'; k.fillRect(0, 840, 720, 90); k.fillStyle = '#786747'; k.fillRect(0, 840, 720, 3);
+    const nth = visitorsTotal !== null && !demo ? `第 ${visitorsTotal} 位客人来了` : '有客人来了';
+    const when = `${beijing(now()).toISOString().slice(0, 10)} ${formatClock(now())}`;
+    k.fillStyle = '#4b3b24'; k.font = '26px Georgia, "Songti SC", serif'; k.textAlign = 'left'; k.fillText(`像素办公室 · ${nth}${demo ? '（演示）' : ''}`, 24, 878);
+    k.fillStyle = '#8e6642'; k.font = '18px Menlo, monospace'; k.fillText(`${when} · 大家回头说了声你好`, 24, 910);
+    k.textAlign = 'right'; k.font = '18px Georgia, "Songti SC", serif'; k.fillStyle = '#8e6642'; k.fillText('我的AI小木屋', 696, 910);
+    keep.toBlob(blob => {
+      if (!blob) return;
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      photoUrl = URL.createObjectURL(blob); photoBlob = blob;
+      $('#photo-img').src = photoUrl; $('#photo-text').textContent = hello.visitor && guest ? '刚才大家回头跟你打招呼，拍下来了' : '刚才大家回头打了个招呼，拍下来了';
+      $('#photo').hidden = false;
+    }, 'image/png');
+  }
+  let photoBlob = null;
+  async function savePhoto() {
+    if (!photoBlob) return;
+    const file = new File([photoBlob], `像素办公室-合照-${beijing(now()).toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: '像素办公室' }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = photoUrl; a.download = file.name; document.body.append(a); a.click(); a.remove();
+  }
+  $('#photo-save').addEventListener('click', savePhoto);
+  $('#photo-close').addEventListener('click', () => { $('#photo').hidden = true; });
   function draw() {
     if (!sim) return;
     const started = performance.now();
@@ -161,6 +191,8 @@
     const d = sim.delivery, holding = d?.phase === 'holding';
     $('#paper').hidden = !holding;
     if (holding) $('#paper-text').textContent = d.text;
+    const hello = sim.greeting();
+    if (hello && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
   }
