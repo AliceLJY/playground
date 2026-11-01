@@ -105,6 +105,27 @@ export async function statOnlyMtime(root, now = Date.now()) {
   return latest ? { mtime: latest } : { empty: true };
 }
 
+// Newest mtime among rollout-*.jsonl in today's and yesterday's day folders (UTC dates, as Codex names them, plus the
+// Beijing date in case the folder is named by local time); the folders are small, nothing is opened.
+export async function latestRollout(root, now = Date.now()) {
+  const days = new Set();
+  for (const ms of [now, now - 86_400_000]) {
+    days.add(new Date(ms).toISOString().slice(0, 10));
+    days.add(beijingDate(ms));
+  }
+  let latest = 0;
+  for (const day of days) {
+    const dir = path.join(root, ...day.split('-'));
+    let entries;
+    try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) { if (e.code === 'ENOENT' || e.code === 'ENOTDIR') continue; throw e; }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.startsWith('rollout-') || !entry.name.endsWith('.jsonl')) continue;
+      latest = Math.max(latest, (await stat(path.join(dir, entry.name))).mtimeMs);
+    }
+  }
+  return latest ? { rolloutMtime: latest } : {};
+}
+
 // Read only new complete lines; never retain message text. Cursor is private/persistent.
 export async function etwinActivity(file, memory) {
   const handle = await open(file, 'r');
@@ -129,7 +150,13 @@ export async function collect(source, previous = {}) {
     switch (source.type) {
       case 'push': case 'courier': return {};
       case 'cc': return await sessions(expand(source.directory));
-      case 'codex': return { running: codexRunning((await exec('/bin/ps', ['-axo', 'pid,args'], { timeout: 3000, maxBuffer: 8 * 1024 * 1024 })).stdout) };
+      case 'codex': {
+        const running = codexRunning((await exec('/bin/ps', ['-axo', 'pid,args'], { timeout: 3000, maxBuffer: 8 * 1024 * 1024 })).stdout);
+        // The Codex app and the CLI both append the open thread's rollout under CODEX_HOME/sessions/<y>/<m>/<d>/; a rollout
+        // written in the last minutes is a turn in progress whatever window it came from. Only the two newest day folders are read.
+        const rollouts = await latestRollout(expand(source.sessions || '~/.codex/sessions'));
+        return { running, ...rollouts };
+      }
       case 'launchd': case 'etwin': {
         const running = await launchd(source.label);
         if (running !== true) return { running };
