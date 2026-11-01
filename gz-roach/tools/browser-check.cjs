@@ -122,6 +122,17 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
     check('B10', '亮相之后跳回开场，背景颜色恢复原样', diff <= 4, `之前 rgb(${before})，跳回后 rgb(${after})，最大差 ${diff}`);
     await ctx.close(); }
 
+  // B11 录片只取决于时间：?capture 下从 33.9 秒跳到 34.0 秒立刻截图，和等 1 秒再截，画面要一样（2026-11-01 CSS 过渡跟真实时间走，录出空字幕框残影）
+  { const shot = async (page) => page.screenshot({ clip: { x: 0, y: 450, width: 540, height: 400 } });
+    const { ctx, page } = await open('?capture', 540, 960, 1);
+    await page.evaluate(() => window.__roach.render(33.9)); await page.waitForTimeout(800);
+    await page.evaluate(() => window.__roach.render(34.0)); const a = await shot(page);
+    await page.waitForTimeout(1000); const b = await shot(page);
+    const diff = await page.evaluate(async ([x, y]) => { const load = async (b64) => { const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode(); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, c.width, c.height).data; };
+      const p = await load(x), q = await load(y); let n = 0; for (let i = 0; i < p.length; i += 4) if (Math.abs(p[i] - q[i]) + Math.abs(p[i + 1] - q[i + 1]) + Math.abs(p[i + 2] - q[i + 2]) > 24) n++; return n / (p.length / 4); }, [a.toString('base64'), b.toString('base64')]);
+    check('B11', '录片模式下画面只取决于时间，不受截图快慢影响', diff < 0.0005, `立刻截与等 1 秒再截，差异像素 ${(diff * 100).toFixed(2)}%`);
+    await ctx.close(); }
+
   if (base.startsWith('file:')) { const kb = fs.statSync(pageUrl.replace('file://', '')).size / 1024; check('B9', '单文件小于 1 MB（链接预览卡要求）', kb < 1024, `${kb.toFixed(0)} KB`); }
   check('B1', '页面无报错、不向外部请求任何东西', errors.length === 0 && external.length === 0, `报错 ${errors.length} 条${errors.length ? '：' + errors.slice(0, 3).join(' | ') : ''}；外部请求 ${external.length} 个${external.length ? '：' + external.slice(0, 3).join(' ') : ''}`);
   report.errors = errors; report.external = external;
