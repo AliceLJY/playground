@@ -140,6 +140,12 @@
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
   }
+  // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
+  function workedLabel(ms) {
+    const minutes = Math.floor((Number(ms) || 0) / 60000);
+    if (minutes < 1) return '';
+    return minutes < 60 ? `今日 ${minutes}m` : `今日 ${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
+  }
   function duration(a) {
     const seconds = Math.max(0, Math.floor((now() - Date.parse(a.statusSince || new Date(now()).toISOString())) / 1000));
     return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m`;
@@ -152,9 +158,10 @@
       const icon = document.createElement('span'); icon.className = 'avatar'; icon.style.setProperty('--actor', a.color);
       const name = document.createElement('span'); name.className = 'member-name'; name.textContent = a.name;
       const badge = document.createElement('small'); name.append(badge);
+      const work = document.createElement('span'); work.className = 'member-work';
       const meta = document.createElement('span'); meta.className = 'member-meta';
       const status = document.createElement('span'); status.className = 'status';
-      const time = document.createElement('time'); time.className = 'duration'; meta.append(status, time); li.append(icon, name, meta); $('#roster').append(li);
+      const time = document.createElement('time'); time.className = 'duration'; meta.append(status, time); li.append(icon, name, work, meta); $('#roster').append(li);
     }
   }
   function updateUI() {
@@ -173,6 +180,7 @@
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
+      li.querySelector('.member-work').textContent = workedLabel(a.workedToday);
     }
     $('#notice-count').textContent = sim.notices.length;
     const key = JSON.stringify(sim.notices);
@@ -217,7 +225,7 @@
   function validateState(data) {
     if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20) throw new Error('Invalid state');
     const ids = new Set(), slots = new Set();
-    data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince)) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot)) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
+    data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince)) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
     if (data.notices.some(n => typeof n.text !== 'string' || !Number.isFinite(Date.parse(n.at)))) throw new Error('Invalid notice');
     return data;
   }
@@ -250,7 +258,7 @@
         const latest = data.notices.at(-1);
         if (latest && Date.now() - Date.parse(latest.at) < 20_000) sim.deliveries.push(latest);
       }
-      for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '' }); }
+      for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', workedToday: a.workedToday || 0 }); }
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();

@@ -3,6 +3,7 @@ export const MINUTE = 60_000;
 export const PUSH_TTL = 10 * MINUTE;
 export const iso = (ms) => new Date(ms).toISOString();
 export const beijingHour = (now) => new Date(now + 8 * 3_600_000).getUTCHours();
+export const beijingDay = (now) => new Date(now + 8 * 3_600_000).toISOString().slice(0, 10);
 export const isNight = (now) => beijingHour(now) >= 23 || beijingHour(now) < 8;
 export const cleanText = (s, max = 80) => Array.from(String(s ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').trim()).slice(0, max).join('');
 
@@ -143,8 +144,12 @@ export function reduceMember(source, signal, previous = {}, now) {
   const push = previous.push;
   const usePush = push && validTime(push.at, now) && now - push.at < PUSH_TTL && STATUSES.includes(push.status);
   const status = usePush ? push.status : observed.status;
+  // Minutes at work today (Beijing day): the gap since the previous tick is added while that tick was busy. A gap over
+  // a minute (the office was down) is not counted, and midnight starts the count over.
+  const day = beijingDay(now), sameDay = previous.workedDay === day, gap = Number.isFinite(previous.tickAt) ? now - previous.tickAt : 0;
+  const workedMs = (sameDay ? previous.workedMs || 0 : 0) + (previous.status === 'busy' && sameDay && gap > 0 && gap <= MINUTE ? gap : 0);
   return {
-    ...previous, ...observed, status,
+    ...previous, ...observed, status, workedMs, workedDay: day, tickAt: now,
     lastSignalAt: usePush ? push.at : observed.lastSignalAt ?? previous.lastSignalAt,
     statusSince: previous.status === status && previous.statusSince ? previous.statusSince : iso(now),
     ...(push && !usePush ? { push: undefined } : {})
