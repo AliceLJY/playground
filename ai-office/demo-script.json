@@ -3,7 +3,7 @@
   "roster": [
     {
       "id": "director",
-      "name": "松果",
+      "name": "CC",
       "role": "总监",
       "color": "#D18A65",
       "status": "busy",
@@ -11,7 +11,7 @@
     },
     {
       "id": "builder",
-      "name": "方糖",
+      "name": "Codex",
       "role": "构筑师",
       "color": "#6D9D8E",
       "status": "busy",
@@ -19,7 +19,7 @@
     },
     {
       "id": "twin-a",
-      "name": "蓝莓Ⅰ",
+      "name": "Kimi 1",
       "role": "推理搭档",
       "color": "#7F91BC",
       "status": "busy",
@@ -27,7 +27,7 @@
     },
     {
       "id": "twin-b",
-      "name": "蓝莓Ⅱ",
+      "name": "Kimi 2",
       "role": "推理搭档",
       "color": "#849EBB",
       "status": "busy",
@@ -35,7 +35,7 @@
     },
     {
       "id": "artist",
-      "name": "薄荷",
+      "name": "Agy",
       "role": "创意搭档",
       "color": "#8DA66F",
       "status": "busy",
@@ -43,7 +43,7 @@
     },
     {
       "id": "companion",
-      "name": "桃子",
+      "name": "etwin",
       "role": "陪伴搭档",
       "color": "#D69A9E",
       "status": "idle",
@@ -51,7 +51,7 @@
     },
     {
       "id": "scout",
-      "name": "墨镜",
+      "name": "Grok Bot",
       "role": "探索员",
       "color": "#6F8585",
       "status": "away",
@@ -59,7 +59,7 @@
     },
     {
       "id": "filmmaker",
-      "name": "胶片",
+      "name": "Muse",
       "role": "影像搭档",
       "color": "#B397B8",
       "status": "away",
@@ -67,7 +67,7 @@
     },
     {
       "id": "writer",
-      "name": "豆沙",
+      "name": "豆包",
       "role": "写作搭档",
       "color": "#C6A160",
       "status": "busy",
@@ -75,7 +75,7 @@
     },
     {
       "id": "helper",
-      "name": "点点",
+      "name": "Dots",
       "role": "候补搭档",
       "color": "#9FA866",
       "status": "idle",
@@ -83,7 +83,7 @@
     },
     {
       "id": "courier",
-      "name": "邮差",
+      "name": "Cobbler",
       "role": "送信员",
       "color": "#BD8955",
       "status": "idle",
