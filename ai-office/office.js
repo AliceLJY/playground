@@ -341,7 +341,7 @@
   // A page that got no greeting (its visitor tag was already known: a reload within 45 s) still gets a welcome;
   // and anyone can ask for a photo at any time, the team turns to the camera.
   let greeted = false, welcomeTimer = null;
-  $('#pose').addEventListener('click', () => { if (!sim) return; const busy = sim.greeting() || sim.thanksNow(); if (busy) return; sim.wave('pose'); $('#pose').disabled = true; setTimeout(() => { $('#pose').disabled = false; }, 5000); });
+  $('#pose').addEventListener('click', () => { if (!sim) return; sim.wave('pose'); $('#pose').disabled = true; setTimeout(() => { $('#pose').disabled = false; }, 5000); });
   $('#treat-toggle').addEventListener('click', () => { const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
   document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
   try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
