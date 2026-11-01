@@ -21,7 +21,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 const BG = new THREE.Color(0xebe4d8), STAGE = new THREE.Color(0x2a2220);
 // 背景要克隆：applyState 每帧按亮相程度插值，直接用 BG 会把常量本身改暗，亮相后再也回不来
-const scene = new THREE.Scene(); scene.background = BG.clone(); scene.fog = new THREE.Fog(BG, 95, 230);
+const scene = new THREE.Scene(); scene.background = BG.clone(); scene.fog = new THREE.Fog(BG, 170, 330); // 最远的机位（俯视）离虫约 120，雾要从它之外才起
 const camera = new THREE.PerspectiveCamera(34, 1, 0.5, 600);
 
 scene.add(new THREE.HemisphereLight(0xfff6ea, 0x8a6a52, 1.15));
