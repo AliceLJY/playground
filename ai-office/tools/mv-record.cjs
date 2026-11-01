@@ -1,5 +1,6 @@
 // 录 MV「像素办公室的一天」：竖屏 540×960、2 倍像素 = 1080×1920、30fps，逐帧录，不是截图拼。
-//   NODE_PATH="$(npm root -g)" node tools/mv-record.cjs <out-dir> [--stills 5,12.5,…] [--from 秒] [--to 秒] [--endcard <目录>]
+//   NODE_PATH="$(npm root -g)" node tools/mv-record.cjs <out-dir> [--stills 5,12.5,…] [--from 秒] [--to 秒] [--speed 1.2] [--endcard <目录>]
+// --speed：每帧推进 speed/30 秒剧本时间（11-01 Alice 嫌原速慢，定 1.2 倍），events.json 的时间同步换算成成片时间；尾板不变速。
 // 做法同 jianmen-drizzle/tools/demo.cjs：page.clock 接管页面时钟并停住，每帧调 __PLAYTEST__.step(1000/30) 推进办公室，
 // 再按设备像素截图；?mv=1&hold=1 让页面自己不走，画面只取决于推进了多少时间（字幕、灯光、镜头、淡出都按页面时间算）。
 // 录完写 events.json（每件事发生在第几秒，给 tools/mv-music.py 卡点），frames/ 合成 office.mp4。
@@ -53,9 +54,9 @@ function serve(dir) {
   const from = Number(opt('--from') || 0), to = Number(opt('--to') || seconds);
   const frames = path.join(outDir, 'frames'); fs.rmSync(frames, { recursive: true, force: true }); fs.mkdirSync(frames, { recursive: true });
   await stepTo(from);
-  const total = Math.round((to - from) * fps), safe = { subBottom: 0, subFrames: 0, titleTop: Infinity, paperBottom: 0 };
+  const speed = Number(opt('--speed') || 1), total = Math.round((to - from) * fps / speed), safe = { subBottom: 0, subFrames: 0, titleTop: Infinity, paperBottom: 0 };
   for (let n = 0; n < total; n++) {
-    if (n > 0) await page.evaluate(ms => window.__PLAYTEST__.step(ms), 1000 / fps);
+    if (n > 0) await page.evaluate(ms => window.__PLAYTEST__.step(ms), 1000 * speed / fps);
     await page.waitForTimeout(12);  // let the compositor commit the DOM layers (subtitle, title) of this frame
     await page.screenshot({ path: path.join(frames, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 });
     if (n % 5 === 0) {
@@ -72,10 +73,11 @@ function serve(dir) {
   }
   const log = await page.evaluate(() => window.__PLAYTEST__.mvLog());
   await page.close();
-  const office = path.join(outDir, 'office.mp4');
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-vf', 'scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', office]);
+  const officeMp4 = path.join(outDir, 'office.mp4');
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-vf', 'scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', officeMp4]);
 
-  const ev = { fps, from, office: to - from, events: log.map(e => ({ ...e, t: +(e.t - from).toFixed(3) })).filter(e => e.t >= 0), safe, errors };
+  const office = total / fps;
+  const ev = { fps, from, speed, office, events: log.map(e => ({ ...e, t: +((e.t - from) / speed).toFixed(3) })).filter(e => e.t >= 0 && e.t <= office), safe, errors };
   const card = opt('--endcard');
   if (card) {
     const cp = await (await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })).newPage();
@@ -88,11 +90,11 @@ function serve(dir) {
     for (let n = 0; n < cn; n++) { await cp.evaluate(t => window.__seek(t), n / fps); await cp.screenshot({ path: path.join(cf, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); }
     const endcard = path.join(outDir, 'endcard.mp4');
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.8,scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
-    fs.writeFileSync(path.join(outDir, 'concat.txt'), `file '${office}'\nfile '${endcard}'\n`);
+    fs.writeFileSync(path.join(outDir, 'concat.txt'), `file '${officeMp4}'\nfile '${endcard}'\n`);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(outDir, 'concat.txt'), '-c', 'copy', '-movflags', '+faststart', path.join(outDir, 'mv-noaudio.mp4')]);
-    ev.endcard = { start: to - from, seconds: cn / fps, sfx: [1.8, 2.8] };
+    ev.endcard = { start: office, seconds: cn / fps, sfx: [1.8, 2.8] };
   }
-  ev.seconds = (to - from) + (ev.endcard ? ev.endcard.seconds : 0);
+  ev.seconds = office + (ev.endcard ? ev.endcard.seconds : 0);
   fs.writeFileSync(path.join(outDir, 'events.json'), JSON.stringify(ev, null, 2));
   await browser.close(); server.close();
   console.log(JSON.stringify({ frames: total, seconds: ev.seconds, safe, events: log.length, errors: errors.slice(0, 5) }));
