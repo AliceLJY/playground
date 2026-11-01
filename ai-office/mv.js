@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
   const BEIJING = 8 * 3600000;
-  const toMs = hhmm => { const [h, m] = hhmm.split(':').map(Number); return Date.parse('2026-11-01T00:00:00Z') - BEIJING + (h * 60 + m) * 60000; };
+  const toMs = hhmm => { const [h, m, s = 0] = hhmm.split(':').map(Number); return Date.parse('2026-11-01T00:00:00Z') - BEIJING + (h * 60 + m) * 60000 + s * 1000; };
   const lerp = (a, b, k) => a + (b - a) * k, clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
   const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
   const mix = (c1, c2, k) => '#' + [0, 2, 4].map(i => Math.round(lerp(parseInt(c1.slice(1 + i, 3 + i), 16), parseInt(c2.slice(1 + i, 3 + i), 16), k)).toString(16).padStart(2, '0')).join('');
@@ -13,7 +13,8 @@
   function create(script, C) {
     const keys = script.clock.map(([at, hhmm]) => [at * 1000, toMs(hhmm)]);
     const WIDE = { cx: 180, cy: 208, z: 1 };                 // whole room: logical y 12..404 fills the 1080×1176 canvas
-    let cursor = 0, lightsOffAt = null;
+    let cursor = 0, lightsOffAt = null, trackedGuard = null;
+    const stats = JSON.parse(JSON.stringify(script.stats)), events = [];
     const fired = {}, log = [], arrived = new Set(), queued = new Set(), inside = new Set();
     let lastHello = null, lastThanks = null, lastDelivery = null, bossInside = false;
     const cams = script.camera.filter(c => c.at != null).map(c => ({ ...c, start: c.at * 1000 })).sort((p, q) => p.start - q.start);
@@ -58,9 +59,20 @@
     function tick(ms, sim) {
       while (cursor < script.events.length && script.events[cursor].at * 1000 <= ms) {
         const e = script.events[cursor++], at = new Date(clock(ms)).toISOString();
-        if (e.notice) sim.notice({ text: e.notice, at });
-        else if (e.visitors != null) sim.setVisitors(e.visitors);
-        else if (e.treat) sim.treat(e.treat, at);
+        if (e.scene) {
+          const next = { ...sim.scene, ...e.scene };
+          if (e.scene.call) next.call = { ...e.scene.call, since: at };
+          if (e.scene.meeting) next.meeting = { ...e.scene.meeting, since: sim.scene.meeting?.since || at };
+          if (e.scene.guard) next.guard = { ...e.scene.guard, at };
+          if (e.scene.meeting && !sim.scene.meeting) { events.push({ kind:'meeting', at:next.meeting.since }); stats.meetingsTotal++; stats.today.meetings++; }
+          if (e.scene.call && !sim.scene.call) { stats.callsTotal++; stats.today.calls++; }
+          if (e.scene.dispatched) { const n=e.scene.dispatched.filter(id=>!sim.scene.dispatched.includes(id)).length; stats.handoffsTotal+=n; stats.today.handoffs+=n; }
+          sim.setScene(next);
+          for (const key of ['call','meeting','guard','dispatched']) if (key in e.scene) say(key, ms, { value: next[key] });
+        }
+        else if (e.notice) sim.notice({ text: e.notice, at });
+        else if (e.visitors != null) { const n=Math.max(0,e.visitors-sim.visitorTarget);stats.visitorsTotal+=n;stats.today.visitors+=n;sim.setVisitors(e.visitors); }
+        else if (e.treat) { stats.treatsTotal++; stats.today.treats++; sim.treat(e.treat, at); }
         else if ('boss' in e) { sim.bossTarget = e.boss === 'desk' ? { ...C.bossDesk } : e.boss === 'door' ? { ...C.door } : null; sim.bossAway = e.boss === 'door'; if (e.boss === 'door') say('boss-leaving', ms); }
         else if (e.lights === 'off') { lightsOffAt = ms; say('lights-off', ms); }
         else if (e.id) { sim.setStatus(e.id, e.status, at); say('status', ms, { id: e.id, status: e.status }); if (e.status === 'off') arrived.delete(e.id); }
@@ -68,6 +80,7 @@
     }
     // Watch the engine after each step and note what happened, frame-accurately, for the music (events.json).
     function observe(ms, sim) {
+      trackedGuard = sim.guard && {x:sim.guard.x,y:sim.guard.y};
       for (const a of sim.actors) {
         const home = C.home(a.i), atHome = C.distance(a, home) < 1;
         if ((a.status === 'busy' || a.status === 'idle') && atHome && !arrived.has(a.id)) { arrived.add(a.id); inside.add(a.id); say('arrive', ms, { id: a.id }); }
@@ -83,6 +96,9 @@
       if (hello && hello.at !== lastHello) { lastHello = hello.at; say('hello', ms); trigger('hello', ms); }
       const thanks = sim.thanksNow();
       if (thanks && thanks.at !== lastThanks) { lastThanks = thanks.at; say('thanks', ms, { kind: thanks.kind }); trigger('thanks', ms); }
+      const caller = sim.actors.find(a => a.activity === 'call' && !a.path.length);
+      if (caller && fired['call-seated'] == null) { fired['call-seated'] = ms; sim.scene.call.since = new Date(clock(ms)).toISOString(); say('call-seated', ms, { storyTime: clock(ms) }); }
+      if (sim.guard?.lap && sim.scene.guard.phase === 'patrol') { sim.setScene({ ...sim.scene, guard: { ...sim.scene.guard, phase: 'done', ok: true } }); say('guard-done', ms); }
       const L = light(ms);
       if (L.b === 'dusk' && L.w > 0 && fired.dusk == null) { fired.dusk = ms; say('dusk', ms); }
       if (L.b === 'night' && L.w > 0 && fired.night == null) { fired.night = ms; say('night', ms); }
@@ -93,12 +109,12 @@
       let cur = { ...WIDE };
       for (const c of cams) {
         if (c.start > ms) break;
-        const target = c.to === 'wide' ? { ...WIDE } : { cx: c.to[0], cy: c.to[1], z: c.zoom || 1 };
-        const k = ease(clamp((ms - c.start) / (c.dur * 1000)));
+        const target = c.follow === 'guard' && trackedGuard ? {cx:trackedGuard.x,cy:trackedGuard.y,z:c.zoom} : c.to === 'wide' ? { ...WIDE } : { cx: c.to[0], cy: c.to[1], z: c.zoom || 1 };
+        const progress = clamp((ms - c.start) / (c.dur * 1000)), k = c.linear ? progress : ease(progress);
         cur = { cx: lerp(cur.cx, target.cx, k), cy: lerp(cur.cy, target.cy, k), z: lerp(cur.z, target.z, k) };
       }
       const hw = 180 / cur.z, hh = 196 / cur.z;
-      return { cx: clamp(cur.cx, hw, 360 - hw), cy: clamp(cur.cy, 12 + hh, 404 - hh), z: cur.z };
+      return { cx: clamp(cur.cx, hw, 360 - hw), cy: clamp(cur.cy, 12 + hh, C.H - 10 - hh), z: cur.z };
     }
     // Canvas transform for a 1080×1176 canvas: 3 device pixels per logical pixel at the wide framing.
     function view(ms) {
@@ -115,7 +131,8 @@
       const t = (ms - lightsOffAt) / 1000;
       return t < .25 ? lerp(0, .78, t / .25) : t < 1.0 ? .78 : Math.min(1, lerp(.78, 1, (t - 1.0) / .8));
     }
-    return { clock, hours, light, palette, start, tick, observe, camera, view, subtitle, darkness, log, seconds: script.seconds, title: script.title, WIDE };
+    const pace = ms => (script.pace || [[0,1]]).filter(p => p[0] * 1000 <= ms).at(-1)[1];
+    return { stats, events, pace, clock, hours, light, palette, start, tick, observe, camera, view, subtitle, darkness, log, seconds: script.seconds, title: script.title, WIDE };
   }
 
   // ---- browser-only drawing (helpers come from office.js: r, text) ----
@@ -142,10 +159,10 @@
   // where someone is still working, so the night room reads as night and the two left are lit by their screens.
   function drawOver(ctx, sim, h, ms, L) {
     const w = { day: 0, dusk: 0, night: 0 }; w[L.a] += 1 - L.w; w[L.b] += L.w;
-    if (w.dusk > 0) { ctx.fillStyle = `rgba(222, 122, 46, ${(0.22 * w.dusk).toFixed(3)})`; ctx.fillRect(0, 0, 360, 420); }
+    if (w.dusk > 0) { ctx.fillStyle = `rgba(222, 122, 46, ${(0.22 * w.dusk).toFixed(3)})`; ctx.fillRect(0, 0, h.C.W, h.C.H); }
     const lamp = 0.45 * w.dusk + w.night;
     if (w.night > 0) {
-      ctx.fillStyle = `rgba(14, 20, 46, ${(0.5 * w.night).toFixed(3)})`; ctx.fillRect(0, 0, 360, 420);
+      ctx.fillStyle = `rgba(14, 20, 46, ${(0.5 * w.night).toFixed(3)})`; ctx.fillRect(0, 0, h.C.W, h.C.H);
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       for (const a of sim.actors) {
         if (a.status !== 'busy' || a.path.length) continue;
@@ -160,6 +177,27 @@
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(114, 266, 1, 114, 266, 30); g.addColorStop(0, `rgba(250, 200, 120, ${(0.3 * lamp).toFixed(3)})`); g.addColorStop(1, 'rgba(250, 200, 120, 0)');
       ctx.fillStyle = g; ctx.fillRect(82, 234, 64, 64); ctx.restore();
+    }
+    // A phone conversation needs visible speech/hand motion even while the story clock holds at 11:30.
+    // Quantized pixel gestures, driven only by page time; no CSS or wall-clock animation.
+    const caller=sim.actors.find(a=>a.activity==='call' && !a.path.length);
+    if(caller){
+      const x=Math.round(caller.x),y=Math.round(caller.y),talk=Math.floor(ms/100)%4;
+      h.r(ctx,'#e4bb91',x-2,y-12,5,3);
+      h.r(ctx,'#544537',x-1,y-11,3,talk%2?2:1);
+      h.r(ctx,'#e4bb91',x+5,y-13+(talk%2),3,3);
+      if(talk<2){h.r(ctx,'#efc66c',x+12,y-19,2,3);h.r(ctx,'#efc66c',x+16,y-21,1,6);}
+    }
+    // The torch and all-clear lamp emit light; keep them visible above the night wash.
+    if (sim.guard && w.night > 0) {
+      const a=sim.guard;
+      if (sim.scene.guard.phase==='done' && sim.scene.guard.ok) h.r(ctx,'#67b779',322,375,5,5);
+      else if (a.path.length) {
+        const p=a.path[0],angle=Math.atan2(p.y-a.y,p.x-a.x);
+        ctx.fillStyle='#fff0ab28';ctx.beginPath();ctx.moveTo(a.x,a.y-8);
+        ctx.lineTo(a.x+Math.cos(angle-.35)*37,a.y-8+Math.sin(angle-.35)*37);
+        ctx.lineTo(a.x+Math.cos(angle+.35)*37,a.y-8+Math.sin(angle+.35)*37);ctx.closePath();ctx.fill();
+      }
     }
     // A real handful of confetti for a finished job (the engine's eight dots are too small to read in a close-up):
     // strips thrown up over the head, then fluttering down for two seconds.
@@ -187,6 +225,8 @@
 
   function mount(doc) {
     doc.body.classList.add('mv');
+    // Keep the carried note clear of the courier and the host in the delivery close-up.
+    Object.assign(doc.querySelector('#paper').style, {top:'24px',bottom:'auto',left:'12%',width:'76%'});
     const el = (tag, id, parent = doc.body) => { const n = doc.createElement(tag); n.id = id; parent.append(n); return n; };
     const title = el('div', 'mv-title'), sub = el('div', 'mv-sub'), day = el('canvas', 'mv-day'), sign = el('div', 'mv-sign'), dark = el('div', 'mv-dark');
     title.innerHTML = '<span class="mv-name"></span><time class="mv-clock"></time>';

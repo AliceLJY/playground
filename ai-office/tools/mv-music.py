@@ -207,6 +207,19 @@ for tk in every("knock"):
     put(tk, woodblock(820), 0.2, 0.15)
     put(tk + 0.16, woodblock(860), 0.16, 0.15)
 
+# ---- v5: a small ring, a paper flutter, page turns and the guard's all-clear.
+for tc in every("call-seated"):
+    put(tc, box(hz("E5"), .7), .10, .3)
+    put(tc + .18, box(hz("G5"), .7), .08, .3)
+for e in EVENTS:
+    if e["type"] == "dispatched" and e.get("value"):
+        put(e["t"], noise_hit(.24, 1800, 6500, .06), .08, .2)
+    if e["type"] == "meeting" and e.get("value"):
+        put(e["t"], woodblock(660), .1, -.2)
+for tg in every("guard-done"):
+    put(tg, box(hz("G4"), 1.5), .09)
+    put(tg + .2, box(hz("C5"), 1.8), .08)
+
 # ---- exit: one soft pluck per person leaving, stepping down
 for k, tx in enumerate(every("exit")):
     put(tx, pluck(hz(["G4", "E4", "D4", "C4", "A3", "G3", "E3", "D3", "C3", "A2"][min(k, 9)]), 1.4), 0.14, 0.35)
@@ -217,7 +230,7 @@ put(LIGHTS + 0.05, pad([hz(n) for n in ("C3", "G3", "C4", "D4", "E4")], 3.0, bri
 put(LIGHTS + 0.1, box(hz("E5"), 3.0), 0.1)
 
 # ---- signature card: the opening motif once more, and the two settling hits
-if CARD is not None:
+if CARD is not None and not ev["endcard"].get("audio"):
     for k, n in enumerate(["G5", "C6", "E6"]):
         put(CARD + 0.35 + 0.45 * k, box(hz(n), 2.6), 0.12, -0.2 + 0.2 * k)
     put(CARD + 1.2, pad([hz(n) for n in ("F3", "A3", "C4", "E4")], 4.2, bright=0.6), 0.1)
@@ -248,6 +261,14 @@ out = mix + wet * 0.35
 
 out = np.tanh(1.2 * out / np.abs(out).max()) / np.tanh(1.2)
 out = out / np.abs(out).max() * 10 ** (-3 / 20)
+# The v5 card uses the exact v4 PCM tail, including its licensed settling sounds.
+# This avoids looking outside this production's copied media or changing the card config.
+if CARD is not None and ev["endcard"].get("audio"):
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", ev["endcard"]["audio"], "-f", "f32le", "-ac", "2", "-ar", str(SR), "-"], capture_output=True, check=True).stdout
+    tail = np.frombuffer(raw, dtype="<f4").reshape(-1, 2)
+    at = int(round(CARD * SR))
+    length = min(len(tail), len(out) - at)
+    out[at:at + length] = tail[:length]
 with wave.open(OUT, "wb") as w:
     w.setnchannels(2)
     w.setsampwidth(2)
