@@ -4,7 +4,7 @@
 // 再按设备像素截图；?mv=1&hold=1 让页面自己不走，画面只取决于推进了多少时间（字幕、灯光、镜头、淡出都按页面时间算）。
 // 录完写 events.json（每件事发生在第几秒，给 tools/mv-music.py 卡点），frames/ 合成 office.mp4。
 // --endcard 给署名尾板目录（video-director 的 signature-endcard 拷一份、只改 config.js），逐帧 seek 截图接在片尾，
-// 0.5 秒从黑场淡入，合成 mv-noaudio.mp4。--stills 只拍这几个时刻的 PNG（分镜表用），不出视频。
+// 0.8 秒从黑场淡入，合成 mv-noaudio.mp4。--stills 只拍这几个时刻的 PNG（分镜表用），不出视频。
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), { execFileSync } = require('node:child_process');
 
@@ -87,7 +87,7 @@ function serve(dir) {
     const cn = Math.round(dur * fps);
     for (let n = 0; n < cn; n++) { await cp.evaluate(t => window.__seek(t), n / fps); await cp.screenshot({ path: path.join(cf, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); }
     const endcard = path.join(outDir, 'endcard.mp4');
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.5,scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.8,scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
     fs.writeFileSync(path.join(outDir, 'concat.txt'), `file '${office}'\nfile '${endcard}'\n`);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(outDir, 'concat.txt'), '-c', 'copy', '-movflags', '+faststart', path.join(outDir, 'mv-noaudio.mp4')]);
     ev.endcard = { start: to - from, seconds: cn / fps, sfx: [1.8, 2.8] };

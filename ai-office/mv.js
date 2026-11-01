@@ -113,7 +113,7 @@
     function darkness(ms) {
       if (lightsOffAt == null || ms < lightsOffAt) return 0;
       const t = (ms - lightsOffAt) / 1000;
-      return t < .25 ? lerp(0, .78, t / .25) : t < 1.6 ? .78 : Math.min(1, lerp(.78, 1, (t - 1.6) / 1.2));
+      return t < .25 ? lerp(0, .78, t / .25) : t < 1.0 ? .78 : Math.min(1, lerp(.78, 1, (t - 1.0) / .8));
     }
     return { clock, hours, light, palette, start, tick, observe, camera, view, subtitle, darkness, log, seconds: script.seconds, title: script.title, WIDE };
   }
@@ -160,6 +160,19 @@
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(114, 266, 1, 114, 266, 30); g.addColorStop(0, `rgba(250, 200, 120, ${(0.3 * lamp).toFixed(3)})`); g.addColorStop(1, 'rgba(250, 200, 120, 0)');
       ctx.fillStyle = g; ctx.fillRect(82, 234, 64, 64); ctx.restore();
+    }
+    // A real handful of confetti for a finished job (the engine's eight dots are too small to read in a close-up):
+    // strips thrown up over the head, then fluttering down for two seconds.
+    for (const a of sim.actors) {
+      const age = a.status === 'done' && a.doneArrived != null ? sim.time - a.doneArrived : Infinity;
+      if (age > 2.4) continue;
+      const p = age / 2.4, x = Math.round(a.x), y = Math.round(a.y);
+      for (let j = 0; j < 28; j++) {
+        const spread = ((j * 37) % 29) / 28 - .5, lift = 18 + (j * 13) % 14;
+        const up = Math.sin(Math.min(1, p / .22) * Math.PI / 2) * lift, fall = Math.max(0, p - .22) / .78 * (46 + (j * 7) % 18);
+        const px = x + spread * 56 * Math.min(1, p * 3) + Math.sin(age * 7 + j) * 2, py = y - 26 - up + fall, flip = Math.floor(age * 10 + j) % 2;
+        h.r(ctx, ['#d96952', '#ebce80', '#7bafa0', '#8f6fd6', '#f2a65a'][j % 5], px, py, flip ? 3 : 1, flip ? 1 : 3);
+      }
     }
     // Scripted words over someone's head (the boss saying 好 when approving, 明天见 at the door), drawn last so
     // they stay readable at night.
