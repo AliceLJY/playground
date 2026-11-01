@@ -142,3 +142,7 @@ Fixed seed 7 views (same simulation and rendering path):
 For someone who enjoys seeing a tiny team turn ideas into work, or wants a quiet glance at local AI activity.
 
 Code, pixel drawing routines, animation and fictional demo writing were made through AI collaboration. There are no external images, models, animation assets or audio. Attribution: **我的AI小木屋 / @AliceLJY**.
+
+## Rights
+
+All rights reserved, as for the whole repository ([`LICENSE`](../LICENSE)): the idea of a pixel office for AI agents is free to borrow, but this code, its pixel art and its layouts may not be copied or built into another app or product without my written permission. Open-source alternatives exist if you want a starting point.

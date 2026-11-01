@@ -1,0 +1,35 @@
+Copyright (c) 2026 我的AI小木屋 (GitHub @AliceLJY). All rights reserved.
+
+Everything in this repository is mine unless a folder's THIRD_PARTY_NOTICES says
+otherwise: source code, pixel art and other artwork, animation scripts, layouts,
+music, text and recorded films.
+
+You may:
+- open, play and share links to the published pages;
+- read the code to learn from it, and borrow the ideas freely: an idea such as
+  "draw AI agents as a pixel office" belongs to nobody, so build your own.
+
+You may not, without my written permission:
+- copy, adapt or redistribute the code, art, layouts, music or films;
+- put any of them, modified or not, into an app, service or product,
+  paid or free.
+
+Third-party parts keep their own licences and are listed in each folder's
+THIRD_PARTY_NOTICES (for example the bundled three.js, under the MIT licence).
+
+---
+
+版权所有 (c) 2026 我的AI小木屋（GitHub @AliceLJY），保留所有权利。
+
+除各文件夹 THIRD_PARTY_NOTICES 另有说明的部分外，本仓库的一切都归我：源码、像素画与其他美术、
+动画剧本、布局、音乐、文字和录制的影片。
+
+可以：
+- 打开、试玩、转发已发布的页面链接；
+- 读代码学习，点子随意借鉴。「把 AI 画成像素办公室」这样的点子不属于任何人，欢迎自己做一个。
+
+未经我书面许可，不可以：
+- 复制、改编或再发布这里的代码、美术、布局、音乐和影片；
+- 把其中任何部分（改过或没改过）放进 app、服务或产品，收费免费都不行。
+
+第三方部分保留各自的许可，列在各文件夹的 THIRD_PARTY_NOTICES 里（例如打包进来的 three.js，MIT 许可）。
