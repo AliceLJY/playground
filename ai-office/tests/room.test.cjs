@@ -132,3 +132,15 @@ test('HTTP: meeting and call need the token, bad states 400; both feeds carry sc
   const again = await createOffice({ config, token, stateFile: path.join(dir, 'state.json'), clock: () => time, collector: async () => ({}), sceneCollector: async () => signal });
   await again.poll(); assert.ok(again.snapshot().scene.meeting, 'the meeting survives a restart'); assert.equal(again.snapshot().stats.meetingsTotal, 1, 'no backfill: live count only');
 });
+
+test('an away label per desk: carried in both feeds, trimmed to 16, rejected when empty or too long', async () => {
+  const { createOffice, validateConfig } = await import('../server/office-server.mjs');
+  const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  config.roster[1].awayLabel = '云上打盹';
+  await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
+  const dir = await fs.mkdtemp(path.join(root, 'tools/.test-data/away-'));
+  const office = await createOffice({ config, token: randomBytes(24).toString('hex'), stateFile: path.join(dir, 'state.json'), clock: () => DAY, collector: async () => ({}), sceneCollector: async () => ({}) });
+  await office.poll();
+  assert.equal(office.snapshot().roster[1].awayLabel, '云上打盹'); assert.equal(office.snapshot().roster[0].awayLabel, undefined);
+  for (const bad of ['', '   ', 'x'.repeat(17), 5]) { const c = structuredClone(config); c.roster[1].awayLabel = bad; assert.throws(() => validateConfig(c), /away label/, String(bad)); }
+});
