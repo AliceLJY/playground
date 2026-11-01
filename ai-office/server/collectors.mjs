@@ -11,9 +11,27 @@ export function codexRunning(output) {
   return output.split('\n').some(line => {
     const m = line.trim().match(/^\d+\s+(\S+)(.*)$/);
     if (!m) return false;
-    return /(?:^|\/)codex$/.test(m[1]) && !/app-server|mcp|login|ChatGPT\.app|cua_node|\.codex\/plugins\/cache/i.test(m[1] + m[2]);
+    // `codex` from a terminal, codex-run.sh or `codex exec` all count. The shim at ~/.local/bin/codex execs the binary
+    // inside ChatGPT.app, so the bundle path is not a reason to skip; the app's own background helpers (app-server,
+    // exec-server, mcp, login, computer-use) are.
+    return /(?:^|\/)codex$/.test(m[1]) && !/(?:^|\s)(?:app-server|exec-server|mcp(?:-server)?|login)(?:\s|$)|cua_node|\.codex\/plugins\/cache/i.test(m[2]);
   });
 }
+
+// How many interactive runs of a CLI are alive right now, whatever started them (Alice in a terminal, CC through a
+// wrapper, a TG bridge): the first token's basename is one of `names`; the CLI's own helper modes are not runs.
+export function processCount(output, names) {
+  const wanted = new Set(names || []);
+  if (!wanted.size) return 0;
+  return output.split('\n').filter(line => {
+    const m = line.trim().match(/^\d+\s+(\S+)(.*)$/);
+    if (!m) return false;
+    const base = m[1].slice(m[1].lastIndexOf('/') + 1);
+    return wanted.has(base) && !/(?:^|\s)(?:app-server|exec-server|mcp(?:-server)?|login|--version|-v)(?:\s|$)/i.test(m[2]);
+  }).length;
+}
+
+const ps = async () => (await exec('/bin/ps', ['-axo', 'pid,args'], { timeout: 3000, maxBuffer: 8 * 1024 * 1024 })).stdout;
 
 function alive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return null;
@@ -70,10 +88,21 @@ export async function latestMtime(root, limit = 20000) {
 
 // Status slips other bots write for us (one-line JSON per bot: {status, task, at}); pulled by a mirror,
 // so they lag. Only the three words a bot may write are kept; `task` never leaves the collector.
-export async function statusFiles(dir, fallbackDir) {
+// `awakeFile` is the puller's one-page status note; its last-attempt line says whether the box answered ssh.
+export async function boxAsleep(file) {
+  if (!file) return undefined;
+  try {
+    if ((await stat(file)).size > 4096) return undefined;
+    const line = (await readFile(file, 'utf8')).split('\n').find(l => l.startsWith('上次尝试：'));
+    return line ? /休眠|没连上/.test(line) : undefined;
+  } catch { return undefined; }
+}
+
+export async function statusFiles(dir, fallbackDir, awakeFile) {
   const fallback = fallbackDir ? await latestMtime(fallbackDir).catch(() => ({ error: true })) : { empty: true };
+  const asleep = await boxAsleep(awakeFile);
   let entries;
-  try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) { if (e.code !== 'ENOENT') throw e; return { slips: [], fallback }; }
+  try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) { if (e.code !== 'ENOENT') throw e; return { slips: [], fallback, asleep }; }
   const slips = [];
   for (const entry of entries) {
     if (!entry.isFile() || entry.isSymbolicLink() || !entry.name.endsWith('.json') || entry.name.startsWith('.')) continue;
@@ -87,7 +116,7 @@ export async function statusFiles(dir, fallbackDir) {
       slips.push({ status: data.status, at: Number.isFinite(at) ? at : info.mtimeMs });
     } catch { /* a half-written or odd slip is skipped, never fatal */ }
   }
-  return { slips, fallback };
+  return { slips, fallback, asleep };
 }
 
 // A folder on a TCC-protected volume (a removable disk) can be stat'ed but never listed from launchd: listing hangs
@@ -151,7 +180,7 @@ export async function collect(source, previous = {}) {
       case 'push': case 'courier': return {};
       case 'cc': return await sessions(expand(source.directory));
       case 'codex': {
-        const running = codexRunning((await exec('/bin/ps', ['-axo', 'pid,args'], { timeout: 3000, maxBuffer: 8 * 1024 * 1024 })).stdout);
+        const running = codexRunning(await ps());
         // The Codex app and the CLI both append the open thread's rollout under CODEX_HOME/sessions/<y>/<m>/<d>/; a rollout
         // written in the last minutes is a turn in progress whatever window it came from. Only the two newest day folders are read.
         const rollouts = await latestRollout(expand(source.sessions || '~/.codex/sessions'));
@@ -160,6 +189,8 @@ export async function collect(source, previous = {}) {
       case 'launchd': case 'etwin': {
         // Several instances behind one desk (two TG bridges of the same engine): at work if any is, off only if all are.
         const instances = source.instances || [{ label: source.label, log: source.log }];
+        // The same engine has several forms (a TG bridge, Alice's terminal, a CC wrapper); one desk shows all of them.
+        const processes = source.processes?.length ? { processes: processCount(await ps(), source.processes) } : {};
         const seen = [];
         for (const inst of instances) {
           const running = await launchd(inst.label);
@@ -168,10 +199,10 @@ export async function collect(source, previous = {}) {
           seen.push({ running, mtime: (await stat(file)).mtimeMs, file });
         }
         const up = seen.filter(x => x.running === true);
-        if (!up.length) return { running: seen.every(x => x.running === false) ? false : undefined };
+        if (!up.length) return { running: seen.every(x => x.running === false) ? false : undefined, ...processes };
         const best = up.reduce((a, b) => (b.mtime > a.mtime ? b : a));
         if (source.type === 'etwin') return { running: true, mtime: best.mtime, ...await etwinActivity(best.file, previous.memory || {}) };
-        return { running: true, mtime: best.mtime };
+        return { running: true, mtime: best.mtime, ...processes };
       }
       case 'artifacts': {
         // One desk may watch several drop points (a media folder on the removable disk, a chat snapshot folder on the
@@ -187,7 +218,7 @@ export async function collect(source, previous = {}) {
         if (!seen) throw new Error('missing');
         return latest ? { mtime: latest } : { empty: true };
       }
-      case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null);
+      case 'statusfiles': return await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null, source.awakeFile ? expand(source.awakeFile) : null);
       default: return { error: true };
     }
   } catch { return { error: true }; }

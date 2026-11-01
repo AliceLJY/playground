@@ -273,3 +273,46 @@ test('artifacts with several drop points: newest anywhere counts, an optional mi
   assert.ok(Math.abs(r.mtime-fs.statSync(path.join(b,'new.mp4')).mtimeMs)<1);
   const missing=await collect({type:'artifacts',directories:[{path:path.join(b,'nope')}]}); assert.equal(missing.error,true);
 });
+
+test('one desk per engine: a live CLI run from any caller is busy, its end is a short done, a stopped bridge then rests on the run time',async()=>{
+  const {reduceMember}=await core, {processCount,codexRunning}=await import('../server/collectors.mjs');
+  const ps=['1 kimi-code','2 /Users/a/.kimi-code/bin/kimi -p hi','3 /opt/homebrew/bin/agy -p Goal: review','4 bash /Users/a/scripts/kimi-run.sh -f x','5 /x/kimi mcp','6 /opt/homebrew/bin/agy --version','7 /x/agy login'].join('\n');
+  assert.equal(processCount(ps,['kimi','kimi-code']),2); assert.equal(processCount(ps,['agy']),1); assert.equal(processCount(ps,[]),0);
+  assert.equal(codexRunning('123 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex exec --json task'),true,'the shim execs the binary inside the app bundle');
+  assert.equal(codexRunning('123 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex -c forced_login_method="chatgpt" exec-server --remote https://x'),false);
+  assert.equal(codexRunning('123 /Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex -c features.code_mode_host=true app-server'),false);
+  const src={type:'launchd',label:'x',log:'y',processes:['kimi','kimi-code']};
+  let p=reduceMember(src,{running:false,processes:2},{},DAY); assert.equal(p.status,'busy'); assert.equal(p.badge,'2','bridge off, two terminal/CC runs alive');
+  p=reduceMember(src,{running:true,mtime:DAY-3600000,processes:1},p,DAY+10000); assert.equal(p.status,'busy'); assert.equal(p.badge,'1');
+  p=reduceMember(src,{running:true,mtime:DAY-3600000,processes:0},p,DAY+20000); assert.equal(p.status,'done'); assert.equal(p.badge,'');
+  p=reduceMember(src,{running:true,mtime:DAY-3600000,processes:0},p,DAY+40000); assert.equal(p.status,'idle','run ended 30 s ago, old log: resting, not busy');
+  p=reduceMember(src,{running:false,processes:0},p,DAY+60000); assert.equal(p.status,'idle','bridge stopped but a run ended a minute ago');
+  p=reduceMember(src,{running:false,processes:0},p,DAY+31*60000); assert.equal(p.status,'off','half an hour later the stopped bridge reads off');
+  p=reduceMember(src,{running:true,mtime:DAY+32*60000-1000,processes:0},p,DAY+32*60000); assert.equal(p.status,'busy','bridge log fresh still counts'); assert.equal(p.badge,'');
+  assert.equal(reduceMember(src,{running:true,mtime:DAY-60000},{},DAY).status,'busy','no processes field at all keeps the old rule');
+});
+
+test('status slips from a sleeping box: busy is forgotten, waiting and done still count, then the desk is away',async()=>{
+  const {reduceMember}=await core, {boxAsleep,statusFiles}=await import('../server/collectors.mjs');
+  const src={type:'statusfiles'};
+  const sig=(slips,asleep)=>({slips,asleep,fallback:{mtime:DAY-60*60000}});
+  assert.equal(reduceMember(src,sig([{status:'busy',at:DAY-60000}],false),{},DAY).status,'busy');
+  assert.equal(reduceMember(src,sig([{status:'busy',at:DAY-60000}],true),{},DAY).status,'away','asleep: a busy slip is a forgotten slip');
+  assert.equal(reduceMember(src,sig([{status:'waiting',at:DAY-60000}],true),{},DAY).status,'waiting');
+  assert.equal(reduceMember(src,sig([{status:'done',at:DAY-60000}],true),{},DAY).status,'done');
+  assert.equal(reduceMember(src,sig([],true),{},DAY).status,'away','asleep with a fresh mirror is still away, not idle');
+  assert.equal(reduceMember(src,sig([],false),{memory:{seenMtime:DAY-60*60000}},DAY).status,'idle');
+  assert.equal(reduceMember(src,sig([{status:'busy',at:DAY-60000}],undefined),{},DAY).status,'busy','no marker file: old behaviour');
+  const fs=require('node:fs'); const os=require('node:os'); const path=require('node:path');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'awake-'));
+  const f=path.join(dir,'上次同步.txt');
+  fs.writeFileSync(f,'上次成功同步：11-01 14:59\n进度：已经和云电脑一致\n上次尝试：11-01 15:02 云电脑在休眠，没连上（正常）\n');
+  assert.equal(await boxAsleep(f),true);
+  fs.writeFileSync(f,'上次成功同步：11-01 14:59\n上次尝试：11-01 14:59 成功\n');
+  assert.equal(await boxAsleep(f),false);
+  fs.writeFileSync(f,'只有一行\n'); assert.equal(await boxAsleep(f),undefined);
+  assert.equal(await boxAsleep(path.join(dir,'missing.txt')),undefined);
+  const slips=fs.mkdtempSync(path.join(os.tmpdir(),'slips-')); fs.writeFileSync(path.join(slips,'a.json'),JSON.stringify({status:'busy',at:'2026-11-01T14:30:00+08:00'}));
+  fs.writeFileSync(f,'上次成功同步：11-01 14:59\n上次尝试：11-01 14:59 成功\n');
+  const r=await statusFiles(slips,null,f); assert.equal(r.asleep,false); assert.equal(r.slips.length,1);
+});

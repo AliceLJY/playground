@@ -83,25 +83,35 @@ export function deriveSignal(source, signal, previous = {}, now) {
     return result(inactive(lastSignalAt, now), { badge, lastSignalAt });
   }
   if (source.type === 'launchd' || source.type === 'etwin') {
+    // A live run of the CLI (any window, any caller) is work; when the last one ends the desk celebrates, then the
+    // run's end time counts as a signal so a stopped bridge does not read as off right after a terminal session.
+    if (Number.isInteger(signal.processes) && signal.processes > 0) { memory.processAt = now; return result('busy', { lastSignalAt: now, badge: String(signal.processes) }); }
+    if (memory.processAt && now - memory.processAt < 20_000) return result('done', { lastSignalAt: memory.processAt, badge: '' });
     const fallback = mtimeStatus(signal, now);
-    if (fallback === 'off' || fallback === 'unknown') return result(fallback);
+    const ranAt = validTime(memory.processAt, now) ? memory.processAt : 0;
+    if (fallback === 'off' && ranAt) return result(now - ranAt < 30 * MINUTE ? 'idle' : 'off', { lastSignalAt: ranAt, badge: '' });
+    if (fallback === 'off' || fallback === 'unknown') return result(fallback, { badge: '' });
     if (source.type === 'etwin') {
       if (signal.activity) { memory.activityAt = now; memory.activityMtime = signal.mtime; }
       if (memory.activityAt && now - memory.activityAt < MINUTE) return result('busy', { lastSignalAt: memory.activityAt });
       if (memory.activityAt && now - memory.activityAt < MINUTE + 20_000) return result('done', { lastSignalAt: memory.activityAt });
       if (memory.activityAt && signal.mtime <= memory.activityMtime) return result(inactive(signal.mtime, now), { lastSignalAt: memory.activityAt });
     }
-    return result(fallback, { lastSignalAt: signal.mtime });
+    if (fallback === 'busy') return result('busy', { lastSignalAt: signal.mtime, badge: '' });
+    const lastSignalAt = Math.max(signal.mtime, ranAt);
+    return result(inactive(lastSignalAt, now), { lastSignalAt, badge: '' });
   }
   if (source.type === 'statusfiles') {
     // A slip older than two hours is stale (the box sleeps and forgets to say done); then the mirror decides.
-    const fresh = (signal.slips || []).filter(s => validTime(s.at, now) && now - s.at < 120 * MINUTE);
+    // A busy slip from a box that no longer answers ssh is a forgotten slip, not work: nobody works asleep.
+    const fresh = (signal.slips || []).filter(s => validTime(s.at, now) && now - s.at < 120 * MINUTE && !(signal.asleep && s.status === 'busy'));
     const pick = (status) => fresh.filter(s => s.status === status);
     const latestAt = (list) => Math.max(...list.map(s => s.at));
     if (pick('waiting').length) return result('waiting', { lastSignalAt: latestAt(pick('waiting')), badge: String(pick('waiting').length) });
     if (pick('busy').length) return result('busy', { lastSignalAt: latestAt(pick('busy')), badge: String(pick('busy').length) });
     const done = pick('done').filter(s => now - s.at < 10 * MINUTE);
     if (done.length) return result('done', { lastSignalAt: latestAt(done), badge: '' });
+    if (signal.asleep) return result('away', { badge: '' });
     const via = deriveSignal({ type: 'artifacts', returnAway: source.returnAway }, signal.fallback, previous, now);
     return { ...via, badge: '' };
   }
