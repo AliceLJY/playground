@@ -192,3 +192,43 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 没有发布、线上复验、重启服务、实发信号或修改私有配置，没有改其他仓库或处理旧 stash。未测真机 Safari／安卓；手机结论来自 Chrome 视口模拟。开场仍是逐秒采样，不是 30 fps 录像；位置不重叠指到达活动位后的角色边界，未新增行走中的人物互相避让。复用既有寻路与分配逻辑，没有增加物理引擎。
 
 预览：`http://127.0.0.1:3191/?view=games`。所有新布局只用于普通办公室，`?mv=1` 继续旧布局。
+
+## 返修：名牌与换桌
+
+2026-11-01，状态：本地实现与验收完成。起点与收尾 HEAD 均为 **70f5527**；开工 fetch 后与 origin/main 一致。没有暂存、提交、推送或重启正式服务；本轮只启动仓内只读预览 3191。`server/office-server.mjs`、`tests/room.test.cjs` 的 CC 改动保留，本轮未写入；过程中观察到 server 的 diff 继续增加，未覆盖或回退。
+
+### 实现与规则
+
+- `office-core.js` 计算脚下名牌，`office.js` 用真实 Canvas 字宽绘制。离本人工位至少 1 逻辑像素就显示，回桌或离开门口后隐藏；访客仍为「客」，老板、保安不加。字为 **7 逻辑像素**、深色 `#253334`，浅底 `#fff6dc`，左侧 3×5 本人颜色块。去空格／连字符，最多 8 个 ASCII 单位，非 ASCII 字符算 2；当前长名显示 GrokBot、etwincc、Cobbler。
+- 先放脚下 y+6，再试 y+17，横移最多 36 像素；偏移的牌用细线指回本人。按前景优先、同高度按桌号排列，牌之间留 1 像素，避开身体、招呼／道谢气泡和乒乓球活动区域。附近放不下就省掉后景牌，文字不互盖。演示游戏角六人均有牌；满员会议十一人也各有牌。采用有界的小规模避让，未增加布局引擎或依赖。
+- 送信、闲时留桌、排队让位与归位都认 `courier: true`。整份名单没有 courier 字段才退回 10 号；显式 false 不兜底。没有送信员时不启动无人能完成的送信动画。`validateState` 校验 courier 是布尔且最多一人 true、look 是 0–11 整数，坏快照整份拒收。
+- 配饰使用 `look ?? a.i`。演示和示例配置改为 **Cobbler desk 8 / look 10**、**豆包 desk 10 / look 8**，演示另有 `courier: true`。示例配置只动这两项的 desk/look，source 逐项比较无变化。真实配置仍由 CC 修改。
+- 同 ID 的换桌、look、courier 变化也会在下一次有效轮询重建人物和桌牌，避免只比较 ID 导致必须刷新网页。奶茶仍按物理桌号：8 号照摆、10 号小前台不摆。既有 BFS 与家具障碍不变。
+- MV 明确保留旧桌位送信员、旧外观映射与旧布局，不绘制新名牌。主房间背景未改。手机 `.treat` 从 bottom:46% 下移到 45%，消除 320 宽首屏拍照按钮盖住 Dots 名牌下沿的问题；MV／wall 不使用这条样式。
+- 本轮修改仅为 `office-core.js`、`office.js`、`style.css`、`demo-script.json`、`config.example.json`、两个前端 Node 测试、`tools/browser-check.cjs`、SPEC、中英 README 与本交接。无新增素材、依赖、构建步骤或仓库外文件维护。
+
+### 验收证据
+
+```sh
+node --test tests/*.test.cjs
+node --check office-core.js
+node --check office.js
+node --check tools/browser-check.cjs
+git diff --check
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
+```
+
+- **62 / 62 Node 测试通过**：`tools/shots/nameplates-node-final.txt`。新增测试实际在旧实现上失败，见 `nameplates-before.txt`。覆盖真实离桌／回桌、隐藏人物、三个种子下游戏／会议／排队名牌、挤在同点的前景优先、全部 0–10 桌的送信／归位、排队让位、旧服务兜底与 look=0 边界。8 号桌到老板交接点及返回均逐像素采样无家具穿越；实际模拟也采到了移动和完整八秒交接。
+- **653 项浏览器检查通过，49 个场景截图**：`tools/shots/nameplates-browser-final.txt`、`report.json`。Chrome **156.0.8078.74**，ANGLE Metal / **Apple M4**，DPR=2，普通画布 720×1480；实际时钟绘制回调 p95 **0.90 ms**，不作为真机 FPS。语法检查和 diff 检查通过。
+- 每个保存场景检查名牌之间不重叠、名牌与招呼／道谢气泡分开，并读取实际色块和文字像素。实测邮差帽位于 8 号人物，围巾位于 10 号人物；8 号奶茶吸管存在，10 号没有。`identity-swapped.png` 通过两次 HTTP 轮询完成同 ID 换桌；`notice-from-8.png` 为 29 秒实际走动，`notice.png` 为 35 秒真实交接，之后回到 8 号桌。
+- 通过实际 HTTP 响应分别注入越界 look、错误 courier 类型和两个 courier:true，均整份拒收，人物身份、名单文字和场景保持上一份有效数据；Node 另覆盖 null、数组、对象、小数、负值与非法类型。
+- **390×664、320×568** 均无横向溢出。两档游戏首屏六块名牌全部在可视区内，每块九个采样点均命中 canvas，未被按钮遮挡。改样式前，Dots 牌下沿三个点命中 pose 按钮，反例保留在 `nameplates-mobile-controls-before.txt`；中心点单独检查会漏掉这个问题。
+- 与 **70f5527** 比较：旧名单全部忙碌的稳定主房间 720×840 RGBA **0 字节差异**，两侧同为新换桌名单时实际缓存背景 **0 字节差异**，均不设豁免矩形。MV **10、31.5、53.6、75.9 秒** PNG 逐字一致，`mv.js`、`mv-script.json` 与基准文件也逐字相同。
+- 已打开检查游戏角、手机 390／320、会议（含十一人满员）、电话亭、排队、换桌后配饰／奶茶、8 号送信、夜班、wall、MV 四时刻及默认开场 0–30 秒逐秒样本。游戏六人的文字清楚，帽子／围巾随人保留，会议和队列中可认人；在桌者没有重复脚牌。全部场景与主房间对照另汇在 `nameplates-review-1.jpg` 至 `nameplates-review-9.jpg`。
+- fixture SHA-256 仍为 `340cca353dc6f79ee313eeb89661540cf2590bff529d6df608d8244e8526841a`；`tests/server.test.cjs`、fixture、MV 两文件未改，暂存区为空。最终报告、截图、首次失败和遮挡反例留在已忽略的 `tools/shots/`，供本次验收复查；较早的 `nameplates-browser-first.txt`／`nameplates-browser.txt` 不作为最后一轮报告。
+
+### 范围与入口
+
+未测真机 Safari／安卓，手机结论来自 Chrome 视口模拟。开场证据是逐秒截图，不称作 30 fps 录屏；拥挤时允许省略后景牌，也未增加行走人物之间的物理避让。既有纸条／合照浮层打开时仍覆盖部分房间。没有发布、线上复验、实发办公室信号、改真实配置、改服务端或重启正式服务。
+
+只读演示入口：`http://127.0.0.1:3191/?view=games`、`?view=notice`、`?view=meeting`。根入口仍原样服务旧契约 fixture，不是真实办公室。当前前端可接受 CC 后续提供的换桌快照。

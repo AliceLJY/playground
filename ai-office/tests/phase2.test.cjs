@@ -122,3 +122,48 @@ test('all activity routes and left-workstation routes are free at subpixel trave
   for(const start of [...C.desks.map((_,i)=>C.home(i)),C.door,C.bossDesk])for(const p of [...C.games,C.gameWatch,{x:124,y:372}])clearRoute(start,p);
   for(const start of [C.home(5),{x:64,y:208}])for(const end of [C.bossDesk,C.door,C.pantry])clearRoute(start,end);
 });
+
+const swappedRoster=()=>fixture.roster.map(a=>({...a,...(a.desk===10?{desk:8,look:10,courier:true}:a.desk===8?{desk:10,look:8}:{})}));
+test('courier identity follows every desk, keeps its look, yields queue space and returns through clear routes',()=>{
+  for(const desk of [0,1,2,3,4,5,6,7,8,9,10]){
+    const roster=Array.from({length:11},(_,i)=>({id:'a'+i,desk:i,look:i===desk?10:8,courier:i===desk}));
+    const s=C.create(roster),courier=s.actors[desk];s.step(15000);
+    assert.ok(s.isCourier(courier));assert.ok(C.distance(courier,C.home(desk))<1);assert.equal(courier.gameSlot,null);assert.equal(C.lookIndex(courier),10);
+    if(desk!==10)assert.ok(s.gameActivity(s.actors[10]),'desk 10 is an ordinary colleague');
+    for(const a of s.actors)s.setStatus(a.id,'waiting');s.step(20000);s.notice({text:'hello'});
+    let moves=0,holding=0;
+    for(let i=0;i<1750;i++){s.step(20);if(courier.path.length){moves++;assert.equal(C.blocked(courier.x,courier.y),false);}if(s.delivery?.phase==='holding')holding++;}
+    assert.ok(moves>10&&holding>=399,'real delivery and eight-second handoff sampled');assert.equal(s.delivered,1);assert.equal(s.delivery,null);
+    s.setStatus(courier.id,'idle');s.step(20000);assert.ok(C.distance(courier,C.home(desk))<1);
+    for(const from of [C.home(desk),C.handoff]){const to=from===C.handoff?C.home(desk):C.handoff;let p=from;const route=C.route(from,to);assert.ok(route.length);for(const q of route){const n=Math.ceil(C.distance(p,q));for(let j=0;j<=n;j++){const t=n?j/n:0;assert.equal(C.blocked(p.x+(q.x-p.x)*t,p.y+(q.y-p.y)*t),false);}p=q;}}
+  }
+  const s=C.create(swappedRoster());for(const a of s.actors)s.setStatus(a.id,'waiting');s.step(20000);s.notice({text:'yield'});s.step(7000);
+  const others=s.actors.filter(a=>!s.isCourier(a));others.forEach((a,i)=>assert.ok(C.distance(a,C.queuePoint(i))<1,'courier is excluded from queue'));assert.equal(s.delivery.phase,'holding');
+});
+test('old feeds fall back to desk 10; explicit flags override fallback; legacy ignores both identity fields',()=>{
+  const old=C.create(fixture.roster);assert.equal(old.actors.find(old.isCourier).i,10);
+  const current=C.create(swappedRoster());assert.equal(current.actors.find(current.isCourier).i,8);assert.equal(current.actors.filter(current.isCourier).length,1);
+  const legacy=C.create(swappedRoster(),7,true);assert.equal(legacy.actors.find(legacy.isCourier).i,10);assert.equal(C.lookIndex(legacy.actors.find(a=>a.i===8),true),8);
+  const none=C.create(Array.from({length:11},(_,desk)=>({id:'a'+desk,desk,courier:false})));none.step(15000);assert.equal(none.actors.filter(none.isCourier).length,0);assert.equal(none.actors.filter(a=>none.gameActivity(a)).length,10);none.notice({text:'no courier'});none.step(100);assert.equal(none.delivery,null);
+  assert.equal(C.lookIndex({i:10,look:0}),0);assert.equal(C.lookIndex({i:8}),8);
+});
+test('foot plates disappear at home, appear on real departure and return, and exclude hidden people',()=>{
+  const s=C.create(swappedRoster()),measure=t=>Array.from(t).reduce((w,c)=>w+(c.charCodeAt(0)<128?4:6),0);
+  assert.deepEqual(C.nameplates(s.actors,measure),[]);s.step(100);
+  assert.ok(C.nameplates(s.actors,measure).length>0);
+  for(const a of s.actors)s.setStatus(a.id,'busy');s.step(20000);assert.deepEqual(C.nameplates(s.actors,measure),[]);
+  const a=s.actors[0];s.setStatus(a.id,'away');s.step(1000);assert.ok(C.nameplates([a],measure).length);s.step(20000);assert.deepEqual(C.nameplates([a],measure),[]);
+  assert.equal(C.plateName('Grok Bot'),'GrokBot');assert.equal(C.plateName('etwin-cc'),'etwincc');assert.equal(C.plateName('一二三四五'),'一二三四');
+  assert.deepEqual(C.nameplates([{...a,visitor:true},{...a,boss:true}],measure),[]);
+});
+test('crowded nameplates never overlap: real games, queue, meetings and coincident actors',()=>{
+  const measure=t=>Array.from(t).reduce((w,c)=>w+(c.charCodeAt(0)<128?4:6),0);
+  const clear=plates=>{for(const p of plates){assert.ok(p.x>=2&&p.x+p.w<=C.W-2&&p.y+p.h<=C.H-2);for(const q of plates)if(q!==p)assert.ok(p.x+p.w+1<=q.x||q.x+q.w+1<=p.x||p.y+p.h+1<=q.y||q.y+q.h+1<=p.y,'plate text overlaps');}};
+  let sampled=0;
+  for(const seed of [1,7,31])for(const mode of ['games','meeting','queue']){
+    const s=C.create(swappedRoster(),seed);if(mode==='meeting')scene(s,{meeting:{...fixture.scene.meeting,members:s.actors.map(a=>a.id)}});if(mode==='queue')for(const a of s.actors)s.setStatus(a.id,'waiting');
+    for(let i=0;i<350;i++){s.step(100);const p=C.nameplates(s.actors,measure);clear(p);sampled+=p.length;}
+    assert.ok(C.nameplates(s.actors,measure).length>=5,'crowded scene must really show names');
+  }
+  assert.ok(sampled>5000);const crowd=swappedRoster().map((a,i)=>({...a,i:a.desk,x:180,y:350,path:[],status:'idle'}));const plates=C.nameplates(crowd,measure);clear(plates);assert.ok(plates.length>0&&plates.length<crowd.length,'overflow suppresses plates instead of covering text');assert.equal(plates[0].id,crowd[0].id,'equal-depth plates prefer the lowest desk');
+});
