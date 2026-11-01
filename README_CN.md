@@ -31,7 +31,7 @@
 | [机械沙虫](sandworm/) · [看](https://aliceljy.github.io/playground/sandworm/) | 一份虚构的工程设计档案：沙漠地下掘进的机械沙虫，六个机位、X 光看地下、拆开装甲看内部 | Three.js 程序化建模，键鼠与触屏，单文件离线可看 |
 | [户型图 · 三维小样](floorplan/) · [看](https://aliceljy.github.io/playground/floorplan/) | 从一张公有领域户型图读出墙、门窗和房间，拉成能转的三维，配上 CAD 平面图、光追效果图和冬至日照 | Three.js 手机竖屏页，数据与效果图来自本地出片工程 |
 | [走进户型图](floorplan-walk/) · [看](https://aliceljy.github.io/playground/floorplan-walk/) | 同一张户型图做成能摆家具的彩色平面图：从家具库拖进去，切到 3D 房子从图上长出来，转着看或者从入户门走进去；真实日照、夜景、剖切、整屋换木色 | SVG 平面图 + Three.js，60 种家具（图例与模型移植自 floorplan-3d，MIT），键鼠与触屏，单文件离线可看 |
-| [花城秋岸](huacheng-autumn/) · [看](https://aliceljy.github.io/playground/huacheng-autumn/) | 广州海珠珠江南岸的秋天：簕杜鹃挂满天桥，白色有轨电车从花下开过，赤岗塔下异木棉开花，对岸是广州塔；时间从白天拖到入夜 | Three.js 纯代码沙盘，没有模型和图片，鼠标与触屏，单文件离线可看 |
+| [花城秋岸](huacheng-autumn/) · [看](https://aliceljy.github.io/playground/huacheng-autumn/) | 广州海珠珠江南岸的秋天：簕杜鹃挂满天桥，白色有轨电车从花下开过，赤岗塔下异木棉开花，同岸西端是广州塔，对岸是珠江新城；时间从白天拖到入夜 | Three.js 纯代码沙盘，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [雪线小木屋](snowline-cabin/) · [看](https://aliceljy.github.io/playground/snowline-cabin/) | 雪夜山顶一间亮着灯的木屋：点暗着的山头替它点灯，七座点满有流星；时间从黄昏拖到日出；还能进屋待一会儿 | Three.js 纯代码场景，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
 | [齿轮返修](gear-repair/) · [看](https://aliceljy.github.io/playground/gear-repair/) | DeepSeek Harness 一次写出的齿轮页把渐开线方向写反了一个符号，两对齿轮帧帧穿模；作者只给症状和查法，它自己修好。一键切换原版与返修后，红点标出穿模处 | Three.js，两版齿形代码原样保留，穿模检测与页面共用一份代码，鼠标与触屏 |

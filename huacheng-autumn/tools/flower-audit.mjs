@@ -14,7 +14,8 @@ window.__flowerAudit=()=>{
  const foreground=new Set(['ground','bridge','pagoda','tram','cars']);
  scene.traverse(o=>{if(!o.isMesh)return;let parent=o,board=false;while(parent){if(foreground.has(parent.name))board=true;parent=parent.parent;}
   if(o.isInstancedMesh&&!['boat-hulls','boat-cabins','distant-trees','city-windows'].includes(o.name))board=true;
-  const flower=['bougainvillea-bracts','silk-five-petals','garden-blossoms','garden-centres'].includes(o.name);
+  if(o.name==='ground-outland')board=false;
+  const flower=['bougainvillea-bracts','silk-five-petals','garden-blossoms','garden-centres','arch-bracts'].includes(o.name);
   const windy=o.isInstancedMesh&&o.material.onBeforeCompile===windShader;saved.push([o,o.material]);o.material=flower?(windy?redWind:red):board?(windy?greenWind:green):black;if(saved.at(-1)[1].clippingPlanes){o.material=o.material.clone();o.material.clippingPlanes=saved.at(-1)[1].clippingPlanes;clippedMaterials.push(o.material);}
  });
  const target=new THREE.WebGLRenderTarget(W,H,{depthBuffer:true}),oldTarget=renderer.getRenderTarget(),oldTone=renderer.toneMapping;

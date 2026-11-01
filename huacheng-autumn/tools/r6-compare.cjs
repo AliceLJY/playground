@@ -1,0 +1,7 @@
+const fs=require('fs'),path=require('path'),{chromium}=require('playwright');
+(async()=>{const out=path.resolve(process.argv[2]||'shots/r6'),ref='/Volumes/ColdData/产出/2026-11-01-花城海珠-三维场景/原帖视频/frames',img=p=>'data:image/'+(p.endsWith('.jpg')?'jpeg':'png')+';base64,'+fs.readFileSync(p).toString('base64');
+ const b=await chromium.launch({channel:'chrome',headless:true});try{for(const [name,cols,entries] of [['compare',4,[['原帖 f1',path.join(ref,'f1.jpg')],['原帖 f19',path.join(ref,'f19.jpg')],['第六轮 hero',path.join(out,'hero.png')],['第六轮 wide',path.join(out,'wide.png')]]],['tram-cycle',3,[0,60,180,360,540,599].map(i=>[`${(28+i/30).toFixed(1)} 秒`,path.join(out,`tram-frame-${i}.png`)])]]){
+ let html=`<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#e8e4de;font:18px system-ui;color:#27363f}main{display:grid;grid-template-columns:repeat(${cols},640px)}figure{margin:0;border:1px solid #bcc1bd}figcaption{padding:12px}img{width:638px;height:400px;object-fit:contain;display:block}</style><main>`;
+ for(const [label,p]of entries)html+=`<figure><figcaption>${label}</figcaption><img src="${img(p)}"></figure>`;html+='</main>';fs.writeFileSync(path.join(out,name+'.html'),html);const pg=await b.newPage({viewport:{width:cols*640,height:900}});await pg.setContent(html);await pg.evaluate(()=>Promise.all([...document.images].map(i=>i.decode())));await pg.locator('main').screenshot({path:path.join(out,name+'.png')});await pg.close();}
+ }finally{await b.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
