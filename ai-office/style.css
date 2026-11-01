@@ -100,3 +100,5 @@ body.landscape .paper{left:12%;bottom:15%;width:40%}
 body.landscape .photo img{height:44px;object-fit:contain}
 #wall-board{position:absolute;padding:0;border:0;background:transparent;cursor:pointer;touch-action:manipulation;min-height:44px;-webkit-tap-highlight-color:transparent}
 #guest-notices{font-size:12px;line-height:1.7;color:#8e6642}
+/* The narrowest phones keep the rights line on one row and drop the tagline. */
+@media(max-width:400px){.signature .tagline{display:none}}
