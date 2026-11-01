@@ -126,6 +126,8 @@
     }
     const GREET_SECONDS = 3;
     const greeting = () => sim.hello && sim.time - sim.hello.at < GREET_SECONDS ? sim.hello : null;
+    // A wave on request (a page that got no greeting, or a visitor asking for a photo): everyone turns to the door.
+    function wave(kind = 'welcome') { sim.hello = { at: sim.time, visitor: null, kind, x: door.x, y: door.y }; }
     function setVisitors(n) { sim.visitorTarget = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); }
     function tickVisitors(dt) {
       // Runners (sent with a treat when nobody is visiting) are not counted against the visitor target.
@@ -151,7 +153,7 @@
       sim.visitors = sim.visitors.filter(v => !(v.phase === 'leaving' && distance(v, door) < 1));
     }
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickTreats(dt); tickVisitors(dt); } }
-    return Object.assign(sim, { step, setStatus, notice, setVisitors, greeting, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   const api = { W, H, desks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;

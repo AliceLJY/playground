@@ -114,7 +114,8 @@
       // Right arm up, hand swinging: a wave. Then a word above the head, each desk its own.
       const swing = Math.sin(t * 9) > 0 ? 2 : -1;
       r(ctx, '#33443f', x + 5, y - 10, 3, 6); r(ctx, color, x + 5, y - 17, 3, 7); r(ctx, '#e4bb91', x + 5 + swing, y - 20, 3, 3);
-      const word = hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
+      const word = hello?.kind === 'pose' ? ['茄子', '耶', '✌', '茄子', '笑一个', '耶', '看这里', '茄子', '比心', '耶', '茄子'][a.i % 11]
+        : hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
         : ['谢谢', '好耶', '谢啦', '太好了', '谢谢你', '哇', '开心', '干杯', '谢谢啦', '好香', '谢谢'][a.i % 11];
       const w = word.length * 6 + 6, bx = Math.max(22, Math.min(338 - w, x - w / 2 + 1));
       r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
@@ -161,17 +162,21 @@
     const k = keep.getContext('2d'); k.imageSmoothingEnabled = false;
     k.fillStyle = '#f3eee2'; k.fillRect(0, 0, 720, 930); k.drawImage(canvas, 0, 0);
     k.fillStyle = '#fffdf6'; k.fillRect(0, 840, 720, 90); k.fillStyle = '#786747'; k.fillRect(0, 840, 720, 3);
-    const nth = visitorsTotal !== null && !demo ? `第 ${visitorsTotal} 位客人来了` : '有客人来了';
+    const nth = hello.kind === 'pose' ? '合照一张' : visitorsTotal !== null && !demo ? `第 ${visitorsTotal} 位客人来了` : '有客人来了';
     const when = `${beijing(now()).toISOString().slice(0, 10)} ${formatClock(now())}`;
     k.fillStyle = '#4b3b24'; k.font = '26px Georgia, "Songti SC", serif'; k.textAlign = 'left'; k.fillText(`像素办公室 · ${nth}${demo ? '（演示）' : ''}`, 24, 878);
-    k.fillStyle = '#8e6642'; k.font = '18px Menlo, monospace'; k.fillText(`${when} · 大家回头说了声你好`, 24, 910);
+    k.fillStyle = '#8e6642'; k.font = '18px Menlo, monospace'; k.fillText(`${when} · ${hello.kind === 'pose' ? '大家都看镜头了' : '大家回头说了声你好'}`, 24, 910);
     k.textAlign = 'right'; k.font = '18px Georgia, "Songti SC", serif'; k.fillStyle = '#8e6642'; k.fillText('我的AI小木屋', 696, 910);
     keep.toBlob(blob => {
       if (!blob) return;
-      if (photoUrl) URL.revokeObjectURL(photoUrl);
-      photoUrl = URL.createObjectURL(blob); photoBlob = blob;
-      $('#photo-img').src = photoUrl; $('#photo-text').textContent = hello.visitor && guest ? '刚才大家回头跟你打招呼，拍下来了' : '刚才大家回头打了个招呼，拍下来了';
-      photoReady = true; // the card waits until the greeting is over, so it never covers the moment itself
+      photoBlob = blob;
+      const reader = new FileReader();
+      reader.onload = () => {
+        photoUrl = String(reader.result); $('#photo-img').src = photoUrl;
+        $('#photo-text').textContent = hello.kind === 'pose' ? '来，合照拍好了' : hello.visitor && guest ? '刚才大家回头跟你打招呼，拍下来了' : '刚才大家回头打了个招呼，拍下来了';
+        photoReady = true; // the card waits until the greeting is over, so it never covers the moment itself
+      };
+      reader.readAsDataURL(blob);
     }, 'image/png');
   }
   let photoBlob = null, photoReady = false;
@@ -204,6 +209,7 @@
     $('#paper').hidden = !holding;
     if (holding) $('#paper-text').textContent = d.text;
     const hello = sim.greeting();
+    if (hello) greeted = true;
     if (hello && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
     if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
@@ -332,6 +338,10 @@
     $('#treat-menu').hidden = true; $('#treat-toggle').setAttribute('aria-expanded', false);
     setTimeout(() => { buttons.forEach(b => { b.disabled = false; }); note.textContent = ''; }, 60_000);
   }
+  // A page that got no greeting (its visitor tag was already known: a reload within 45 s) still gets a welcome;
+  // and anyone can ask for a photo at any time, the team turns to the camera.
+  let greeted = false, welcomeTimer = null;
+  $('#pose').addEventListener('click', () => { if (!sim) return; const busy = sim.greeting() || sim.thanksNow(); if (busy) return; sim.wave('pose'); $('#pose').disabled = true; setTimeout(() => { $('#pose').disabled = false; }, 5000); });
   $('#treat-toggle').addEventListener('click', () => { const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
   document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
   try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
@@ -370,6 +380,7 @@
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', workedToday: a.workedToday || 0 }); }
       sim.setVisitors(data.visitors || 0); visitorsTotal = data.visitorsTotal ?? null; sayHello();
+      if (!welcomeTimer) welcomeTimer = setTimeout(() => { if (sim && !demo && !greeted && !sim.greeting() && !sim.thanksNow()) sim.wave('welcome'); }, 12_000);
       treatsToday = data.treatsToday || {};
       for (const t of data.treats || []) { if (!seenTreats.has(t.at)) { seenTreats.add(t.at); if (Date.now() - Date.parse(t.at) < 60_000) sim.treat(t.kind, t.at); } }
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
