@@ -96,6 +96,10 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3091/
 
 不需要打包。发布只复制 `index.html`、`office-core.js`、`office.js`、`style.css`、`demo-script.json`。首页第三排卡片、CI 中的 `node --test tests/*.test.cjs`、Pages 复制步骤由 owner 接，本任务不改其它目录。规格见 [SPEC.md](SPEC.md)，验收与待接事项见 [HANDOFF.md](HANDOFF.md)。
 
+## 访客视角（一个网址给大家看）
+
+公开发布的这一页会先连本机同源的 `api/state`，连不上再连 `https://mac-mini.tail791fb9.ts.net:8443/office/api/state`（tailscale funnel 只把 `/office` 这一条路径转到服务的 `/guest` 子树），都连不上才播演示剧本。访客看到的是同一间办公室、同样的工位和状态，但没有公告板、没有徽章文字；写接口在公网上根本摸不到（404）。横幅会写明当前是本机、访客还是演示。
+
 ## 谁会点开、AI 素材
 
 适合想看看 AI 伙伴在忙什么，或喜欢安静看一间小办公室运转的人。
