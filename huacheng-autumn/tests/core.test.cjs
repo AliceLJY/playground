@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const load=()=>import('../src/core.js');
+const load=()=>import(process.env.CORE_UNDER_TEST||'../src/core.js');
 const inside=b=>b.front&&b.x0>=0&&b.x1<=1&&b.y0>=0&&b.y1<=1;
 test('SPEC 1 — 40 s closed camera route, every 60 Hz step < 0.1 m',async()=>{
  const c=await load();assert.ok(c.dist(c.pathAt(0).pos,c.pathAt(1).pos)<1e-9);assert.ok(c.dist(c.pathAt(0).target,c.pathAt(1).target)<1e-9);
@@ -60,4 +60,18 @@ test('R3 windows — actual generated upper floors stay sparse, night adds light
  assert.ok(d.slice(0,3).reduce((a,b)=>a+b,0)>d.slice(6).reduce((a,b)=>a+b,0));
  assert.ok(d.slice(6).every(v=>v<=2)&&n.slice(6).every(v=>v<=2));
  assert.ok(n.every((v,i)=>v>=d[i]&&v<8));assert.ok(n.reduce((a,b)=>a+b,0)>d.reduce((a,b)=>a+b,0));
+});
+
+
+test('R4 rail scale — generated deck posts spaced 1.2m, handrail 5cm',async()=>{
+ const c=await load(),l=c.makeLayout();const rail=l.rails.filter(r=>Math.abs(r.a[0]-r.b[0])<1e-9&&Math.abs(r.a[2]-r.b[2])<1e-9&&Math.abs(r.a[0]-(c.BRIDGE.x+1.24))<1e-6).sort((a,b)=>a.a[2]-b.a[2]);
+ assert.ok(rail.length>=14);for(let i=1;i<rail.length;i++)assert.ok(Math.abs(rail[i].a[2]-rail[i-1].a[2]-1.2)<1e-6);
+ const handrails=l.rails.filter(r=>r.a[1]===6.6&&r.b[1]===6.6);assert.ok(handrails.length===2&&handrails.every(r=>Math.abs(r.width-.05)<1e-8));
+});
+
+test('R4 foliage — small leaves with outward crown normals on every generated broadleaf tree',async()=>{
+ const c=await load();for(const seed of [c.SEED,7,131])for(const t of c.makeLayout(seed).trees.filter(t=>t.kind!=='palm')){
+ assert.ok(t.leaves.every(l=>l.normal?.length===3&&Math.hypot(...l.normal)>0&&l.scale[0]<=.15&&l.scale[1]<=.23));
+ const normals=t.leaves.map(l=>l.normal);assert.ok(normals.some(n=>n[1]>0)&&normals.some(n=>n[1]<0));
+ }
 });

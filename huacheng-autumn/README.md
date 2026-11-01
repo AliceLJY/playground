@@ -1,6 +1,6 @@
 # Huacheng Autumn
 
-A small Guangzhou riverside scene to turn in your hands: bougainvillea spills over a footbridge, a white tram passes underneath, and pink silk-floss flowers grow around Chigang Pagoda. Canton Tower stands in the distance. Watch the traffic, look closely at the flowers, or move the afternoon into night.
+A small Guangzhou riverside scene to turn in your hands: bougainvillea spills over a footbridge, a white tram passes underneath, and pink silk-floss flowers grow around Chigang Pagoda. Canton Tower stands in the distance. Watch the traffic, look closely at the flowers, or move the daylight into night.
 
 By **我的AI小木屋**.
 
@@ -9,7 +9,7 @@ No imported images or models. Geometry, foliage, water, brick variations, vehicl
 ## What you can do
 
 - **Look around.** The camera follows a roughly 40-second tour, passing the footbridge, pagoda and a wide view of the model. Drag at any time to take over.
-- **Change the hour.** The bottom slider moves from afternoon through dusk into night. Sun glints give way to soft reflections of distant lights; windows and street lamps turn on.
+- **Change the hour.** The scene opens in soft afternoon daylight. The bottom slider moves from **Day → Dusk → Night**; daytime uses neutral warm-grey haze, unlit silver steelwork and dark windows. Sun glints give way to soft reflections of distant lights; windows and street lamps turn on.
 - **Look closer.** Zoom toward the tram's curved windscreen and route sign, hanging flowers, brickwork and individual leaves.
 
 ## Controls
@@ -47,44 +47,45 @@ Run these commands in `huacheng-autumn/`, using Node.js with npm. Browser checks
 npm ci
 node tools/build.mjs                    # Self-contained dist/index.html
 node --test tests/*.test.cjs
-node tools/flower-audit.mjs . shots/r3/audit.html
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r3/browser
-NODE_PATH="$(npm root -g)" node tools/refinement-motion.cjs shots/r3/motion
-NODE_PATH="$(npm root -g)" node tools/layout.cjs shots/r3/mobile
-NODE_PATH="$(npm root -g)" node tools/phone-route.cjs shots/r3/phone-route
-NODE_PATH="$(npm root -g)" node tools/shot.cjs shots/r3
-NODE_PATH="$(npm root -g)" node tools/night-check.cjs shots/r3/night
-NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r3/opening
+node tools/flower-audit.mjs . shots/r4/audit.html
+NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r4/architecture
+NODE_PATH="$(npm root -g)" node tools/glare-check.cjs
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r4/browser
+NODE_PATH="$(npm root -g)" node tools/refinement-motion.cjs shots/r4/motion
+NODE_PATH="$(npm root -g)" node tools/layout.cjs shots/r4/mobile
+NODE_PATH="$(npm root -g)" node tools/phone-route.cjs shots/r4/phone-route
+NODE_PATH="$(npm root -g)" node tools/shot.cjs shots/r4
+NODE_PATH="$(npm root -g)" node tools/night-check.cjs shots/r4/night
+NODE_PATH="$(npm root -g)" node tools/performance-check.cjs shots/r4/performance
+NODE_PATH="$(npm root -g)" node tools/opening-check.cjs shots/r4/opening
 ```
 
 Open `dist/index.html` directly, or serve the source and build:
 
 ```bash
-node tools/serve.cjs . 18953
+node tools/serve.cjs . 18954
 # In another terminal, run the source-entry check:
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r3/source http://127.0.0.1:18953/dev.html
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r4/source http://127.0.0.1:18954/dev.html
 ```
 
-Source: `http://127.0.0.1:18953/dev.html`. Build: `http://127.0.0.1:18953/dist/index.html`. Run GPU checks sequentially. The flower audit is an isolated diagnostic build; it is not the release file.
+Source: `http://127.0.0.1:18954/dev.html`. Build: `http://127.0.0.1:18954/dist/index.html`. Run GPU checks sequentially. The flower audit is an isolated diagnostic build; it is not the release file.
 
-Fixed views are `?view=hero`, `?view=bridge`, `?view=pagoda` and `?view=wide`. Add `&h=0`, `&h=0.55` or `&h=1` for afternoon, dusk or night, and `&t=13` for a reproducible simulation time. All views use the normal rendering path. The page exposes `window.__huacheng` and `window.__PLAYTEST__` for inspection; normal interaction does not depend on them.
+Fixed views are `?view=hero`, `?view=bridge`, `?view=pagoda` and `?view=wide`. Add `&h=0`, `&h=0.55` or `&h=1` for daylight (the default), dusk or night, and `&t=13` for a reproducible simulation time. All views use the normal rendering path. The page exposes `window.__huacheng` and `window.__PLAYTEST__` for inspection; normal interaction does not depend on them.
 
-The r2 negative-control build is preserved in `shots/r3/baseline/`. This command intentionally fails the calm-water and tower-separation assertions:
+The d1bcc77 baseline is preserved in `shots/r4/baseline/`. Reproduce the old-version calibration with the same instrumentation:
 
 ```bash
-NODE_PATH="$(npm root -g)" node tools/refinement-check.cjs shots/r3/baseline/check "file://$PWD/shots/r3/baseline/index.html"
+node tools/flower-audit.mjs shots/r4/baseline shots/r4/baseline/audit.html
+NODE_PATH="$(npm root -g)" node tools/architecture-check.cjs shots/r4/baseline/final-check "file://$PWD/shots/r4/baseline/audit.html" --baseline
 ```
 
 ## Measured results and limits
 
-Round-three evidence, screenshots, renderer details and reproducible measurements are in [VERIFICATION_R3.md](VERIFICATION_R3.md). The build and all 12 Node tests passed. Both the packaged page and source entry passed all 26 browser checks; the motion and night checks also passed.
+Round-four screenshots, old/new measurements, renderer details and limitations are in [VERIFICATION_R4.md](VERIFICATION_R4.md). The scene now uses bevelled forms, small outward-facing leaves, PCF soft shadows and GTAO contact shading, with MSAA on the offscreen render target. Flowers are concentrated on the bridge and silk-floss crowns. The station has a steel-and-glass vault; there are no overhead tram wires or pantographs.
 
-- Off-band foreground water: screenshot luminance standard deviation fell from 0.02393 to 0.00722, below the unchanged 0.008 limit.
-- The pagoda view's two tower projection boxes now have a 222 px horizontal gap at 1440×900; r2 overlapped.
-- The 390×664 and 412×700 phone layouts were measured in desktop Chrome emulation at about 60 fps with device pixel ratio 2. Text, buttons and the slider remain inside the viewport without overlaps. During the complete 40-second tour, the introduction hides before the model enters its area and returns when clear; the visible text stays below the model.
-- **Not tested on a real phone or in Safari.** Desktop-emulated frame rates do not predict phone performance. Adaptive render resolution remains enabled.
-- Water and glass use procedural approximations rather than physically accurate reflections. Lighting and building proportions are artistic choices. Visual appeal still needs human judgement.
-- This round does not publish the page or add it to the playground home page or deployment workflow.
+The road has two 3.5 m lanes, the tram is about 2.65 m wide and 3.6 m tall, and the walks include benches, bicycles, bins and a small café. The overall arrangement and landmark heights remain compressed; this is an architectural illustration, not a survey.
+
+Real phones, Safari and a deployed URL were not tested. Desktop-emulated frame rates do not predict phone performance; adaptive resolution remains enabled. Procedural glass and water approximate reflections. No additional depth-of-field blur is applied, so the close views remain readable. This round does not publish or commit the page.
 
 ## Licence
 
