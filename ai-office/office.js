@@ -139,9 +139,9 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 720, 840); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
     if (visitorsTotal !== null && !demo) {
       // The guest book: a little standing sign beside the door with how many people have come by, ever.
-      r(ctx, '#5a4a3a', 286, 384, 2, 12); r(ctx, '#5a4a3a', 322, 384, 2, 12);
-      r(ctx, '#f4e7c6', 284, 378, 40, 9); r(ctx, '#c9a96e', 284, 378, 40, 1); r(ctx, '#c9a96e', 284, 386, 40, 1);
-      text(ctx, `来过 ${visitorsTotal} 位客人`, 304, 385, 5, '#6a5a3c');
+      r(ctx, '#5a4a3a', 280, 385, 2, 11); r(ctx, '#5a4a3a', 324, 385, 2, 11);
+      r(ctx, '#f4e7c6', 276, 376, 50, 11); r(ctx, '#c9a96e', 276, 376, 50, 1); r(ctx, '#c9a96e', 276, 386, 50, 1);
+      text(ctx, `来过 ${visitorsTotal} 位客人`, 301, 384, 6, '#6a5a3c');
     }
     [...sim.actors, ...sim.visitors, { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     const latest = sim.notices.at(-1);
