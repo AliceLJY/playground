@@ -371,3 +371,27 @@ test('guest visits: a tagged hello counts for 45 s, bad tags 400, CORS only for 
   const again=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
   await again.poll(); assert.equal(again.snapshot().visitorsTotal,3,'the guest book survives a restart'); assert.equal(again.snapshot().visitors,0);
 });
+
+test('guest feed rounds times to the minute; the /guest/ tree has a per-address budget with Retry-After',async t=>{
+  const {createOffice}=await import('../server/office-server.mjs');
+  await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
+  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/limit-'));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const token=randomBytes(24).toString('hex'); let time=DAY+90_000+7_000;
+  const office=await createOffice({config,token,stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
+  await office.poll(); office.server.listen(0,'127.0.0.1'); await once(office.server,'listening');
+  t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
+  const base=`http://127.0.0.1:${office.server.address().port}`;
+  await fetch(base+'/api/report',{method:'POST',headers:{'content-type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({id:config.roster[0].id,status:'busy'})});
+  time+=35_000; await office.poll();
+  const full=(await (await fetch(base+'/api/state')).json()).roster[0], guest=(await (await fetch(base+'/guest/api/state')).json()).roster[0];
+  assert.equal(full.statusSince,new Date(DAY+97_000).toISOString()); assert.equal(guest.statusSince,new Date(DAY+60_000).toISOString(),'guest sees the minute, not the second');
+  assert.equal(full.workedToday,35_000); assert.equal(guest.workedToday,0,'35 s of work rounds down to no full minute');
+  const get=(ip,p='/guest/api/state')=>fetch(base+p,{headers:{'x-forwarded-for':`1.2.3.4, ${ip}`}});
+  for(let i=0;i<120;i++) assert.equal((await get('9.9.9.9')).status,200,`request ${i+1}`);
+  const over=await get('9.9.9.9'); assert.equal(over.status,429); assert.ok(Number(over.headers.get('retry-after'))>0&&Number(over.headers.get('retry-after'))<=60);
+  assert.equal((await get('9.9.9.9','/guest/visit?v=0123456789abcdef')).status,429,'the budget covers the whole /guest/ tree');
+  assert.equal((await get('8.8.8.8')).status,200,'another address is unaffected (the proxy-appended last entry counts, not the spoofable first)');
+  assert.equal((await fetch(base+'/api/state')).status,200,'the private feed is not budgeted');
+  time+=61_000; assert.equal((await get('9.9.9.9')).status,200,'a minute later the budget is back');
+});
