@@ -174,3 +174,16 @@ test('the guest feed counts today\'s notes without carrying any of them', async 
   assert.equal(guest.noticesToday, 2); assert.deepEqual(guest.notices, []);
   assert.equal(JSON.stringify(guest).includes('two'), false);
 });
+
+test('a one-on-one hand-off rings the booth for half a minute; a meeting does not; the meeting line names everyone', async () => {
+  const { reduceScene, emptyScene, sceneView } = await scene;
+  let s = emptyScene(DAY), t = DAY;
+  const tick = (dispatched, dt = 10_000) => { t += dt; s = reduceScene(s, { dispatched }, t); };
+  tick(['codex']);
+  let v = sceneView(s, ROSTER, t).scene.call; assert.equal(v.kind, 'dispatch'); assert.equal(v.with, 'codex');
+  tick(['codex'], 31_000); assert.equal(sceneView(s, ROSTER, t).scene.call, null, 'back at the desk after half a minute');
+  assert.equal(s.stats.callsTotal, 0, 'rings are not counted as calls');
+  tick(['codex', 'kimi']); assert.ok(s.huddle); assert.equal(sceneView(s, ROSTER, t).scene.call, null, 'a second one turns it into a meeting, not a call');
+  tick(['codex', 'kimi', 'grok']);
+  assert.deepEqual(s.events.find(e => e.kind === 'meeting').ids, ['cc', 'codex', 'grok', 'kimi']);
+});

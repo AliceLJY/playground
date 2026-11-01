@@ -119,7 +119,7 @@ export async function collectScene(options = {}, now = Date.now()) {
   return out;
 }
 
-const EVENT_CAP = 40, REVIEW_TTL = 90 * MINUTE, CALL_TTL = 60 * MINUTE, ASK_GAP = 10 * MINUTE;
+const EVENT_CAP = 40, REVIEW_TTL = 90 * MINUTE, CALL_TTL = 60 * MINUTE, ASK_GAP = 10 * MINUTE, RING_MS = 30_000;
 
 export function emptyScene(now) {
   return { dispatched: [], huddle: null, review: null, call: null, diskPct: null, guard: null, windows: {}, stats: freshStats(now), events: [] };
@@ -173,7 +173,12 @@ export function reduceScene(prev, signal, now) {
   rollDay(scene, now);
   if (Array.isArray(signal.dispatched)) {
     const before = new Set(scene.dispatched), after = new Set(signal.dispatched);
-    for (const id of after) if (!before.has(id)) { count(scene, 'handoffs', now); addEvent(scene, { kind: 'handoff', ids: ['cc', id] }, now); }
+    for (const id of after) if (!before.has(id)) {
+      count(scene, 'handoffs', now); addEvent(scene, { kind: 'handoff', ids: ['cc', id] }, now);
+      // A one-on-one hand-off is CC phoning it in: half a minute in the booth, then back to the desk (Alice, 11-01:
+      // 「派活走无头的那种我觉得都可以算」). In a meeting the work is handed out round the table instead.
+      if (!scene.review && !scene.huddle) scene.ring = { since: now, with: id };
+    }
     for (const id of before) if (!after.has(id)) addEvent(scene, { kind: 'return', ids: [id] }, now);
     scene.dispatched = [...after].sort();
     // Without process parents (tests, an old ps) everyone out is one window.
@@ -206,6 +211,11 @@ export function reduceScene(prev, signal, now) {
     const [key, w] = Object.entries(scene.windows).find(([, w]) => w.engines.length >= 2) || [];
     if (w) { scene.huddle = { window: key, since: w.since, members: ['cc', ...w.engines] }; startMeeting(scene, now, false); scene.events.at(-1).ids = scene.huddle.members; }
   }
+  // The log line that opened the meeting names everyone who has come in so far, not only the first one.
+  const open = scene.review || scene.huddle;
+  if (open) { const line = [...scene.events].reverse().find(e => e.kind === 'meeting'); if (line && Date.parse(line.at) >= Math.floor(open.since / MINUTE) * MINUTE) line.ids = [...open.members]; }
+  // A hand-off that turned into a meeting is not a phone call any more.
+  if (scene.ring && (now - scene.ring.since >= RING_MS || scene.huddle || scene.review)) scene.ring = null;
   return scene;
 }
 
@@ -246,7 +256,7 @@ export function sceneView(scene, rosterIds, now) {
     : scene.huddle ? { kind: 'huddle', since: minute(scene.huddle.since), members: ids(scene.huddle.members), round: null, slide: null } : null;
   const day = beijingDay(now), today = scene.stats.day === day ? scene.stats.today : freshStats(now).today;
   return {
-    scene: { meeting, dispatched: ids(scene.dispatched), call: scene.call ? { since: minute(scene.call.since) } : null, disk: Number.isInteger(scene.diskPct) ? { usedPct: scene.diskPct } : null, guard: scene.guard ? { phase: scene.guard.phase, at: minute(scene.guard.at), ok: scene.guard.ok } : null },
+    scene: { meeting, dispatched: ids(scene.dispatched), call: scene.call ? { since: minute(scene.call.since), kind: 'consult' } : scene.ring && now - scene.ring.since < RING_MS ? { since: minute(scene.ring.since), kind: 'dispatch', with: ids([scene.ring.with])[0] || null } : null, disk: Number.isInteger(scene.diskPct) ? { usedPct: scene.diskPct } : null, guard: scene.guard ? { phase: scene.guard.phase, at: minute(scene.guard.at), ok: scene.guard.ok } : null },
     stats: { since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
     events: scene.events.filter(e => beijingDay(Date.parse(e.at)) === day).map(e => ({ ...e, at: minute(Date.parse(e.at)), ...(e.ids ? { ids: ids(e.ids) } : {}) }))
   };
