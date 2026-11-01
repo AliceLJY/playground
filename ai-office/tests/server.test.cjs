@@ -395,3 +395,29 @@ test('guest feed rounds times to the minute; the /guest/ tree has a per-address 
   assert.equal((await fetch(base+'/api/state')).status,200,'the private feed is not budgeted');
   time+=61_000; assert.equal((await get('9.9.9.9')).status,200,'a minute later the budget is back');
 });
+
+test('treats: menu only, one a minute per visitor, counted for today in both feeds, kept across restarts; preflight only for the public page',async t=>{
+  const {createOffice}=await import('../server/office-server.mjs');
+  await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
+  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/treat-'));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  let time=DAY; const office=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
+  await office.poll(); office.server.listen(0,'127.0.0.1'); await once(office.server,'listening');
+  t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
+  const base=`http://127.0.0.1:${office.server.address().port}`;
+  const send=(body,origin='https://aliceljy.github.io')=>fetch(base+'/guest/treat',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify(body)});
+  let r=await send({kind:'milktea',v:'0123456789abcdef'}); assert.equal(r.status,200); assert.equal(r.headers.get('access-control-allow-origin'),'https://aliceljy.github.io'); const {at}=await r.json(); assert.equal(at,new Date(DAY).toISOString());
+  assert.equal((await send({kind:'beer',v:'0123456789abcdef'})).status,400,'not on the menu');
+  assert.equal((await send({kind:'coffee',v:'bad'})).status,400);
+  assert.equal((await send({kind:'coffee'})).status,400);
+  time+=3000; r=await send({kind:'coffee',v:'0123456789abcdef'}); assert.equal(r.status,429,'one a minute per visitor'); assert.ok(Number(r.headers.get('retry-after'))>0);
+  r=await send({kind:'coffee',v:'fedcba9876543210'}); assert.equal(r.status,200,'another visitor may send');
+  assert.equal((await fetch(base+'/guest/treat',{method:'POST',headers:{'content-type':'application/json'},body:'x'.repeat(300)})).status,413);
+  const full=await (await fetch(base+'/api/state')).json(), guest=await (await fetch(base+'/guest/api/state')).json();
+  assert.deepEqual(full.treats.map(x=>x.kind),['milktea','coffee']); assert.deepEqual(full.treatsToday,{milktea:1,coffee:1}); assert.deepEqual(guest.treatsToday,{milktea:1,coffee:1}); assert.deepEqual(guest.treats.map(x=>x.kind),['milktea','coffee']);
+  time+=61000; assert.equal((await send({kind:'cake',v:'0123456789abcdef'})).status,200,'a minute later the same visitor may send again');
+  const pre=await fetch(base+'/guest/treat',{method:'OPTIONS',headers:{origin:'https://aliceljy.github.io'}}); assert.equal(pre.status,204); assert.equal(pre.headers.get('access-control-allow-methods'),'POST');
+  assert.equal((await fetch(base+'/guest/treat',{method:'OPTIONS',headers:{origin:'https://evil.example'}})).status,404);
+  const again=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})}); await again.poll();
+  assert.equal(again.snapshot().treats.length,3,'treats survive a restart'); assert.deepEqual(again.snapshot().treatsToday,{milktea:1,coffee:1,cake:1});
+});

@@ -64,3 +64,18 @@ test('a visitor stepping in starts a three-second greeting; it ends on its own a
   s.step(5000); assert.equal(s.greeting(),null,'the same visitor strolling does not restart it');
   s.setVisitors(2); s.step(100); assert.equal(s.greeting().visitor,'visitor-2','a second visitor is greeted too');
 });
+
+test('a treat is carried by a visitor to the pantry, everyone says thanks, cups stay on the desks; with no visitor a runner comes and goes',()=>{
+  const s=simulation(9); s.setVisitors(1); s.step(8000);
+  s.treat('milktea','2026-11-01T08:00:00Z'); s.step(100);
+  const v=s.visitors[0]; assert.equal(v.carry,'milktea','the visitor picked it up');
+  let arrived=false; for(let i=0;i<60;i++){s.step(500); if(s.thanksNow()){arrived=true;break;}}
+  assert.ok(arrived,'the cup reached the pantry'); assert.equal(s.thanksNow().kind,'milktea'); assert.equal(v.carry,null,'hands are empty once it is on the pantry'); assert.ok(C.distance(v,C.pantry)<30,'thanks start at the pantry, before the visitor wanders far');
+  assert.equal(s.deskTreatNow().kind,'milktea'); s.step(3500); assert.equal(s.thanksNow(),null,'thanks are over'); assert.ok(s.deskTreatNow(),'cups stay');
+  s.step(125000); assert.equal(s.deskTreatNow(),null,'cups are cleared after two minutes');
+  s.treat('nope','2026-11-01T08:01:00Z'); s.step(100); assert.equal(s.visitors.length,1,'an unknown kind is ignored');
+  s.setVisitors(0); s.step(20000); assert.equal(s.visitors.length,0);
+  s.treat('cake','2026-11-01T08:02:00Z'); s.step(100); assert.equal(s.visitors.length,1,'a runner is sent when nobody is visiting'); assert.ok(s.visitors[0].runner);
+  arrived=false; for(let i=0;i<60;i++){s.step(500); if(s.thanksNow()){arrived=true;break;}} assert.ok(arrived,'the runner delivered');
+  s.step(30000); assert.equal(s.visitors.length,0,'the runner leaves after delivering');
+});

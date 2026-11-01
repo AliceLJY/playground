@@ -6,10 +6,14 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collect } from './collectors.mjs';
 import { STATUSES, iso, cleanText, cleanNotice, taskCategory, reduceMember, RateLimiter, appendNotice, beijingDay } from './core.mjs';
+const MINUTE_MS = 60_000;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PRIVATE = path.join(os.homedir(), '.config', 'ai-office');
 const ASSETS = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/office.js', ['office.js', 'text/javascript']], ['/office-core.js', ['office-core.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/demo-script.json', ['demo-script.json', 'application/json']]]);
+
+// What a visitor may bring: the menu on the page, nothing free-form ever crosses the wire.
+export const TREAT_KINDS = ['milktea', 'coffee', 'cake', 'melon'];
 
 export function validateConfig(config) {
   if (!config || !Array.isArray(config.roster) || config.roster.length < 1 || config.roster.length > 11) throw new Error('Config must define 1 to 11 roles');
@@ -31,9 +35,10 @@ async function loadState(file) {
     if (data.version !== 1 || !data.members || !Array.isArray(data.notices)) throw new Error();
     data.notices = data.notices.filter(n => typeof n.text === 'string' && Number.isFinite(Date.parse(n.at))).slice(-20).map(n => ({ at: n.at, text: cleanNotice(n.text) }));
     data.visitorsTotal = Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 ? data.visitorsTotal : 0;
+    data.treats = (Array.isArray(data.treats) ? data.treats : []).filter(t => TREAT_KINDS.includes(t?.kind) && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
     return data;
   } catch (e) {
-    if (e.code === 'ENOENT') return { version: 1, members: {}, notices: [], visitorsTotal: 0 };
+    if (e.code === 'ENOENT') return { version: 1, members: {}, notices: [], visitorsTotal: 0, treats: [] };
     throw new Error('Private state is unreadable or invalid; preserve it and repair before restart');
   }
 }
@@ -82,8 +87,14 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
       return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0 };
+    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday() };
   }
+  function treatsToday() {
+    const day = beijingDay(clock()), counts = {};
+    for (const t of state.treats || []) if (beijingDay(Date.parse(t.at)) === day) counts[t.kind] = (counts[t.kind] || 0) + 1;
+    return counts;
+  }
+  const treatBy = new Map(); // visitor tag -> last treat time: one a minute each
 
   const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
   const log = (msg) => console.error(`${new Date().toISOString()} ${msg}`);
@@ -162,6 +173,11 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         const origin = req.headers.origin;
         return reply(res, 200, guestSnapshot(), { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
       }
+      if (req.method === 'OPTIONS' && url.pathname === '/guest/treat') {
+        const origin = req.headers.origin;
+        if (!GUEST_ORIGINS.has(origin)) return reply(res, 404, { error: 'Not found' });
+        res.writeHead(204, { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Max-Age': '600', Vary: 'Origin' }); res.end(); return;
+      }
       if (req.method === 'GET' && url.pathname === '/guest/visit') {
         const origin = req.headers.origin, tag = url.searchParams.get('v') || '';
         const cors = { Vary: 'Origin', 'Cache-Control': 'no-store', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) };
@@ -174,6 +190,25 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; await persist(); }
         else if (visitors.has(tag)) visitors.set(tag, now);
         return reply(res, 200, { ok: true, visitors: visitors.size, visitorsTotal: state.visitorsTotal || 0 }, cors);
+      }
+      if (req.method === 'POST' && url.pathname === '/guest/treat') {
+        const origin = req.headers.origin;
+        const cors = { Vary: 'Origin', 'Cache-Control': 'no-store', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) };
+        if (Number(req.headers['content-length']) > 256) { req.resume(); return reply(res, 413, { error: 'Body too large' }, cors); }
+        let size = 0, parts = [];
+        for await (const part of req) { size += part.length; if (size > 256) { reply(res, 413, { error: 'Body too large' }, cors); return; } parts.push(part); }
+        let data;
+        try { data = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { return reply(res, 400, { error: 'Invalid JSON' }, cors); }
+        if (!data || typeof data !== 'object' || !TREAT_KINDS.includes(data.kind) || !/^[a-f0-9]{16,32}$/.test(String(data.v || ''))) return reply(res, 400, { error: 'Invalid treat' }, cors);
+        const now = clock();
+        for (const [tag, at] of treatBy) if (now - at > 10 * MINUTE_MS) treatBy.delete(tag);
+        if (treatBy.has(data.v) && now - treatBy.get(data.v) < MINUTE_MS) return reply(res, 429, { error: 'One a minute, thank you' }, { ...cors, 'Retry-After': String(Math.ceil((MINUTE_MS - (now - treatBy.get(data.v))) / 1000)) });
+        if (!limiter.take('treat', now)) return reply(res, 429, { error: 'Rate limited' }, cors);
+        treatBy.set(data.v, now);
+        const entry = { kind: data.kind, at: iso(now) };
+        state.treats = [...(state.treats || []), entry].slice(-50);
+        updatedAt = iso(now); await persist();
+        return reply(res, 200, { ok: true, at: entry.at }, cors);
       }
       const guestReport = req.method === 'POST' && url.pathname.match(/^\/guest\/report\/([a-z][a-z0-9_-]{0,31})$/);
       if (guestReport) {
