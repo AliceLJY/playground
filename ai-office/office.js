@@ -353,6 +353,10 @@
     $('#room-caption').textContent = waiting ? `${waiting} 位伙伴，有事等你拍板` : busy ? '键盘声里，点子正在长大' : '这一刻，办公室很安静';
     const visiting = sim.visitors.filter(v => v.phase === 'touring').length;
     $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '');
+    // The guest book total sits in the always-visible status line: most people never open the drawer or scroll to the
+    // annex board. Live office only; the demo's numbers are made up.
+    const book = $('#guestbook'), total = !demo && Number.isInteger(visitorsTotal) ? visitorsTotal : null;
+    book.hidden = total === null; if (total !== null) book.textContent = `来过 ${total.toLocaleString('zh-CN')} 位客人`;
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
     if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
     const thanks = sim.thanksNow(), carrier = sim.visitors.find(v => v.carry);
@@ -396,7 +400,7 @@
   }
   function modeBanner() {
     const key = `${demo}:${guest}:${view}`; if (key === modeKey) return; modeKey = key;
-    $('#mode').textContent = demo ? `演示模式 · 模拟数据${view && view !== 'hero' ? ' · 场景预览' : ''}` : guest ? '实时状态 · 访客视角 · 公告板只有本人看得到' : '本机状态 · 每 10 秒更新';
+    $('#mode-text').textContent = demo ? `演示模式 · 模拟数据${view && view !== 'hero' ? ' · 场景预览' : ''}` : guest ? '实时状态 · 访客视角' : '本机状态 · 每 10 秒更新';
     $('#mode').classList.toggle('live', !demo);
     $('#board-tab').hidden=guest && !demo;
     if (guest && !demo && !$('#board').hidden) $('#today-tab').click();
@@ -571,5 +575,5 @@
     }
     requestAnimationFrame(frame);
   }
-  start().catch(() => { $('#mode').textContent = '办公室暂时没打开，请刷新重试'; });
+  start().catch(() => { $('#mode-text').textContent = '办公室暂时没打开，请刷新重试'; });
 })();
