@@ -178,8 +178,8 @@
     }
   }
   function modeBanner() {
-    const key = `${demo}:${view}`; if (key === modeKey) return; modeKey = key;
-    $('#mode').textContent = demo ? `演示模式 · 模拟数据${view === 'queue' || view === 'notice' ? ' · 场景预览' : ''}` : '本机状态 · 每 10 秒更新';
+    const key = `${demo}:${guest}:${view}`; if (key === modeKey) return; modeKey = key;
+    $('#mode').textContent = demo ? `演示模式 · 模拟数据${view === 'queue' || view === 'notice' ? ' · 场景预览' : ''}` : guest ? '实时状态 · 访客视角 · 公告板只有本人看得到' : '本机状态 · 每 10 秒更新';
     $('#mode').classList.toggle('live', !demo);
   }
   function resetDemo() {
@@ -208,18 +208,31 @@
     }
   }
   function validateState(data) {
-    if (!data || data.demo !== false || !Array.isArray(data.roster) || data.roster.length !== 11 || !Array.isArray(data.notices) || data.notices.length > 20) throw new Error('Invalid state');
+    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length !== 11 || !Array.isArray(data.notices) || data.notices.length > 20) throw new Error('Invalid state');
     const ids = new Set();
     for (const a of data.roster) { if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince))) throw new Error('Invalid role'); ids.add(a.id); }
     if (data.notices.some(n => typeof n.text !== 'string' || !Number.isFinite(Date.parse(n.at)))) throw new Error('Invalid notice');
     return data;
   }
+  // Where the live office answers when this page is served elsewhere (GitHub Pages): a read-only guest feed behind a
+  // path-limited public proxy. Same desks and statuses, no board. Unreachable (machine asleep) means the demo plays.
+  const GUEST_API = 'https://mac-mini.tail791fb9.ts.net:8443/office/api/state';
+  let guest = false;
+  async function fetchState() {
+    const sameOrigin = new URL('api/state', location.href);
+    for (const [url, isGuest] of [[sameOrigin, false], [GUEST_API, true]]) {
+      try {
+        const response = await fetch(url, { cache: 'no-store', mode: 'cors', signal: AbortSignal.timeout(isGuest ? 6000 : 2500) });
+        if (!response.ok) continue;
+        const data = validateState(await response.json());
+        guest = isGuest; return data;
+      } catch { /* next source */ }
+    }
+    throw new Error('Unavailable');
+  }
   async function loadLive() {
     try {
-      // Relative to the page directory, so Pages' /playground/ai-office/ prefix works too.
-      const response = await fetch(new URL('api/state', location.href), { cache: 'no-store', signal: AbortSignal.timeout(2500) });
-      if (!response.ok) throw new Error('Unavailable');
-      const data = validateState(await response.json());
+      const data = await fetchState();
       if (demo || !sim || currentRoster.map(a => a.id).join() !== data.roster.map(a => a.id).join()) {
         demo = false; elapsed = 0; wallBase = Date.now(); currentRoster = data.roster; sim = C.create(currentRoster, seed); seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
         sim.notices = data.notices; buildRoster(); light = ''; lastUI = -10;

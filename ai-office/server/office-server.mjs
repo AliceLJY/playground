@@ -98,10 +98,17 @@ export async function createOffice({ config, token, stateFile, clock = Date.now,
     } finally { polling = false; }
   }
 
-  const reply = (res, code, value) => {
-    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...(code === 429 ? { 'Retry-After': '2' } : {}) });
+  const reply = (res, code, value, extra = {}) => {
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...(code === 429 ? { 'Retry-After': '2' } : {}), ...extra });
     res.end(JSON.stringify(value));
   };
+  // The guest view: the same desks and statuses, no board and no badge text, readable from the public page's origin
+  // only. It is what a path-limited public proxy (tailscale funnel /office -> /guest) exposes; nothing else is reachable.
+  const GUEST_ORIGINS = new Set(['https://aliceljy.github.io']);
+  function guestSnapshot() {
+    const full = snapshot();
+    return { ...full, roster: full.roster.map(a => ({ ...a, badge: '' })), notices: [], guest: true };
+  }
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -109,6 +116,11 @@ export async function createOffice({ config, token, stateFile, clock = Date.now,
     try {
       const url = new URL(req.url, 'http://127.0.0.1:3091');
       if (req.method === 'GET' && url.pathname === '/api/state') return reply(res, 200, snapshot());
+      if (req.method === 'GET' && url.pathname === '/guest/api/state') {
+        const origin = req.headers.origin;
+        return reply(res, 200, guestSnapshot(), { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
+      }
+      if (url.pathname.startsWith('/guest/')) return reply(res, 404, { error: 'Not found' });
       if (req.method === 'POST' && ['/api/report', '/api/notice'].includes(url.pathname)) {
         const got = createHash('sha256').update(req.headers.authorization || '').digest();
         if (!timingSafeEqual(expected, got)) { req.resume(); return reply(res, 401, { error: 'Unauthorized' }); }
