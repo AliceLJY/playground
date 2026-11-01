@@ -1,8 +1,10 @@
-// B1–B6, actual geometry / screenshots / real mouse + touch input. Sequential GPU checks.
+// B1–B7, actual geometry / screenshots / real mouse + touch input. Sequential GPU checks.
 // NODE_PATH="$(npm root -g)" node tools/browser-check.cjs [out-dir] [base-url]
 // Source check: node tools/serve.cjs . 8941 ; same command with http://127.0.0.1:8941/dev.html
 const {chromium}=require('playwright'),fs=require('fs'),path=require('path');
+const coverage=require('./flower-coverage.cjs');
 const out=path.resolve(process.argv[2]||'shots/r1/browser'),base=process.argv[3]||'file://'+path.resolve(__dirname,'../dist/index.html');
+const auditBase=process.argv[4]||'file://'+path.resolve(__dirname,'../shots/r2/audit.html');
 fs.mkdirSync(out,{recursive:true});
 const contains=b=>b.front&&b.x0>=0&&b.x1<=1&&b.y0>=0&&b.y1<=1;
 const overlaps=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
@@ -16,6 +18,10 @@ const overlaps=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
  const stats=async png=>{const ctx=await browser.newContext(),pg=await ctx.newPage();try{return await pg.evaluate(async b64=>{const im=new Image();im.src='data:image/png;base64,'+b64;await im.decode();const c=document.createElement('canvas');c.width=im.width;c.height=im.height;const g=c.getContext('2d');g.drawImage(im,0,0);const d=g.getImageData(0,0,c.width,c.height).data;let lum=0,warm=0,warmHue=0,topLum=0,tr=0,tb=0;for(let i=0;i<d.length;i+=4){const l=(.2126*d[i]+.7152*d[i+1]+.0722*d[i+2])/255;lum+=l;const r=d[i],g=d[i+1],b=d[i+2],ma=Math.max(r,g,b),mi=Math.min(r,g,b),delta=ma-mi,hue=delta===0?0:ma===r?60*((g-b)/delta%6):ma===g?60*((b-r)/delta+2):60*((r-g)/delta+4);if((hue>=0&&hue<65||hue<0&&hue>-15)&&delta/ma>.15&&l>.08)warmHue++;if(d[i]>200&&d[i]-d[i+2]>50)warm++;if(i<d.length/2){topLum+=l;tr+=d[i];tb+=d[i+2];}}return{lum:lum/(d.length/4),warm:warm/(d.length/4),warmHue:warmHue/(d.length/4),topLum:topLum/(d.length/8),blueOverRed:tb/tr};},png.toString('base64'));}finally{await ctx.close();}};
  try{
  for(const view of ['hero','bridge','pagoda','wide']){const{ctx,pg}=await open('?view='+view);await pg.waitForTimeout(500);const data=await info(pg);report.views.push({view,...data});await pg.screenshot({path:path.join(out,view+'.png')});check('view-'+view,data.state.view===view&&data.info.calls<=160,{actual:data.state.view,calls:data.info.calls,renderer:data.info.renderer});await ctx.close();}
+ // The audit build has identical visuals; verify this before trusting its object mask.
+ {const ctx=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1}),pg=await ctx.newPage();await pg.goto(auditBase+'?view=hero&h=0.55');await pg.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});await pg.waitForTimeout(500);
+ const data=await coverage(pg,out,fs.readFileSync(path.join(out,'hero.png')));fs.writeFileSync(path.join(out,'flower-mask.png'),Buffer.from(data.maskPng.split(',')[1],'base64'));delete data.maskPng;
+ report.flowers=data;check('B7-flowers',data.share>=.18&&data.sceneDifference<=.001,data);await ctx.close();}
  const hero=report.views[0];check('B2', ['canton','pagoda','bridge','tram'].every(k=>contains(hero.subjects[k]))&&(hero.subjects.bridge.x1-hero.subjects.bridge.x0)*(hero.subjects.bridge.y1-hero.subjects.bridge.y0)>=.04&&hero.subjects.pagoda.y1-hero.subjects.pagoda.y0>=.15,hero.subjects);
  check('B5-desktop',hero.subjects.base.x0>hero.ui['.copy'].x1,{boardLeft:hero.subjects.base.x0,copyRight:hero.ui['.copy'].x1});
  // B3 counts BRIGHT warm pixels. B6 counts the full red/orange/yellow hue range (HSV H -15..65, S > .15, luminance > .08), including sunlit flowers and masonry.

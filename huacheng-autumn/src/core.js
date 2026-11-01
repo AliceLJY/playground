@@ -54,6 +54,10 @@ export function makeLayout(seed=SEED, mobile=false) {
   // Flowers continue along the stair rails and climb the piers.
   for(const z of [BRIDGE.z0,BRIDGE.z1]) for(const side of [-1,1]) for(let i=0;i<13;i++) clusters.push({side,segment:null,center:[-4+i*0.52,6.45-i*0.402,z+side*1.28],depth:R(0.4,1),radius:0.43,color:i%4});
   for(const p of piers) for(let j=0;j<5;j++) clusters.push({side:1,segment:null,center:[p.center[0]+0.4,1+j*0.85,p.center[2]],depth:0.6,radius:0.32,color:j%4});
+  // Full spirals show flowers on every pier face, including the hero-facing face.
+  for(const p of piers)for(let j=0;j<15;j++){
+    const a=j*.92;clusters.push({side:1,segment:null,center:[p.center[0]+Math.cos(a)*.43,.7+j*.29,p.center[2]+Math.sin(a)*.43],depth:.55,radius:.32,color:Math.floor(j/3)%4});
+  }
   const bracts=[];
   clusters.forEach((c,ci)=>{
     const n=mobile?100:180;
@@ -71,18 +75,29 @@ export function makeLayout(seed=SEED, mobile=false) {
   const trees=treeSpecs.map(([x,z,y,kind],id)=>{
     const h=kind==='palm'?R(5,6.2):kind==='silk'?R(4.7,5.5):R(3.8,4.8), leaves=[], flowers=[], branches=[];
     const root=[x,y,z], crown=[x,y+h,z];
-    const leafCount=kind==='silk'?(mobile?55:95):(mobile?700:1400);
+    const leafCount=kind==='silk'?(mobile?110:190):(mobile?1600:3400);
     const tips=[];
-    for(let j=0;j<(kind==='palm'?9:7);j++) {
-      const a=j*2.399+R(-0.2,0.2), r=kind==='palm'?2.2:R(1.1,2.3);
-      const fork=[x+Math.cos(a)*0.6,y+h*0.63,z+Math.sin(a)*0.6], tip=[x+Math.cos(a)*r,y+h+R(-0.6,0.65),z+Math.sin(a)*r];
-      if(kind!=='palm') { branches.push({...beam([x,y+h*0.36,z],fork,0.13),taper:0.6});branches.push({...beam(fork,tip,0.085),taper:0.38}); }
-      else branches.push({...beam(crown,tip,0.055),taper:0.4});
-      tips.push(tip);
-    }
-    for(let j=0;j<leafCount;j++) {
-      const tip=tips[j%tips.length],a=R(0,6.28),rad=Math.sqrt(rnd())* (kind==='palm'?0.65:1.15);
-      leaves.push({p:[tip[0]+Math.cos(a)*rad,tip[1]+R(-0.65,0.7),tip[2]+Math.sin(a)*rad],rot:[R(-1.2,1.2),R(0,6.28),R(-1.5,1.5)],scale:kind==='palm'?[0.1,R(0.5,0.85),1]:[R(0.22,0.36),R(0.32,0.5),1],shade:R(0,1)});
+    if(kind==='palm') {
+      // Ten curved rachises, each with paired pinnae pointing down and out.
+      for(let j=0;j<10;j++) {
+        const a=j*Math.PI*2/10+R(-.12,.12),len=R(2.1,2.65),rise=R(.65,1.05);
+        const point=u=>[x+Math.cos(a)*len*u+.22,y+h+rise*Math.sin(Math.PI*u)-.95*u*u,z+Math.sin(a)*len*u];
+        let prev=point(0);
+        for(let k=1;k<=12;k++){const q=point(k/12);branches.push(beam(prev,q,.032*(1-k/18)));prev=q;}
+        for(let k=1;k<=28;k++)for(const side of [-1,1]){
+          const u=k/30,q=point(u),length=(.22+.6*Math.sin(Math.PI*u))*(mobile?.9:1);
+          leaves.push({p:[q[0]+side*.035*Math.sin(a),q[1],q[2]-side*.035*Math.cos(a)],rot:[.7,Math.PI/2-a+side*.9,side*.7],scale:[.065,length,1],shade:.25+.55*u});
+        }
+      }
+    } else {
+      for(let j=0;j<7;j++) {
+        const a=j*2.399+R(-.2,.2),r=R(1.1,2.1),fork=[x+Math.cos(a)*.6,y+h*.63,z+Math.sin(a)*.6],tip=[x+Math.cos(a)*r,y+h+R(-.55,.55),z+Math.sin(a)*r];
+        branches.push({...beam([x,y+h*.36,z],fork,.13),taper:.6});branches.push({...beam(fork,tip,.085),taper:.38});tips.push(tip);
+      }
+      for(let j=0;j<leafCount;j++) {
+        const tip=tips[j%tips.length],a=R(0,6.28),rad=Math.cbrt(rnd())*.95,vy=R(-.65,.65);
+        leaves.push({p:[tip[0]+Math.cos(a)*rad,tip[1]+vy,tip[2]+Math.sin(a)*rad],rot:[R(-1.2,1.2),R(0,6.28),R(-1.5,1.5)],scale:[R(.132,.216),R(.192,.3),1],shade:clamp(.12+.5*rad/.95+.25*vy/.65+R(-.15,.15),0,1)});
+      }
     }
     if(kind==='silk') for(let j=0;j<(mobile?210:320);j++) {
       const tip=tips[j%tips.length],a=R(0,6.28),r=Math.sqrt(rnd())*1.12;
@@ -179,8 +194,8 @@ export function createRig({u=0,auto=true}={}) {
 }
 // Linear RGB light/sky values; material HEX colours are converted by Three.js.
 const HOURS=[
- {low:[0.58,0.69,0.78],mid:[0.21,0.39,0.6],top:[0.06,0.19,0.39],key:[1,0.89,0.7],keyInt:3.1,hemi:1.65,lights:0.01,sunY:0.8},
- {low:[0.66,0.3,0.14],mid:[0.13,0.15,0.33],top:[0.025,0.045,0.15],key:[1,0.49,0.2],keyInt:2.2,hemi:1.75,lights:0.68,sunY:0.24},
+ {low:[0.62,0.76,0.84],mid:[0.075,0.25,0.49],top:[0.025,0.11,0.3],key:[1,0.91,0.76],keyInt:3.5,hemi:1.3,lights:0.01,sunY:0.8},
+ {low:[.91,0.27,0.055],mid:[0.04,0.09,0.22],top:[0.012,0.028,0.09],key:[1,0.63,0.32],keyInt:3.0,hemi:1.35,lights:0.68,sunY:0.32},
  {low:[0.014,0.022,0.055],mid:[0.008,0.015,0.042],top:[0.003,0.006,0.019],key:[0.38,0.52,0.9],keyInt:0.32,hemi:0.38,lights:1,sunY:0.08}
 ];
 export function skyAt(h){h=clamp(h,0,1);const i=h<=0.55?0:1,k=smooth(i===0?h/0.55:(h-0.55)/0.45),a=HOURS[i],b=HOURS[i+1];return Object.fromEntries(Object.keys(a).map(f=>[f,Array.isArray(a[f])?mix(a[f],b[f],k):lerp(a[f],b[f],k)]));}
