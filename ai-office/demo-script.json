@@ -39,7 +39,7 @@
     },
     {
       "id": "companion",
-      "name": "etwin",
+      "name": "etwin-cc",
       "role": "陪伴搭档",
       "color": "#D69A9E",
       "status": "idle",

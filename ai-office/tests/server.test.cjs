@@ -246,3 +246,19 @@ test('guest report: a bot key moves only its own desk; wrong key 403, no key for
   time+=3000; assert.equal((await rep(helper,{status:'done'})).status,200);
   await assert.rejects(createOffice({config,token,botKeys:{nope:key},stateFile,clock:()=>time,collector:async()=>({})}));
 });
+
+test('an open bot desk takes reports with no key; other desks still refuse',async t=>{
+  const {createOffice}=await import('../server/office-server.mjs');
+  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const open_=config.roster.find(a=>a.id==='helper').id, other=config.roster[0].id;
+  const office=await createOffice({config,token:randomBytes(24).toString('hex'),botKeys:{[open_]:'open'},stateFile,clock:()=>DAY,collector:async()=>({})});await office.poll();
+  office.server.listen(0,'127.0.0.1');await once(office.server,'listening');
+  t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
+  const base=`http://127.0.0.1:${office.server.address().port}`;
+  const rep=(id,body)=>fetch(base+'/guest/report/'+id,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  assert.equal((await rep(open_,{status:'busy',task:'采集'})).status,200);
+  assert.equal((await rep(other,{status:'busy'})).status,403);
+  assert.equal((await rep(open_,{status:'nope'})).status,400);
+  const g=await (await fetch(base+'/guest/api/state')).json(); assert.equal(g.roster.find(a=>a.id===open_).status,'busy');
+});
