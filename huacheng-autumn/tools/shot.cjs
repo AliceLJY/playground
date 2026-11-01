@@ -6,7 +6,7 @@ const {chromium}=require('playwright'),fs=require('fs'),path=require('path');
  const base=(single?args[5]:args[1])||'file://'+path.resolve(__dirname,'../dist/index.html'),w=single?+(args[2]||1440):1440,h=single?+(args[3]||900):900,dpr=single?+(args[4]||1):2;
  fs.mkdirSync(single?path.dirname(out):out,{recursive:true});
  const browser=await chromium.launch({channel:'chrome',headless:true}),reports=[];
- try{for(const entry of single?[{query:args[1]||'?view=hero'}]:[...['hero','bridge','pagoda','wide'].map(v=>({query:'?view='+v,name:v})),...[0,.55,1].map(h=>({query:'?view=hero&h='+h,name:'lighting-'+h}))]){const query=entry.query;
+ try{for(const entry of single?[{query:args[1]||'?view=hero'}]:[...['hero','station','bridge','arch','pagoda','wide'].map(v=>({query:'?view='+v,name:v})),...[0,.55,1].map(h=>({query:'?view=hero&h='+h,name:'lighting-'+h}))]){const query=entry.query;
  const context=await browser.newContext({viewport:{width:w,height:h},deviceScaleFactor:dpr,isMobile:w<600,hasTouch:w<600}),page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await page.goto(base+query);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100,timeout:30000});await page.waitForTimeout(3000);
