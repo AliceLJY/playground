@@ -102,7 +102,7 @@
     function tickVisitors(dt) {
       while (sim.visitors.filter(v => v.phase === 'touring').length < sim.visitorTarget && sim.visitors.length < 5) {
         const seq = ++sim.visitorSeq;
-        sim.visitors.push({ id: `visitor-${seq}`, visitor: true, i: 20 + seq % 4, color: ['#a8b7c4', '#c4b2a8', '#b4c4a8', '#c4a8b9'][seq % 4], x: door.x, y: door.y, path: [], dest: null, phase: 'touring', until: null, status: 'visiting' });
+        sim.visitors.push({ id: `visitor-${seq}`, visitor: true, i: 20 + seq % 4, color: ['#e9a23b', '#d9605a', '#5fa8d3', '#8f6fd6'][seq % 4], x: door.x, y: door.y, path: [], dest: null, phase: 'touring', until: null, status: 'visiting' });
       }
       let extra = sim.visitors.filter(v => v.phase === 'touring').length - sim.visitorTarget;
       for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring') { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }

@@ -30,9 +30,10 @@ async function loadState(file) {
     const data = JSON.parse(await readFile(file, 'utf8'));
     if (data.version !== 1 || !data.members || !Array.isArray(data.notices)) throw new Error();
     data.notices = data.notices.filter(n => typeof n.text === 'string' && Number.isFinite(Date.parse(n.at))).slice(-20).map(n => ({ at: n.at, text: cleanNotice(n.text) }));
+    data.visitorsTotal = Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 ? data.visitorsTotal : 0;
     return data;
   } catch (e) {
-    if (e.code === 'ENOENT') return { version: 1, members: {}, notices: [] };
+    if (e.code === 'ENOENT') return { version: 1, members: {}, notices: [], visitorsTotal: 0 };
     throw new Error('Private state is unreadable or invalid; preserve it and repair before restart');
   }
 }
@@ -81,7 +82,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
       return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()) };
+    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0 };
   }
 
   const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
@@ -148,8 +149,11 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         const now = clock();
         if (!limiter.take(`visit:${tag}`, now)) return reply(res, 429, { error: 'Rate limited' }, cors);
         visitorCount(now);
-        if (visitors.has(tag) || visitors.size < VISIT_CAP) visitors.set(tag, now);
-        return reply(res, 200, { ok: true, visitors: visitors.size }, cors);
+        // A tag heard for the first time is one more guest in the book, kept across restarts; a tab that goes quiet
+        // for 45 s and comes back counts again (it is a new visit), which is how a guest book works anyway.
+        if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; await persist(); }
+        else if (visitors.has(tag)) visitors.set(tag, now);
+        return reply(res, 200, { ok: true, visitors: visitors.size, visitorsTotal: state.visitorsTotal || 0 }, cors);
       }
       const guestReport = req.method === 'POST' && url.pathname.match(/^\/guest\/report\/([a-z][a-z0-9_-]{0,31})$/);
       if (guestReport) {

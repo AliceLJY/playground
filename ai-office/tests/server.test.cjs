@@ -364,4 +364,10 @@ test('guest visits: a tagged hello counts for 45 s, bad tags 400, CORS only for 
   assert.equal((await (await fetch(base+'/guest/api/state')).json()).visitors,2,'the public feed carries only the count');
   time+=46000; assert.equal((await (await fetch(base+'/api/state')).json()).visitors,0,'silent tabs have left');
   assert.equal((await fetch(base+'/guest/visit',{method:'POST'})).status,404);
+  let full=await (await fetch(base+'/api/state')).json(); assert.equal(full.visitorsTotal,2,'two tags ever heard');
+  time+=3000; assert.equal((await hello('0123456789abcdef')).status,200);
+  full=await (await fetch(base+'/api/state')).json(); assert.equal(full.visitorsTotal,3,'a tab back after 45 s of silence is a new visit'); assert.equal(full.visitors,1);
+  time+=3000; await hello('0123456789abcdef'); assert.equal((await (await fetch(base+'/api/state')).json()).visitorsTotal,3,'the same open tab is not counted twice');
+  const again=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
+  await again.poll(); assert.equal(again.snapshot().visitorsTotal,3,'the guest book survives a restart'); assert.equal(again.snapshot().visitors,0);
 });
