@@ -14,7 +14,7 @@ let browser,staticServer;
 (async()=>{
   await fs.mkdir(out,{recursive:true});
   browser=await chromium.launch({headless:true,...(process.platform==='darwin'?{channel:'chrome',args:['--use-gl=angle','--use-angle=metal']}:{})});report.browser=browser.version();
-  async function open(query,viewport={width:1280,height:1000},clock=true,prepare){
+  async function open(query,viewport={width:960,height:1000},clock=true,prepare){
     const url=new URL(query,base).href,origin=new URL(url).origin;
     const context=await browser.newContext({viewport,deviceScaleFactor:2,hasTouch:viewport.width<701,isMobile:viewport.width<701});
     const page=await context.newPage(),errors=[],external=[];
@@ -33,7 +33,8 @@ let browser,staticServer;
       const box=e=>{const b=e.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom,right:b.right};};
       const c=document.querySelector('#office'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let ink=0,total=0;
       for(let i=3;i<p.length;i+=4*41){total++;if(p[i]>100)ink++;}
-      return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,canvas:box(c),canvasPixels:[c.width,c.height],room:box(document.querySelector('#room-viewport')),drawer:box(document.querySelector('#drawer')),banner:document.querySelector('#mode').textContent,ink:ink/total};
+      const v=document.querySelector('#room-viewport');
+      return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,canvas:box(c),canvasPixels:[c.width,c.height],cssScale:c.getBoundingClientRect().width/(c.width/2),room:box(v),roomScroll:[v.clientWidth,v.scrollWidth,v.clientHeight,v.scrollHeight,v.scrollTop],drawer:box(document.querySelector('#drawer')),banner:document.querySelector('#mode').textContent,ink:ink/total};
     });
     check(name+' no page errors',!run.errors.length,run.errors);check(name+' no external side effects',!run.external.length,run.external);
     check(name+' canvas painted',layout.ink>.8,layout.ink);check(name+' no horizontal overflow',layout.scrollWidth<=layout.width,layout);
@@ -160,30 +161,114 @@ let browser,staticServer;
     corruption=null;await invalid.page.clock.runFor(11000);
   }
   await invalid.context.close();
+  // Same simulation, complete floor in both desktop sizes; no screenshot-only layout or scale.
+  for(const viewport of [{width:1455,height:782},{width:1920,height:1000}])for(const view of ['hero','games','meeting','night-guard']){
+    const run=await open(`?demo=1&view=${view}`,viewport),name=`landscape-${viewport.width}-${view}`,s=await save(run,name,view),l=report.runs.at(-1).layout;
+    check(name+' whole building fits',s.layout==='landscape'&&l.canvasPixels.join()==='1280,840'&&l.canvas.x>=l.room.x-.5&&l.canvas.right<=l.room.right+.5&&l.canvas.y>=l.room.y-.5&&l.canvas.bottom<=l.room.bottom+.5&&l.roomScroll[1]===l.roomScroll[0]&&l.roomScroll[3]===l.roomScroll[2]&&l.roomScroll[4]===0,l);
+    check(name+' original character scale retained',l.cssScale>=1.57,l.cssScale);
+    if(view==='games')check(name+' all six game names visible',s.actors.filter(a=>a.game).every(a=>s.nameplates.some(p=>p.id===a.id)));
+    if(view==='meeting'){
+      check(name+' doorway lamp replaces downstairs sign',s.meetingLamp&&!s.meetingSign&&await run.page.locator('#room-caption').textContent()==='会议室在开会');
+      check(name+' lamp actual pixels',await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(589*2,211*2,1,1).data].join()==='239,198,108,255'));
+    }
+    await run.context.close();
+  }
+  for(const view of ['meeting','games','notice','booth','queue']){
+    const run=await open(`?demo=1&view=${view}`,{width:820,height:1180});
+    const original=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot());
+    for(const viewport of [{width:1180,height:820},{width:820,height:1180}]){
+      await run.page.setViewportSize(viewport);const wide=viewport.width>viewport.height;
+      await run.page.waitForFunction(wide=>window.__PLAYTEST__.snapshot().layout===(wide?'landscape':'portrait'),wide,{polling:100});
+      const s=await save(run,`rotate-${view}-${wide?'wide':'tall'}`);
+      check('rotation preserves '+view+' '+wide,s.elapsed===original.elapsed&&JSON.stringify(s.scene)===JSON.stringify(original.scene)&&JSON.stringify(s.actors.map(a=>a.status))===JSON.stringify(original.actors.map(a=>a.status))&&JSON.stringify(s.delivery)===JSON.stringify(original.delivery)&&s.notices===original.notices);
+      check('rotation resolves targets '+view+' '+wide,s.actors.every(a=>!a.moving));
+      if(view==='games')check('rotation games remain playable '+wide,s.actors.filter(a=>a.game).length===6);
+    }
+    await run.context.close();
+  }
+  for(const mode of ['idle','meeting','waiting']){
+    const run=await open('?view=hero',{width:1455,height:782},true,page=>page.route('**/api/state',route=>{
+      const d=structuredClone(fixture),names=['CC','Codex','Kimi','GrokBot','Agy','etwin-cc','Gemini','Muse','Cobbler','Dots','豆包'];
+      d.roster=Array.from({length:11},(_,desk)=>({...fixture.roster[0],id:desk?'a'+desk:'cc',name:names[desk],desk,courier:desk===8,status:mode==='meeting'?'busy':mode}));
+      d.visitors=0;d.notices=[];d.events=[];d.treats=[];d.scene={meeting:mode==='meeting'?{...fixture.scene.meeting,members:d.roster.map(a=>a.id)}:null,call:null,dispatched:[],disk:null,guard:null};return route.fulfill({json:d});
+    }));
+    await run.page.evaluate(()=>window.__PLAYTEST__.step(35000));const s=await save(run,'landscape-eleven-'+mode);
+    check('eleven landscape destinations '+mode,s.actors.every((a,i)=>s.actors.slice(i+1).every(b=>Math.abs(a.x-b.x)>=18||Math.abs(a.y-b.y)>=32)));
+    check('eleven landscape readable foot plates '+mode,s.nameplates.length>=(mode==='idle'?5:mode==='meeting'?11:7),s.nameplates.length);
+    if(mode==='idle') {
+      await run.page.setViewportSize({width:960,height:1000});await run.page.waitForFunction(()=>window.__PLAYTEST__.snapshot().layout==='portrait',null,{polling:100});
+      const portrait=await save(run,'crowd-portrait-reference');
+      check('full game corner uses the same foreground-name rule as portrait',s.nameplates.map(p=>p.id).sort().join()===portrait.nameplates.map(p=>p.id).sort().join(),{landscape:s.nameplates.length,portrait:portrait.nameplates.length});
+    }
+    await run.context.close();
+  }
+  const boundary=await open('?demo=1&view=hero',{width:999,height:700});
+  for(const [width,height,expected] of [[999,700,'portrait'],[1000,801,'portrait'],[1000,800,'landscape'],[999,799,'portrait']]){
+    await boundary.page.setViewportSize({width,height});await boundary.page.waitForFunction(expected=>window.__PLAYTEST__.snapshot().layout===expected,expected,{polling:100});check(`layout boundary ${width}x${height}`,(await boundary.page.evaluate(()=>window.__PLAYTEST__.snapshot())).layout===expected);
+  }
+  await boundary.context.close();
+  const wideActions=await open('?demo=1',{width:1455,height:782});
+  await wideActions.page.locator('#pose').click();await wideActions.page.clock.runFor(3400);
+  await wideActions.page.waitForFunction(()=>document.querySelector('#photo-img').naturalWidth===1280,null,{polling:100});
+  check('horizontal photo plus unchanged caption strip',await wideActions.page.locator('#photo-img').evaluate(e=>e.naturalWidth===1280&&e.naturalHeight===930));
+  await save(wideActions,'landscape-photo');await wideActions.context.close();
+  for(const width of [390,1455])for(const guest of [false,true])for(const n of [undefined,0,1,8,11]){
+    if(!guest&&n===undefined)continue;
+    const run=await open('?view=hero',{width,height:width===390?664:782},true,async page=>{
+      await page.addInitScript(()=>{window.overflowText=[];const draw=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(t,x,y,...args){if(x===323&&y===36)window.overflowText.push(t);return draw.call(this,t,x,y,...args);};});
+      await page.route('**/api/state',route=>{
+        const d=swappedFeed();delete d.guest;if(guest)d.guest=true;if(n!==undefined)d.noticesToday=n;
+        d.roster.forEach(a=>a.status='busy');d.visitors=0;d.events=[];d.treats=[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};
+        d.notices=[{at:'2026-10-31T15:59:59Z',text:'Yesterday'},...Array.from({length:n||0},(_,i)=>({at:'2026-11-01T07:29:00Z',text:`Full notice ${i} — no truncation of this complete note`}))];return route.fulfill({json:d});
+      });
+    });
+    await run.page.evaluate(()=>window.__PLAYTEST__.step(1100));
+    const b=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot().wallBoard),label=`board-${width}-${guest?'guest':'local'}-${n??'missing'}`;
+    check(label+' count contract',b.count===(n??null)&&b.sheets===Math.min(n??0,8)&&b.extra===Math.max(0,(n??0)-8)&&b.recent===(!guest&&n>0),b);
+    const painted=await run.page.evaluate(()=>{
+      const g=document.querySelector('#office').getContext('2d'),pixel=(x,y)=>Array.from(g.getImageData(x*2,y*2,1,1).data).join();
+      const colors=['255,240,201,255','217,227,198,255','237,196,162,255','243,230,178,255'];
+      return {sheets:Array.from({length:8},(_,i)=>pixel(238+i%4*21,43+Math.floor(i/4)*14)===colors[i%4]).filter(Boolean).length,pins:Array.from({length:8},(_,i)=>pixel(243+i%4*21,40+Math.floor(i/4)*14)),overflow:window.overflowText};
+    });
+    check(label+' actual sheets and overflow',painted.sheets===Math.min(n??0,8)&&(n>8?painted.overflow.includes('+'+(n-8)):painted.overflow.length===0),painted);
+    check(label+' actual recent pin',painted.pins.filter(p=>p==='217,86,77,255').length===(!guest&&n>0?1:0),painted.pins);
+    if(!guest&&n>0){await run.page.evaluate(()=>window.__PLAYTEST__.step(600));check(label+' pin blinks off',await run.page.evaluate(()=>{const g=document.querySelector('#office').getContext('2d');return !Array.from({length:8},(_,i)=>[...g.getImageData((243+i%4*21)*2,(40+Math.floor(i/4)*14)*2,1,1).data].join()).includes('217,86,77,255');}));}
+    if(width===390)await run.page.locator('#wall-board').tap();else await run.page.locator('#wall-board').click();
+    check(label+' opens correct tab',await run.page.locator(guest?'#today':'#board').isVisible()&&await run.page.locator('#drawer').evaluate(e=>e.classList.contains('expanded')));
+    if(guest){const hint=await run.page.locator('#guest-notices').textContent();check(label+' guest hint at top',await run.page.locator('#guest-notices').isVisible()&&hint==='公告板的纸条只在本人内网地址可见'+(n===undefined?'':`，今天共 ${n} 张`)&&await run.page.locator('#today').evaluate(e=>e.firstElementChild.id==='guest-notices'));}
+    else check(label+' complete text in notebook',await run.page.locator('#notices li').count()===n+1&&(n===0||await run.page.locator('#notices').textContent().then(x=>x.includes('no truncation of this complete note'))));
+    await save(run,label);
+    if(width===1455&&n===1){await run.page.locator('#team-tab').click();await run.page.locator('#wall-board').focus();await run.page.keyboard.press('Enter');check(label+' keyboard opens board',await run.page.locator(guest?'#today':'#board').isVisible());}
+    if(width===1455&&!guest&&n===1){await run.page.clock.setSystemTime(new Date('2026-11-01T07:39:00Z'));await run.page.evaluate(()=>window.__PLAYTEST__.step(0));check('ten-minute pin expiry on live clock',!(await run.page.evaluate(()=>window.__PLAYTEST__.snapshot())).wallBoard.recent);}
+    await run.context.close();
+  }
   // The complete stable main room and the actual cached background must match the task baseline.
   // Identical busy-only feed avoids treating the requested idle routing changes as artwork regressions.
-  const originals=new Map(['index.html','office.js','office-core.js','style.css'].map(file=>[file,execFileSync('git',['show',`70f5527:ai-office/${file}`],{cwd:root,encoding:'utf8'})]));
+  const originals=new Map(['index.html','office.js','office-core.js','style.css'].map(file=>[file,execFileSync('git',['show',`7e27359:ai-office/${file}`],{cwd:root,encoding:'utf8'})]));
   const originalPage=async page=>{for(const [file,body]of originals)await page.route('**/'+file,route=>route.fulfill({body,contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'}));await page.route(new URL(base).href+'?*',route=>route.fulfill({body:originals.get('index.html'),contentType:'text/html'}));};
-  const stableFeed=async page=>page.route('**/demo-script.json',route=>{const d=JSON.parse(execFileSync('git',['show','70f5527:ai-office/demo-script.json'],{cwd:root,encoding:'utf8'}));d.roster.forEach(a=>a.status='busy');d.events=[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};return route.fulfill({json:d});});
+  const stableFeed=async page=>page.route('**/demo-script.json',route=>{const d=JSON.parse(execFileSync('git',['show','7e27359:ai-office/demo-script.json'],{cwd:root,encoding:'utf8'}));d.roster.forEach(a=>a.status='busy');d.events=[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};return route.fulfill({json:d});});
   const pixels=page=>page.evaluate(()=>Array.from(document.querySelector('#office').getContext('2d').getImageData(0,0,720,840).data));
   const before=await open('?demo=1&view=hero',undefined,true,async page=>{await originalPage(page);await stableFeed(page);}),after=await open('?demo=1&view=hero',undefined,true,stableFeed);
-  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page);const different=rawBefore.filter((v,i)=>v!==rawAfter[i]).length;
-  check('70f5527 stable whole main room RGBA identical',different===0,{different});
+  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page);const outsideBoard=i=>{const x=Math.floor(i/4)%720/2,y=Math.floor(i/2880)/2;return !(x>=226&&x<329&&y>=23&&y<72);};
+  const different=rawBefore.filter((v,i)=>outsideBoard(i)&&v!==rawAfter[i]).length;
+  check('7e27359 main room RGBA identical outside board',different===0,{different});
   await before.page.screenshot({path:path.join(out,'room-before.png')});await after.page.screenshot({path:path.join(out,'room-after.png')});await before.context.close();await after.context.close();
-  const backgrounds=[];
-  for(const old of [true,false]) {
-    const run=await open('?demo=1&view=hero',undefined,true,async page=>{
-      if(old)await originalPage(page);
-      await page.addInitScript(()=>{const draw=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(source,...args){if(this.canvas.id==='office'&&source instanceof HTMLCanvasElement)window.roomRGBA=Array.from(source.getContext('2d').getImageData(0,0,720,840).data);return draw.call(this,source,...args);};});
-    });backgrounds.push(await run.page.evaluate(()=>window.roomRGBA));await run.context.close();
+  for(const width of [390,320]) {
+    const backgrounds=[];
+    for(const old of [true,false]) {
+      const run=await open('?demo=1&view=hero',{width,height:width===390?664:568},true,async page=>{
+        if(old)await originalPage(page);
+        await page.addInitScript(()=>{const draw=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(source,...args){if(this.canvas.id==='office'&&source instanceof HTMLCanvasElement)window.roomRGBA=Array.from(source.getContext('2d').getImageData(0,0,720,840).data);return draw.call(this,source,...args);};});
+      });backgrounds.push(await run.page.evaluate(()=>window.roomRGBA));await save(run,`portrait-hero-${width}-${old?'baseline':'current'}`);await run.context.close();
+    }
+    const backgroundDiff=backgrounds[0].filter((v,i)=>outsideBoard(i)&&v!==backgrounds[1][i]).length;check('7e27359 background RGBA identical outside board '+width,backgroundDiff===0,{different:backgroundDiff});
   }
-  const backgroundDiff=backgrounds[0].filter((v,i)=>v!==backgrounds[1][i]).length;check('70f5527 swapped-roster background RGBA identical',backgroundDiff===0,{different:backgroundDiff});
   // Identical readback/capture steps on both sides: repeated getImageData can change Canvas rasterization.
   const mvTimes=[10,31.5,53.6,75.9],mvFrames=[];
   const mvBefore=await open('?mv=1&hold=1',{width:540,height:960},true,originalPage);let mvAt=0;
   for(const t of mvTimes){await mvBefore.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;await save(mvBefore,`mv-reference-${t}`);const png=await mvBefore.page.locator('#office').screenshot();mvFrames.push(png);await fs.writeFile(path.join(out,t===10?'mv-before.png':`mv-before-${t}.png`),png);}await mvBefore.context.close();
   const mv=await open('?mv=1&hold=1',{width:540,height:960});mvAt=0;
-  for(const [i,t] of mvTimes.entries()){await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;const m=await save(mv,t===10?'mv-hold':`mv-hold-${t}`);check('MV keeps original frame '+t,!!m.mv&&m.scene.meeting===null);check('MV exact screenshot matches 70f5527 at '+t,mvFrames[i].equals(await mv.page.locator('#office').screenshot()));}await mv.context.close();
+  for(const [i,t] of mvTimes.entries()){await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;const m=await save(mv,t===10?'mv-hold':`mv-hold-${t}`);check('MV keeps original frame '+t,!!m.mv&&m.scene.meeting===null);check('MV exact screenshot matches 7e27359 at '+t,mvFrames[i].equals(await mv.page.locator('#office').screenshot()));}await mv.context.close();
   const wall=await open('?wall=1',{width:1440,height:900});await wall.page.evaluate(()=>window.__PLAYTEST__.step(35000));await save(wall,'wall');check('wall hides photo and controls',await wall.page.locator('#treat').isHidden()&&await wall.page.locator('#photo').isHidden());await wall.context.close();
   // Normal entrance, genuine UI actions and 30 seconds of default movement.
   const run=await open('?demo=1',{width:390,height:664});const phases=new Set();let moved=0,previous;
@@ -201,7 +286,8 @@ let browser,staticServer;
   await run.page.clock.runFor(1500);await save(run,'photo');check('photo card fully visible',await run.page.locator('#photo').evaluate(el=>{const b=el.getBoundingClientRect(),room=document.querySelector('#room-viewport').getBoundingClientRect();return b.top>=room.top&&b.bottom<=room.bottom&&el.contains(document.elementFromPoint(b.x+b.width/2,b.y+2));}));check('photo card shown',await run.page.locator('#photo').isVisible());await run.page.locator('#photo-close').click();
   await run.page.locator('#treat-toggle').click();check('treat menu works',await run.page.locator('#treat-menu').isVisible());await run.context.close();
   // Incoming snapshot corruption must leave the current good scene intact on the first missed poll.
-  const gift=await open('',{width:390,height:664},true,async page=>{
+  for(const width of [390,1455]) {
+  const gift=await open('',{width,height:width===390?664:782},true,async page=>{
     await page.route('**/api/state',route=>route.fulfill({json:{...fixture,notices:[{at:fixture.updatedAt,text:'PRIVATE-NOTICE-CANARY'}]}}));
     await page.route('**/treat',route=>route.fulfill({json:{at:'2026-11-01T07:30:01Z',ok:true}}));
   });
@@ -209,7 +295,8 @@ let browser,staticServer;
   await gift.page.locator('#treat-toggle').click();await gift.page.locator('[data-kind="coffee"]').click();await gift.page.waitForFunction(()=>document.querySelector('#treat-note').textContent.includes('送出去了'),null,{polling:100});
   await gift.page.evaluate(()=>window.__PLAYTEST__.step(1000));check('carrier caption overrides meeting',await gift.page.locator('#room-caption').textContent().then(x=>x.includes('来探班')));
   let thanked=false;for(let i=0;i<80;i++){const s=await gift.page.evaluate(()=>window.__PLAYTEST__.step(500));if(s.thanks){thanked=true;break;}}check('thanks caption overrides meeting',thanked&&await gift.page.locator('#room-caption').textContent().then(x=>x.includes('说谢谢')));
-  await gift.page.evaluate(()=>window.__PLAYTEST__.step(25000));check('UI treat delivered through preview stub',(await gift.page.evaluate(()=>window.__PLAYTEST__.snapshot())).deskTreat?.kind==='coffee');await save(gift,'guest-treat');await gift.context.close();
+  await gift.page.evaluate(()=>window.__PLAYTEST__.step(25000));check('UI treat delivered through preview stub',(await gift.page.evaluate(()=>window.__PLAYTEST__.snapshot())).deskTreat?.kind==='coffee');await save(gift,width===390?'guest-treat':'landscape-guest-treat');await gift.context.close();
+  }
   const corrupt=await open('',undefined,true,async page=>{let polls=0;await page.route('**/api/state',route=>{if(route.request().url().startsWith('https:'))return route.abort();const d=structuredClone(fixture);if(++polls>1)d.scene.dispatched=['unknown'];return route.fulfill({json:d});});});
   await corrupt.page.clock.runFor(11000);const stable=await corrupt.page.evaluate(()=>window.__PLAYTEST__.snapshot());check('reject entire malformed poll',!stable.demo&&stable.scene.dispatched.join()===fixture.scene.dispatched.join());await corrupt.context.close();
   const legacy=await open('',undefined,true,page=>page.route('**/api/state',route=>{const d=structuredClone(fixture);delete d.scene;delete d.stats;delete d.events;return route.fulfill({json:d});}));
@@ -217,7 +304,7 @@ let browser,staticServer;
   const guard=await open('',undefined,true,page=>page.route('**/api/state',route=>{const d=structuredClone(fixture);d.scene.guard.ok=false;return route.fulfill({json:d});}));
   await guard.page.clock.setSystemTime(new Date('2026-11-01T15:00:00Z'));await guard.page.evaluate(()=>window.__PLAYTEST__.step(1000));const fail=await save(guard,'guard-failed');check('failed backup visible at night',fail.guard&&fail.scene.guard.ok===false);check('red lamp survives actor drawing',await guard.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(324*2,377*2,1,1).data].join()==='217,86,77,255'));await guard.context.close();
   const green=await open('');await green.page.clock.setSystemTime(new Date('2026-11-01T15:00:00Z'));await green.page.evaluate(()=>window.__PLAYTEST__.step(1000));check('green lamp survives actor drawing',await green.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(324*2,377*2,1,1).data].join()==='103,183,121,255'));await save(green,'guard-done');await green.context.close();
-  const real=await open('?demo=1',undefined,false);await real.page.waitForTimeout(2500);const perf=await save(real,'default-real-clock');check('render callback p95 under 12ms',perf.renderP95Ms>0&&perf.renderP95Ms<12,perf.renderP95Ms);
+  const real=await open('?demo=1',{width:1455,height:782},false);await real.page.waitForTimeout(2500);const perf=await save(real,'default-real-clock');check('render callback p95 under 12ms',perf.renderP95Ms>0&&perf.renderP95Ms<12,perf.renderP95Ms);
   report.renderer=await real.page.evaluate(()=>{const g=document.createElement('canvas').getContext('webgl'),e=g?.getExtension('WEBGL_debug_renderer_info');return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):'unavailable (office uses Canvas 2D)';});await real.context.close();
   // The actual static asset set at a Pages-style prefix, with both APIs unavailable.
   const assets=new Map([['index.html','text/html'],['office.js','text/javascript'],['office-core.js','text/javascript'],['style.css','text/css'],['demo-script.json','application/json'],['mv.js','text/javascript'],['mv-script.json','application/json']]);
