@@ -113,7 +113,11 @@
     if (i === 10) { r(ctx, color, x - 6, y - 23, 12, 5); r(ctx, '#eddca8', x - 8, y - 19, 16, 2); r(ctx, '#e6d2a7', x + 6, y - 5, 7, 5); }
     if (boss) { r(ctx, '#dcb159', x + 2, y - 22, 4, 3); r(ctx, '#5a4839', x - 7, y - 18, 3, 10); }
     // A visitor: a lanyard badge on the chest, a little camera in hand, and a sun hat on every other one.
-    if (a.visitor) { r(ctx, '#f3ead6', x - 2, y - 9, 4, 5); r(ctx, '#c85b4a', x - 2, y - 9, 4, 1); r(ctx, '#3b4440', x + 5, y - 7, 5, 4); r(ctx, '#d9e2dc', x + 7, y - 6, 2, 2); if (a.i % 2) { r(ctx, '#e3cf9a', x - 8, y - 22, 16, 2); r(ctx, '#e3cf9a', x - 5, y - 25, 10, 3); } }
+    if (a.visitor) {
+      r(ctx, '#f3ead6', x - 2, y - 9, 4, 5); r(ctx, '#c85b4a', x - 2, y - 9, 4, 1); r(ctx, '#3b4440', x + 5, y - 7, 5, 4); r(ctx, '#d9e2dc', x + 7, y - 6, 2, 2);
+      r(ctx, '#e3cf9a', x - 8, y - 22, 16, 2); r(ctx, '#e3cf9a', x - 5, y - 25, 10, 3); r(ctx, '#c85b4a', x - 5, y - 23, 10, 1);
+      r(ctx, '#fff6dc', x - 4, y - 36, 9, 10); r(ctx, '#c85b4a', x - 4, y - 36, 9, 1); text(ctx, '客', x + 1, y - 28, 6, '#8a4a3e');
+    }
     if (!boss && a.status === 'unknown') { r(ctx, '#edf0df', x - 4, y - 32, 9, 10); text(ctx, '?', x + 1, y - 24, 9, '#707971'); }
     if (!boss && a.status === 'waiting') {
       const blink = Math.sin(t * 5) > 0;
@@ -133,6 +137,12 @@
     const hour = beijing(now()).getUTCHours(), nextLight = hour >= 23 || hour < 8 ? 'night' : hour >= 17 ? 'dusk' : 'day';
     if (nextLight !== light) { light = nextLight; room(); }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 720, 840); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
+    if (visitorsTotal !== null && !demo) {
+      // The guest book: a little standing sign beside the door with how many people have come by, ever.
+      r(ctx, '#5a4a3a', 286, 384, 2, 12); r(ctx, '#5a4a3a', 322, 384, 2, 12);
+      r(ctx, '#f4e7c6', 284, 378, 40, 9); r(ctx, '#c9a96e', 284, 378, 40, 1); r(ctx, '#c9a96e', 284, 386, 40, 1);
+      text(ctx, `来过 ${visitorsTotal} 位客人`, 304, 385, 5, '#6a5a3c');
+    }
     [...sim.actors, ...sim.visitors, { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     const latest = sim.notices.at(-1);
     if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
@@ -171,7 +181,7 @@
     const waiting = sim.actors.filter(a => a.status === 'waiting').length, busy = sim.actors.filter(a => a.status === 'busy').length;
     $('#room-caption').textContent = waiting ? `${waiting} 位伙伴，有事等你拍板` : busy ? '键盘声里，点子正在长大' : '这一刻，办公室很安静';
     const visiting = sim.visitors.filter(v => v.phase === 'touring').length;
-    $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '');
+    $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '') + (visitorsTotal !== null && !demo ? ` · 来过 ${visitorsTotal} 位` : '');
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
     // Whoever has something going sits on top: waiting for her, then at work, then just finished; the rest keep desk order.
     const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
@@ -202,7 +212,7 @@
     $('#mode').classList.toggle('live', !demo);
   }
   function resetDemo() {
-    demo = true; elapsed = 0; cursor = 0; cycle = 0;
+    demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
     wallBase = view ? Date.parse('2026-01-01T02:00:00Z') : Date.now();
     currentRoster = script.roster; sim = C.create(currentRoster, seed);
     for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
@@ -227,7 +237,7 @@
     }
   }
   function validateState(data) {
-    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000))) throw new Error('Invalid state');
+    if (!data || data.demo !== false || (data.guest !== undefined && data.guest !== true) || !Array.isArray(data.roster) || data.roster.length < 1 || data.roster.length > 11 || !Array.isArray(data.notices) || data.notices.length > 20 || (data.visitors !== undefined && !(Number.isInteger(data.visitors) && data.visitors >= 0 && data.visitors <= 100000)) || (data.visitorsTotal !== undefined && !(Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 && data.visitorsTotal <= 1e9))) throw new Error('Invalid state');
     const ids = new Set(), slots = new Set();
     data.roster.forEach((a, i) => { const slot = a.desk ?? i; if (typeof a.id !== 'string' || ids.has(a.id) || typeof a.name !== 'string' || !/^#[0-9a-f]{6}$/i.test(a.color) || !labels[a.status] || !Number.isFinite(Date.parse(a.statusSince)) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
     if (data.notices.some(n => typeof n.text !== 'string' || !Number.isFinite(Date.parse(n.at)))) throw new Error('Invalid notice');
@@ -239,7 +249,7 @@
   let guest = false;
   // A visitor on the public page is drawn in the office: the page keeps a random tag for this tab (no identity, no
   // cookie) and says hello with each poll while the live office answers. The tab closing is the visitor leaving.
-  let visitorTag = '';
+  let visitorTag = '', visitorsTotal = null;
   try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
   if (!/^[a-f0-9]{16}$/.test(visitorTag)) {
     visitorTag = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
@@ -275,7 +285,7 @@
         if (latest && Date.now() - Date.parse(latest.at) < 20_000) sim.deliveries.push(latest);
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', workedToday: a.workedToday || 0 }); }
-      sim.setVisitors(data.visitors || 0); sayHello();
+      sim.setVisitors(data.visitors || 0); visitorsTotal = data.visitorsTotal ?? null; sayHello();
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();
