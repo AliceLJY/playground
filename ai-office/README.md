@@ -2,7 +2,7 @@
 
 A quiet, phone-first room for an AI team. Eleven pixel colleagues type, rest, wait for a decision, leave for the day, and deliver notes. The host walks around and returns to the desk when needed. All people, furniture and animations are drawn with Canvas 2D; there are no images, external fonts, music or runtime dependencies.
 
-The static page automatically switches to a labelled, fictional 60-second demo if the local API is unavailable. The Node service observes local activity without changing any bot. It is an ambient status display, not a conversation viewer.
+The static page automatically switches to a labelled, fictional 150-second demo if the local API is unavailable. The Node service observes local activity without changing any bot. It is an ambient status display, not a conversation viewer.
 
 ## Run
 
@@ -73,7 +73,7 @@ Every desk also carries `workedToday` (ms): minutes at work since Beijing midnig
 
 **Visitors.** When someone has the public page open (GitHub Pages, reading the live office through the guest feed), the page keeps a random 16-hex tag for that tab in `sessionStorage` (no identity, no cookie) and calls `GET /guest/visit?v=<tag>` with each 10-second poll. The server counts tags heard in the last 45 s (cap 200, per-tag rate limit) and puts `visitors` in both feeds; nothing but the count is stored or shown. The page draws up to five visitor figures (lanyard badge, little camera, every other one in a sun hat) coming in through the door, strolling between the host's spots, and leaving when the count drops; the room meta reads `… / N 参观`. The private tailnet page does not say hello, so Alice's own view is not a visitor.
 
-**Greeting, photo, treats.** When a visitor steps in, everyone at work looks toward the door, waves and says a word for three seconds, and the visitor answers; about a second in, the page copies the frame into a 720×930 keepsake with a caption strip (`像素办公室 · 第 N 位客人来了 · time`) and, once the greeting is over, offers it as a polaroid to save or share (`navigator.share` with a file where available, else a download). A visitor may also bring a treat for everyone from a fixed menu (`POST /guest/treat {kind, v}`; kinds `milktea|coffee|cake|melon`; one a minute per visitor tag, body ≤256 B, CORS preflight only for the public page; the last 50 are kept in the private state and the last 10 plus today's counts appear in both feeds): a visitor figure (or a runner, when nobody is visiting) carries it to the pantry spot, the team says thanks for three seconds, and a cup sits on every occupied desk for two minutes. In the demo a visitor drops by each cycle and brings something at the 20-second mark.
+**Greeting, photo, treats.** When a visitor steps in, everyone at work looks toward the door, waves and says a word for three seconds, and the visitor answers; about a second in, the page copies the frame into a 720×1570 keepsake with a caption strip (`像素办公室 · 第 N 位客人来了 · time`) and, once the greeting is over, offers it as a polaroid to save or share (`navigator.share` with a file where available, else a download). A visitor may also bring a treat for everyone from a fixed menu (`POST /guest/treat {kind, v}`; kinds `milktea|coffee|cake|melon`; one a minute per visitor tag, body ≤256 B, CORS preflight only for the public page; the last 50 are kept in the private state and the last 10 plus today's counts appear in both feeds): a visitor figure (or a runner, when nobody is visiting) carries it to the pantry spot, the team says thanks for three seconds, and a cup sits on every occupied desk for two minutes. In the demo a visitor drops by each cycle and brings something at the 20-second mark.
 
 A known inactive source becomes idle after 30 minutes without a fresh signal, or off during Beijing 23:00–08:00. Explicit off, unknown, artifact away rules, and never-used push-only roles take precedence. CC timestamps are subject to this inactivity rule too. A running Codex process refreshes its signal; polling an absent process does not. Read errors, malformed status, future/invalid timestamps and incomplete scans are **unknown**, never silently idle.
 
@@ -89,7 +89,9 @@ The bridge implementation uses the requested mtime fallback. Its source was outs
 ## Browser acceptance and publication
 
 ```sh
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3091/
+node tools/preview.cjs
+# In another terminal:
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 ```
 
 This uses the already installed Playwright and browser (system Google Chrome with Metal on macOS; Chromium elsewhere), saves screenshots and a report under `tools/shots/`, checks 390×664 and four other viewports, and inspects real service and missing-API static behavior under a Pages-style prefix. It captures the opening 30 seconds at roughly one-second intervals for visual review. The fake-clock sequence is not a performance measurement; Canvas draw-callback cost is sampled separately with the real browser clock. The report identifies the renderer; it does not claim phone frame rates. Open the screenshots yourself; tests do not establish visual taste or real-device performance.
@@ -98,13 +100,35 @@ This uses the already installed Playwright and browser (system Google Chrome wit
 - `?view=queue`: explicitly labelled demo, 20 seconds, two colleagues at the host's desk.
 - `?view=notice`: explicitly labelled demo, 35 seconds, courier holding a note. It remains visible for 8 seconds **once both courier and host reach the desk**.
 - `?view=hero`: live when the service is available; real actors are allowed to walk to their destinations.
-- `window.__PLAYTEST__`: `ready`, `snapshot()`, `setSeed(n)`, `step(ms)`. Step freezes the animation clock. Queue/notice fixtures freeze the same simulation, not a separate rendering path. Fixed demo views explicitly use Beijing 10:00 lighting; normal entrances use current Beijing time.
+- `window.__PLAYTEST__`: `ready`, `snapshot()`, `setSeed(n)`, `step(ms)`. Step freezes the animation clock. Queue/notice fixtures freeze the same simulation, not a separate rendering path. Fixed demo views explicitly use Beijing 10:00 lighting; the demo uses Beijing 10:00 (23:00 with night=1); live entrances use current Beijing time.
 
-There is no build step. Publish only `index.html`, `office-core.js`, `office.js`, `style.css`, and `demo-script.json`. The owner adds the homepage card, runs `node --test tests/*.test.cjs` in CI, and copies those five assets to the Pages directory. Those integration files are outside this task's edit scope. See [SPEC.md](SPEC.md) and [HANDOFF.md](HANDOFF.md) for acceptance and remaining work.
+There is no build step. Publish only `index.html`, `office-core.js`, `office.js`, `style.css`, and `demo-script.json`. The owner adds the homepage card, runs `node --test tests/*.test.cjs` in CI, and copies those five assets plus the existing `mv.js` and `mv-script.json` to the Pages directory. Those integration files are outside this task's edit scope. See [SPEC.md](SPEC.md) and [HANDOFF.md](HANDOFF.md) for acceptance and remaining work.
 
 ## Guest view (one URL for everyone)
 
 The published page first tries the same-origin `api/state`, then `https://mac-mini.tail791fb9.ts.net:8443/office/api/state` (a tailscale funnel maps only the `/office` path onto the server's `/guest` subtree), and plays the demo only if both are unreachable. Guests see the same desks and statuses, with no board and no badge text; the write endpoints are not reachable from the public side (404). The banner says which of the three it is showing.
+
+## Downstairs annex and Today (phase 2 frontend)
+
+Scroll the room vertically to visit the meeting room, two audience seats, phone booth and storage. The original 360×420 room keeps its coordinates; the canvas is now 360×740 logical pixels at 2× resolution. The cumulative wooden board replaces the door's visitor-total sign. Its full numbers are repeated in the **Today** drawer, followed by the latest 40 structured events in reverse time order. Guests can read Today; their notice board stays private.
+
+The renderer consumes optional `scene`, `stats`, and `events` from either state feed. Missing extension fields leave empty rooms and unavailable totals. Invalid extensions reject the entire snapshot. The frontend never infers meetings, calls, dispatches, disk use or guard work from activity status. CC's call takes priority over a simultaneous meeting; other members stay seated. Ending a scene restores each member's ordinary status routing. One dispatch delta makes one 1-second folder flight; polling an unchanged list does not replay it. Guard patrols only appear at Beijing 23:00–08:00 with a guard signal, and each timestamp triggers one lap.
+
+The deterministic 150-second demo includes dispatch at 45 s, review at 50 s, round 2 at 65 s, meeting end/return at 85 s, call at 96–120 s, and a completed guard at 136 s in the night preview. Demo totals are fixed examples, labelled **演示** both on the board and in Today. `?demo=1&night=1` previews the guard; the default demo is daytime. `night=1` never changes live time or invents a live guard.
+
+Fixed seed 7 views (same simulation and rendering path):
+
+| URL | Actual timeline position |
+| --- | --- |
+| `?view=meeting` | 73 s, round 2, seated members and two listeners |
+| `?view=booth` | 112.5 s, CC in the lit booth with receiver and a fixed phrase |
+| `?view=handoff` | 45.5 s, folder halfway through its arc |
+| `?view=board` | 73 s, cumulative board and Today drawer |
+| `?view=night-guard` | 8 s, nighttime patrol |
+| `?mv=1&hold=1` | Original MV camera, no annex |
+| `?wall=1` | Live extended room fitted into the wallpaper placement |
+
+`node tools/preview.cjs` serves the **unchanged** `tests/fixtures/state-scene.json` at `http://127.0.0.1:3191/`, including the Pages-style `/playground/ai-office/` path. It is a local read-only fixture preview, not the live office. It neither persists state nor calls the real service. The browser checker uses controlled HTTP responses for malformed/old feeds and treat-button acceptance, blocks external traffic, checks source and static publication shape, and compares original-room pixels and an MV frame against `1f13ea1`. Evidence and remaining limits: [HANDOFF-phase2.md](HANDOFF-phase2.md).
 
 ## Who might open this; AI materials
 

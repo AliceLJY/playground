@@ -6,6 +6,7 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collect } from './collectors.mjs';
 import { STATUSES, iso, cleanText, cleanNotice, taskCategory, reduceMember, RateLimiter, appendNotice, beijingDay } from './core.mjs';
+import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat } from './scene.mjs';
 const MINUTE_MS = 60_000;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,21 +30,22 @@ export function validateConfig(config) {
   return config;
 }
 
-async function loadState(file) {
+async function loadState(file, now = Date.now()) {
   try {
     const data = JSON.parse(await readFile(file, 'utf8'));
     if (data.version !== 1 || !data.members || !Array.isArray(data.notices)) throw new Error();
     data.notices = data.notices.filter(n => typeof n.text === 'string' && Number.isFinite(Date.parse(n.at))).slice(-20).map(n => ({ at: n.at, text: cleanNotice(n.text) }));
     data.visitorsTotal = Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 ? data.visitorsTotal : 0;
     data.treats = (Array.isArray(data.treats) ? data.treats : []).filter(t => TREAT_KINDS.includes(t?.kind) && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
+    data.scene = migrateScene(data, now);
     return data;
   } catch (e) {
-    if (e.code === 'ENOENT') return { version: 1, members: {}, notices: [], visitorsTotal: 0, treats: [] };
+    if (e.code === 'ENOENT') { const data = { version: 1, members: {}, notices: [], visitorsTotal: 0, treats: [] }; data.scene = migrateScene(data, now); return data; }
     throw new Error('Private state is unreadable or invalid; preserve it and repair before restart');
   }
 }
 
-export async function createOffice({ config, token, botKeys: botKeys_ = {}, stateFile, clock = Date.now, collector = collect }) {
+export async function createOffice({ config, token, botKeys: botKeys_ = {}, stateFile, clock = Date.now, collector = collect, sceneCollector = collectScene, backfill = null }) {
   validateConfig(config);
   if (typeof token !== 'string' || token.trim().length < 24) throw new Error('Missing or invalid private token');
   const expected = createHash('sha256').update(`Bearer ${token.trim()}`).digest();
@@ -58,7 +60,10 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     if (typeof key !== 'string' || key.trim().length < 24) throw new Error(`Invalid bot key for ${id}`);
     botKeys.set(id, createHash('sha256').update(key.trim()).digest());
   }
-  const state = await loadState(stateFile);
+  const state = await loadState(stateFile, clock());
+  const rosterIds = new Set(config.roster.map(a => a.id));
+  // Counts from the session records before the office could see (tools/backfill-scene.mjs): added to the live totals.
+  const before = backfill && typeof backfill === 'object' ? { since: /^\d{4}-\d{2}-\d{2}$/.test(backfill.since) ? backfill.since : null, meetings: Number.isInteger(backfill.meetingsTotal) ? backfill.meetingsTotal : 0, handoffs: Number.isInteger(backfill.handoffsTotal) ? backfill.handoffsTotal : 0, calls: Number.isInteger(backfill.callsTotal) ? backfill.callsTotal : 0 } : null;
   const limiter = new RateLimiter();
   // People looking at the public page: each page keeps a random tag for its tab and says hello every ten seconds;
   // a tag silent for 45 s has left. Only a count ever leaves the server. Capped so a flood cannot grow memory.
@@ -87,7 +92,16 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
       return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday() };
+    }), notices: state.notices.map(n => ({ ...n })), demo: false, visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), ...sceneSnapshot() };
+  }
+  function sceneSnapshot() {
+    const view = sceneView(state.scene, rosterIds, clock());
+    view.stats.visitorsTotal = state.visitorsTotal || 0;
+    if (before) {
+      view.stats.meetingsTotal += before.meetings; view.stats.handoffsTotal += before.handoffs; view.stats.callsTotal += before.calls;
+      if (before.since && before.since < view.stats.since) view.stats.since = before.since;
+    }
+    return view;
   }
   function treatsToday() {
     const day = beijingDay(clock()), counts = {};
@@ -99,6 +113,14 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
   const log = (msg) => console.error(`${new Date().toISOString()} ${msg}`);
   const suspended = new Map();
+  // The room's own signals (wrappers in ps, df, the backup log) share the same rule: never let one hang the tick.
+  async function sceneOnce() {
+    let timer;
+    try {
+      return await Promise.race([sceneCollector({ roster: rosterIds, ...(config.scene || {}) }, clock()), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), COLLECT_TIMEOUT); })]);
+    } catch (e) { if (e?.message === 'timeout') log('scene collector timed out'); return {}; }
+    finally { clearTimeout(timer); }
+  }
   async function poll({ save = true } = {}) {
     if (polling) return;
     polling = true;
@@ -126,7 +148,9 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
           return { error: true };
         } finally { clearTimeout(timer); }
       }));
+      const sceneSignal = await sceneOnce();
       const now = clock();
+      state.scene = reduceScene(state.scene, sceneSignal, now);
       config.roster.forEach((a, i) => {
         const prev = state.members[a.id] || {};
         const signal = results[i];
@@ -193,7 +217,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         visitorCount(now);
         // A tag heard for the first time is one more guest in the book, kept across restarts; a tab that goes quiet
         // for 45 s and comes back counts again (it is a new visit), which is how a guest book works anyway.
-        if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; await persist(); }
+        if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; noteVisitor(state.scene, now); await persist(); }
         else if (visitors.has(tag)) visitors.set(tag, now);
         return reply(res, 200, { ok: true, visitors: visitors.size, visitorsTotal: state.visitorsTotal || 0 }, cors);
       }
@@ -212,7 +236,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         if (!limiter.take('treat', now)) return reply(res, 429, { error: 'Rate limited' }, cors);
         treatBy.set(data.v, now);
         const entry = { kind: data.kind, at: iso(now) };
-        state.treats = [...(state.treats || []), entry].slice(-50);
+        state.treats = [...(state.treats || []), entry].slice(-50); noteTreat(state.scene, data.kind, now);
         updatedAt = iso(now); await persist();
         return reply(res, 200, { ok: true, at: entry.at }, cors);
       }
@@ -237,7 +261,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         return reply(res, 200, { ok: true });
       }
       if (url.pathname.startsWith('/guest/')) return reply(res, 404, { error: 'Not found' });
-      if (req.method === 'POST' && ['/api/report', '/api/notice'].includes(url.pathname)) {
+      if (req.method === 'POST' && ['/api/report', '/api/notice', '/api/meeting', '/api/call'].includes(url.pathname)) {
         const got = createHash('sha256').update(req.headers.authorization || '').digest();
         if (!timingSafeEqual(expected, got)) { req.resume(); return reply(res, 401, { error: 'Unauthorized' }); }
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) { req.resume(); return reply(res, 415, { error: 'JSON required' }); }
@@ -258,6 +282,12 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
           if (!limiter.take(actor.id, now)) return reply(res, 429, { error: 'Rate limited' });
           const prev = state.members[actor.id] || {};
           state.members[actor.id] = { ...prev, status: data.status, statusSince: prev.status === data.status ? prev.statusSince : iso(now), lastSignalAt: now, push: { at: now, status: data.status, summary: taskCategory(data.summary) } };
+        } else if (url.pathname === '/api/meeting' || url.pathname === '/api/call') {
+          // CC announcing a mutual review (start / round with the tally / end) or a consult-gpt call (start / end).
+          const states = url.pathname === '/api/meeting' ? ['start', 'round', 'end'] : ['start', 'end'];
+          if (!states.includes(data.state)) return reply(res, 400, { error: 'Invalid state' });
+          if (!limiter.take(url.pathname, now)) return reply(res, 429, { error: 'Rate limited' });
+          state.scene = url.pathname === '/api/meeting' ? applyMeeting(state.scene, data, now) : applyCall(state.scene, data, now);
         } else {
           if (typeof data.text !== 'string' || !cleanNotice(data.text)) return reply(res, 400, { error: 'Empty notice' });
           const courier = config.roster.find(a => a.source.type === 'courier')?.id || '$notice';
@@ -289,9 +319,11 @@ async function main() {
   for (const file of [configFile, tokenFile]) {
     if ((await stat(file)).mode & 0o077) throw new Error('Private config and token must have mode 600');
   }
+  let backfill = null;
+  try { backfill = JSON.parse(await readFile(path.join(PRIVATE, 'backfill.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') console.error('Office backfill unreadable; totals start from zero'); }
   let botKeys = {};
   try { botKeys = JSON.parse(await readFile(path.join(PRIVATE, 'botkeys.json'), 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-  const office = await createOffice({ config: JSON.parse(await readFile(configFile, 'utf8')), token: await readFile(tokenFile, 'utf8'), botKeys, stateFile: path.join(PRIVATE, 'state.json') });
+  const office = await createOffice({ config: JSON.parse(await readFile(configFile, 'utf8')), token: await readFile(tokenFile, 'utf8'), botKeys, backfill, stateFile: path.join(PRIVATE, 'state.json') });
   if (process.argv.includes('--once')) {
     await office.poll({ save: false });
     process.stdout.write(JSON.stringify(office.snapshot()) + '\n'); return;
