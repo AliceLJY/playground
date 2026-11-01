@@ -161,10 +161,10 @@
       if (photoUrl) URL.revokeObjectURL(photoUrl);
       photoUrl = URL.createObjectURL(blob); photoBlob = blob;
       $('#photo-img').src = photoUrl; $('#photo-text').textContent = hello.visitor && guest ? '刚才大家回头跟你打招呼，拍下来了' : '刚才大家回头打了个招呼，拍下来了';
-      $('#photo').hidden = false;
+      photoReady = true; // the card waits until the greeting is over, so it never covers the moment itself
     }, 'image/png');
   }
-  let photoBlob = null;
+  let photoBlob = null, photoReady = false;
   async function savePhoto() {
     if (!photoBlob) return;
     const file = new File([photoBlob], `像素办公室-合照-${beijing(now()).toISOString().slice(0, 10)}.png`, { type: 'image/png' });
@@ -193,6 +193,7 @@
     if (holding) $('#paper-text').textContent = d.text;
     const hello = sim.greeting();
     if (hello && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
+    if (!hello && photoReady) { photoReady = false; $('#photo').hidden = false; }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
   }
