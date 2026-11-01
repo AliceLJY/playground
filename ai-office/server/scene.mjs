@@ -145,11 +145,11 @@ export function addEvent(scene, event, now) {
 }
 
 // Visitors arrive in bursts (one link, several friends): arrivals within ten minutes of the last visitor line are
-// folded into it instead of filling the log.
+// folded into it, whatever else was logged in between, instead of filling the log.
 export function noteVisitor(scene, now) {
   count(scene, 'visitors', now);
-  const last = scene.events.at(-1);
-  if (last?.kind === 'visitor' && now - Date.parse(last.at) < 10 * MINUTE) last.n = Math.min(9999, (last.n || 1) + 1);
+  const last = [...scene.events].reverse().find(e => e.kind === 'visitor');
+  if (last && now - Date.parse(last.at) < 10 * MINUTE) last.n = Math.min(9999, (last.n || 1) + 1);
   else addEvent(scene, { kind: 'visitor', n: 1 }, now);
 }
 export function noteTreat(scene, kind, now) { count(scene, 'treats', now); addEvent(scene, { kind: 'treat', treat: kind }, now); }

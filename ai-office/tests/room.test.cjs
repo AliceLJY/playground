@@ -94,8 +94,8 @@ test('the phone booth: start counts once, a second start is the same call, end o
 test('visitors fold into one line per burst; today restarts at Beijing midnight; old state carries its totals', async () => {
   const { noteVisitor, noteTreat, emptyScene, migrateScene, sceneView } = await scene;
   const s = emptyScene(DAY);
-  noteVisitor(s, DAY); noteVisitor(s, DAY + 2 * MIN); noteVisitor(s, DAY + 15 * MIN); noteTreat(s, 'cake', DAY + 16 * MIN);
-  assert.deepEqual(s.events.map(e => [e.kind, e.n ?? e.treat]), [['visitor', 2], ['visitor', 1], ['treat', 'cake']]);
+  noteVisitor(s, DAY); noteTreat(s, 'cake', DAY + MIN); noteVisitor(s, DAY + 2 * MIN); noteVisitor(s, DAY + 15 * MIN);
+  assert.deepEqual(s.events.map(e => [e.kind, e.n ?? e.treat]), [['visitor', 2], ['treat', 'cake'], ['visitor', 1]], 'a treat in between does not split the burst');
   const tomorrow = Date.parse('2026-11-01T16:30:00Z');
   const v = sceneView(s, ROSTER, tomorrow);
   assert.equal(v.events.length, 0); assert.equal(v.stats.today.visitors, 0); assert.equal(v.stats.visitorsTotal, 3);
