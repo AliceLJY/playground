@@ -54,3 +54,10 @@ test('R2 foliage — real generated palm pinnae are paired, unique, and frond ti
   }
  }
 });
+
+test('R3 windows — actual generated upper floors stay sparse, night adds lights, no floor is all lit',async()=>{
+ const c=await load(),l=c.makeLayout(),count=h=>l.levels.map(v=>v.windows.filter(w=>h>=w.onAt).length),d=count(.55),n=count(1);
+ assert.ok(d.slice(0,3).reduce((a,b)=>a+b,0)>d.slice(6).reduce((a,b)=>a+b,0));
+ assert.ok(d.slice(6).every(v=>v<=2)&&n.slice(6).every(v=>v<=2));
+ assert.ok(n.every((v,i)=>v>=d[i]&&v<8));assert.ok(n.reduce((a,b)=>a+b,0)>d.reduce((a,b)=>a+b,0));
+});
