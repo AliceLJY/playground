@@ -221,7 +221,7 @@
     const latest = sim.notices.at(-1);
     if (latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
     if (mv) {
-      OfficeMV.drawOver(ctx, sim, { C, r }, elapsed, mv.light(elapsed));
+      OfficeMV.drawOver(ctx, sim, { C, r, text, says: script.says }, elapsed, mv.light(elapsed));
       const dk = mv.darkness(elapsed);
       if (dk > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(8, 12, 22, ${dk.toFixed(3)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
       OfficeMV.updateDom(mvUI, mv, elapsed, formatClock);

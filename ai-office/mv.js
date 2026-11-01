@@ -142,7 +142,8 @@
   // where someone is still working, so the night room reads as night and the two left are lit by their screens.
   function drawOver(ctx, sim, h, ms, L) {
     const w = { day: 0, dusk: 0, night: 0 }; w[L.a] += 1 - L.w; w[L.b] += L.w;
-    if (w.dusk > 0) { ctx.fillStyle = `rgba(214, 120, 52, ${(0.13 * w.dusk).toFixed(3)})`; ctx.fillRect(0, 0, 360, 420); }
+    if (w.dusk > 0) { ctx.fillStyle = `rgba(222, 122, 46, ${(0.22 * w.dusk).toFixed(3)})`; ctx.fillRect(0, 0, 360, 420); }
+    const lamp = 0.45 * w.dusk + w.night;
     if (w.night > 0) {
       ctx.fillStyle = `rgba(14, 20, 46, ${(0.5 * w.night).toFixed(3)})`; ctx.fillRect(0, 0, 360, 420);
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -152,9 +153,22 @@
         g.addColorStop(0, `rgba(150, 200, 170, ${(0.32 * w.night).toFixed(3)})`); g.addColorStop(1, 'rgba(150, 200, 170, 0)');
         ctx.fillStyle = g; ctx.fillRect(x - 36, y - 30, 72, 72);
       }
-      // The reading lamp by the sofa stays on until the lights go out.
-      const g = ctx.createRadialGradient(114, 266, 1, 114, 266, 26); g.addColorStop(0, `rgba(250, 210, 130, ${(0.28 * w.night).toFixed(3)})`); g.addColorStop(1, 'rgba(250, 210, 130, 0)');
-      ctx.fillStyle = g; ctx.fillRect(86, 238, 56, 56); ctx.restore();
+      ctx.restore();
+    }
+    // The reading lamp by the sofa comes on at dusk and stays on until the lights go out.
+    if (lamp > 0) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(114, 266, 1, 114, 266, 30); g.addColorStop(0, `rgba(250, 200, 120, ${(0.3 * lamp).toFixed(3)})`); g.addColorStop(1, 'rgba(250, 200, 120, 0)');
+      ctx.fillStyle = g; ctx.fillRect(82, 234, 64, 64); ctx.restore();
+    }
+    // Scripted words over someone's head (the boss saying 好 when approving, 明天见 at the door), drawn last so
+    // they stay readable at night.
+    for (const sp of h.says || []) {
+      if (ms < sp.at * 1000 || ms >= (sp.at + sp.dur) * 1000) continue;
+      const who = sp.who === 'boss' ? sim.boss : sim.actors.find(a => a.id === sp.id);
+      if (!who || (sp.who !== 'boss' && who.status === 'off' && h.C.distance(who, h.C.door) < 3)) continue;
+      const x = Math.round(who.x), y = Math.round(who.y), wd = sp.text.length * 6 + 6, bx = Math.max(22, Math.min(338 - wd, x - wd / 2 + 1));
+      h.r(ctx, '#fff6dc', bx, y - 36, wd, 10); h.r(ctx, '#c85b4a', bx, y - 36, wd, 1); h.text(ctx, sp.text, bx + wd / 2, y - 28, 6, '#6a4b30');
     }
   }
 
