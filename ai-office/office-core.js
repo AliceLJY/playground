@@ -97,12 +97,16 @@
     // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
     const tour = [{ x: 125, y: 169 }, { x: 198, y: 247 }, { x: 273, y: 300 }, { x: 115, y: 351 }];
-    sim.visitors = []; sim.visitorTarget = 0; sim.visitorSeq = 0;
+    sim.visitors = []; sim.visitorTarget = 0; sim.visitorSeq = 0; sim.hello = null;
+    const GREET_SECONDS = 3;
+    const greeting = () => sim.hello && sim.time - sim.hello.at < GREET_SECONDS ? sim.hello : null;
     function setVisitors(n) { sim.visitorTarget = Math.max(0, Math.min(5, Math.floor(Number(n) || 0))); }
     function tickVisitors(dt) {
       while (sim.visitors.filter(v => v.phase === 'touring').length < sim.visitorTarget && sim.visitors.length < 5) {
         const seq = ++sim.visitorSeq;
         sim.visitors.push({ id: `visitor-${seq}`, visitor: true, i: 20 + seq % 4, color: ['#e9a23b', '#d9605a', '#5fa8d3', '#8f6fd6'][seq % 4], x: door.x, y: door.y, path: [], dest: null, phase: 'touring', until: null, status: 'visiting' });
+        // Someone just came in: everyone at work looks up from the keyboard and says hello for a few seconds.
+        sim.hello = { at: sim.time, visitor: `visitor-${seq}`, x: door.x, y: door.y };
       }
       let extra = sim.visitors.filter(v => v.phase === 'touring').length - sim.visitorTarget;
       for (const v of sim.visitors) if (extra > 0 && v.phase === 'touring') { v.phase = 'leaving'; v.dest = null; v.until = null; extra--; }
@@ -118,7 +122,7 @@
       sim.visitors = sim.visitors.filter(v => !(v.phase === 'leaving' && distance(v, door) < 1));
     }
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickVisitors(dt); } }
-    return Object.assign(sim, { step, setStatus, notice, setVisitors });
+    return Object.assign(sim, { step, setStatus, notice, setVisitors, greeting, GREET_SECONDS });
   }
   const api = { W, H, desks, rest, home, door, handoff, bossDesk, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;

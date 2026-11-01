@@ -92,13 +92,24 @@
     }
     r(ctx, '#33443f', x - 6, y - 18, 12, 15); r(ctx, color, x - 5, y - 10, 10, 8);
     r(ctx, '#e3b58d', x - 5, y - 16, 10, 7); r(ctx, '#4b4639', x - 6, y - 21, 12, 6); r(ctx, '#544c3a', x - 6, y - 16, 2, 5);
-    r(ctx, '#273a34', x - 3, y - 13, 2, 2); r(ctx, '#273a34', x + 2, y - 13, 2, 2);
+    // A visitor just walked in: everyone in the room looks toward the door and waves hello for three seconds.
+    const hello = sim.greeting(), greets = !!hello && !boss && !a.visitor && !['away', 'off'].includes(a.status);
+    const look = greets ? Math.sign(hello.x - a.x) : 0;
+    r(ctx, '#273a34', x - 3 + look, y - 13, 2, 2); r(ctx, '#273a34', x + 2 + look, y - 13, 2, 2);
     const leg = moving ? Math.sin(t * 11) > 0 ? 2 : -2 : 0;
     r(ctx, '#34483e', x - 5, y - 2, 4, 3 + leg); r(ctx, '#34483e', x + 2, y - 2, 4, 3 - leg);
     const typing = !boss && a.status === 'busy' && !moving ? Math.sin(t * 15 + a.i) > 0 ? 2 : -1 : 0;
     r(ctx, color, x - 8, y - 10, 3, 6); r(ctx, color, x + 5, y - 10, 3, 6);
     const hands = !boss && a.status === 'busy' && !moving ? 14 : 4;
-    r(ctx, '#e4bb91', x - 8, y - hands - typing, 3, 3); r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
+    r(ctx, '#e4bb91', x - 8, y - hands - typing, 3, 3);
+    if (greets) {
+      // Right arm up, hand swinging: a wave. Then a word above the head, each desk its own.
+      const swing = Math.sin(t * 9) > 0 ? 2 : -1;
+      r(ctx, '#33443f', x + 5, y - 10, 3, 6); r(ctx, color, x + 5, y - 17, 3, 7); r(ctx, '#e4bb91', x + 5 + swing, y - 20, 3, 3);
+      const word = ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11];
+      const w = word.length * 6 + 6, bx = Math.max(22, Math.min(338 - w, x - w / 2 + 1));
+      r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
+    } else r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
     // Eleven accessories: glasses, headset, twin pins, beret, bow, visor, film, scarf, antenna, mail cap.
     const i = boss ? 11 : a.i;
     if (i === 0) { r(ctx, '#3e4b47', x - 5, y - 14, 10, 1); r(ctx, '#3e4b47', x - 5, y - 14, 4, 4); r(ctx, '#b7d0b4', x - 4, y - 13, 2, 1); }
@@ -116,7 +127,8 @@
     if (a.visitor) {
       r(ctx, '#f3ead6', x - 2, y - 9, 4, 5); r(ctx, '#c85b4a', x - 2, y - 9, 4, 1); r(ctx, '#3b4440', x + 5, y - 7, 5, 4); r(ctx, '#d9e2dc', x + 7, y - 6, 2, 2);
       r(ctx, '#e3cf9a', x - 8, y - 22, 16, 2); r(ctx, '#e3cf9a', x - 5, y - 25, 10, 3); r(ctx, '#c85b4a', x - 5, y - 23, 10, 1);
-      r(ctx, '#fff6dc', x - 4, y - 36, 9, 10); r(ctx, '#c85b4a', x - 4, y - 36, 9, 1); text(ctx, '客', x + 1, y - 28, 6, '#8a4a3e');
+      if (hello && hello.visitor === a.id && t - hello.at > 0.8) { r(ctx, '#fff6dc', x - 13, y - 36, 27, 10); r(ctx, '#c85b4a', x - 13, y - 36, 27, 1); text(ctx, '大家好', x + 1, y - 28, 6, '#8a4a3e'); }
+      else { r(ctx, '#fff6dc', x - 4, y - 36, 9, 10); r(ctx, '#c85b4a', x - 4, y - 36, 9, 1); text(ctx, '客', x + 1, y - 28, 6, '#8a4a3e'); }
     }
     if (!boss && a.status === 'unknown') { r(ctx, '#edf0df', x - 4, y - 32, 9, 10); text(ctx, '?', x + 1, y - 24, 9, '#707971'); }
     if (!boss && a.status === 'waiting') {
@@ -183,6 +195,7 @@
     const visiting = sim.visitors.filter(v => v.phase === 'touring').length;
     $('#occupancy').textContent = `${busy} 在忙 / ${waiting} 等你` + (visiting ? ` / ${visiting} 参观` : '') + (visitorsTotal !== null && !demo ? ` · 来过 ${visitorsTotal} 位` : '');
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
+    if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
     // Whoever has something going sits on top: waiting for her, then at work, then just finished; the rest keep desk order.
     const rank = { waiting: 0, busy: 1, done: 2, unknown: 3, idle: 4, away: 5, off: 6 };
     const order = [...sim.actors].sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.i - b.i).map(a => a.id);
@@ -224,6 +237,7 @@
       const part = Math.min(left, 20);
       if (demo) {
         const local = elapsed - cycle * script.duration * 1000;
+        sim.setVisitors(local >= 12_000 && local < 42_000 ? 1 : 0);
         while (cursor < script.events.length && script.events[cursor].at * 1000 <= local) {
           const e = script.events[cursor++], at = new Date(wallBase + elapsed).toISOString();
           if (e.notice) sim.notice({ text: e.notice, at });
@@ -306,7 +320,7 @@
   }
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
+    return { ready, demo, requestedView: view, actualView: sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, status: a.status, x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0 };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
