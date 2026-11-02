@@ -1,5 +1,5 @@
 {
-  "duration": 340,
+  "duration": 400,
   "roster": [
     {
       "id": "director",
@@ -519,6 +519,45 @@
         "call": null,
         "dispatched": []
       }
+    },
+    {
+      "at": 340,
+      "id": "builder",
+      "status": "done"
+    },
+    {
+      "at": 344,
+      "scene": {
+        "gate": {
+          "id": "builder",
+          "ok": false,
+          "n": 3
+        }
+      },
+      "log": [
+        {
+          "kind": "gate",
+          "id": "builder",
+          "ok": false
+        }
+      ]
+    },
+    {
+      "at": 365,
+      "scene": {
+        "gate": {
+          "id": "twin-a",
+          "ok": true,
+          "n": 1
+        }
+      },
+      "log": [
+        {
+          "kind": "gate",
+          "id": "twin-a",
+          "ok": true
+        }
+      ]
     }
   ],
   "scene": {
@@ -550,13 +589,17 @@
       "snacks": 0,
       "suppers": 0,
       "souvenirs": 0,
-      "radars": 0
+      "radars": 0,
+      "gatesBlocked": 0,
+      "gatesPassed": 0
     },
     "meetsTotal": 8,
     "snacksTotal": 3,
     "suppersTotal": 2,
     "souvenirsTotal": 0,
-    "radarsTotal": 0
+    "radarsTotal": 0,
+    "gatesBlockedTotal": 0,
+    "gatesPassedTotal": 0
   },
   "receptionAt": 34
 }

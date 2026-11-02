@@ -6,7 +6,10 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collect } from './collectors.mjs';
 import { STATUSES, iso, cleanText, cleanNotice, taskCategory, reduceMember, RateLimiter, appendNotice, beijingDay } from './core.mjs';
-import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet, noteQuota, configureHistory } from './scene.mjs';
+import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet, noteQuota, noteGate, configureHistory } from './scene.mjs';
+import { auditTail } from './makoto.mjs';
+import { historyReader } from './history.mjs';
+import Core from '../office-core.js';
 const MINUTE_MS = 60_000;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,6 +24,7 @@ export function validateConfig(config) {
   if (!config || !Array.isArray(config.roster) || config.roster.length < 1 || config.roster.length > 11) throw new Error('Config must define 1 to 11 roles');
   if (config.historyDir !== undefined && (typeof config.historyDir !== 'string' || !config.historyDir.trim())) throw new Error('Invalid history directory');
   if (config.radarLedgers !== undefined && (!Array.isArray(config.radarLedgers) || config.radarLedgers.length > 8 || config.radarLedgers.some(p => typeof p !== 'string' || !p.trim()))) throw new Error('Invalid radar ledgers');
+  if (config.makotoAudit !== undefined && config.makotoAudit !== null && typeof config.makotoAudit !== 'string') throw new Error('Invalid audit path');
   const ids = new Set(), desks = new Set();
   for (const a of config.roster) {
     if (!/^[a-z][a-z0-9_-]{0,31}$/.test(a.id) || ['constructor', 'prototype', '__proto__'].includes(a.id) || ids.has(a.id)) throw new Error('Invalid or duplicate role id');
@@ -75,7 +79,13 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     botKeys.set(id, createHash('sha256').update(key.trim()).digest());
   }
   const state = await loadState(stateFile, clock());
-  configureHistory(state.scene, config.historyDir || path.join(path.dirname(stateFile), 'history'));
+  // Apply the same strict public schemas to persisted extensions before any projection.
+  Core.validateSceneFields({ roster: config.roster, scene: { ...Core.emptyScene(), gate: state.scene.gate }, stats: state.scene.stats });
+  Core.validateHistory({ day: state.scene.stats.day, events: [], stats: { today: state.scene.stats.today }, ...(state.scene.timeline !== undefined ? { timeline: state.scene.timeline } : {}), ...(state.scene.timelineTruncated !== undefined ? { timelineTruncated: state.scene.timelineTruncated } : {}) }, config.roster);
+  const historyDir = config.historyDir || path.join(path.dirname(stateFile), 'history');
+  configureHistory(state.scene, historyDir);
+  const history = historyReader(historyDir, config.roster), audit = auditTail(config.makotoAudit);
+  state.scene.timelineNeedsSnapshot = true;
   // Restart never turns already-present ledger rows into a new issue.
   delete state.scene.radarSeen;
   let radarBaseline = true;
@@ -85,7 +95,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     const transitions = [...rosterIds].map(id => ({ id, before: before[id] || {}, after: state.members[id] || {} })).filter(t => t.before.status !== t.after.status);
     for (const {id, after} of transitions) if (after.status === 'busy' && state.quota[id]) { delete state.quota[id]; noteQuota(state.scene, id, true, now); }
     for (const [id, until] of Object.entries(state.quota)) if (until <= now) delete state.quota[id];
-    state.scene = reduceScene(state.scene, { transitions, members: state.members }, now);
+    state.scene = reduceScene(state.scene, { transitions, members: Object.fromEntries([...rosterIds].map(id => [id, state.members[id] || { status: 'unknown' }])) }, now);
   }
   // Counts from the session records before the office could see (tools/backfill-scene.mjs): added to the live totals.
   const before = backfill && typeof backfill === 'object' ? { since: /^\d{4}-\d{2}-\d{2}$/.test(backfill.since) ? backfill.since : null, meetings: Number.isInteger(backfill.meetingsTotal) ? backfill.meetingsTotal : 0, handoffs: Number.isInteger(backfill.handoffsTotal) ? backfill.handoffsTotal : 0, calls: Number.isInteger(backfill.callsTotal) ? backfill.callsTotal : 0 } : null;
@@ -147,7 +157,13 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
 
   const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
   const log = (msg) => console.error(`${new Date().toISOString()} ${msg}`);
-  const suspended = new Map();
+  const suspended = new Map(), gateBy = new Map();
+  async function auditOnce(start = false) {
+    let timer;
+    try { return await Promise.race([start ? audit.start() : audit.read(), new Promise(resolve => { timer = setTimeout(() => { log('audit collector timed out'); resolve([]); }, COLLECT_TIMEOUT); })]); }
+    finally { clearTimeout(timer); }
+  }
+  await auditOnce(true);
   // The room's own signals (wrappers in ps, df, the backup log) share the same rule: never let one hang the tick.
   async function sceneOnce() {
     let timer;
@@ -183,12 +199,13 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
           return { error: true };
         } finally { clearTimeout(timer); }
       }));
-      const sceneSignal = await sceneOnce(); await readBuild();
+      const sceneSignal = await sceneOnce(), blocks = await auditOnce(); await readBuild();
       const now = clock();
       if (Number.isInteger(sceneSignal.radarCount)) {
         sceneSignal.radarBaseline = radarBaseline; radarBaseline = false;
       }
       state.scene = reduceScene(state.scene, sceneSignal, now);
+      if (rosterIds.has('cc')) for (const at of blocks) noteGate(state.scene, 'cc', false, beijingDay(at) === beijingDay(now) && at <= now ? at : now);
       const beforeMembers = { ...state.members };
       config.roster.forEach((a, i) => {
         const prev = state.members[a.id] || {};
@@ -212,7 +229,8 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     // The public feed is the show, not a log: times are rounded to the minute so nobody can read a work diary
     // off it with a script; the board and badge text stay private.
     const full = snapshot(), minute = ms => Math.floor(ms / 60_000) * 60_000;
-    for (const kind of ['souvenir', 'radar']) if (full.scene[kind]) full.scene[kind].at = iso(minute(Date.parse(full.scene[kind].at)));
+    for (const kind of ['souvenir', 'radar', 'gate']) if (full.scene[kind]) full.scene[kind].at = iso(minute(Date.parse(full.scene[kind].at)));
+    for (const e of full.events) if (e.kind === 'gate') e.at = iso(minute(Date.parse(e.at)));
     if (full.scene.snack) full.scene.snack.at = iso(minute(Date.parse(full.scene.snack.at)));
     if (full.scene.supper) full.scene.supper.at = iso(minute(Date.parse(full.scene.supper.at)));
     if (full.scene.meeting?.roundAt) full.scene.meeting.roundAt = iso(minute(Date.parse(full.scene.meeting.roundAt)));
@@ -240,11 +258,23 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     try {
+      const rawPath = req.url.split('?')[0];
+      if (rawPath.startsWith('/guest/')) {
+        res.setHeader('Vary', 'Origin');
+        if (GUEST_ORIGINS.has(req.headers.origin)) res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+      }
+      if (/\.\.|%2e|%2f|%5c|\\/i.test(rawPath)) return reply(res, 404, { error: 'Not found' });
       const url = new URL(req.url, 'http://127.0.0.1:3091');
       if (req.method === 'GET' && url.pathname === '/api/state') return reply(res, 200, snapshot());
       if (url.pathname.startsWith('/guest/') && url.pathname !== '/guest/meet') {
         const retry = guestAllowed(req, clock());
         if (retry !== null) { req.resume(); return reply(res, 429, { error: 'Rate limited' }, { 'Retry-After': String(retry), 'Cache-Control': 'no-store' }); }
+      }
+      const historyPath = url.pathname.match(/^(\/guest)?\/api\/history(?:\/(.*))?$/);
+      if (req.method === 'GET' && historyPath) {
+        if (url.search) return reply(res, 404, { error: 'Not found' });
+        const value = historyPath[2] === undefined ? { days: await history.list() } : await history.get(historyPath[2], !!historyPath[1]);
+        return reply(res, value ? 200 : 404, value || { error: 'Not found' });
       }
       if (req.method === 'GET' && url.pathname === '/guest/api/state') {
         const origin = req.headers.origin;
@@ -335,7 +365,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         return reply(res, 200, { ok: true });
       }
       if (url.pathname.startsWith('/guest/')) return reply(res, 404, { error: 'Not found' });
-      if (req.method === 'POST' && ['/api/report', '/api/notice', '/api/meeting', '/api/call', '/api/quota'].includes(url.pathname)) {
+      if (req.method === 'POST' && ['/api/report', '/api/notice', '/api/meeting', '/api/call', '/api/quota', '/api/gate'].includes(url.pathname)) {
         const got = createHash('sha256').update(req.headers.authorization || '').digest();
         if (!timingSafeEqual(expected, got)) { req.resume(); return reply(res, 401, { error: 'Unauthorized' }); }
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) { req.resume(); return reply(res, 415, { error: 'JSON required' }); }
@@ -350,7 +380,12 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         try { data = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { return reply(res, 400, { error: 'Invalid JSON' }); }
         if (!data || typeof data !== 'object' || Array.isArray(data)) return reply(res, 400, { error: 'Invalid object' });
         const now = clock();
-        if (url.pathname === '/api/quota') {
+        if (url.pathname === '/api/gate') {
+          if (Object.keys(data).sort().join(',') !== 'id,ok' || !rosterIds.has(data.id) || typeof data.ok !== 'boolean') return reply(res, 400, { error: 'Invalid gate' });
+          if (gateBy.has(data.id) && now - gateBy.get(data.id) < 30000) return reply(res, 200, { ok: true });
+          if (!limiter.take('gate:' + data.id, now)) return reply(res, 429, { error: 'Rate limited' });
+          gateBy.set(data.id, now); noteGate(state.scene, data.id, data.ok, now);
+        } else if (url.pathname === '/api/quota') {
           if (Object.keys(data).some(k => !['id','minutes','clear'].includes(k)) || !rosterIds.has(data.id) || (data.clear !== undefined && typeof data.clear !== 'boolean') || (data.minutes !== undefined && (!Number.isInteger(data.minutes) || data.minutes < 1 || data.minutes > 300))) return reply(res, 400, { error: 'Invalid quota' });
           if (!limiter.take('quota:' + data.id, now)) return reply(res, 429, { error: 'Rate limited' });
           if (data.clear === true) delete state.quota[data.id];

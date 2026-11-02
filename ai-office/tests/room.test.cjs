@@ -108,6 +108,7 @@ test('HTTP: meeting and call need the token, bad states 400; both feeds carry sc
   await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
   const dir = await fs.mkdtemp(path.join(root, 'tools/.test-data/room-'));
   const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  config.makotoAudit = null;
   const ids = config.roster.map(a => a.id), token = randomBytes(24).toString('hex');
   let time = DAY, signal = { dispatched: [ids[1]], diskPct: 93, guard: null };
   const office = await createOffice({ config, token, stateFile: path.join(dir, 'state.json'), clock: () => time, collector: async () => ({}), sceneCollector: async () => signal, backfill: { since: '2026-06-24', meetingsTotal: 112, handoffsTotal: 900, callsTotal: 1 } });
@@ -136,6 +137,7 @@ test('HTTP: meeting and call need the token, bad states 400; both feeds carry sc
 test('an away label per desk: carried in both feeds, trimmed to 16, rejected when empty or too long', async () => {
   const { createOffice, validateConfig } = await import('../server/office-server.mjs');
   const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  config.makotoAudit = null;
   config.roster[1].awayLabel = '云上打盹';
   await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
   const dir = await fs.mkdtemp(path.join(root, 'tools/.test-data/away-'));
@@ -148,6 +150,7 @@ test('an away label per desk: carried in both feeds, trimmed to 16, rejected whe
 test('looks follow the person and the courier is named in the feed, wherever their desks are', async () => {
   const { createOffice, validateConfig } = await import('../server/office-server.mjs');
   const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  config.makotoAudit = null;
   const courier = config.roster.find(a => a.source.type === 'courier');
   courier.look = 10;
   await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
@@ -162,6 +165,7 @@ test('looks follow the person and the courier is named in the feed, wherever the
 test('the guest feed counts today\'s notes without carrying any of them', async t => {
   const { createOffice } = await import('../server/office-server.mjs');
   const config = JSON.parse(await fs.readFile(path.join(root, 'config.example.json')));
+  config.makotoAudit = null;
   await fs.mkdir(path.join(root, 'tools/.test-data'), { recursive: true });
   const dir = await fs.mkdtemp(path.join(root, 'tools/.test-data/notes-'));
   let time = DAY; const token = randomBytes(24).toString('hex');

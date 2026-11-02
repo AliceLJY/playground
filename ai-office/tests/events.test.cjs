@@ -40,7 +40,7 @@ for(const layout of ['portrait','landscape']) {
 test('late arguments skipped, stable reviewer hash across seed/order, priority table and active reception retained',()=>{
  const late=create();late.setScene(meeting(late,1,2,120001),T);late.step(30000);assert.equal(late.argue,null);
  const a=create(),b=C.create([...roster].reverse(),99);b.clockBase=T;for(const x of b.actors)b.setStatus(x.id,'idle',iso(T));for(const s of [a,b]){s.setScene(meeting(s),T);s.step(20);}assert.deepEqual(a.argue.ids,b.argue.ids);
- assert.deepEqual(Object.keys(C.ACTIVITY_PRIORITY),['work','quota','reception','argue','snack','souvenir','radar','melon','games']);
+ assert.deepEqual(Object.keys(C.ACTIVITY_PRIORITY),['work','quota','reception','argue','gate','snack','souvenir','radar','melon','games']);
  const s=create();s.setScene(meeting(s,1,0),T);s.meet('pitch',iso(T));s.step(16000);const hosts=[...s.reception.hosts];s.setScene(meeting(s,2,1));s.step(1000);assert.deepEqual(s.reception.hosts,hosts);for(const id of hosts)assert.equal(s.actors.find(a=>a.id===id).activity,'reception');
  s.setScene({...s.scene,call:{since:iso(T)}});s.step(20);assert.equal(s.argue,null);assert.equal(s.actors.find(a=>a.id==='director').activity,'call');
 });

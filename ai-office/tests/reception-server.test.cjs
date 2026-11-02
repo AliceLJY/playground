@@ -5,6 +5,7 @@ async function setup(t){
  const {createOffice}=await import('../server/office-server.mjs');await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/reception-')),stateFile=path.join(dir,'state.json');let now=DAY;
  const opts={config:JSON.parse(await fs.readFile(path.join(root,'config.example.json'),'utf8')),token:randomBytes(24).toString('hex'),stateFile,clock:()=>now,collector:async()=>({}),sceneCollector:async()=>({})};
+ opts.config.makotoAudit=null;
  const office=await createOffice(opts);await office.poll();office.server.listen(0,'127.0.0.1');await once(office.server,'listening');t.after(()=>new Promise(r=>office.server.close(r)));
  const base=`http://127.0.0.1:${office.server.address().port}`;
  return {office,opts,base,stateFile,clock:v=>{now=v;},post:(body,headers={})=>fetch(base+'/guest/meet',{method:'POST',headers:{'content-type':'application/json',origin,...headers},body:JSON.stringify(body)})};

@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),T=Date.parse('2026-11-02T02:00:00Z'),M=6
 async function setup(t){
  const {createOffice}=await import('../server/office-server.mjs');await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
  const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/events-'));let now=T,signal={};
- const opts={config:{roster:[{id:'cc',name:'CC',role:'director',color:'#D18A65',desk:0,source:{type:'push'}},{id:'agy',name:'Agy',role:'artist',color:'#8DA66F',desk:1,source:{type:'push'}},{id:'codex',name:'Codex',role:'builder',color:'#6D9D8E',desk:2,source:{type:'push'}}]},token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>now,collector:async()=>signal,sceneCollector:async()=>({})};
+ const opts={config:{makotoAudit:null,roster:[{id:'cc',name:'CC',role:'director',color:'#D18A65',desk:0,source:{type:'push'}},{id:'agy',name:'Agy',role:'artist',color:'#8DA66F',desk:1,source:{type:'push'}},{id:'codex',name:'Codex',role:'builder',color:'#6D9D8E',desk:2,source:{type:'push'}}]},token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>now,collector:async()=>signal,sceneCollector:async()=>({})};
  const office=await createOffice(opts);office.server.listen(0,'127.0.0.1');await once(office.server,'listening');t.after(()=>new Promise(r=>office.server.close(r)));
  const base=`http://127.0.0.1:${office.server.address().port}`;
  return {office,opts,base,clock:v=>now=v,signal:v=>signal=v,post:(route,body,auth=true)=>fetch(base+route,{method:'POST',headers:{'content-type':'application/json',...(auth?{authorization:'Bearer '+opts.token}:{})},body:JSON.stringify(body)})};
