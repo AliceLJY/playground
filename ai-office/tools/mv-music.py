@@ -220,6 +220,32 @@ for tg in every("guard-done"):
     put(tg, box(hz("G4"), 1.5), .09)
     put(tg + .2, box(hz("C5"), 1.8), .08)
 
+# ---- v6: warm visitor/snack accents and a short cartoon rattle at the real smoke phase.
+for e in EVENTS:
+    t = e["t"]
+    if e["type"] == "reception" and e.get("phase") == "handshake":
+        for k, n in enumerate(["C5", "E5", "G5"]):
+            put(t + k * .1, box(hz(n), .8), .09)
+    elif e["type"] == "argue" and e.get("phase") == "talking":
+        put(t, woodblock(630), .13, -.2)
+        put(t + .18, woodblock(790), .11, .2)
+    elif e["type"] == "argue" and e.get("phase") == "smoke":
+        for k in range(7):
+            put(t + .09*k, woodblock(550 + 60*(k%3)), .12, -.4 + .13*k)
+        put(t, noise_hit(.7, 700, 7000, .18), .07)
+        for k, n in enumerate(["G5", "E5", "C5"]):
+            put(t + .22*k, pluck(hz(n), .4), .1)
+    elif e["type"] == "argue" and e.get("phase") == "huff":
+        put(t, woodblock(340), .10, -.25)
+        put(t + .12, woodblock(420), .10, .25)
+    elif e["type"] == "radar" and e.get("phase") == "showing":
+        put(t, box(hz("A5"), 1.2), .12, .3)
+    elif e["type"] == "quotaEvent" and e.get("phase") == "active":
+        put(t, pluck(hz("D4"), .7), .11)
+    elif e["type"] == "food":
+        note = {"biscuit":"E5", "papers":"C5", "cloud":"G5", "noodles":"C5"}[e["kind"]]
+        put(t, box(hz(note), .65), .055 if e["kind"] != "noodles" else .09)
+
 # ---- exit: one soft pluck per person leaving, stepping down
 for k, tx in enumerate(every("exit")):
     put(tx, pluck(hz(["G4", "E4", "D4", "C4", "A3", "G3", "E3", "D3", "C3", "A2"][min(k, 9)]), 1.4), 0.14, 0.35)

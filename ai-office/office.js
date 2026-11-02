@@ -222,7 +222,8 @@
     if (s.disk?.usedPct>=92) { r(ctx,'#ba5045',276,604,47,11); text(ctx,'快满了',299,612,8,'#fff4d5'); }
     });
     placed(ctx,C.boothOffset,()=>r(ctx,s.call?'#e8bc55':'#84917c',296,490,9,4));
-    if(sim.guard && s.guard.phase==='patrol' && sim.guard.path.length) {
+    // s.guard can be null while sim.guard exists: the supper run borrows a guard when no backup patrol is on.
+    if(sim.guard && (!mv || !sim.supper) && s.guard?.phase==='patrol' && sim.guard.path.length) {
       const a=sim.guard,p=a.path[0],angle=Math.atan2(p.y-a.y,p.x-a.x);
       ctx.fillStyle='#fff0ab38'; ctx.beginPath(); ctx.moveTo(a.x,a.y-8);
       ctx.lineTo(a.x+Math.cos(angle-.35)*37,a.y-8+Math.sin(angle-.35)*37);
@@ -305,6 +306,12 @@
         else if(i%3===1){r(ctx,'#bd8955',px-4,py,10,4);r(ctx,'#edcf90',px-3,py-3,5,4);r(ctx,'#fff4d5',px-3,py-2,5,1);}
         else text(ctx,'?',px,py,12,'#6d9d8e');
       }
+      if(mv?.performances) for(let i=0;i<e.ids.length;i++) {
+        const who=sim.actors.find(a=>a.id===e.ids[i]),px=x+(i?13:-13),py=y-4+(Math.floor(sim.time*8+i)%2)*2;
+        r(ctx,who.color,px-6,py+7,12,3);r(ctx,'#e3b58d',px-5,py,10,7);r(ctx,'#4b4639',px-6,py-4,12,5);
+        r(ctx,'#273a34',px-3,py+2,2,2);r(ctx,'#273a34',px+2,py+2,2,2);
+        if(who.i===0)r(ctx,'#3e4b47',px-5,py+1,10,1);
+      }
       speechBoxes.push({x:x-53,y:y-32,w:106,h:68});
     }
     for(const speech of sim.eventSpeech()) {
@@ -315,10 +322,10 @@
     }
   }
   function person(a, boss = false) {
-    if(!mv && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
+    if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    const seated = (a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || !mv && ['souvenir','radar'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const seated = (a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     const bounce = !boss && a.status === 'done' && (mv || !a.activity) && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
@@ -374,7 +381,7 @@
     }
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
-    if(!mv)eventPose(a,x,y,moving);
+    if(!mv || mv.performances)eventPose(a,x,y,moving);
     // Eleven accessories: glasses, headset, twin pins, beret, bow, visor, film, scarf, antenna, mail cap.
     const i = boss ? 11 : C.lookIndex(a);
     if (i === 0) { r(ctx, '#3e4b47', x - 5, y - 14, 10, 1); r(ctx, '#3e4b47', x - 5, y - 14, 4, 4); r(ctx, '#b7d0b4', x - 4, y - 13, 2, 1); }
@@ -462,20 +469,20 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
     }
     sceneUnder();
-    if(!mv && sim.radarCardNow()) {
+    if((!mv || mv.performances) && sim.radarCardNow()) {
       r(ctx,'#baa17b',231,27,94,21);r(ctx,'#fff4d5',232,28,92,19);r(ctx,'#ba5045',277,27,3,3);
       text(ctx,`今日选题 ${sim.radarCardNow().n} 条`,278,41,8,'#6a4b30');
     }
     const onDesks = sim.deskTreatNow();
     if (onDesks) for (const a of sim.actors) if (!['away', 'off'].includes(a.status) && a.i !== 10) item(onDesks.kind, C.desks[a.i][0] + 15, C.desks[a.i][1] + 6);
-    if(!mv) for(const f of sim.foodNow()){const a=sim.actors.find(a=>a.id===f.id);item(f.kind,C.desks[a.i][0]+(f.kind==='cloud'?-7:f.kind==='papers'?1:-20),C.desks[a.i][1]+6);}
+    if(!mv || mv.performances) for(const f of sim.foodNow()){const a=sim.actors.find(a=>a.id===f.id);item(f.kind,C.desks[a.i][0]+(f.kind==='cloud'?-7:f.kind==='papers'?1:-20),C.desks[a.i][1]+6);}
     [...sim.actors, ...sim.visitors, ...(sim.reception ? [sim.reception.visitor] : []), ...(sim.guard ? [sim.guard] : []), { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     {
       sceneOver();
       drawReceptionSpeech();
-      if(!mv)drawEvents();
+      if(!mv || mv.performances)drawEvents();
       ctx.font = '7px "PingFang SC",system-ui,sans-serif';
-      nameplates = C.nameplates([...sim.actors.filter(a=>mv || !(sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))),...sim.visitors,...(sim.reception ? [sim.reception.visitor] : []),...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}], value=>ctx.measureText(value).width, speechBoxes);
+      nameplates = C.nameplates([...sim.actors.filter(a=>(mv && !mv.performances) || !(sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))),...sim.visitors,...(sim.reception ? [sim.reception.visitor] : []),...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}], value=>ctx.measureText(value).width, speechBoxes);
       // Leaders first, then opaque labels: a later leader must never cross another name.
       for(const p of nameplates) {
         const center=Math.round(p.x+p.w/2);
@@ -490,7 +497,7 @@
       }
     }
     const latest = sim.notices.at(-1);
-    if (mv && latest) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
+    if (mv && latest && !sim.radarCardNow()) { r(ctx, '#fff0c9', 231, 57, 94, 12); text(ctx, `${formatClock(Date.parse(latest.at))}  ${Array.from(latest.text).slice(0, 8).join('')}`, 278, 65, 6, '#6c6149'); }
     if (!mv) drawWallBoard();
     if (mv) {
       OfficeMV.drawOver(ctx, sim, { C, r, text, says: script.says }, elapsed, mv.light(elapsed));
@@ -515,7 +522,7 @@
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
   }
   function drawReceptionSpeech() {
-    const speech=sim.receptionSpeech(); if(!speech || mv)return;
+    const speech=sim.receptionSpeech(); if(!speech || mv && !mv.performances)return;
     const a=[...sim.actors,sim.reception.visitor,sim.guard].find(a=>a?.id===speech.id);if(!a)return;
     ctx.font='8px \"PingFang SC\",system-ui,sans-serif'; const w=ctx.measureText(speech.text).width+12, x=Math.max(20,Math.min(C.W-w-20,a.x-w/2)),y=a.y-64;
     speechBoxes.push({x,y,w,h:14});r(ctx,'#786747',x,y,w,14);r(ctx,'#fff6dc',x+1,y+1,w-2,12);text(ctx,speech.text,x+w/2,y+10,8,'#6a4b30');r(ctx,'#b59b72',a.x,y+14,1,15);
@@ -622,7 +629,7 @@
   function resetDemo() {
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
     wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : '2026-11-01T02:00:00Z');
-    currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv;
+    currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv || mv.performances;
     stats = mv ? mv.stats : structuredClone(script.stats || null); events = []; treatsToday = {}; noticesToday=undefined;
     if (!mv) sim.setScene(demoScene(script.scene),now());
     if (mv) mv.start(sim);

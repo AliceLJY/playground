@@ -606,7 +606,7 @@
       for(const a of sim.actors) Object.assign(next.actors.find(b=>b.id===a.id),{status:a.status,statusSince:a.statusSince,changed:a.changed,doneArrived:a.doneArrived,gameSlot:a.gameSlot});
       next.visitors=sim.visitors.map(v=>({...v,...next.layout.door,path:[],dest:null,until:null}));
       next.place();
-      if(sim.guard && next.guard && !next.supper) Object.assign(next.guard,sim.guard.lap || sim.scene.guard.phase==='done'?next.layout.door:next.layout.patrol[sim.guard.waypoint],{lap:sim.guard.lap,waypoint:sim.guard.waypoint,path:[],dest:null});
+      if(sim.guard && next.guard && !next.supper) Object.assign(next.guard,sim.guard.lap || sim.scene.guard?.phase==='done'?next.layout.door:next.layout.patrol[sim.guard.waypoint],{lap:sim.guard.lap,waypoint:sim.guard.waypoint,path:[],dest:null});
       next.flights=sim.flights.map(f=>{
         const desk=id=>{const a=next.actors.find(a=>a.id===id),p=next.layout.desks[a.i];return {x:p[0]+17,y:p[1]+4};};
         const cc=next.actors.find(a=>a.id===director()?.id);
