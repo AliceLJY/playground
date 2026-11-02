@@ -18,7 +18,7 @@ const FAKE = 'https://datai-traces.check.workers.dev';
   async function open(ctx, { delay = 600, list = remoteList, hang = false, posts }) {
     const p = await ctx.newPage();
     const errors = []; p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-    await p.route('**/src/game.js', async (route) => {
+    await p.route(/\/src\/game\.js(\?|$)/, async (route) => {
       const r = await route.fetch(); const body = (await r.text()).replace(/const TRACE_ENDPOINT = (null|'[^']*');/, `const TRACE_ENDPOINT = '${FAKE}';`);
       await route.fulfill({ response: r, body });
     });
@@ -60,9 +60,16 @@ const FAKE = 'https://datai-traces.check.workers.dev';
     const s2 = await p.evaluate(() => window.__datai.snapshot());
     ok('落座后桌上有别人的回放在动、门口换过人', s2.others.length === 1 && s2.queueIdx >= 1, `同桌 ${s2.others.length} · 领走 ${s2.queueIdx}`);
     await p.screenshot({ path: path.join(out, '3-seated.png') });
+    // 坐着切走（手机上关标签页、切 App）：先留下这一趟
+    await p.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await p.waitForTimeout(400);
+    ok('坐着切走就先上传一条、本机也记了', posts.length === 1 && (await p.evaluate(() => window.__datai.visits.length)) === 1, `posts ${posts.length}`);
+    await p.evaluate(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); window.__datai.pause(true); for (let i = 0; i < 50; i++) window.__datai.step(100); });
     await p.click('#bar button[data-act="6"]');
     await p.waitForTimeout(400);
-    ok('离席上传一条，只有 v/dur/acts', posts.length === 1 && JSON.stringify(Object.keys(posts[0]).sort()) === '["acts","dur","v"]' && posts[0].acts.length >= 3, JSON.stringify(posts[0]).slice(0, 90));
+    const vis = await p.evaluate(() => window.__datai.visits.map((v) => v.dur));
+    ok('回来再离席：不重复上传，本机那条换成完整时长', posts.length === 1 && vis.length === 1 && vis[0] > posts[0].dur, `posts ${posts.length} · 本机 ${vis.join(',')} · 上传 ${posts[0].dur}`);
+    ok('离席上传一条，只有 v/dur/acts', posts.length === 1 && JSON.stringify(Object.keys(posts[0]).sort()) === '["acts","dur","v"]' && posts[0].acts.length >= 2, JSON.stringify(posts[0]).slice(0, 90));
     const posted = await p.evaluate(() => localStorage.getItem('datai-posted'));
     ok('记下了自己那条的 key', posted === '["mine-1"]', posted);
     ok('零报错', errors.length === 0, errors.join(' | '));

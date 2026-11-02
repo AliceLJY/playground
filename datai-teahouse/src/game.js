@@ -232,7 +232,9 @@
       case 6: { // 离席：这一趟记下，开茶单；「再开一市」才重新进门
         const dur = t - S.seatT;
         D.closeVisit(S.visit, dur);
-        visits = D.pushVisit(visits, S.visit); saveVisits(); postTrace(S.visit);
+        // 中途切走时已经先留过一次：本机那条换成完整的，服务那边不再重复留
+        if (S.flushed) visits = visits.slice(0, -1);
+        visits = D.pushVisit(visits, S.visit); saveVisits(); if (!S.flushed) postTrace(S.visit);
         S.visit = null; sfx.leave();
         const companions = new Set(S.ghosts.filter((g) => g.here && g.seatedWithMe !== false).map((g) => g.id)).size;
         const tally = { ...S.tally, tea: S.tea, table: S.me.table, companions: Math.max(companions, S.metOthers || 0), seconds: dur, closedOut: !!kind, leftAt: D.clockAt(t) };
@@ -1003,7 +1005,15 @@
   });
   canvas.addEventListener('pointerdown', () => { audio(); if (S.phase === 'door') act(0); });
   window.addEventListener('resize', resize);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) lastFrame = 0; });
+  // 坐着就切走或关掉页面：当作离席先留下这一趟（手机上关标签页多半只来得及发这一下）。回来接着坐，离席时只更新本机那条
+  function flushOnHide() {
+    if (!S || S.phase !== 'seated' || !S.visit || S.flushed) return;
+    const v = D.closeVisit({ ...S.visit, acts: S.visit.acts.slice() }, S.tau - S.seatT);
+    visits = D.pushVisit(visits, v); saveVisits(); postTrace(v);
+    S.flushed = true;
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { lastFrame = 0; flushOnHide(); } });
+  window.addEventListener('pagehide', flushOnHide);
 
   // ---------- 钩子 ----------
   function snapshot() {
