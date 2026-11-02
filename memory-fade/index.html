@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>记忆褪色 · 一条记忆是怎么被忘掉的</title>
+<meta name="description" content="把 AI 记忆系统的衰减公式做成一根能拽的弹簧：拖时间轴看它往下沉，点一下就是想起它一次。">
+<style>
+  :root {
+    --bg: #f4efe6; --ink: #2b2620; --mute: #8a8070; --line: #d9cfbf;
+    --card: #fffaf0; --accent: #c2502e; --keep: #3f7d5c; --floor: #6d6250;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif; }
+  main { max-width: 480px; margin: 0 auto; padding: 18px 16px 28px; }
+  h1 { font-size: 21px; margin: 4px 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--mute); font-size: 13px; margin: 0 0 6px; }
+  svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+  #stage { touch-action: none; }
+  #plot { touch-action: none; cursor: ew-resize; margin-top: 2px; }
+  #coil { fill: none; stroke: #5b5145; stroke-width: 2.2; stroke-linejoin: round; }
+  .ceiling { fill: #cdbfa8; }
+  #card { cursor: grab; outline: none; }
+  #card:active { cursor: grabbing; }
+  #card:focus-visible .paper { stroke: var(--accent); stroke-width: 2.5; }
+  .paper { fill: var(--card); stroke: #c9bba3; stroke-width: 1.2; }
+  #card.pinned .paper { stroke: var(--keep); }
+  .memo { font-size: 15px; fill: var(--ink); }
+  .memo-meta { font-size: 11px; fill: var(--mute); }
+  #ledge rect { fill: var(--floor); opacity: .85; }
+  #ledge text { font-size: 11px; fill: var(--floor); }
+  #nail circle { fill: var(--keep); }
+  .readout { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 2px 0 0; }
+  .readout .meta { color: var(--mute); font-size: 12.5px; flex: 1; font-variant-numeric: tabular-nums; }
+  .readout .meta b { color: var(--ink); font-weight: 600; }
+  #factor { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); min-width: 3.4em; text-align: right; }
+  #why { min-height: 3.1em; margin: 2px 0 6px; font-size: 14px; }
+  #curve { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linejoin: round; }
+  #floorline { fill: none; stroke: var(--floor); stroke-width: 1.2; stroke-dasharray: 4 3; }
+  .grid { stroke: var(--line); stroke-width: 1; }
+  #axes text { font-size: 10px; fill: var(--mute); font-variant-numeric: tabular-nums; }
+  .band { fill: var(--keep); opacity: .14; }
+  .tick { fill: var(--keep); }
+  #playhead { stroke: var(--ink); stroke-width: 1; opacity: .35; }
+  #dot { fill: var(--accent); stroke: #fff; stroke-width: 2; }
+  .axis-note { display: flex; justify-content: space-between; color: var(--mute); font-size: 12px; margin: -2px 0 8px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 30px; margin: 0; }
+  .row { display: flex; gap: 8px; margin: 8px 0; }
+  button { flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid #cbbfa9; background: #fffaf0; color: var(--ink);
+    font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button[aria-pressed=true] { background: var(--keep); border-color: var(--keep); color: #fff; }
+  label.slider { display: block; font-size: 13px; color: var(--mute); margin-top: 8px; }
+  label.slider b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  #toast { position: fixed; left: 50%; top: 18px; transform: translate(-50%, -30px); opacity: 0; background: var(--keep); color: #fff;
+    padding: 8px 14px; border-radius: 99px; font-size: 14px; transition: .25s; pointer-events: none; }
+  #toast.on { transform: translate(-50%, 0); opacity: 1; }
+  details { margin-top: 16px; font-size: 13px; color: #4d453a; border-top: 1px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 6px 0; }
+  code { font-size: 12px; background: #ebe3d4; padding: 1px 4px; border-radius: 4px; }
+  footer { margin-top: 14px; font-size: 12px; color: var(--mute); }
+  footer a { color: var(--mute); }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>一条记忆是怎么被忘掉的</h1>
+  <p class="sub">AI 记忆系统里，旧记忆的检索分会乘上一个越来越小的倍率。拖下面的时间轴看它下沉；点一下卡片，就是想起它一次。</p>
+
+  <svg id="stage" viewBox="0 0 360 346" aria-label="挂在弹簧上的记忆卡片，越往下沉，检索时越不容易被想起">
+    <rect class="ceiling" x="96" y="8" width="168" height="10" rx="3"/>
+    <path id="coil"/>
+    <g id="ledge">
+      <rect x="40" y="0" width="280" height="5" rx="2"/>
+      <text id="ledgelabel" x="44" y="18">地板：再怎么忘也不会掉过这里</text>
+    </g>
+    <g id="card" tabindex="0" role="button" aria-label="想起它一次">
+      <g id="cardbody">
+        <rect class="paper" x="-118" y="-37" width="236" height="74" rx="10"/>
+        <text class="memo" x="-102" y="-6">回复里别用「搞定」这类速记词</text>
+        <text class="memo-meta" x="-102" y="17">一条偏好 · 第 0 天写入</text>
+      </g>
+      <g id="nail" style="display:none"><circle cx="0" cy="-37" r="6"/></g>
+    </g>
+  </svg>
+
+  <div class="readout">
+    <div class="meta">第 <b id="day">0</b> 天 · <b id="tier">边缘层</b> · 半衰期 <b id="hl">60</b> 天 · 想起 <b id="count">0</b> 次</div>
+    <div id="factor">×1.00</div>
+  </div>
+  <p id="why"></p>
+
+  <svg id="plot" viewBox="0 0 360 178" aria-label="检索分倍率随天数变化的曲线，可横向拖动选择日子">
+    <g id="axes"></g>
+    <g id="bands"></g>
+    <path id="floorline"/>
+    <path id="curve"/>
+    <line id="playhead" y1="14" y2="150"/>
+    <circle id="dot" r="6"/>
+  </svg>
+  <div class="axis-note"><span>纵轴：检索分倍率</span><span>横轴：写入后第几天</span></div>
+  <input id="scrub" type="range" min="0" max="365" step="1" value="0" aria-label="写入后第几天">
+
+  <div class="row">
+    <button id="play" class="primary" aria-pressed="false">让时间走</button>
+    <button id="recall">想起它一次</button>
+  </div>
+  <div class="row">
+    <button id="pin" aria-pressed="false">钉住它</button>
+    <button id="reset">重来</button>
+  </div>
+  <label class="slider">写入时打的重要性 <b id="imp">0.50</b>（到 0.8 进工作层，到 0.95 永不褪色）
+    <input id="importance" type="range" min="0" max="1" step="0.05" value="0.5">
+  </label>
+
+  <details>
+    <summary>这条曲线是怎么算的</summary>
+    <p>倍率 = 地板 + (1 − 地板) × e<sup>−λt<sup>β</sup></sup>，λ = ln2 ÷ 半衰期<sup>β</sup>。三层记忆的形状和地板不同：边缘层 β 1.3、地板 0.45，起步就掉得快；工作层 β 1、地板 0.65；核心层 β 0.8、地板 0.85，掉得慢。</p>
+    <p>被想起会改三件事：7 天内整条不掉分；半衰期按 60 + 60 × 0.5 × ln(1 + 次数 × 新鲜度) 拉长，最多 3 倍，新鲜度按距上次想起的天数以 30 天衰减；想起满 3 次升工作层、满 10 次升核心层。钉住的、重要性到 0.95 的，永远不掉分。</p>
+    <p>这些都是 RecallNest 的默认参数，公式照它的 <code>decay-engine.ts</code> 与 <code>access-tracker.ts</code> 搬来，没有改。卡片挂的弹簧只管看着舒服：落点由公式定，弹簧只决定它怎么落过去。</p>
+  </details>
+
+  <footer>我的AI小木屋 · <a href="../">playground</a> · <a href="https://github.com/AliceLJY/recallnest">RecallNest</a></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
