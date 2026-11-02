@@ -11,6 +11,15 @@ import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SEED, BASE, BRIDGE, PAGODA, CANTON, TRAM, COLORS, makeLayout, cantonStructure, tramAt, carAt, boatAt, trafficAt, CAR_SPECS, BOAT_SPECS, mulberry32, clamp, VIEWS, pathAt, createRig, fovFor, shiftFor, skyAt } from './core.js';
 const $=id=>document.getElementById(id),canvas=$('scene'),params=new URLSearchParams(location.search);
+const recording=params.get('record')==='1';
+let recordLens=null;
+if(recording){
+ document.body.classList.add('recording');
+ const style=document.createElement('style');
+ style.textContent='body.recording *,body.recording *:before,body.recording *:after{animation:none!important;transition:none!important}body.recording .tools,body.recording .hour,body.recording .badge,body.recording .tele,body.recording .credit,body.recording .copy p{display:none!important}body.recording .copy{visibility:visible;left:28px;right:28px;bottom:76px;top:auto;width:auto;max-width:none}body.recording .copy:before{display:none}body.recording .copy h1{font-size:30px}body.recording .copy h1 b{font-size:24px}body.recording .brand{left:28px;top:38px;font-size:9px}#record-credit{position:fixed;bottom:76px;left:0;width:100%;text-align:center;font:13px var(--serif);letter-spacing:.12em;color:#f6ecdc;opacity:0;pointer-events:none}#record-fade{position:fixed;inset:0;background:#070c18;opacity:0;pointer-events:none}';
+ document.head.append(style);
+ for(const id of ['record-credit','record-fade']){const el=document.createElement('div');el.id=id;if(id==='record-credit')el.textContent='花城秋岸 · 我的AI小木屋';document.body.append(el);}
+}
 const number=(name,fallback)=>{const n=Number(params.get(name));return params.has(name)&&Number.isFinite(n)?n:fallback;};
 const mobile=innerWidth<600,layout=makeLayout(SEED,mobile),rnd=mulberry32(SEED+1),R=(a,b)=>a+(b-a)*rnd();
 let renderer;
@@ -621,7 +630,7 @@ const rig=createRig({u:validView?VIEWS[requested]:0,auto:!matchMedia('(prefers-r
 let W=1,H=1,aspect=1,copyTop=1,scaleIdx=0,pixelRatio=1,frames=0,shadowRefreshes=0,calls=0,tris=0,fps=60,meanFrameTime=1/60,slow=0,fast=0;
 const scales=[1,.9,.8,.75];
 document.body.classList.toggle('detail',validView&&['station','bridge','arch','pagoda'].includes(requested));
-function resize(){const oldAspect=aspect;W=innerWidth;H=innerHeight;aspect=W/H;copyTop=document.querySelector('.copy').getBoundingClientRect().top/H;pixelRatio=Math.max(Math.min(devicePixelRatio||1,1.5),Math.min(devicePixelRatio||1,2)*scales[scaleIdx]);renderer.setPixelRatio(pixelRatio);renderer.setSize(W,H,false);composer.setPixelRatio(pixelRatio);composer.setSize(W,H);fxaa.uniforms.resolution.value.set(1/(W*pixelRatio),1/(H*pixelRatio));camera.aspect=aspect;if(aspect!==oldAspect)camera.fov=fovFor(aspect,rig.pos);camera.updateProjectionMatrix();const sh=shiftFor(aspect,rig.pos);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
+function resize(){const oldAspect=aspect;W=innerWidth;H=innerHeight;aspect=W/H;copyTop=document.querySelector('.copy').getBoundingClientRect().top/H;pixelRatio=recording?Math.min(devicePixelRatio||1,3):Math.max(Math.min(devicePixelRatio||1,1.5),Math.min(devicePixelRatio||1,2)*scales[scaleIdx]);renderer.setPixelRatio(pixelRatio);renderer.setSize(W,H,false);composer.setPixelRatio(pixelRatio);composer.setSize(W,H);fxaa.uniforms.resolution.value.set(1/(W*pixelRatio),1/(H*pixelRatio));camera.aspect=aspect;if(aspect!==oldAspect)camera.fov=fovFor(aspect,rig.pos);camera.updateProjectionMatrix();const sh=shiftFor(aspect,rig.pos);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
 addEventListener('resize',resize);resize();
 let hoverId=null;
 const tramLamps=group('tram').children.find(m=>m.name==='tram-lamp').material;
@@ -657,9 +666,9 @@ function moveVehicles(t){
 }
 function animate(dt){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos,target:rig.look}:rig.update(dt,t);camera.position.fromArray(pose.pos);
  // Hold the current lens during manual zoom; otherwise widening FOV cancels the dolly.
- const fov=frozen||rig.mode==='auto'?fovFor(aspect,pose.pos):rig.mode==='return'?THREE.MathUtils.lerp(camera.fov,fovFor(aspect,pathAt(rig.u).pos),Math.min(1,dt*5)):camera.fov;
+ const fov=recordLens?.fov??(frozen||rig.mode==='auto'?fovFor(aspect,pose.pos):rig.mode==='return'?THREE.MathUtils.lerp(camera.fov,fovFor(aspect,pathAt(rig.u).pos),Math.min(1,dt*5)):camera.fov);
  if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();const sh=shiftFor(aspect,rig.pos);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
- const lensShift=shiftFor(aspect,pose.pos);camera.projectionMatrix.elements[8]=-lensShift[0];camera.projectionMatrix.elements[9]=-lensShift[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+ const lensShift=recordLens?[0,recordLens.shift]:shiftFor(aspect,pose.pos);camera.projectionMatrix.elements[8]=-lensShift[0];camera.projectionMatrix.elements[9]=-lensShift[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
  camera.lookAt(...pose.target);camera.updateMatrixWorld();sky.position.copy(camera.position);if(!frozen){view=rig.mode;document.body.classList.toggle('detail',camera.position.distanceTo(new THREE.Vector3(0,4,0))<40||(aspect<.8&&projected(boardBounds).y1>copyTop-.02));}wind.value=t;waterU.time.value=t;moveVehicles(t);applyHour();
  // Keep local light evaluation bounded: the closest pools matter at this miniature scale.
  if(hour>0){const nearest=lampLights.slice().sort((a,b)=>a.position.distanceToSquared(camera.position)-b.position.distanceToSquared(camera.position));const active=new Set(nearest.slice(0,mobile?3:4));for(const l of lampLights)l.visible=active.has(l);}
@@ -693,3 +702,12 @@ subjectBoxes:()=>{const tr=tramAt(t);return{...Object.fromEntries(Object.entries
 uiBoxes:()=>Object.fromEntries(['.brand','.badge','.copy','.tele','.credit','.tools','.hour'].filter(s=>getComputedStyle(document.querySelector(s)).display!=='none'&&getComputedStyle(document.querySelector(s)).visibility!=='hidden').map(s=>[s,rectOf(document.querySelector(s))])),
 };
 window.__PLAYTEST__={get ready(){return window.__huacheng.ready;},snapshot:()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}),reset:()=>{rig.reset();t=0;frozen=false;view='auto';syncAuto();}};
+// The recorder supplies a camera/time score; the ordinary entry never exposes this setter.
+if(recording)window.__huacheng.recordFrame=frame=>{
+ const {pos,target,seconds,day,fov,shift,title,credit,fade}=frame;
+ if(!Array.isArray(pos)||!Array.isArray(target)||pos.length!==3||target.length!==3||![...pos,...target,seconds,day,fov,shift,title,credit,fade].every(Number.isFinite)||fov<20||fov>110)throw Error('Invalid recording frame');
+ rig.pos=pos.slice();rig.look=target.slice();frozen=true;view='record';t=seconds;hour=clamp(day,0,1);recordLens={fov,shift};
+ document.querySelector('.copy').style.opacity=String(clamp(title,0,1));document.querySelector('.brand').style.opacity=String(clamp(title,0,1));
+ $('record-credit').style.opacity=String(clamp(credit,0,1));$('record-fade').style.opacity=String(clamp(fade,0,1));animate(0);
+ return {view,t,hour,cam:camera.position.toArray(),target:rig.look.slice(),tram:tramAt(t),pixelRatio};
+};
