@@ -12,6 +12,8 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: dpr, hasTouch: true });
   const page = await ctx.newPage();
+  // 本地页面的来源不在痕迹服务的放行名单里：对服务的请求一律回空列表，走「没有别人」的路（痕迹另由 traces-check 验）
+  await page.route('**/*.workers.dev/**', (r) => r.fulfill({ status: r.request().method() === 'GET' ? 200 : 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }, body: r.request().method() === 'GET' ? '[]' : '{}' }));
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.install({ time: new Date('2026-10-31T07:00:00+08:00') });
   // 预埋两次来访：昨天、三天前，各坐过一阵、斟过茶叩过指，这样一进门桌上就有「你 · 昨天」

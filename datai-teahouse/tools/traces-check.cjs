@@ -19,7 +19,7 @@ const FAKE = 'https://datai-traces.check.workers.dev';
     const p = await ctx.newPage();
     const errors = []; p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await p.route('**/src/game.js', async (route) => {
-      const r = await route.fetch(); const body = (await r.text()).replace('const TRACE_ENDPOINT = null;', `const TRACE_ENDPOINT = '${FAKE}';`);
+      const r = await route.fetch(); const body = (await r.text()).replace(/const TRACE_ENDPOINT = (null|'[^']*');/, `const TRACE_ENDPOINT = '${FAKE}';`);
       await route.fulfill({ response: r, body });
     });
     await p.route(FAKE + '/**', async (route) => {
@@ -75,7 +75,7 @@ const FAKE = 'https://datai-traces.check.workers.dev';
     ok('第二次零报错', e2.length === 0, e2.join(' | '));
     await ctx.close();
   }
-  // 3. 远端不回：最多 2.5 秒后照常开桌
+  // 3. 远端不回：最多 1.2 秒后照常开桌
   {
     const ctx = await b.newContext({ viewport: { width: 412, height: 700 } });
     const { p, errors } = await open(ctx, { hang: true });
@@ -84,7 +84,7 @@ const FAKE = 'https://datai-traces.check.workers.dev';
     const waited = Date.now() - t0;
     const s = await p.evaluate(() => window.__datai.snapshot());
     const sitOk = await p.evaluate(() => !document.querySelector('#bar button[data-act="0"]').disabled);
-    ok('远端不回，≤3 秒后照常能落座，只有本机记录（新访客桌上两个常客）', waited < 3200 && sitOk && s.remote === 0 && s.residents.length === 2 && s.tables.length === 1, `${waited} ms`);
+    ok('远端不回，≤2 秒后照常能落座，只有本机记录（新访客桌上两个常客）', waited < 2000 && sitOk && s.remote === 0 && s.residents.length === 2 && s.tables.length === 1, `${waited} ms`);
     ok('零报错', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
