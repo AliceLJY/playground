@@ -13,12 +13,14 @@ const BAD = [
   ['本机用户名', new RegExp('anxian' + 'jingya', 'i')],
   ['会话 id（UUID）', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
   ['内部设备名', new RegExp('mac-' + 'mini\\.', 'i')],
+  ['邮箱地址', /\b[A-Za-z0-9._%+-]+@(?!users\.noreply\.github\.com)[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/],
 ];
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 const walk = (dir, out = []) => {
   for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
     const rel = path.join(dir, e.name);
     if (e.name === '.DS_Store' || e.name === 'check-out' || e.name === 'node_modules') continue;
+    if (e.name === '.wrangler' || e.name === '.deployed-url') continue; // 本机缓存，已 gitignore；下一条测试管它们别进仓库
     if (e.isDirectory()) walk(rel, out); else out.push(rel);
   }
   return out;
@@ -32,6 +34,12 @@ test('验收 7 所有文件（含文档、测试、工具）都不含本机路�
     const text = read(f);
     for (const [name, re] of BAD) assert.ok(!re.test(text), `${f} 含有 ${name}`);
   }
+});
+
+test('验收 7 wrangler 的本机缓存（账号名里带登录邮箱）不进仓库', () => {
+  const { execSync } = require('child_process');
+  const tracked = execSync('git ls-files', { cwd: root, encoding: 'utf8' }).split('\n');
+  assert.ok(!tracked.some((f) => f.includes('.wrangler/') || f.endsWith('.deployed-url')), '仓库里跟踪了 worker/.wrangler 或 .deployed-url');
 });
 
 test('验收 7 页面文件只许访问痕迹服务这一个地址：没有别的外部地址、没有别的网络 API、不引外部样式', () => {
