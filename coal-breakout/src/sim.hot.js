@@ -71,6 +71,7 @@ function offer(s) {
     while (tries++ < 24 && (s.cards[c] >= 3 || c === s.offer[0] && j > 0 || c === s.offer[1] && j > 1)) c = (c + 1) % 8;
     s.offer[j] = tries > 24 ? -1 : c;
   }
+  if (s.level % 2 === 0) { s.autoCard = s.offer[0]; s.autoUntil = s.tick + 150; choose(s, 0); s.event = 12; }
 }
 function choose(s, choice) {
   if (s.phase !== 1 || choice < -1 || choice > 2 || choice !== Math.floor(choice)) return;
@@ -79,7 +80,7 @@ function choose(s, choice) {
     s.cards[c]++; if (s.chosenCount < s.chosen.length) s.chosen[s.chosenCount++] = c;
     if (c === 5) s.revives++;
   }
-  s.level++; s.nextXP += 10 + s.level * 5;
+  s.level++; s.prevXP = s.nextXP; s.nextXP += 10 + s.level * 5;
   if (s.level % 3 === 0) s.hp = Math.min(s.maxHP, s.hp + 1);
   s.phase = 0; s.event = 2;
 }
@@ -107,11 +108,11 @@ function step(s, ix, iy, card) {
   if (s.phase !== 0) return;
   s.tick++; if (s.invuln > 0) s.invuln--;
   const mode = s.stage.mechanism;
-  const cycle = s.tick % 3000;
-  s.warning = mode === 3 && cycle >= 2820 ? 3000 - cycle : 0;
+  const cycle = s.tick % 2400;
+  s.warning = mode === 3 && cycle >= 2220 ? 2400 - cycle : 0;
   const wasOff = s.off;
-  s.off = mode === 3 && s.tick >= 3000 && cycle < 240 ? 240 - cycle : 0;
-  s.burst = mode === 3 && s.tick >= 3000 && cycle >= 240 && cycle < 540 ? 540 - cycle : 0;
+  s.off = mode === 3 && s.tick >= 2400 && cycle < 240 ? 240 - cycle : 0;
+  s.burst = mode === 3 && s.tick >= 2400 && cycle >= 240 && cycle < 540 ? 540 - cycle : 0;
   if (s.off && !wasOff) { s.resets++; s.event = 9; }
   if (s.warning === 180) { s.warnings++; s.event = 10; }
   if (wasOff && !s.off) s.event = 11;
