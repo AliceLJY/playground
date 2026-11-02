@@ -1,0 +1,840 @@
+{
+  "title": "像素办公室的一天",
+  "seconds": 80.4,
+  "seed": 7,
+  "note": "MV v5：当前 portrait 布局；演示剧本与虚构纸条，不连真实状态。时间单位为录制前剧本秒，--speed 1.2。pace 仅压缩 MV 的真实寻路；电话近景 27–33 秒对应剧中半分钟。",
+  "clock": [
+    [
+      0,
+      "08:57"
+    ],
+    [
+      11,
+      "09:40"
+    ],
+    [
+      17,
+      "10:20"
+    ],
+    [
+      23.5,
+      "11:30:00"
+    ],
+    [
+      27,
+      "11:30:00"
+    ],
+    [
+      33,
+      "11:30:30"
+    ],
+    [
+      35.5,
+      "13:20"
+    ],
+    [
+      45,
+      "14:40"
+    ],
+    [
+      57.5,
+      "16:30"
+    ],
+    [
+      61,
+      "17:30"
+    ],
+    [
+      64,
+      "23:00"
+    ],
+    [
+      78.2,
+      "23:59"
+    ],
+    [
+      80.4,
+      "23:59"
+    ]
+  ],
+  "pace": [
+    [
+      0,
+      1
+    ],
+    [
+      17.2,
+      1.8
+    ],
+    [
+      26,
+      1
+    ],
+    [
+      30.8,
+      0.5
+    ],
+    [
+      33,
+      1.8
+    ],
+    [
+      35.5,
+      1
+    ],
+    [
+      45,
+      2.5
+    ],
+    [
+      50.5,
+      1
+    ],
+    [
+      57.5,
+      2.5
+    ],
+    [
+      61,
+      1
+    ],
+    [
+      64,
+      11
+    ],
+    [
+      74,
+      2.5
+    ]
+  ],
+  "roster": [
+    {
+      "id": "director",
+      "name": "CC",
+      "role": "总监",
+      "color": "#D18A65",
+      "desk": 0
+    },
+    {
+      "id": "builder",
+      "name": "Codex",
+      "role": "构筑师",
+      "color": "#6D9D8E",
+      "desk": 1
+    },
+    {
+      "id": "twin-a",
+      "name": "Kimi",
+      "role": "推理搭档",
+      "color": "#7F91BC",
+      "desk": 2
+    },
+    {
+      "id": "artist",
+      "name": "Agy",
+      "role": "创意搭档",
+      "color": "#8DA66F",
+      "desk": 4
+    },
+    {
+      "id": "companion",
+      "name": "etwin-cc",
+      "role": "陪伴搭档",
+      "color": "#D69A9E",
+      "desk": 5
+    },
+    {
+      "id": "scout",
+      "name": "Grok Bot",
+      "role": "探索员",
+      "color": "#6F8585",
+      "desk": 6
+    },
+    {
+      "id": "filmmaker",
+      "name": "Muse",
+      "role": "影像搭档",
+      "color": "#B397B8",
+      "desk": 7
+    },
+    {
+      "id": "writer",
+      "name": "豆包",
+      "role": "写作搭档",
+      "color": "#C6A160",
+      "desk": 10,
+      "look": 8
+    },
+    {
+      "id": "helper",
+      "name": "Dots",
+      "role": "候补搭档",
+      "color": "#9FA866",
+      "desk": 9
+    },
+    {
+      "id": "courier",
+      "name": "Cobbler",
+      "role": "送信员",
+      "color": "#BD8955",
+      "desk": 8,
+      "look": 10,
+      "courier": true
+    }
+  ],
+  "stats": {
+    "since": "2026-11-01",
+    "visitorsTotal": 135,
+    "treatsTotal": 27,
+    "meetingsTotal": 11,
+    "handoffsTotal": 40,
+    "callsTotal": 8,
+    "today": {
+      "visitors": 0,
+      "treats": 0,
+      "meetings": 0,
+      "handoffs": 0,
+      "calls": 0
+    }
+  },
+  "events": [
+    {
+      "at": 0.4,
+      "boss": "desk"
+    },
+    {
+      "at": 1.2,
+      "id": "director",
+      "status": "busy"
+    },
+    {
+      "at": 1.8,
+      "id": "builder",
+      "status": "busy"
+    },
+    {
+      "at": 2.4,
+      "id": "twin-a",
+      "status": "idle"
+    },
+    {
+      "at": 3,
+      "id": "artist",
+      "status": "idle"
+    },
+    {
+      "at": 3.6,
+      "id": "companion",
+      "status": "idle"
+    },
+    {
+      "at": 4.2,
+      "id": "scout",
+      "status": "idle"
+    },
+    {
+      "at": 4.8,
+      "id": "filmmaker",
+      "status": "idle"
+    },
+    {
+      "at": 5.4,
+      "id": "helper",
+      "status": "busy"
+    },
+    {
+      "at": 6,
+      "id": "courier",
+      "status": "idle"
+    },
+    {
+      "at": 17,
+      "notice": "下午一起看看初稿，别忘了喝口水。"
+    },
+    {
+      "at": 17.2,
+      "scene": {
+        "call": {
+          "kind": "dispatch",
+          "with": "builder"
+        }
+      }
+    },
+    {
+      "at": 30.8,
+      "scene": {
+        "dispatched": [
+          "builder"
+        ]
+      }
+    },
+    {
+      "at": 33,
+      "scene": {
+        "call": null
+      }
+    },
+    {
+      "at": 33.2,
+      "id": "twin-a",
+      "status": "busy"
+    },
+    {
+      "at": 33.2,
+      "id": "artist",
+      "status": "busy"
+    },
+    {
+      "at": 33.2,
+      "id": "companion",
+      "status": "busy"
+    },
+    {
+      "at": 33.2,
+      "id": "scout",
+      "status": "busy"
+    },
+    {
+      "at": 33.2,
+      "id": "filmmaker",
+      "status": "busy"
+    },
+    {
+      "at": 33.3,
+      "id": "builder",
+      "status": "done"
+    },
+    {
+      "at": 35.5,
+      "visitors": 2
+    },
+    {
+      "at": 36,
+      "id": "writer",
+      "status": "busy"
+    },
+    {
+      "at": 38.5,
+      "treat": "milktea"
+    },
+    {
+      "at": 41,
+      "id": "writer",
+      "status": "away"
+    },
+    {
+      "at": 45,
+      "scene": {
+        "meeting": {
+          "kind": "review",
+          "members": [
+            "director",
+            "builder",
+            "twin-a",
+            "artist",
+            "scout"
+          ],
+          "round": 1,
+          "slide": {
+            "adopted": 2,
+            "rejected": 1,
+            "open": 3
+          }
+        },
+        "dispatched": []
+      }
+    },
+    {
+      "at": 53.5,
+      "scene": {
+        "meeting": {
+          "kind": "review",
+          "members": [
+            "director",
+            "builder",
+            "twin-a",
+            "artist",
+            "scout"
+          ],
+          "round": 2,
+          "slide": {
+            "adopted": 4,
+            "rejected": 2,
+            "open": 0
+          }
+        }
+      }
+    },
+    {
+      "at": 57.5,
+      "scene": {
+        "meeting": null
+      }
+    },
+    {
+      "at": 57.5,
+      "id": "director",
+      "status": "busy"
+    },
+    {
+      "at": 57.5,
+      "id": "builder",
+      "status": "busy"
+    },
+    {
+      "at": 57.5,
+      "id": "twin-a",
+      "status": "busy"
+    },
+    {
+      "at": 57.5,
+      "id": "artist",
+      "status": "busy"
+    },
+    {
+      "at": 57.5,
+      "id": "scout",
+      "status": "busy"
+    },
+    {
+      "at": 59,
+      "visitors": 0
+    },
+    {
+      "at": 61.0,
+      "id": "twin-a",
+      "status": "off"
+    },
+    {
+      "at": 61.17,
+      "id": "artist",
+      "status": "off"
+    },
+    {
+      "at": 61.34,
+      "id": "companion",
+      "status": "off"
+    },
+    {
+      "at": 61.51,
+      "id": "scout",
+      "status": "off"
+    },
+    {
+      "at": 61.68,
+      "id": "filmmaker",
+      "status": "off"
+    },
+    {
+      "at": 61.85,
+      "id": "helper",
+      "status": "off"
+    },
+    {
+      "at": 62.02,
+      "id": "courier",
+      "status": "off"
+    },
+    {
+      "at": 64,
+      "scene": {
+        "guard": {
+          "phase": "patrol",
+          "ok": null
+        }
+      }
+    },
+    {
+      "at": 74,
+      "id": "director",
+      "status": "off"
+    },
+    {
+      "at": 74.15,
+      "id": "builder",
+      "status": "off"
+    },
+    {
+      "at": 76,
+      "boss": "door"
+    },
+    {
+      "at": 78.2,
+      "lights": "off"
+    }
+  ],
+  "camera": [
+    {
+      "on": "thanks",
+      "to": [
+        180,
+        193
+      ],
+      "zoom": 1.6666666666666667,
+      "dur": 0.5
+    },
+    {
+      "at": 9.4,
+      "to": [
+        70,
+        124
+      ],
+      "zoom": 3,
+      "dur": 0.8
+    },
+    {
+      "at": 11.8,
+      "to": [
+        115,
+        300
+      ],
+      "zoom": 1.6666666666666667,
+      "dur": 0.8
+    },
+    {
+      "at": 16.5,
+      "to": [
+        270,
+        220
+      ],
+      "zoom": 2,
+      "dur": 0.6
+    },
+    {
+      "at": 18,
+      "to": [
+        245,
+        320
+      ],
+      "zoom": 2,
+      "dur": 1.3
+    },
+    {
+      "at": 23,
+      "to": "wide",
+      "zoom": 1,
+      "dur": 0.8
+    },
+    {
+      "at": 25,
+      "to": [
+        270,
+        425
+      ],
+      "zoom": 2,
+      "dur": 1.5
+    },
+    {
+      "at": 26.5,
+      "to": [
+        285,
+        550
+      ],
+      "zoom": 3,
+      "dur": 1
+    },
+    {
+      "at": 30.8,
+      "to": [
+        180,
+        145
+      ],
+      "zoom": 2,
+      "dur": 2,
+      "linear": true
+    },
+    {
+      "at": 33.1,
+      "to": [
+        157,
+        132
+      ],
+      "zoom": 2,
+      "dur": 0.3
+    },
+    {
+      "at": 35.5,
+      "to": [
+        270,
+        285
+      ],
+      "zoom": 2,
+      "dur": 0.5
+    },
+    {
+      "at": 38.8,
+      "to": "wide",
+      "zoom": 1,
+      "dur": 0.8
+    },
+    {
+      "at": 45.3,
+      "to": [
+        270,
+        390
+      ],
+      "zoom": 2,
+      "dur": 0.7
+    },
+    {
+      "at": 46.2,
+      "to": [
+        270,
+        465
+      ],
+      "zoom": 2,
+      "dur": 1
+    },
+    {
+      "at": 47.5,
+      "to": [
+        180,
+        577
+      ],
+      "zoom": 1,
+      "dur": 1.2
+    },
+    {
+      "at": 51.5,
+      "to": [
+        130,
+        549
+      ],
+      "zoom": 1.6666666666666667,
+      "dur": 0.8
+    },
+    {
+      "at": 54.6,
+      "to": [
+        140,
+        595
+      ],
+      "zoom": 2,
+      "dur": 0.8
+    },
+    {
+      "at": 57.6,
+      "to": [
+        270,
+        470
+      ],
+      "zoom": 2,
+      "dur": 1.2
+    },
+    {
+      "at": 59,
+      "to": "wide",
+      "zoom": 1,
+      "dur": 1.2
+    },
+    {
+      "at": 61.3,
+      "to": [
+        175,
+        451
+      ],
+      "zoom": 2,
+      "dur": 0.8
+    },
+    {
+      "at": 64,
+      "to": [
+        180,
+        560
+      ],
+      "zoom": 1,
+      "dur": 0.8
+    },
+    {
+      "at": 65.4,
+      "to": [
+        180,
+        630
+      ],
+      "zoom": 2,
+      "dur": 0.7,
+      "follow": "guard"
+    },
+    {
+      "at": 68,
+      "to": [
+        180,
+        535
+      ],
+      "zoom": 1,
+      "dur": 0.5
+    },
+    {
+      "at": 69.8,
+      "to": "wide",
+      "zoom": 1,
+      "dur": 1
+    },
+    {
+      "at": 72.5,
+      "to": [
+        270,
+        350
+      ],
+      "zoom": 2,
+      "dur": 0.8
+    },
+    {
+      "at": 77.7,
+      "to": "wide",
+      "zoom": 1,
+      "dur": 0.4
+    }
+  ],
+  "subtitles": [
+    {
+      "on": "thanks",
+      "dur": 3,
+      "text": "谢谢！一人一杯"
+    },
+    {
+      "at": 0.5,
+      "until": 4.6,
+      "text": "早上九点，办公室开门了"
+    },
+    {
+      "at": 5,
+      "until": 9.5,
+      "text": "大家陆续来上工"
+    },
+    {
+      "at": 9.8,
+      "until": 11.7,
+      "text": "CC 到了，开工"
+    },
+    {
+      "at": 12.5,
+      "until": 16.3,
+      "text": "忙里偷闲，来一局"
+    },
+    {
+      "at": 18,
+      "until": 22.8,
+      "text": "Cobbler 从座位送来一张纸条"
+    },
+    {
+      "at": 26.8,
+      "until": 30.7,
+      "text": "喂，Codex，交给你啦"
+    },
+    {
+      "at": 31,
+      "until": 33,
+      "text": "一份活，飞到了楼上"
+    },
+    {
+      "at": 33.5,
+      "until": 35.4,
+      "text": "交活了，撒一把彩纸"
+    },
+    {
+      "at": 35.7,
+      "until": 38.5,
+      "text": "客人来了，大家挥手打招呼"
+    },
+    {
+      "at": 39,
+      "until": 42,
+      "text": "还拎来了奶茶"
+    },
+    {
+      "at": 45.5,
+      "until": 48.8,
+      "text": "走，下楼一起看看初稿"
+    },
+    {
+      "at": 50,
+      "until": 53.5,
+      "text": "这一轮，采纳两条，再议三条"
+    },
+    {
+      "at": 53.5,
+      "until": 54.8,
+      "text": "再看一轮"
+    },
+    {
+      "at": 54.8,
+      "until": 57.2,
+      "text": "客人坐旁边，也听得入神"
+    },
+    {
+      "at": 58,
+      "until": 60.8,
+      "text": "有了主意，回楼上接着干"
+    },
+    {
+      "at": 61.8,
+      "until": 64,
+      "text": "来过的人，做过的事，都记着"
+    },
+    {
+      "at": 65,
+      "until": 71,
+      "text": "夜深了，保安打着手电巡一圈"
+    },
+    {
+      "at": 73.6,
+      "until": 75.5,
+      "text": "门口亮起绿灯，放心啦"
+    },
+    {
+      "at": 76,
+      "until": 78,
+      "text": "明天见"
+    },
+    {
+      "at": 78.2,
+      "until": 79.8,
+      "text": "关灯"
+    }
+  ],
+  "says": [
+    {
+      "at": 27,
+      "id": "director",
+      "text": "喂，Codex",
+      "dur": 1.7
+    },
+    {
+      "at": 29,
+      "id": "director",
+      "text": "交给你啦",
+      "dur": 1.8
+    },
+    {
+      "at": 45,
+      "id": "director",
+      "text": "下楼聊聊",
+      "dur": 1.8
+    },
+    {
+      "at": 57.5,
+      "id": "director",
+      "text": "好，接着干",
+      "dur": 1.8
+    },
+    {
+      "at": 75,
+      "id": "director",
+      "text": "明天见",
+      "dur": 2
+    },
+    {
+      "at": 75.15,
+      "id": "builder",
+      "text": "明天见",
+      "dur": 2
+    },
+    {
+      "at": 76.7,
+      "who": "boss",
+      "text": "关灯啦",
+      "dur": 1.5
+    }
+  ]
+}

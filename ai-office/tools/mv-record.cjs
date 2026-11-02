@@ -30,7 +30,9 @@ function serve(dir) {
   const server = await serve(root), base = `http://127.0.0.1:${server.address().port}/index.html?mv=1&hold=1`;
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const page = await (await browser.newContext({ viewport: { width: 540, height: 960 }, deviceScaleFactor: 2 })).newPage();
-  const errors = []; page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  const errors = [], external = [];
+  await page.route(/^https?:\/\//, route => { const u=new URL(route.request().url());if(u.hostname==='127.0.0.1')return route.continue();external.push(u.origin+u.pathname);return route.abort(); });
+  page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.clock.install({ time: Date.parse('2026-11-01T01:00:00Z') });
   await page.goto(base);
   for (let i = 0; i < 300; i++) { if (await page.evaluate(() => window.__PLAYTEST__?.ready)) break; await page.clock.runFor(100); await page.waitForTimeout(30); }
@@ -72,15 +74,16 @@ function serve(dir) {
     if (n % 300 === 0) console.log('frame', n, '/', total);
   }
   safe.passed=safe.subFrames>0&&safe.subBottom<=1480&&safe.titleTop>=172;
-  fs.writeFileSync(path.join(outDir,'safe-area-v5.json'),JSON.stringify(safe,null,2));
+  fs.writeFileSync(path.join(outDir,'safe-area-v6.json'),JSON.stringify(safe,null,2));
+  if(external.length)throw new Error('MV attempted external requests: '+JSON.stringify(external));
   if(!safe.passed)throw new Error('Safe area failed: '+JSON.stringify(safe));
   const log = await page.evaluate(() => window.__PLAYTEST__.mvLog());
   await page.close();
   const officeMp4 = path.join(outDir, 'office.mp4');
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-vf', 'scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', officeMp4]);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, '%05d.jpg'), '-vf', 'scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-bsf:v', 'h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', officeMp4]);
 
   const office = total / fps;
-  const ev = { fps, from, speed, office, events: log.map(e => ({ ...e, t: +((e.t - from) / speed).toFixed(3) })).filter(e => e.t >= 0 && e.t <= office), safe, errors };
+  const ev = { fps, from, speed, office, external, browser:browser.version(), viewport:{width:540,height:960,dpr:2}, events: log.map(e => ({ ...e, t: +((e.t - from) / speed).toFixed(3) })).filter(e => e.t >= 0 && e.t <= office), safe, errors };
   const card = opt('--endcard');
   if (card) {
     const cp = await (await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 })).newPage();
@@ -92,7 +95,7 @@ function serve(dir) {
     const cn = Math.round(dur * fps);
     for (let n = 0; n < cn; n++) { await cp.evaluate(t => window.__seek(t), n / fps); await cp.screenshot({ path: path.join(cf, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); }
     const endcard = path.join(outDir, 'endcard.mp4');
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.8,scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(cf, '%05d.jpg'), '-vf', 'fade=in:st=0:d=0.8,scale=in_range=pc:out_range=tv,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-bsf:v', 'h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1:video_full_range_flag=0', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', endcard]);
     fs.writeFileSync(path.join(outDir, 'concat.txt'), `file '${officeMp4}'\nfile '${endcard}'\n`);
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(outDir, 'concat.txt'), '-c', 'copy', '-movflags', '+faststart', path.join(outDir, 'mv-noaudio.mp4')]);
     ev.endcard = { start: office, seconds: cn / fps, sfx: [1.8, 2.8] };

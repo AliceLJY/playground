@@ -17,6 +17,7 @@
     const stats = JSON.parse(JSON.stringify(script.stats)), events = [];
     const fired = {}, log = [], arrived = new Set(), queued = new Set(), inside = new Set();
     let lastHello = null, lastThanks = null, lastDelivery = null, bossInside = false;
+    const phases = {}, foods = new Set();
     const cams = script.camera.filter(c => c.at != null).map(c => ({ ...c, start: c.at * 1000 })).sort((p, q) => p.start - q.start);
     const subs = script.subtitles.filter(s => s.at != null).map(s => ({ ...s, start: s.at * 1000, end: s.until * 1000 }));
 
@@ -52,18 +53,22 @@
     }
 
     function start(sim) {
+      sim.eventsEnabled = !!script.performances;
       for (const a of sim.actors) { sim.setStatus(a.id, 'off'); a.x = C.door.x; a.y = C.door.y; a.path = []; a.dest = null; }
       sim.boss.x = C.door.x; sim.boss.y = C.door.y; sim.boss.path = []; sim.boss.dest = null; sim.bossTarget = { ...C.door }; sim.bossAway = true;
     }
     // Fire every scripted event whose time has come (called before each 20 ms engine step).
     function tick(ms, sim) {
+      // Cosmetic signal freshness follows the fictional day, never the machine clock.
+      sim.clockBase = clock(ms) - sim.time * 1000;
       while (cursor < script.events.length && script.events[cursor].at * 1000 <= ms) {
         const e = script.events[cursor++], at = new Date(clock(ms)).toISOString();
         if (e.scene) {
           const next = { ...sim.scene, ...e.scene };
           if (e.scene.call) next.call = { ...e.scene.call, since: at };
-          if (e.scene.meeting) next.meeting = { ...e.scene.meeting, since: sim.scene.meeting?.since || at };
+          if (e.scene.meeting) next.meeting = { ...e.scene.meeting, since: sim.scene.meeting?.since || at, roundAt: at };
           if (e.scene.guard) next.guard = { ...e.scene.guard, at };
+          for (const key of ['snack','souvenir','radar','supper']) if(e.scene[key]) next[key] = {...e.scene[key],at};
           if (e.scene.meeting && !sim.scene.meeting) { events.push({ kind:'meeting', at:next.meeting.since }); stats.meetingsTotal++; stats.today.meetings++; }
           if (e.scene.call && !sim.scene.call) { stats.callsTotal++; stats.today.calls++; }
           if (e.scene.dispatched) { const n=e.scene.dispatched.filter(id=>!sim.scene.dispatched.includes(id)).length; stats.handoffsTotal+=n; stats.today.handoffs+=n; }
@@ -73,6 +78,8 @@
         else if (e.notice) sim.notice({ text: e.notice, at });
         else if (e.visitors != null) { const n=Math.max(0,e.visitors-sim.visitorTarget);stats.visitorsTotal+=n;stats.today.visitors+=n;sim.setVisitors(e.visitors); }
         else if (e.treat) { stats.treatsTotal++; stats.today.treats++; sim.treat(e.treat, at); }
+        else if (e.meet) { sim.meet(e.meet, at); say('meet',ms,{kind:e.meet}); }
+        else if (e.quota) { sim.setQuota(Object.fromEntries(Object.entries(e.quota).map(([id,min])=>[id,new Date(clock(ms)+min*60000).toISOString()])),clock(ms)); }
         else if ('boss' in e) { sim.bossTarget = e.boss === 'desk' ? { ...C.bossDesk } : e.boss === 'door' ? { ...C.door } : null; sim.bossAway = e.boss === 'door'; if (e.boss === 'door') say('boss-leaving', ms); }
         else if (e.lights === 'off') { lightsOffAt = ms; say('lights-off', ms); }
         else if (e.id) { sim.setStatus(e.id, e.status, at); say('status', ms, { id: e.id, status: e.status }); if (e.status === 'off') arrived.delete(e.id); }
@@ -96,6 +103,11 @@
       if (hello && hello.at !== lastHello) { lastHello = hello.at; say('hello', ms); trigger('hello', ms); }
       const thanks = sim.thanksNow();
       if (thanks && thanks.at !== lastThanks) { lastThanks = thanks.at; say('thanks', ms, { kind: thanks.kind }); trigger('thanks', ms); }
+      for (const kind of ['reception','argue','snack','radar','souvenir','supper','melon','quotaEvent']) {
+        const e=sim[kind], phase=e?.phase || (e?'active':'end'), key=kind+':'+phase+(kind==='argue'?':'+e?.round:'');
+        if(phases[kind]!==key) { if(e || phases[kind]) {say(kind,ms,{phase,round:e?.round,ids:e?.ids || e?.hosts});trigger(key,ms);} phases[kind]=key; }
+      }
+      for(const f of sim.foodNow()) {const key=f.kind+':'+f.id;if(!foods.has(key)){foods.add(key);say('food',ms,{kind:f.kind,id:f.id});}}
       const caller = sim.actors.find(a => a.activity === 'call' && !a.path.length);
       if (caller && fired['call-seated'] == null) { fired['call-seated'] = ms; sim.scene.call.since = new Date(clock(ms)).toISOString(); say('call-seated', ms, { storyTime: clock(ms) }); }
       if (sim.guard?.lap && sim.scene.guard.phase === 'patrol') { sim.setScene({ ...sim.scene, guard: { ...sim.scene.guard, phase: 'done', ok: true } }); say('guard-done', ms); }
@@ -132,7 +144,7 @@
       return t < .25 ? lerp(0, .78, t / .25) : t < 1.0 ? .78 : Math.min(1, lerp(.78, 1, (t - 1.0) / .8));
     }
     const pace = ms => (script.pace || [[0,1]]).filter(p => p[0] * 1000 <= ms).at(-1)[1];
-    return { stats, events, pace, clock, hours, light, palette, start, tick, observe, camera, view, subtitle, darkness, log, seconds: script.seconds, title: script.title, WIDE };
+    return { stats, events, pace, clock, hours, light, palette, start, tick, observe, camera, view, subtitle, darkness, log, seconds: script.seconds, title: script.title, performances:!!script.performances, WIDE };
   }
 
   // ---- browser-only drawing (helpers come from office.js: r, text) ----
@@ -189,7 +201,7 @@
       if(talk<2){h.r(ctx,'#efc66c',x+12,y-19,2,3);h.r(ctx,'#efc66c',x+16,y-21,1,6);}
     }
     // The torch and all-clear lamp emit light; keep them visible above the night wash.
-    if (sim.guard && w.night > 0) {
+    if (sim.guard && !sim.supper && w.night > 0) {
       const a=sim.guard;
       if (sim.scene.guard.phase==='done' && sim.scene.guard.ok) h.r(ctx,'#67b779',322,375,5,5);
       else if (a.path.length) {
