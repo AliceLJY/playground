@@ -47,7 +47,7 @@ test('验收 7 页面文件只许访问痕迹服务这一个地址：没有别�
   const m = game.match(/const TRACE_ENDPOINT = (null|'([^']*)');/);
   assert.ok(m, 'game.js 里要有 TRACE_ENDPOINT 常量（null 或一个地址）');
   const endpoint = m[2] || null;
-  if (endpoint) assert.ok(/^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/.test(endpoint), `TRACE_ENDPOINT 只能是一个 workers.dev 地址，现在是 ${endpoint}`);
+  if (endpoint) assert.ok(/^https:\/\/(tea\.aliceljy\.xyz|[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev)$/.test(endpoint), `TRACE_ENDPOINT 只能是 tea.aliceljy.xyz 或一个 workers.dev 地址，现在是 ${endpoint}`);
   for (const f of PAGE_FILES) {
     const text = read(f);
     const urls = text.match(/https?:\/\/[^\s'"`)]+/gi) || [];
