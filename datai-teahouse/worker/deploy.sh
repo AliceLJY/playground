@@ -3,24 +3,33 @@
 # 再跑一次只会重新部署，不会重复建 KV。
 set -euo pipefail
 cd "$(dirname "$0")"
+DIR=$(pwd)
 W="npx --yes wrangler@4"
+# 登录、查账号、建 KV 都在一个空目录里跑：wrangler 每条命令都会先读当前目录的配置
+TMP=$(mktemp -d)
+cd "$TMP"
 
-if ! $W whoami 2>/dev/null | grep -qi "associated with"; then
+if ! $W whoami 2>/dev/null | grep -qiE "associated with|logged in"; then
   echo "== 浏览器会弹出 Cloudflare 授权页，点 Allow =="
   $W login
 fi
 
-if grep -q '^id = ""' wrangler.toml; then
+if ! grep -q 'DATAI_TRACES' "$DIR/wrangler.toml"; then
   echo "== 建 KV =="
-  out=$($W kv namespace create DATAI_TRACES 2>&1) || { echo "$out"; exit 1; }
-  id=$(printf '%s\n' "$out" | grep -oE '[0-9a-f]{32}' | head -1)
-  [ -n "$id" ] || { echo "$out"; echo "没读到 KV id"; exit 1; }
-  sed -i '' "s/^id = \"\"/id = \"$id\"/" wrangler.toml
+  out=$($W kv namespace create DATAI_TRACES 2>&1 || true)
+  id=$(printf '%s\n' "$out" | grep -oE '[0-9a-f]{32}' | head -1 || true)
+  if [ -z "$id" ]; then
+    # 上次建过了：从列表里找回来
+    id=$($W kv namespace list 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=JSON.parse(s.slice(s.indexOf("[")));const n=a.find(x=>/DATAI_TRACES/.test(x.title));if(n)console.log(n.id)}catch(e){}})')
+  fi
+  [ -n "$id" ] || { echo "$out"; echo "没拿到 KV id"; exit 1; }
+  printf '\n[[kv_namespaces]]\nbinding = "DATAI_TRACES"\nid = "%s"\n' "$id" >> "$DIR/wrangler.toml"
 fi
 
 echo "== 部署 =="
+cd "$DIR"
 out=$($W deploy 2>&1 | tee /dev/stderr)
-url=$(printf '%s\n' "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
+url=$(printf '%s\n' "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1 || true)
 [ -n "$url" ] || { echo "没读到部署地址"; exit 1; }
 printf '%s\n' "$url" > .deployed-url
 echo "== 部署好了：$url =="
