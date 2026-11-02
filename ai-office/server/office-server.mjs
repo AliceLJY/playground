@@ -6,7 +6,7 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collect } from './collectors.mjs';
 import { STATUSES, iso, cleanText, cleanNotice, taskCategory, reduceMember, RateLimiter, appendNotice, beijingDay } from './core.mjs';
-import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet, noteQuota } from './scene.mjs';
+import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet, noteQuota, configureHistory } from './scene.mjs';
 const MINUTE_MS = 60_000;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,6 +19,8 @@ export const TREAT_KINDS = ['milktea', 'coffee', 'cake', 'melon'];
 
 export function validateConfig(config) {
   if (!config || !Array.isArray(config.roster) || config.roster.length < 1 || config.roster.length > 11) throw new Error('Config must define 1 to 11 roles');
+  if (config.historyDir !== undefined && (typeof config.historyDir !== 'string' || !config.historyDir.trim())) throw new Error('Invalid history directory');
+  if (config.radarLedgers !== undefined && (!Array.isArray(config.radarLedgers) || config.radarLedgers.length > 8 || config.radarLedgers.some(p => typeof p !== 'string' || !p.trim()))) throw new Error('Invalid radar ledgers');
   const ids = new Set(), desks = new Set();
   for (const a of config.roster) {
     if (!/^[a-z][a-z0-9_-]{0,31}$/.test(a.id) || ['constructor', 'prototype', '__proto__'].includes(a.id) || ids.has(a.id)) throw new Error('Invalid or duplicate role id');
@@ -73,6 +75,10 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     botKeys.set(id, createHash('sha256').update(key.trim()).digest());
   }
   const state = await loadState(stateFile, clock());
+  configureHistory(state.scene, config.historyDir || path.join(path.dirname(stateFile), 'history'));
+  // Restart never turns already-present ledger rows into a new issue.
+  delete state.scene.radarSeen;
+  let radarBaseline = true;
   const rosterIds = new Set(config.roster.map(a => a.id));
   state.quota = Object.fromEntries(Object.entries(state.quota || {}).filter(([id, until]) => rosterIds.has(id) && Number.isFinite(until) && until > clock()));
   function observeMembers(before, now) {
@@ -146,7 +152,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   async function sceneOnce() {
     let timer;
     try {
-      return await Promise.race([sceneCollector({ roster: rosterIds, ...(config.scene || {}) }, clock()), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), COLLECT_TIMEOUT); })]);
+      return await Promise.race([sceneCollector({ roster: rosterIds, ...(config.scene || {}), ...(config.radarLedgers !== undefined ? { radarLedgers: config.radarLedgers } : {}) }, clock()), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), COLLECT_TIMEOUT); })]);
     } catch (e) { if (e?.message === 'timeout') log('scene collector timed out'); return {}; }
     finally { clearTimeout(timer); }
   }
@@ -179,6 +185,9 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
       }));
       const sceneSignal = await sceneOnce(); await readBuild();
       const now = clock();
+      if (Number.isInteger(sceneSignal.radarCount)) {
+        sceneSignal.radarBaseline = radarBaseline; radarBaseline = false;
+      }
       state.scene = reduceScene(state.scene, sceneSignal, now);
       const beforeMembers = { ...state.members };
       config.roster.forEach((a, i) => {
@@ -203,6 +212,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     // The public feed is the show, not a log: times are rounded to the minute so nobody can read a work diary
     // off it with a script; the board and badge text stay private.
     const full = snapshot(), minute = ms => Math.floor(ms / 60_000) * 60_000;
+    for (const kind of ['souvenir', 'radar']) if (full.scene[kind]) full.scene[kind].at = iso(minute(Date.parse(full.scene[kind].at)));
     if (full.scene.snack) full.scene.snack.at = iso(minute(Date.parse(full.scene.snack.at)));
     if (full.scene.supper) full.scene.supper.at = iso(minute(Date.parse(full.scene.supper.at)));
     if (full.scene.meeting?.roundAt) full.scene.meeting.roundAt = iso(minute(Date.parse(full.scene.meeting.roundAt)));
