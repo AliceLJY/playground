@@ -23,7 +23,7 @@ const SHOTS=[
  // Medium, night: lit footbridge and lamps over the river, reflections, Canton Tower lit behind.
  {id:'river-night',start:34,end:40,from:[-50,26,-34],to:[-44,26.5,-33],look:[-2,3.5,0],lookTo:[2,3.5,0],fov:32,shift:.05,sim:[32,38]},
  // Medium, night: the white-crane platform roof and the lit Canton Tower.
- {id:'tower-night',start:40,end:45,orbit:[-62,-6],radius:88,height:24,angles:[128,110],look:[-64,20,-5],fov:32,shift:.15,sim:[38,43]},
+ {id:'tower-night',start:40,end:45,orbit:[-62,-6],radius:84,height:24,angles:[68,50],look:[-64,20,-5],fov:32,shift:.15,sim:[38,43]},
  {id:'orbit',start:45,end:52,orbit:[0,-2],radius:112,height:58,angles:[78,52],look:[-6,9,-2],fov:32,shift:0,sim:[40,47]},
 ];
 // Day at the start, golden late afternoon by the arch (~25 s), dusk ~31 s, lamps and blue night from ~36 s.
@@ -36,7 +36,7 @@ function frameOf(s,t){
  else pos=mix(s.from,s.to,u);
  const lin=clamp((t-s.start)/(s.end-s.start));
  return{shot:s.id,pos,target:mix(s.look,s.lookTo||s.look,u),fov:s.fov,shift:s.shift,seconds:s.sim[0]+(s.sim[1]-s.sim[0])*lin,
-  day:dayAt(t),title:s.title?1-ease((t-3.6)/1):0,credit:0,fade:0};
+  day:dayAt(t),title:s.title?1-ease((t-2.5)/1):0,credit:0,fade:0};
 }
 function sample(t){
  t=Math.max(0,Math.min(DURATION-1e-6,t));
@@ -58,14 +58,14 @@ async function main(){
    await sheet(page,cells,path.join(OUT,'stills.png'));fs.writeFileSync(path.join(OUT,'stills.json'),JSON.stringify(facing,null,1));
    console.log(JSON.stringify(facing.filter(f=>f.tramVisible&&f.tramFacingDot>.35)),'tilt>6:',JSON.stringify(facing.filter(f=>(f.pagodaTilt??0)>6||(f.cantonTilt??0)>6)));
   }else{
-   const scene=path.join(OUT,'scene-v6-silent.mp4');
+   const scene=path.join(OUT,'scene-v8-silent.mp4');
    const ff=spawn('ffmpeg',['-y','-hide_banner','-loglevel','error','-f','image2pipe','-vcodec','png','-framerate',String(FPS),'-i','pipe:0','-an','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart',scene],{stdio:['pipe','ignore','inherit']});
    const done=new Promise((ok,no)=>ff.once('close',c=>c===0?ok():no(Error('ffmpeg '+c))));
    for(let i=0;i<DURATION*FPS;i++){await page.clock.runFor(1000/FPS);await show(page,sample(i/FPS));const png=await page.screenshot({scale:'device'});if(!ff.stdin.write(png))await new Promise(r=>ff.stdin.once('drain',r));if(i%150===0)console.log('frame',i,'/',DURATION*FPS);}
    ff.stdin.end();await done;if(errors.length)throw Error('page errors: '+errors.join('; '));
    const endcard=path.join(OUT,'endcard/endcard.mp4');
-   execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',scene,'-i',endcard,'-filter_complex','[0:v]setsar=1,setpts=PTS-STARTPTS[a];[1:v]setsar=1,setpts=PTS-STARTPTS[b];[a][b]concat=n=2:v=1:a=0[v]','-map','[v]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r','30','-an','-movflags','+faststart',path.join(OUT,'huacheng-demo-v6-silent-1080x1920.mp4')]);
-   console.log('done',path.join(OUT,'huacheng-demo-v6-silent-1080x1920.mp4'));
+   execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',scene,'-i',endcard,'-filter_complex','[0:v]setsar=1,setpts=PTS-STARTPTS[a];[1:v]setsar=1,setpts=PTS-STARTPTS[b];[a][b]concat=n=2:v=1:a=0[v]','-map','[v]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r','30','-an','-movflags','+faststart',path.join(OUT,'huacheng-demo-v8-silent-1080x1920.mp4')]);
+   console.log('done',path.join(OUT,'huacheng-demo-v8-silent-1080x1920.mp4'));
   }
  }finally{await browser.close();}
 }
