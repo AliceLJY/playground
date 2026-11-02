@@ -75,28 +75,28 @@ phrases = [
     [(0,2),(1.5,1),(2.5,0)],
 ]
 chords = [[50,57,62,66],[47,54,59,62],[45,52,57,64],[50,57,62,64]]
-for bar in range(math.ceil(55/(4*BEAT))):
+for bar in range(math.ceil((DUR-1)/(4*BEAT))):
     start = bar*4*BEAT
     chord = chords[(bar//2)%4]
     put(start, pad(chord, 3.5), .11)
     put(start+.02, pluck(chord[0]-12, 1.8), .19)
     if start > 3:
         put(start+2*BEAT, pluck(chord[1]-12, 1.5), .12)
-    arch_section = 30 <= start < 36
+    arch_section = EV['cues']['arch'] <= start < EV['cues']['arch']+7
     for beat, index in phrases[bar%8]:
         at = start + beat*BEAT
-        if at >= 55:
+        if at >= DUR-1.8:
             continue
         if arch_section and beat % 1:
             continue
         note = scale[index]
         put(at, pluck(note, 2.4, hammer=True, slide=beat==0), .22 if not arch_section else .18, -.20)
-        if EV['cues']['bridge']-3 <= at < 27:
+        if EV['cues']['bridge'] <= at < EV['cues']['arch']:
             put(at+.018, pluck(note+12, 1.2, hammer=True), .065, .28)
     # Quiet guzheng-style broken fifths and light wooden pulse, never a heavy drum kit.
     for j in range(8):
         at = start + (j*.5 + (.045 if j%2 else 0))*BEAT
-        if at >= 55 or (arch_section and j%2):
+        if at >= DUR-1.8 or (arch_section and j%2):
             continue
         put(at, pluck(chord[1+j%3], 1.2), .065, .25)
     if 4 < start < 50 and not arch_section:
@@ -110,7 +110,7 @@ for cue, notes, gain in [('bridge',[74,78,81,86],.16),('arch',[69,74,78],.12),('
     for j, note in enumerate(notes):
         put(EV['cues'][cue]+j*.15625,pluck(note,3.1,hammer=True),gain,-.3+j*.18)
 for j,note in enumerate([50,57,62,69,74]):
-    put(55.4+j*.09,pluck(note,3),.17,-.2+j*.1)
+    put(EV['cues']['signature']+.3+j*.09,pluck(note,4),.14,-.2+j*.1)
 
 # Synthetic stereo early reflections: no impulse-response assets or downloaded material.
 wet=np.zeros_like(mix)
@@ -120,10 +120,27 @@ for delay, gain in [(0.047,.14),(.083,.12),(.137,.10),(.211,.075),(.343,.05),(.5
 mix+=wet
 mix=np.tanh(mix*1.2)/1.2
 clock=np.arange(N)/SR
+# Keep the musical bed through all 5.6 seconds of the endcard. Duck the bed
+# 8 dB around each visual impact, then add original click + low wooden body.
+ducks=[]
+for cue in ['seal', 'fingerprint']:
+    at=EV['cues'][cue]
+    ramp_in=np.clip((clock-(at-.10))/.10,0,1)
+    ramp_out=np.clip(((at+.48)-clock)/.36,0,1)
+    envelope=1-(1-10**(-8/20))*np.minimum(ramp_in,ramp_out)
+    mix*=envelope[:,None]
+    ducks.append({'cue':cue,'at':at,'gainDb':-8,'attackSeconds':.10,'releaseSeconds':.36})
+for cue in ['seal', 'fingerprint']:
+    t=np.arange(round(.42*SR))/SR
+    attack=np.minimum(1,t/.001)
+    click=(rng.standard_normal(len(t))*.38+np.sin(2*np.pi*1700*t))*np.exp(-t*140)
+    body=np.sin(2*np.pi*(105*t-28*t*t))*np.exp(-t*18)
+    put(EV['cues'][cue],(click*.20+body*.30)*attack,.32)
+
 fade=np.minimum(1,clock/.7)*np.minimum(1,np.maximum(0,(DUR-.06-clock)/2.3))**1.4
 mix*=fade[:,None]
 mix*=.78/max(1e-9,np.abs(mix).max())
-raw=OUT/'demo-music-raw.wav'
+raw=OUT/'demo-music-v2-raw.wav'
 with wave.open(str(raw),'wb') as w:
     w.setnchannels(2);w.setsampwidth(2);w.setframerate(SR)
     w.writeframes((np.clip(mix,-1,1)*32767).astype('<i2').tobytes())
@@ -136,16 +153,26 @@ def measurement(log):
 
 measured=measurement(run(['-i',raw,'-af','loudnorm=I=-16:TP=-1.5:LRA=8:print_format=json','-f','null','-']))
 params=':'.join(['loudnorm=I=-16:TP=-1.5:LRA=8','measured_I='+measured['input_i'],'measured_TP='+measured['input_tp'],'measured_LRA='+measured['input_lra'],'measured_thresh='+measured['input_thresh'],'offset='+measured['target_offset'],'linear=true','print_format=json'])
-master=OUT/'demo-music.wav'
+master=OUT/'demo-music-v2.wav'
 run(['-y','-i',raw,'-af',params,'-ar',SR,'-c:a','pcm_s24le',master])
-silent=OUT/'huacheng-demo-silent-1080x1920.mp4'
+silent=OUT/'huacheng-demo-v2-silent-1080x1920.mp4'
 if not silent.exists():
     raise SystemExit('Music written; render silent movie before final mux')
-final=OUT/'huacheng-demo-1080x1920.mp4'
+final=OUT/'huacheng-demo-v2-1080x1920.mp4'
 run(['-y','-i',silent,'-i',master,'-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','aac','-b:a','192k','-ar',SR,'-t',DUR,'-movflags','+faststart',final])
 final_measure=measurement(run(['-i',final,'-af','loudnorm=I=-16:TP=-1.5:LRA=8:print_format=json','-vn','-f','null','-']))
 assert abs(float(final_measure['input_i'])+16)<1,final_measure
 assert float(final_measure['input_tp']) <= -1,final_measure
-report={'bpm':BPM,'seconds':DUR,'scale':'D E F# A B','sources':'original additive synthesis; no samples','cues':EV['cues'],'rawMeasurement':measured,'finalAACMeasurement':final_measure}
-(OUT/'music-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+# Verify the encoded AAC really covers the scene/endcard join and late endcard.
+decoded = subprocess.run(['ffmpeg','-v','error','-i',str(final),'-vn','-f','f32le','-ar',str(SR),'-ac','2','pipe:1'],check=True,capture_output=True).stdout
+samples = np.frombuffer(decoded, dtype='<f4').reshape(-1, 2)
+assert len(samples) >= N, 'Encoded audio ends before the endcard'
+continuity = []
+for start, end in [(EV['endcardAt']-.2, EV['endcardAt']+.2), (DUR-.5, DUR-.2)]:
+    segment = samples[round(start*SR):round(end*SR)]
+    rms_db = 20*math.log10(max(1e-12, float(np.sqrt(np.mean(segment**2)))))
+    continuity.append({'from':start,'to':end,'rmsDbFS':rms_db,'pass':rms_db > -75})
+assert all(c['pass'] for c in continuity), continuity
+report={'bpm':BPM,'seconds':DUR,'scale':'D E F# A B','sources':'original additive synthesis; no samples','cues':EV['cues'],'ducks':ducks,'decodedAudioSeconds':len(samples)/SR,'continuityChecks':continuity,'sfx':'Two original synthesized click + low impact sounds; supplied endcard video contains no audio','rawMeasurement':measured,'finalAACMeasurement':final_measure}
+(OUT/'music-report-v2.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps(report,ensure_ascii=False,indent=2))

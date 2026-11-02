@@ -16,7 +16,7 @@ let recordLens=null;
 if(recording){
  document.body.classList.add('recording');
  const style=document.createElement('style');
- style.textContent='body.recording *,body.recording *:before,body.recording *:after{animation:none!important;transition:none!important}body.recording .tools,body.recording .hour,body.recording .badge,body.recording .tele,body.recording .credit,body.recording .copy p{display:none!important}body.recording .copy{visibility:visible;left:28px;right:28px;bottom:76px;top:auto;width:auto;max-width:none}body.recording .copy:before{display:none}body.recording .copy h1{font-size:30px}body.recording .copy h1 b{font-size:24px}body.recording .brand{left:28px;top:38px;font-size:9px}#record-credit{position:fixed;bottom:76px;left:0;width:100%;text-align:center;font:13px var(--serif);letter-spacing:.12em;color:#f6ecdc;opacity:0;pointer-events:none}#record-fade{position:fixed;inset:0;background:#070c18;opacity:0;pointer-events:none}';
+ style.textContent='body.recording *,body.recording *:before,body.recording *:after{animation:none!important;transition:none!important}body.recording .tools,body.recording .hour,body.recording .badge,body.recording .tele,body.recording .credit,body.recording .copy p{display:none!important}body.recording .copy{visibility:visible;left:28px;right:28px;bottom:76px;top:auto;width:auto;max-width:none}body.recording .copy:before{display:none}body.recording .copy{left:0;right:0;bottom:0;padding:42px 28px 28px;box-sizing:border-box;color:#fff7ed;background:linear-gradient(transparent,rgba(8,19,24,.78));text-shadow:0 1px 5px #14212c}body.recording .copy h1{font-size:30px}body.recording .copy h1 b{font-size:24px}body.recording .brand{left:28px;top:auto;bottom:142px;font-size:9px;color:#fff7ed;text-shadow:0 1px 4px #14212c}#record-credit{position:fixed;bottom:76px;left:0;width:100%;text-align:center;font:13px var(--serif);letter-spacing:.12em;color:#f6ecdc;opacity:0;pointer-events:none}#record-fade{position:fixed;inset:0;background:#070c18;opacity:0;pointer-events:none}';
  document.head.append(style);
  for(const id of ['record-credit','record-fade']){const el=document.createElement('div');el.id=id;if(id==='record-credit')el.textContent='花城秋岸 · 我的AI小木屋';document.body.append(el);}
 }
@@ -664,7 +664,7 @@ function moveVehicles(t){
  for(const mesh of [carBodies,carCabins,carWheels,carRoof,carHeads,carTails,carGrilles,carContacts])mesh.instanceMatrix.needsUpdate=true;
  boatSpecs.forEach((b,i)=>{const a=boatAt(t,i);boatHulls.setMatrixAt(i,compose(M,[a.x,a.y,a.z]));boatCabins.setMatrixAt(i,compose(M,[a.x,a.y+.6,a.z]));});boatHulls.instanceMatrix.needsUpdate=true;boatCabins.instanceMatrix.needsUpdate=true;
 }
-function animate(dt){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos,target:rig.look}:rig.update(dt,t);camera.position.fromArray(pose.pos);
+function animate(dt,render=true){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos,target:rig.look}:rig.update(dt,t);camera.position.fromArray(pose.pos);
  // Hold the current lens during manual zoom; otherwise widening FOV cancels the dolly.
  const fov=recordLens?.fov??(frozen||rig.mode==='auto'?fovFor(aspect,pose.pos):rig.mode==='return'?THREE.MathUtils.lerp(camera.fov,fovFor(aspect,pathAt(rig.u).pos),Math.min(1,dt*5)):camera.fov);
  if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();const sh=shiftFor(aspect,rig.pos);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
@@ -672,7 +672,7 @@ function animate(dt){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos,target:rig.
  camera.lookAt(...pose.target);camera.updateMatrixWorld();sky.position.copy(camera.position);if(!frozen){view=rig.mode;document.body.classList.toggle('detail',camera.position.distanceTo(new THREE.Vector3(0,4,0))<40||(aspect<.8&&projected(boardBounds).y1>copyTop-.02));}wind.value=t;waterU.time.value=t;moveVehicles(t);applyHour();
  // Keep local light evaluation bounded: the closest pools matter at this miniature scale.
  if(hour>0){const nearest=lampLights.slice().sort((a,b)=>a.position.distanceToSquared(camera.position)-b.position.distanceToSquared(camera.position));const active=new Set(nearest.slice(0,mobile?3:4));for(const l of lampLights)l.visible=active.has(l);}
- renderer.info.reset();if(renderer.shadowMap.needsUpdate)shadowRefreshes++;composer.render();calls=renderer.info.render.calls;tris=renderer.info.render.triangles;frames++;}
+ if(render){renderer.info.reset();if(renderer.shadowMap.needsUpdate)shadowRefreshes++;composer.render();calls=renderer.info.render.calls;tris=renderer.info.render.triangles;frames++;}}
 let last=performance.now();function frame(now){const raw=(now-last)/1000;last=now;if(raw>0){meanFrameTime+=(raw-meanFrameTime)*.05;fps=1/meanFrameTime;if(fps<56){slow+=raw;fast=0;}else if(fps>59.5){fast+=raw;slow=0;}else{fast=slow=0;}}if(slow>1&&scaleIdx<3){scaleIdx++;slow=0;resize();}if(fast>60&&scaleIdx>0){scaleIdx--;fast=0;resize();}animate(Math.min(raw,0.1));requestAnimationFrame(frame);}requestAnimationFrame(frame);
 const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info'),rendererName=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
 const rectOf=el=>{const r=el.getBoundingClientRect();return{x0:r.left/W,x1:r.right/W,y0:r.top/H,y1:r.bottom/H};};
@@ -702,12 +702,113 @@ subjectBoxes:()=>{const tr=tramAt(t);return{...Object.fromEntries(Object.entries
 uiBoxes:()=>Object.fromEntries(['.brand','.badge','.copy','.tele','.credit','.tools','.hour'].filter(s=>getComputedStyle(document.querySelector(s)).display!=='none'&&getComputedStyle(document.querySelector(s)).visibility!=='hidden').map(s=>[s,rectOf(document.querySelector(s))])),
 };
 window.__PLAYTEST__={get ready(){return window.__huacheng.ready;},snapshot:()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}),reset:()=>{rig.reset();t=0;frozen=false;view='auto';syncAuto();}};
-// The recorder supplies a camera/time score; the ordinary entry never exposes this setter.
-if(recording)window.__huacheng.recordFrame=frame=>{
- const {pos,target,seconds,day,fov,shift,title,credit,fade}=frame;
- if(!Array.isArray(pos)||!Array.isArray(target)||pos.length!==3||target.length!==3||![...pos,...target,seconds,day,fov,shift,title,credit,fade].every(Number.isFinite)||fov<20||fov>110)throw Error('Invalid recording frame');
- rig.pos=pos.slice();rig.look=target.slice();frozen=true;view='record';t=seconds;hour=clamp(day,0,1);recordLens={fov,shift};
- document.querySelector('.copy').style.opacity=String(clamp(title,0,1));document.querySelector('.brand').style.opacity=String(clamp(title,0,1));
- $('record-credit').style.opacity=String(clamp(credit,0,1));$('record-fade').style.opacity=String(clamp(fade,0,1));animate(0);
- return {view,t,hour,cam:camera.position.toArray(),target:rig.look.slice(),tram:tramAt(t),pixelRatio};
-};
+// Recording-only camera score and geometric audit. Normal entry has neither API.
+if(recording){
+ const overlay=document.createElement('img');overlay.id='record-dissolve';
+ overlay.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:0';
+ document.body.append(overlay);
+ const framePose=(frame,render)=>{
+  const {pos,target,seconds,day,fov,shift,title,credit=0,fade=0}=frame;
+  if(!Array.isArray(pos)||!Array.isArray(target)||pos.length!==3||target.length!==3||![...pos,...target,seconds,day,fov,shift,title,credit,fade].every(Number.isFinite)||fov<20||fov>110)throw Error('Invalid recording frame');
+  rig.pos=pos.slice();rig.look=target.slice();frozen=true;view='record';t=seconds;hour=clamp(day,0,1);recordLens={fov,shift};
+  document.querySelector('.copy').style.opacity=String(clamp(title,0,1));document.querySelector('.brand').style.opacity=String(clamp(title,0,1));
+  $('record-credit').style.opacity=String(clamp(credit,0,1));$('record-fade').style.opacity=String(clamp(fade,0,1));animate(0,render);
+  // Only the recording grade: keep h=.8 lamps, but cool the sky/haze into blue hour.
+  const blue=THREE.MathUtils.smoothstep(hour,.55,.80);
+  if(blue>0){const h=skyAt(hour);for(const [k,c] of Object.entries({low:[.035,.070,.15],mid:[.020,.055,.13],top:[.008,.025,.075]})){skyU[k].value.setRGB(...h[k]).lerp(new THREE.Color(...c),blue);waterU[k].value.copy(skyU[k].value);}scene.fog.color.copy(skyU.mid.value);cityU.haze.value.copy(skyU.mid.value);cityU.low.value.copy(skyU.low.value);cityU.top.value.copy(skyU.top.value);if(render)composer.render();}
+  scene.updateMatrixWorld(true);
+ };
+ const read=b=>({min:b.min.toArray(),max:b.max.toArray()});
+ const staticAudit=[];
+ const add=(id,b,category)=>staticAudit.push({id,...read(b),category});
+ for(const id of ['bridge','pagoda','canton'])add(id,new THREE.Box3().setFromObject(group(id)),'building');
+ // Merged city material meshes are deliberately conservative bounds. Land/water planes are not buildings.
+ for(const mesh of group('city').children)if(/^city-(skyline|cityGlass|stone|white|gray)$/.test(mesh.name))add(mesh.name,new THREE.Box3().setFromObject(mesh),'building');
+ for(const mesh of group('ground').children)if(/^arch-(bracts|vines)$/.test(mesh.name))add(mesh.name,new THREE.Box3().setFromObject(mesh),'flowers');
+ for(const b of layout.obstacles.filter(b=>!['tram-range','pagoda','bridge'].includes(b.id)&&!b.id.startsWith('tree-'))){staticAudit.push({...b,id:b.id+'-'+staticAudit.length,category:b.id.startsWith('arch')?'arch':'structure'});}
+ for(const tree of layout.trees){const b=new THREE.Box3(new THREE.Vector3(...tree.crownBox.min),new THREE.Vector3(...tree.crownBox.max));b.expandByPoint(new THREE.Vector3(...tree.root));b.expandByScalar(.15);add('tree-'+tree.id,b,tree.kind==='silk'?'silk':'tree');}
+ // Shader wind shifts <= .1 m; expand flower bounds rather than ignoring the animation.
+ for(const o of staticAudit)if(o.category==='flowers'){o.min=o.min.map(v=>v-.15);o.max=o.max.map(v=>v+.15);}
+ const boxOf=o=>new THREE.Box3(new THREE.Vector3(...o.min),new THREE.Vector3(...o.max));
+ // Clip the six faces of the real train's bounding box in homogeneous coordinates.
+ // A simple Frustum.intersectsBox can be a false positive at a screen corner.
+ const clippedProjection=b=>{
+  const vp=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse),v=[];
+  for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])v.push(new THREE.Vector4(x,y,z,1).applyMatrix4(vp));
+  const planes=[p=>p.w+p.x,p=>p.w-p.x,p=>p.w+p.y,p=>p.w-p.y,p=>p.w+p.z,p=>p.w-p.z],points=[];
+  for(const face of [[0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]]){
+   let poly=face.map(i=>v[i]);
+   for(const f of planes){const next=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],fa=f(a),fb=f(b);if(fa>=0)next.push(a);if((fa>=0)!==(fb>=0))next.push(a.clone().lerp(b,fa/(fa-fb)));}poly=next;if(!poly.length)break;}
+   points.push(...poly);
+  }
+  if(!points.length)return null;
+  return {x0:(Math.min(...points.map(p=>p.x/p.w))+1)/2,x1:(Math.max(...points.map(p=>p.x/p.w))+1)/2,y0:(1-Math.max(...points.map(p=>p.y/p.w)))/2,y1:(1-Math.min(...points.map(p=>p.y/p.w)))/2};
+ };
+ const archBox=boxOf(staticAudit.find(o=>o.id==='arch-bracts'));
+ // Tower height excludes the much wider rock hill, terrace and approach stairs.
+ // Clearance still uses the entire pagoda group, so this cannot relax collision safety.
+ const pagodaTowerBox=new THREE.Box3();
+ group('pagoda').traverse(o=>{if(/^pagoda-(brick|cornice|seam|darkWindow)$/.test(o.name))pagodaTowerBox.union(new THREE.Box3().setFromObject(o));});
+ const silkBox=new THREE.Box3();for(const o of staticAudit.filter(o=>o.category==='silk'))silkBox.union(boxOf(o));
+ const roof=group('ground').children.find(o=>o.name==='ground-wing');
+ const roofPosition=roof.geometry.attributes.position;
+ // Sum the clipped, projected triangles: a conservative upper bound on the
+ // single white roof's screen coverage, including hidden/overlapping parts.
+ const roofArea=()=>{
+  const vp=new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).multiply(roof.matrixWorld);
+  const planes=[p=>p.w+p.x,p=>p.w-p.x,p=>p.w+p.y,p=>p.w-p.y,p=>p.w+p.z,p=>p.w-p.z];let area=0;
+  for(let i=0;i<roofPosition.count;i+=3){
+   let poly=[0,1,2].map(j=>new THREE.Vector4(roofPosition.getX(i+j),roofPosition.getY(i+j),roofPosition.getZ(i+j),1).applyMatrix4(vp));
+   for(const f of planes){const next=[];for(let j=0;j<poly.length;j++){const a=poly[j],b=poly[(j+1)%poly.length],fa=f(a),fb=f(b);if(fa>=0)next.push(a);if((fa>=0)!==(fb>=0))next.push(a.clone().lerp(b,fa/(fa-fb)));}poly=next;if(!poly.length)break;}
+   let sum=0;for(let j=0;j<poly.length;j++){const a=poly[j],b=poly[(j+1)%poly.length];sum+=(a.x*b.y-b.x*a.y)/(a.w*b.w);}area+=Math.abs(sum)/8;
+  }return area;
+ };
+ const towerAxis=(id,b,x,z)=>{
+  const base=new THREE.Vector3(x,b.min.y,z).project(camera),top=new THREE.Vector3(x,b.max.y,z).project(camera);
+  // NDC is not square on a portrait screen: use actual device pixels.
+  return {visible:Boolean(clippedProjection(b)),base:[(base.x+1)*540,(1-base.y)*960],top:[(top.x+1)*540,(1-top.y)*960],tilt:THREE.MathUtils.radToDeg(Math.atan2(Math.abs(top.x-base.x)*1080,Math.abs(top.y-base.y)*1920))};
+ };
+ window.__huacheng.recordInventory=()=>({static:staticAudit,groundDatum:2.5,groundMethod:'Conservative altitude above the highest local terrain (pagoda terrace, 2.5 m); ground elsewhere is lower.',distanceMethod:'Euclidean distance to conservative world AABBs; building/arch bounds from rendered geometry, tree descriptor bounds include crown, trunk and wind padding. No centre-distance shortcut.'});
+ window.__huacheng.recordMeasure=frame=>{
+  framePose(frame,false);
+  const objects=trafficGeometryAt(t),tram=boxOf(objects.find(o=>o.id==='tram')),centre=tram.getCenter(new THREE.Vector3());
+  const sight=centre.clone().sub(camera.position).normalize(),forward=camera.getWorldDirection(new THREE.Vector3()),heading=new THREE.Vector3(tramAt(t).dir,0,0);
+  const a=THREE.MathUtils.radToDeg(heading.angleTo(sight)),axis=THREE.MathUtils.radToDeg(heading.angleTo(forward)),p=projected(tram);
+  const clipped=clippedProjection(tram),inFrustum=Boolean(clipped);
+  const frameSubject=b=>{const p=projected(b);return {...p,height:p.y1-p.y0,width:p.x1-p.x0};};
+  return {view,cam:camera.position.toArray(),target:rig.look.slice(),t,hour,groundHeightLowerBound:camera.position.y-2.5,bridgeClearance:camera.position.y-BRIDGE.top,
+   objects,tramAngle:a,opticalAxisAngle:axis,pitch:THREE.MathUtils.radToDeg(Math.asin(-forward.y)),tramWidth:inFrustum?p.x1-p.x0:0,tramVisible:inFrustum,tramUnclippedProjectionWidth:p.x1-p.x0,tramScreenBox:clipped,
+   fov:camera.fov,tramHeading:heading.toArray(),tramCentre:centre.toArray(),tramFacingDot:heading.dot(camera.position.clone().sub(centre).setY(0).normalize()),
+   towerAxes:{pagoda:towerAxis('pagoda',pagodaTowerBox,PAGODA.x,PAGODA.z),canton:towerAxis('canton',staticBoxes.canton,CANTON.x,CANTON.z)},whiteRoofUpperBound:roofArea(),
+   subjects:{bridge:frameSubject(staticBoxes.bridge),pagoda:frameSubject(pagodaTowerBox),pagodaWithTerrain:frameSubject(staticBoxes.pagoda),arch:frameSubject(archBox),silk:frameSubject(silkBox),canton:frameSubject(staticBoxes.canton)}};
+ };
+ // Native-size semantic raster, using the same vertices, instancing, wind and camera.
+ // Original vertex programs are retained. Postprocessing/colour grading is excluded
+ // from the mask; transparent glass/contact decals are omitted to count the surface below.
+ // Far-bank scenery is NOT counted as the miniature. No AABB-area approximation.
+ const maskTarget=new THREE.WebGLRenderTarget(1080,1920,{depthBuffer:true});
+ const maskPixels=new Uint8Array(1080*1920*4),maskMaterials=new Map();
+ const maskColour={board:[1,0,0],roof:[1,0,1],sky:[0,1,0],water:[0,0,1],other:[0,0,0]};
+ function maskMaterial(material,kind){
+  const key=material.uuid+kind;if(maskMaterials.has(key))return maskMaterials.get(key);
+  const m=material.clone(),rgb=maskColour[kind].map(n=>n+'.0').join(',');
+  m.toneMapped=false;m.fog=false;m.transparent=false;m.blending=THREE.NoBlending;
+  m.onBeforeCompile=shader=>{material.onBeforeCompile(shader,renderer);const i=shader.fragmentShader.lastIndexOf('}');shader.fragmentShader=shader.fragmentShader.slice(0,i)+'gl_FragColor=vec4('+rgb+',1.0);\n'+shader.fragmentShader.slice(i);};
+  m.customProgramCacheKey=()=>material.uuid+'-record-mask-'+kind;maskMaterials.set(key,m);return m;
+ }
+ window.__huacheng.recordCoverage=frame=>{
+  framePose(frame,false);const saved=[];
+  scene.traverse(o=>{if(!o.isMesh)return;let p=o,kind='board';while(p&&p!==scene){if(['city','tram','cars','boats'].includes(p.name))kind='other';p=p.parent;}if(o===sky)kind='sky';else if(o.material===water.material)kind='water';else if(o===roof)kind='roof';saved.push([o,o.material,o.visible]);if(o.material.transparent)o.visible=false;else o.material=maskMaterial(o.material,kind);});
+  const target=renderer.getRenderTarget(),shadows=renderer.shadowMap.enabled,tone=renderer.toneMapping;
+  try{renderer.shadowMap.enabled=false;renderer.toneMapping=THREE.NoToneMapping;renderer.setRenderTarget(maskTarget);renderer.render(scene,camera);renderer.readRenderTargetPixels(maskTarget,0,0,1080,1920,maskPixels);}
+  finally{for(const [o,m,v] of saved){o.material=m;o.visible=v;}renderer.setRenderTarget(target);renderer.shadowMap.enabled=shadows;renderer.toneMapping=tone;}
+  let board=0,skyN=0,waterN=0,roofN=0;for(let i=0;i<maskPixels.length;i+=4){if(maskPixels[i]>200){board++;if(maskPixels[i+2]>200)roofN++;}else if(maskPixels[i+1]>200)skyN++;else if(maskPixels[i+2]>200)waterN++;}
+  const n=1080*1920;return{board:board/n,sky:skyN/n,water:waterN/n,empty:(skyN+waterN)/n,other:1-(board+skyN+waterN)/n,whiteRoof:roofN/n};
+ };
+ window.__huacheng.recordFrame=(frame,previous=null,blend=1)=>{
+  overlay.style.opacity='0';
+  if(previous&&blend<1){framePose(previous,true);overlay.src=canvas.toDataURL('image/png');}
+  framePose(frame,true);overlay.style.opacity=String(previous?1-clamp(blend,0,1):0);
+  return {view,t,hour,cam:camera.position.toArray(),target:rig.look.slice(),tram:tramAt(t),pixelRatio,blend,previous:previous?.pos};
+ };
+}
