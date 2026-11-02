@@ -6,7 +6,7 @@ Once seated the waiter asks which tea: pu-erh, chrysanthemum pu-erh, tieguanyin,
 
 The morning passes: you come in at 7:00 and five real minutes later it is 11:00 and the hall closes, the light in the windows going from long warm slants to short white. Every half minute or so a dim sum cart stops at the table with three kinds, one to three pieces each, and the others reach for them too; whether and what you take is the one thing in this toy you have to compete for. Leaving gives you a bill card: how many you shared with, how long you sat, how many rounds you poured, what you took, how many times you thanked and were thanked. Long-press to save it.
 
-It is the first thing in this playground with other people in it, but there is no server, no account and no chat box. The others at your table come in two kinds: **replays of your own earlier visits** (the browser keeps your last 12 visits: how long you sat, when you poured and tapped; next time they are seated at the tables, labelled "you · yesterday", "you · 3 days ago"), and **grey figures** (seated whenever fewer than two others are at your table, labelled "regular · not a person", never counted).
+It is the first thing in this playground with other people in it, with no account and no chat box. The others at your table come in three kinds: **replays of your own earlier visits** (the browser keeps your last 12 visits: how long you sat, when you poured and tapped; next time they are seated at the tables, labelled "you · yesterday", "you · 3 days ago"); **replays of other people who came recently** (when you leave, the timeline of what you did is left anonymously for later guests, and the 12 most recent are seated when you come in, labelled "someone · 2 days ago"; see "Traces across visitors" below); and **grey figures** (seated whenever fewer than two others are at your table, labelled "regular · not a person", never counted). The few people queueing at the door are drawn too, not real; the waiter leads one in every so often and another joins.
 
 **[Play online](https://aliceljy.github.io/playground/datai-teahouse/)** (the page is in Chinese)
 
@@ -37,6 +37,15 @@ It is the first thing in this playground with other people in it, but there is n
 - Performance: Canvas 2D, no images or font files, roughly a hundred primitives a frame.
 - Sound: all Web Audio, created on first touch, each sound detuned ±6% per play. Pouring is band-passed noise swept 420→1300 Hz over 1.3 s with a rising sine, the finger tap two 1.75 kHz triangle hits of 70 ms, the lid a 2.65 kHz porcelain ring, the paper two high-passed noise bursts, the room pink noise low-passed at 320 Hz, very quiet.
 
+## Traces across visitors
+
+Everyone only ever sees their own table; the other tables in the hall show just a number and heads. Nobody has to be online at the same time: when you leave, "at which second you did which action" is left behind, and later guests have those traces seated in the hall by the same table rules, so whoever lands at your table pours, taps and reaches for the cart at the pace they did then.
+
+- Service: a Cloudflare Worker with one KV namespace (`worker/`). `POST /trace` takes `{v:1, dur, acts:[[seconds, action code], …]}`, at most 2 KB, `dur` ≤ 1800 s, ≤ 200 actions in non-decreasing time, only the eight player action codes; the server rebuilds the object from a whitelist, drops every other field (names, text, a forged timestamp), records its own arrival time, and lets it expire after seven days. `GET /traces?n=12` returns the newest n (at most 12), newest first, cached for 30 s. Six posts per address per hour. Only `https://aliceljy.github.io` is allowed. There is no delete endpoint: without identity there is no way to prove a trace is yours; they expire after seven days.
+- Page: with `TRACE_ENDPOINT` in `src/game.js` set to `null` nothing changes and no request is made. With an address, coming in asks for the newest 12 and waits at most 2.5 s; meanwhile the waiter says "busy · one moment, finding you a seat" and the sit button is greyed, and on timeout the hall is set from local visits only. Leaving uploads only after at least 5 s seated. The service returns a key for each upload; the browser keeps them and recognises its own traces when they come back, labelled "you", not "someone".
+- Not done: online counts, live positions, any text.
+- Deploy: `bash worker/deploy.sh` (the first run authorises Cloudflare in the browser, creates the KV namespace, deploys and writes the address to `worker/.deployed-url`, which is not committed); then put the address into `TRACE_ENDPOINT`.
+
 ## Acceptance
 
 | # | Item | How | Result (2026-10-31) |
@@ -47,7 +56,10 @@ It is the first thing in this playground with other people in it, but there is n
 | 4 | Four viewports: all 8 buttons fully visible, hit at their centre, no overlap, page not scrollable | `tools/browser-check.cjs` (390×664, 412×700, 844×340, 1280×720) | 12 of 12 pass |
 | 5 | An action changes the picture within 100 ms and names a sound | browser check presses pour and reads `frameStamp` and `lastSound` | pass |
 | 6 | No history: two grey figures and a 1 / 4 badge; two or more replays: no grey figures | Node test + `?view=first` / `?view=full` | pass |
-| 7 | Published files make no outside requests and carry no local paths | `tests/publish.test.cjs` | pass |
+| 7 | No local paths in published files; the only address the page may contain is `TRACE_ENDPOINT` (a workers.dev address only); requests happen only in two places in game.js, both skip when the address is empty, neither sends cookies | `tests/publish.test.cjs`, calibrated against four known-bad edits (another address, guard removed, cookies sent, an extra outside request), each turns one test red | pass |
+| 17 | Trace service: whatever the page packs is accepted; extra fields dropped, nine bad shapes 400, over 2 KB 413, other origins 403; six per address per hour; GET newest first, capped at 12; fetched traces are seated as other people, your own recognised | `tests/traces.test.cjs` (fake KV) | pass |
+| 18 | In the browser: waiting at the door with the sit button grey → 9 remote traces arrive, three tables, you at table 3, labelled "someone" → seated, a replay moves at your table, the queue has moved → leaving uploads only v/dur/acts and keeps the key → next visit shows your own as "you · just now"; with no reply the hall opens after 2.5 s | `tools/traces-check.cjs` (fake address answered by Playwright) | pass |
+| 19 | Queue at the door: one person per table in the hall (1–4), one led in every 14–24 s, stops 45 s before closing; visible on portrait, landscape and desktop | `tests/traces.test.cjs` + `?view=crowd&door=1` screenshots | pass; screenshots read by the author |
 | 14 | Order card: fourteen distinct items in five tiers, prices rising by tier, every cart kind on the card; five teas with five colours | `tests/core.test.cjs` | pass |
 | 15 | Ordering: at most three per card, first out in 18–30 s then every 12–25 s, reproducible; in the browser the five tea chips are tappable, the card shows fourteen pictured items fully on screen, a fourth tick is refused, the order queues three, one arrives within 32 s, and picking updates plate, basket and bill together | `tests/core.test.cjs` + browser `?view=first&ask=1` | pass |
 | 16 | The dim sum can be told apart: fourteen drawings (translucent crescent har gow, yellow siu mai with an orange top, split char siu bao, three-toed chicken feet…) shared by cart, baskets, plates, card and bill | a person reads `*-order.png` and `*-served.png` | author read them; no stranger yet |
@@ -67,6 +79,7 @@ Not tried on a real phone, and nobody has listened to the sounds yet: they were 
 | `?view=first` | no history: you open table 1 alone, two grey figures keep you company |
 | `?view=busy` | 6 synthetic visits: table 1 full, you join table 2 (3 / 4) |
 | `?view=full` | 3 synthetic visits: table 1 at 4 / 4, no grey figures |
+| `?view=crowd` | 10 synthetic other people: three tables at 4 / 4 / 3, three queueing at the door |
 | `&t=<seconds>` | advance the timeline to t and freeze (`t=14` has the cart at the table; `t=301` is closing time with the bill) |
 | `&door=1` | stay standing at the door |
 | `&mute=1`, `&seed=<n>` | mute; seed for the grey figures' routine |
@@ -85,7 +98,8 @@ Open `http://127.0.0.1:8793/`. Tests: `node --test tests/*.test.cjs`. Browser ch
 ## How it was made, what was borrowed
 
 - The seating rules (open a new table when full, join the fullest open table, ties to the lowest number, remove empty tables) and "seat labelled figures when nobody is there" are lifted from how a Korean online temple site runs its halls: a nightclub would rather pack one booth than half-fill two. Only the rules were taken; names, copy, verbs and pictures are the teahouse's own, and where that site needs a server running day and night, this needs none.
-- "Feeling of other people" and "real-time sync" are two different things: nobody has to be online right now, the trace you left last time is the other person. Cross-visitor traces (a Cloudflare Worker with KV) are designed but not built in this version.
+- "Feeling of other people" and "real-time sync" are two different things: nobody has to be online right now, the trace you left last time is the other person. It worked locally first; then the traces went onto a Worker so later guests can see them (see "Traces across visitors"). Not real-time: with few visitors a live hall is mostly empty, a replayed one always has someone sitting.
+- The queue at the door is drawn: a real teahouse at morning service always has people waiting with a number slip, so this one does too, but the player is never made to wait more than 2.5 s for the service.
 - The manners are real: two fingers for a pour, the lid on the rim for water, a shared table with no obligation to chat, and a cart you have to be quick for.
 - The second playtest said: can't tell what the dishes are, can I call a waiter to order, the closer to a real teahouse the better. So the fourteen kinds are each drawn their own way and the same drawing is used on the cart, in the baskets, on the plate and on the card; an eighth verb, calling the waiter, brings choosing tea, rinsing with the first pour, the five-tier order card, kitchen deliveries, clearing empties and a priced bill. All of it is what a real teahouse already does, not invented mechanics.
 - The first playtest came back "monotonous": seven buttons, pressed once each in two minutes, then nothing new. Against the eight questions in AGENTS.md the missing pieces were decisions, an ending and a venue that takes part, hence the cart (a small recurring decision), the morning arc (five minutes a sitting, the hall closes) and the bill (a record of the visit). No buttons were added.
@@ -95,7 +109,9 @@ Open `http://127.0.0.1:8793/`. Tests: `node --test tests/*.test.cjs`. Browser ch
 - `index.html`: page and buttons.
 - `src/core.js`: seating, visit records and replay, grey-figure fill, seeded random; shared by browser and Node.
 - `src/game.js`: drawing, action state machine, synthesised sound, local storage, fixed views, hooks.
-- `tests/core.test.cjs`, `tests/publish.test.cjs`: rules and publish scan, `node --test tests/*.test.cjs`.
+- `tests/core.test.cjs`, `tests/publish.test.cjs`, `tests/traces.test.cjs`: rules, publish scan, trace service, `node --test tests/*.test.cjs`.
+- `worker/`: the trace service (`index.js`, `wrangler.toml`, `deploy.sh`). Not published with the page.
+- `tools/traces-check.cjs`: browser check for traces, runs before and after deployment.
 - `tools/browser-check.cjs`, `tools/walkthrough.cjs`: four-viewport browser check (plus the cart and the closing bill) and the opening walkthrough with real input.
 - `tools/demo.cjs`, `tools/demo-music.py`: the portrait demo film (real clicks through one morning, game time stepped per frame, signature card at the end) and its synthesised score cued from the game's sound log; usage at the top of each file.
 

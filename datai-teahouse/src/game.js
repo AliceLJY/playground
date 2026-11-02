@@ -3,10 +3,14 @@
   'use strict';
   const D = window.DATAI;
   const Q = new URLSearchParams(location.search);
-  const VIEW = Q.get('view');                 // first | busy | full：固定机位，不读不写 localStorage
+  const VIEW = Q.get('view');                 // first | busy | full | crowd：固定机位，不读不写 localStorage
   const FIXED = VIEW !== null;
   const SEED0 = +Q.get('seed') || 20261031;
   const STORE_KEY = 'datai-visits';
+  // 跨用户痕迹：部署好的 Worker 地址。null 时一切照旧，只回放本机记录、不发任何请求。
+  const TRACE_ENDPOINT = null;
+  const POSTED_KEY = 'datai-posted';         // 自己上传过的痕迹 key，拉回来时认出自己、不当成别人
+  const FETCH_WAIT = 2500;                   // 进门最多等远端这么久，过时就先按本机记录开桌
   const canvas = document.getElementById('scene');
   const ctx = canvas.getContext('2d');
   const whereEl = document.getElementById('where'), hallEl = document.getElementById('hall'), hintEl = document.getElementById('hint');
@@ -29,7 +33,9 @@
   // ---------- 状态 ----------
   let W = 0, H = 0, DPR = 1;
   let S = null;             // 场景状态
-  let visits = [];          // 历史来访
+  let visits = [];          // 历史来访（本机）
+  let remote = [];          // 别人的痕迹（远端拉回来的）
+  let waiting = false;      // 正在向远端要痕迹：门口伙计说「稍等」
   let seed = SEED0;
   let paused = false, lastFrame = 0, frameStamp = 0;
   let muted = false;
@@ -44,6 +50,33 @@
     }
     try { return D.decodeVisits(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) { return []; }
   }
+  function loadPosted() { try { const a = JSON.parse(localStorage.getItem(POSTED_KEY) || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(-40) : []; } catch (e) { return []; } }
+  function fixedRemote() {
+    if (VIEW !== 'crowd') return [];
+    return D.syntheticVisits(10, 11, 200).map((v, i) => ({ ...v, at: Date.now() - (i + 1) * 9 * 3600000, k: 'demo' + i }));
+  }
+  // 进门向远端要最近的痕迹；拿到时还站在门口就按新名单重新排桌
+  function fetchRemote() {
+    if (FIXED || !TRACE_ENDPOINT || typeof fetch !== 'function') return;
+    waiting = true;
+    const done = (list) => {
+      if (!waiting) return;
+      waiting = false;
+      if (list) remote = list;
+      if (S && S.phase === 'door' && !S.closed) enterHall(); else updateBars();
+    };
+    setTimeout(() => done(null), FETCH_WAIT);
+    fetch(TRACE_ENDPOINT + '/traces?n=12', { mode: 'cors', credentials: 'omit' })
+      .then((r) => (r.ok ? r.json() : null)).then((x) => done(Array.isArray(x) ? x : null)).catch(() => done(null));
+  }
+  // 离席时把这一趟（只有动作时间线）留给后来的人；失败就算了，本机记录照存
+  function postTrace(visit) {
+    if (FIXED || !TRACE_ENDPOINT || typeof fetch !== 'function' || !(visit.dur >= 5)) return;
+    fetch(TRACE_ENDPOINT + '/trace', { method: 'POST', mode: 'cors', credentials: 'omit', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(D.traceBody(visit)) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((x) => { if (x && typeof x.k === 'string') { const p = loadPosted(); p.push(x.k); try { localStorage.setItem(POSTED_KEY, JSON.stringify(p.slice(-40))); } catch (e) {} } })
+      .catch(() => {});
+  }
   function saveVisits() {
     if (FIXED) return;
     try { localStorage.setItem(STORE_KEY, D.encodeVisits(visits)); } catch (e) {}
@@ -51,11 +84,11 @@
 
   // 进门：把历史幽灵排好桌，给自己派一张桌。此时还站着，按「落座」才坐下。
   function enterHall() {
-    const plan = D.planGhosts(visits, D.CAP);
+    const plan = D.planGhosts(D.mergeRemote(visits, FIXED ? fixedRemote() : remote, FIXED ? [] : loadPosted()), D.CAP);
     const now = Date.now();
     const mine = plan.ghosts.filter((g) => g.table === plan.me.table);
     const ghosts = plan.ghosts.map((g, i) => ({
-      ...g, kind: 'ghost', color: C.ghost[i % C.ghost.length], label: '你 · ' + ago(now - g.at),
+      ...g, kind: 'ghost', color: C.ghost[i % C.ghost.length], label: (g.remote ? '有人 · ' : '你 · ') + ago(now - g.at),
       prev: 0, here: g.table === plan.me.table, gone: false, fade: 1, pose: 'idle', poseUntil: 0, cup: 0.6, page: 0,
       greedy: g.acts.filter((a) => a[1] === 5).length >= 2,
     }));
@@ -65,13 +98,15 @@
       baskets: [], plateKinds: [], effects: [], knockUntil: -1, knockBacks: [], lastSound: null,
       tea: null, askTea: false, potHere: false, teaAt: -1, rinsed: false, kitchen: [], orders: 0, picked: new Set(),
       visit: null, fan: 0, hintUntil: 0,
+      queue: D.queuePlan(seed, plan.hall.tables.size), queueIdx: 0, queueOut: [],
       carts: D.cartPlan(seed), cartIdx: 0, cart: null, cartMoves: [], tally: null, closed: false, dayPhase: 0, plates: {},
     };
     for (const g of mine) g.here = true;
     syncResidents();
     updateBars();
     cartEl.classList.remove('show'); billEl.classList.remove('show'); orderEl.classList.remove('show');
-    hint(S.me.table === 1 && !mine.length ? '早市刚开，拣张桌落座' : `伙计指了指第 ${S.me.table} 桌：那边有位，搭台吧`);
+    if (waiting) hint('人多 · 伙计：稍等，帮你揾张位');
+    else hint(S.me.table === 1 && !mine.length ? '早市刚开，拣张桌落座' : `伙计指了指第 ${S.me.table} 桌：那边有位，搭台吧`);
   }
 
   function ago(ms) {
@@ -105,7 +140,7 @@
   function canAct(code) {
     if (!S) return false;
     if (S.phase === 'bill') return false;
-    if (code === 0) return S.phase === 'door' && !S.closed;
+    if (code === 0) return S.phase === 'door' && !S.closed && !waiting;
     if (S.phase !== 'seated') return false;
     if (code === 1) return S.potHere;
     if (code === 2) return S.tau <= S.knockUntil;
@@ -197,7 +232,7 @@
       case 6: { // 离席：这一趟记下，开茶单；「再开一市」才重新进门
         const dur = t - S.seatT;
         D.closeVisit(S.visit, dur);
-        visits = D.pushVisit(visits, S.visit); saveVisits();
+        visits = D.pushVisit(visits, S.visit); saveVisits(); postTrace(S.visit);
         S.visit = null; sfx.leave();
         const companions = new Set(S.ghosts.filter((g) => g.here && g.seatedWithMe !== false).map((g) => g.id)).size;
         const tally = { ...S.tally, tea: S.tea, table: S.me.table, companions: Math.max(companions, S.metOthers || 0), seconds: dur, closedOut: !!kind, leftAt: D.clockAt(t) };
@@ -276,6 +311,14 @@
       for (let i = S.cartMoves.length - 1; i >= 0; i--) if (t >= S.cartMoves[i].at) { const m = S.cartMoves.splice(i, 1)[0]; const it = S.cart.items[m.pick] && S.cart.items[m.pick].stock > 0 ? S.cart.items[m.pick] : null; act(5, m.who, it ? it.kind : undefined); }
       if (t >= S.cart.leaveAt) { S.cart = null; S.cartMoves = []; renderStrip(); sfx.cart(0.5); if (S.phase === 'seated') hint('点心车走了'); updateBars(); }
     }
+    // 门口等位：到点伙计领走排头一位，后面再来一位
+    while (S.queueIdx < S.queue.swaps.length && t >= S.queue.swaps[S.queueIdx]) {
+      S.queueIdx++;
+      const q = S.queue.people;
+      S.queueOut.push({ ...q.shift(), t0: t });
+      q.push({ ticket: (q.length ? q[q.length - 1].ticket : 50) + 1 + (S.queueIdx % 3), tint: (S.queueIdx * 3) % 4, t0: t });
+    }
+    S.queueOut = S.queueOut.filter((o) => t - o.t0 < 1.6);
     // 早市过去：快收市变光、收市清场
     const ph = D.phaseAt(t);
     if (ph !== S.dayPhase) {
@@ -596,6 +639,7 @@
     for (let i = -6; i <= 6; i++) { ctx.beginPath(); ctx.moveTo(W / 2 + i * W * 0.045, L.horizon); ctx.lineTo(W / 2 + i * W * 0.22, H); ctx.stroke(); }
     drawWall(L, t);
     drawFarTables(L, t);
+    drawQueue(L, t);
     // 近桌：后排的人 → 桌 → 前排的人
     const people = peopleAtTable();
     for (const p of people) if (p.back) drawPerson(L, p, t);
@@ -673,6 +717,32 @@
       ctx.fillStyle = 'rgba(42,33,24,.8)'; ctx.font = '10px "Noto Serif SC", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       if (!L.short) ctx.fillText(`${tb.no} 桌 · ${tb.count}/${tb.cap}`, x, y + ry + 16);
     });
+  }
+
+  // 门口等位：画出来的人，不是真人，也不进人数。左边柱子旁排一列，排头手里一张筹。
+  function drawQueue(L, t) {
+    if (!S.queue || S.dayPhase >= 2) return;
+    const x0 = W * 0.06 + 22, y = L.horizon + (L.short ? 10 : 16), step = 15;
+    const tints = ['#8a7f72', '#7d8a8f', '#8f7d86', '#86866f'];
+    const fig = (x, o, alpha) => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = tints[o.tint % 4]; ctx.fillRect(x - 6, y - 2, 12, 15);
+      ctx.fillStyle = C.skin; ell(x, y - 7, 5, 5.3); ctx.fill();
+      ctx.fillStyle = '#2a2118'; ell(x, y - 10, 4.8, 2.8); ctx.fill();
+      ctx.globalAlpha = 1;
+    };
+    // 被领走的：往右走进大堂、淡出
+    for (const o of S.queueOut) { const k = (t - o.t0) / 1.6; fig(x0 + k * 46, o, 0.8 * (1 - k)); }
+    S.queue.people.forEach((o, i) => {
+      const k = o.t0 !== undefined ? Math.min(1, (t - o.t0) / 1.2) : 1;
+      const x = x0 + i * step - (1 - k) * 18;
+      fig(x, o, 0.8 * k);
+      if (i === 0) { ctx.fillStyle = C.paper; ctx.fillRect(x + 4, y + 2, 6, 8); }
+    });
+    if (!L.short) {
+      ctx.fillStyle = 'rgba(243,230,200,.9)'; ctx.font = '10px "Noto Serif SC", serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(`等位 ${S.queue.people.length}`, x0 - 8, y + 26);
+    }
   }
 
   function drawTable(L, t) {
@@ -946,6 +1016,7 @@
       clock: D.clockAt(S.tau), dayPhase: S.dayPhase, closed: S.closed, cart: S.cart ? S.cart.items.map((x) => [x.kind, x.stock]) : null, cartChips: cartEl.querySelectorAll('button').length, cartShown: cartEl.classList.contains('show'),
       tally: S.tally, bill: S.phase === 'bill' ? S.lastBill : null, billShown: billEl.classList.contains('show'),
       tea: S.tea, askTea: S.askTea, potHere: S.potHere, rinsed: S.rinsed, baskets: S.baskets.map((b) => [b.kind, b.left]), kitchen: S.kitchen.length, orders: S.orders, orderShown: orderEl.classList.contains('show'), plateKinds: S.plateKinds.slice(), stripKind: cartEl.classList.contains('show') ? (S.cart ? 'cart' : 'tea') : null,
+      waiting, remote: S.ghosts.filter((g) => g.remote).length, queue: S.queue.people.map((q) => q.ticket), queueIdx: S.queueIdx,
       hint: hintEl.textContent, where: whereEl.textContent, hallText: hallEl.textContent, frameStamp,
     };
   }
@@ -963,6 +1034,7 @@
   // ---------- 启动 ----------
   resize();
   visits = loadVisits();
+  fetchRemote();
   enterHall();
   if (FIXED) {
     if (Q.get('door') !== '1') { act(0); if (Q.get('ask') !== '1') chooseTea(Q.get('tea') || 'puer'); }

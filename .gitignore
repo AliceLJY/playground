@@ -12,3 +12,6 @@ rooftop-splash/天台水枪大战.html
 # Floor Plan Walk-in is bundled by CI.
 floorplan-walk/node_modules/
 floorplan-walk/dist/
+
+# 茶楼跨用户痕迹：部署脚本写下的地址
+datai-teahouse/worker/.deployed-url
