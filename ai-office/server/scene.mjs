@@ -2,6 +2,7 @@
 // and the running totals and today's log a visitor who missed the moment can still read. Everything that leaves this
 // module is structured (ids, counts, times, booleans); no text from any log or wrapper is ever passed on.
 import { readFile, stat, open } from 'node:fs/promises';
+import { mkdirSync, chmodSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -84,8 +85,24 @@ async function tailText(file, bytes = 65536) {
   } finally { await handle.close(); }
 }
 
+// Only date prefixes are inspected; title/link/body never leave this collector.
+// Default is the shelf's copy only: under launchd, node reading ~/Desktop does not fail with EPERM, it hangs on
+// the privacy prompt (11-02 probe), and every poll would park another libuv thread until the server froze.
+export async function collectRadar(files = ['~/Downloads/sync-bridge/选题书架/archive/ledger/radar.md'], now = Date.now(), read = readFile) {
+  let maximum = null;
+  const prefix = new RegExp('^' + beijingDay(now) + '\\s*\\|');
+  for (const file of files) {
+    try {
+      let n = 0;
+      for (const line of (await read(expand(file), 'utf8')).split('\n')) if (prefix.test(line)) n++;
+      if (n <= 100000) maximum = Math.max(maximum ?? 0, n);
+    } catch { /* absent, denied or unavailable mirrors do not make a signal */ }
+  }
+  return maximum;
+}
+
 export async function collectScene(options = {}, now = Date.now()) {
-  const out = {};
+  const out = { radarCount: await collectRadar(options.radarLedgers, now) };
   try {
     const { stdout } = await exec('/bin/ps', ['-axo', 'pid,ppid,args'], { timeout: 3000, maxBuffer: 8 * 1024 * 1024 });
     Object.assign(out, dispatchScan(stdout, options.dispatch || DISPATCH, options.roster));
@@ -119,19 +136,49 @@ export async function collectScene(options = {}, now = Date.now()) {
   return out;
 }
 
-const EVENT_CAP = 40, REVIEW_TTL = 90 * MINUTE, CALL_TTL = 60 * MINUTE, ASK_GAP = 10 * MINUTE, RING_MS = 30_000;
+const EVENT_CAP = 500, REVIEW_TTL = 90 * MINUTE, CALL_TTL = 60 * MINUTE, ASK_GAP = 10 * MINUTE, RING_MS = 30_000;
 
 export function emptyScene(now) {
   return { dispatched: [], huddle: null, review: null, call: null, diskPct: null, guard: null, windows: {}, stats: freshStats(now), events: [] };
 }
 export function freshStats(now) {
-  return { since: beijingDay(now), visitorsTotal: 0, treatsTotal: 0, meetsTotal: 0, snacksTotal: 0, suppersTotal: 0, meetingsTotal: 0, handoffsTotal: 0, callsTotal: 0, day: beijingDay(now), today: { visitors: 0, treats: 0, meets: 0, snacks: 0, suppers: 0, meetings: 0, handoffs: 0, calls: 0 } };
+  return { since: beijingDay(now), visitorsTotal: 0, treatsTotal: 0, meetsTotal: 0, snacksTotal: 0, suppersTotal: 0, souvenirsTotal: 0, radarsTotal: 0, meetingsTotal: 0, handoffsTotal: 0, callsTotal: 0, day: beijingDay(now), today: { visitors: 0, treats: 0, meets: 0, snacks: 0, suppers: 0, souvenirs: 0, radars: 0, meetings: 0, handoffs: 0, calls: 0 } };
 }
 
+// A private, non-JSON hook survives reducer spreads but is never persisted or projected.
+// Synchronous once per day, bounded to 500 rows: the archive finishes before rollover clears memory.
+const HISTORY = Symbol('history');
+export function configureHistory(scene, directory, log = msg => console.error(msg)) {
+  scene[HISTORY] = old => {
+    const tmp = path.join(expand(directory), old.stats.day + '.json.tmp');
+    try {
+      mkdirSync(expand(directory), { recursive: true, mode: 0o700 });
+      chmodSync(expand(directory), 0o700);
+      writeFileSync(tmp, JSON.stringify({ day: old.stats.day, events: old.events, stats: { today: old.stats.today } }), { mode: 0o600 });
+      chmodSync(tmp, 0o600);
+      renameSync(tmp, tmp.slice(0, -4));
+    } catch (e) {
+      log('history archive failed: ' + (e.code || 'write error'));
+      try { rmSync(tmp); } catch { /* best-effort cleanup */ }
+    }
+  };
+  return scene;
+}
+function trimEvents(events) {
+  while (events.length > EVENT_CAP) {
+    const visitor = events.findIndex(e => e.kind === 'visitor');
+    events.splice(visitor < 0 ? 0 : visitor, 1);
+  }
+  return events;
+}
 // Today's counts start over at Beijing midnight; so does the log.
 function rollDay(scene, now) {
   const day = beijingDay(now);
-  if (scene.stats.day !== day) { scene.stats.day = day; scene.stats.today = freshStats(now).today; }
+  if (scene.stats.day !== day) {
+    scene[HISTORY]?.(scene);
+    scene.stats.day = day; scene.stats.today = freshStats(now).today;
+    scene.radar = null; scene.radarSeen = { day, n: 0 };
+  }
   scene.events = scene.events.filter(e => beijingDay(Date.parse(e.at)) === day);
 }
 function count(scene, key, now) {
@@ -141,7 +188,7 @@ function count(scene, key, now) {
 }
 export function addEvent(scene, event, now) {
   rollDay(scene, now);
-  scene.events = [...scene.events, { at: iso(now), ...event }].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(-EVENT_CAP);
+  scene.events = trimEvents([...scene.events, { at: iso(now), ...event }].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)));
 }
 
 // Visitors arrive in bursts (one link, several friends): arrivals within ten minutes of the last visitor line are
@@ -174,10 +221,27 @@ function endMeeting(scene, since, now) {
 export function reduceScene(prev, signal, now) {
   const scene = { ...emptyScene(now), ...prev, windows: { ...(prev?.windows || {}) }, stats: { ...freshStats(now), ...prev?.stats, today: { ...freshStats(now).today, ...prev?.stats?.today } }, events: [...(prev?.events || [])] };
   rollDay(scene, now);
+  if (Number.isInteger(signal.radarCount) && signal.radarCount >= 0 && signal.radarCount <= 100000) {
+    const n = signal.radarCount, day = beijingDay(now), seen = scene.radarSeen;
+    if (!signal.radarBaseline && seen?.day === day && n > seen.n) {
+      scene.radar = { at: iso(now), n, added: n - seen.n };
+      count(scene, 'radars', now); addEvent(scene, { kind: 'radar', n, added: n - seen.n }, now);
+    }
+    // A lagging/unreadable mirror must not lower the high-water mark and replay the same issue.
+    scene.radarSeen = { day, n: Math.max(n, seen?.day === day ? seen.n : 0) };
+  }
   // The caller supplies actual before/after member records from collection AND both report paths.
   scene.snackAtById = { ...(scene.snackAtById || {}) };
   for (const { id, before, after } of signal.transitions || []) {
-    if (before.status === 'busy' && after.status === 'done' && now - Date.parse(before.statusSince) >= 20 * MINUTE && now - (scene.snackAtById[id] ?? -Infinity) >= 60 * MINUTE) {
+    if (id === 'grok' && before.status !== 'done' && after.status === 'done') {
+      if (now - (scene.souvenirAt ?? -Infinity) >= 180 * MINUTE) {
+        scene.souvenirAt = now; scene.souvenir = { at: iso(now) };
+        count(scene, 'souvenirs', now); addEvent(scene, { kind: 'souvenir' }, now);
+      }
+      continue;
+    }
+    if (id === 'doubao' && scene.radar && Math.abs(now - Date.parse(scene.radar.at)) < 2 * MINUTE) continue;
+    if (before.status === 'busy' && after.status === 'done' && now - Date.parse(before.statusSince) >= 10 * MINUTE && now - (scene.snackAtById[id] ?? -Infinity) >= 60 * MINUTE) {
       scene.snack = { id, at: iso(now) }; scene.snackAtById[id] = now;
       count(scene, 'snacks', now); addEvent(scene, { kind: 'snack', ids: [id] }, now);
     }
@@ -280,8 +344,10 @@ export function sceneView(scene, rosterIds, now) {
   return {
     scene: { meeting, dispatched: ids(scene.dispatched), call: scene.call ? { since: minute(scene.call.since), kind: 'consult' } : scene.ring && now - scene.ring.since < RING_MS ? { since: minute(scene.ring.since), kind: 'dispatch', with: ids([scene.ring.with])[0] || null } : null, disk: Number.isInteger(scene.diskPct) ? { usedPct: scene.diskPct } : null, guard: scene.guard ? { phase: scene.guard.phase, at: minute(scene.guard.at), ok: scene.guard.ok } : null,
       snack: scene.snack && rosterIds.has(scene.snack.id) ? { id: scene.snack.id, at: scene.snack.at } : null,
-      supper: scene.supper && ids(scene.supper.ids).length ? { at: scene.supper.at, ids: ids(scene.supper.ids) } : null },
-    stats: { since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetsTotal: scene.stats.meetsTotal, snacksTotal: scene.stats.snacksTotal ?? 0, suppersTotal: scene.stats.suppersTotal ?? 0, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
+      supper: scene.supper && ids(scene.supper.ids).length ? { at: scene.supper.at, ids: ids(scene.supper.ids) } : null,
+      souvenir: scene.souvenir && rosterIds.has('grok') ? { at: scene.souvenir.at } : null,
+      radar: scene.radar && rosterIds.has('doubao') && beijingDay(Date.parse(scene.radar.at)) === day ? { at: scene.radar.at, n: scene.radar.n, added: scene.radar.added } : null },
+    stats: { since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetsTotal: scene.stats.meetsTotal, snacksTotal: scene.stats.snacksTotal ?? 0, suppersTotal: scene.stats.suppersTotal ?? 0, souvenirsTotal: scene.stats.souvenirsTotal ?? 0, radarsTotal: scene.stats.radarsTotal ?? 0, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
     events: scene.events.filter(e => beijingDay(Date.parse(e.at)) === day).map(e => ({ ...e, at: minute(Date.parse(e.at)), ...(e.ids ? { ids: ids(e.ids) } : {}) }))
   };
 }
@@ -297,6 +363,6 @@ export function migrateScene(state, now) {
     scene.stats.today.treats = (state.treats || []).filter(t => beijingDay(Date.parse(t.at)) === day).length;
   }
   for (const key of ['dispatched', 'events']) if (!Array.isArray(scene[key])) scene[key] = [];
-  scene.events = scene.events.filter(e => e && typeof e.kind === 'string' && /^[a-z-]{1,16}$/.test(e.kind) && Number.isFinite(Date.parse(e.at))).slice(-EVENT_CAP);
+  scene.events = trimEvents(scene.events.filter(e => e && typeof e.kind === 'string' && /^[a-z-]{1,16}$/.test(e.kind) && Number.isFinite(Date.parse(e.at))));
   return scene;
 }

@@ -97,7 +97,7 @@ test('real HTTP auth, payload cap, 429, privacy allowlist, persistence and push 
   const {createOffice}=await import('../server/office-server.mjs');
   await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   const token=randomBytes(24).toString('hex');let time=DAY;
   const options={config,token,stateFile,clock:()=>time,collector:async()=>({})};
   const office=await createOffice(options);await office.poll();
@@ -204,7 +204,7 @@ test('guest feed: same desks, no board, no badge text, CORS only for the public 
   const {createOffice}=await import('../server/office-server.mjs');
   await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   const token=randomBytes(24).toString('hex');
   const office=await createOffice({config,token,stateFile,clock:()=>DAY,collector:async()=>({})});await office.poll();
   office.server.listen(0,'127.0.0.1');await once(office.server,'listening');
@@ -240,7 +240,7 @@ test('guest report: a bot key moves only its own desk; wrong key 403, no key for
   const {createOffice}=await import('../server/office-server.mjs');
   await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   const token=randomBytes(24).toString('hex'); const key=randomBytes(24).toString('hex'); const helper=config.roster.find(a=>a.id==='helper')?.id||config.roster[9].id;
   let time=DAY; const office=await createOffice({config,token,botKeys:{[helper]:key},stateFile,clock:()=>time,collector:async()=>({})});await office.poll();
   office.server.listen(0,'127.0.0.1');await once(office.server,'listening');
@@ -260,7 +260,7 @@ test('guest report: a bot key moves only its own desk; wrong key 403, no key for
 test('an open bot desk takes reports with no key; other desks still refuse',async t=>{
   const {createOffice}=await import('../server/office-server.mjs');
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/http-')),stateFile=path.join(dir,'state.json');
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   const open_=config.roster.find(a=>a.id==='helper').id, other=config.roster[0].id;
   const office=await createOffice({config,token:randomBytes(24).toString('hex'),botKeys:{[open_]:'open'},stateFile,clock:()=>DAY,collector:async()=>({})});await office.poll();
   office.server.listen(0,'127.0.0.1');await once(office.server,'listening');
@@ -350,7 +350,7 @@ test('guest visits: a tagged hello counts for 45 s, bad tags 400, CORS only for 
   const {createOffice}=await import('../server/office-server.mjs');
   await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/visit-'));
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   let time=DAY; const office=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
   await office.poll(); office.server.listen(0,'127.0.0.1'); await once(office.server,'listening');
   t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));
@@ -376,7 +376,7 @@ test('guest feed rounds times to the minute; the /guest/ tree has a per-address 
   const {createOffice}=await import('../server/office-server.mjs');
   await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/limit-'));
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   const token=randomBytes(24).toString('hex'); let time=DAY+90_000+7_000;
   const office=await createOffice({config,token,stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
   await office.poll(); office.server.listen(0,'127.0.0.1'); await once(office.server,'listening');
@@ -400,7 +400,7 @@ test('treats: menu only, one a minute per visitor, counted for today in both fee
   const {createOffice}=await import('../server/office-server.mjs');
   await fs.mkdir(path.join(root,'tools/.test-data'),{recursive:true});
   const dir=await fs.mkdtemp(path.join(root,'tools/.test-data/treat-'));
-  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));
+  const config=JSON.parse(await fs.readFile(path.join(root,'config.example.json')));config.radarLedgers=[];
   let time=DAY; const office=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
   await office.poll(); office.server.listen(0,'127.0.0.1'); await once(office.server,'listening');
   t.after(()=>new Promise(resolve=>{office.server.close(resolve);office.server.closeAllConnections();}));

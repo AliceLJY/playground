@@ -1,5 +1,5 @@
 {
-  "duration": 185,
+  "duration": 340,
   "roster": [
     {
       "id": "director",
@@ -53,7 +53,8 @@
       "color": "#6F8585",
       "status": "away",
       "badge": "",
-      "desk": 6
+      "desk": 6,
+      "awayLabel": "云上打盹"
     },
     {
       "id": "filmmaker",
@@ -72,7 +73,8 @@
       "status": "busy",
       "badge": "",
       "desk": 10,
-      "look": 8
+      "look": 8,
+      "awayLabel": "外勤"
     },
     {
       "id": "helper",
@@ -427,6 +429,52 @@
           ]
         }
       ]
+    },
+    {
+      "at": 185,
+      "id": "scout",
+      "status": "done",
+      "scene": {
+        "souvenir": {}
+      },
+      "log": [
+        {
+          "kind": "souvenir"
+        }
+      ]
+    },
+    {
+      "at": 205,
+      "id": "scout",
+      "status": "away"
+    },
+    {
+      "at": 224,
+      "id": "writer",
+      "status": "away"
+    },
+    {
+      "at": 250,
+      "id": "writer",
+      "status": "done",
+      "scene": {
+        "radar": {
+          "n": 13,
+          "added": 7
+        }
+      },
+      "log": [
+        {
+          "kind": "radar",
+          "n": 13,
+          "added": 7
+        }
+      ]
+    },
+    {
+      "at": 270,
+      "id": "writer",
+      "status": "away"
     }
   ],
   "scene": {
@@ -456,11 +504,15 @@
       "calls": 1,
       "meets": 2,
       "snacks": 0,
-      "suppers": 0
+      "suppers": 0,
+      "souvenirs": 0,
+      "radars": 0
     },
     "meetsTotal": 8,
     "snacksTotal": 3,
-    "suppersTotal": 2
+    "suppersTotal": 2,
+    "souvenirsTotal": 0,
+    "radarsTotal": 0
   },
   "receptionAt": 34
 }

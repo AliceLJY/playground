@@ -1,5 +1,7 @@
 # 像素办公室：五个小事件
 
+第二批更新：请客门槛已改为 10 分钟，演示延至 340 秒；新信号与最新验证见 [HANDOFF-batch2.md](HANDOFF-batch2.md)。下列首批时长与运行记录仍描述本文件当时的验收。
+
 状态：实现、Node 与本地浏览器验收完成，待 owner 看图、接 wrapper、重启及发布。2026-11-02；基准 HEAD `9c95916`，开工 fetch 后 main 与 origin/main 一致、工作区干净。没有 git add/commit/push，没有重启正式服务、接触私有配置或修改 scripts、sync-bridge、launchd、Tailscale、funnel、发布 workflow。只运行了自动退出的临时测试服务。
 
 ## 修改文件
@@ -28,7 +30,7 @@ CC 加会议成员中除 CC 外、按排序后的 ID 名单和 since+round 稳�
 
 ### 交活请客
 
-`reduceScene` 接收真实 before/after：前一状态 busy、本次 done，且从前一 statusSince 到转换时至少 20 分钟。`scene.snackAtById` 持久化同人每小时一次的冷却，触发写 `scene.snack = {id,at}`、`snack {ids:[id]}` 日记、`stats.snacksTotal` / `stats.today.snacks`。
+`reduceScene` 接收真实 before/after：前一状态 busy、本次 done，且从前一 statusSince 到转换时至少 10 分钟。`scene.snackAtById` 持久化同人每小时一次的冷却，触发写 `scene.snack = {id,at}`、`snack {ids:[id]}` 日记、`stats.snacksTotal` / `stats.today.snacks`。
 
 采集、私人 `/api/report`、公开的按 bot 身份 report 都经过同一观察器。两份快照带 snack，guest 只含 ID 与分钟级时间。轮询期间多人交活可由最近的 snack 日记补齐候场，按 ID+分钟与最新 scene.snack 去重（同人一小时冷却下不会合并合法的两次请客）。
 
@@ -60,7 +62,7 @@ bin/office-quota agy clear
 
 ## 优先表、队列与边界解释
 
-`ACTIVITY_PRIORITY`：**真实 busy/waiting/会议/通话（含递信） > 罚站 > 接待 > 吵架 > 请客 > 吃瓜 > 游戏角**。同类型一个正在演、最多三个候场，FIFO；满了丢最老候场项。收到及准备开演时都过两分钟期限，切后台恢复也按墙钟清候场。罚站一旦开始可持续至 until，其他额度报告仍受三项／两分钟候场约束。
+`ACTIVITY_PRIORITY`：**真实 busy/waiting/会议/通话（含递信） > 罚站 > 接待 > 吵架 > 请客／特产／雷达 > 吃瓜 > 游戏角**。同类型一个正在演、最多三个候场，FIFO；满了丢最老候场项。收到及准备开演时都过两分钟期限，切后台恢复也按墙钟清候场。罚站一旦开始可持续至 until，其他额度报告仍受三项／两分钟候场约束。
 
 两处信封文字需要说明：
 
@@ -96,7 +98,7 @@ git diff --check
 ```
 
 - 基线 **87/87**；完成后 **111/111**，新增 24 项（引擎 17、服务端 7）。原 MV、接待、房间、布局测试保留全绿。日志 `events-baseline-node.txt`、`events-node-final.txt`。
-- HTTP 覆盖 token、坏 ID／字段／数值、分钟上下限、clear、持久化和重载、无需 poll 的到期过滤、采集／私人／bot report 转 busy 自动清、19／20 分钟和小时冷却、23:00／03:00／跨午夜／次夜、两份快照和任务文字不外泄。不会读取生产配置或访问正式服务。
+- HTTP 覆盖 token、坏 ID／字段／数值、分钟上下限、clear、持久化和重载、无需 poll 的到期过滤、采集／私人／bot report 转 busy 自动清、9／10 分钟和小时冷却（第二批更新，首批运行记录见原提交）、23:00／03:00／跨午夜／次夜、两份快照和任务文字不外泄。不会读取生产配置或访问正式服务。
 - 引擎每 20 ms 真实推进两种布局，验证五件事全流程、各步 status/statusSince 不变、每步无家具碰撞、烟团阶段两人坐标重合、固定五句／哼、饼干和面碗到期、吃瓜散回、优先级、旧轮不重播、迟到跳过、排队上限／FIFO／过期、轮询多次交活补齐、布局转换、已有保安恢复。
 - 新浏览器 **58 项检查通过、23 张截图、页面错误 0**；十个主机位实际状态与请求一致，人物身体都在可视区，吃瓜和请客机位已针对手机修正取景。另验五种壁纸、HTTP 坏快照整份拒收、真实轮询 quota、320 宽的 Pages 子路径。报告 `events-browser.json`，最终控制台 `events-browser-final.txt`。
 - 既有接待浏览器 **38 项通过、19 张截图、页面错误 0**；真实按钮、双页面挑人／合照归属、429、坏字段、后台候场过期、壁纸、320／390 游戏角、30 秒开场录屏均通过。日志 `events-reception-browser.txt`，报告 `reception-browser.json`。这一轮只验证接待原有流程，没有改其浏览器检查脚本。

@@ -32,11 +32,11 @@ test('collector busy transition also clears quota; guest per-bot report follows 
  const base=`http://127.0.0.1:${publicOffice.server.address().port}`,post=(route,body,auth=false)=>fetch(base+route,{method:'POST',headers:{'content-type':'application/json',...(auth?{authorization:'Bearer '+x.opts.token}:{})},body:JSON.stringify(body)});
  await post('/guest/report/agy',{status:'idle'});await post('/api/quota',{id:'agy'},true);x.clock(T+5000);assert.equal((await post('/guest/report/agy',{status:'busy'})).status,200);assert.deepEqual(publicOffice.snapshot().quota,{});
 });
-test('snack exact 19/20 minute threshold, hourly cap and independent colleagues',async()=>{
+test('snack exact 9/10 minute threshold, hourly cap and independent colleagues',async()=>{
  const {reduceScene,emptyScene}=await import('../server/scene.mjs');let s=emptyScene(T);
  const change=(id,now,duration)=>{s=reduceScene(s,{transitions:[{id,before:{status:'busy',statusSince:iso(now-duration)},after:{status:'done'}}]},now);};
- change('agy',T,19*M);assert.equal(s.snack,undefined);change('agy',T,20*M);assert.deepEqual(s.snack,{id:'agy',at:iso(T)});assert.equal(s.stats.snacksTotal,1);assert.equal(s.stats.today.snacks,1);
- change('agy',T+59*M,20*M);assert.equal(s.stats.snacksTotal,1);change('codex',T+59*M,20*M);assert.equal(s.stats.snacksTotal,2);change('agy',T+60*M,20*M);assert.equal(s.stats.snacksTotal,3);
+ change('agy',T,9*M);assert.equal(s.snack,undefined);change('agy',T,10*M);assert.deepEqual(s.snack,{id:'agy',at:iso(T)});assert.equal(s.stats.snacksTotal,1);assert.equal(s.stats.today.snacks,1);
+ change('agy',T+59*M,10*M);assert.equal(s.stats.snacksTotal,1);change('codex',T+59*M,10*M);assert.equal(s.stats.snacksTotal,2);change('agy',T+60*M,10*M);assert.equal(s.stats.snacksTotal,3);
  assert.equal(s.events.filter(e=>e.kind==='snack').length,3);
 });
 test('supper Beijing 22:59/23:00/02:59/03:00, same night across midnight, next night allowed',async()=>{
@@ -49,7 +49,7 @@ test('supper Beijing 22:59/23:00/02:59/03:00, same night across midnight, next n
  late=reduceScene(emptyScene(T),{members:busy},Date.parse('2026-11-02T18:59:59Z'));assert.equal(late.stats.suppersTotal,1);
 });
 test('snack and supper HTTP observations persist; both snapshots validate and guest carries no task text',async t=>{
- const x=await setup(t),secret='private-task-never-public';await x.post('/api/report',{id:'agy',status:'busy',summary:secret});x.clock(T+20*M);await x.post('/api/report',{id:'agy',status:'done'});
+ const x=await setup(t),secret='private-task-never-public';await x.post('/api/report',{id:'agy',status:'busy',summary:secret});x.clock(T+10*M);await x.post('/api/report',{id:'agy',status:'done'});
  assert.equal(x.office.snapshot().stats.snacksTotal,1);x.clock(Date.parse('2026-11-02T15:00:09Z'));await x.post('/api/report',{id:'codex',status:'busy',summary:secret});await x.post('/api/quota',{id:'agy'});
  for(const endpoint of ['/api/state','/guest/api/state']){const data=await(await fetch(x.base+endpoint)).json();assert.equal(data.scene.snack.id,'agy');assert.deepEqual(Object.keys(data.scene.snack).sort(),['at','id']);assert.equal(data.stats.suppersTotal,1);assert.deepEqual(data.scene.supper.ids,['codex']);require('../office-core.js').validateSceneFields(data);assert.ok(!JSON.stringify(data).includes(secret));if(endpoint.includes('guest'))assert.equal(Date.parse(data.scene.supper.at)%M,0);}
  await x.office.flush();const {createOffice}=await import('../server/office-server.mjs'),reload=await createOffice(x.opts);assert.equal(reload.snapshot().stats.snacksTotal,1);assert.equal(reload.snapshot().stats.suppersTotal,1);await reload.poll();assert.equal(reload.snapshot().stats.suppersTotal,1);

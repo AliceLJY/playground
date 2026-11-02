@@ -12,7 +12,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -208,7 +208,8 @@
       text(ctx,'来谈事 · '+C.MEET_NAMES[sim.reception.kind],128,508,8);
     } else {
       const last=[...events].filter(e=>e.kind==='meeting').sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))[0];
-      text(ctx,last?`上次开会 ${formatClock(Date.parse(last.at))}`:'今天还没开会',112,515,8);
+      const label=mv?(last?`上次开会 ${formatClock(Date.parse(last.at))}`:'今天还没开会'):C.meetingBoardText(stats,events);
+      text(ctx,label,112,515,label.length>20?6.5:8);
     }
     });
     placed(ctx,C.storageOffset,()=>{
@@ -256,11 +257,18 @@
     if (kind === 'milktea') { r(ctx, '#e9c9a0', x, y - 8, 7, 8); r(ctx, '#7a4b2a', x + 1, y - 5, 5, 4); r(ctx, '#3b2a1e', x + 2, y - 3, 1, 1); r(ctx, '#3b2a1e', x + 4, y - 3, 1, 1); r(ctx, '#c85b4a', x + 3, y - 12, 1, 5); }
     if (kind === 'coffee') { r(ctx, '#f6f1e6', x, y - 7, 6, 7); r(ctx, '#5a3b26', x + 1, y - 6, 4, 2); r(ctx, '#f6f1e6', x + 6, y - 6, 2, 3); r(ctx, '#d9d2c2', x + 1, y - 10, 1, 2); r(ctx, '#d9d2c2', x + 3, y - 11, 1, 3); }
     if (kind === 'cake') { r(ctx, '#f3d9a4', x, y - 6, 8, 6); r(ctx, '#e8a3a8', x, y - 4, 8, 2); r(ctx, '#f8f1e2', x, y - 7, 8, 1); r(ctx, '#c84a4a', x + 3, y - 9, 2, 2); }
+    if (kind === 'cloud') {r(ctx,'#b89073',x+5,y-6,2,7);r(ctx,'#edb6cc',x+1,y-12,10,6);r(ctx,'#edb6cc',x-1,y-10,14,3);r(ctx,'#fff6ee',x+2,y-15,5,7);r(ctx,'#fff6ee',x+6,y-13,5,6);r(ctx,'#fff6ee',x,y-11,5,5);}
+    if (kind === 'papers') {for(let n=0;n<3;n++){r(ctx,'#b9ae92',x+n,y-2-n*2,13,3);r(ctx,'#fff4d5',x+n,y-3-n*2,12,2);}r(ctx,'#8aa79b',x+5,y-6,7,1);}
     if (kind === 'biscuit') {r(ctx,'#a46c3f',x,y-6,9,6);r(ctx,'#e3b96e',x+1,y-7,7,6);r(ctx,'#8b5a3b',x+2,y-5,2,1);r(ctx,'#8b5a3b',x+6,y-3,1,2);}
     if (kind === 'noodles') {r(ctx,'#ece8d8',x-1,y-7,13,3);r(ctx,'#94b5aa',x,y-4,11,3);r(ctx,'#607f76',x+2,y-1,7,2);r(ctx,'#e3b96e',x+1,y-6,9,1);r(ctx,'#739c82',x+3,y-6,2,2);for(let n=0;n<3;n++)r(ctx,'#e1e2ce',x+n*4+Math.round(Math.sin(sim.time*3+n)),y-11-n%2*2,1,3);}
     if (kind === 'melon') { r(ctx, '#4f8a4b', x, y - 3, 8, 3); r(ctx, '#e7504e', x + 1, y - 7, 6, 4); r(ctx, '#f3f0e4', x + 1, y - 3, 6, 1); r(ctx, '#2b2b2b', x + 2, y - 6, 1, 1); r(ctx, '#2b2b2b', x + 5, y - 5, 1, 1); }
   }
   function eventPose(a,x,y,moving) {
+    if(a.activity==='souvenir') {r(ctx,'#506e78',x+5,y-23,15,23);r(ctx,'#87a3a6',x+7,y-21,11,18);r(ctx,'#edcf90',x+8,y-16,9,2);r(ctx,'#39535b',x+8,y-9,9,6);r(ctx,'#edcf90',x+5,y-21,2,16);if(sim.souvenir?.phase==='delivering')item('cloud',x-14,y-7);}
+    if(a.activity==='radar') {
+      const swing=Math.round(Math.sin(sim.time*3)*4);r(ctx,'#506e78',x,y-33,2,12);r(ctx,'#a6c3b7',x-6+swing,y-36,13,3);r(ctx,'#a6c3b7',x-4+swing,y-33,9,3);r(ctx,'#506e78',x-2+swing,y-30,5,2);r(ctx,'#edcf90',x+swing,y-39,2,4);
+      if(sim.radar?.phase==='pinning'&&!moving){r(ctx,a.color,x+5,y-23,3,13);r(ctx,'#e3b58d',x+5,y-26,3,4);}
+    }
     if(a.activity==='snack') {r(ctx,'#9c6c43',x+7,y-15,10,13);r(ctx,'#edcf90',x+8,y-14,8,11);r(ctx,'#9c6c43',x+10,y-18,5,2);item('biscuit',x+9,y-6);}
     if(a===sim.guard && sim.supper && sim.supper.phase!=='returning') {r(ctx,'#846346',x-11,y-7,23,2);item('noodles',x-6,y-9);}
     if(a.activity==='melon') {item('melon',x+4,y-7);if(!moving)r(ctx,'#e3b58d',x+(sim.melon.source.x>x?6:-8),y-14,3,5);}
@@ -300,7 +308,7 @@
       speechBoxes.push({x:x-53,y:y-32,w:106,h:68});
     }
     for(const speech of sim.eventSpeech()) {
-      const a=sim.actors.find(a=>a.id===speech.id);if(!a || sim.argue?.phase==='smoke'&&sim.argue.ids.includes(a.id))continue;
+      const a=speech.id==='boss'?sim.boss:sim.actors.find(a=>a.id===speech.id);if(!a || sim.argue?.phase==='smoke'&&sim.argue.ids.includes(a.id))continue;
       const high=a.activity==='argue'?54:43,w=speech.icon?20:speech.text.length*8+10,x=Math.max(20,Math.min(C.W-w-20,a.x-w/2)),y=a.y-high;
       speechBoxes.push({x,y,w,h:14});r(ctx,'#b59b72',x,y,w,14);r(ctx,'#fff6dc',x+1,y+1,w-2,12);r(ctx,'#fff6dc',a.x,y+14,3,3);
       if(speech.icon)item(speech.icon,x+6,y+11);else text(ctx,speech.text,x+w/2,y+10,8,'#6a4b30');
@@ -310,10 +318,10 @@
     if(!mv && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    const seated = (a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const seated = (a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || !mv && ['souvenir','radar'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
-    const bounce = !boss && a.status === 'done' && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
+    const bounce = !boss && a.status === 'done' && (mv || !a.activity) && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
     let x = Math.round(a.x), y = Math.round(a.y - bounce - (moving ? Math.abs(Math.sin(t * 10 + (a.i || 0))) : 0));
     const color = boss ? '#c97859' : a.status === 'unknown' ? '#989d98' : a.color;
     r(ctx, '#4c584e30', x - 8, a.y - 1, 17, 3);
@@ -325,7 +333,7 @@
     r(ctx, '#e3b58d', x - 5, y - 16, 10, 7); r(ctx, '#4b4639', x - 6, y - 21, 12, 6); r(ctx, '#544c3a', x - 6, y - 16, 2, 5);
     // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
     const hello = sim.greeting(), thanks = sim.thanksNow(), present = !boss && !a.visitor && !['away', 'off'].includes(a.status);
-    const greets = present && (mv || !['reception','argue','quota','melon','snack'].includes(a.activity)) && !!(hello || thanks);
+    const greets = present && (mv || !['reception','argue','quota','melon','snack','souvenir','radar'].includes(a.activity)) && !!(hello || thanks);
     const look = a.activity==='melon' && sim.melon ? Math.sign(sim.melon.source.x-a.x) : greets ? Math.sign((hello ? hello.x : C.pantry.x) - a.x) : 0;
     r(ctx, '#273a34', x - 3 + look, y - 13, 2, 2); r(ctx, '#273a34', x + 2 + look, y - 13, 2, 2);
     const leg = moving ? Math.sin(t * 11) > 0 ? 2 : -2 : 0;
@@ -454,9 +462,13 @@
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(backdrop, 0, 0); ctx.setTransform(2, 0, 0, 2, 0, 0); ctx.imageSmoothingEnabled = false;
     }
     sceneUnder();
+    if(!mv && sim.radarCardNow()) {
+      r(ctx,'#baa17b',231,27,94,21);r(ctx,'#fff4d5',232,28,92,19);r(ctx,'#ba5045',277,27,3,3);
+      text(ctx,`今日选题 ${sim.radarCardNow().n} 条`,278,41,8,'#6a4b30');
+    }
     const onDesks = sim.deskTreatNow();
     if (onDesks) for (const a of sim.actors) if (!['away', 'off'].includes(a.status) && a.i !== 10) item(onDesks.kind, C.desks[a.i][0] + 15, C.desks[a.i][1] + 6);
-    if(!mv) for(const f of sim.foodNow()){const a=sim.actors.find(a=>a.id===f.id);item(f.kind,C.desks[a.i][0]-20,C.desks[a.i][1]+6);}
+    if(!mv) for(const f of sim.foodNow()){const a=sim.actors.find(a=>a.id===f.id);item(f.kind,C.desks[a.i][0]+(f.kind==='cloud'?-7:f.kind==='papers'?1:-20),C.desks[a.i][1]+6);}
     [...sim.actors, ...sim.visitors, ...(sim.reception ? [sim.reception.visitor] : []), ...(sim.guard ? [sim.guard] : []), { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     {
       sceneOver();
@@ -569,7 +581,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
@@ -620,6 +632,7 @@
   function demoScene(value) {
     const s={...C.emptyScene(),...value};
     if(s.meeting) s.meeting={...s.meeting,since:sim.scene.meeting?.since || new Date(now()).toISOString(),roundAt:sim.scene.meeting?.round===s.meeting.round ? sim.scene.meeting.roundAt : new Date(now()).toISOString()};
+    for(const kind of ['souvenir','radar'])if(s[kind])s[kind]={...s[kind],at:s[kind].at || new Date(now()).toISOString()};
     if(s.snack)s.snack={...s.snack,at:s.snack.at || new Date(now()).toISOString()};
     if(s.supper)s.supper={...s.supper,at:s.supper.at || new Date(now()).toISOString()};
     if(s.call) s.call={since:new Date(now()).toISOString()};
@@ -649,8 +662,8 @@
           else if (e.id) sim.setStatus(e.id, e.status, at);
           if(e.quota)sim.setQuota(Object.fromEntries(Object.entries(e.quota).map(([id,min])=>[id,new Date(now()+min*60000).toISOString()])),now());
           if(e.scene) sim.setScene(demoScene({...sim.scene,...e.scene}),now());
-          for(const event of e.log || []) if(event.kind !== 'guard' || C.isNight(now())) {events.push({...event,at});if(stats && ['snack','supper'].includes(event.kind)){const k=event.kind+'s';stats[k+'Total']++;stats.today[k]++;}}
-          events=events.slice(-40);
+          for(const event of e.log || []) if(event.kind !== 'guard' || C.isNight(now())) {events.push({...event,at});if(stats && ['snack','supper','souvenir','radar'].includes(event.kind)){const k=event.kind+'s';stats[k+'Total']++;stats.today[k]++;}}
+          events=events.slice(-500);
         }
       }
       elapsed += part; sim.night=C.isNight(now()); sim.step(part);
@@ -807,7 +820,7 @@
   layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
@@ -819,12 +832,12 @@
     } else script = await (await fetch('demo-script.json')).json();
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
-    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:45500, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000 }[view]); paused = true; }
+    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:45500, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
     ready = true; draw();
     if (view === 'board') $('#today-tab').click();
-    if(C.id==='portrait' && !wallMode && ['snack','melon','supper'].includes(view)) {const a=view==='supper'?sim.guard:sim.actors.find(a=>a.id===(view==='snack'?sim.snack?.id:sim.melon?.ids[0]));if(a)$('#room-viewport').scrollTop=Math.max(0,(a.y-130)*canvas.getBoundingClientRect().width/C.W);}
+    if(C.id==='portrait' && !wallMode && ['snack','melon','supper'].includes(view)) {const a=view==='supper'?sim.guard:sim.actors.find(a=>a.id===(view==='snack'?sim.snack?.id:view==='souvenir'?sim.souvenir?.id:sim.melon?.ids[0]));if(a)$('#room-viewport').scrollTop=Math.max(0,(a.y-130)*canvas.getBoundingClientRect().width/C.W);}
     if(view==='games' && C.id==='portrait') $('#room-viewport').scrollTop=Math.max(0,356*canvas.getBoundingClientRect().width/C.W-$('#room-viewport').clientHeight);
     if (C.id!=='landscape' && ['meeting','booth','board','night-guard','reception','argue'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
     setInterval(() => { if (!forced && !paused) loadLive(); }, 10000);
