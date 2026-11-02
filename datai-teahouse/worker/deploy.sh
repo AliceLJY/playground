@@ -27,9 +27,13 @@ if ! grep -q 'DATAI_TRACES' "$DIR/wrangler.toml"; then
 fi
 
 echo "== 部署 =="
+echo "（第一次会问要不要注册 workers.dev 子域名：回 y，名字填 aliceljy）"
 cd "$DIR"
-out=$($W deploy 2>&1 | tee /dev/stderr)
-url=$(printf '%s\n' "$out" | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1 || true)
+# 不接管道：接了管道 wrangler 就不问子域名、直接当拒绝。地址从它自己的日志里读
+LOGDIR="$HOME/Library/Preferences/.wrangler/logs"
+$W deploy
+log=$(ls -t "$LOGDIR"/*.log 2>/dev/null | head -1)
+url=$(grep -oE 'https://datai-traces\.[a-z0-9-]+\.workers\.dev' "$log" | head -1 || true)
 [ -n "$url" ] || { echo "没读到部署地址"; exit 1; }
 printf '%s\n' "$url" > .deployed-url
 echo "== 部署好了：$url =="
