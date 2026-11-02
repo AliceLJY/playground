@@ -21,13 +21,15 @@ const SHOTS=[
  // Follow the eastbound tram from behind-left: it slides under the curtain and on, and the cut waits until it has gone.
  {id:'tram',start:5,end:13,follow:{offset:[-24,20,-24],look:[10,1,1]},fov:30,shift:0,sim:[18.2,26.2],h:[.02,.08],lamps:[0,0]},
  // Push into the arch; the sky warms inside the shot and lamps come up only in the last seconds.
- {id:'arch',start:13,end:20,from:[34,3.6,-11.2],to:[28,3.4,-11.2],look:[-67,17,-7],lookTo:[-67,17,-7],fov:28,shift:0,sim:[38,45],h:[.12,.48],lamps:[0,.3],lampsFrom:.55},
+ {id:'arch',start:13,end:20,dissolve:2,from:[34,3.6,-11.2],to:[28,3.4,-11.2],look:[-67,17,-7],lookTo:[-67,17,-7],fov:28,shift:0,sim:[38,45],h:[.12,.48],lamps:[0,.3],lampsFrom:.55},
  // Same high road-side view of the bridge; dusk falls to night inside the shot while the westbound tram crosses.
- {id:'dusk',start:20,end:29,from:[34,22,30],to:[27,21,29],look:[-22,9,-4],lookTo:[-25,9,-4],fov:30,shift:.1,sim:[47,56],h:[.48,.86],lamps:[.3,.9]},
+ {id:'dusk',start:20,end:29,dissolve:1.5,from:[34,22,30],to:[27,21,29],look:[-22,9,-4],lookTo:[-25,9,-4],fov:30,shift:.1,sim:[47,56],h:[.48,.86],lamps:[.3,.9]},
  // Night: slow orbit and push on the lit Canton Tower, camera kept on the south bank.
  {id:'tower',start:29,end:37,dissolve:2,orbit:[-62,-6],radius:84,radiusTo:70,height:24,heightTo:22,angles:[70,44],look:[-64,20,-5],fov:32,shift:.15,sim:[38,46],h:[.86,.9],lamps:[.9,1]},
- // Night wide: rise round the whole board, Canton Tower held in frame to the end.
- {id:'wide',start:37,end:45,orbit:[0,-2],radius:112,height:58,angles:[84,66],look:[-10,9,-2],fov:32,shift:0,sim:[40,48],h:[.9,.92],lamps:[1,1]},
+ // v11: a dissolve from the tower close-up to the wide doubled the tower, so the camera flies straight out instead:
+ // the pull starts exactly where the tower orbit ends (no cut), then a short orbit of the whole board.
+ {id:'pull',start:37,end:41,dissolve:0,from:[-13.37,22.00,44.35],to:[111.39,58.00,9.71],look:[-64,20,-5],lookTo:[-10,9,-2],fov:32,shift:.15,shiftTo:0,sim:[46,50],h:[.9,.91],lamps:[1,1]},
+ {id:'wide',start:41,end:45,dissolve:0,orbit:[0,-2],radius:112,height:58,angles:[84,74],look:[-10,9,-2],fov:32,shift:0,sim:[50,54],h:[.91,.92],lamps:[1,1]},
 ];
 function lampAt(s,lin){const k=s.lampsFrom?clamp((lin-s.lampsFrom)/(1-s.lampsFrom)):lin;return s.lamps[0]+(s.lamps[1]-s.lamps[0])*ease(k);}
 function travel(u){u=clamp(u);const r=.2;if(u<r)return u*u/(2*r*(1-r));if(u>1-r)return 1-(1-u)**2/(2*r*(1-r));return (u-r/2)/(1-r);}
@@ -38,12 +40,13 @@ function frameOf(s,t){
  else if(s.orbit){const a=(s.angles[0]+(s.angles[1]-s.angles[0])*u)*Math.PI/180,r=s.radius+((s.radiusTo??s.radius)-s.radius)*u,y=s.height+((s.heightTo??s.height)-s.height)*u;pos=[s.orbit[0]+r*Math.sin(a),y,s.orbit[1]+r*Math.cos(a)];}
  else pos=mix(s.from,s.to,u);
  const lin=clamp((t-s.start)/(s.end-s.start));
- return{shot:s.id,pos,target,fov:s.fov,shift:s.shift,seconds:s.sim[0]+(s.sim[1]-s.sim[0])*lin,
+ return{shot:s.id,pos,target,fov:s.fov,shift:s.shift+((s.shiftTo??s.shift)-s.shift)*u,seconds:s.sim[0]+(s.sim[1]-s.sim[0])*lin,
   day:s.h[0]+(s.h[1]-s.h[0])*ease(lin),lamps:lampAt(s,lin),title:s.title?1-ease((t-3.2)/1):0,credit:0,fade:0};
 }
 function sample(t){
  t=Math.max(0,Math.min(DURATION-1e-6,t));
- // v9 note from Alice: the cut into Canton Tower felt abrupt — that one takes a slow 2 s dissolve.
+ // Alice on v9/v10: cuts into Canton Tower felt abrupt (night, then its first appearance at the arch) — slow dissolves
+ // on every cut that changes subject and height; the curtain-to-tram cut keeps the short default.
  for(let i=1;i<SHOTS.length;i++){const b=SHOTS[i].start,d=SHOTS[i].dissolve??DISSOLVE;if(t>=b-d/2&&t<b+d/2)return{current:frameOf(SHOTS[i],t),previous:frameOf(SHOTS[i-1],t),blend:ease((t-b+d/2)/d)};}
  const s=SHOTS.find(s=>t<s.end)||SHOTS.at(-1);return{current:frameOf(s,t),previous:null,blend:1};
 }
@@ -63,14 +66,14 @@ async function main(){
    await sheet(page,cells,path.join(OUT,'stills.png'));fs.writeFileSync(path.join(OUT,'stills.json'),JSON.stringify(facing,null,1));
    console.log(JSON.stringify(facing.filter(f=>f.tramVisible&&f.tramFacingDot>.35)),'tilt>6:',JSON.stringify(facing.filter(f=>(f.pagodaTilt??0)>6||(f.cantonTilt??0)>6)));
   }else{
-   const scene=path.join(OUT,'scene-v10-silent.mp4');
+   const scene=path.join(OUT,'scene-v12-silent.mp4');
    const ff=spawn('ffmpeg',['-y','-hide_banner','-loglevel','error','-f','image2pipe','-vcodec','png','-framerate',String(FPS),'-i','pipe:0','-an','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart',scene],{stdio:['pipe','ignore','inherit']});
    const done=new Promise((ok,no)=>ff.once('close',c=>c===0?ok():no(Error('ffmpeg '+c))));
    for(let i=0;i<DURATION*FPS;i++){await page.clock.runFor(1000/FPS);await show(page,sample(i/FPS));const png=await page.screenshot({scale:'device'});if(!ff.stdin.write(png))await new Promise(r=>ff.stdin.once('drain',r));if(i%150===0)console.log('frame',i,'/',DURATION*FPS);}
    ff.stdin.end();await done;if(errors.length)throw Error('page errors: '+errors.join('; '));
    const endcard=path.join(OUT,'endcard/endcard.mp4');
-   execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',scene,'-i',endcard,'-filter_complex','[0:v]setsar=1,fps=30,format=yuv420p[a];[1:v]setsar=1,fps=30,format=yuv420p,tpad=start_mode=clone:start_duration=1[b];[a][b]xfade=transition=fade:duration=1:offset='+(DURATION-1)+'[v]','-map','[v]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r','30','-an','-movflags','+faststart',path.join(OUT,'huacheng-demo-v10-silent-1080x1920.mp4')]);
-   console.log('done',path.join(OUT,'huacheng-demo-v10-silent-1080x1920.mp4'));
+   execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',scene,'-i',endcard,'-filter_complex','[0:v]setsar=1,fps=30,format=yuv420p[a];[1:v]setsar=1,fps=30,format=yuv420p,tpad=start_mode=clone:start_duration=1[b];[a][b]xfade=transition=fade:duration=1:offset='+(DURATION-1)+'[v]','-map','[v]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r','30','-an','-movflags','+faststart',path.join(OUT,'huacheng-demo-v12-silent-1080x1920.mp4')]);
+   console.log('done',path.join(OUT,'huacheng-demo-v12-silent-1080x1920.mp4'));
   }
  }finally{await browser.close();}
 }
