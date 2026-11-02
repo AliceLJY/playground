@@ -83,3 +83,16 @@ test('验收 6 弹簧和帧率无关：30 帧与 120 帧跑同样时长，位置
   };
   assert.ok(Math.abs(at(30) - at(120)) < 0.5);
 });
+
+test('验收 5b 操作方法类（patterns）不按时间掉分；真实记忆的历史按「次数 + 最后一次」算', () => {
+  assert.equal(F.stateAt({ importance: 0.2, pinned: false, recalls: [], category: 'patterns' }, 300).factor, 1);
+  // 写入 100 天、被想起 3 次、最后一次在第 90 天：今天还在 7 天窗口外第 10 天，半衰期按 3 次与 10 天新鲜度拉长，且已升工作层
+  const m = { importance: 0.5, pinned: false, recalls: [], category: 'events', history: { count: 3, last: 90 } };
+  const s = F.stateAt(m, 100);
+  assert.equal(s.tier, 'working');
+  assert.ok(Math.abs(s.halfLife - F.effectiveHalfLife(60, 3, 10)) < 1e-9);
+  assert.ok(Math.abs(s.factor - F.weibull(100, s.halfLife, 'working')) < 1e-12);
+  assert.equal(F.stateAt(m, 95).why, 'recent');
+  // 库里写明的层级高于启发式时用写明的
+  assert.equal(F.stateAt({ ...m, history: null, tier: 'core' }, 100).tier, 'core');
+});

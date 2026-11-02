@@ -1,12 +1,27 @@
-// 记忆褪色 · 画面与操作。规则全在 core.js，这里只负责画、读手势、跑弹簧。
+// 记忆褪色 · 画面与操作。规则全在 core.js，数据在 library.js，这里只负责画、读手势、跑弹簧。
 (function () {
   'use strict';
   const F = window.FADE;
+  const LIB = window.FADE_LIBRARY;
   const $ = (id) => document.getElementById(id);
   const NS = 'http://www.w3.org/2000/svg';
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const mem = { importance: 0.5, pinned: false, recalls: [] };
+  const CAT = { events: '一件事', patterns: '一条做法', cases: '一次踩坑', preferences: '一条偏好', entities: '一个项目或工具', profile: '一条身份信息', other: '一条其他记忆' };
+  const TIER = { c: 'core', w: 'working', p: 'peripheral' };
+
+  // 库里一行 → 一条可以推演的记忆。写入那天是第 0 天，今天是第 age 天。
+  function fromRow(row, index) {
+    const [category, importance, age, count, since, tier, pinned] = row;
+    return {
+      index, category, importance, age, pinned: !!pinned, tier: TIER[tier], recalls: [],
+      history: count ? { count, last: since === null ? null : Math.max(0, age - since) } : null,
+      orig: { importance, pinned: !!pinned },
+    };
+  }
+  const library = LIB.rows.map(fromRow);
+
+  let mem = null;
   let day = 0;
   let playing = false;
   let lastTier = null;
@@ -14,8 +29,7 @@
   // ---------- 舞台：天花板 — 弹簧 — 记忆卡片 — 地板 ----------
   const STAGE = { top: 18, cardW: 236, cardH: 74, cx: 180 };
   const yOf = (factor) => 136 + (1 - factor) * 260;          // 倍率 1 在上，0.45 在下
-  const ratioCard = reduced ? 2 : 0.55;                        // 阻尼比：卡片要弹，减弱动效时不过冲
-  const card = F.spring(170, ratioCard * 2 * Math.sqrt(170));
+  const card = F.spring(170, (reduced ? 2 : 0.55) * 2 * Math.sqrt(170));   // 阻尼比：卡片要弹，减弱动效时不过冲
   const ledge = F.spring(120, (reduced ? 2 : 0.8) * 2 * Math.sqrt(120));
   card.x = card.target = yOf(1);
   ledge.x = ledge.target = yOf(F.TIERS.peripheral.floor);
@@ -40,16 +54,37 @@
   const py = (f) => PLOT.y1 - ((f - PLOT.lo) / (1 - PLOT.lo)) * (PLOT.y1 - PLOT.y0);
   const plot = $('plot');
 
+  // 整个库今天的样子：每个点是一条真实记忆，横坐标是它写入多少天，纵坐标是今天的倍率
+  const dotPos = [];
+  function drawLibrary() {
+    const g = $('lib'); g.textContent = '';
+    for (const m of library) {
+      const s = F.stateAt(m, m.age);
+      const jitter = s.factor === 1 ? ((m.index * 37) % 7) - 3 : 0;   // 不掉分的那一大批叠在顶线上，错开一点看得出有多少
+      const x = px(Math.min(F.DAYS, m.age)), y = py(s.factor) + jitter;
+      dotPos.push({ m, x, y });
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', x.toFixed(1)); c.setAttribute('cy', y.toFixed(1)); c.setAttribute('r', 2.1);
+      c.setAttribute('class', s.factor === 1 ? 'libdot keep' : 'libdot');
+      g.appendChild(c);
+    }
+  }
+
   function drawPlot() {
-    const pts = F.curve(mem, 1);
-    $('curve').setAttribute('d', pts.map((f, d) => `${d ? 'L' : 'M'}${px(d).toFixed(1)},${py(f).toFixed(1)}`).join(' '));
-    // 地板随层级变：逐天画成台阶线
+    // 写入之前的日子库里没记全（只存了被想起几次和最后一次），不画曲线，只画今天往后
+    const pts = [];
+    for (let d = mem.age; d <= F.DAYS; d++) pts.push(`${pts.length ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).factor).toFixed(1)}`);
+    $('curve').setAttribute('d', pts.join(' '));
     let fl = '';
-    for (let d = 0; d <= F.DAYS; d++) fl += `${d ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).floor).toFixed(1)} `;
+    for (let d = mem.age; d <= F.DAYS; d++) fl += `${d > mem.age ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).floor).toFixed(1)} `;
     $('floorline').setAttribute('d', fl);
-    // 7 天豁免窗口与召回刻度
+    $('pastshade').setAttribute('width', Math.max(0, px(mem.age) - PLOT.x0));
+    $('pastlabel').style.display = mem.age > 40 ? '' : 'none';
+    $('pastlabel').setAttribute('x', PLOT.x0 + 4);
     const bands = $('bands'); bands.textContent = '';
-    for (const r of mem.recalls) {
+    const marks = mem.recalls.slice();
+    if (mem.history && mem.history.last !== null) marks.push(mem.history.last);
+    for (const r of marks) {
       const b = document.createElementNS(NS, 'rect');
       b.setAttribute('x', px(r)); b.setAttribute('y', PLOT.y0);
       b.setAttribute('width', Math.max(1, px(Math.min(F.DAYS, r + F.RECENT_DAYS)) - px(r)));
@@ -59,6 +94,8 @@
       t.setAttribute('d', `M${px(r)},${PLOT.y1 + 3} l-4,7 h8 z`); t.setAttribute('class', 'tick');
       bands.appendChild(t);
     }
+    const sel = dotPos.find((p) => p.m === mem);
+    $('selring').setAttribute('cx', sel ? sel.x : -20); $('selring').setAttribute('cy', sel ? sel.y : -20);
   }
 
   function drawAxes() {
@@ -82,10 +119,13 @@
   function explain(s) {
     const tz = F.TIERS[s.tier].zh;
     switch (s.why) {
+      case 'procedural': return '这是一条做法：会做的事不随时间忘，只在前提变了时作废，所以不掉分。';
       case 'pinned': return '钉住了：不管过多久都不掉分。';
       case 'core': return '重要性到了 0.95，算核心记忆：永远不掉分。';
       case 'recent': return `${s.since === 0 ? '今天' : s.since + ' 天前'}刚被想起：7 天内整条不掉分，还剩 ${F.RECENT_DAYS - s.since} 天。`;
-      case 'reinforced': return `被想起过 ${s.count} 次，半衰期从 ${F.BASE_HALF_LIFE} 天拉长到 ${Math.round(s.halfLife)} 天，掉得慢了；${tz}最低掉到 ${s.floor} 倍。`;
+      case 'reinforced':
+        if (Math.round(s.halfLife) <= F.BASE_HALF_LIFE + 1) return `被想起过 ${s.count} 次，但最后一次已是 ${s.since} 天前，加成淡得差不多了，按${tz}的曲线往下掉，最低 ${s.floor} 倍。`;
+        return `被想起过 ${s.count} 次，半衰期从 ${F.BASE_HALF_LIFE} 天拉长到 ${Math.round(s.halfLife)} 天，掉得慢了；${tz}最低掉到 ${s.floor} 倍。`;
       default: return `没人想起它，按${tz}的曲线往下掉，最低掉到 ${s.floor} 倍。`;
     }
   }
@@ -102,7 +142,8 @@
     ledge.target = yOf(s.floor);
     if (lastTier && s.tier !== lastTier && fromRecall) toast(`升到${F.TIERS[s.tier].zh}，地板抬到 ${s.floor}`);
     lastTier = s.tier;
-    $('day').textContent = day;
+    const ahead = day - mem.age;
+    $('day').textContent = ahead === 0 ? '今天' : `${ahead} 天后`;
     $('tier').textContent = F.TIERS[s.tier].zh;
     $('hl').textContent = Math.round(s.halfLife);
     $('factor').textContent = '×' + s.factor.toFixed(2);
@@ -113,10 +154,22 @@
     $('imp').textContent = mem.importance.toFixed(2);
     $('pin').textContent = mem.pinned ? '取消钉住' : '钉住它';
     $('pin').setAttribute('aria-pressed', mem.pinned);
-    $('recall').disabled = mem.recalls.includes(day);
-    $('count').textContent = mem.recalls.filter((d) => d <= day).length;
+    $('recall').disabled = mem.recalls.includes(day) || (mem.history && mem.history.last === day);
+    $('count').textContent = s.count;
+    $('memo').textContent = `${CAT[mem.category] || CAT.other}，写入 ${mem.age} 天了`;
+    $('memometa').textContent = `重要性 ${mem.orig.importance.toFixed(2)} · 被想起过 ${mem.history ? mem.history.count : 0} 次${mem.orig.pinned ? ' · 已钉住' : ''}`;
     nail.style.display = mem.pinned ? '' : 'none';
     cardG.classList.toggle('pinned', mem.pinned);
+  }
+
+  function select(m, jump) {
+    stopPlay();
+    mem = m; mem.recalls = []; mem.importance = mem.orig.importance; mem.pinned = mem.orig.pinned;
+    $('importance').value = mem.importance; lastTier = null;
+    $('scrub').min = mem.age;
+    day = mem.age;
+    drawPlot(); update(false);
+    if (jump && !reduced) card.v += 260;      // 换一条时卡片轻轻一沉再弹回
   }
 
   function recall() {
@@ -126,7 +179,7 @@
     drawPlot(); update(true);
   }
 
-  // ---------- 手势：拖卡片、点卡片、拖曲线 ----------
+  // ---------- 手势：拖卡片、点卡片、拖曲线、点曲线上的点 ----------
   let dragging = null;
   const svgY = (svg, e) => {
     const r = svg.getBoundingClientRect();
@@ -162,14 +215,31 @@
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) cardG.addEventListener(ev, release);
   cardG.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); recall(); } });
 
-  let scrubbing = null;
+  // 曲线：按下就拖时间；没拖动、又正好点在某个点旁边，就换成那条记忆
+  let press = null;
   const scrubTo = (e) => {
     const d = Math.round(((svgX(plot, e) - PLOT.x0) / (PLOT.x1 - PLOT.x0)) * F.DAYS);
-    setDay(Math.max(0, Math.min(F.DAYS, d)));
+    setDay(Math.max(mem.age, Math.min(F.DAYS, d)));
   };
-  plot.addEventListener('pointerdown', (e) => { plot.setPointerCapture(e.pointerId); scrubbing = e.pointerId; stopPlay(); scrubTo(e); });
-  plot.addEventListener('pointermove', (e) => { if (scrubbing === e.pointerId) scrubTo(e); });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) plot.addEventListener(ev, () => { scrubbing = null; });
+  plot.addEventListener('pointerdown', (e) => {
+    plot.setPointerCapture(e.pointerId); stopPlay();
+    press = { id: e.pointerId, x: svgX(plot, e), y: svgY(plot, e), moved: false };
+  });
+  plot.addEventListener('pointermove', (e) => {
+    if (!press || press.id !== e.pointerId) return;
+    if (!press.moved && Math.hypot(svgX(plot, e) - press.x, svgY(plot, e) - press.y) > 4) press.moved = true;
+    if (press.moved) scrubTo(e);
+  });
+  plot.addEventListener('pointerup', (e) => {
+    if (!press || press.id !== e.pointerId) return;
+    if (!press.moved) {
+      let best = null, bd = 9;
+      for (const p of dotPos) { const d = Math.hypot(p.x - press.x, p.y - press.y); if (d < bd) { bd = d; best = p; } }
+      if (best && best.m !== mem) select(best.m, true); else scrubTo(e);
+    }
+    press = null;
+  });
+  for (const ev of ['pointercancel', 'lostpointercapture']) plot.addEventListener(ev, () => { press = null; });
 
   function setDay(d) { day = d; update(false); }
 
@@ -177,19 +247,24 @@
   $('importance').addEventListener('input', (e) => { mem.importance = +e.target.value; drawPlot(); update(false); });
   $('recall').addEventListener('click', recall);
   $('pin').addEventListener('click', () => { mem.pinned = !mem.pinned; if (mem.pinned && !reduced) card.v -= 380; drawPlot(); update(false); });
-  $('reset').addEventListener('click', () => {
-    stopPlay(); mem.recalls = []; mem.pinned = false; mem.importance = 0.5; $('importance').value = 0.5; lastTier = null;
-    drawPlot(); setDay(0);
-  });
+  // 换一条：从库里随机抽，偏向还会往下掉的那些（不掉分的一抽一大把，看不出东西）
+  let pickSeed = 7;
+  function nextPick() {
+    const moving = library.filter((m) => m !== mem && F.stateAt(m, m.age).factor < 1);
+    const pool = moving.length && (pickSeed % 4 !== 0) ? moving : library.filter((m) => m !== mem);
+    pickSeed = (pickSeed * 1103515245 + 12345) & 0x7fffffff;
+    return pool[pickSeed % pool.length];
+  }
+  $('another').addEventListener('click', () => select(nextPick(), true));
 
-  // 让时间走：每秒 30 天，一年约 12 秒
+  // 让时间走：每秒 30 天
   let playAcc = 0;
   function stopPlay() { playing = false; $('play').textContent = '让时间走'; $('play').setAttribute('aria-pressed', false); }
-  $('play').addEventListener('click', () => {
-    if (playing) return stopPlay();
-    if (day >= F.DAYS) setDay(0);
+  function startPlay() {
+    if (day >= F.DAYS) setDay(mem.age);
     playing = true; playAcc = day; $('play').textContent = '停'; $('play').setAttribute('aria-pressed', true);
-  });
+  }
+  $('play').addEventListener('click', () => (playing ? stopPlay() : startPlay()));
 
   // ---------- 主循环 ----------
   let last = performance.now();
@@ -214,21 +289,28 @@
     requestAnimationFrame(frame);
   }
 
-  drawAxes(); drawPlot(); update(false);
-  requestAnimationFrame((t) => { last = t; frame(t); });
-  // 开场：时间自己往前走一段，让人先看到它在掉；减弱动效时直接停在第 90 天
-  if (reduced) setDay(90);
-  else { playing = true; playAcc = 0; $('play').textContent = '停'; setTimeout(() => { if (playing && day >= 85) stopPlay(); }, 3200); }
+  // 库的概况
+  const M = LIB.meta;
+  $('libnote').textContent = `点是我自己的记忆库 ${M.date} 那天随机抽的 ${M.sampled} 条（库里在用的共 ${M.active} 条），只取了数字，没有内容。绿色的今天不掉分。点一个点，上面的卡片就换成它。`;
+  $('cliffnote').textContent = `被想起后的 7 天一过，倍率会直接跌回曲线上，中间没有过渡。真实库里眼下有 ${M.recentOnly} 条正处在这 7 天里，等豁免结束，倍率中位数是 ${M.dropMedian}，跌破 0.7 的只有 ${M.dropBelow07} 条：常被想起的记忆半衰期早被拉长了，所以这一跌通常很小。为了让这类记忆看得到，抽样里它们多抽了 ${M.recentSampled} 条，图上的比例比真实库高。`;
 
-  // 测试与截图用：?day=120&recalls=30,60&imp=0.5&pin=0
+  drawAxes(); drawLibrary();
+  // 开场：挑一条还在往下掉、又被想起过的记忆，让时间自己往前走一段
+  const first = library.find((m) => m.history && m.history.count >= 2 && F.stateAt(m, m.age).why === 'reinforced' && m.age < 120) || library[0];
+  select(first, false);
+  card.x = yOf(F.stateAt(mem, day).factor);
+  requestAnimationFrame((t) => { last = t; frame(t); });
+  if (!reduced) { startPlay(); setTimeout(() => { if (playing) stopPlay(); }, 3000); }
+
+  // 测试与截图用：?pick=序号&ahead=天数&recalls=相对今天的天数,...&imp=0.5&pin=0
   const q = new URLSearchParams(location.search);
-  if (q.has('day')) {
-    stopPlay();
-    if (q.get('recalls')) mem.recalls = q.get('recalls').split(',').map(Number).sort((a, b) => a - b);
+  if (q.has('pick')) {
+    select(library[Math.max(0, Math.min(library.length - 1, +q.get('pick')))], false);
+    if (q.get('recalls')) mem.recalls = q.get('recalls').split(',').map((d) => mem.age + Number(d)).sort((a, b) => a - b);
     if (q.has('imp')) { mem.importance = +q.get('imp'); $('importance').value = mem.importance; }
-    mem.pinned = q.get('pin') === '1';
-    drawPlot(); setDay(+q.get('day'));
+    if (q.has('pin')) mem.pinned = q.get('pin') === '1';
+    drawPlot(); setDay(Math.min(F.DAYS, mem.age + (+q.get('ahead') || 0)));
     card.x = yOf(F.stateAt(mem, day).factor); card.v = 0; ledge.x = ledge.target;
   }
-  window.__fade = { mem, get day() { return day; }, card, ledge, yOf };
+  window.__fade = { get mem() { return mem; }, get day() { return day; }, library, card, ledge, yOf, select, firstIndex: first.index };
 })();
