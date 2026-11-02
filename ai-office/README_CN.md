@@ -2,7 +2,7 @@
 
 一间可以放着看的 AI 团队办公室。11 位像素伙伴会打字、等人拍板、交活、休息和出差；送信员把纸条送到“小试AI”的桌前，再留在后墙公告板上。手机竖屏优先，电脑右侧显示团队面板。人物、桌椅、沙发和动画全部用 Canvas 2D 画，没有外部图片、字体、音乐或运行依赖。
 
-本地服务读活动信号，网页只展示简要状态。没有服务时自动切换到约 340 秒循环的虚构演示，顶部明确标注“演示模式 · 模拟数据”。
+本地服务读活动信号，网页只展示简要状态。没有服务时自动切换到约 400 秒循环的虚构演示，顶部明确标注“演示模式 · 模拟数据”。
 
 ## 怎么跑
 
@@ -118,7 +118,7 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 
 页面只消费两份状态快照的 `scene`、`stats`、`events`，缺字段显示空态；字段不合法整份拒收。不会用 busy 状态猜测开会或打电话。consult 顾问通话保持原优先级。一对一派活时，对方不是 away/off 且已经人在楼里，CC 就拿文件夹走到工位旁，放下、拍肩，说「这个交给你」，对方回「收到」，再回座；全程 6–10 秒，抽屉显示「递活中」。对方不在时仍进电话亭并飞文件夹。会议会打断派活；重复轮询不重播，status/statusSince 不改。保安必须同时有信号且处于北京 23–08 点才出现，每个巡逻时间戳只绕一圈。
 
-340 秒演示：45 秒递活，50 秒开互审会，65 秒翻到第 2 轮，94 秒散会并交回，96–120 秒打给出差的 Muse，300 秒完整演一遍走到 Codex 桌旁递活，121 秒起多位伙伴进入游戏角；夜间预览 136 秒显示巡逻完成。累计数字使用固定示例，木牌和今天栏都写「演示」。`?demo=1&night=1` 预览夜班保安；默认演示从白天开始，后半段转到虚构的 23:00 送夜宵。`night=1` 不改变实时状态的时间和信号。
+400 秒演示：45 秒递活，50 秒开互审会，65 秒翻到第 2 轮，94 秒散会并交回，96–120 秒打给出差的 Muse，300 秒完整演一遍走到 Codex 桌旁递活，121 秒起多位伙伴进入游戏角；夜间预览 136 秒显示巡逻完成。累计数字使用固定示例，木牌和今天栏都写「演示」。`?demo=1&night=1` 预览夜班保安；默认演示从白天开始，后半段转到虚构的 23:00 送夜宵。`night=1` 不改变实时状态的时间和信号。
 
 | 入口 | 场景 |
 | --- | --- |
@@ -164,7 +164,7 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 | 撞额度罚站 | 带 token 的额度报告让可让出的人到墙边面壁、举像素沙漏。到期、手动清除或服务端观察到转 busy 后解除。 |
 | 深夜送夜宵 | 北京时间 23:00 至次日 03:00，服务端第一次看到 busy 名单，当夜只一次。保安端面送给这些工位，每碗冒热气十分钟。 |
 
-优先表只定义在 `office-core.js` 一处：真实工作／通话／开会 > 罚站 > 接待 > 吵架 > 请客／特产／雷达 > 吃瓜 > 游戏角。吵架属于本轮互审内部的动作，不另抢会议名额。每类同时一个演出、最多三个候场，超过两分钟未开演丢弃；罚站一旦开始按额度到期时间持续。访客时间向下取整到分钟，因此重播窗口最多提前 59 秒结束。
+优先表只定义在 `office-core.js` 一处：真实工作／通话／开会 > 罚站 > 接待 > 吵架＝安检门 > 请客／特产／雷达 > 吃瓜 > 游戏角。吵架属于本轮互审内部的动作，不另抢会议名额。每类同时一个演出、最多三个候场，超过两分钟未开演丢弃；罚站一旦开始按额度到期时间持续。访客时间向下取整到分钟，因此重播窗口最多提前 59 秒结束。
 
 `POST /api/quota` 沿用 report 的 Bearer token。只收 `{id, minutes?, clear?}`：id 必须在名单内，minutes 为 1–300 整数、默认 60，`clear:true` 解除。非法字段 400，缺失或错误 token 401，限流 429。额度状态持久化，两份快照只列未过期的 `quota: {id: untilISO}`。小命令静默、失败仍返回成功、五秒硬超时：
 
@@ -174,23 +174,54 @@ bin/office-quota codex 90
 bin/office-quota agy clear
 ```
 
-两份快照新增 `scene.snack = {id, at}`、`scene.supper = {at, ids}`（或 null）、会议 `roundAt`、`stats.snacksTotal` / `stats.today.snacks`、`stats.suppersTotal`（也保留今日夜宵次数）。「今天」按固定模板显示 argue/snack/quota/supper 事件，累计木牌不添行；新结构不带任务文字，旧快照缺字段仍可用。
+两份快照新增 `scene.snack = {id, at}`、`scene.supper = {at, ids}`（或 null）、会议 `roundAt`、`stats.snacksTotal` / `stats.today.snacks`、`stats.suppersTotal`（也保留今日夜宵次数）。「今天」按固定模板显示 argue/snack/quota/supper 事件，上述五件事不添木牌行，安检门另加拦下计数；新结构不带任务文字，旧快照缺字段仍可用。
 
-种子 7 的固定机位：`?view=melon` 18 秒、`?view=argue` 84.5 秒、`?view=quota` 93 秒、`?view=snack` 112.5 秒、`?view=supper` 154 秒；都从零真实推进，手机滚到事件位置。每轮演示延长到 340 秒：保留 20 秒送礼、34 秒来谈事；77 秒第 3 轮吵架、89 秒罚站、100 秒请客；141 秒演示时钟跳到 23:00，145 秒送夜宵。明确标注的演示信号是示例，不冒充现场采集。
+种子 7 的固定机位：`?view=melon` 18 秒、`?view=argue` 84.5 秒、`?view=quota` 93 秒、`?view=snack` 112.5 秒、`?view=supper` 154 秒；都从零真实推进，手机滚到事件位置。每轮演示延长到 400 秒：保留 20 秒送礼、34 秒来谈事；77 秒第 3 轮吵架、89 秒罚站、100 秒请客；141 秒演示时钟跳到 23:00，145 秒送夜宵。明确标注的演示信号是示例，不冒充现场采集。
 
 验证：`node --test tests/*.test.cjs`；`NODE_PATH="$(npm root -g)" node tests/events-browser.cjs`；接待与开场录屏回归另跑 `tests/reception-browser.cjs`。十张必需图为 `tools/shots/{argue,snack,melon,quota,supper}{,-landscape}.png`。实测、优先级解释及 owner 接线见 [HANDOFF-events.md](HANDOFF-events.md)。本轮未重启正式服务、改 wrapper 或发布。
 
 ## 当天手记、云上特产与选题雷达
 
-手记保留当天最多 500 行；超过时先删最早的访客行，最后才删其它事件。北京换日清空前，原子写入 `history/YYYY-MM-DD.json`，含 `day`、完整保留的 `events` 和 `stats.today`，目录 700、文件 600；写失败只记错误码，服务继续。默认放在私有 state 文件旁（正常为 `~/.config/ai-office/history`）；config 顶层 `historyDir` 可改目录。只存档，本版没有“往日”界面。小黑板按 `stats.today.meetings` 写“今天开过 N 次会”，找到最近会议才加时间；旧快照没有 stats 时仍看事件。
+手记保留当天最多 500 行；超过时先删最早的访客行，最后才删其它事件。北京换日清空前，原子写入 `history/YYYY-MM-DD.json`，含 `day`、完整保留的 `events`、`stats.today` 和只含状态的 `timeline`，目录 700、文件 600；写失败只记错误码，服务继续。默认放在私有 state 文件旁（正常为 `~/.config/ai-office/history`）；config 顶层 `historyDir` 可改目录。实时页面的“往日”标签可读最近十四份有效存档，详见下节。小黑板按 `stats.today.meetings` 写“今天开过 N 次会”，找到最近会议才加时间；旧快照没有 stats 时仍看事件。
 
 - Grok Bot 的新一次 done 改演出差归来，每三小时最多一次，同次不再请客。背大包从门口走入，给 CC 放纸（十分钟），再给有人的桌子送白粉云朵棉花糖（五分钟），回座坐五秒，再从门口离开。正常状态源仍决定它何时回到 away，动画不修改状态。
 - 豆包雷达只数当天 `YYYY-MM-DD |` 行，多处台账取较大值。config 顶层 `radarLedgers` 可覆盖，默认只读选题书架的副本 `~/Downloads/sync-bridge/选题书架/archive/ledger/radar.md`（书架每 2 小时从桌面拷一次）。不读桌面原件：launchd 下的 node 读 `~/Desktop` 不会报错，而是卡在隐私授权上，每轮采集都会多卡住一个读线程。读不到跳过；首次成功读取建立基数，增加才触发，落后的镜像不降低基数，北京换日归零。标题、链接和正文不进入状态文件或任一快照。
 - 雷达归来戴转动天线，在后墙公告板贴“今日选题 N 条”；老板走过去说“有意思”。卡片当天保留，旧信号刷新只恢复卡片，不补演；豆包回座坐五秒再离开。真实工作、罚站和接待优先；老板被递信或等待拍板占用时最多等 25 秒。其它同事的祝词都是固定文本。
 
-新字段：`scene.souvenir={at}`、`scene.radar={at,n,added}`，可为 null／缺省；统计 `souvenirsTotal`／`today.souvenirs`、`radarsTotal`／`today.radars`；事件 `souvenir {at}`、`radar {at,n,added}`。`n` 是当天累计，`added` 是这次新增；访客时间向下取整到分钟，不带任务文字。累计木牌不加行。
+新字段：`scene.souvenir={at}`、`scene.radar={at,n,added}`，可为 null／缺省；统计 `souvenirsTotal`／`today.souvenirs`、`radarsTotal`／`today.radars`；事件 `souvenir {at}`、`radar {at,n,added}`。`n` 是当天累计，`added` 是这次新增；访客时间向下取整到分钟，不带任务文字。特产与雷达不加木牌行，安检门另有拦下计数。
 
-每轮 340 秒演示在 185 秒安排特产、250 秒安排雷达（累计 13 条、新增 7 条）。`?view=souvenir` 从零推进到 200 秒；`?view=radar` 竖屏 266 秒、横屏 263 秒（走路距离不同），均在真实演出中定格。新验收：`NODE_PATH="$(npm root -g)" node tests/batch2-browser.cjs`，五张要求的图及交接见 [HANDOFF-batch2.md](HANDOFF-batch2.md)。
+每轮 400 秒演示在 185 秒安排特产、250 秒安排雷达（累计 13 条、新增 7 条）。`?view=souvenir` 从零推进到 200 秒；`?view=radar` 竖屏 266 秒、横屏 263 秒（走路距离不同），均在真实演出中定格。新验收：`NODE_PATH="$(npm root -g)" node tests/batch2-browser.cjs`，五张要求的图及交接见 [HANDOFF-batch2.md](HANDOFF-batch2.md)。
+
+## 往日回放与防翻车安检门
+
+实时本机页和 Pages 访客页的手记里有「往日」。选一天后，横幅显示日期、北京时间和 60×／240×／600× 倍速，默认 240×；可跳到下一条记录或退出。连续二十个回放分钟没有事件或状态变化，直接跳到下一条记录前一分钟。最后一条记录后一分钟停钟，让已经开始的演出走完。没有座位证据的人保持灰色问号；旧存档整天没时间线，会说明「这天只记了事件，座位状态没记」。回放期间实时快照暂存，退出立即应用最新一份；探班、来谈事和合照按钮隐藏，不发相应请求、不补欢迎或弹照片，访客心跳照常。演示、壁纸和 MV 没有入口，mini／历史接口不可达时隐藏标签。
+
+状态归约只追加 `{at,id,s}`，s 限七个状态词；每次启动第一轮和北京换日第一轮另写全员快照。一天最多 3000 条，超过后停记并标 `timelineTruncated:true`，不删旧条。当天时间线随 state 保存，不进入两份实时快照；零点连事件和 today 统计一起存档。存档不能补回部署前没记的状态。
+
+| 接口／字段 | 内容 |
+| --- | --- |
+| `GET /api/history` | `{days:[{day,events:n,timeline:n}]}`，最近十四份有效文件，新在前 |
+| `GET /api/history/YYYY-MM-DD` | `{day,events,stats:{today},timeline}`，可带 timelineTruncated |
+| `/guest/api/history…` | 同上，全部 at 向下取整到分钟；沿用 guest 限流，CORS 只放 Pages |
+| `POST /api/gate` | Bearer 认证；只收 `{id,ok}`，id 在名单里，ok 必须是布尔 |
+| `scene.gate` | `{at,id,ok,n}` 或 null，n 为本次合并拦截数 |
+| `stats`／`stats.today` | gatesBlockedTotal、gatesPassedTotal／gatesBlocked、gatesPassed |
+| `gate` 事件 | `{at,id,ok}`，固定模板写入「今天」和回放横幅 |
+
+日期必须为真实的 YYYY-MM-DD 且在列表中。超 2 MiB、非法字段、路径穿越和坏文件一律只回 404，不回原文。前后端共用严格校验；按文件 mtime 等元数据缓存解析结果（含坏文件，最多 64 份）。公网仍用 `/office/api/history…`，不改 funnel。
+
+```sh
+bin/office-gate codex fail
+bin/office-gate kimi pass
+```
+
+命令静默、失败仍返回成功、最多五秒。同 id 三十秒内额外 POST 回 200 但不入账。距该 id 上次新拦截事件不足两分钟的后续拦截，每次都增加累计与今日次数，只累加该次 n，不另起演出或新增事件行；绿灯单独计数。木牌多一行「安检门拦下 N 次」。缺这些字段的旧快照仍可用，存在但非法则整份拒收。
+
+config 顶层 `makotoAudit` 可改审计路径，默认 `~/.claude/makoto_state/audit.jsonl`，null／空字符串禁用。启动从文件末尾开始，每轮最多新增 256 KiB；半行留到下轮，超长行跳过；文件变短或换 inode，重新从新文件末尾起。沿用十秒采集超时，只取 ts、event、exit_code：三种 live 事件的 exit 2 记 CC 被拦；exit 0 不演绿灯。findings／session_id／tool_name 等原文只在解析内存里，绝不写入 state、快照、事件、历史或日志。
+
+伙伴先回自己座位拿文件夹，再走到 CC 旁的门：红灯「拦下！」／「拦下 ×n」，说「我再改改」后回座坐下；绿灯「放行」，继续把同款文件夹送到 CC 桌上再回座。门不阻挡寻路；真实工作／会议／电话／递信 > 罚站 > 接待 > 吵架＝安检门 > 请客／特产／雷达 > 吃瓜 > 游戏角。away/off/unknown 不演；不改 status/statusSince、不调用 AI。演示扩到 400 秒，旧事件时间不动，344 秒红灯、365 秒绿灯；`?view=gate` 从零真实推进至 347 秒红灯。两项都不进 MV。
+
+检查命令：`node --test tests/*.test.cjs`、`NODE_PATH="$(npm root -g)" node tests/batch3-browser.cjs`。浏览器使用临时真实服务、假 history 和禁用的审计源，不访问正式服务。逐事件演法、旧档缺口、六张截图及实测见 [HANDOFF-batch3.md](HANDOFF-batch3.md)。没有新依赖或额外发布资产；正式 wrapper 收尾、重启和发布由 owner 接手。
 
 ## 谁会点开、AI 素材
 

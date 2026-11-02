@@ -109,3 +109,13 @@ body:not(.mv):not(.wall) .treat button{min-height:44px;touch-action:manipulation
 body:not(.mv):not(.wall) .treat-row{flex-wrap:nowrap}
 body:not(.mv):not(.wall) .treat-row button{white-space:nowrap}
 #meet-menu{gap:6px}
+
+/* Replay controls stay above the scrolling room and never cover its actors. */
+.replay-banner{flex:none;width:100%;background:#fff4d5;border:1px solid #b59b72;padding:6px 9px;margin-bottom:6px;font-size:12px}
+.replay-heading,.replay-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.replay-heading label{margin-left:auto}
+#replay-clock{font:14px Menlo,monospace;font-variant-numeric:tabular-nums}
+.replay-banner button,.replay-banner select,#history-days button{min-height:44px;border:1px solid #b59b72;background:#f8f3e7;padding:5px 9px;font:inherit;color:inherit;touch-action:manipulation}
+.replay-actions{gap:8px;margin-top:4px}.replay-banner p{margin:5px 0 0;line-height:1.5}#replay-note{color:#8e6642}#replay-line:empty{display:none}
+#history-note{font-size:12px;line-height:1.8;color:#72796e}#history-days button{width:100%;text-align:left;margin:0 0 8px}#history-days small{display:block;color:#72796e;margin-top:3px}
+body.replaying #treat,body.replaying #photo{display:none!important}
+.tabs{gap:9px}.tabs button{min-width:40px}

@@ -40,7 +40,7 @@
     chat:['坐坐，喝点啥','一杯茶就好','忙里也要歇一会儿','下次再来串门']
   };
   // One ownership order. Arguments refine their own review's meeting claim; they never override another meeting.
-  const ACTIVITY_PRIORITY = Object.freeze({work:70,quota:60,reception:50,argue:40,snack:30,souvenir:30,radar:30,melon:20,games:10});
+  const ACTIVITY_PRIORITY = Object.freeze({work:70,quota:60,reception:50,argue:40,gate:40,snack:30,souvenir:30,radar:30,melon:20,games:10});
   const stableHash = value => {let h=2166136261;for(const c of value)h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;return h;};
   const home = (i,selection=false) => { const p=getLayout(selection).desks[i]; return {x:p[0],y:p[1]+27}; };
   const lookIndex = (a,legacy=false) => legacy ? a.i : a.look ?? a.i;
@@ -72,7 +72,7 @@
   const queuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:124,y:372},gameWatch];
   const portrait = {id:'portrait',W,H,desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
-    meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[0,0],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
+    gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[0,0],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
   const landscape = {...portrait,id:'landscape',W:640,H:420,desks:desks.map((p,i)=>i===10?[600,258]:p),
     podium:shift(podium,352,-394),seats:seats.map(p=>shift(p,352,-394)),standing:standing.map(p=>shift(p,352,-394)),audience:audience.map(p=>shift(p,352,-394)),
@@ -263,7 +263,8 @@
     }
     // Cosmetic performances share the existing movement and never write status/statusSince.
     sim.eventsEnabled = !legacy; sim.clockBase = Date.now(); sim.quota = {};
-    sim.eventQueues = {argue:[],snack:[],souvenir:[],radar:[],supper:[],quota:[],melon:[]}; sim.seenEvents = [];
+    sim.eventQueues = {gate:[],argue:[],snack:[],souvenir:[],radar:[],supper:[],quota:[],melon:[]}; sim.seenEvents = [];
+    sim.gate = null; sim.gateFolder = null; sim.gateHistoryCounts = {};
     sim.argue = null; sim.snack = null; sim.souvenir = null; sim.radar = null; sim.radarCard = null; sim.supper = null; sim.quotaEvent = null; sim.melon = null; sim.melonKey = null;
     sim.deskFood = {}; sim.eventBubbles = [];
     const signalNow = () => sim.clockBase + sim.time * 1000;
@@ -280,6 +281,7 @@
       const key=m?.kind==='review' && m.round!==null ? m.since+'|'+m.round : null;
       sim.lastRound=key;
       if(key && key!==old && m.slide?.rejected>=1) queueEvent('argue',key,{since:m.since,round:m.round,rejected:m.slide.rejected,members:[...m.members]},Date.parse(m.roundAt || m.since));
+      if(s.gate)receiveGate(s.gate);
       if(s.snack) queueEvent('snack',s.snack.id+'|'+Math.floor(Date.parse(s.snack.at)/60000),{id:s.snack.id},Date.parse(s.snack.at));
       if(s.souvenir) queueEvent('souvenir',Math.floor(Date.parse(s.souvenir.at)/60000),{},Date.parse(s.souvenir.at));
       if(s.radar) {
@@ -290,12 +292,57 @@
       }
       if(s.supper) queueEvent('supper',s.supper.at,{ids:[...s.supper.ids]},Date.parse(s.supper.at));
     }
+    const gateSignature=e=>e.id+'|'+e.at+'|'+e.ok;
+    function receiveGate(e,ordinal) {
+      if(!sim.eventsEnabled)return;
+      const base=gateSignature(e),key=base+'|'+(ordinal || sim.gateHistoryCounts[base] || 1);
+      if(sim.gate?.key===key)sim.gate.n=e.n || sim.gate.n;
+      for(const queued of sim.eventQueues.gate)if(queued.key===key)queued.n=e.n || queued.n;
+      queueEvent('gate',key,{id:e.id,ok:e.ok,n:e.n || 1},Date.parse(e.at));
+    }
     function receiveEventHistory(events) {
+      const counts={};
       for(const e of events) {
+        if(e.kind==='gate'){const key=gateSignature(e);counts[key]=(counts[key]||0)+1;receiveGate(e,counts[key]);}
         if(e.kind==='souvenir')queueEvent('souvenir',Math.floor(Date.parse(e.at)/60000),{},Date.parse(e.at));
         if(e.kind==='radar')queueEvent('radar',dayOf(Date.parse(e.at))+'|'+e.n,{n:e.n,added:e.added},Date.parse(e.at));
       }
+      sim.gateHistoryCounts=counts;
       for(const e of events)if(e.kind==='snack' && actor(e.ids?.[0]))queueEvent('snack',e.ids[0]+'|'+Math.floor(Date.parse(e.at)/60000),{id:e.ids[0]},Date.parse(e.at));
+    }
+    // Archive rows select the same public performance entrances; no replay-only animation.
+    function replayEvent(e) {
+      const s=JSON.parse(JSON.stringify(sim.scene)),at=e.at;
+      switch(e.kind) {
+        case 'visitor': setVisitors(e.n); sim.replayVisitorsUntil=sim.time+30; return;
+        case 'treat': treat(e.treat,at); return;
+        case 'reception': meet('chat',at); return; // old archive records no menu choice
+        case 'meeting': s.meeting={kind:e.review?'review':'huddle',since:at,members:[...e.ids],round:null,slide:null};s.call=null;break;
+        case 'meeting-end': s.meeting=null;break;
+        case 'round': if(s.meeting){s.meeting.round=e.round;s.meeting.roundAt=at;s.meeting.slide=null;}break;
+        case 'argue':
+          if(s.meeting){s.meeting.round=e.round;s.meeting.roundAt=at;setScene(s,Date.parse(at));queueEvent('argue',s.meeting.since+'|'+e.round,{since:s.meeting.since,round:e.round,rejected:e.rejected,members:[...s.meeting.members]},Date.parse(at));}return;
+        case 'handoff': s.dispatched=[...new Set([...s.dispatched,e.ids[1]])];s.call={kind:'dispatch',with:e.ids[1],since:at};break;
+        case 'return': s.dispatched=s.dispatched.filter(id=>id!==e.ids[0]);if(s.call?.with===e.ids[0])s.call=null;break;
+        case 'call': s.call={kind:'consult',since:at};break;
+        case 'call-end': s.call=null;break;
+        case 'snack': s.snack={at,id:e.ids[0]};break;
+        case 'supper': s.supper={at,ids:[...e.ids]};break;
+        case 'souvenir': s.souvenir={at};break;
+        case 'radar': s.radar={at,n:e.n,added:e.added};break;
+        case 'gate': {
+          const key=gateSignature(e);sim.gateHistoryCounts[key]=(sim.gateHistoryCounts[key]||0)+1;
+          s.gate={at,id:e.id,ok:e.ok,n:1};break;
+        }
+        case 'quota': {
+          const quota=Object.fromEntries(Object.entries(sim.quota).map(([id,t])=>[id,new Date(t).toISOString()]));
+          if(e.clear)delete quota[e.ids[0]];else quota[e.ids[0]]=new Date(Date.parse(at)+3600000).toISOString();
+          setQuota(quota,Date.parse(at));return;
+        }
+        case 'guard': s.guard={phase:'done',at,ok:e.ok};break;
+        default:return;
+      }
+      setScene(s,Date.parse(at));
     }
     function setQuota(value = {}, now) {
       if(now!==undefined)sim.clockBase=now-sim.time*1000;
@@ -307,7 +354,7 @@
       }
     }
     function pruneEvents(now = signalNow()) {
-      for(const kind of Object.keys(sim.eventQueues)) sim.eventQueues[kind]=sim.eventQueues[kind].filter(e=>e.expires>sim.time && now-e.at<120000);
+      for(const kind of Object.keys(sim.eventQueues)) sim.eventQueues[kind]=sim.eventQueues[kind].filter(e=>e.expires>sim.time && (sim.replaying || now-e.at<120000));
     }
     const wallPoint = a => ({x:28+(a.i%5)*16,y:92});
     const argumentPoint = index => ({x:podium.x-48+index*28,y:podium.y});
@@ -327,6 +374,7 @@
         const e=sim.argue,i=e.ids.indexOf(a.id);
         claims.push({kind:'argue',target:e.phase==='returning'?meetingTarget(a.id):['joining','smoke'].includes(e.phase)?cloudPoint():argumentPoint(i)});
       }
+      if(sim.gate?.id===a.id)claims.push({kind:'gate',target:gateTarget(sim.gate)});
       for(const kind of ['souvenir','radar'])if(sim[kind]?.id===a.id)claims.push({kind,target:returnTarget(kind,sim[kind])});
       if(sim.snack?.id===a.id)claims.push({kind:'snack',target:sim.snack.phase==='returning'?home(a.i):foodTarget(sim.snack.ids[sim.snack.index])});
       if(sim.melon?.ids.includes(a.id))claims.push({kind:'melon',target:melonPoint(sim.melon.ids.indexOf(a.id))});
@@ -352,7 +400,7 @@
     }
     function tickReturn(kind) {
       let e=sim[kind],a=e?actor(e.id):returner(kind);
-      if(e && (!a || work(a)||quotaClaim(a)||receptionist(a)||a.status==='off'))sim[kind]=e=null;
+      if(e && (!a || work(a)||quotaClaim(a)||receptionist(a)||sim.gate?.id===a.id||a.status==='off'))sim[kind]=e=null;
       if(e) {
         if(kind==='radar' && e.phase==='showing') {
           if(!sim.bossTarget && !sim.delivery && !sim.actors.some(a=>a.status==='waiting') && distance(sim.boss,bossRadarPoint)<1) {
@@ -385,7 +433,7 @@
       }
       if(!sim[kind] && sim.eventQueues[kind].length) {
         if(!a)sim.eventQueues[kind].shift();
-        else if(!work(a)&&!quotaClaim(a)&&!receptionist(a)&&a.status!=='off') {
+        else if(!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.gate?.id!==a.id&&a.status!=='off') {
           const next=sim.eventQueues[kind].shift();
           sim[kind]={...next,id:a.id,phase:'entering',ids:occupied(),index:0};
           if(sim.snack?.id===a.id)sim.snack=null;
@@ -397,6 +445,40 @@
       if(sim.argue && !['arriving','returning'].includes(sim.argue.phase))return {key:'argue:'+sim.argue.key,...cloudPoint()};
       if(sim.delivery?.phase==='holding')return {key:'note:'+sim.delivery.at,...handoff};
       const a=sim.actors.find(a=>a.status==='waiting');return a?{key:'waiting:'+a.id+':'+a.statusSince,...bossDesk}:null;
+    }
+    function gateTarget(e) {
+      if(['pickup','returning','sitting'].includes(e.phase))return home(actor(e.id).i);
+      if(e.phase==='delivering')return foodTarget(director().id);
+      return L.gatePoint;
+    }
+    const gateUnavailable = a => !a || ['away','off','unknown'].includes(a.status);
+    function tickGate() {
+      let e=sim.gate,a=e&&actor(e.id);
+      if(e && (gateUnavailable(a)||work(a)||quotaClaim(a)||receptionist(a)||sim.argue?.ids.includes(a.id)))sim.gate=e=null;
+      if(e && distance(a,gateTarget(e))<1) {
+        const change=phase=>{e.phase=phase;e.phaseAt=sim.time;};
+        if(e.phase==='pickup') {e.arrived ??=sim.time;if(sim.time-e.arrived>=.6)change('approaching');}
+        else if(e.phase==='approaching') {
+          change('signal');
+          if(!e.ok) {
+            const nearby=sim.actors.find(b=>b.id!==a.id&&!gateUnavailable(b)&&distance(b,L.gatePoint)<100);
+            if(nearby)sim.eventBubbles.push({id:nearby.id,text:'又被拦了',until:sim.time+3});
+          }
+        } else if(e.phase==='signal' && sim.time-e.phaseAt>=4)change(e.ok?'delivering':'returning');
+        else if(e.phase==='delivering') {
+          sim.gateFolder={id:director().id,until:sim.time+12};e.placed=true;change('returning');
+        } else if(e.phase==='returning')change('sitting');
+        else if(e.phase==='sitting' && sim.time-e.phaseAt>=2)sim.gate=null;
+      }
+      const q=sim.eventQueues.gate;
+      while(q.length && gateUnavailable(actor(q[0].id)))q.shift();
+      if(!sim.gate && q.length) {
+        a=actor(q[0].id);
+        if(!work(a)&&!quotaClaim(a)&&!receptionist(a)&&!sim.argue?.ids.includes(a.id)) {
+          sim.gate={...q.shift(),phase:'pickup',phaseAt:sim.time};
+          for(const kind of ['snack','souvenir','radar'])if(sim[kind]?.id===a.id)sim[kind]=null;
+        }
+      }
     }
     function tickEvents() {
       if(!sim.eventsEnabled)return;
@@ -430,10 +512,11 @@
           if(ids.length && ids.every(id=>!receptionist(actor(id)) && actor(id).status!=='waiting' && !(actor(id)===cc&&boothCall()))) {q.argue.shift();sim.argue={...e,ids,phase:'arriving',phaseAt:sim.time};}
         }
       }
+      tickGate();
       tickReturn('souvenir'); tickReturn('radar');
       if(sim.snack) {
         const e=sim.snack,a=actor(e.id);
-        if(!a || work(a)||quotaClaim(a)||receptionist(a)||['away','off'].includes(a.status))sim.snack=null;
+        if(!a || work(a)||quotaClaim(a)||receptionist(a)||sim.gate?.id===a.id||['away','off'].includes(a.status))sim.snack=null;
         else if(e.phase==='returning') {if(distance(a,home(a.i))<1)sim.snack=null;}
         else if(distance(a,foodTarget(e.ids[e.index]))<1) {
           const id=e.ids[e.index];if(occupied().includes(id))food('biscuit',id);
@@ -443,7 +526,7 @@
       if(!sim.snack && q.snack.length) {
         const e=q.snack[0],a=actor(e.id);
         if(!a)q.snack.shift();
-        else if(!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.souvenir?.id!==a.id&&sim.radar?.id!==a.id&&['done','idle'].includes(a.status)) {q.snack.shift();sim.snack={...e,ids:occupied(),index:0,phase:'delivering'};}
+        else if(!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.gate?.id!==a.id&&sim.souvenir?.id!==a.id&&sim.radar?.id!==a.id&&['done','idle'].includes(a.status)) {q.snack.shift();sim.snack={...e,ids:occupied(),index:0,phase:'delivering'};}
       }
       if(!sim.supper && q.supper.length) {
         const e=q.supper.shift();sim.supper={...e,ids:e.ids.filter(id=>actor(id)),index:0,phase:'delivering',borrowed:!sim.guard};
@@ -453,7 +536,7 @@
       const source=melonSource();
       if(source?.key!==sim.melonKey) {sim.melonKey=source?.key || null;if(source)queueEvent('melon',source.key,{source});}
       if(sim.melon) {
-        const e=sim.melon;e.ids=e.ids.filter(id=>{const a=actor(id);return a?.status==='idle'&&!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.snack?.id!==id&&sim.souvenir?.id!==id&&sim.radar?.id!==id;});
+        const e=sim.melon;e.ids=e.ids.filter(id=>{const a=actor(id);return a?.status==='idle'&&!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.gate?.id!==id&&sim.snack?.id!==id&&sim.souvenir?.id!==id&&sim.radar?.id!==id;});
         if(source){e.source=source;e.ended=null;}else e.ended ??= sim.time;
         if(e.ids.length<2 || e.ended!==null && sim.time-e.ended>=3)sim.melon=null;
       }
@@ -461,7 +544,7 @@
         const e=q.melon[0];
         if(!source || source.key!==e.source.key)q.melon.shift();
         else {
-          const ids=sim.actors.filter(a=>a.status==='idle'&&!isCourier(a)&&!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.snack?.id!==a.id&&sim.souvenir?.id!==a.id&&sim.radar?.id!==a.id&&a.gameSlot!=null&&distance(a,games[a.gameSlot])<1).sort((a,b)=>a.i-b.i).slice(0,3).map(a=>a.id);
+          const ids=sim.actors.filter(a=>a.status==='idle'&&!isCourier(a)&&!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.gate?.id!==a.id&&sim.snack?.id!==a.id&&sim.souvenir?.id!==a.id&&sim.radar?.id!==a.id&&a.gameSlot!=null&&distance(a,games[a.gameSlot])<1).sort((a,b)=>a.i-b.i).slice(0,3).map(a=>a.id);
           if(ids.length>=2){q.melon.shift();sim.melon={...e,ids,ended:null};}
         }
       }
@@ -478,6 +561,7 @@
     }
     function eventSpeech() {
       const result=sim.eventBubbles.filter(b=>b.until>sim.time).map(b=>({...b})),e=sim.argue;
+      if(sim.gate?.phase==='signal')result.push({id:sim.gate.id,text:sim.gate.ok?'这回过了':'我再改改'});
       if(e?.phase==='talking') {const lines=e.rejected>=3?['这条不对','你再看看第三行','证据呢','我不同意','再核一遍']:['这条不对','你再看看第三行','证据呢','我不同意'];const n=Math.min(lines.length-1,Math.floor((sim.time-e.phaseAt)*lines.length/4));result.push({id:e.ids[n%2],text:lines[n]});}
       if(e?.phase==='huff')for(const id of e.ids)result.push({id,text:'哼'});
       if(sim.melon){const n=Math.floor(sim.time/1.5),id=sim.melon.ids[n%sim.melon.ids.length];result.push({id,text:n%3===2?'':n%3?'咋了咋了':'啧啧',icon:n%3===2?'melon':null});}
@@ -648,8 +732,9 @@
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickReception(dt); tickTreats(dt); tickVisitors(dt); } }
     function relayout(selection) {
       const next=create(sim.actors.map(a=>({...a,desk:a.i})),seed,selection);
-      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
+      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','gate','gateFolder','gateHistoryCounts','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
       if(next.reception) Object.assign(next.reception.visitor,next.layout.door,{path:[],dest:null});
+      next.replaying=sim.replaying;next.replayVisitorsUntil=sim.replayVisitorsUntil;
       next.scene=JSON.parse(JSON.stringify(sim.scene));next.dispatchCall=sim.dispatchCall && {...sim.dispatchCall};next.handoffWalk=sim.handoffWalk && {...sim.handoffWalk};next.flights=[];
       for(const a of sim.actors) Object.assign(next.actors.find(b=>b.id===a.id),{status:a.status,statusSince:a.statusSince,changed:a.changed,doneArrived:a.doneArrived,gameSlot:a.gameSlot});
       next.visitors=sim.visitors.map(v=>({...v,...next.layout.door,path:[],dest:null,until:null}));
@@ -669,14 +754,47 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { layout:L,relayout,place,isCourier,handoffSpeech,boothCall,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+  }
+  function createReplay(history,roster,seed=7,selection=false) {
+    const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
+    const items=[...data.timeline.map(e=>({type:'status',at:Date.parse(e.at),e})),...data.events.map(e=>({type:'event',at:Date.parse(e.at),e}))].sort((a,b)=>a.at-b.at || (a.type===b.type?0:a.type==='status'?-1:1));
+    const end=items.length?Math.min(start+86400000-1,items.at(-1).at+60000):start;
+    let index=0,lastChange=null;
+    const replay={day:data.day,clock:items.length?Math.max(start,items[0].at-60000):start,speed:240,skips:0,events:[],line:'',noTimeline:!data.timeline.length,truncated:!!data.timelineTruncated,ended:false};
+    replay.sim=create(roster,seed,selection);replay.sim.replaying=true;
+    for(const a of replay.sim.actors){replay.sim.setStatus(a.id,'unknown',new Date(replay.clock).toISOString());a.badge='';a.workedToday=0;}
+    function apply() {
+      const sim=replay.sim;
+      while(index<items.length && items[index].at<=replay.clock) {
+        const item=items[index++];lastChange=item.at;sim.clockBase=item.at-sim.time*1000;
+        if(item.type==='status')sim.setStatus(item.e.id,item.e.s,item.e.at);
+        else {replay.events.push(item.e);replay.line=eventText(item.e,roster)||'记录了一件事';sim.replayEvent(item.e);}
+      }
+      sim.clockBase=replay.clock-sim.time*1000;sim.night=isNight(replay.clock);
+    }
+    replay.next=()=>{
+      if(index<items.length) {replay.clock=Math.max(replay.clock,items[index].at-60000);apply();}
+    };
+    replay.step=ms=>{
+      for(let left=ms;left>0;left-=20) {
+        const part=Math.min(20,left),next=items[index];
+        if(next && lastChange!==null && replay.clock-lastChange>=20*60000 && next.at-replay.clock>60000) {replay.clock=next.at-60000;replay.skips++;}
+        replay.clock=Math.min(end,replay.clock+part*replay.speed);apply();
+        replay.ended=replay.clock>=end;
+        if(replay.sim.replayVisitorsUntil<=replay.sim.time)replay.sim.setVisitors(0);
+        replay.sim.step(part);
+      }
+    };
+    apply();return replay;
   }
   const TREAT_NAMES = {milktea:'奶茶',coffee:'咖啡',cake:'蛋糕',melon:'西瓜'};
+  const validISO = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Date.parse(v) > 946684800000 && Date.parse(v) < 4102444800000 && new Date(v.slice(0,10)+'T00:00:00Z').toISOString().slice(0,10) === v.slice(0,10);
   // Structured public signals only. Missing extension fields mean an old office, not made-up zeros.
   function validateSceneFields(data) {
     const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
     const int = (v,max=1e9) => Number.isInteger(v) && v >= 0 && v <= max;
-    const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Date.parse(v) > 946684800000 && Date.parse(v) < 4102444800000 && new Date(v.slice(0,10)+'T00:00:00Z').toISOString().slice(0,10) === v.slice(0,10);
+    const iso = validISO;
     if(data.noticesToday!==undefined && !int(data.noticesToday)) throw new Error('Invalid scene state');
     const ids = new Set(data.roster.map(a => a.id)), list = v => Array.isArray(v) && v.length <= 11 && v.every(id => ids.has(id)) && new Set(v).size === v.length;
     const fail = () => { throw new Error('Invalid scene state'); };
@@ -684,7 +802,8 @@
     if(data.meets!==undefined && !(Array.isArray(data.meets) && data.meets.length<=10 && data.meets.every(m=>object(m) && Object.keys(m).length===2 && Object.hasOwn(MEET_NAMES,m.kind) && iso(m.at)))) fail();
     if(data.meetsToday!==undefined && !(object(data.meetsToday) && Object.entries(data.meetsToday).every(([k,v])=>Object.hasOwn(MEET_NAMES,k)&&int(v)))) fail();
     if (data.scene !== undefined) {
-      const s = data.scene; if (!object(s) || Object.keys(s).some(k=>!['meeting','dispatched','call','disk','guard','snack','supper','souvenir','radar'].includes(k)) || !list(s.dispatched) || s.dispatched.some(id => id === 'cc' || data.roster.find(a=>a.id===id)?.desk === 0)) fail();
+      const s = data.scene; if (!object(s) || Object.keys(s).some(k=>!['meeting','dispatched','call','disk','guard','snack','supper','souvenir','radar','gate'].includes(k)) || !list(s.dispatched) || s.dispatched.some(id => id === 'cc' || data.roster.find(a=>a.id===id)?.desk === 0)) fail();
+      if(s.gate!==undefined && s.gate!==null && !(object(s.gate) && Object.keys(s.gate).sort().join(',')==='at,id,n,ok' && ids.has(s.gate.id) && iso(s.gate.at) && typeof s.gate.ok==='boolean' && int(s.gate.n) && s.gate.n>=1))fail();
       if(s.snack!==undefined && s.snack!==null && !(object(s.snack) && Object.keys(s.snack).sort().join(',')==='at,id' && ids.has(s.snack.id) && iso(s.snack.at))) fail();
       if(s.supper!==undefined && s.supper!==null && !(object(s.supper) && Object.keys(s.supper).sort().join(',')==='at,ids' && list(s.supper.ids) && s.supper.ids.length>0 && iso(s.supper.at))) fail();
       if(s.souvenir!==undefined && s.souvenir!==null && !(object(s.souvenir) && Object.keys(s.souvenir).join(',')==='at' && iso(s.souvenir.at)))fail();
@@ -697,14 +816,16 @@
     }
     if (data.stats !== undefined) {
       const s=data.stats; if (!object(s) || typeof s.since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s.since) || !iso(s.since+'T00:00:00Z') || new Date(s.since).toISOString().slice(0,10)!==s.since || !['visitorsTotal','treatsTotal','meetingsTotal','handoffsTotal','callsTotal'].every(k=>int(s[k])) || !object(s.today) || !['visitors','treats','meetings','handoffs','calls'].every(k=>int(s.today[k]))) fail();
-      for(const k of ['snacks','suppers','souvenirs','radars'])if(s[k+'Total']!==undefined&&!int(s[k+'Total']) || s.today[k]!==undefined&&!int(s.today[k]))fail();
+      for(const k of ['snacks','suppers','souvenirs','radars','gatesBlocked','gatesPassed'])if(s[k+'Total']!==undefined&&!int(s[k+'Total']) || s.today[k]!==undefined&&!int(s.today[k]))fail();
       if((s.meetsTotal!==undefined&&!int(s.meetsTotal)) || (s.today.meets!==undefined&&!int(s.today.meets))) fail();
     }
     if (data.events !== undefined) {
-      const keys = ['at','kind','ids','round','minutes','treat','n','ok','review','rejected','clear','added'];
+      const keys = ['at','kind','ids','round','minutes','treat','n','ok','review','rejected','clear','added','id'];
       if (!Array.isArray(data.events) || data.events.length > 500) fail();
       for (const e of data.events) {
         if (!object(e) || Object.keys(e).some(k=>!keys.includes(k)) || !iso(e.at) || typeof e.kind !== 'string' || !/^[a-z-]{1,16}$/.test(e.kind) || (e.ids !== undefined && !list(e.ids)) || (e.round !== undefined && !int(e.round,10000)) || (e.minutes !== undefined && !int(e.minutes,1440)) || (e.n !== undefined && !int(e.n,100000)) || (e.treat !== undefined && !Object.hasOwn(TREAT_NAMES,e.treat)) || (e.ok !== undefined && typeof e.ok !== 'boolean') || (e.review !== undefined && typeof e.review !== 'boolean') || (e.clear !== undefined && typeof e.clear !== 'boolean') || (e.rejected!==undefined && !int(e.rejected,100000))) fail();
+        if(e.id!==undefined && !ids.has(e.id))fail();
+        if(e.kind==='gate' && (Object.keys(e).sort().join(',')!=='at,id,kind,ok' || !ids.has(e.id) || typeof e.ok!=='boolean'))fail();
         if(e.kind==='souvenir' && Object.keys(e).sort().join(',')!=='at,kind')fail();
         if(e.added!==undefined && !int(e.added,100000))fail();
         if(e.kind==='radar' && (Object.keys(e).sort().join(',')!=='added,at,kind,n' || !int(e.n,100000) || !int(e.added,100000) || e.added<1 || e.added>e.n))fail();
@@ -713,6 +834,24 @@
       }
     }
     return data;
+  }
+  const validDay = day => typeof day==='string' && /^\d{4}-\d{2}-\d{2}$/.test(day) && validISO(day+'T00:00:00Z');
+  function validateHistory(data,roster,expectedDay=data?.day) {
+    const object=v=>v!==null && typeof v==='object' && !Array.isArray(v);
+    const fail=()=>{throw new Error('Invalid history');};
+    const keys=['visitors','treats','meets','snacks','suppers','souvenirs','radars','meetings','handoffs','calls','notes','gatesBlocked','gatesPassed'];
+    if(!object(data) || Object.keys(data).some(k=>!['day','events','stats','timeline','timelineTruncated'].includes(k)) || !validDay(data.day) || data.day!==expectedDay || !Array.isArray(data.events) || !object(data.stats) || Object.keys(data.stats).join(',')!=='today' || !object(data.stats.today) || Object.entries(data.stats.today).some(([k,v])=>!keys.includes(k)||!Number.isInteger(v)||v<0||v>1e9))fail();
+    validateSceneFields({roster,events:data.events,stats:{since:data.day,visitorsTotal:0,treatsTotal:0,meetingsTotal:0,handoffsTotal:0,callsTotal:0,today:data.stats.today}});
+    const sameDay=at=>validISO(at) && new Date(Date.parse(at)+8*3600000).toISOString().slice(0,10)===data.day;
+    if(!data.events.every(e=>sameDay(e.at)))fail();
+    const ids=new Set(roster.map(a=>a.id)),timeline=data.timeline ?? [];
+    if(data.timeline===null || !Array.isArray(timeline) || timeline.length>3000 || timeline.some(e=>!object(e)||Object.keys(e).sort().join(',')!=='at,id,s'||!sameDay(e.at)||!ids.has(e.id)||!['busy','waiting','done','idle','away','off','unknown'].includes(e.s)))fail();
+    if(data.timelineTruncated!==undefined && typeof data.timelineTruncated!=='boolean')fail();
+    return {day:data.day,events:data.events.map(e=>({...e,...(e.ids?{ids:[...e.ids]}:{})})),stats:{today:{...data.stats.today}},timeline:timeline.map(({at,id,s})=>({at,id,s})),...(data.timelineTruncated!==undefined?{timelineTruncated:data.timelineTruncated}:{})};
+  }
+  function validateHistoryList(data) {
+    if(!data || Object.keys(data).join(',')!=='days' || !Array.isArray(data.days) || data.days.length>14 || data.days.some((e,i)=>!e||Object.keys(e).sort().join(',')!=='day,events,timeline'||!validDay(e.day)||!Number.isInteger(e.events)||e.events<0||e.events>500||!Number.isInteger(e.timeline)||e.timeline<0||e.timeline>3000||i>0&&data.days[i-1].day<=e.day))throw new Error('Invalid history list');
+    return data.days.map(({day,events,timeline})=>({day,events,timeline}));
   }
   function eventText(e,roster) {
     const name = id => roster.find(a=>a.id===id)?.name || '', names = (e.ids || []).map(name);
@@ -726,6 +865,7 @@
       case 'call-end': return '电话打完了';
       case 'treat': return `有人送来${['milktea','coffee'].includes(e.treat)?'一杯':e.treat==='cake'?'一块':'一份'}${TREAT_NAMES[e.treat]}`;
       case 'visitor': return `来了 ${e.n} 位客人`;
+      case 'gate': return e.ok ? `${name(e.id)} 的活过了安检门` : e.id==='cc' || name(e.id)==='CC' ? 'CC 被安检门拦下' : `${name(e.id)} 交的活在安检门被拦下，回去返工`;
       case 'souvenir': return 'Grok Bot 从云上回来，给大家带了云朵棉花糖';
       case 'radar': return `豆包雷达回来了，带回 ${e.added} 个选题`;
       case 'snack': return `${names[0]} 交了大活，请大家吃点心`;
@@ -737,7 +877,7 @@
       default: return null;
     }
   }
-  const api = { meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

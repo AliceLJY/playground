@@ -12,7 +12,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -33,7 +33,8 @@
   const beijing = n => new Date(n + 8 * 3600000);
   const formatClock = n => beijing(n).toISOString().slice(11, 16);
   let stats = null, events = [], nameplates = [], speechBoxes = [], build = '', noticesToday, boardRequested=false;
-  const now = () => mv ? mv.clock(elapsed) : demo ? wallBase + elapsed : Date.now();
+  let replay=null, latestLive=null, savedLive=null, historyAvailable=false, historyLoading=false, historyLoadedAt=-Infinity;
+  const now = () => replay ? replay.clock : mv ? mv.clock(elapsed) : demo ? wallBase + elapsed : Date.now();
   const r = (g, color, x, y, w, h) => { g.fillStyle = color; g.fillRect(Math.round(x), Math.round(y), w, h); };
   const text = (g, value, x, y, size = 8, color = '#45534b', align = 'center') => { g.fillStyle = color; g.font = `${size}px "PingFang SC",system-ui,sans-serif`; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(value, x, y); };
 
@@ -190,14 +191,16 @@
     const num = n => n == null ? '—' : compact ? count(n) : String(n);
     if (!stats) return [`来过客人 ${visitorsTotal ?? '—'} · 收到礼物 —`, '开过会 — · 递过活 —', '今天：暂无累计信号'];
     const t=stats.today;
-    return [`来过客人 ${num(stats.visitorsTotal)} · 收到礼物 ${num(stats.treatsTotal)}` + (!mv ? ` · 接待 ${num(stats.meetsTotal)} 拨` : ''), `开过会 ${num(stats.meetingsTotal)} · 递过活 ${num(stats.handoffsTotal)}` + (Number.isInteger(stats.notesTotal) && stats.notesTotal >= 0 ? ` · 纸条 ${num(stats.notesTotal)}` : ''), `今天：客人 ${num(t.visitors)} · 礼物 ${num(t.treats)} · 会 ${num(t.meetings)} · 递活 ${num(t.handoffs)}` + (!mv ? ` · 接待 ${num(t.meets)} 拨` : '')];
+    const lines = [`来过客人 ${num(stats.visitorsTotal)} · 收到礼物 ${num(stats.treatsTotal)}` + (!mv ? ` · 接待 ${num(stats.meetsTotal)} 拨` : ''), `开过会 ${num(stats.meetingsTotal)} · 递过活 ${num(stats.handoffsTotal)}` + (Number.isInteger(stats.notesTotal) && stats.notesTotal >= 0 ? ` · 纸条 ${num(stats.notesTotal)}` : ''), `今天：客人 ${num(t.visitors)} · 礼物 ${num(t.treats)} · 会 ${num(t.meetings)} · 递活 ${num(t.handoffs)}` + (!mv ? ` · 接待 ${num(t.meets)} 拨` : '')];
+    if(!mv)lines.push(`安检门拦下 ${num(stats.gatesBlockedTotal)} 次`);return lines;
   };
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
     gamesUnder();
+    if(!mv)drawGate(false);
     placed(ctx,C.totalsOffset,()=>{
     text(ctx,`办公室累计${demo?' · 演示':''}`,162,440,8,'#fff4d5');
-    const lines=boardLines(); lines.forEach((line,i)=>{ const size=i===2?7.5:8; ctx.font=`${size}px \"PingFang SC\",system-ui,sans-serif`; text(ctx,line,162,450+i*10,mv?size:Math.min(size,size*260/ctx.measureText(line).width),'#fff4d5'); });
+    const lines=boardLines(); lines.forEach((line,i)=>{ const size=i===2?7.5:8; ctx.font=`${size}px \"PingFang SC\",system-ui,sans-serif`; text(ctx,line,162,(mv?450+i*10:448+i*8),mv?size:Math.min(size,size*260/ctx.measureText(line).width),'#fff4d5'); });
     });
     placed(ctx,C.meetingOffset,()=>{
     if (m) {
@@ -230,6 +233,17 @@
       ctx.lineTo(a.x+Math.cos(angle+.35)*37,a.y-8+Math.sin(angle+.35)*37); ctx.closePath(); ctx.fill();
     }
     for(const id of s.dispatched) { const a=sim.actors.find(a=>a.id===id); if(a && !(sim.handoffWalk?.id===id && !sim.handoffWalk.placed) && !sim.flights.some(f=>f.id===id && !f.returning)) folder(C.desks[a.i][0]+17,C.desks[a.i][1]+4); }
+  }
+  function drawGate(over) {
+    const {x,y}=C.gatePoint,e=sim.gate,lit=e?.phase==='signal';
+    if(!over) {
+      r(ctx,'#496e59',x-15,y-33,30,5);r(ctx,'#739C82',x-15,y-28,4,29);r(ctx,'#739C82',x+11,y-28,4,29);
+      r(ctx,'#d5cfbf',x-10,y-31,20,2);r(ctx,lit?(e.ok?'#7ac87b':'#eb6b55'):'#72796e',x-4,y-38,8,5);
+      if(sim.gateFolder?.until>sim.time){const a=sim.actors.find(a=>a.id===sim.gateFolder.id);folder(C.desks[a.i][0]+17,C.desks[a.i][1]+4);}
+      return;
+    }
+    if(lit) {const label=e.ok?'放行':e.n>1?'拦下 ×'+e.n:'拦下！',w=Math.max(44,label.length*7+8);r(ctx,'#fff4d5',x-w/2,y-53,w,13);text(ctx,label,x,y-43,8,e.ok?'#496e59':'#b74737');speechBoxes.push({x:x-w/2,y:y-53,w,h:13});}
+    if(e && !e.placed && !['pickup','sitting'].includes(e.phase)) {const a=sim.actors.find(a=>a.id===e.id);r(ctx,'#e4bb91',a.x-7,a.y-12,14,3);folder(a.x,a.y-9);}
   }
   // The same folder, hand and words in normal, visitor, wallpaper and MV views.
   function drawHandoff() {
@@ -343,8 +357,8 @@
     }
     for(const speech of sim.eventSpeech()) {
       const a=speech.id==='boss'?sim.boss:sim.actors.find(a=>a.id===speech.id);if(!a || sim.argue?.phase==='smoke'&&sim.argue.ids.includes(a.id))continue;
-      const high=a.activity==='argue'?54:43,w=speech.icon?20:speech.text.length*8+10,x=Math.max(20,Math.min(C.W-w-20,a.x-w/2)),y=a.y-high;
-      speechBoxes.push({x,y,w,h:14});r(ctx,'#b59b72',x,y,w,14);r(ctx,'#fff6dc',x+1,y+1,w-2,12);r(ctx,'#fff6dc',a.x,y+14,3,3);
+      const high=a.activity==='argue'?54:a.activity==='gate'?32:43,w=speech.icon?20:speech.text.length*8+10,x=Math.max(20,Math.min(C.W-w-20,a.activity==='gate'?a.x+20:a.x-w/2)),y=a.y-high;
+      speechBoxes.push({x,y,w,h:14});r(ctx,'#b59b72',x,y,w,14);r(ctx,'#fff6dc',x+1,y+1,w-2,12);r(ctx,'#fff6dc',a.activity==='gate'?x+2:a.x,y+14,3,3);
       if(speech.icon)item(speech.icon,x+6,y+11);else text(ctx,speech.text,x+w/2,y+10,8,'#6a4b30');
     }
   }
@@ -352,7 +366,7 @@
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    const seated = (a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const seated = (a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     const bounce = !boss && a.status === 'done' && (mv || !a.activity) && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
@@ -367,7 +381,7 @@
     r(ctx, '#e3b58d', x - 5, y - 16, 10, 7); r(ctx, '#4b4639', x - 6, y - 21, 12, 6); r(ctx, '#544c3a', x - 6, y - 16, 2, 5);
     // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
     const hello = sim.greeting(), thanks = sim.thanksNow(), present = !boss && !a.visitor && !['away', 'off'].includes(a.status);
-    const greets = present && (mv || !['handoff-walk','handoff-receive','reception','argue','quota','melon','snack','souvenir','radar'].includes(a.activity)) && !!(hello || thanks);
+    const greets = present && (mv || !['handoff-walk','handoff-receive','reception','argue','quota','melon','snack','souvenir','radar','gate'].includes(a.activity)) && !!(hello || thanks);
     const look = a.activity==='melon' && sim.melon ? Math.sign(sim.melon.source.x-a.x) : greets ? Math.sign((hello ? hello.x : C.pantry.x) - a.x) : 0;
     r(ctx, '#273a34', x - 3 + look, y - 13, 2, 2); r(ctx, '#273a34', x + 2 + look, y - 13, 2, 2);
     const leg = moving ? Math.sin(t * 11) > 0 ? 2 : -2 : 0;
@@ -447,8 +461,10 @@
 
   // The group photo: about a second into a greeting, when every word and the visitor's reply are on screen, the
   // frame is copied into a keepsake with a caption strip, and offered as a polaroid in the corner. One per greeting.
-  let photoAt = null, photoUrl = '';
+  let photoAt = null, photoUrl = '', photoGeneration = 0;
   function takePhoto(hello) {
+    const generation = photoGeneration;
+    if (replay) return;
     const keep = document.createElement('canvas'); keep.width = canvas.width; keep.height = canvas.height + 90;
     const k = keep.getContext('2d'); k.imageSmoothingEnabled = false;
     k.fillStyle = '#f3eee2'; k.fillRect(0, 0, keep.width, keep.height); k.drawImage(canvas, 0, 0);
@@ -459,10 +475,11 @@
     k.fillStyle = '#8e6642'; k.font = '18px Menlo, monospace'; k.fillText(`${when} · ${hello.kind === 'reception' ? '洽谈合照' : hello.kind === 'pose' ? '大家都看镜头了' : '大家回头说了声你好'}`, 24, canvas.height + 70);
     k.textAlign = 'right'; k.font = '18px Georgia, "Songti SC", serif'; k.fillStyle = '#8e6642'; k.fillText('我的AI小木屋', keep.width - 24, canvas.height + 70);
     keep.toBlob(blob => {
-      if (!blob) return;
+      if (!blob || replay || generation !== photoGeneration) return;
       photoBlob = blob;
       const reader = new FileReader();
       reader.onload = () => {
+        if (replay || generation !== photoGeneration) return;
         photoUrl = String(reader.result); $('#photo-img').src = photoUrl;
         $('#photo-text').textContent = hello.kind === 'reception' ? '谈完了，留张洽谈合照' : hello.kind === 'pose' ? '来，合照拍好了' : hello.visitor && guest ? '刚才大家回头跟你打招呼，拍下来了' : '刚才大家回头打了个招呼，拍下来了';
         photoReady = true; // the card waits until the greeting is over, so it never covers the moment itself
@@ -506,6 +523,7 @@
     [...sim.actors, ...sim.visitors, ...(sim.reception ? [sim.reception.visitor] : []), ...(sim.guard ? [sim.guard] : []), { ...sim.boss, boss: true }].sort((a, b) => a.y - b.y).forEach(a => person(a, a.boss));
     {
       sceneOver();
+      if(!mv)drawGate(true);
       drawReceptionSpeech();
       if(!mv || mv.performances)drawEvents();
       ctx.font = '7px "PingFang SC",system-ui,sans-serif';
@@ -540,11 +558,11 @@
       if(reception.venue==='meeting' && reception.visitor.y>=490 && !reception.followed) {$('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;reception.followed=true;}
       if(reception.followed && (reception.venue!=='meeting' || reception.phase==='leaving' && reception.visitor.y<490) && !reception.returned) {$('#room-viewport').scrollTop=0;reception.returned=true;}
     }
-    if(reception?.local && reception.phase==='handshake' && sim.time-reception.handshakeAt>=1 && !reception.photoTaken && !mv && !wallMode) {reception.photoTaken=true;takePhoto({kind:'reception'});}
+    if(reception?.local && reception.phase==='handshake' && sim.time-reception.handshakeAt>=1 && !reception.photoTaken && !mv && !wallMode && !replay) {reception.photoTaken=true;takePhoto({kind:'reception'});}
     const hello = sim.greeting();
     if (hello) greeted = true;
-    if (hello && !sim.reception && !mv && !wallMode && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
-    if (!hello && photoReady && sim.reception?.phase!=='handshake') { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
+    if (hello && !sim.reception && !mv && !wallMode && !replay && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
+    if (!replay && !hello && photoReady && sim.reception?.phase!=='handshake') { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
   }
@@ -589,6 +607,7 @@
     }
   }
   function updateUI() {
+    if(replay)updateReplayUI();
     $('#clock').textContent = formatClock(now()); $('#lighting').textContent = { day: '窗边有光', dusk: '留一盏暖灯', night: '深夜值班室' }[light];
     const waiting = sim.actors.filter(a => a.status === 'waiting').length, busy = sim.actors.filter(a => a.status === 'busy').length;
     $('#room-caption').textContent = waiting ? `${waiting} 位伙伴，有事等你拍板` : busy ? '键盘声里，点子正在长大' : '这一刻，办公室很安静';
@@ -615,7 +634,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
@@ -630,7 +649,7 @@
     if ($('#events').dataset.key !== timelineKey) {
       $('#events').dataset.key=timelineKey; $('#events').replaceChildren();
       for(const e of [...events].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))) {
-        const words=C.eventText(e,currentRoster); if(!words) continue;
+        const words=C.eventText(e,currentRoster) || '记录了一件事';
         const li=document.createElement('li'), time=document.createElement('time'), body=document.createElement('span');
         time.dateTime=e.at; time.textContent=formatClock(Date.parse(e.at)); body.textContent=words; li.append(time,body); $('#events').append(li);
       }
@@ -647,6 +666,7 @@
     }
   }
   function modeBanner() {
+    $('#history-tab').hidden=demo || wallMode || mvMode || !historyAvailable;
     const key = `${demo}:${guest}:${view}`; if (key === modeKey) return; modeKey = key;
     $('#mode-text').textContent = demo ? `演示模式 · 模拟数据${view && view !== 'hero' ? ' · 场景预览' : ''}` : guest ? '实时状态 · 访客视角' : '本机状态 · 每 10 秒更新';
     $('#mode').classList.toggle('live', !demo);
@@ -654,6 +674,7 @@
     if (guest && !demo && !$('#board').hidden) $('#today-tab').click();
   }
   function resetDemo() {
+    historyAvailable=false;
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
     wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : '2026-11-01T02:00:00Z');
     currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv || mv.performances;
@@ -666,7 +687,7 @@
   function demoScene(value) {
     const s={...C.emptyScene(),...value};
     if(s.meeting) s.meeting={...s.meeting,since:sim.scene.meeting?.since || new Date(now()).toISOString(),roundAt:sim.scene.meeting?.round===s.meeting.round ? sim.scene.meeting.roundAt : new Date(now()).toISOString()};
-    for(const kind of ['souvenir','radar'])if(s[kind])s[kind]={...s[kind],at:s[kind].at || new Date(now()).toISOString()};
+    for(const kind of ['souvenir','radar','gate'])if(s[kind])s[kind]={...s[kind],at:s[kind].at || new Date(now()).toISOString()};
     if(s.snack)s.snack={...s.snack,at:s.snack.at || new Date(now()).toISOString()};
     if(s.supper)s.supper={...s.supper,at:s.supper.at || new Date(now()).toISOString()};
     if(s.call) s.call={...s.call,since:s.call.since || new Date(now()).toISOString()};
@@ -675,6 +696,7 @@
   }
   function advance(ms) {
     if (!sim) return;
+    if(replay){replay.step(ms);events=replay.events;elapsed+=ms;return;}
     // Hidden tabs freeze simulation time; wall-clock expiry still applies when their queue resumes.
     if(!demo && !mv) {sim.meetQueue=sim.meetQueue.filter(m=>Date.now()-Date.parse(m.at)<120000);sim.clockBase=Date.now()-sim.time*1000;sim.pruneEvents(Date.now());}
     for (let left = ms; left > 0; left -= 20) {
@@ -696,7 +718,7 @@
           else if (e.id) sim.setStatus(e.id, e.status, at);
           if(e.quota)sim.setQuota(Object.fromEntries(Object.entries(e.quota).map(([id,min])=>[id,new Date(now()+min*60000).toISOString()])),now());
           if(e.scene) sim.setScene(demoScene({...sim.scene,...e.scene}),now());
-          for(const event of e.log || []) if(event.kind !== 'guard' || C.isNight(now())) {events.push({...event,at});if(stats && ['snack','supper','souvenir','radar'].includes(event.kind)){const k=event.kind+'s';stats[k+'Total']++;stats.today[k]++;}}
+          for(const event of e.log || []) if(event.kind !== 'guard' || C.isNight(now())) {events.push({...event,at});if(stats && event.kind==='gate'){const k=event.ok?'gatesPassed':'gatesBlocked',n=event.ok?1:(e.scene?.gate?.n || 1);stats[k+'Total']+=n;stats.today[k]+=n;}if(stats && ['snack','supper','souvenir','radar'].includes(event.kind)){const k=event.kind+'s';stats[k+'Total']++;stats.today[k]++;}}
           events=events.slice(-500);
         }
       }
@@ -731,6 +753,7 @@
     while(seenMeets.size>128)seenMeets.delete(seenMeets.values().next().value);
   }
   async function sendMeet(kind) {
+    if(replay)return;
     const note=$('#meet-note'),buttons=[...document.querySelectorAll('#meet-menu button')];
     $('#meet-menu').hidden=true;$('#meet-toggle').setAttribute('aria-expanded',false);
     if(demo) {const at=new Date(now()).toISOString();sim.meet(kind,at,true);note.textContent='演示接待 · 只在这页播放';return;}
@@ -740,12 +763,13 @@
       const response=await fetch(target,{method:'POST',mode:'cors',cache:'no-store',headers:{'content-type':'application/json'},body:JSON.stringify({kind,v:visitorTag}),signal:AbortSignal.timeout(6000)});
       if(response.status===429)note.textContent='刚谈过，5 分钟后再来';
       else if(!response.ok)throw new Error(String(response.status));
-      else {const {at}=await response.json();C.validateSceneFields({roster:currentRoster,meets:[{kind,at}]});localMeets.add(at);while(localMeets.size>128)localMeets.delete(localMeets.values().next().value);receiveMeets([{kind,at}]);note.textContent='来意收到了，等空闲的伙伴接待';}
+      else {const {at}=await response.json();C.validateSceneFields({roster:currentRoster,meets:[{kind,at}]});localMeets.add(at);while(localMeets.size>128)localMeets.delete(localMeets.values().next().value);if(!replay)receiveMeets([{kind,at}]);note.textContent='来意收到了，等空闲的伙伴接待';}
     } catch {note.textContent='没约上，办公室这会儿没接上';}
     finally {pendingMeet=null;buttons.forEach(b=>b.disabled=false);}
   }
   // Treats sent from this page: the office answers with the time it was filed, which marks it as already shown here.
   async function sendTreat(kind) {
+    if(replay)return;
     const target = guest ? guestApi.replace(/api\/state$/, 'treat') : new URL('guest/treat', location.href);
     const note = $('#treat-note'), buttons = [...document.querySelectorAll('#treat-menu button')];
     buttons.forEach(b => { b.disabled = true; });
@@ -753,7 +777,7 @@
       const r = await fetch(target, { method: 'POST', mode: 'cors', cache: 'no-store', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, v: visitorTag }), signal: AbortSignal.timeout(6000) });
       if (r.status === 429) { note.textContent = '一分钟送一次就够啦，他们还没喝完'; }
       else if (!r.ok) throw new Error(String(r.status));
-      else { const { at } = await r.json(); seenTreats.add(at); sim.treat(kind, at); note.textContent = `${TREAT_NAMES[kind]}送出去了，看他们走过去`; }
+      else { const { at } = await r.json(); seenTreats.add(at); if(!replay)sim.treat(kind, at); note.textContent = `${TREAT_NAMES[kind]}送出去了，看他们走过去`; }
     } catch { note.textContent = demo ? '演示模式里送不出去，等办公室醒着再来' : '没送到，办公室这会儿没接上'; }
     $('#treat-menu').hidden = true; $('#treat-toggle').setAttribute('aria-expanded', false);
     setTimeout(() => { buttons.forEach(b => { b.disabled = false; }); note.textContent = ''; }, 60_000);
@@ -761,10 +785,10 @@
   // A page that got no greeting (its visitor tag was already known: a reload within 45 s) still gets a welcome;
   // and anyone can ask for a photo at any time, the team turns to the camera.
   let greeted = false, welcomeTimer = null;
-  $('#pose').addEventListener('click', () => { if (!sim) return; sim.wave('pose'); $('#pose').disabled = true; setTimeout(() => { $('#pose').disabled = false; }, 5000); });
-  $('#meet-toggle').addEventListener('click',()=>{const menu=$('#meet-menu');menu.hidden=!menu.hidden;$('#meet-toggle').setAttribute('aria-expanded',!menu.hidden);$('#treat-menu').hidden=true;$('#treat-toggle').setAttribute('aria-expanded',false);});
+  $('#pose').addEventListener('click', () => { if (!sim || replay) return; sim.wave('pose'); $('#pose').disabled = true; setTimeout(() => { $('#pose').disabled = false; }, 5000); });
+  $('#meet-toggle').addEventListener('click',()=>{if(replay)return;const menu=$('#meet-menu');menu.hidden=!menu.hidden;$('#meet-toggle').setAttribute('aria-expanded',!menu.hidden);$('#treat-menu').hidden=true;$('#treat-toggle').setAttribute('aria-expanded',false);});
   document.querySelectorAll('#meet-menu button').forEach(b=>b.addEventListener('click',()=>sendMeet(b.dataset.kind)));
-  $('#treat-toggle').addEventListener('click', () => { $('#meet-menu').hidden=true;$('#meet-toggle').setAttribute('aria-expanded',false); const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
+  $('#treat-toggle').addEventListener('click', () => { if(replay)return;$('#meet-menu').hidden=true;$('#meet-toggle').setAttribute('aria-expanded',false); const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
   document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
   try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
   if (!/^[a-f0-9]{16}$/.test(visitorTag)) {
@@ -797,6 +821,14 @@
       // A page left open for days (the wallpaper) reloads itself when the office's own files change.
       if (!guest && typeof data.build === 'string') { if (!build) build = data.build; else if (data.build !== build) { location.reload(); return; } }
       misses = 0;
+      latestLive=data;sayHello();
+      if(replay)return;
+      applyLive(data);
+      if(!wallMode && !mvMode && Date.now()-historyLoadedAt>60000)void loadHistory();
+    } catch { if(++misses>=3){historyAvailable=false;modeBanner();}if(!replay && (!sim || (!demo && misses>=3)))resetDemo(); }
+    draw();
+  }
+  function applyLive(data,restoring=false) {
       if (demo || !sim || rosterIdentity(currentRoster) !== rosterIdentity(data.roster)) {
         demo = false; elapsed = 0; wallBase = Date.now(); currentRoster = data.roster; sim = C.create(currentRoster, seed, C.id); seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
         sim.notices = data.notices; buildRoster(); light = ''; lastUI = -10;
@@ -805,23 +837,69 @@
       }
       for (const a of data.roster) { sim.setStatus(a.id, a.status, a.statusSince); Object.assign(sim.actors.find(x => x.id === a.id), { badge: a.badge || '', awayLabel: a.awayLabel || '', workedToday: a.workedToday || 0 }); }
       sim.clockBase=Date.now()-sim.time*1000;sim.receiveEventHistory(data.events || []);sim.setScene(data.scene,Date.now()); sim.setQuota(data.quota || {},Date.now()); noticesToday=data.noticesToday; stats=data.stats ?? null; events=data.events || [];
-      sim.setVisitors(data.visitors || 0); visitorsTotal = data.stats?.visitorsTotal ?? data.visitorsTotal ?? null; sayHello();
-      if (!welcomeTimer && !wallMode) welcomeTimer = setTimeout(() => { if (sim && !demo && !greeted && !sim.greeting() && !sim.thanksNow()) sim.wave('welcome'); }, 12_000);
+      sim.setVisitors(data.visitors || 0); visitorsTotal = data.stats?.visitorsTotal ?? data.visitorsTotal ?? null;
+      if (!restoring && !welcomeTimer && !wallMode) welcomeTimer = setTimeout(() => { if (sim && !demo && !replay && !greeted && !sim.greeting() && !sim.thanksNow()) sim.wave('welcome'); }, 12_000);
       treatsToday = data.treatsToday || {};
       if(!pendingMeet)receiveMeets(data.meets || []); // defer during POST, so its poll cannot steal local photo ownership
       for (const t of data.treats || []) { if (!seenTreats.has(t.at)) { seenTreats.add(t.at); if (Date.now() - Date.parse(t.at) < 60_000) sim.treat(t.kind, t.at); } }
       for (const n of data.notices) { const key = `${n.at}|${n.text}`; if (!seen.has(key)) { seen.add(key); sim.deliveries.push(n); } }
       sim.notices = data.notices; seen = new Set(data.notices.map(n => `${n.at}|${n.text}`));
       modeBanner();
-    } catch { if (!sim || (!demo && ++misses >= 3)) resetDemo(); }
-    draw();
   }
+  const historyURL = day => (guest ? guestApi.replace(/api\/state$/,'api/history') : new URL('api/history',location.href).href)+(day?'/'+day:'');
+  async function loadHistory() {
+    if(demo || wallMode || mvMode || historyLoading)return;
+    historyLoading=true;historyLoadedAt=Date.now();
+    try {
+      const response=await fetch(historyURL(),{mode:'cors',cache:'no-store',signal:AbortSignal.timeout(6000)});
+      if(!response.ok)throw new Error('Unavailable');
+      const days=C.validateHistoryList(await response.json());
+      historyAvailable=true;$('#history-days').replaceChildren();
+      $('#history-note').textContent=days.length?'选一天，看看那天发生了什么':'还没有往日存档，每天零点存一份';
+      for(const d of days) {
+        const li=document.createElement('li'),button=document.createElement('button'),small=document.createElement('small');
+        button.type='button';button.dataset.day=d.day;button.textContent=d.day;small.textContent=`${d.events} 件事 · ${d.timeline} 条座位记录`;
+        button.append(small);button.addEventListener('click',()=>openReplay(d.day));li.append(button);$('#history-days').append(li);
+      }
+    } catch {historyAvailable=false;} finally {historyLoading=false;modeBanner();}
+  }
+  async function openReplay(day) {
+    if(demo || wallMode || mvMode || !latestLive)return;
+    try {
+      const response=await fetch(historyURL(day),{mode:'cors',cache:'no-store',signal:AbortSignal.timeout(6000)});
+      if(!response.ok)throw new Error('Unavailable');
+      const data=C.validateHistory(await response.json(),latestLive.roster,day);
+      if(!replay)savedLive={sim,currentRoster,elapsed};
+      replay=C.createReplay(data,latestLive.roster,seed,C.id);sim=replay.sim;currentRoster=latestLive.roster;
+      stats={since:day,today:{...data.stats.today}};events=[];treatsToday={};visitorsTotal=null;noticesToday=undefined;
+      clearTimeout(welcomeTimer);welcomeTimer=null;photoGeneration++;photoReady=false;$('#photo').hidden=true;$('#treat-menu').hidden=true;$('#meet-menu').hidden=true;
+      document.body.classList.add('replaying');$('#replay-banner').hidden=false;$('#replay-speed').value='240';
+      $('#drawer').classList.remove('expanded');$('#drawer-toggle').setAttribute('aria-expanded','false');$('#room-viewport').scrollTop=0;
+      buildRoster();light='';lastUI=-10;updateReplayUI();draw();fitRoom();
+    } catch {$('#history-note').textContent='这份存档暂时读不到，请换一天';}
+  }
+  function updateReplayUI() {
+    $('#replay-next').disabled=replay.ended;
+    $('#replay-title').textContent='回放 · '+replay.day.slice(5);$('#replay-clock').textContent=formatClock(replay.clock);
+    $('#replay-note').hidden=!replay.noTimeline && !replay.truncated;
+    $('#replay-note').textContent=replay.noTimeline?'这天只记了事件，座位状态没记':replay.truncated?'这天座位记录达到上限，后段记录不完整':'';
+    $('#replay-line').textContent=replay.line?(formatClock(Date.parse(replay.events.at(-1).at))+' '+replay.line):'';
+  }
+  $('#replay-speed').addEventListener('change',()=>{if(replay)replay.speed=Number($('#replay-speed').value);});
+  $('#replay-next').addEventListener('click',()=>{if(replay){replay.next();updateReplayUI();draw();}});
+  $('#replay-exit').addEventListener('click',()=>{
+    if(!replay)return;
+    sim=savedLive.sim;currentRoster=savedLive.currentRoster;elapsed=savedLive.elapsed;
+    if(sim.layout.id!==C.id)sim=sim.relayout(C.id);
+    replay=null;savedLive=null;document.body.classList.remove('replaying');$('#replay-banner').hidden=true;light='';lastUI=-10;
+    if(latestLive)applyLive(latestLive,true);buildRoster();draw();fitRoom();
+  });
   $('#drawer-toggle').addEventListener('click', () => {
     const expanded = $('#drawer').classList.toggle('expanded'); $('#drawer-toggle').setAttribute('aria-expanded', expanded);
   });
-  for (const tab of ['team','board','today']) {
+  for (const tab of ['team','board','today','history']) {
     $(`#${tab}-tab`).addEventListener('click', () => {
-      for(const [key,panel] of [['team','roster'],['board','board'],['today','today']]) {
+      for(const [key,panel] of [['team','roster'],['board','board'],['today','today'],['history','history']]) {
         $(`#${key}-tab`).classList.toggle('active',key===tab); $(`#${key}-tab`).setAttribute('aria-pressed',key===tab); $(`#${panel}`).hidden=key!==tab;
       }
       $('#drawer').classList.add('expanded'); $('#drawer-toggle').setAttribute('aria-expanded',true);
@@ -846,7 +924,7 @@
   }
   landscapeQuery.addEventListener('change',()=>{
     const key=layoutKey(); if(C.id===key)return;
-    C=withLayout(key); if(sim)sim=sim.relayout(key);
+    C=withLayout(key); if(sim)sim=sim.relayout(key);if(replay)replay.sim=sim;
     canvas.width=backdrop.width=C.W*2; canvas.height=backdrop.height=C.H*2;
     light=''; lastUI=-10; layoutUI(); if(sim)draw();
   });
@@ -854,7 +932,7 @@
   layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
@@ -866,7 +944,7 @@
     } else script = await (await fetch('demo-script.json')).json();
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
-    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
+    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
     ready = true; draw();
@@ -874,7 +952,7 @@
     if(C.id==='portrait' && !wallMode && ['snack','melon','supper'].includes(view)) {const a=view==='supper'?sim.guard:sim.actors.find(a=>a.id===(view==='snack'?sim.snack?.id:view==='souvenir'?sim.souvenir?.id:sim.melon?.ids[0]));if(a)$('#room-viewport').scrollTop=Math.max(0,(a.y-130)*canvas.getBoundingClientRect().width/C.W);}
     if(view==='games' && C.id==='portrait') $('#room-viewport').scrollTop=Math.max(0,356*canvas.getBoundingClientRect().width/C.W-$('#room-viewport').clientHeight);
     if (C.id!=='landscape' && ['meeting','booth','board','night-guard','reception','argue'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
-    setInterval(() => { if (!forced && !paused) loadLive(); }, 10000);
+    setInterval(() => { if (!forced && (!paused || replay)) loadLive(); }, 10000);
     function frame(ts) {
       // One bad frame must not end the render loop: the next frame is always scheduled.
       try {

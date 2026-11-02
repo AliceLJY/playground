@@ -6,7 +6,7 @@ import { mkdirSync, chmodSync, writeFileSync, renameSync, rmSync } from 'node:fs
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { MINUTE, iso, beijingDay, validTime } from './core.mjs';
+import { MINUTE, STATUSES, iso, beijingDay, validTime } from './core.mjs';
 import { expand } from './collectors.mjs';
 const exec = promisify(execFile);
 
@@ -139,10 +139,10 @@ export async function collectScene(options = {}, now = Date.now()) {
 const EVENT_CAP = 500, REVIEW_TTL = 90 * MINUTE, CALL_TTL = 60 * MINUTE, ASK_GAP = 10 * MINUTE, RING_MS = 30_000;
 
 export function emptyScene(now) {
-  return { dispatched: [], huddle: null, review: null, call: null, diskPct: null, guard: null, windows: {}, stats: freshStats(now), events: [] };
+  return { dispatched: [], huddle: null, review: null, call: null, diskPct: null, guard: null, windows: {}, stats: freshStats(now), events: [], timeline: [], timelineNeedsSnapshot: true, gate: null };
 }
 export function freshStats(now) {
-  return { since: beijingDay(now), visitorsTotal: 0, treatsTotal: 0, meetsTotal: 0, snacksTotal: 0, suppersTotal: 0, souvenirsTotal: 0, radarsTotal: 0, meetingsTotal: 0, handoffsTotal: 0, callsTotal: 0, day: beijingDay(now), today: { visitors: 0, treats: 0, meets: 0, snacks: 0, suppers: 0, souvenirs: 0, radars: 0, meetings: 0, handoffs: 0, calls: 0 } };
+  return { since: beijingDay(now), visitorsTotal: 0, treatsTotal: 0, meetsTotal: 0, snacksTotal: 0, suppersTotal: 0, souvenirsTotal: 0, radarsTotal: 0, gatesBlockedTotal: 0, gatesPassedTotal: 0, meetingsTotal: 0, handoffsTotal: 0, callsTotal: 0, day: beijingDay(now), today: { visitors: 0, treats: 0, meets: 0, snacks: 0, suppers: 0, souvenirs: 0, radars: 0, gatesBlocked: 0, gatesPassed: 0, meetings: 0, handoffs: 0, calls: 0 } };
 }
 
 // A private, non-JSON hook survives reducer spreads but is never persisted or projected.
@@ -154,7 +154,7 @@ export function configureHistory(scene, directory, log = msg => console.error(ms
     try {
       mkdirSync(expand(directory), { recursive: true, mode: 0o700 });
       chmodSync(expand(directory), 0o700);
-      writeFileSync(tmp, JSON.stringify({ day: old.stats.day, events: old.events, stats: { today: old.stats.today } }), { mode: 0o600 });
+      writeFileSync(tmp, JSON.stringify({ day: old.stats.day, events: old.events, stats: { today: old.stats.today }, timeline: old.timeline || [], ...(old.timelineTruncated ? { timelineTruncated: true } : {}) }), { mode: 0o600 });
       chmodSync(tmp, 0o600);
       renameSync(tmp, tmp.slice(0, -4));
     } catch (e) {
@@ -177,6 +177,8 @@ function rollDay(scene, now) {
   if (scene.stats.day !== day) {
     scene[HISTORY]?.(scene);
     scene.stats.day = day; scene.stats.today = freshStats(now).today;
+    scene.timeline = []; delete scene.timelineTruncated; scene.timelineLast = {}; scene.timelineNeedsSnapshot = true;
+    scene.gate = null; scene.gateBlocked = {};
     scene.radar = null; scene.radarSeen = { day, n: 0 };
   }
   scene.events = scene.events.filter(e => beijingDay(Date.parse(e.at)) === day);
@@ -204,6 +206,35 @@ export function noteTreat(scene, kind, now) { count(scene, 'treats', now); addEv
 
 export function noteQuota(scene, id, clear, now) { addEvent(scene, { kind: 'quota', ids: [id], clear }, now); }
 
+// Only the seven status words are retained, never member text or collector details.
+export function recordTimeline(scene, members, now) {
+  rollDay(scene, now);
+  const last = { ...(scene.timelineLast || {}) }, full = scene.timelineNeedsSnapshot !== false;
+  const timeline = [...(scene.timeline || [])];
+  for (const [id, member] of Object.entries(members)) {
+    const s = STATUSES.includes(member.status) ? member.status : 'unknown';
+    if (full || last[id] !== s) {
+      if (timeline.length < 3000) timeline.push({ at: iso(now), id, s });
+      else scene.timelineTruncated = true;
+    }
+    last[id] = s;
+  }
+  scene.timeline = timeline; scene.timelineLast = last; scene.timelineNeedsSnapshot = false;
+}
+export function noteGate(scene, id, ok, now) {
+  count(scene, ok ? 'gatesPassed' : 'gatesBlocked', now);
+  scene.gateBlocked ||= {};
+  const previous = scene.gateBlocked[id];
+  if (!ok && previous && now >= Date.parse(previous.at) && now - Date.parse(previous.at) < 2 * MINUTE) {
+    previous.n++;
+    if (scene.gate?.id === id && scene.gate.at === previous.at && !scene.gate.ok) scene.gate.n = previous.n;
+    return; // One performance/event; totals still count every accepted block.
+  }
+  scene.gate = { at: iso(now), id, ok, n: 1 };
+  if (!ok) scene.gateBlocked[id] = { at: iso(now), n: 1 };
+  addEvent(scene, { kind: 'gate', id, ok }, now);
+}
+
 const meetingMembers = (scene) => ['cc', ...(scene.dispatched || [])];
 
 function startMeeting(scene, now, review) {
@@ -221,6 +252,7 @@ function endMeeting(scene, since, now) {
 export function reduceScene(prev, signal, now) {
   const scene = { ...emptyScene(now), ...prev, windows: { ...(prev?.windows || {}) }, stats: { ...freshStats(now), ...prev?.stats, today: { ...freshStats(now).today, ...prev?.stats?.today } }, events: [...(prev?.events || [])] };
   rollDay(scene, now);
+  if (signal.members) recordTimeline(scene, signal.members, now);
   if (Number.isInteger(signal.radarCount) && signal.radarCount >= 0 && signal.radarCount <= 100000) {
     const n = signal.radarCount, day = beijingDay(now), seen = scene.radarSeen;
     if (!signal.radarBaseline && seen?.day === day && n > seen.n) {
@@ -343,12 +375,13 @@ export function sceneView(scene, rosterIds, now) {
   const day = beijingDay(now), today = scene.stats.day === day ? scene.stats.today : freshStats(now).today;
   return {
     scene: { meeting, dispatched: ids(scene.dispatched), call: scene.call ? { since: minute(scene.call.since), kind: 'consult' } : scene.ring && now - scene.ring.since < RING_MS ? { since: minute(scene.ring.since), kind: 'dispatch', with: ids([scene.ring.with])[0] || null } : null, disk: Number.isInteger(scene.diskPct) ? { usedPct: scene.diskPct } : null, guard: scene.guard ? { phase: scene.guard.phase, at: minute(scene.guard.at), ok: scene.guard.ok } : null,
+      gate: scene.gate && rosterIds.has(scene.gate.id) ? { at: scene.gate.at, id: scene.gate.id, ok: scene.gate.ok, n: scene.gate.n } : null,
       snack: scene.snack && rosterIds.has(scene.snack.id) ? { id: scene.snack.id, at: scene.snack.at } : null,
       supper: scene.supper && ids(scene.supper.ids).length ? { at: scene.supper.at, ids: ids(scene.supper.ids) } : null,
       souvenir: scene.souvenir && rosterIds.has('grok') ? { at: scene.souvenir.at } : null,
       radar: scene.radar && rosterIds.has('doubao') && beijingDay(Date.parse(scene.radar.at)) === day ? { at: scene.radar.at, n: scene.radar.n, added: scene.radar.added } : null },
-    stats: { since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetsTotal: scene.stats.meetsTotal, snacksTotal: scene.stats.snacksTotal ?? 0, suppersTotal: scene.stats.suppersTotal ?? 0, souvenirsTotal: scene.stats.souvenirsTotal ?? 0, radarsTotal: scene.stats.radarsTotal ?? 0, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
-    events: scene.events.filter(e => beijingDay(Date.parse(e.at)) === day).map(e => ({ ...e, at: minute(Date.parse(e.at)), ...(e.ids ? { ids: ids(e.ids) } : {}) }))
+    stats: { gatesBlockedTotal: scene.stats.gatesBlockedTotal ?? 0, gatesPassedTotal: scene.stats.gatesPassedTotal ?? 0, since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetsTotal: scene.stats.meetsTotal, snacksTotal: scene.stats.snacksTotal ?? 0, suppersTotal: scene.stats.suppersTotal ?? 0, souvenirsTotal: scene.stats.souvenirsTotal ?? 0, radarsTotal: scene.stats.radarsTotal ?? 0, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
+    events: scene.events.filter(e => beijingDay(Date.parse(e.at)) === day).map(e => ({ ...e, at: e.kind === 'gate' ? e.at : minute(Date.parse(e.at)), ...(e.ids ? { ids: ids(e.ids) } : {}) }))
   };
 }
 
