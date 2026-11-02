@@ -3,6 +3,7 @@ main = "index.js"
 compatibility_date = "2026-10-01"
 # 国内连不上 workers.dev，另挂自己的域名（aliceljy.xyz 已托管在同一个 Cloudflare 账号）；部署时 wrangler 自动加解析记录
 routes = [{ pattern = "tea.aliceljy.xyz", custom_domain = true }]
+workers_dev = false
 
 # KV 那一段由 deploy.sh 第一次部署时建好 KV 后追加（wrangler 不认空 id，不能先占位）
 
