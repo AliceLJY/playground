@@ -15,3 +15,4 @@ floorplan-walk/dist/
 
 # 茶楼跨用户痕迹：部署脚本写下的地址
 datai-teahouse/worker/.deployed-url
+datai-teahouse/worker/.wrangler/
