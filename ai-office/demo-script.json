@@ -350,7 +350,10 @@
       "treats": 3,
       "meetings": 2,
       "handoffs": 7,
-      "calls": 1
-    }
-  }
+      "calls": 1,
+      "meets": 2
+    },
+    "meetsTotal": 8
+  },
+  "receptionAt": 34
 }

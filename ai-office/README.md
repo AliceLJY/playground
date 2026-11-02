@@ -106,7 +106,7 @@ There is no build step. Publish only `index.html`, `office-core.js`, `office.js`
 
 ## Guest view (one URL for everyone)
 
-The published page first tries the same-origin `api/state`, then `https://mac-mini.tail791fb9.ts.net:8443/office/api/state` (a tailscale funnel maps only the `/office` path onto the server's `/guest` subtree), and plays the demo only if both are unreachable. Guests see the same desks and statuses, with no notice text and no badge text; the write endpoints are not reachable from the public side (404). The banner says which of the three it is showing.
+The published page first tries the same-origin `api/state`, then `https://mac-mini.tail791fb9.ts.net:8443/office/api/state` (a tailscale funnel maps only the `/office` path onto the server's `/guest` subtree), and plays the demo only if both are unreachable. Guests see the same desks and statuses, with no notice text and no badge text; private control endpoints are not reachable from the public side (404); the bounded guest visit, treat and reception routes are public. The banner says which of the three it is showing.
 
 ## Downstairs annex and Today (phase 2 frontend)
 
@@ -144,6 +144,16 @@ Fixed seed 7 views (same simulation and rendering path):
 Record with `NODE_PATH="$(npm root -g)" node tools/mv-record.cjs OUT --speed 1.2 --endcard OUT/endcard`: 67 seconds of office plus the unchanged 5.6-second v4 endcard, 1080×1920 at 30 fps. Copy the v4 card without editing its config. Optional `endcard/audio.wav` preserves its PCM tail. The 30-second phone conversation is measured in story time; scripted pacing compresses transit and the complete guard patrol. `tools/mv-music.py` scores the recorded events at 120 bpm; mix with `loudnorm=I=-16:TP=-1.5`.
 
 `node --test tests/*.test.cjs`, `tools/browser-check.cjs` and `tools/mv-check.cjs` cover simulation, normal-office regression, moving nameplate pixels, readable shot bounds and B11 residual frames. See [HANDOFF-mv-v5.md](HANDOFF-mv-v5.md) for the shot list, export evidence and viewing limitations. Legacy geometry remains only for existing compatibility tests. No deployment or commit is part of this revision.
+
+## Come to talk
+
+The **来谈事** button beside treats opens four fixed intents: project pitch, research, learning and a casual chat. The current idle team supplies two hosts (one for chat); real meetings/calls and work take priority. With no idle colleague, Cobbler offers a 20-second tea break; an all-off/away office says goodbye at the door after ten seconds. No AI runs and no real status changes. A normal visit takes roughly 44–50 seconds including walking, fixed dialogue and a handshake. A real meeting redirects the visit to the pantry.
+
+Other pages receive recent visits on the existing ten-second poll. One plays at a time, with at most three queued. Only the initiating page receives a handshake photo. On phones, its view follows the guest downstairs and back; controls sit above the scrolling room. Wallpaper temporarily includes the annex during a visit and hides controls/photos. MV stays unchanged. Demo starts a visit at 34 seconds and rotates all four kinds each 150-second loop; clicking the demo menu plays only locally.
+
+`POST /guest/meet` accepts only `{kind,v}`: kind is `pitch|research|learn|chat`, v a random hexadecimal 16–32-character tab tag. No token, free text or identity is accepted. A tag can initiate once per five minutes; requests share the global budget. Both snapshots expose the latest ten `{kind,at}`, `meetsToday` by kind, `stats.meetsTotal` and `stats.today.meets`; the diary uses `reception`. Fifty events and independent Beijing-day counts persist across restart.
+
+`?view=reception` reproduces seed 7 at 49 seconds. Run `node --test tests/*.test.cjs` and `NODE_PATH="$(npm root -g)" node tests/reception-browser.cjs`. Screenshots and the browser report are in `tools/shots/reception*`; local acceptance and the owner's restart/funnel checks are in [HANDOFF-reception.md](HANDOFF-reception.md).
 
 ## Who might open this; AI materials
 

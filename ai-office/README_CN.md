@@ -104,7 +104,7 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 
 ## 访客视角（一个网址给大家看）
 
-公开发布的这一页会先连本机同源的 `api/state`，连不上再连 `https://mac-mini.tail791fb9.ts.net:8443/office/api/state`（tailscale funnel 只把 `/office` 这一条路径转到服务的 `/guest` 子树），都连不上才播演示剧本。访客看到的是同一间办公室、同样的工位和状态，但没有纸条正文、没有徽章文字；写接口在公网上根本摸不到（404）。横幅会写明当前是本机、访客还是演示。
+公开发布的这一页会先连本机同源的 `api/state`，连不上再连 `https://mac-mini.tail791fb9.ts.net:8443/office/api/state`（tailscale funnel 只把 `/office` 这一条路径转到服务的 `/guest` 子树），都连不上才播演示剧本。访客看到的是同一间办公室、同样的工位和状态，但没有纸条正文、没有徽章文字；私有控制接口在公网上不可访问（404），有界的访客登记、送礼和接待接口公开。横幅会写明当前是本机、访客还是演示。
 
 ## 二期前端：附楼与今天
 
@@ -140,6 +140,16 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 录制：`NODE_PATH="$(npm root -g)" node tools/mv-record.cjs OUT --speed 1.2 --endcard OUT/endcard`。办公室 67 秒，接原 v4 的 5.6 秒尾板；1080×1920、30fps。尾板直接拷贝，不改 config；可放 `endcard/audio.wav` 复用其原始 PCM 配乐。通话半分钟按剧中钟点计，行走和完整巡逻在 MV 中作延时压缩。配乐仍用 `tools/mv-music.py` 按 events.json 合成，120 拍，合轨用 `loudnorm=I=-16:TP=-1.5`。
 
 `node --test tests/*.test.cjs`、`tools/browser-check.cjs`、`tools/mv-check.cjs` 检查模拟、正常办公室回归、运动中的名牌像素、近景边界与 B11 残影。[HANDOFF-mv-v5.md](HANDOFF-mv-v5.md) 记分镜、导出证据与观看限制。旧 legacy 几何只留给已有兼容测试；本轮不发布、不提交。
+
+## 来谈事
+
+「探班」旁新增「来谈事」，只有四种固定来意：带项目来洽谈、来调研、来取经、随便聊聊。播放时从真正 idle 的伙伴中挑两位，随便聊聊只挑一位；送信员、真实开会或接电话的人不参与挑选。有活但没人空闲时由 Cobbler 在茶水位接待 20 秒；全员下班或离开时，门口告别 10 秒。只演画面，不调用 AI，也不修改真实状态。正常一拨含走路实测约 44–50 秒，轮流冒固定台词、握手、送客；真实会议优先，接待改去茶水位。
+
+其他页面经原有 10 秒轮询看到来客，只接收两分钟内的新事件、按时间去重，一次一拨，待演队列最多三拨。握手合照只在发起页弹出。手机按钮放在可滚动房间上方，发起页跟随客人下楼、送客时回到楼上；壁纸来客期间临时显示附楼，不显示按钮或合照；MV 保持原样。每轮演示第 34 秒自动来客，四种来意轮换；演示菜单点击只在本页播放。
+
+`POST /guest/meet` 只接受 `{kind,v}`；kind 为 `pitch|research|learn|chat`，v 为随机 16–32 位十六进制标签，每个标签五分钟一次，并走全局限流。不接收 token、自由文字或身份信息。两份快照均含最近十条 `{kind,at}`、按来意统计的 `meetsToday`、`stats.meetsTotal` 与 `stats.today.meets`，事件类型为 `reception`。保留最近五十条事件，北京日分类计数另存，重启不丢。
+
+`?view=reception` 使用种子 7，从零推进到第 49 秒。验证命令：`node --test tests/*.test.cjs`；浏览器检查：`NODE_PATH="$(npm root -g)" node tests/reception-browser.cjs`。截图和报告在 `tools/shots/reception*`，本轮实测、限制、owner 重启及公网复验见 [HANDOFF-reception.md](HANDOFF-reception.md)。
 
 ## 谁会点开、AI 素材
 

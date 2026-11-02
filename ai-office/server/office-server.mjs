@@ -6,7 +6,7 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collect } from './collectors.mjs';
 import { STATUSES, iso, cleanText, cleanNotice, taskCategory, reduceMember, RateLimiter, appendNotice, beijingDay } from './core.mjs';
-import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat } from './scene.mjs';
+import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet } from './scene.mjs';
 const MINUTE_MS = 60_000;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -14,6 +14,7 @@ const PRIVATE = path.join(os.homedir(), '.config', 'ai-office');
 const ASSETS = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']], ['/office.js', ['office.js', 'text/javascript']], ['/office-core.js', ['office-core.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/demo-script.json', ['demo-script.json', 'application/json']]]);
 
 // What a visitor may bring: the menu on the page, nothing free-form ever crosses the wire.
+export const MEET_KINDS = ['pitch', 'research', 'learn', 'chat'];
 export const TREAT_KINDS = ['milktea', 'coffee', 'cake', 'melon'];
 
 export function validateConfig(config) {
@@ -42,10 +43,16 @@ async function loadState(file, now = Date.now()) {
     data.notices = data.notices.filter(n => typeof n.text === 'string' && Number.isFinite(Date.parse(n.at))).slice(-20).map(n => ({ at: n.at, text: cleanNotice(n.text) }));
     data.visitorsTotal = Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 ? data.visitorsTotal : 0;
     data.treats = (Array.isArray(data.treats) ? data.treats : []).filter(t => TREAT_KINDS.includes(t?.kind) && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
+    data.meets = (Array.isArray(data.meets) ? data.meets : []).filter(t => MEET_KINDS.includes(t?.kind) && typeof t.at === 'string' && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
+    const day = beijingDay(now);
+    if (data.meetDay !== day || !data.meetCounts || typeof data.meetCounts !== 'object' || Array.isArray(data.meetCounts)) {
+      data.meetDay = day; data.meetCounts = {};
+      for (const m of data.meets) if (beijingDay(Date.parse(m.at)) === day) data.meetCounts[m.kind] = (data.meetCounts[m.kind] || 0) + 1;
+    } else data.meetCounts = Object.fromEntries(Object.entries(data.meetCounts).filter(([k,v]) => MEET_KINDS.includes(k) && Number.isInteger(v) && v >= 0 && v <= 1e9));
     data.scene = migrateScene(data, now);
     return data;
   } catch (e) {
-    if (e.code === 'ENOENT') { const data = { version: 1, members: {}, notices: [], visitorsTotal: 0, treats: [] }; data.scene = migrateScene(data, now); return data; }
+    if (e.code === 'ENOENT') { const data = { version: 1, members: {}, notices: [], visitorsTotal: 0, treats: [], meets: [], meetDay: beijingDay(now), meetCounts: {} }; data.scene = migrateScene(data, now); return data; }
     throw new Error('Private state is unreadable or invalid; preserve it and repair before restart');
   }
 }
@@ -103,7 +110,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
       return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), ...(a.awayLabel ? { awayLabel: cleanText(a.awayLabel, 16) } : {}), ...(a.look !== undefined ? { look: a.look } : {}), ...(a.source?.type === 'courier' ? { courier: true } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false, ...(build ? { build } : {}), visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), ...sceneSnapshot() };
+    }), notices: state.notices.map(n => ({ ...n })), demo: false, ...(build ? { build } : {}), visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), meets: state.meets.slice(-10), meetsToday: meetsToday(), ...sceneSnapshot() };
   }
   function sceneSnapshot() {
     const view = sceneView(state.scene, rosterIds, clock());
@@ -119,6 +126,10 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     for (const t of state.treats || []) if (beijingDay(Date.parse(t.at)) === day) counts[t.kind] = (counts[t.kind] || 0) + 1;
     return counts;
   }
+  function meetsToday() {
+    return state.meetDay === beijingDay(clock()) ? { ...state.meetCounts } : {};
+  }
+  const meetBy = new Map(); // ephemeral tags only; never persist an identity or IP
   const treatBy = new Map(); // visitor tag -> last treat time: one a minute each
 
   const COLLECT_TIMEOUT = 10_000, SUSPEND_AFTER_TIMEOUT = 30 * 60_000;
@@ -209,7 +220,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     try {
       const url = new URL(req.url, 'http://127.0.0.1:3091');
       if (req.method === 'GET' && url.pathname === '/api/state') return reply(res, 200, snapshot());
-      if (url.pathname.startsWith('/guest/')) {
+      if (url.pathname.startsWith('/guest/') && url.pathname !== '/guest/meet') {
         const retry = guestAllowed(req, clock());
         if (retry !== null) { req.resume(); return reply(res, 429, { error: 'Rate limited' }, { 'Retry-After': String(retry), 'Cache-Control': 'no-store' }); }
       }
@@ -217,7 +228,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         const origin = req.headers.origin;
         return reply(res, 200, guestSnapshot(), { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) });
       }
-      if (req.method === 'OPTIONS' && url.pathname === '/guest/treat') {
+      if (req.method === 'OPTIONS' && ['/guest/treat', '/guest/meet'].includes(url.pathname)) {
         const origin = req.headers.origin;
         if (!GUEST_ORIGINS.has(origin)) return reply(res, 404, { error: 'Not found' });
         res.writeHead(204, { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Max-Age': '600', Vary: 'Origin' }); res.end(); return;
@@ -234,6 +245,31 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; noteVisitor(state.scene, now); await persist(); }
         else if (visitors.has(tag)) visitors.set(tag, now);
         return reply(res, 200, { ok: true, visitors: visitors.size, visitorsTotal: state.visitorsTotal || 0 }, cors);
+      }
+      if (req.method === 'POST' && url.pathname === '/guest/meet') {
+        const origin = req.headers.origin;
+        const cors = { Vary: 'Origin', ...(GUEST_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) };
+        if (req.headers.authorization !== undefined || req.headers['x-office-key'] !== undefined || url.search) { req.resume(); return reply(res, 400, { error: 'No credentials or query accepted' }, cors); }
+        if (Number(req.headers['content-length']) > 256) { req.resume(); return reply(res, 400, { error: 'Body too large' }, cors); }
+        let size = 0, parts = [];
+        for await (const part of req) { size += part.length; if (size > 256) { reply(res, 400, { error: 'Body too large' }, cors); return; } parts.push(part); }
+        let data;
+        try { data = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { return reply(res, 400, { error: 'Invalid JSON' }, cors); }
+        if (!data || Array.isArray(data) || typeof data !== 'object' || Object.keys(data).some(k => !['kind','v'].includes(k)) || !MEET_KINDS.includes(data.kind) || typeof data.v !== 'string' || !/^[a-f0-9]{16,32}$/.test(data.v)) return reply(res, 400, { error: 'Invalid meet' }, cors);
+        const now = clock(), gap = 5 * MINUTE_MS;
+        for (const [tag, at] of meetBy) if (now - at >= gap) { meetBy.delete(tag); limiter.actors.delete(`meet:${tag}`); }
+        if (meetBy.has(data.v)) return reply(res, 429, { error: 'One reception every five minutes' }, { ...cors, 'Retry-After': String(Math.ceil((gap - (now - meetBy.get(data.v))) / 1000)) });
+        if (!limiter.take(`meet:${data.v}`, now)) return reply(res, 429, { error: 'Rate limited' }, cors);
+        meetBy.set(data.v, now);
+        // Millisecond timestamp is also the public dedupe key; keep simultaneous requests distinct.
+        const at = Math.max(now, Date.parse(state.meets.at(-1)?.at) + 1 || now);
+        const entry = { kind: data.kind, at: iso(at) };
+        state.meets = [...state.meets, entry].slice(-50);
+        if (state.meetDay !== beijingDay(now)) { state.meetDay = beijingDay(now); state.meetCounts = {}; }
+        state.meetCounts[data.kind] = (state.meetCounts[data.kind] || 0) + 1;
+        noteMeet(state.scene, now);
+        updatedAt = iso(now); await persist();
+        return reply(res, 200, { ok: true, at: entry.at }, cors);
       }
       if (req.method === 'POST' && url.pathname === '/guest/treat') {
         const origin = req.headers.origin;
