@@ -44,19 +44,28 @@
     return 'peripheral';
   }
 
+  const RANK = { peripheral: 0, working: 1, core: 2 };
+
   // 第 day 天这条记忆的检索分倍率，以及是哪条规则在起作用（页面上那句解释就读 why）
-  // mem = { importance, pinned, recalls: [召回发生在第几天, ...] }，记忆写入于第 0 天
+  // mem = { importance, pinned, recalls: [召回发生在第几天, ...] }，记忆写入于第 0 天。
+  // 真实记忆另带：category；history = { count, last }（库里只存了次数和最后一次，不知道每次是哪天）；
+  // tier（库里已经写明的层级，RecallNest 写明了就用写明的，这里取它和启发式里高的那个）。
   function stateAt(mem, day) {
     const past = mem.recalls.filter((d) => d <= day);
-    const count = past.length;
-    const last = count ? Math.max(...past) : null;
-    const tier = tierOf(mem.importance, count);
+    const h = mem.history;
+    const count = past.length + (h ? h.count : 0);
+    const lasts = past.slice();
+    if (h && h.last !== null && h.last <= day) lasts.push(h.last);
+    const last = lasts.length ? Math.max(...lasts) : null;
+    let tier = tierOf(mem.importance, count);
+    if (mem.tier && RANK[mem.tier] > RANK[tier]) tier = mem.tier;
     const base = { day, tier, count, floor: TIERS[tier].floor, halfLife: BASE_HALF_LIFE };
+    if (mem.category === 'patterns') return { ...base, factor: 1, why: 'procedural' };
     if (mem.pinned) return { ...base, factor: 1, why: 'pinned' };
     if (tier === 'core' && mem.importance >= 0.95) return { ...base, factor: 1, why: 'core' };
     if (last !== null && day - last < RECENT_DAYS) return { ...base, factor: 1, why: 'recent', since: day - last };
     const hl = effectiveHalfLife(BASE_HALF_LIFE, count, last === null ? 0 : day - last);
-    return { ...base, halfLife: hl, factor: weibull(day, hl, tier), why: count ? 'reinforced' : 'decay' };
+    return { ...base, halfLife: hl, factor: weibull(day, hl, tier), why: count ? 'reinforced' : 'decay', since: last === null ? null : day - last };
   }
 
   function curve(mem, step = 1) {
