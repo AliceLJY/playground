@@ -3,3 +3,7 @@ main = "index.js"
 compatibility_date = "2026-10-01"
 
 # KV 那一段由 deploy.sh 第一次部署时建好 KV 后追加（wrangler 不认空 id，不能先占位）
+
+[[kv_namespaces]]
+binding = "DATAI_TRACES"
+id = "72870569c6f842c5871dd62de7c853ad"
