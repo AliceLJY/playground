@@ -13,7 +13,7 @@
   function create(script, C) {
     const keys = script.clock.map(([at, hhmm]) => [at * 1000, toMs(hhmm)]);
     const WIDE = { cx: 180, cy: 208, z: 1 };                 // whole room: logical y 12..404 fills the 1080×1176 canvas
-    let cursor = 0, lightsOffAt = null, trackedGuard = null;
+    let cursor = 0, lightsOffAt = null, trackedGuard = null, trackedHandoff = null;
     const stats = JSON.parse(JSON.stringify(script.stats)), events = [];
     const fired = {}, log = [], arrived = new Set(), queued = new Set(), inside = new Set();
     let lastHello = null, lastThanks = null, lastDelivery = null, bossInside = false;
@@ -88,6 +88,15 @@
     // Watch the engine after each step and note what happened, frame-accurately, for the music (events.json).
     function observe(ms, sim) {
       trackedGuard = sim.guard && {x:sim.guard.x,y:sim.guard.y};
+      const cc=sim.actors.find(a=>a.id==='cc') || sim.actors.find(a=>a.i===0), recipient=sim.actors.find(a=>a.id===sim.handoffWalk?.id);
+      if(recipient)trackedHandoff={x:(cc.x+recipient.x)/2,y:(cc.y+recipient.y)/2-24};
+      // The board records the actual start after everyone has walked downstairs, not the earlier summons.
+      const meeting=sim.scene.meeting;
+      if(script.performances && meeting && !fired['meeting-start:'+meeting.since] && meeting.members.every(id=>{const a=sim.actors.find(a=>a.id===id);return a && ['meeting','argue'].includes(a.activity) && !a.path.length && a.y>=490;})) {
+        fired['meeting-start:'+meeting.since]=ms;
+        const event=events.filter(e=>e.kind==='meeting').at(-1);if(event)event.at=new Date(clock(ms)).toISOString();
+        say('meeting-start',ms,{storyTime:clock(ms)});
+      }
       for (const a of sim.actors) {
         const home = C.home(a.i), atHome = C.distance(a, home) < 1;
         if ((a.status === 'busy' || a.status === 'idle') && atHome && !arrived.has(a.id)) { arrived.add(a.id); inside.add(a.id); say('arrive', ms, { id: a.id }); }
@@ -103,7 +112,7 @@
       if (hello && hello.at !== lastHello) { lastHello = hello.at; say('hello', ms); trigger('hello', ms); }
       const thanks = sim.thanksNow();
       if (thanks && thanks.at !== lastThanks) { lastThanks = thanks.at; say('thanks', ms, { kind: thanks.kind }); trigger('thanks', ms); }
-      for (const kind of ['reception','argue','snack','radar','souvenir','supper','melon','quotaEvent']) {
+      for (const kind of ['handoffWalk','reception','argue','snack','radar','souvenir','supper','melon','quotaEvent']) {
         const e=sim[kind], phase=e?.phase || (e?'active':'end'), key=kind+':'+phase+(kind==='argue'?':'+e?.round:'');
         if(phases[kind]!==key) { if(e || phases[kind]) {say(kind,ms,{phase,round:e?.round,ids:e?.ids || e?.hosts});trigger(key,ms);} phases[kind]=key; }
       }
@@ -121,7 +130,7 @@
       let cur = { ...WIDE };
       for (const c of cams) {
         if (c.start > ms) break;
-        const target = c.follow === 'guard' && trackedGuard ? {cx:trackedGuard.x,cy:trackedGuard.y,z:c.zoom} : c.to === 'wide' ? { ...WIDE } : { cx: c.to[0], cy: c.to[1], z: c.zoom || 1 };
+        const target = c.follow==='handoff' && trackedHandoff ? {cx:trackedHandoff.x,cy:trackedHandoff.y,z:c.zoom} : c.follow === 'guard' && trackedGuard ? {cx:trackedGuard.x,cy:trackedGuard.y,z:c.zoom} : c.to === 'wide' ? { ...WIDE } : { cx: c.to[0], cy: c.to[1], z: c.zoom || 1 };
         const progress = clamp((ms - c.start) / (c.dur * 1000)), k = c.linear ? progress : ease(progress);
         cur = { cx: lerp(cur.cx, target.cx, k), cy: lerp(cur.cy, target.cy, k), z: lerp(cur.z, target.z, k) };
       }

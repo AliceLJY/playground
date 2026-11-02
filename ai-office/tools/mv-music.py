@@ -212,13 +212,26 @@ for tc in every("call-seated"):
     put(tc, box(hz("E5"), .7), .10, .3)
     put(tc + .18, box(hz("G5"), .7), .08, .3)
 for e in EVENTS:
-    if e["type"] == "dispatched" and e.get("value"):
+    if e["type"] == "dispatched" and e.get("value") and not any(h["type"] == "handoffWalk" and h.get("phase") == "pickup" and abs(h["t"]-e["t"]) < .1 for h in EVENTS):
         put(e["t"], noise_hit(.24, 1800, 6500, .06), .08, .2)
     if e["type"] == "meeting" and e.get("value"):
         put(e["t"], woodblock(660), .1, -.2)
 for tg in every("guard-done"):
     put(tg, box(hz("G4"), 1.5), .09)
     put(tg + .2, box(hz("C5"), 1.8), .08)
+
+# ---- v7: paper placed by hand, a soft shoulder tap and the recipient's reply.
+for e in EVENTS:
+    if e["type"] != "handoffWalk":
+        continue
+    t = e["t"]
+    if e.get("phase") == "placing":
+        put(t + .3, noise_hit(.18, 1800, 6500, .05), .065, .1)
+    elif e.get("phase") == "pat":
+        put(t, woodblock(720), .09, -.1)
+        put(t + .18, woodblock(760), .07, -.1)
+    elif e.get("phase") == "reply":
+        put(t, box(hz("E5"), .65), .08, .1)
 
 # ---- v6: warm visitor/snack accents and a short cartoon rattle at the real smoke phase.
 for e in EVENTS:

@@ -304,17 +304,12 @@
       "notice": "下午一起看看初稿，别忘了喝口水。"
     },
     {
-      "at": 17.2,
+      "at": 23.5,
       "scene": {
         "call": {
           "kind": "dispatch",
           "with": "builder"
-        }
-      }
-    },
-    {
-      "at": 30.8,
-      "scene": {
+        },
         "dispatched": [
           "builder"
         ]
@@ -641,32 +636,23 @@
       "dur": 0.8
     },
     {
-      "at": 25,
+      "at": 23.5,
       "to": [
-        270,
-        425
+        105,
+        120
       ],
-      "zoom": 2,
-      "dur": 1.5
-    },
-    {
-      "at": 26.5,
-      "to": [
-        285,
-        550
-      ],
-      "zoom": 3,
-      "dur": 1
+      "zoom": 2.5,
+      "dur": 0.7,
+      "follow": "handoff"
     },
     {
       "at": 30.8,
       "to": [
-        180,
-        145
+        157,
+        132
       ],
-      "zoom": 2,
-      "dur": 2,
-      "linear": true
+      "zoom": 2.5,
+      "dur": 0.5
     },
     {
       "at": 33.1,
@@ -976,14 +962,14 @@
       "text": "Cobbler 从座位送来一张纸条"
     },
     {
-      "at": 26.8,
+      "at": 23.8,
       "until": 30.7,
-      "text": "喂，Codex，交给你啦"
+      "text": "走两步，把活递给 Codex"
     },
     {
       "at": 31,
       "until": 33,
-      "text": "一份活，飞到了楼上"
+      "text": "收到，这就开工"
     },
     {
       "at": 33.5,
@@ -1107,18 +1093,6 @@
     }
   ],
   "says": [
-    {
-      "at": 27,
-      "id": "director",
-      "text": "喂，Codex",
-      "dur": 1.7
-    },
-    {
-      "at": 29,
-      "id": "director",
-      "text": "交给你啦",
-      "dur": 1.8
-    },
     {
       "at": 103.6,
       "id": "director",

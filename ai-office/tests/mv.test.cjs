@@ -1,5 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const Core=require('../office-core.js'),MV=require('../mv.js'),script=require('./fixtures/mv-v5-script.json');
+const Core=require('../office-core.js'),MV=require('../mv.js'),script=structuredClone(require('./fixtures/mv-v5-script.json'));
+// Keep the archived phone-shot regression on the unchanged consult branch.
+for(const e of script.events)if(e.scene?.call)e.scene.call.kind='consult';
 function run(){
  const L=Core.layouts.portrait,C={...Core,...L,home:i=>Core.home(i,L)},sim=C.create(script.roster,script.seed,L),mv=MV.create(script,C),frames=new Map();mv.start(sim);
  for(let t=0;t<Math.round(script.seconds*1000);t+=20){mv.tick(t,sim);sim.night=C.isNight(mv.clock(t+20));sim.step(20*mv.pace(t+20));mv.observe(t+20,sim);

@@ -5,7 +5,7 @@ function run(){
  const sim=C.create(script.roster,script.seed,L),mv=MV.create(script,C),frames=[];mv.start(sim);
  for(let t=0;t<script.seconds*1000;t+=20){
   mv.tick(t,sim);sim.night=C.isNight(mv.clock(t+20));sim.step(20*mv.pace(t+20));mv.observe(t+20,sim);
-  if((t+20)%100===0)frames.push(structuredClone({t:(t+20)/1000,time:sim.time,clock:mv.clock(t+20),scene:sim.scene,actors:sim.actors,reception:sim.reception,speech:sim.receptionSpeech(),argue:sim.argue,snack:sim.snack,radar:sim.radar,radarCard:sim.radarCardNow(),souvenir:sim.souvenir,supper:sim.supper,melon:sim.melon,quota:sim.quotaEvent,food:sim.foodNow(),eventSpeech:sim.eventSpeech(),visitors:sim.visitors,boss:sim.boss,guard:sim.guard,camera:mv.camera(t+20),dark:mv.darkness(t+20)}));
+  if((t+20)%100===0)frames.push(structuredClone({t:(t+20)/1000,time:sim.time,clock:mv.clock(t+20),scene:sim.scene,handoffWalk:sim.handoffWalk,handoffSpeech:sim.handoffSpeech(),actors:sim.actors,reception:sim.reception,speech:sim.receptionSpeech(),argue:sim.argue,snack:sim.snack,radar:sim.radar,radarCard:sim.radarCardNow(),souvenir:sim.souvenir,supper:sim.supper,melon:sim.melon,quota:sim.quotaEvent,food:sim.foodNow(),eventSpeech:sim.eventSpeech(),visitors:sim.visitors,boss:sim.boss,guard:sim.guard,camera:mv.camera(t+20),dark:mv.darkness(t+20)}));
  }return {sim,mv,frames};
 }
 const {sim,mv,frames:F}=run(),at=t=>F.find(f=>f.t===t),a=(f,id)=>f.actors.find(a=>a.id===id),phase=(type,p)=>mv.log.filter(e=>e.type===type&&e.phase===p);
@@ -56,8 +56,13 @@ test('v6 late supper reaches both busy colleagues before a completed real patrol
  const patrol=F.filter(f=>f.guard&&!f.supper&&f.scene.guard?.phase==='patrol');assert.ok(patrol.some(f=>f.guard.y>690));assert.ok(patrol.some(f=>f.guard.y<180));
  assert.equal(at(102.7).scene.guard.ok,true);
 });
-test('v6 retains phone folder, a coherent fictional clock and final empty office in the duration budget',()=>{
- const seated=mv.log.find(e=>e.type==='call-seated'),hangup=mv.log.find(e=>e.type==='call'&&e.value===null);assert.ok(Math.abs(mv.clock(hangup.t*1000)-seated.storyTime-30000)<100);
+test('v7 replaces the phone with the real desk handoff and retains clock, final exit and duration',()=>{
+ const phases=mv.log.filter(e=>e.type==='handoffWalk').map(e=>e.phase);
+ for(const phase of ['pickup','walking','placing','pat','reply','returning','end'])assert.ok(phases.includes(phase),phase);
+ const hand=F.filter(f=>f.handoffWalk);assert.ok(hand.length>20);assert.ok(!F.some(f=>f.actors.some(a=>a.activity==='call')));
+ assert.ok(hand.some(f=>f.handoffSpeech.some(b=>b.text==='收到')));assert.ok(C.distance(a(at(32),'director'),C.home(0))<1);
+ const start=mv.log.find(e=>e.type==='meeting-start');assert.ok(start&&start.t>73&&start.t<77);
+ assert.equal(mv.events.find(e=>e.kind==='meeting').at,new Date(start.storyTime).toISOString());
  assert.ok(mv.log.some(e=>e.type==='paper'));assert.ok(at(32).scene.dispatched.includes('builder'));
  for(let i=1;i<F.length;i++)assert.ok(F[i].clock>=F[i-1].clock);
  for(const actor of at(106).actors)assert.ok(C.distance(actor,C.door)<3,actor.id);assert.ok(C.distance(at(106).boss,C.door)<1);

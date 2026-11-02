@@ -1,4 +1,16 @@
-## MV v5 — current portrait office (2026-11-02)
+## In-person dispatch / MV v7 (2026-11-02)
+
+Keep the server snapshot unchanged. On a new `call.kind=dispatch`, choose once from the recipient's current visual state: neither away nor off, inside the walkable building and more than 3 logical pixels from the exit means a desk handoff. Otherwise retain the booth and flying folder. Consult calls retain their existing behaviour. A meeting interrupts a dispatch and consumes that performance; repeated polls never restart it.
+
+CC collects the existing pixel folder at home, follows the existing BFS to an unblocked point 20 pixels beside the recipient's chair, places the folder, pats their shoulder, says “这个交给你”, receives “收到”, and walks home. The recipient briefly returns to their chair; neither actor's status/statusSince is rewritten. Target duration 6–10 simulation seconds from ordinary office positions; longer routes use distance-based walking speed through the same waypoints. The drawer says “递活中”; no outbound flying folder or booth visit during this performance. Normal, visitor and wallpaper renderers share this logic. Return-of-work flights remain unchanged.
+
+Acceptance: real 20 ms simulations in portrait and landscape, seeds 1/7/31, exercise the complete phases, arrival and return, furniture clearance, status invariance, repeated snapshots, off/away/at-exit, consult, meeting interruption and rotation. The pre-fix neighbour test must fail. `?view=handoff-walk` captures the real pat phase; `?view=booth` shows dispatch to absent Muse. Screenshots at 390×664 and 1455×782, DPR 2, retain normal rendering quality.
+
+MV v7 preserves the 108-second script / 1.2 = 90-second body and original 5.6-second endcard. Replace only the dispatch shot with a following close-up of the real handoff; subtitle “走两步，把活递给 Codex”. Preserve the remaining scenes and music structure. Record the review's actual arrival/start time for the night board. Re-run the v6 browser, whole-Canvas HEAD comparison (explicit dispatch-scene exceptions), B11, safe area, export, freeze, loudness and endcard hash checks. Output only to the new v7 media directory; v6 remains untouched.
+
+This v7 amendment takes precedence over the dated historical specifications below.
+
+## Historical MV v5 — current portrait office (2026-11-02)
 
 Supersedes the historical “MV stays legacy / no nameplates / no annex” exemptions below. Normal office behaviour is unchanged.
 
