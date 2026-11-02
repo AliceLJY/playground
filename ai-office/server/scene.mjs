@@ -125,13 +125,13 @@ export function emptyScene(now) {
   return { dispatched: [], huddle: null, review: null, call: null, diskPct: null, guard: null, windows: {}, stats: freshStats(now), events: [] };
 }
 export function freshStats(now) {
-  return { since: beijingDay(now), visitorsTotal: 0, treatsTotal: 0, meetsTotal: 0, meetingsTotal: 0, handoffsTotal: 0, callsTotal: 0, day: beijingDay(now), today: { visitors: 0, treats: 0, meets: 0, meetings: 0, handoffs: 0, calls: 0 } };
+  return { since: beijingDay(now), visitorsTotal: 0, treatsTotal: 0, meetsTotal: 0, snacksTotal: 0, suppersTotal: 0, meetingsTotal: 0, handoffsTotal: 0, callsTotal: 0, day: beijingDay(now), today: { visitors: 0, treats: 0, meets: 0, snacks: 0, suppers: 0, meetings: 0, handoffs: 0, calls: 0 } };
 }
 
 // Today's counts start over at Beijing midnight; so does the log.
 function rollDay(scene, now) {
   const day = beijingDay(now);
-  if (scene.stats.day !== day) { scene.stats.day = day; scene.stats.today = { visitors: 0, treats: 0, meets: 0, meetings: 0, handoffs: 0, calls: 0 }; }
+  if (scene.stats.day !== day) { scene.stats.day = day; scene.stats.today = freshStats(now).today; }
   scene.events = scene.events.filter(e => beijingDay(Date.parse(e.at)) === day);
 }
 function count(scene, key, now) {
@@ -155,6 +155,8 @@ export function noteVisitor(scene, now) {
 export function noteMeet(scene, now) { count(scene, 'meets', now); addEvent(scene, { kind: 'reception' }, now); }
 export function noteTreat(scene, kind, now) { count(scene, 'treats', now); addEvent(scene, { kind: 'treat', treat: kind }, now); }
 
+export function noteQuota(scene, id, clear, now) { addEvent(scene, { kind: 'quota', ids: [id], clear }, now); }
+
 const meetingMembers = (scene) => ['cc', ...(scene.dispatched || [])];
 
 function startMeeting(scene, now, review) {
@@ -172,6 +174,20 @@ function endMeeting(scene, since, now) {
 export function reduceScene(prev, signal, now) {
   const scene = { ...emptyScene(now), ...prev, windows: { ...(prev?.windows || {}) }, stats: { ...freshStats(now), ...prev?.stats, today: { ...freshStats(now).today, ...prev?.stats?.today } }, events: [...(prev?.events || [])] };
   rollDay(scene, now);
+  // The caller supplies actual before/after member records from collection AND both report paths.
+  scene.snackAtById = { ...(scene.snackAtById || {}) };
+  for (const { id, before, after } of signal.transitions || []) {
+    if (before.status === 'busy' && after.status === 'done' && now - Date.parse(before.statusSince) >= 20 * MINUTE && now - (scene.snackAtById[id] ?? -Infinity) >= 60 * MINUTE) {
+      scene.snack = { id, at: iso(now) }; scene.snackAtById[id] = now;
+      count(scene, 'snacks', now); addEvent(scene, { kind: 'snack', ids: [id] }, now);
+    }
+  }
+  const hour = new Date(now + 8 * 3600000).getUTCHours(), night = beijingDay(now - 3 * 3600000);
+  const working = Object.entries(signal.members || {}).filter(([, m]) => m.status === 'busy').map(([id]) => id);
+  if ((hour >= 23 || hour < 3) && working.length && scene.supperNight !== night) {
+    scene.supperNight = night; scene.supper = { at: iso(now), ids: working };
+    count(scene, 'suppers', now); addEvent(scene, { kind: 'supper', ids: working }, now);
+  }
   if (Array.isArray(signal.dispatched)) {
     const before = new Set(scene.dispatched), after = new Set(signal.dispatched);
     for (const id of after) if (!before.has(id)) {
@@ -233,9 +249,14 @@ export function applyMeeting(prev, data, now) {
   }
   if (data.state === 'round' || data.state === 'start') {
     const round = int(data.round, 9);
-    if (round !== null && round !== scene.review.round) { scene.review.round = round; addEvent(scene, { kind: 'round', round }, now); }
+    const changed = round !== null && round !== scene.review.round;
+    if (changed) { scene.review.round = round; scene.review.roundAt = now; scene.review.slide = null; addEvent(scene, { kind: 'round', round }, now); }
     const a = int(data.adopted), r = int(data.rejected), o = int(data.open);
     if (a !== null || r !== null || o !== null) scene.review.slide = { adopted: a ?? 0, rejected: r ?? 0, open: o ?? 0 };
+    if (changed && r >= 1 && !(scene.review.arguedRounds || []).includes(round)) {
+      scene.review.arguedRounds = [...(scene.review.arguedRounds || []), round];
+      addEvent(scene, { kind: 'argue', round, rejected: r }, now);
+    }
     scene.review.at = now;
   }
   // The reviewers' last hand-offs belong to the review: they do not open a huddle right after it.
@@ -253,12 +274,14 @@ export function applyCall(prev, data, now) {
 export function sceneView(scene, rosterIds, now) {
   const minute = ms => iso(Math.floor(ms / MINUTE) * MINUTE);
   const ids = list => (list || []).filter(id => rosterIds.has(id)).slice(0, 11);
-  const meeting = scene.review ? { kind: 'review', since: minute(scene.review.since), members: ids(scene.review.members || ['cc']), round: scene.review.round, slide: scene.review.slide }
+  const meeting = scene.review ? { kind: 'review', since: minute(scene.review.since), ...(scene.review.roundAt ? { roundAt: iso(scene.review.roundAt) } : {}), members: ids(scene.review.members || ['cc']), round: scene.review.round, slide: scene.review.slide }
     : scene.huddle ? { kind: 'huddle', since: minute(scene.huddle.since), members: ids(scene.huddle.members), round: null, slide: null } : null;
   const day = beijingDay(now), today = scene.stats.day === day ? scene.stats.today : freshStats(now).today;
   return {
-    scene: { meeting, dispatched: ids(scene.dispatched), call: scene.call ? { since: minute(scene.call.since), kind: 'consult' } : scene.ring && now - scene.ring.since < RING_MS ? { since: minute(scene.ring.since), kind: 'dispatch', with: ids([scene.ring.with])[0] || null } : null, disk: Number.isInteger(scene.diskPct) ? { usedPct: scene.diskPct } : null, guard: scene.guard ? { phase: scene.guard.phase, at: minute(scene.guard.at), ok: scene.guard.ok } : null },
-    stats: { since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetsTotal: scene.stats.meetsTotal, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
+    scene: { meeting, dispatched: ids(scene.dispatched), call: scene.call ? { since: minute(scene.call.since), kind: 'consult' } : scene.ring && now - scene.ring.since < RING_MS ? { since: minute(scene.ring.since), kind: 'dispatch', with: ids([scene.ring.with])[0] || null } : null, disk: Number.isInteger(scene.diskPct) ? { usedPct: scene.diskPct } : null, guard: scene.guard ? { phase: scene.guard.phase, at: minute(scene.guard.at), ok: scene.guard.ok } : null,
+      snack: scene.snack && rosterIds.has(scene.snack.id) ? { id: scene.snack.id, at: scene.snack.at } : null,
+      supper: scene.supper && ids(scene.supper.ids).length ? { at: scene.supper.at, ids: ids(scene.supper.ids) } : null },
+    stats: { since: scene.stats.since, visitorsTotal: scene.stats.visitorsTotal, treatsTotal: scene.stats.treatsTotal, meetsTotal: scene.stats.meetsTotal, snacksTotal: scene.stats.snacksTotal ?? 0, suppersTotal: scene.stats.suppersTotal ?? 0, meetingsTotal: scene.stats.meetingsTotal, handoffsTotal: scene.stats.handoffsTotal, callsTotal: scene.stats.callsTotal, notesTotal: scene.notes?.total || 0, today: { ...today, notes: scene.notes?.today || 0 } },
     events: scene.events.filter(e => beijingDay(Date.parse(e.at)) === day).map(e => ({ ...e, at: minute(Date.parse(e.at)), ...(e.ids ? { ids: ids(e.ids) } : {}) }))
   };
 }

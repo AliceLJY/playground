@@ -1,0 +1,19 @@
+#!/bin/sh
+# Same best-effort contract as office-report; standalone because send.mjs is outside this task's scope.
+node --input-type=module - "$@" <<'JS' >/dev/null 2>&1 || :
+import { readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+const hardStop = setTimeout(() => process.exit(0), 5000);
+try {
+  const [id, value] = process.argv.slice(2);
+  if (!/^[a-z][a-z0-9_-]{0,31}$/.test(id || '')) process.exit(0);
+  const body = value === 'clear' ? { id, clear: true } : { id, minutes: value === undefined ? 60 : Number(value) };
+  if (value !== 'clear' && (!Number.isInteger(body.minutes) || body.minutes < 1 || body.minutes > 300)) process.exit(0);
+  const token = (await readFile(path.join(os.homedir(), '.config/ai-office/token'), 'utf8')).trim();
+  await fetch('http://127.0.0.1:3091/api/quota', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(4500), redirect: 'error' });
+} catch { /* Never fail the caller or disclose credentials. */ }
+clearTimeout(hardStop);
+process.exit(0);
+JS
+exit 0

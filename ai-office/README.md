@@ -2,7 +2,7 @@
 
 A quiet, phone-first room for an AI team. Eleven pixel colleagues type, rest, wait for a decision, leave for the day, and deliver notes. The host walks around and returns to the desk when needed. All people, furniture and animations are drawn with Canvas 2D; there are no images, external fonts, music or runtime dependencies.
 
-The static page automatically switches to a labelled, fictional 150-second demo if the local API is unavailable. The Node service observes local activity without changing any bot. It is an ambient status display, not a conversation viewer.
+The static page automatically switches to a labelled, fictional 185-second demo if the local API is unavailable. The Node service observes local activity without changing any bot. It is an ambient status display, not a conversation viewer.
 
 ## Run
 
@@ -120,7 +120,7 @@ The back-wall board shows today’s Beijing-date note count as 0–8 pinned shee
 
 The renderer consumes optional `scene`, `stats`, and `events` from either state feed. Missing extension fields leave empty rooms and unavailable totals. Invalid extensions reject the entire snapshot. The frontend never infers meetings, calls, dispatches, disk use or guard work from activity status. CC's call takes priority over a simultaneous meeting; other members keep their meeting positions. Ending a scene restores each member's ordinary status routing. One dispatch delta makes one 1-second folder flight; polling an unchanged list does not replay it. Guard patrols only appear at Beijing 23:00–08:00 with a guard signal, and each timestamp triggers one lap.
 
-The deterministic 150-second demo includes dispatch at 45 s, review at 50 s, round 2 at 65 s, meeting end/return at 85 s, call at 96–120 s, idle colleagues joining the game corner at 121 s, and a completed guard at 136 s in the night preview. Demo totals are fixed examples, labelled **演示** both on the board and in Today. `?demo=1&night=1` previews the guard; the default demo is daytime. `night=1` never changes live time or invents a live guard.
+The deterministic 185-second demo includes dispatch at 45 s, review at 50 s, round 2 at 65 s, meeting end/return at 94 s, call at 96–120 s, idle colleagues joining the game corner at 121 s, and a completed guard at 136 s in the night preview. Demo totals are fixed examples, labelled **演示** both on the board and in Today. `?demo=1&night=1` previews the guard; the default demo starts in daytime and reaches a fictional 23:00 for supper. `night=1` never changes live time or invents a live guard.
 
 Fixed seed 7 views (same simulation and rendering path):
 
@@ -149,11 +149,39 @@ Record with `NODE_PATH="$(npm root -g)" node tools/mv-record.cjs OUT --speed 1.2
 
 The **来谈事** button beside treats opens four fixed intents: project pitch, research, learning and a casual chat. The current idle team supplies two hosts (one for chat); real meetings/calls and work take priority. With no idle colleague, Cobbler offers a 20-second tea break; an all-off/away office says goodbye at the door after ten seconds. No AI runs and no real status changes. A normal visit takes roughly 44–50 seconds including walking, fixed dialogue and a handshake. A real meeting redirects the visit to the pantry.
 
-Other pages receive recent visits on the existing ten-second poll. One plays at a time, with at most three queued. Only the initiating page receives a handshake photo. On phones, its view follows the guest downstairs and back; controls sit above the scrolling room. Wallpaper temporarily includes the annex during a visit and hides controls/photos. MV stays unchanged. Demo starts a visit at 34 seconds and rotates all four kinds each 150-second loop; clicking the demo menu plays only locally.
+Other pages receive recent visits on the existing ten-second poll. One plays at a time, with at most three queued. Only the initiating page receives a handshake photo. On phones, its view follows the guest downstairs and back; controls sit above the scrolling room. Wallpaper temporarily includes the annex during a visit and hides controls/photos. MV stays unchanged. Demo starts a visit at 34 seconds and rotates all four kinds each 185-second loop; clicking the demo menu plays only locally.
 
 `POST /guest/meet` accepts only `{kind,v}`: kind is `pitch|research|learn|chat`, v a random hexadecimal 16–32-character tab tag. No token, free text or identity is accepted. A tag can initiate once per five minutes; requests share the global budget. Both snapshots expose the latest ten `{kind,at}`, `meetsToday` by kind, `stats.meetsTotal` and `stats.today.meets`; the diary uses `reception`. Fifty events and independent Beijing-day counts persist across restart.
 
 `?view=reception` reproduces seed 7 at 49 seconds. Run `node --test tests/*.test.cjs` and `NODE_PATH="$(npm root -g)" node tests/reception-browser.cjs`. Screenshots and the browser report are in `tools/shots/reception*`; local acceptance and the owner's restart/funnel checks are in [HANDOFF-reception.md](HANDOFF-reception.md).
+
+## Five little office events
+
+These are silent visual performances driven by structured signals, with no AI calls or changes to a colleague's real status. Wallpaper plays them too; MV explicitly disables them.
+
+| Event | Signal and behavior |
+| --- | --- |
+| Review argument | A new review round with at least one rejected item. CC and a deterministic reviewer argue at the whiteboard, disappear in a comic dust cloud, then return. Three rejections add a line and enlarge the cloud. |
+| Completion snacks | A server-observed busy → done transition after at least 20 continuous minutes, once per colleague/hour. The colleague delivers biscuits; each stays five minutes. |
+| Melon spectators | Waiting at the boss, a held courier note, or a review argument gathers 2–3 idle game-corner colleagues. They disperse three seconds after the cause ends. |
+| Quota timeout | An authenticated quota report sends an available colleague to face the wall with an hourglass. Expiry, clear, or an observed transition to busy releases it. |
+| Late supper | The server's first busy roster during Beijing 23:00–03:00, once per night. The guard delivers noodles to those desks; each bowl steams for ten minutes. |
+
+Priority is defined once in `office-core.js`: real work/call/meeting > quota > reception > argument > snack > melon > games. The argument is an action *inside its own review meeting*, not a new reservation. One active performance per kind, three pending maximum; pending signals expire after two minutes. Quota can persist much longer once it starts. Guest snack times are rounded down to the minute, so their replay window is conservative by up to 59 seconds.
+
+`POST /api/quota` requires the same Bearer token as reports. Its only fields are `{id, minutes?, clear?}`: roster ID, integer 1–300 minutes (default 60), or `clear: true`. Invalid fields return 400, missing/wrong token 401, rate limit 429. State is persisted; both feeds expose only unexpired `quota: {id: untilISO}`. The best-effort command is silent, exits successfully even on failure and has a five-second hard timeout:
+
+```sh
+bin/office-quota agy
+bin/office-quota codex 90
+bin/office-quota agy clear
+```
+
+Both feeds add `scene.snack = {id, at}` / `scene.supper = {at, ids}` (or null), `meeting.roundAt`, `stats.snacksTotal`, `stats.today.snacks` and `stats.suppersTotal` (also today's supper count). Today lists fixed `argue`, `snack`, `quota` and `supper` diary entries; the wall board has no extra rows. Old feeds may omit these fields. No task text enters these new structures.
+
+Fixed seed 7 views run the same demo from zero: `?view=melon` at 18 s, `?view=argue` at 84.5 s, `?view=quota` at 93 s, `?view=snack` at 112.5 s, `?view=supper` at 154 s. Phones scroll to the event. The 185-second demo retains gifts at 20 s and reception at 34 s, adds a rejected third round at 77 s, quota at 89 s, snacks at 100 s, then jumps its clearly labelled fictional clock to 23:00 at 141 s and serves supper at 145 s. Timed demo signals are examples, not live detections.
+
+Run `node --test tests/*.test.cjs` and `NODE_PATH="$(npm root -g)" node tests/events-browser.cjs`; rerun `tests/reception-browser.cjs` for reception and opening-video regression. Ten required images are `tools/shots/{argue,snack,melon,quota,supper}{,-landscape}.png`. See [HANDOFF-events.md](HANDOFF-events.md) for measured results, clock/priority interpretations and owner integration. No production restart, wrapper edits or publication were performed.
 
 ## Who might open this; AI materials
 

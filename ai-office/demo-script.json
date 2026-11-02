@@ -1,5 +1,5 @@
 {
-  "duration": 150,
+  "duration": 185,
   "roster": [
     {
       "id": "director",
@@ -237,7 +237,7 @@
           "round": 2,
           "slide": {
             "adopted": 3,
-            "rejected": 1,
+            "rejected": 0,
             "open": 0
           }
         }
@@ -250,7 +250,48 @@
       ]
     },
     {
-      "at": 85,
+      "at": 77,
+      "scene": {
+        "meeting": {
+          "kind": "review",
+          "members": [
+            "director",
+            "builder",
+            "twin-a"
+          ],
+          "round": 3,
+          "slide": {
+            "adopted": 3,
+            "rejected": 3,
+            "open": 1
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "argue",
+          "round": 3,
+          "rejected": 3
+        }
+      ]
+    },
+    {
+      "at": 89,
+      "quota": {
+        "artist": 60
+      },
+      "log": [
+        {
+          "kind": "quota",
+          "ids": [
+            "artist"
+          ],
+          "clear": false
+        }
+      ]
+    },
+    {
+      "at": 94,
       "scene": {
         "meeting": null,
         "dispatched": []
@@ -276,6 +317,35 @@
       "log": [
         {
           "kind": "call"
+        }
+      ]
+    },
+    {
+      "at": 100,
+      "scene": {
+        "snack": {
+          "id": "twin-a"
+        }
+      },
+      "log": [
+        {
+          "kind": "snack",
+          "ids": [
+            "twin-a"
+          ]
+        }
+      ]
+    },
+    {
+      "at": 110,
+      "quota": {},
+      "log": [
+        {
+          "kind": "quota",
+          "ids": [
+            "artist"
+          ],
+          "clear": true
         }
       ]
     },
@@ -324,6 +394,39 @@
           "ok": true
         }
       ]
+    },
+    {
+      "at": 141,
+      "id": "builder",
+      "status": "busy",
+      "night": true
+    },
+    {
+      "at": 141,
+      "id": "artist",
+      "status": "busy"
+    },
+    {
+      "at": 145,
+      "scene": {
+        "supper": {
+          "ids": [
+            "director",
+            "builder",
+            "artist"
+          ]
+        }
+      },
+      "log": [
+        {
+          "kind": "supper",
+          "ids": [
+            "director",
+            "builder",
+            "artist"
+          ]
+        }
+      ]
     }
   ],
   "scene": {
@@ -351,9 +454,13 @@
       "meetings": 2,
       "handoffs": 7,
       "calls": 1,
-      "meets": 2
+      "meets": 2,
+      "snacks": 0,
+      "suppers": 0
     },
-    "meetsTotal": 8
+    "meetsTotal": 8,
+    "snacksTotal": 3,
+    "suppersTotal": 2
   },
   "receptionAt": 34
 }

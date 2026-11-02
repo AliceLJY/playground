@@ -6,7 +6,7 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collect } from './collectors.mjs';
 import { STATUSES, iso, cleanText, cleanNotice, taskCategory, reduceMember, RateLimiter, appendNotice, beijingDay } from './core.mjs';
-import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet } from './scene.mjs';
+import { collectScene, reduceScene, applyMeeting, applyCall, sceneView, migrateScene, noteVisitor, noteTreat, noteMeet, noteQuota } from './scene.mjs';
 const MINUTE_MS = 60_000;
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -74,6 +74,13 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   }
   const state = await loadState(stateFile, clock());
   const rosterIds = new Set(config.roster.map(a => a.id));
+  state.quota = Object.fromEntries(Object.entries(state.quota || {}).filter(([id, until]) => rosterIds.has(id) && Number.isFinite(until) && until > clock()));
+  function observeMembers(before, now) {
+    const transitions = [...rosterIds].map(id => ({ id, before: before[id] || {}, after: state.members[id] || {} })).filter(t => t.before.status !== t.after.status);
+    for (const {id, after} of transitions) if (after.status === 'busy' && state.quota[id]) { delete state.quota[id]; noteQuota(state.scene, id, true, now); }
+    for (const [id, until] of Object.entries(state.quota)) if (until <= now) delete state.quota[id];
+    state.scene = reduceScene(state.scene, { transitions, members: state.members }, now);
+  }
   // Counts from the session records before the office could see (tools/backfill-scene.mjs): added to the live totals.
   const before = backfill && typeof backfill === 'object' ? { since: /^\d{4}-\d{2}-\d{2}$/.test(backfill.since) ? backfill.since : null, meetings: Number.isInteger(backfill.meetingsTotal) ? backfill.meetingsTotal : 0, handoffs: Number.isInteger(backfill.handoffsTotal) ? backfill.handoffsTotal : 0, calls: Number.isInteger(backfill.callsTotal) ? backfill.callsTotal : 0 } : null;
   const limiter = new RateLimiter();
@@ -110,7 +117,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
       return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), ...(a.awayLabel ? { awayLabel: cleanText(a.awayLabel, 16) } : {}), ...(a.look !== undefined ? { look: a.look } : {}), ...(a.source?.type === 'courier' ? { courier: true } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
-    }), notices: state.notices.map(n => ({ ...n })), demo: false, ...(build ? { build } : {}), visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), meets: state.meets.slice(-10), meetsToday: meetsToday(), ...sceneSnapshot() };
+    }), quota: Object.fromEntries(Object.entries(state.quota).filter(([,until]) => until > clock()).map(([id,until]) => [id,iso(until)])), notices: state.notices.map(n => ({ ...n })), demo: false, ...(build ? { build } : {}), visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), meets: state.meets.slice(-10), meetsToday: meetsToday(), ...sceneSnapshot() };
   }
   function sceneSnapshot() {
     const view = sceneView(state.scene, rosterIds, clock());
@@ -173,11 +180,13 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
       const sceneSignal = await sceneOnce(); await readBuild();
       const now = clock();
       state.scene = reduceScene(state.scene, sceneSignal, now);
+      const beforeMembers = { ...state.members };
       config.roster.forEach((a, i) => {
         const prev = state.members[a.id] || {};
         const signal = results[i];
         state.members[a.id] = reduceMember(a.source, signal, { ...prev, memory: { ...prev.memory, ...signal?.memory } }, now);
       });
+      observeMembers(beforeMembers, now);
       updatedAt = iso(now);
       if (save) await persist();
     } finally { polling = false; }
@@ -194,6 +203,9 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
     // The public feed is the show, not a log: times are rounded to the minute so nobody can read a work diary
     // off it with a script; the board and badge text stay private.
     const full = snapshot(), minute = ms => Math.floor(ms / 60_000) * 60_000;
+    if (full.scene.snack) full.scene.snack.at = iso(minute(Date.parse(full.scene.snack.at)));
+    if (full.scene.supper) full.scene.supper.at = iso(minute(Date.parse(full.scene.supper.at)));
+    if (full.scene.meeting?.roundAt) full.scene.meeting.roundAt = iso(minute(Date.parse(full.scene.meeting.roundAt)));
     delete full.build; // the public page is served from elsewhere; its own files are not these
     // The board's notes stay private; how many came in today is not, and the wall board pins that many.
     const noticesToday = full.notices.filter(n => beijingDay(Date.parse(n.at)) === beijingDay(clock())).length;
@@ -305,13 +317,15 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         if (!data || typeof data !== 'object' || !allowed.includes(data.status) || data.task != null && typeof data.task !== 'string') return reply(res, 400, { error: 'Invalid report' });
         const now = clock();
         if (!limiter.take(id, now)) return reply(res, 429, { error: 'Rate limited' });
+        const beforeMembers = { ...state.members };
         const prev = state.members[id] || {};
         state.members[id] = { ...prev, status: data.status, statusSince: prev.status === data.status ? prev.statusSince : iso(now), lastSignalAt: now, push: { at: now, status: data.status, summary: taskCategory(data.task) } };
+        observeMembers(beforeMembers, now);
         updatedAt = iso(now); await persist();
         return reply(res, 200, { ok: true });
       }
       if (url.pathname.startsWith('/guest/')) return reply(res, 404, { error: 'Not found' });
-      if (req.method === 'POST' && ['/api/report', '/api/notice', '/api/meeting', '/api/call'].includes(url.pathname)) {
+      if (req.method === 'POST' && ['/api/report', '/api/notice', '/api/meeting', '/api/call', '/api/quota'].includes(url.pathname)) {
         const got = createHash('sha256').update(req.headers.authorization || '').digest();
         if (!timingSafeEqual(expected, got)) { req.resume(); return reply(res, 401, { error: 'Unauthorized' }); }
         if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) { req.resume(); return reply(res, 415, { error: 'JSON required' }); }
@@ -326,12 +340,20 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         try { data = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { return reply(res, 400, { error: 'Invalid JSON' }); }
         if (!data || typeof data !== 'object' || Array.isArray(data)) return reply(res, 400, { error: 'Invalid object' });
         const now = clock();
-        if (url.pathname === '/api/report') {
+        if (url.pathname === '/api/quota') {
+          if (Object.keys(data).some(k => !['id','minutes','clear'].includes(k)) || !rosterIds.has(data.id) || (data.clear !== undefined && typeof data.clear !== 'boolean') || (data.minutes !== undefined && (!Number.isInteger(data.minutes) || data.minutes < 1 || data.minutes > 300))) return reply(res, 400, { error: 'Invalid quota' });
+          if (!limiter.take('quota:' + data.id, now)) return reply(res, 429, { error: 'Rate limited' });
+          if (data.clear === true) delete state.quota[data.id];
+          else state.quota[data.id] = now + (data.minutes ?? 60) * MINUTE_MS;
+          noteQuota(state.scene, data.id, data.clear === true, now);
+        } else if (url.pathname === '/api/report') {
           const actor = config.roster.find(a => a.id === data.id);
           if (!actor || !STATUSES.includes(data.status) || data.summary != null && typeof data.summary !== 'string') return reply(res, 400, { error: 'Invalid report' });
           if (!limiter.take(actor.id, now)) return reply(res, 429, { error: 'Rate limited' });
+          const beforeMembers = { ...state.members };
           const prev = state.members[actor.id] || {};
           state.members[actor.id] = { ...prev, status: data.status, statusSince: prev.status === data.status ? prev.statusSince : iso(now), lastSignalAt: now, push: { at: now, status: data.status, summary: taskCategory(data.summary) } };
+          observeMembers(beforeMembers, now);
         } else if (url.pathname === '/api/meeting' || url.pathname === '/api/call') {
           // CC announcing a mutual review (start / round with the tally / end) or a consult-gpt call (start / end).
           const states = url.pathname === '/api/meeting' ? ['start', 'round', 'end'] : ['start', 'end'];
