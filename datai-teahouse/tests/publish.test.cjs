@@ -34,16 +34,28 @@ test('验收 7 所有文件（含文档、测试、工具）都不含本机路�
   }
 });
 
-test('验收 7 页面文件没有任何外部地址、没有网络请求 API、不引外部样式', () => {
+test('验收 7 页面文件只许访问痕迹服务这一个地址：没有别的外部地址、没有别的网络 API、不引外部样式', () => {
+  const game = read('src/game.js');
+  const m = game.match(/const TRACE_ENDPOINT = (null|'([^']*)');/);
+  assert.ok(m, 'game.js 里要有 TRACE_ENDPOINT 常量（null 或一个地址）');
+  const endpoint = m[2] || null;
+  if (endpoint) assert.ok(/^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$/.test(endpoint), `TRACE_ENDPOINT 只能是一个 workers.dev 地址，现在是 ${endpoint}`);
   for (const f of PAGE_FILES) {
     const text = read(f);
-    assert.ok(!/https?:\/\//i.test(text), `${f} 含 http(s) 地址`);
-    assert.ok(!/\b(fetch|XMLHttpRequest|WebSocket|sendBeacon|EventSource)\b/.test(text), `${f} 用了网络请求 API（跨用户痕迹共享只在 plan 里设计，第一版不接）`);
+    const urls = text.match(/https?:\/\/[^\s'"`)]+/gi) || [];
+    for (const u of urls) assert.ok(endpoint && u === endpoint, `${f} 含 ${u}——页面里唯一允许的地址是 TRACE_ENDPOINT`);
+    assert.ok(!/\b(XMLHttpRequest|WebSocket|sendBeacon|EventSource)\b/.test(text), `${f} 用了别的网络 API`);
+    if (f !== path.join('src', 'game.js')) assert.ok(!/\bfetch\b/.test(text), `${f} 不该发请求，请求只在 game.js 的痕迹两处`);
     assert.ok(!/@import|<link[^>]+href=/i.test(text), `${f} 引了外部样式或链接`);
   }
+  // game.js 里的 fetch 只有两处，都拼在 TRACE_ENDPOINT 后面，且都在「有地址才发」的守卫之后
+  const calls = [...game.matchAll(/fetch\(([^,]+),/g)].map((x) => x[1].trim());
+  assert.deepEqual(calls, ["TRACE_ENDPOINT + '/traces?n=12'", "TRACE_ENDPOINT + '/trace'"], '请求只能发往痕迹服务的两个路径');
+  assert.equal((game.match(/!TRACE_ENDPOINT/g) || []).length, 2, '两处请求都要先判 TRACE_ENDPOINT 为空就不发');
+  assert.ok(/credentials: 'omit'[^\n]*\n[^]*credentials: 'omit'/.test(game), '两处请求都不带 cookie');
   const html = read('index.html');
-  for (const m of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) assert.ok(/^(\.\/|src\/|#)/.test(m[1]), `index.html 里的 ${m[0]} 不是本目录相对路径`);
-  assert.ok(!/<audio|\.(mp3|wav|ogg|m4a)\b/i.test(html + read('src/game.js')), '不用音频文件，声音全部合成');
+  for (const m2 of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) assert.ok(/^(\.\/|src\/|#)/.test(m2[1]), `index.html 里的 ${m2[0]} 不是本目录相对路径`);
+  assert.ok(!/<audio|\.(mp3|wav|ogg|m4a)\b/i.test(html + game), '不用音频文件，声音全部合成');
 });
 
 test('验收 9 不抄寺庙站：页面与文案里不出现寺庙词汇，动词表是茶楼自己的', () => {

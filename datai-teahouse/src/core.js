@@ -164,10 +164,42 @@
         acts: v.acts.filter((a) => a[1] !== 0 && a[1] !== 6), // 落座与离席由 start / end 表达
         knocks: v.acts.some((a) => a[1] === 2),
         at: v.at,
+        remote: !!v.remote,
       });
     });
     const me = seat(hall, 'me');
     return { hall, ghosts, me };
+  }
+
+  // ---------- 跨用户痕迹 ----------
+  // 上传的只有 { v, dur, acts }：没有进门时刻（服务端自己记）、没有任何文字；动作截到前 200 个、不晚于离席。
+  const TRACE_MAX_ACTS = 200;
+  function traceBody(visit) {
+    const dur = Math.min(Math.max(+visit.dur || 0, 0), MAX_DUR);
+    return { v: 1, dur, acts: visit.acts.filter((a) => a[0] <= dur).slice(0, TRACE_MAX_ACTS).map((a) => [a[0], a[1]]) };
+  }
+  // 远端拉回来的痕迹并进本机记录：坏的丢掉、自己上传过的（posted 里有它的 key）不再当成别人、最多 MAX_VISITS 条，标 remote。
+  function mergeRemote(local, remote, posted) {
+    const mine = new Set(posted || []);
+    const seen = new Set();
+    const others = (Array.isArray(remote) ? remote : [])
+      .filter((x) => x && typeof x.k === 'string' && !mine.has(x.k) && !seen.has(x.k) && seen.add(x.k) && isVisit(x))
+      .slice(0, MAX_VISITS)
+      .map((x) => ({ v: 1, at: x.at, dur: x.dur, acts: x.acts, remote: true }));
+    return local.concat(others);
+  }
+
+  // ---------- 门口等位 ----------
+  // 画出来的等位人群，不是真人：大堂有几桌，门口就排几个人（1–4 位），每隔 14–24 秒伙计领走一位，再来一位补上。
+  function queuePlan(seed, tables) {
+    const r = rng(seed * 6007 + 29);
+    const size = Math.max(1, Math.min(4, tables));
+    const people = [];
+    for (let i = 0; i < size; i++) people.push({ ticket: 20 + Math.floor(r() * 60) + i, tint: Math.floor(r() * 4) });
+    const swaps = [];
+    let t = 8 + r() * 6;
+    while (t < CLOSE - 45) { swaps.push(Math.round(t * 10) / 10); t += 14 + r() * 10; }
+    return { people, swaps };
   }
 
   // 桌上「别人」少于 2 个就补灰色身影，补到 2 个；它们不算人数。
@@ -294,7 +326,7 @@
     CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, CLOSE, OPEN_HOUR, CLOSE_HOUR, DIMSUM, TIERS, CART_KEYS, TEAS, TEA_FEE, ORDER_MAX, ACTS, PLAYER_ACTS, isPlayerCode,
     rng, createHall, seat, leave, tableOf, summary, tableList,
     newVisit, recordAct, closeVisit, isVisit, encodeVisits, decodeVisits, pushVisit,
-    planGhosts, residentsFor, residentSchedule, dueActs, syntheticVisits,
+    planGhosts, residentsFor, traceBody, mergeRemote, queuePlan, TRACE_MAX_ACTS, residentSchedule, dueActs, syntheticVisits,
     clockAt, phaseAt, cartPlan, takeFromCart, residentCartMove, dimsumName, dimsum, tierOf, teaOf, kitchenPlan, billTotal, billLines,
   };
 });

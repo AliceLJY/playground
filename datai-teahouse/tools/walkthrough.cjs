@@ -69,7 +69,8 @@ const fs = require('node:fs'), path = require('node:path');
     '再开一市后回到门口': s8b.phase === 'door',
     '再落座时刚才的你在大堂里': s9.others.length + s9.tables.reduce((a, t) => a + t.count, 0) >= 2,
     '有人给你斟了茶': got,
-    '叩指后窗口关闭、茶单记了一次谢': !got || (s11.knockOpen === false && s11.tally.knocksGiven === 1),
+    // 窗口要么关了，要么是回放里紧跟着又斟了一壶重新打开的（上次的你连斟两壶时会这样，不是叩指没生效）
+    '叩指后窗口关闭（或被下一次斟茶重开）、茶单记了一次谢': !got || (s11.tally.knocksGiven === 1 && (s11.knockOpen === false || s11.lastSound === 'pour')),
     '零报错': errors.length === 0,
   };
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify({ checks, errors, report }, null, 1));
