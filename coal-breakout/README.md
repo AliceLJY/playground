@@ -9,10 +9,10 @@ A tiny coal creature and its orbiting AI helpers survive three original AI disas
 - Phone: hold and drag anywhere on the arena, like a floating joystick. Release to stop.
 - Desktop: drag with the mouse, or use arrow keys / WASD. Escape or P pauses.
 - Sound starts off. Tap the sound button to enable original synthesised chip music and effects.
-- Upgrades pause the fight. Choose one of three cards or skip. Every third rank restores one health point.
+- Every other rank-up picks a card automatically and flashes it in the top bar; the rest pause the fight to choose one of three cards or skip. Every third rank restores one health point.
 - Stage 1: some experience gems have a flickering pink core. They reveal a mouth before attacking. Only the boss with the white outline takes damage.
 - Stage 2: text walls squeeze the arena. Defeating yellow compressors pushes them back; the boss pulls the player and gems toward the centre.
-- Stage 3: every 50 seconds, a three-second red countdown warns of four seconds without weapons, followed by five seconds of burst fire. Leave the boss's yellow zones before they turn red.
+- Stage 3: every 40 seconds, a three-second red countdown warns of four seconds without weapons, followed by five seconds of burst fire. Leave the boss's yellow zones before they turn red.
 
 Eight upgrades add helpers, piercing beams, extra projectiles, faster attacks, a wider pickup radius, a one-use revival, faster movement or critical hits. Each can be selected up to three times. Death immediately offers a same-stage restart. Only unlocked stages are stored locally; blocking storage does not prevent play.
 

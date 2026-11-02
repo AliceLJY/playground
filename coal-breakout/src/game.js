@@ -109,12 +109,13 @@
     $('clock').textContent = s.boss >= 0 ? fmt(s.tick / 60) : fmt((s.stage.duration - s.tick) / 60);
     $('hearts').textContent = '♥'.repeat(Math.max(0, s.hp)) + '♡'.repeat(s.maxHP - Math.max(0, s.hp)); $('hearts').setAttribute('aria-label', '生命 ' + s.hp);
     $('rank').textContent = '等级 ' + s.level + ' · 击败 ' + s.kills;
-    const previous = s.level <= 1 ? 0 : s.nextXP - 10 - s.level * 5;
+    const previous = s.prevXP;
     $('xp-fill').style.width = Math.min(100, (s.xp - previous) / (s.nextXP - previous) * 100) + '%';
     const n = $('notice'); n.className = '';
     if (s.warning) { n.textContent = '⚠ 额度重置 ' + (s.warning / 60).toFixed(1) + ' 秒 · 先找空地！'; n.className = 'danger'; }
     else if (s.off) { n.textContent = '停火 ' + (s.off / 60).toFixed(1) + ' 秒 · 只管躲，别停下'; n.className = 'danger'; }
     else if (s.burst) { n.textContent = '额度已回满 · 火力爆发！'; n.className = 'burst'; }
+    else if (s.autoCard >= 0 && s.tick < s.autoUntil) { n.textContent = '自动升级 · ' + D.cards[s.autoCard].name + ' +1'; n.className = 'burst'; }
     else if (s.boss >= 0) { n.textContent = '首领 / ' + s.stage.boss + (selected === 0 ? ' · 白边是真身' : selected === 2 ? ' · 黄框变红前离开' : ' · 逆着引力走'); n.className = 'boss'; }
     else n.textContent = s.stage.hint;
     $('boss-meter').hidden = s.boss < 0; if (s.boss >= 0) $('boss-meter').firstElementChild.style.width = Math.max(0, s.eHP[s.boss] / s.stage.bossHP * 100) + '%';
@@ -168,7 +169,7 @@
   function fixed(view) {
     if (!['hero', 'levelup', 'boss', 'result', 'stress'].includes(view)) return;
     start(view === 'boss' ? 2 : 0, view === 'boss' ? 1 : 7, view === 'stress');
-    const pilot = CoalPilot.create('precise', seed), target = view === 'hero' ? 5040 : view === 'boss' ? 11820 : view === 'stress' ? 28 : 18000;
+    const pilot = CoalPilot.create('precise', seed), target = view === 'hero' ? 5040 : view === 'boss' ? 9500 : view === 'stress' ? 28 : 18000;
     for (let f = 0; f < 22000 && s.phase < 2; f++) {
       if (view === 'levelup' && s.phase === 1) break;
       if (s.tick >= target && s.phase !== 1) break;

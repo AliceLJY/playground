@@ -110,3 +110,18 @@ test('A10: all eight cards change simulated outcomes, not just displayed values'
   const life = C.create(4); life.phase = 1; life.offer[0] = 5; H(life, 0, 0, 0); life.hp = 1; H.hurt(life);
   assert.equal(life.phase, 0); assert.equal(life.hp, 6); assert.equal(life.revivals, 1); assert.equal(life.revives, 0);
 });
+
+test('A11: only every other level-up pauses for a card choice; the rest auto-pick and still grow the team', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    let pauses = 0, last = -1, autos = 0;
+    const s = P.run(C, seed, 0, 'precise', 18000, g => {
+      if (g.phase === 1 && last !== 1) pauses++;
+      if (g.event === 12) autos++;
+      last = g.phase;
+    });
+    const ups = s.level - 1;
+    assert.ok(ups >= 8, `seed ${seed}: too few level-ups (${ups}) for the check to mean anything`);
+    assert.ok(autos >= Math.floor(ups / 2) - 1 && pauses <= Math.ceil(ups / 2) + 1, `seed ${seed}: ${pauses} pauses, ${autos} auto picks for ${ups} level-ups`);
+    assert.ok(s.cards.reduce((a, b) => a + b, 0) >= ups - 2, `seed ${seed}: auto picks must add real cards`);
+  }
+});

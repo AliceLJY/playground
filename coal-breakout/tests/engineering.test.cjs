@@ -66,7 +66,7 @@ test('A1: record a complete round including choices; replay all pool/scalar byte
   while (original.phase < 2 && tape.length < 16000) {
     const input = Array.from(pilot(original)); tape.push(input); C.step(original, ...input); digests.push(hash(original));
   }
-  assert.ok(original.phase >= 2 && original.tick > 9000, 'record a real whole round through the boss');
+  assert.ok(original.phase >= 2 && original.tick > original.stage.duration, 'record a real whole round through the boss');
   assert.ok(tape.some(a => a[2] >= 0), 'choices must be present in recording');
   const replay = C.create(5);
   tape.forEach((input, frame) => { C.step(replay, ...input); assert.equal(hash(replay), digests[frame], `diverged at frame ${frame}`); });
