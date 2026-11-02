@@ -69,13 +69,22 @@
     fetch(TRACE_ENDPOINT + '/traces?n=12', { mode: 'cors', credentials: 'omit' })
       .then((r) => (r.ok ? r.json() : null)).then((x) => done(Array.isArray(x) ? x : null)).catch(() => done(null));
   }
-  // 离席时把这一趟（只有动作时间线）留给后来的人；失败就算了，本机记录照存
-  function postTrace(visit) {
+  // 离席时把这一趟（只有动作时间线）留给后来的人；失败就算了，本机记录照存。
+  // 同一趟第二次起（切走又回来、再离席）不再新留一条，而是凭服务给的凭条把那一条换成完整的。
+  function postTrace(visit, ticket) {
     if (FIXED || !TRACE_ENDPOINT || typeof fetch !== 'function' || !(visit.dur >= 5)) return;
-    fetch(TRACE_ENDPOINT + '/trace', { method: 'POST', mode: 'cors', credentials: 'omit', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(D.traceBody(visit)) })
+    const body = D.traceBody(visit);
+    if (ticket && ticket.k) {
+      if (!ticket.t) return; // 第一次的回执还没回来：这一次先不发
+      fetch(TRACE_ENDPOINT + '/trace/' + ticket.k, { method: 'PUT', mode: 'cors', credentials: 'omit', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...body, t: ticket.t }) }).catch(() => {});
+      return;
+    }
+    const mine = ticket || {};
+    fetch(TRACE_ENDPOINT + '/trace', { method: 'POST', mode: 'cors', credentials: 'omit', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((x) => { if (x && typeof x.k === 'string') { const p = loadPosted(); p.push(x.k); try { localStorage.setItem(POSTED_KEY, JSON.stringify(p.slice(-40))); } catch (e) {} } })
+      .then((x) => { if (x && typeof x.k === 'string') { mine.k = x.k; mine.t = x.t; const p = loadPosted(); p.push(x.k); try { localStorage.setItem(POSTED_KEY, JSON.stringify(p.slice(-40))); } catch (e) {} } })
       .catch(() => {});
+    return mine;
   }
   function saveVisits() {
     if (FIXED) return;
@@ -232,9 +241,10 @@
       case 6: { // 离席：这一趟记下，开茶单；「再开一市」才重新进门
         const dur = t - S.seatT;
         D.closeVisit(S.visit, dur);
-        // 中途切走时已经先留过一次：本机那条换成完整的，服务那边不再重复留
+        // 中途切走时已经先留过一次：本机那条换成完整的，服务那边凭凭条换成完整的
         if (S.flushed) visits = visits.slice(0, -1);
-        visits = D.pushVisit(visits, S.visit); saveVisits(); if (!S.flushed) postTrace(S.visit);
+        visits = D.pushVisit(visits, S.visit); saveVisits();
+        if (S.ticket) postTrace(S.visit, S.ticket); else postTrace(S.visit);
         S.visit = null; sfx.leave();
         const companions = new Set(S.ghosts.filter((g) => g.here && g.seatedWithMe !== false).map((g) => g.id)).size;
         const tally = { ...S.tally, tea: S.tea, table: S.me.table, companions: Math.max(companions, S.metOthers || 0), seconds: dur, closedOut: !!kind, leftAt: D.clockAt(t) };
@@ -1007,9 +1017,11 @@
   window.addEventListener('resize', resize);
   // 坐着就切走或关掉页面：当作离席先留下这一趟（手机上关标签页多半只来得及发这一下）。回来接着坐，离席时只更新本机那条
   function flushOnHide() {
-    if (!S || S.phase !== 'seated' || !S.visit || S.flushed) return;
+    if (!S || S.phase !== 'seated' || !S.visit) return;
     const v = D.closeVisit({ ...S.visit, acts: S.visit.acts.slice() }, S.tau - S.seatT);
-    visits = D.pushVisit(visits, v); saveVisits(); postTrace(v);
+    if (S.flushed) visits = visits.slice(0, -1);
+    visits = D.pushVisit(visits, v); saveVisits();
+    if (S.ticket) postTrace(v, S.ticket); else S.ticket = postTrace(v) || null;
     S.flushed = true;
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { lastFrame = 0; flushOnHide(); } });

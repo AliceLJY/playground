@@ -9,6 +9,7 @@ export const MAX_ACTS = 200;
 export const TTL = 7 * 24 * 3600;  // 秒
 export const POSTS_PER_HOUR = 6;   // 每个地址每小时最多留几次
 export const MAX_N = 12;
+export const EDIT_WINDOW = 3 * 3600 * 1000; // 留下后多久内还能凭凭条把它换成完整的那一趟（毫秒）
 const PLAYER_CODES = new Set([0, 1, 2, 3, 4, 5, 6, 8]); // 7 是「抿茶」，只给桌上的别人用
 const FAR = 9999999999999;         // key 用倒数时刻，KV 的 list 按字典序升序给，最新的就排在最前
 
@@ -32,7 +33,7 @@ export function cleanTrace(x) {
 }
 
 function cors(extra) {
-  return { 'access-control-allow-origin': ORIGIN, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '86400', vary: 'origin', ...extra };
+  return { 'access-control-allow-origin': ORIGIN, 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '86400', vary: 'origin', ...extra };
 }
 function json(status, body, extra) {
   return new Response(JSON.stringify(body), { status, headers: cors({ 'content-type': 'application/json; charset=utf-8', ...extra }) });
@@ -71,8 +72,32 @@ export async function handle(request, env, now) {
     if (used >= POSTS_PER_HOUR) return json(429, { error: 'slow down' }, { 'retry-after': '3600' });
     await kv.put(rlKey, String(used + 1), { expirationTtl: 7200 });
     const key = `${String(FAR - at).padStart(13, '0')}-${Math.random().toString(36).slice(2, 6)}`;
-    await kv.put('trace:' + key, JSON.stringify({ ...trace, at }), { expirationTtl: TTL });
-    return json(201, { k: key });
+    // 凭条：只回给留下它的那个页面，之后凭它把这一条换成完整的那一趟；GET 永远不吐它
+    const t = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    await kv.put('trace:' + key, JSON.stringify({ ...trace, at, t }), { expirationTtl: TTL });
+    return json(201, { k: key, t });
+  }
+
+  // 换成完整的那一趟：PUT /trace/<k>，body { t, v, dur, acts }。凭条对得上、在时限内才换；进门时刻不变
+  const m = url.pathname.match(/^\/trace\/([0-9]{13}-[a-z0-9]{1,8})$/);
+  if (request.method === 'PUT' && m) {
+    const origin = request.headers.get('origin');
+    if (origin && origin !== ORIGIN) return json(403, { error: 'origin' });
+    const text = await request.text();
+    if (new TextEncoder().encode(text).length > MAX_BODY + 100) return json(413, { error: 'too large' });
+    let body;
+    try { body = JSON.parse(text); } catch (e) { return json(400, { error: 'json' }); }
+    const trace = cleanTrace(body);
+    if (!trace || typeof body.t !== 'string') return json(400, { error: 'shape' });
+    const raw = await kv.get('trace:' + m[1]);
+    if (!raw) return json(404, { error: 'gone' });
+    let old;
+    try { old = JSON.parse(raw); } catch (e) { return json(404, { error: 'gone' }); }
+    if (typeof old.t !== 'string' || old.t !== body.t) return json(403, { error: 'ticket' });
+    if (at - old.at > EDIT_WINDOW) return json(409, { error: 'too late' });
+    const left = Math.max(60, Math.round((old.at + TTL * 1000 - at) / 1000));
+    await kv.put('trace:' + m[1], JSON.stringify({ ...trace, at: old.at, t: old.t }), { expirationTtl: left });
+    return json(200, { k: m[1] });
   }
 
   return json(404, { error: 'not found' });

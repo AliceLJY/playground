@@ -15,7 +15,7 @@ const FAKE = 'https://datai-traces.check.workers.dev';
   const ok = (name, cond, extra) => { console.log(`${cond ? '✓' : '✗'} ${name}${extra ? ' · ' + extra : ''}`); if (!cond) fail++; };
   const remoteList = D.syntheticVisits(9, 13, 240).map((v, i) => ({ k: 'r' + i, at: Date.now() - (i + 1) * 20 * 3600000, v: 1, dur: v.dur, acts: v.acts }));
 
-  async function open(ctx, { delay = 600, list = remoteList, hang = false, posts }) {
+  async function open(ctx, { delay = 600, list = remoteList, hang = false, posts, puts }) {
     const p = await ctx.newPage();
     const errors = []; p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await p.route(/\/src\/game\.js(\?|$)/, async (route) => {
@@ -29,7 +29,8 @@ const FAKE = 'https://datai-traces.check.workers.dev';
         await new Promise((r) => setTimeout(r, delay));
         return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(list) });
       }
-      if (req.method() === 'POST') { posts && posts.push(JSON.parse(req.postData())); return route.fulfill({ status: 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ k: 'mine-1' }) }); }
+      if (req.method() === 'POST') { posts && posts.push(JSON.parse(req.postData())); return route.fulfill({ status: 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ k: 'mine-1', t: 'f'.repeat(32) }) }); }
+      if (req.method() === 'PUT') { puts && puts.push({ path: new URL(req.url()).pathname, body: JSON.parse(req.postData()) }); return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{}' }); }
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' } });
     });
     await p.goto(url + (url.includes('?') ? '&' : '?') + 'mute=1');
@@ -40,8 +41,8 @@ const FAKE = 'https://datai-traces.check.workers.dev';
   // 1. 门口稍等 → 远端到了 → 领位
   {
     const ctx = await b.newContext({ viewport: { width: 390, height: 664 }, deviceScaleFactor: 2, hasTouch: true });
-    const posts = [];
-    const { p, errors } = await open(ctx, { delay: 900, posts });
+    const posts = [], puts = [];
+    const { p, errors } = await open(ctx, { delay: 900, posts, puts });
     const s0 = await p.evaluate(() => window.__datai.snapshot());
     const sitBtn0 = await p.evaluate(() => document.querySelector('#bar button[data-act="0"]').disabled);
     ok('进门先等远端：伙计说稍等、落座键灰着', s0.waiting && /稍等/.test(s0.hint) && sitBtn0, s0.hint);
@@ -68,7 +69,7 @@ const FAKE = 'https://datai-traces.check.workers.dev';
     await p.click('#bar button[data-act="6"]');
     await p.waitForTimeout(400);
     const vis = await p.evaluate(() => window.__datai.visits.map((v) => v.dur));
-    ok('回来再离席：不重复上传，本机那条换成完整时长', posts.length === 1 && vis.length === 1 && vis[0] > posts[0].dur, `posts ${posts.length} · 本机 ${vis.join(',')} · 上传 ${posts[0].dur}`);
+    ok('回来再离席：不新留一条，凭凭条把那一条换成完整的；本机那条也是完整的', posts.length === 1 && puts.length === 1 && puts[0].path === '/trace/mine-1' && puts[0].body.t === 'f'.repeat(32) && puts[0].body.dur > posts[0].dur && vis.length === 1 && vis[0] === puts[0].body.dur, `posts ${posts.length} · puts ${puts.length} · 本机 ${vis.join(',')} · 先传 ${posts[0].dur} · 换成 ${puts[0] && puts[0].body.dur}`);
     ok('离席上传一条，只有 v/dur/acts', posts.length === 1 && JSON.stringify(Object.keys(posts[0]).sort()) === '["acts","dur","v"]' && posts[0].acts.length >= 2, JSON.stringify(posts[0]).slice(0, 90));
     const posted = await p.evaluate(() => localStorage.getItem('datai-posted'));
     ok('记下了自己那条的 key', posted === '["mine-1"]', posted);
