@@ -56,11 +56,11 @@ test('验收 7 页面文件只许访问痕迹服务这一个地址：没有别�
     if (f !== path.join('src', 'game.js')) assert.ok(!/\bfetch\b/.test(text), `${f} 不该发请求，请求只在 game.js 的痕迹两处`);
     assert.ok(!/@import|<link[^>]+href=/i.test(text), `${f} 引了外部样式或链接`);
   }
-  // game.js 里的 fetch 只有两处，都拼在 TRACE_ENDPOINT 后面，且都在「有地址才发」的守卫之后
+  // game.js 里的 fetch 只有三处，都拼在 TRACE_ENDPOINT 后面，且都在「有地址才发」的守卫之后
   const calls = [...game.matchAll(/fetch\(([^,]+),/g)].map((x) => x[1].trim());
-  assert.deepEqual(calls, ["TRACE_ENDPOINT + '/traces?n=12'", "TRACE_ENDPOINT + '/trace'"], '请求只能发往痕迹服务的两个路径');
+  assert.deepEqual(calls, ["TRACE_ENDPOINT + '/traces?n=12'", "TRACE_ENDPOINT + '/trace/' + ticket.k", "TRACE_ENDPOINT + '/trace'"], '请求只能发往痕迹服务：取、凭凭条更新、留下');
   assert.equal((game.match(/!TRACE_ENDPOINT/g) || []).length, 2, '两处请求都要先判 TRACE_ENDPOINT 为空就不发');
-  assert.ok(/credentials: 'omit'[^\n]*\n[^]*credentials: 'omit'/.test(game), '两处请求都不带 cookie');
+  assert.equal((game.match(/fetch\(TRACE_ENDPOINT[^\n]*credentials: 'omit'/g) || []).length, 3, '三处请求都不带 cookie');
   const html = read('index.html');
   for (const m2 of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) assert.ok(/^(\.\/|src\/|#)/.test(m2[1]), `index.html 里的 ${m2[0]} 不是本目录相对路径`);
   assert.ok(!/<audio|\.(mp3|wav|ogg|m4a)\b/i.test(html + game), '不用音频文件，声音全部合成');

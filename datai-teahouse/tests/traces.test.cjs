@@ -42,7 +42,10 @@ test('痕迹 2 POST 白名单重建：多余字段（名字、文字、伪造时
   assert.equal(r.status, 201);
   assert.equal(r.headers.get('access-control-allow-origin'), ORIGIN);
   const stored = [...env.DATAI_TRACES.m.entries()].find(([k]) => k.startsWith('trace:'));
-  assert.deepEqual(JSON.parse(stored[1]), { v: 1, dur: 30, acts: [[1, 1], [2, 2]], at: 1700000000000 }, '只存 v/dur/acts 和服务端时刻');
+  const saved = JSON.parse(stored[1]);
+  assert.match(saved.t, /^[0-9a-f]{32}$/, '另存一张凭条（只回给留下它的页面）');
+  delete saved.t;
+  assert.deepEqual(saved, { v: 1, dur: 30, acts: [[1, 1], [2, 2]], at: 1700000000000 }, '只存 v/dur/acts、服务端时刻和凭条');
   assert.equal(env.DATAI_TRACES.lastOpts.expirationTtl, 7 * 24 * 3600, '痕迹七天过期');
   const bad = [
     { v: 2, dur: 1, acts: [] }, { v: 1, dur: 1801, acts: [] }, { v: 1, dur: -1, acts: [] },
@@ -115,4 +118,29 @@ test('等位 门口排 1–4 位（大堂几桌排几位），伙计每 14–24 
     }
   }
   assert.deepEqual(D.queuePlan(5, 2), D.queuePlan(5, 2), '同种子同结果');
+});
+
+test('痕迹 6 凭条：POST 回凭条、GET 不吐凭条；凭条对才能把那一条换成完整的，进门时刻不变；错凭条 403、没这条 404、超时 409', async () => {
+  const W = await load();
+  const env = { DATAI_TRACES: fakeKV() };
+  const t0 = 1700000000000;
+  const r = await W.handle(post({ v: 1, dur: 7.6, acts: [] }), env, t0);
+  const { k, t } = await r.json();
+  assert.match(t, /^[0-9a-f]{32}$/);
+  const list = await (await W.handle(get(), env)).json();
+  assert.ok(!JSON.stringify(list).includes(t), 'GET 不能吐凭条');
+  assert.deepEqual(Object.keys(list[0]).sort(), ['acts', 'at', 'dur', 'k', 'v']);
+  const put = (body, key, now) => W.handle(new Request('https://w.example/trace/' + (key || k), { method: 'PUT', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify(body) }), env, now || t0 + 60000);
+  assert.equal((await put({ v: 1, dur: 90, acts: [[3, 1]], t: 'x'.repeat(32) })).status, 403, '错凭条');
+  assert.equal((await put({ v: 1, dur: 90, acts: [[3, 1]] })).status, 400, '没带凭条');
+  assert.equal((await put({ v: 1, dur: 90, acts: [[3, 7]], t })).status, 400, '坏形状');
+  assert.equal((await put({ v: 1, dur: 90, acts: [[3, 1]], t }, '0000000000000-zzzz')).status, 404);
+  assert.equal((await put({ v: 1, dur: 90, acts: [[3, 1]], t }, k, t0 + W.EDIT_WINDOW + 1)).status, 409, '超时不许改');
+  assert.equal((await put({ v: 1, dur: 90, acts: [[3, 1], [80, 2]], t, name: '阿明' })).status, 200);
+  const after = await (await W.handle(get(), env)).json();
+  assert.equal(after.length, 1, '换掉的是同一条，不是多一条');
+  assert.deepEqual(after[0], { k, at: t0, v: 1, dur: 90, acts: [[3, 1], [80, 2]] }, '换成完整的、进门时刻不变、多余字段丢掉');
+  // 没凭条的老记录换不了
+  env.DATAI_TRACES.m.set('trace:9999999999999-old1', JSON.stringify({ v: 1, dur: 7, acts: [], at: t0 }));
+  assert.equal((await put({ v: 1, dur: 9, acts: [], t }, '9999999999999-old1')).status, 403);
 });
