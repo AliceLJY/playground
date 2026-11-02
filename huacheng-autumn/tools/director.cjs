@@ -25,7 +25,7 @@ const SHOTS=[
  // Same high road-side view of the bridge; dusk falls to night inside the shot while the westbound tram crosses.
  {id:'dusk',start:20,end:29,from:[34,22,30],to:[27,21,29],look:[-22,9,-4],lookTo:[-25,9,-4],fov:30,shift:.1,sim:[47,56],h:[.48,.86],lamps:[.3,.9]},
  // Night: slow orbit and push on the lit Canton Tower, camera kept on the south bank.
- {id:'tower',start:29,end:37,orbit:[-62,-6],radius:84,radiusTo:70,height:24,heightTo:22,angles:[70,44],look:[-64,20,-5],fov:32,shift:.15,sim:[38,46],h:[.86,.9],lamps:[.9,1]},
+ {id:'tower',start:29,end:37,dissolve:2,orbit:[-62,-6],radius:84,radiusTo:70,height:24,heightTo:22,angles:[70,44],look:[-64,20,-5],fov:32,shift:.15,sim:[38,46],h:[.86,.9],lamps:[.9,1]},
  // Night wide: rise round the whole board, Canton Tower held in frame to the end.
  {id:'wide',start:37,end:45,orbit:[0,-2],radius:112,height:58,angles:[84,66],look:[-10,9,-2],fov:32,shift:0,sim:[40,48],h:[.9,.92],lamps:[1,1]},
 ];
@@ -43,7 +43,8 @@ function frameOf(s,t){
 }
 function sample(t){
  t=Math.max(0,Math.min(DURATION-1e-6,t));
- for(let i=1;i<SHOTS.length;i++){const b=SHOTS[i].start;if(t>=b-DISSOLVE/2&&t<b+DISSOLVE/2)return{current:frameOf(SHOTS[i],t),previous:frameOf(SHOTS[i-1],t),blend:ease((t-b+DISSOLVE/2)/DISSOLVE)};}
+ // v9 note from Alice: the cut into Canton Tower felt abrupt — that one takes a slow 2 s dissolve.
+ for(let i=1;i<SHOTS.length;i++){const b=SHOTS[i].start,d=SHOTS[i].dissolve??DISSOLVE;if(t>=b-d/2&&t<b+d/2)return{current:frameOf(SHOTS[i],t),previous:frameOf(SHOTS[i-1],t),blend:ease((t-b+d/2)/d)};}
  const s=SHOTS.find(s=>t<s.end)||SHOTS.at(-1);return{current:frameOf(s,t),previous:null,blend:1};
 }
 async function show(page,s){await page.evaluate(s=>window.__huacheng.recordFrame(s.current,s.previous,s.blend),s);await page.evaluate(async()=>{const im=document.querySelector('#record-dissolve');if(+im.style.opacity>0)await im.decode();});}
@@ -62,14 +63,14 @@ async function main(){
    await sheet(page,cells,path.join(OUT,'stills.png'));fs.writeFileSync(path.join(OUT,'stills.json'),JSON.stringify(facing,null,1));
    console.log(JSON.stringify(facing.filter(f=>f.tramVisible&&f.tramFacingDot>.35)),'tilt>6:',JSON.stringify(facing.filter(f=>(f.pagodaTilt??0)>6||(f.cantonTilt??0)>6)));
   }else{
-   const scene=path.join(OUT,'scene-v9-silent.mp4');
+   const scene=path.join(OUT,'scene-v10-silent.mp4');
    const ff=spawn('ffmpeg',['-y','-hide_banner','-loglevel','error','-f','image2pipe','-vcodec','png','-framerate',String(FPS),'-i','pipe:0','-an','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart',scene],{stdio:['pipe','ignore','inherit']});
    const done=new Promise((ok,no)=>ff.once('close',c=>c===0?ok():no(Error('ffmpeg '+c))));
    for(let i=0;i<DURATION*FPS;i++){await page.clock.runFor(1000/FPS);await show(page,sample(i/FPS));const png=await page.screenshot({scale:'device'});if(!ff.stdin.write(png))await new Promise(r=>ff.stdin.once('drain',r));if(i%150===0)console.log('frame',i,'/',DURATION*FPS);}
    ff.stdin.end();await done;if(errors.length)throw Error('page errors: '+errors.join('; '));
    const endcard=path.join(OUT,'endcard/endcard.mp4');
-   execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',scene,'-i',endcard,'-filter_complex','[0:v]setsar=1,fps=30,format=yuv420p[a];[1:v]setsar=1,fps=30,format=yuv420p,tpad=start_mode=clone:start_duration=1[b];[a][b]xfade=transition=fade:duration=1:offset='+(DURATION-1)+'[v]','-map','[v]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r','30','-an','-movflags','+faststart',path.join(OUT,'huacheng-demo-v9-silent-1080x1920.mp4')]);
-   console.log('done',path.join(OUT,'huacheng-demo-v9-silent-1080x1920.mp4'));
+   execFileSync('ffmpeg',['-y','-hide_banner','-loglevel','error','-i',scene,'-i',endcard,'-filter_complex','[0:v]setsar=1,fps=30,format=yuv420p[a];[1:v]setsar=1,fps=30,format=yuv420p,tpad=start_mode=clone:start_duration=1[b];[a][b]xfade=transition=fade:duration=1:offset='+(DURATION-1)+'[v]','-map','[v]','-c:v','libx264','-preset','medium','-crf','18','-pix_fmt','yuv420p','-r','30','-an','-movflags','+faststart',path.join(OUT,'huacheng-demo-v10-silent-1080x1920.mp4')]);
+   console.log('done',path.join(OUT,'huacheng-demo-v10-silent-1080x1920.mp4'));
   }
  }finally{await browser.close();}
 }
