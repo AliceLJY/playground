@@ -74,7 +74,7 @@ function serve(dir) {
     if (n % 300 === 0) console.log('frame', n, '/', total);
   }
   safe.passed=safe.subFrames>0&&safe.subBottom<=1480&&safe.titleTop>=172;
-  fs.writeFileSync(path.join(outDir,'safe-area-v6.json'),JSON.stringify(safe,null,2));
+  fs.writeFileSync(path.join(outDir,'safe-area-v7.json'),JSON.stringify(safe,null,2));
   if(external.length)throw new Error('MV attempted external requests: '+JSON.stringify(external));
   if(!safe.passed)throw new Error('Safe area failed: '+JSON.stringify(safe));
   const log = await page.evaluate(() => window.__PLAYTEST__.mvLog());

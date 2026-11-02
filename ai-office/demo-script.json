@@ -165,7 +165,11 @@
       "scene": {
         "dispatched": [
           "builder"
-        ]
+        ],
+        "call": {
+          "kind": "dispatch",
+          "with": "builder"
+        }
       },
       "log": [
         {
@@ -296,7 +300,8 @@
       "at": 94,
       "scene": {
         "meeting": null,
-        "dispatched": []
+        "dispatched": [],
+        "call": null
       },
       "log": [
         {
@@ -314,11 +319,21 @@
     {
       "at": 96,
       "scene": {
-        "call": {}
+        "call": {
+          "kind": "dispatch",
+          "with": "filmmaker"
+        },
+        "dispatched": [
+          "filmmaker"
+        ]
       },
       "log": [
         {
-          "kind": "call"
+          "kind": "handoff",
+          "ids": [
+            "director",
+            "filmmaker"
+          ]
         }
       ]
     },
@@ -354,7 +369,8 @@
     {
       "at": 120,
       "scene": {
-        "call": null
+        "call": null,
+        "dispatched": []
       },
       "log": [
         {
@@ -475,6 +491,34 @@
       "at": 270,
       "id": "writer",
       "status": "away"
+    },
+    {
+      "at": 300,
+      "scene": {
+        "call": {
+          "kind": "dispatch",
+          "with": "builder"
+        },
+        "dispatched": [
+          "builder"
+        ]
+      },
+      "log": [
+        {
+          "kind": "handoff",
+          "ids": [
+            "director",
+            "builder"
+          ]
+        }
+      ]
+    },
+    {
+      "at": 330,
+      "scene": {
+        "call": null,
+        "dispatched": []
+      }
     }
   ],
   "scene": {

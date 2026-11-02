@@ -5,7 +5,7 @@
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const root = path.resolve(__dirname, '..');
-const times = (process.argv[2] || '0.6,10.7,14,20,27.2,28,29.7,31.4,32.5,34,36.2,39,43,46,49.9,53.8,58.5,61.6,64.8,66.7,70.5,74,76.8,78.1,79.5,81.3,84.1,86,89.9,92.3,95.5,99,102.7,105.5,106.1,106.5,107.9').split(',').map(Number);
+const times = (process.argv[2] || '0.6,10.7,14,20,24.2,25.4,26.1,27.2,28,29.7,31.4,32.5,34,36.2,39,43,46,49.9,53.8,58.5,61.6,64.8,66.7,70.5,74,76.8,78.1,79.5,81.3,84.1,86,89.9,92.3,95.5,99,102.7,105.5,106.1,106.5,107.9').split(',').map(Number);
 const out = process.argv[3]; if(out) fs.mkdirSync(out,{recursive:true});
 const report={checks:[],frames:[],errors:[]};
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
@@ -36,10 +36,14 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
       const measured=actors.map(a=>{const p=state.nameplates.find(p=>p.id===a.id);return {id:a.id,p,box:p&&{x:540+(p.x-cam.cx)*scale,y:588+(p.y-cam.cy)*scale,w:p.w*scale,h:p.h*scale},textPixels:7*scale};});
       check('key names fit camera and text >=35px',measured.every(m=>m.p&&m.textPixels>=34.99&&m.box.x>=0&&m.box.x+m.box.w<=1080&&m.box.y>=0&&m.box.y+m.box.h<=1176),measured);
     }
-    if([31.4,32.5].includes(t)){
-      const f=state.flights[0],c=snap.camera,s=3*c.z,point=f&&{x:540+(f.x-c.cx)*s,y:588+(f.y-c.cy)*s};
-      check('real flying folder stays in frame',f&&f.progress>0&&f.progress<1&&point.x>40&&point.x<1040&&point.y>40&&point.y<1136,point);
+    if([25.4,26.1].includes(t)) {
+      const e=state.handoffWalk,cc=state.actors.find(a=>a.activity==='handoff-walk'),to=state.actors.find(a=>a.id===e?.id),c=snap.camera,s=3*c.z;
+      check('real handoff, no booth or flying folder',e && ['pat','reply'].includes(e.phase) && !state.flights.length && Math.hypot(cc.x-to.x,cc.y-to.y)<=20.1,{e,cc,to});
+      const boxes=[...state.speechBoxes,{x:cc.x-18,y:cc.y-26,w:36,h:44},{x:to.x-9,y:to.y-26,w:18,h:44}].map(b=>({x:540+(b.x-c.cx)*s,y:588+(b.y-c.cy)*s,w:b.w*s,h:b.h*s}));
+      check('handoff bodies and dialogue fit close-up',boxes.every(b=>b.x>=0&&b.x+b.w<=1080&&b.y>=0&&b.y+b.h<=1176),boxes);
+      if(t===26.1)check('recipient really replies',state.handoffSpeech.some(b=>b.text==='收到'),state.handoffSpeech);
     }
+    if([31.4,32.5].includes(t))check('CC is back home after delivery; no delayed flight',!state.handoffWalk&&!state.flights.length&&state.actors.some(a=>a.desk===0&&a.x===65&&a.y===139),state.handoffWalk);
     if(t===86)check('two actual seated listeners',state.visitors.filter(v=>v.listening&&!v.moving&&Math.abs(v.y-664)<1).length===2,state.visitors);
     if(t===102.7)check('completed patrol green lamp',state.scene.guard?.phase==='done'&&state.scene.guard.ok===true,state.guard);
     if(t===53.8)check('pitch handshake with two idle hosts',state.reception?.kind==='pitch'&&state.reception.phase==='handshake'&&state.reception.hosts.length===2,state.reception);
@@ -56,13 +60,16 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
     console.log(`${ok ? 'PASS' : 'FAIL'} B11 t=${t}s 立刻截与等 1 秒再截，差异像素 ${(d * 100).toFixed(3)}%  （${snap.clock}，字幕「${snap.subtitle?.text || ''}」${snap.subtitle ? ' α=' + snap.subtitle.alpha.toFixed(2) : ''}，镜头 z=${snap.camera.z.toFixed(2)}，暗 ${snap.darkness.toFixed(2)}）`);
   }
   // Regression for the first v5 take: a seated caller must actually animate, not hold a 1.2s still.
+  const phoneScript=structuredClone(require('../tests/fixtures/mv-v5-script.json'));
+  for(const e of phoneScript.events)if(e.scene?.call)e.scene.call.kind='consult';
+  await page.route('**/mv-script.json',route=>route.fulfill({json:phoneScript}));
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html?mv=1&hold=1&from=28`);
   for(let i=0;i<100 && !(await page.evaluate(()=>window.__PLAYTEST__?.ready));i++){await page.clock.runFor(50);await page.waitForTimeout(20);}
   await page.clock.pauseAt(await page.evaluate(()=>Date.now()+20));
   let previous=await page.screenshot();
   for(let i=1;i<=8;i++){
     await page.evaluate(()=>window.__PLAYTEST__.step(100));const next=await page.screenshot(),changed=await diff(previous,next),passed=changed>0;
-    report.checks.push({name:'phone visible mouth/receiver motion',scriptSeconds:28+i*.1,changedFraction:changed,passed});
+    report.checks.push({name:'consult visible mouth/receiver motion',scriptSeconds:28+i*.1,changedFraction:changed,passed});
     if(!passed)failed++;previous=next;
   }
   console.log(errors.length ? 'page errors: ' + errors.join(' | ') : 'page errors: 0');
