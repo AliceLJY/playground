@@ -2,7 +2,7 @@
 
 一间可以放着看的 AI 团队办公室。11 位像素伙伴会打字、等人拍板、交活、休息和出差；送信员把纸条送到“小试AI”的桌前，再留在后墙公告板上。手机竖屏优先，电脑右侧显示团队面板。人物、桌椅、沙发和动画全部用 Canvas 2D 画，没有外部图片、字体、音乐或运行依赖。
 
-本地服务读活动信号，网页只展示简要状态。没有服务时自动切换到约 150 秒循环的虚构演示，顶部明确标注“演示模式 · 模拟数据”。
+本地服务读活动信号，网页只展示简要状态。没有服务时自动切换到约 185 秒循环的虚构演示，顶部明确标注“演示模式 · 模拟数据”。
 
 ## 怎么跑
 
@@ -118,7 +118,7 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 
 页面只消费两份状态快照的 `scene`、`stats`、`events`，缺字段显示空态；字段不合法整份拒收。不会用 busy 状态猜测开会或打电话。电话与会议同时存在时 CC 先接电话，其他成员留在会议室；散会、挂电话后恢复各人的普通状态走位。派活名单每次增减只飞一次文件夹，重复轮询不重播。保安必须同时有信号且处于北京 23–08 点才出现，每个巡逻时间戳只绕一圈。
 
-150 秒演示：45 秒递活，50 秒开互审会，65 秒翻到第 2 轮，85 秒散会并交回，96–120 秒打电话，121 秒起多位伙伴进入游戏角；夜间预览 136 秒显示巡逻完成。累计数字使用固定示例，木牌和今天栏都写「演示」。`?demo=1&night=1` 预览夜班保安；默认演示为白天。`night=1` 不改变实时状态的时间和信号。
+185 秒演示：45 秒递活，50 秒开互审会，65 秒翻到第 2 轮，94 秒散会并交回，96–120 秒打电话，121 秒起多位伙伴进入游戏角；夜间预览 136 秒显示巡逻完成。累计数字使用固定示例，木牌和今天栏都写「演示」。`?demo=1&night=1` 预览夜班保安；默认演示从白天开始，后半段转到虚构的 23:00 送夜宵。`night=1` 不改变实时状态的时间和信号。
 
 | 入口 | 场景 |
 | --- | --- |
@@ -150,6 +150,34 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:3191/
 `POST /guest/meet` 只接受 `{kind,v}`；kind 为 `pitch|research|learn|chat`，v 为随机 16–32 位十六进制标签，每个标签五分钟一次，并走全局限流。不接收 token、自由文字或身份信息。两份快照均含最近十条 `{kind,at}`、按来意统计的 `meetsToday`、`stats.meetsTotal` 与 `stats.today.meets`，事件类型为 `reception`。保留最近五十条事件，北京日分类计数另存，重启不丢。
 
 `?view=reception` 使用种子 7，从零推进到第 49 秒。验证命令：`node --test tests/*.test.cjs`；浏览器检查：`NODE_PATH="$(npm root -g)" node tests/reception-browser.cjs`。截图和报告在 `tools/shots/reception*`，本轮实测、限制、owner 重启及公网复验见 [HANDOFF-reception.md](HANDOFF-reception.md)。
+
+## 办公室里五件小事
+
+五件事都由结构化信号触发，只演画面，不调用 AI，不改角色真实 status/statusSince。壁纸照常演，MV 明确关闭新演出。
+
+| 小事 | 信号与画面 |
+| --- | --- |
+| 互审吵架 | 新一轮反驳至少一条，CC 和按会议起点、轮次稳定选出的 reviewer 到白板前争论，滚成漫画烟团，再叉腰回座。反驳至少三条时多一句、烟团更大。 |
+| 交活请客 | 服务端看到连续 busy 至少 20 分钟转 done，同人每小时最多一次。拎袋子逐桌送小饼干，每份留五分钟。 |
+| 吃瓜 | 有人等拍板、送信员正在递纸条或互审在争论，游戏角里 2–3 位 idle 伙伴捧像素西瓜凑过来，事情结束三秒后散回。 |
+| 撞额度罚站 | 带 token 的额度报告让可让出的人到墙边面壁、举像素沙漏。到期、手动清除或服务端观察到转 busy 后解除。 |
+| 深夜送夜宵 | 北京时间 23:00 至次日 03:00，服务端第一次看到 busy 名单，当夜只一次。保安端面送给这些工位，每碗冒热气十分钟。 |
+
+优先表只定义在 `office-core.js` 一处：真实工作／通话／开会 > 罚站 > 接待 > 吵架 > 请客 > 吃瓜 > 游戏角。吵架属于本轮互审内部的动作，不另抢会议名额。每类同时一个演出、最多三个候场，超过两分钟未开演丢弃；罚站一旦开始按额度到期时间持续。访客时间向下取整到分钟，因此重播窗口最多提前 59 秒结束。
+
+`POST /api/quota` 沿用 report 的 Bearer token。只收 `{id, minutes?, clear?}`：id 必须在名单内，minutes 为 1–300 整数、默认 60，`clear:true` 解除。非法字段 400，缺失或错误 token 401，限流 429。额度状态持久化，两份快照只列未过期的 `quota: {id: untilISO}`。小命令静默、失败仍返回成功、五秒硬超时：
+
+```sh
+bin/office-quota agy
+bin/office-quota codex 90
+bin/office-quota agy clear
+```
+
+两份快照新增 `scene.snack = {id, at}`、`scene.supper = {at, ids}`（或 null）、会议 `roundAt`、`stats.snacksTotal` / `stats.today.snacks`、`stats.suppersTotal`（也保留今日夜宵次数）。「今天」按固定模板显示 argue/snack/quota/supper 事件，累计木牌不添行；新结构不带任务文字，旧快照缺字段仍可用。
+
+种子 7 的固定机位：`?view=melon` 18 秒、`?view=argue` 84.5 秒、`?view=quota` 93 秒、`?view=snack` 112.5 秒、`?view=supper` 154 秒；都从零真实推进，手机滚到事件位置。每轮演示延长到 185 秒：保留 20 秒送礼、34 秒来谈事；77 秒第 3 轮吵架、89 秒罚站、100 秒请客；141 秒演示时钟跳到 23:00，145 秒送夜宵。明确标注的演示信号是示例，不冒充现场采集。
+
+验证：`node --test tests/*.test.cjs`；`NODE_PATH="$(npm root -g)" node tests/events-browser.cjs`；接待与开场录屏回归另跑 `tests/reception-browser.cjs`。十张必需图为 `tools/shots/{argue,snack,melon,quota,supper}{,-landscape}.png`。实测、优先级解释及 owner 接线见 [HANDOFF-events.md](HANDOFF-events.md)。本轮未重启正式服务、改 wrapper 或发布。
 
 ## 谁会点开、AI 素材
 

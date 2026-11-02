@@ -39,6 +39,9 @@
     learn:['我们是这么搭的','原来还能这样做','先试小步，再慢慢改','学到了，回去试试'],
     chat:['坐坐，喝点啥','一杯茶就好','忙里也要歇一会儿','下次再来串门']
   };
+  // One ownership order. Arguments refine their own review's meeting claim; they never override another meeting.
+  const ACTIVITY_PRIORITY = Object.freeze({work:70,quota:60,reception:50,argue:40,snack:30,melon:20,games:10});
+  const stableHash = value => {let h=2166136261;for(const c of value)h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;return h;};
   const home = (i,selection=false) => { const p=getLayout(selection).desks[i]; return {x:p[0],y:p[1]+27}; };
   const lookIndex = (a,legacy=false) => legacy ? a.i : a.look ?? a.i;
   function plateName(name) {
@@ -127,7 +130,8 @@
     const director = () => sim.actors.find(a => a.id === 'cc') || sim.actors.find(a => a.i === 0);
     const deskPoint = a => ({x:layout[a.i][0] + 17, y:layout[a.i][1] + 4});
     const ccPoint = () => { const a = director(); return a && a.activity ? {x:a.x,y:a.y-12} : a ? deskPoint(a) : null; };
-    function setScene(value) {
+    function setScene(value, now) {
+      if(now!==undefined) sim.clockBase=now-sim.time*1000;
       const next = value || emptyScene(), before = sim.scene.dispatched;
       for (const id of new Set([...before, ...next.dispatched])) {
         if (before.includes(id) === next.dispatched.includes(id)) continue;
@@ -136,8 +140,9 @@
         sim.flights = sim.flights.filter(f => f.id !== id);
         sim.flights.push({id, returning, at:sim.time, from:returning ? deskPoint(a) : cc, to:returning ? deskPoint(director()) : deskPoint(a)});
       }
-      if (next.guard?.at !== sim.scene.guard?.at || next.guard?.phase !== sim.scene.guard?.phase) sim.guard = null;
+      if (!sim.supper && (next.guard?.at !== sim.scene.guard?.at || next.guard?.phase !== sim.scene.guard?.phase)) sim.guard = null;
       sim.scene = JSON.parse(JSON.stringify(next));
+      receiveEvents(next);
     }
     function flightPoints() {
       return sim.flights.map(f => { const t = Math.min(1, (sim.time-f.at)); return {...f, x:f.from.x+(f.to.x-f.from.x)*t, y:f.from.y+(f.to.y-f.from.y)*t-48*4*t*(1-t), progress:t}; });
@@ -155,7 +160,7 @@
       sim.seenMeets = [...sim.seenMeets,at].slice(-128);
       sim.meetQueue = [...sim.meetQueue,{kind,at,local,expires:sim.time+Math.max(0,120-Math.max(0,Number(ageMs)||0)/1000)}].slice(-3);
     }
-    const freeForReception = a => a.status==='idle' && !a.boss && !a.visitor && !isCourier(a) && !meetingTarget(a.id) && !(a===director() && sim.scene.call);
+    const freeForReception = a => !quotaClaim(a) && a.status==='idle' && !a.boss && !a.visitor && !isCourier(a) && !meetingTarget(a.id) && !(a===director() && sim.scene.call);
     const receptionist = a => sim.reception?.hosts.includes(a.id) && sim.reception.phase!=='leaving';
     function receptionPoint(index, handshake = false) {
       const m=sim.reception;
@@ -186,14 +191,14 @@
         const hosts=sim.actors.filter(freeForReception).sort((a,b)=>rank(a.id)-rank(b.id)||a.id.localeCompare(b.id)).slice(0,event.kind==='chat'?1:2).map(a=>a.id);
         const closed=sim.actors.every(a=>['off','away'].includes(a.status));
         const mode=hosts.length?'normal':closed?'closed':'tea';
-        if(mode==='tea' && courier && !meetingTarget(courier.id) && !(courier===director()&&sim.scene.call) && !sim.delivery && !['off','away'].includes(courier.status)) hosts.push(courier.id);
+        if(mode==='tea' && courier && !quotaClaim(courier) && !meetingTarget(courier.id) && !(courier===director()&&sim.scene.call) && !sim.delivery && !['off','away'].includes(courier.status)) hosts.push(courier.id);
         sim.reception={...event,hosts,mode,venue:mode==='closed'?'door':mode==='tea'||sim.scene.meeting?'pantry':'meeting',phase:'arriving',started:sim.time,talkAt:null,handshakeAt:null,
           uncertain:!sim.actors.some(a=>['busy','waiting','done'].includes(a.status)),redirectAt:mode==='normal'&&sim.scene.meeting?sim.time:null,
           visitor:{id:'reception-guest',visitor:true,receptionGuest:true,i:24,color:'#c9a35b',...door,path:[],dest:null,status:'visiting',activity:'reception'}};
       }
       const m=sim.reception;if(!m)return;
       // A later real signal takes the colleague back immediately; never save/restore a stale status.
-      m.hosts=m.hosts.filter(id=>{const a=sim.actors.find(a=>a.id===id);return a && (m.mode==='normal'?freeForReception(a):!sim.delivery&&!meetingTarget(id)&&!(a===director()&&sim.scene.call)&&!['off','away'].includes(a.status));});
+      m.hosts=m.hosts.filter(id=>{const a=sim.actors.find(a=>a.id===id);return a && (m.mode==='normal'?freeForReception(a):!quotaClaim(a)&&!sim.delivery&&!meetingTarget(id)&&!(a===director()&&sim.scene.call)&&!['off','away'].includes(a.status));});
       if(m.mode==='normal' && !m.hosts.length && m.phase!=='leaving') {m.phase='leaving';m.visitor.dest=null;}
       if(sim.scene.meeting && m.venue==='meeting' && m.phase!=='leaving') {m.venue='pantry';m.redirectAt=sim.time;m.visitor.dest=null;}
       const v=m.visitor;
@@ -205,10 +210,165 @@
       else if(m.phase==='handshake' && sim.time-m.handshakeAt>=4) m.phase='leaving';
       if(m.phase==='leaving' && distance(v,door)<1) sim.reception=null;
     }
+    // Cosmetic performances share the existing movement and never write status/statusSince.
+    sim.eventsEnabled = !legacy; sim.clockBase = Date.now(); sim.quota = {};
+    sim.eventQueues = {argue:[],snack:[],supper:[],quota:[],melon:[]}; sim.seenEvents = [];
+    sim.argue = null; sim.snack = null; sim.supper = null; sim.quotaEvent = null; sim.melon = null; sim.melonKey = null;
+    sim.deskFood = {}; sim.eventBubbles = [];
+    const signalNow = () => sim.clockBase + sim.time * 1000;
+    const actor = id => sim.actors.find(a=>a.id===id);
+    function queueEvent(kind, key, data, at = signalNow()) {
+      if(!sim.eventsEnabled || sim.seenEvents.includes(kind+'|'+key)) return;
+      sim.seenEvents = [...sim.seenEvents,kind+'|'+key].slice(-256);
+      const age = signalNow()-at; if(age<0 || age>=120000) return;
+      sim.eventQueues[kind] = [...sim.eventQueues[kind],{...data,key,at,expires:sim.time+(120000-age)/1000}].slice(-3);
+    }
+    function receiveEvents(s) {
+      if(!sim.eventsEnabled)return;
+      const m=s.meeting, old=sim.lastRound;
+      const key=m?.kind==='review' && m.round!==null ? m.since+'|'+m.round : null;
+      sim.lastRound=key;
+      if(key && key!==old && m.slide?.rejected>=1) queueEvent('argue',key,{since:m.since,round:m.round,rejected:m.slide.rejected,members:[...m.members]},Date.parse(m.roundAt || m.since));
+      if(s.snack) queueEvent('snack',s.snack.id+'|'+Math.floor(Date.parse(s.snack.at)/60000),{id:s.snack.id},Date.parse(s.snack.at));
+      if(s.supper) queueEvent('supper',s.supper.at,{ids:[...s.supper.ids]},Date.parse(s.supper.at));
+    }
+    function receiveEventHistory(events) {
+      for(const e of events)if(e.kind==='snack' && actor(e.ids?.[0]))queueEvent('snack',e.ids[0]+'|'+Math.floor(Date.parse(e.at)/60000),{id:e.ids[0]},Date.parse(e.at));
+    }
+    function setQuota(value = {}, now) {
+      if(now!==undefined)sim.clockBase=now-sim.time*1000;
+      sim.quota=Object.fromEntries(Object.entries(value).map(([id,until])=>[id,Date.parse(until)]));
+      for(const [id,until] of Object.entries(sim.quota)) {
+        if(until<=signalNow())continue;
+        if(sim.quotaEvent?.id===id) sim.quotaEvent.until=until;
+        else queueEvent('quota',id+'|'+until,{id,until});
+      }
+    }
+    function pruneEvents(now = signalNow()) {
+      for(const kind of Object.keys(sim.eventQueues)) sim.eventQueues[kind]=sim.eventQueues[kind].filter(e=>e.expires>sim.time && now-e.at<120000);
+    }
+    const wallPoint = a => ({x:28+(a.i%5)*16,y:92});
+    const argumentPoint = index => ({x:podium.x-48+index*28,y:podium.y});
+    const cloudPoint = () => ({x:podium.x-34,y:podium.y});
+    const melonPoint = index => ({x:[88,116,64][index],y:368});
+    const work = a => (a===director() && sim.scene.call) || meetingTarget(a.id) || ['busy','waiting'].includes(a.status) || (isCourier(a)&&sim.delivery);
+    function quotaClaim(a) {return sim.eventsEnabled && sim.quotaEvent?.id===a.id && sim.quota[a.id]>signalNow() && !work(a);}
+    function cosmeticClaim(a) {
+      if(!sim.eventsEnabled)return null;
+      const argument = sim.argue?.ids.includes(a.id) && sim.scene.meeting?.since===sim.argue.since && sim.scene.meeting?.round===sim.argue.round && meetingTarget(a.id) && !(a===director()&&sim.scene.call) && a.status!=='waiting';
+      // The review owns these colleagues already, even if the underlying CLI is busy.
+      const claims=[];
+      if(work(a) && !argument)claims.push({kind:'work',target:null});
+      if(quotaClaim(a))claims.push({kind:'quota',target:wallPoint(a)});
+      if(receptionist(a))claims.push({kind:'reception',target:receptionTarget(a)});
+      if(argument) {
+        const e=sim.argue,i=e.ids.indexOf(a.id);
+        claims.push({kind:'argue',target:e.phase==='returning'?meetingTarget(a.id):['joining','smoke'].includes(e.phase)?cloudPoint():argumentPoint(i)});
+      }
+      if(sim.snack?.id===a.id)claims.push({kind:'snack',target:sim.snack.phase==='returning'?home(a.i):foodTarget(sim.snack.ids[sim.snack.index])});
+      if(sim.melon?.ids.includes(a.id))claims.push({kind:'melon',target:melonPoint(sim.melon.ids.indexOf(a.id))});
+      const winner=claims.sort((a,b)=>ACTIVITY_PRIORITY[b.kind]-ACTIVITY_PRIORITY[a.kind])[0];
+      return winner?.kind==='work'?null:winner || null;
+    }
+    const foodTarget = id => {const p=home(actor(id).i);return {x:p.x+20,y:p.y};};
+    const occupied = () => sim.actors.filter(a=>!['away','off'].includes(a.status)).sort((a,b)=>a.i-b.i).map(a=>a.id);
+    function food(kind,id) {
+      sim.deskFood[kind+':'+id]={id,kind,until:sim.time+(kind==='biscuit'?300:600)};
+      sim.eventBubbles.push({id,until:sim.time+3,text:kind==='biscuit'?['谢啦','好耶','请客的来了'][actor(id).i%3]:['谢谢大哥','好香'][actor(id).i%2]});
+    }
+    const foodNow = () => Object.values(sim.deskFood).filter(f=>f.until>sim.time);
+    function melonSource() {
+      if(sim.argue && !['arriving','returning'].includes(sim.argue.phase))return {key:'argue:'+sim.argue.key,...cloudPoint()};
+      if(sim.delivery?.phase==='holding')return {key:'note:'+sim.delivery.at,...handoff};
+      const a=sim.actors.find(a=>a.status==='waiting');return a?{key:'waiting:'+a.id+':'+a.statusSince,...bossDesk}:null;
+    }
+    function tickEvents() {
+      if(!sim.eventsEnabled)return;
+      pruneEvents(); sim.eventBubbles=sim.eventBubbles.filter(b=>b.until>sim.time);
+      for(const [k,f] of Object.entries(sim.deskFood))if(f.until<=sim.time)delete sim.deskFood[k];
+      const q=sim.eventQueues;
+      if(sim.quotaEvent && (!(sim.quota[sim.quotaEvent.id]>signalNow()) || !actor(sim.quotaEvent.id)))sim.quotaEvent=null;
+      q.quota=q.quota.filter(e=>sim.quota[e.id]===e.until && e.until>signalNow());
+      if(!sim.quotaEvent && q.quota.length && !work(actor(q.quota[0].id)))sim.quotaEvent=q.quota.shift();
+      if(sim.argue) {
+        const e=sim.argue,m=sim.scene.meeting;
+        if(!m || m.since!==e.since || m.round!==e.round || e.ids.some(id=>!m.members.includes(id)||receptionist(actor(id))||actor(id).status==='waiting'||(actor(id)===director()&&sim.scene.call)))sim.argue=null;
+        else {
+          const atTargets=e.ids.every((id,i)=>distance(actor(id),e.phase==='returning'?meetingTarget(id):['joining','smoke'].includes(e.phase)?cloudPoint():argumentPoint(i))<.1);
+          if(e.phase==='arriving' && atTargets){e.phase='talking';e.phaseAt=sim.time;}
+          else if(e.phase==='talking' && sim.time-e.phaseAt>=4){e.phase='joining';}
+          else if(e.phase==='joining' && atTargets){e.phase='smoke';e.phaseAt=sim.time;}
+          else if(e.phase==='smoke' && sim.time-e.phaseAt>=2.5){e.phase='huff';e.phaseAt=sim.time;}
+          else if(e.phase==='huff' && sim.time-e.phaseAt>=3){e.phase='returning';}
+          else if(e.phase==='returning' && atTargets)sim.argue=null;
+        }
+      }
+      if(!sim.argue && q.argue.length) {
+        const e=q.argue[0],m=sim.scene.meeting,cc=director();
+        if(!m || m.since!==e.since || m.round!==e.round)q.argue.shift();
+        else if(cc && m.members.includes(cc.id)) {
+          const reviewers=e.members.filter(id=>id!==cc.id && m.members.includes(id)).sort();
+          const other=actor(reviewers[stableHash(e.key)%reviewers.length]);
+          const ids=other?[cc.id,other.id]:[];
+          if(ids.length && ids.every(id=>!receptionist(actor(id)) && actor(id).status!=='waiting' && !(actor(id)===cc&&sim.scene.call))) {q.argue.shift();sim.argue={...e,ids,phase:'arriving',phaseAt:sim.time};}
+        }
+      }
+      if(sim.snack) {
+        const e=sim.snack,a=actor(e.id);
+        if(!a || work(a)||quotaClaim(a)||receptionist(a)||['away','off'].includes(a.status))sim.snack=null;
+        else if(e.phase==='returning') {if(distance(a,home(a.i))<1)sim.snack=null;}
+        else if(distance(a,foodTarget(e.ids[e.index]))<1) {
+          const id=e.ids[e.index];if(occupied().includes(id))food('biscuit',id);
+          if(++e.index===e.ids.length) {if(a.status==='idle')sim.snack=null;else e.phase='returning';}
+        }
+      }
+      if(!sim.snack && q.snack.length) {
+        const e=q.snack[0],a=actor(e.id);
+        if(!a)q.snack.shift();
+        else if(!work(a)&&!quotaClaim(a)&&!receptionist(a)&&['done','idle'].includes(a.status)) {q.snack.shift();sim.snack={...e,ids:occupied(),index:0,phase:'delivering'};}
+      }
+      if(!sim.supper && q.supper.length) {
+        const e=q.supper.shift();sim.supper={...e,ids:e.ids.filter(id=>actor(id)),index:0,phase:'delivering',borrowed:!sim.guard};
+        if(!sim.guard)sim.guard={id:'night-guard',i:30,color:'#526a83',status:'guard',...door,path:[],dest:null,lap:0,waypoint:1};
+        if(!sim.supper.ids.length)sim.supper.phase='returning';
+      }
+      const source=melonSource();
+      if(source?.key!==sim.melonKey) {sim.melonKey=source?.key || null;if(source)queueEvent('melon',source.key,{source});}
+      if(sim.melon) {
+        const e=sim.melon;e.ids=e.ids.filter(id=>{const a=actor(id);return a?.status==='idle'&&!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.snack?.id!==id;});
+        if(source){e.source=source;e.ended=null;}else e.ended ??= sim.time;
+        if(e.ids.length<2 || e.ended!==null && sim.time-e.ended>=3)sim.melon=null;
+      }
+      if(!sim.melon && q.melon.length) {
+        const e=q.melon[0];
+        if(!source || source.key!==e.source.key)q.melon.shift();
+        else {
+          const ids=sim.actors.filter(a=>a.status==='idle'&&!isCourier(a)&&!work(a)&&!quotaClaim(a)&&!receptionist(a)&&sim.snack?.id!==a.id&&a.gameSlot!=null&&distance(a,games[a.gameSlot])<1).sort((a,b)=>a.i-b.i).slice(0,3).map(a=>a.id);
+          if(ids.length>=2){q.melon.shift();sim.melon={...e,ids,ended:null};}
+        }
+      }
+    }
+    function tickSupper(dt) {
+      const e=sim.supper,a=sim.guard;
+      if(!a)return;
+      const target=e.phase==='returning'?door:foodTarget(e.ids[e.index]);
+      moveTo(a,target);travel(a,dt);
+      if(distance(a,target)<1) {
+        if(e.phase==='returning') {if(e.borrowed)sim.guard=null;sim.supper=null;}
+        else {food('noodles',e.ids[e.index]);if(++e.index===e.ids.length)e.phase='returning';}
+      }
+    }
+    function eventSpeech() {
+      const result=sim.eventBubbles.filter(b=>b.until>sim.time).map(b=>({...b})),e=sim.argue;
+      if(e?.phase==='talking') {const lines=e.rejected>=3?['这条不对','你再看看第三行','证据呢','我不同意','再核一遍']:['这条不对','你再看看第三行','证据呢','我不同意'];const n=Math.min(lines.length-1,Math.floor((sim.time-e.phaseAt)*lines.length/4));result.push({id:e.ids[n%2],text:lines[n]});}
+      if(e?.phase==='huff')for(const id of e.ids)result.push({id,text:'哼'});
+      if(sim.melon){const n=Math.floor(sim.time/1.5),id=sim.melon.ids[n%sim.melon.ids.length];result.push({id,text:n%3===2?'':n%3?'咋了咋了':'啧啧',icon:n%3===2?'melon':null});}
+      return result;
+    }
     let gameMembers = '';
     function assignGames() {
       if (legacy) return;
-      const idle=sim.actors.filter(a=>a.status==='idle' && !isCourier(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && sim.scene.call)).sort((a,b)=>a.i-b.i);
+      const idle=sim.actors.filter(a=>a.status==='idle' && !isCourier(a) && !cosmeticClaim(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && sim.scene.call)).sort((a,b)=>a.i-b.i);
       const key=idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
       const slots=idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,idle.length).map((_,i)=>i);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
@@ -228,6 +388,7 @@
       return {x:154+Math.round(Math.sin(sim.time*Math.PI/1.6)*7),y:279+Math.round(travel*30),size:3};
     }
     function tickGuard(dt) {
+      if (sim.eventsEnabled && sim.supper) { tickSupper(dt); return; }
       if (!sim.night || !sim.scene.guard) { sim.guard = null; return; }
       if (!sim.guard) sim.guard = {id:'night-guard',i:30,color:'#526a83',status:'guard',...door,path:[],dest:null,lap:0,waypoint:1};
       const a = sim.guard;
@@ -261,7 +422,7 @@
       }
     }
     function tick(dt) {
-      sim.time += dt; sim.flights = sim.flights.filter(f => sim.time - f.at < 1); tickGuard(dt); assignGames();
+      sim.time += dt; sim.flights = sim.flights.filter(f => sim.time - f.at < 1); tickEvents(); tickGuard(dt); assignGames();
       const waiting = sim.actors.filter(a => a.status === 'waiting' && (!isCourier(a) || !sim.delivery));
       if (!sim.delivery && sim.deliveries.length && courier) {
         sim.delivery = { ...sim.deliveries.shift(), phase: 'walking', arrived: null };
@@ -269,8 +430,10 @@
       }
       for (const a of sim.actors) {
         let target;
+        const cosmetic=cosmeticClaim(a);
         a.activity = a === director() && sim.scene.call ? 'call' : meetingTarget(a.id) ? 'meeting' : null;
-        if (a.activity === 'call') target = booth;
+        if (cosmetic) {a.activity=cosmetic.kind; target=cosmetic.target;}
+        else if (a.activity === 'call') target = booth;
         else if (a.activity === 'meeting') target = meetingTarget(a.id);
         else if (receptionist(a) && (sim.reception.mode==='normal' ? freeForReception(a) : !sim.delivery)) { a.activity='reception'; target=receptionTarget(a); }
         else if (isCourier(a) && sim.delivery) target = sim.delivery.phase === 'returning' ? home(a.i) : handoff;
@@ -362,13 +525,13 @@
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickReception(dt); tickTreats(dt); tickVisitors(dt); } }
     function relayout(selection) {
       const next=create(sim.actors.map(a=>({...a,desk:a.i})),seed,selection);
-      for(const key of ['time','night','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
+      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','argue','snack','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
       if(next.reception) Object.assign(next.reception.visitor,next.layout.door,{path:[],dest:null});
       next.setScene(sim.scene); next.flights=[];
       for(const a of sim.actors) Object.assign(next.actors.find(b=>b.id===a.id),{status:a.status,statusSince:a.statusSince,changed:a.changed,doneArrived:a.doneArrived,gameSlot:a.gameSlot});
       next.visitors=sim.visitors.map(v=>({...v,...next.layout.door,path:[],dest:null,until:null}));
       next.place();
-      if(sim.guard && next.guard) Object.assign(next.guard,sim.guard.lap || sim.scene.guard.phase==='done'?next.layout.door:next.layout.patrol[sim.guard.waypoint],{lap:sim.guard.lap,waypoint:sim.guard.waypoint,path:[],dest:null});
+      if(sim.guard && next.guard && !next.supper) Object.assign(next.guard,sim.guard.lap || sim.scene.guard.phase==='done'?next.layout.door:next.layout.patrol[sim.guard.waypoint],{lap:sim.guard.lap,waypoint:sim.guard.waypoint,path:[],dest:null});
       next.flights=sim.flights.map(f=>{
         const desk=id=>{const a=next.actors.find(a=>a.id===id),p=next.layout.desks[a.i];return {x:p[0]+17,y:p[1]+4};};
         const cc=next.actors.find(a=>a.id===director()?.id);
@@ -383,7 +546,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { layout:L,relayout,place,isCourier, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { layout:L,relayout,place,isCourier,receiveEventHistory,setQuota,eventSpeech,foodNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   const TREAT_NAMES = {milktea:'奶茶',coffee:'咖啡',cake:'蛋糕',melon:'西瓜'};
   // Structured public signals only. Missing extension fields mean an old office, not made-up zeros.
@@ -394,10 +557,14 @@
     if(data.noticesToday!==undefined && !int(data.noticesToday)) throw new Error('Invalid scene state');
     const ids = new Set(data.roster.map(a => a.id)), list = v => Array.isArray(v) && v.length <= 11 && v.every(id => ids.has(id)) && new Set(v).size === v.length;
     const fail = () => { throw new Error('Invalid scene state'); };
+    if(data.quota!==undefined && !(object(data.quota) && Object.keys(data.quota).length<=11 && Object.entries(data.quota).every(([id,until])=>ids.has(id)&&iso(until)))) fail();
     if(data.meets!==undefined && !(Array.isArray(data.meets) && data.meets.length<=10 && data.meets.every(m=>object(m) && Object.keys(m).length===2 && Object.hasOwn(MEET_NAMES,m.kind) && iso(m.at)))) fail();
     if(data.meetsToday!==undefined && !(object(data.meetsToday) && Object.entries(data.meetsToday).every(([k,v])=>Object.hasOwn(MEET_NAMES,k)&&int(v)))) fail();
     if (data.scene !== undefined) {
-      const s = data.scene; if (!object(s) || !list(s.dispatched) || s.dispatched.some(id => id === 'cc' || data.roster.find(a=>a.id===id)?.desk === 0)) fail();
+      const s = data.scene; if (!object(s) || Object.keys(s).some(k=>!['meeting','dispatched','call','disk','guard','snack','supper'].includes(k)) || !list(s.dispatched) || s.dispatched.some(id => id === 'cc' || data.roster.find(a=>a.id===id)?.desk === 0)) fail();
+      if(s.snack!==undefined && s.snack!==null && !(object(s.snack) && Object.keys(s.snack).sort().join(',')==='at,id' && ids.has(s.snack.id) && iso(s.snack.at))) fail();
+      if(s.supper!==undefined && s.supper!==null && !(object(s.supper) && Object.keys(s.supper).sort().join(',')==='at,ids' && list(s.supper.ids) && s.supper.ids.length>0 && iso(s.supper.at))) fail();
+      if(s.meeting?.roundAt!==undefined && !iso(s.meeting.roundAt))fail();
       if (s.meeting !== null) { const m=s.meeting; if (!object(m) || !['review','huddle'].includes(m.kind) || !iso(m.since) || !list(m.members) || !m.members.length || !(m.round === null || int(m.round,10000)) || !(m.slide === null || object(m.slide) && ['adopted','rejected','open'].every(k=>int(m.slide[k],100000)))) fail(); }
       if (s.call !== null && !(object(s.call) && iso(s.call.since))) fail();
       if (s.disk !== null && !(object(s.disk) && Number.isFinite(s.disk.usedPct) && s.disk.usedPct >= 0 && s.disk.usedPct <= 100)) fail();
@@ -405,13 +572,15 @@
     }
     if (data.stats !== undefined) {
       const s=data.stats; if (!object(s) || typeof s.since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s.since) || !iso(s.since+'T00:00:00Z') || new Date(s.since).toISOString().slice(0,10)!==s.since || !['visitorsTotal','treatsTotal','meetingsTotal','handoffsTotal','callsTotal'].every(k=>int(s[k])) || !object(s.today) || !['visitors','treats','meetings','handoffs','calls'].every(k=>int(s.today[k]))) fail();
+      for(const k of ['snacks','suppers'])if(s[k+'Total']!==undefined&&!int(s[k+'Total']) || s.today[k]!==undefined&&!int(s.today[k]))fail();
       if((s.meetsTotal!==undefined&&!int(s.meetsTotal)) || (s.today.meets!==undefined&&!int(s.today.meets))) fail();
     }
     if (data.events !== undefined) {
-      const keys = ['at','kind','ids','round','minutes','treat','n','ok','review'];
+      const keys = ['at','kind','ids','round','minutes','treat','n','ok','review','rejected','clear'];
       if (!Array.isArray(data.events) || data.events.length > 40) fail();
       for (const e of data.events) {
-        if (!object(e) || Object.keys(e).some(k=>!keys.includes(k)) || !iso(e.at) || typeof e.kind !== 'string' || !/^[a-z-]{1,16}$/.test(e.kind) || (e.ids !== undefined && !list(e.ids)) || (e.round !== undefined && !int(e.round,10000)) || (e.minutes !== undefined && !int(e.minutes,1440)) || (e.n !== undefined && !int(e.n,100000)) || (e.treat !== undefined && !Object.hasOwn(TREAT_NAMES,e.treat)) || (e.ok !== undefined && typeof e.ok !== 'boolean') || (e.review !== undefined && typeof e.review !== 'boolean')) fail();
+        if (!object(e) || Object.keys(e).some(k=>!keys.includes(k)) || !iso(e.at) || typeof e.kind !== 'string' || !/^[a-z-]{1,16}$/.test(e.kind) || (e.ids !== undefined && !list(e.ids)) || (e.round !== undefined && !int(e.round,10000)) || (e.minutes !== undefined && !int(e.minutes,1440)) || (e.n !== undefined && !int(e.n,100000)) || (e.treat !== undefined && !Object.hasOwn(TREAT_NAMES,e.treat)) || (e.ok !== undefined && typeof e.ok !== 'boolean') || (e.review !== undefined && typeof e.review !== 'boolean') || (e.clear !== undefined && typeof e.clear !== 'boolean') || (e.rejected!==undefined && !int(e.rejected,100000))) fail();
+        if ((['snack','quota'].includes(e.kind) && e.ids?.length!==1) || (e.kind==='quota' && typeof e.clear!=='boolean') || (e.kind==='supper' && !e.ids?.length) || (e.kind==='argue' && (e.round===undefined || !(e.rejected>=1))))fail();
         if ((e.kind === 'handoff' && e.ids?.length !== 2) || (e.kind === 'return' && e.ids?.length !== 1) || (e.kind === 'meeting' && !e.ids?.length) || (e.kind === 'round' && e.round === undefined) || (e.kind === 'meeting-end' && e.minutes === undefined) || (e.kind === 'treat' && e.treat === undefined) || (e.kind === 'visitor' && e.n === undefined) || (e.kind === 'guard' && e.ok === undefined)) fail();
       }
     }
@@ -429,12 +598,16 @@
       case 'call-end': return '电话打完了';
       case 'treat': return `有人送来${['milktea','coffee'].includes(e.treat)?'一杯':e.treat==='cake'?'一块':'一份'}${TREAT_NAMES[e.treat]}`;
       case 'visitor': return `来了 ${e.n} 位客人`;
+      case 'snack': return `${names[0]} 交了大活，请大家吃点心`;
+      case 'supper': return `保安给 ${names.join('、')} 送了夜宵`;
+      case 'quota': return `${names[0]} ${e.clear?'额度恢复，回座位':'撞额度，罚站中'}`;
+      case 'argue': return `会议室吵起来了（第 ${e.round} 轮，反驳 ${e.rejected} 条）`;
       case 'reception': return '接待了一拨来谈事的客人';
       case 'guard': return `夜班保安巡完一圈，备份${e.ok?' ✓':'没过'}`;
       default: return null;
     }
   }
-  const api = { MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

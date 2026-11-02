@@ -49,7 +49,7 @@ Historical first-repair specification; the desk-move section above supersedes it
 - Two arcade screens flash with 2+ logical-pixel sprites, 2-pixel joysticks and moving hands; chess has 2-pixel pieces and alternating reaches; nap has rising z, read has an open book. Muted original sRGB palette, teal screens #71a29a, amber controls #efc66c. Same Canvas renderer, default scale, no assets/dependencies.
 - Meeting room shortened from y=669 to y=633. Four seats face the projector; CC stands at the existing podium, six additional members stand at distinct back-row points. One two-person audience bench is outside the glass. Freed floor gives the bench and storage aisle more space. Canvas size remains 360×740.
 - A lit “开会中 ↓” sign appears only while scene.meeting is non-null; the room caption says “楼下在开会”, below greeting/treat priorities. The c216e84 visitor total and 000c40b notes count remain intact.
-- Demo adds idle arrivals at 121 s, six colleagues settled by **?view=games at 138 s**, continuing to 150 s. Meeting view remains 73 s. At 390×664 games must be visible at scrollTop=0; 320×568 must have no horizontal overflow. Same fixed seed 7, no teleporting or view-dependent art.
+- Demo adds idle arrivals at 121 s, six colleagues settled by **?view=games at 138 s** (the later events extension sends two back to work at 141 s). Meeting view remains 73 s. At 390×664 games must be visible at scrollTop=0; 320×568 must have no horizontal overflow. Same fixed seed 7, no teleporting or view-dependent art.
 
 Repair acceptance: new Node assertions cover all allocation transitions (including each 5→4 departure), desk 4/5/9, Cobbler, done, scene interruption, overflow, real sampled movement/reachability and guard lap. Browser checks inspect animated screen/hand/piece pixels, meeting-sign on/off pixels and caption priority, games on mobile without scrolling, baseline masked pixels and MV equality. Reopen meeting, mobile-390/320, live-fixture, night-guard, wall and the 30-second default sequence. Record real evidence and limitations in HANDOFF-phase2.md.
 
@@ -81,7 +81,7 @@ Watch a small AI team work, wait for a decision, deliver work and take breaks. T
 - sRGB palette: ink `#253334`, cream `#F4EBD8`, timber `#BB8960`, sage `#739C82`, accent coral `#D96952`. Each character has one main colour and one distinguishing accessory. No external fonts or images.
 - Beijing time: day 08–17, dusk 17–23, night 23–08. Lamp colours change, text contrast does not. Busy characters type at their desks; waiting characters walk to the boss and knock with a pulsing red marker; done characters bounce/confetti for 2 seconds, then remain at their desks. Away/off characters walk through the door. Unknown is a gray question mark. The boss returns to the desk when anyone waits.
 - The courier walks from their assigned desk to the boss, waits until both are at the desk, then holds a first-line notice for **8 full seconds**, and returns. Notices queue, never replace an in-flight delivery; the board keeps the latest 20.
-- Deterministic 150-second demo. `?demo=1` forces it; failed live fetch switches to it with the exact visible banner `演示模式 · 模拟数据`. Retry live service every 10 seconds unless forced demo. Queue/notice views are explicitly marked demo fixtures, never fabricated live readings.
+- Deterministic 185-second demo. `?demo=1` forces it; failed live fetch switches to it with the exact visible banner `演示模式 · 模拟数据`. Retry live service every 10 seconds unless forced demo. Queue/notice views are explicitly marked demo fixtures, never fabricated live readings.
 
 ## Evidence rules
 
@@ -102,6 +102,20 @@ Poll every 10 seconds. Push overrides collection for 10 minutes, including after
 
 Reuse the repository's pure-logic + Canvas + Node-test pattern; Node built-ins and browser APIs are sufficient. No dependencies, database, build step, background service installer or source integration. Artifact scans are capped at 20,000 entries and return unknown if incomplete. Revisit incremental indexing only if this ceiling is reached. Phase 1 integration is described in HANDOFF.md. Phase 2 changes only the frontend, preview and acceptance artifacts; no private runtime files or service changes.
 
+
+## Signal-driven office events (2026-11-02)
+
+Five silent-friendly performances extend the existing sensory/immersion display. Reuse Canvas pixel helpers, BFS, the reception scheduler and desk treats; no AI calls, dependencies or status/statusSince writes. Same sRGB palette, renderer, default scale and <12 ms local draw-callback p95 budget. No changes to the cumulative board or MV. Each type has one active performance, at most three pending, with a 120-second start deadline.
+
+- Review arguments use per-round rejected counts (applyMeeting replaces the tally), deduplicated by meeting since + round. A round timestamp prevents late replays. Within the same reserved review, CC and a deterministic reviewer walk to the whiteboard, argue for 4 seconds, disappear in a shared cloud for 2.5 seconds, then pose and return (about 10 seconds excluding approach/return). Three rejections enlarge the cloud and add a line; no violence.
+- Busy continuously >=20 minutes then done produces a server snack signal, limited to once per person/hour. The actor walks past occupied desks; new pixel biscuits stay 300 seconds after delivery.
+- Waiting, a held courier note or an argument draws 2–3 idle colleagues already at the game corner. Pixel melon slices and fixed whispers face the source; they disperse 3 seconds after it ends.
+- Token-authenticated quota reports persist an expiry (default 60, maximum 300 minutes); an actual transition to busy clears it. Wall-facing idle actors carry a pixel hourglass. Real busy/waiting, calls and meetings retain priority.
+- First busy roster during each Beijing 23:00–03:00 night produces supper once. The existing guard, or a guard entering from the door, delivers noodles to those desks; bowls steam for 600 seconds.
+
+One priority table: real work > quota > reception > argument > snack > melon > game corner. An argument is a sub-scene of its own reserved review, never a competing meeting; a call, changed meeting, waiting or reception cancels/defer it. Delivery by the guard does not reserve colleagues. Unknown never qualifies as idle.
+
+Acceptance: server HTTP/auth/persistence/expiry and exact time-boundary tests; both snapshot validators reject unknown keys, bad IDs/times/counts while accepting old feeds; real 20 ms engine steps exercise all lifecycles, shared cloud position, immutable statuses, queues, expiry, priority and furniture collisions in both layouts. Ten screenshots at 390×664 and 1455×782 for ?view=argue/snack/melon/quota/supper, seed 7, real demo simulation from zero; hooks report the actual achieved event. Inspect screenshots, rerun reception and MV pixel comparisons and record evidence in HANDOFF-events.md. Demo timestamps and reproduction commands are documented there after measurement. No production service changes or publication.
 
 ## Visitor reception (2026-11-02)
 
