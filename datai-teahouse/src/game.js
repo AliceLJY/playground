@@ -8,9 +8,9 @@
   const SEED0 = +Q.get('seed') || 20261031;
   const STORE_KEY = 'datai-visits';
   // 跨用户痕迹：部署好的 Worker 地址。null 时一切照旧，只回放本机记录、不发任何请求。
-  const TRACE_ENDPOINT = null;
+  const TRACE_ENDPOINT = 'https://datai-traces.aliceljy.workers.dev';
   const POSTED_KEY = 'datai-posted';         // 自己上传过的痕迹 key，拉回来时认出自己、不当成别人
-  const FETCH_WAIT = 2500;                   // 进门最多等远端这么久，过时就先按本机记录开桌
+  const FETCH_WAIT = 1200;                   // 进门最多等远端这么久，过时就先按本机记录开桌（国内连不上 workers.dev，等久了白等）
   const canvas = document.getElementById('scene');
   const ctx = canvas.getContext('2d');
   const whereEl = document.getElementById('where'), hallEl = document.getElementById('hall'), hintEl = document.getElementById('hint');

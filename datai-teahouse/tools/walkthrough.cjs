@@ -10,6 +10,8 @@ const fs = require('node:fs'), path = require('node:path');
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 390, height: 664 }, deviceScaleFactor: 2, hasTouch: true });
   const p = await ctx.newPage();
+  // 本地页面的来源不在痕迹服务的放行名单里：对服务的请求一律回空列表，走「没有别人」的路（痕迹另由 traces-check 验）
+  await p.route('**/*.workers.dev/**', (r) => r.fulfill({ status: r.request().method() === 'GET' ? 200 : 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }, body: r.request().method() === 'GET' ? '[]' : '{}' }));
   const errors = []; p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   const report = [];
   const snap = () => p.evaluate(() => window.__datai.snapshot());
