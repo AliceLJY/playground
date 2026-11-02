@@ -75,6 +75,12 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Coal Breakout
+        working-directory: coal-breakout
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Slipper Smash
         working-directory: slipper-smash
         run: |
@@ -211,6 +217,12 @@ jobs:
           python3 shadow-gong/build.py
           cp 'shadow-gong/灯影守夜.html' _site/shadow-gong/index.html
           cp shadow-gong/vendor/THREE-LICENSE.txt _site/shadow-gong/THREE-LICENSE.txt
+
+      - name: Assemble Coal Breakout
+        run: |
+          mkdir -p _site/coal-breakout
+          cp coal-breakout/index.html _site/coal-breakout/index.html
+          cp -R coal-breakout/src _site/coal-breakout/
 
       - name: Assemble Slipper Smash
         run: |

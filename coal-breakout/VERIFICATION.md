@@ -1,0 +1,237 @@
+# 煤球突围 · 实测记录
+
+## 第二轮修复验收（2026-11-03，当前结果）
+
+本轮仅修改 `coal-breakout/`，没有 git add、commit、push 或发布。下方“第一轮历史”保留初版记录；当前难度、截图与测试结果以本节为准。
+
+### 先红后绿
+
+先只改测试，再改实现，日志保存在忽略目录 `tools/shots/round2/`：
+
+- `red-node.txt`：16项中3项失败。第一关 random 为10/12胜，超过新上限9/12；第一、二关 human 中位受击均为0，低于1和2。第二关human的12/12胜也不满足至少一负。扩大到种子1–12后，第三关human为12/12胜、中位受击3.5，作为保持附近的基线。
+- `red-browser.txt`：105项中3项失败，均为标题页透底。390视口HUD/底部提示区域分别有2496/944个超差采样像素，最大通道差12/11；412视口2490/944，桌面3147/1146。
+- `green-node.txt`：**16 tests，16 pass，0 fail**（10.64秒）。热路径lint和所有生产JS语法检查均包含在内，另外执行的 `node tools/lint-hot.cjs` 也通过。
+- `final-browser.txt`、`published-browser.txt`：源码与按CI结构复制的发布副本均为 **105 checks; 0 failures**。三视口标题HUD/footer所有有效采样点与RGB(16,24,39)完全一致，最大通道差0、超差数0；每区至少15244个点，未把标题自身文字/按钮算作透底。
+
+### 实现与断言
+
+- `index.html` 只给 `#title` 增加不透明背景；公共 `.veil`、升级和暂停遮罩保留半透。浏览器同时检查实际截图像素和升级/暂停的alpha，后两者分别约0.937和0.949。
+- `src/data.js`、`src/sim.hot.js`：第一关从30秒后改用8秒周期短波次/恢复段；假宝石追咬提速到125单位/秒，分身以80单位/秒夹击、每5秒重组（仍为两个分身）。第二关改用10秒周期，收墙速度0.014→0.04单位/帧、上限91→100；压缩器首次10→15秒、间隔30→35秒；文字团基础速度32→55单位/秒、黑洞牵引0.62→1.1单位/帧。恢复段给走位与拾取留空隙。没有提高任何敌人/首领血量，没有修改第三关参数，显形和入场预警时长保留。
+- `tests/gameplay.test.cjs`：固定原驾驶策略，扩大到每关每档种子1–12。human三关分别要求中位受击1–5/2–8/2–6、胜局8–12/6–11/8–12；第一关random要求3–9胜，precise三关全胜且240秒内完成。第三关用受击上限和胜率下限防止过难，保留其原本可全胜的状态。
+- `tests/engineering.test.cjs`：确定性重放改用同种子5的precise驾驶，保证完整经过首领；random现在允许在首领前失败，不能再同时承担“保证经过首领”的用途。重放9694帧，逐帧状态全部相同，终局SHA-256为 `38f1c097780b29303334906e615efae68046d7a5b531eeffa62ddfdde99bd82d`。
+- `SPEC.md` 同步难度边界、节奏参数和标题像素判据。不加依赖、引擎或框架，复用现有实体池、驾驶器和浏览器检查；模拟热路径继续无分配。
+
+### 跨种子结果
+
+以下是种子1–12；受击是整局实际触发的伤害次数，包含升级回血与checkpoint复活前后的累计值，所以可能超过6。中位数包括失败局。
+
+| 关卡 / 驾驶 | 胜局 | 中位受击 | 受击范围 | 结束时间（秒，含失败） |
+|---|---:|---:|---:|---:|
+| 1 / precise | 12/12 | 1.5 | 0–7 | 161.17–192.20 |
+| 1 / human | 12/12 | 2.5 | 0–5 | 156.22–189.98 |
+| 2 / precise | 12/12 | 3 | 1–8 | 185.52–190.78 |
+| 2 / human | 11/12 | 7 | 4–18 | 97.97–201.40 |
+| 3 / precise | 12/12 | 2.5 | 1–6 | 194.35–207.37 |
+| 3 / human | 12/12 | 3.5 | 2–6 | 197.67–210.47 |
+
+| 种子 | 第一关 human（胜负 / 受击 / 秒） | 第二关 human | 第三关 human |
+|---:|---|---|---|
+| 1 | 胜 / 5 / 181.28 | 胜 / 4 / 189.27 | 胜 / 6 / 199.92 |
+| 2 | 胜 / 1 / 156.22 | 胜 / 5 / 186.48 | 胜 / 4 / 205.38 |
+| 3 | 胜 / 3 / 175.10 | 胜 / 12 / 201.40 | 胜 / 5 / 206.32 |
+| 4 | 胜 / 5 / 176.93 | 负 / 7 / 97.97 | 胜 / 2 / 206.20 |
+| 5 | 胜 / 2 / 166.93 | 胜 / 5 / 187.17 | 胜 / 3 / 197.67 |
+| 6 | 胜 / 3 / 161.70 | 胜 / 7 / 187.72 | 胜 / 3 / 205.10 |
+| 7 | 胜 / 0 / 165.28 | 胜 / 4 / 188.92 | 胜 / 5 / 205.13 |
+| 8 | 胜 / 4 / 176.47 | 胜 / 18 / 186.18 | 胜 / 3 / 205.15 |
+| 9 | 胜 / 2 / 163.80 | 胜 / 9 / 189.23 | 胜 / 2 / 207.12 |
+| 10 | 胜 / 5 / 189.98 | 胜 / 7 / 188.10 | 胜 / 2 / 208.70 |
+| 11 | 胜 / 2 / 180.53 | 胜 / 8 / 187.55 | 胜 / 5 / 210.47 |
+| 12 | 胜 / 2 / 161.02 | 胜 / 6 / 191.85 | 胜 / 4 / 207.65 |
+
+第一关random：**6/12胜（50%）**，胜利种子1、3、4、7、11、12；死亡种子2、5、6、8、9、10。reckless：12/12阵亡，20.90–70.33秒；每个种子重开后均可移动、击杀并存活。random整局没有连续180帧的无位移且无击杀进展卡死。逐局原始结果见 `green-node.txt` 与 `difficulty-results.json`。
+
+参数确定后另验未参与调参的种子13–24（`holdout.json`）：三关precise各12/12胜，human也各12/12胜、中位受击依次2.5/6.5/3。合并24种子，第二关human为23/24胜；这说明当前“至少一负”由主样本中的种子4满足，并不意味着每一批12种子都会有失败，仍需真人试玩判断压力。
+
+### 浏览器与发布副本
+
+使用现有8936静态服务，在 `coal-breakout/` 内执行：
+
+```sh
+node --test tests/*.test.cjs
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs   http://127.0.0.1:8936/coal-breakout/ tools/shots/round2/final
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs   http://127.0.0.1:8936/coal-breakout/tools/publish-preview/playground/coal-breakout/   tools/shots/round2/published
+```
+
+Chromium 156.0.8078.4，Apple M4 Metal后端；390×664、412×700（DPR2）与1280×800（DPR1）。默认画质和渲染比例不变。压力场景真实推进后323个活敌，源码/发布副本各采120帧，p95为1.00/0.80ms，末帧669次绘制；这不是实体中端手机帧率证明。当前9个发布文件分别gzip共22805字节，零外部资源；主体白描边对比度230.09–230.55/255、画面宽度占比6.51–6.66%。
+
+截图位于 `tools/shots/round2/final/`，已逐图核对三个视口的标题、战斗、选卡、首领、结算与压力画面：标题的HUD与底部提示透底消失，署名独立可读；暂停/升级仍可见战场，按钮未截断。`context-pressure.png` 由第二关human种子4实际模拟到第5392帧（89.87秒、墙100、受击3次）；`context-death.png` 是同种子完整重放在第5878帧（97.97秒、受击7次）阵亡，和Node结果一致。`pause.png` 保留半透战场的视觉证据。
+
+源码与发布副本的9个发布文件逐字节相同，三个视口共18张固定/标题截图也逐字节相同。三个默认游玩截图另行打开检查，输入释放后角色、场地与HUD正常。8个修改文件通过相对修复前基线的空白检查。
+
+本轮重新运行 `NODE_PATH="$(npm root -g)" node tools/record.cjs http://127.0.0.1:8936/coal-breakout/ tools/shots/round2/opening`，从正常入口录制30秒/900帧，真实触控与键盘方向断言全过、页面错误0、累计移动2734.05单位，尾帧模拟29.97秒。已打开并逐张检查9张接触表中的全部900帧主角邻域：朝向稳定、走位无断裂，假宝石显形圈可见；第678帧为升级选择，第679帧恢复，后段抵达右上边界仍完整显示。录像和逐帧状态在 `opening/opening-30s.mp4`、`opening/opening-frames.json`。
+
+未测实体手机/移动Safari、真实系统分享面板；未发布，未做线上复验。自动驾驶结果不能代替单手手感与难度试玩。
+
+---
+
+## 第一轮历史（下列结果属于修复前，保留追溯）
+
+日期：2026-11-03。状态：核心版与本地验收完成；等 owner 试玩、提交和发布。没有执行提交或推送，没有修改其他玩意的源码。
+
+## 环境与实际命令
+
+- Node `v26.13.0`，本机已有 Playwright 与 Chromium `156.0.8078.4`。
+- 渲染器探针：`ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)`，不是 SwiftShader。游戏本身使用 Canvas 2D，探针记录同一浏览器的图形后端，不把它当手机设备证明。
+- 390×664、412×700 手机视口，设备像素比 2；1280×800 桌面，设备像素比 1。正常画质，没有隐藏画质档。场地逻辑尺寸 360×520，等比居中。
+- 对应实际画布：672×971、721×1041、430×621；渲染比例分别约 1.867、2.003、1.194 画布像素/逻辑单位。手机可视高度已扣浏览器栏。
+
+在仓库根启动静态服务器：
+
+```sh
+python3 -m http.server 8936 --bind 127.0.0.1
+```
+
+在 `coal-breakout/` 内执行过：
+
+```sh
+node tools/lint-hot.cjs
+node --test tests/*.test.cjs
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs
+NODE_PATH="$(npm root -g)" node tools/record.cjs
+swift -module-cache-path tools/shots/swift-cache tools/qr-decode.swift tools/shots/phone390-poster.png
+```
+
+Node 测试内还逐一执行全部 `src/*.js` 的 `node --check`。最后一次完整 Node 输出在 `tools/shots/node-tests.txt`，末尾原文：
+
+```text
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4910.622917
+```
+
+## 规格逐项结果
+
+| 条目 | 实际结果 |
+|---|---|
+| A1 确定性 | 录制完整第一关，包含移动与选卡，共 9385 帧；重放每帧比较所有标量与池字节的 SHA-256，全部一致。终局摘要 `73a6ab03da3009365df1a6bd5d3e49d3e8add640e33e2a9d04d3a1799a2a92b8`。另一种子摘要不同。证明同运行时重放，未承诺不同 JavaScript 引擎的浮点位级一致。 |
+| A2 热路径 | 所有模拟逻辑在 `src/sim.hot.js`。词法检查先拒绝 14 个违规片段（含跨行构造、箭头、嵌套闭包、对象/数组字面量、分配辅助方法、墙钟/随机数），再放行真实源码。不是完整 JavaScript 解析器：热文件刻意只使用受限语法。 |
+| A3 体积与资源 | 实际发布 9 文件分别 gzip 后合计 **22513 字节**，上限 153600 字节。三视口网络检查没有外部请求。截图、录像、参考编码器、测试和文档均不进发布目录。 |
+| A4 难度 | 第一关固定乱走策略、种子 1–12：10 胜 2 负；失败种子 3、7。莽撞档 12/12 阵亡，25.43–85.03 秒；每个种子重开后能移动、击杀且存活。随机档没有持续 180 帧的无位移无进展卡死。精准/正态转向误差两档、三关、各 3 种子共 18 局全部通关；第一关 159.10–173.95 秒，第二关 187.42–192.38 秒，第三关 194.35–206.45 秒。另实测完全不移动、仍选择卡的种子4，在86.53秒阵亡。 |
+| A5 预警 | 假宝石显形 42 帧后才生成追咬怪；重置红条 180 帧、停火 240 帧，停火期间没有新弹且在途弹全清，随后确有爆发射击；限流区第72帧才伤害。样本实际发生过重置、假宝石、压缩与限流。致命限流伤害与命中首领同帧的优先级另有回归测试。 |
+| A6 构图 | 两档驾驶、三关、多种子逐帧查主角轮廓与所有限流区边界。浏览器只渲染主体/只渲染背景两次、内缩一像素后测：白描边差值约230/255；主体宽度占场宽约6.51–6.55%，在6–8%范围内。 |
+| A7 操作与排版 | 三视口开场、选卡、结算按钮完整可见、中心点可点、至少44 CSS像素。真实触控向右后70ms已移动，松开后停止；取消、丢失捕获、失焦释放输入。键盘与触控进入同一输入通道。声音手势后音频上下文运行，关闭后挂起。 |
+| A8 压力 | 实际模拟324敌人起步，恢复默认RAF跑2秒，末尾323活敌。源码/发布副本各采120帧，模拟+UI+绘制 p95均约 **1.10ms**；最大分别2.10/1.70ms；最后669次绘制调用。实测是M4浏览器，不是中端手机的60fps证明。 |
+| A9 分享图 | 本地实现固定版本4、低纠错、字节模式、掩码0。每个模块与独立Nayuki参考向量一致。源码导出PNG、发布副本导出PNG均经 Apple Vision 独立解码，输出准确的 `https://aliceljy.github.io/playground/coal-breakout/`。真实下载文件成功；文件分享路径用系统端点桩检查确实传入PNG File。 |
+| A10 进度与卡 | 八卡分别比较模拟射击/伤害/拾取/移速/复活结果。真首领受伤、假分身不掉血、压缩器推墙均有检查；浏览器三关完整通关、解锁、重来和禁用存储仍能玩的流程通过。刷新保存的解锁进度正确。 |
+
+浏览器最终结果：源码 **96 checks; 0 failures**，发布副本 **96 checks; 0 failures**。日志分别为 `tools/shots/browser-log.txt` 与 `tools/shots/publish-log.txt`；完整测量 JSON 在各自的 `browser-report.json`。
+
+## 截图与逐图结论
+
+全部位于忽略目录 `tools/shots/`。已逐张查看下列三组18张截图；另合成每组一张总览便于比对（从左到右、从上到下是开场、战斗、选卡、首领、结算、压力）：
+
+| 视口 | 文件名 |
+|---|---|
+| 390×664 | `phone390-title.png`、`phone390-hero.png`、`phone390-levelup.png`、`phone390-boss.png`、`phone390-result.png`、`phone390-stress.png` |
+| 412×700 | `phone412-title.png`、`phone412-hero.png`、`phone412-levelup.png`、`phone412-boss.png`、`phone412-result.png`、`phone412-stress.png` |
+| 1280×800 | `desktop-title.png`、`desktop-hero.png`、`desktop-levelup.png`、`desktop-boss.png`、`desktop-result.png`、`desktop-stress.png` |
+
+- 开场：黑圆身、白点眼、短白嘴、粉天线、两条腿，无手臂；出发和声音按钮完整露出。
+- 战斗：真实第一关第84秒，16个敌人，黄色穿透束、绿色弹丸和粉芯假宝石可区分；主角白描边清楚。三视口场地没有挤扁，桌面保留竖屏构图。
+- 选卡：三张卡的名称、作用、等级可读，跳过按钮不出屏。
+- 首领：真实第三关第197秒，首领和剩余生命在场，顶部明确红条“额度重置3.0秒”；危险区不覆盖HUD。
+- 结算：数据、已选卡、角色、二维码与署名齐全，四个操作按钮没有截断。导出的 `phone390-poster.png` 为720×1080，下载文件另存为 `phone390-download.png`；其他两视口也各留一份。
+- 压力：固定截图是明确的额外生成模式，324敌人沿边缘入场；`stress-active.png` 是恢复后323敌人的真实推进画面，不是静态摆设。
+- 默认入口：`phone390-default.png`、`phone412-default.png`、`desktop-default.png` 均另查，角色与场地位置正确，未更改画质。
+- 补充：`context-walls.png`（第二关第141.47秒，文字墙与虚线边界清楚）、`quota-off.png`（第200秒停火，助手变暗，红条4.0秒，无弹丸）、`death.png`（阵亡结算与同关重来）。已逐张打开查看。
+
+发布副本截图放在 `tools/shots/published/`，18张固定/开场截图与源码对应PNG **逐文件字节相同**。最初调试的 `first-*.png` 保留为校准记录，不是最终交付证据；其中 `first-boss.png` 如实记录了旧参数下首领过早被打死、机位回报 failed 的情况。
+
+## 开局30秒录像
+
+`tools/shots/opening-30s.mp4`：正常入口、390×664、像素比1，页面时钟按每帧1/30秒推进，900帧；没有自动驾驶或状态跳转。前20秒真实触控顺序走右、下、左、上；后10秒使用键盘。第一次升级通过真实按钮选卡，模拟不会暗中替玩家选。
+
+`opening-frames.json` 逐帧记录实际位置、输入、生命、开火数和状态。900帧方向断言全部通过，总移动2730.15逻辑单位；尾帧游戏时间29.98秒，含一个升级暂停帧。画面里的角色始终正面朝向观众，不随方向旋转；走位方向由位移表达。
+
+已依次读完 `opening-sheet-1.png` 至 `opening-sheet-9.png` 的**全部900帧主角邻域**，确认无跑动时突转、断裂或手臂；第606帧是正常选卡遮罩，第607帧恢复。后段键盘把主角推至右上边界后被场地约束，主体仍完整可见，没有穿墙。全画面关键帧为 `opening-000.png`、`opening-150.png`、`opening-300.png`、`opening-450.png`、`opening-600.png`、`opening-750.png`。
+
+该录像在最后的“第三关致命限流优先级”修复之前录制；修复只在第三关危险区导致死亡时提前结束该帧，不改变这段第一关输入或绘制。最后源码与发布副本的完整浏览器检查均在修复后重跑。
+
+## 发布结构复验
+
+按CI相同文件集合组装到 `tools/publish-preview/playground/coal-breakout/`，9个文件与源码逐字节相同；随后从带嵌套路径的地址运行完整浏览器检查，验证路径计算没有写死网站根目录：
+
+```sh
+mkdir -p coal-breakout/tools/publish-preview/playground/coal-breakout
+cp coal-breakout/index.html coal-breakout/tools/publish-preview/playground/coal-breakout/index.html
+cp -R coal-breakout/src coal-breakout/tools/publish-preview/playground/coal-breakout/
+NODE_PATH="$(npm root -g)" node coal-breakout/tools/browser-check.cjs \
+  http://127.0.0.1:8936/coal-breakout/tools/publish-preview/playground/coal-breakout/ \
+  coal-breakout/tools/shots/published
+```
+
+首页新增小游戏卡片，根中英文说明各新增一行；发布工作流分别增加检查和组装步骤。`git diff --check` 通过。没有运行与本次无关的其他玩意测试。
+
+## 八问复盘与改动记录
+
+1. 开局30秒是否没有决定：有，开始就要选择拾取路线，约5秒精准路径获得第一次三选一；本次实际触控录像第20秒出现选卡，第11秒附近出现假宝石显形。
+2. 不移动能否继续通关：自动开火能击败少量敌人，但站桩实测阵亡，不能通关。
+3. 是否读源码才懂目标：开场与场内均写明走位、自动开火、经验和首领条件；陌生真人理解度尚未盲测。
+4. 是否不明原因就输：所有接近攻击有入场预警，假宝石与限流区有独立预警；重置3秒红条、停火期间明确提示。真人是否注意到仍需试玩。
+5. 是否只是怪越来越多：三关分别改变拾取判断、空间管理与停火走位；首领另有分身、引力和落地区。
+6. 奖励是否只换文案：八卡均以真实模拟输出差异检查。
+7. 场地是否只是布景：边界会限制走位，第二关挤压与压缩直接改变可用区域，第三关区域封锁改变路线。
+8. 是否讲起来好玩、上手不好玩：自动检查无法替玩家回答，保留 owner 试玩判断。
+
+迭代实际发现并处理：
+
+- 早期每级回血，乱走档12/12全过；改为每三级回血，同策略变为10/12通过，保留两侧断言。
+- 早期第三关首领在197秒机位前死亡；提高耐久并使用真实能进入该状态的种子1，机位检查从failed变为boss，不能伪造场景。
+- 首次攻速卡测试只观察180帧，两种射速恰好都落在5轮内；扩大到360帧观察实际射击差异，不把相同计数误判为实现无效。
+- 发现限流区致命伤后在途弹仍可能击杀首领；先加回归断言，旧代码报 `2 !== 3`，日志 `lethal-regression-before.txt`，再添加死亡后立即返回，最终测试通过。
+
+## 未覆盖项与剩余问题
+
+- 没有已知未修复的功能故障。没有测实体中端手机、移动Safari、系统真实分享面板或物理摄像头扫码；二维码的独立解码是在本机导出PNG上完成。
+- 芯片音序、音效节点和声音开关已执行，听感、单手舒适度、假宝石破绽是否容易学到、长期难度仍需要真人试玩，不能用自动驾驶代替。
+- 未提交、未推送、未发布，因此未做线上链接复验。首页入口需随 owner 后续发布才会在线可用。
+- 受任务末尾“禁止读写其他仓库”的硬围栏约束，没有读取知识视频仓的角色设定原文件；使用任务信封逐项提供的形象锚点。
+- 简化记账：保留固定容量池扫描和定长二维码编码；超出512敌人或更长分享网址时再扩展。无服务器、账号、排行榜、每日挑战，没有新增后台服务或依赖。
+
+## 文件清单
+
+新增：
+
+```text
+coal-breakout/.gitignore
+coal-breakout/index.html
+coal-breakout/SPEC.md
+coal-breakout/README.md
+coal-breakout/README_CN.md
+coal-breakout/VERIFICATION.md
+coal-breakout/THIRD_PARTY_NOTICES.md
+coal-breakout/src/data.js
+coal-breakout/src/sim.hot.js
+coal-breakout/src/core.js
+coal-breakout/src/pilot.js
+coal-breakout/src/art.js
+coal-breakout/src/audio.js
+coal-breakout/src/qr.js
+coal-breakout/src/game.js
+coal-breakout/tests/engineering.test.cjs
+coal-breakout/tests/gameplay.test.cjs
+coal-breakout/tests/fixtures/qr-v4-l-mask0.json
+coal-breakout/tools/lint-hot.cjs
+coal-breakout/tools/difficulty.cjs
+coal-breakout/tools/browser-check.cjs
+coal-breakout/tools/record.cjs
+coal-breakout/tools/qr-decode.swift
+```
+
+修改：根 `index.html`、`README.md`、`README_CN.md`、`.github/workflows/pages.yml`。上述清单不包含忽略的验收产物，也不包含其他窗口的改动。
