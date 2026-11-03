@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>好样本</title>
+<style>body{margin:0;height:100vh;display:grid;place-items:center;background:#f4efe6;font-family:system-ui}
+#b{width:180px;height:72px;border-radius:20px;background:#c2502e;color:#fff;font-size:28px;font-weight:800;display:grid;place-items:center;user-select:none}</style>
+<div id="b" data-lab-target="btn">按我</div>
+<script type="application/json" id="lab-params">{"name":"好样本","kind":"press-button","spring":{"k":400,"c":16}}</script>
+<script>
+function springStep(s, dt) {
+  const h = 1 / 240;
+  let left = Math.min(dt, 0.1);
+  while (left > 1e-9) {
+    const step = Math.min(h, left);
+    s.v += (-s.k * (s.x - s.target) - s.c * s.v) * step;
+    s.x += s.v * step;
+    left -= step;
+  }
+  return s;
+}
+const b = document.getElementById('b'), s = { x: 1, v: 0, k: 400, c: 16, target: 1 };
+b.addEventListener('pointerdown', () => { s.target = 0.85; });
+const up = () => { s.target = 1; };
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach((e) => b.addEventListener(e, up));
+let last = performance.now();
+(function loop(now) { springStep(s, (now - last) / 1000); last = now; b.style.transform = `scale(${s.x})`; requestAnimationFrame(loop); })(last);
+window.__LAB__ = { ready: true, demo: [{ t: 0.5, type: 'tap', target: 'btn' }, { t: 1.2, type: 'tap', target: 'btn' }] };
+</script>

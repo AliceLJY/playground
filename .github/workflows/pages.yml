@@ -88,6 +88,12 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Interaction Lab tools
+        working-directory: interaction-lab
+        run: |
+          node --check tools/record.cjs
+          node --test tests/*.test.cjs
+
       - name: Check Slipper Smash
         working-directory: slipper-smash
         run: |
