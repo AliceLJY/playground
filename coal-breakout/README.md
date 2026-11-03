@@ -10,6 +10,7 @@ A tiny coal creature and its orbiting AI helpers survive three original AI disas
 - Desktop: drag with the mouse, or use arrow keys / WASD. Escape or P pauses.
 - Sound starts off. Tap the sound button to enable original synthesised chip music and effects.
 - Every other rank-up picks a card automatically and flashes it in the top bar; the rest pause the fight to choose one of three cards or skip. Every third rank restores one health point.
+- The title offers an optional one-run auto-upgrade preference: Clear favours piercing beams and extra projectiles; Sustain favours pickup range and revival; no preference (the default) or no match keeps the first offer, and retries or the next stage return to the default.
 - Stage 1: some experience gems have a flickering pink core. They reveal a mouth before attacking. Only the boss with the white outline takes damage.
 - Stage 2: text walls squeeze the arena. Defeating yellow compressors pushes them back; the boss pulls the player and gems toward the centre.
 - Stage 3: every 40 seconds, a three-second red countdown warns of four seconds without weapons, followed by five seconds of burst fire. Leave the boss's yellow zones before they turn red.
@@ -39,6 +40,7 @@ With an existing Playwright / Chromium installation:
 
 ```sh
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8936/
+NODE_PATH="$(npm root -g)" node tools/workflow-check.cjs http://127.0.0.1:8936/ <output-directory-outside-repo>
 NODE_PATH="$(npm root -g)" node tools/record.cjs http://127.0.0.1:8936/
 ```
 

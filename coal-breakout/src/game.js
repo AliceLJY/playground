@@ -3,7 +3,7 @@
   const C = CoalCore, D = CoalData, $ = id => document.getElementById(id);
   const canvas = $('game'), renderer = CoalArt.createRenderer(canvas), audio = CoalAudio.create();
   const query = new URLSearchParams(location.search), requested = query.get('view') || '';
-  let seed = (Number(query.get('seed')) >>> 0) || 7, selected = 0, progress = 1;
+  let seed = (Number(query.get('seed')) >>> 0) || 7, selected = 0, progress = 1, workflow = '';
   let s = C.create(seed), started = false, paused = false, frozen = false, actualView = '', shownPhase = -1;
   let accumulator = 0, lastTime = 0, ix = 0, iy = 0, pointer = null, originX = 0, originY = 0;
   const keys = new Set(), costs = new Float64Array(600); let samples = 0;
@@ -35,8 +35,14 @@
     CoalArt.sprite(g, renderer.atlas, 3, 354, 178, 36); g.fillStyle = '#72F1C4'; g.fillRect(143, 95, 10, 3); g.fillRect(166, 78, 6, 3);
     g.fillStyle = '#FF5DA2'; g.fillRect(365, 45, 5, 5); g.fillRect(150, 174, 4, 4);
   }
-  function start(level = selected, fixedSeed = seed, stress = false) {
-    selected = level; seed = fixedSeed; s = C.create(seed, selected, stress); started = true; paused = false; frozen = false; shownPhase = -1;
+  function selectWorkflow(value) {
+    workflow = value;
+    for (const b of $('workflows').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.workflow === workflow));
+  }
+  function start(level = selected, fixedSeed = seed, stress = false, preference = '') {
+    selected = level; seed = fixedSeed; s = C.create(seed, selected, stress, preference); started = true; paused = false; frozen = false; shownPhase = -1;
+    // The menu choice is consumed once; retries, next stage and a return to title use the original default.
+    selectWorkflow('');
     release(); accumulator = 0; actualView = ''; $('title').hidden = true; $('pause').hidden = true; $('result').hidden = true; $('upgrade').hidden = true;
     audio.resume(); syncUI(); renderer.draw(s);
   }
@@ -108,7 +114,7 @@
     $('stage-label').textContent = '0' + (selected + 1) + ' / ' + s.stage.name;
     $('clock').textContent = s.boss >= 0 ? '首领 ' + fmt((s.tick - s.stage.duration) / 60) : fmt((s.stage.duration - s.tick) / 60); $('clock').classList.toggle('bossclock', s.boss >= 0);
     $('hearts').textContent = '♥'.repeat(Math.max(0, s.hp)) + '♡'.repeat(s.maxHP - Math.max(0, s.hp)); $('hearts').setAttribute('aria-label', '生命 ' + s.hp);
-    $('rank').textContent = '等级 ' + s.level + ' · 击败 ' + s.kills;
+    $('rank').textContent = (s.workflow ? (s.workflow === 'clear' ? '清场' : '续航') + ' · ' : '') + '等级 ' + s.level + ' · 击败 ' + s.kills;
     const previous = s.prevXP;
     $('xp-fill').style.width = Math.min(100, (s.xp - previous) / (s.nextXP - previous) * 100) + '%';
     const n = $('notice'); n.className = '';
@@ -158,7 +164,8 @@
   window.addEventListener('blur', () => { release(); togglePause(true); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { release(); togglePause(true); audio.pause(); } });
   window.addEventListener('resize', resize);
-  $('start').onclick = () => start(); $('retry').onclick = () => start(); $('next').onclick = () => start(Math.min(2, selected + 1));
+  for (const b of $('workflows').querySelectorAll('button')) b.onclick = () => selectWorkflow(b.dataset.workflow);
+  $('start').onclick = () => start(selected, seed, false, workflow); $('retry').onclick = () => start(); $('next').onclick = () => start(Math.min(2, selected + 1));
   $('skip').onclick = () => pick(-1); $('pause-button').onclick = () => togglePause(); $('resume').onclick = () => togglePause(false);
   $('pause-retry').onclick = () => start(); $('back-title').onclick = menu; $('result-home').onclick = menu; $('save').onclick = save;
   async function sound() {
