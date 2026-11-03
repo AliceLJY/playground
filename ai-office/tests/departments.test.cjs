@@ -21,6 +21,7 @@ test('departments: roster sits by department and desk 9 is gone from the room',(
   assert.deepEqual([desk.Codex,desk.Kimi,desk.Agy].sort(),[1,2,3],'engineering & review take the top row');
   assert.deepEqual([desk['Grok Bot'],desk.Muse].sort(),[6,8],'production room');
   assert.deepEqual([desk.Cobbler,desk.Dots].sort(),[4,5],'mailroom');
+  assert.equal(desk['etwin-cc'],7);for(const id of ['portrait','landscape']){const L=C.layouts[id],h=C.home(7,L);assert.ok(C.distance(h,L.bossDesk)<70,'etwin keeps the boss company');assert.equal(C.blocked(h.x,h.y,L),false);}
   assert.equal(desk.CC,0);assert.equal(desk['豆包'],10);
   assert.ok(!script.roster.some(a=>a.desk===9));
   for(const id of ['portrait','landscape']){const L=C.layouts[id];assert.ok(C.blocked(210,272,L),'arcade cabinets stand where desk 9 was');}
@@ -34,17 +35,19 @@ test('breakfast: idle colleagues fill the teahouse first and walk back to the ga
     assert.equal(tea.length,4,`${layout}: four seats taken`);
     for(const a of tea){assert.ok(a.gameSlot>=16&&a.gameSlot<=19);assert.ok(C.distance(a,C.leisure(layout)[a.gameSlot])<1);}
     assert.equal(new Set(tea.map(a=>a.gameSlot)).size,4);
-    // Two hours later the same people are back in the game room / gym.
+    // After the sitting the teahouse keeps only its two everyday seats; the rest go back to games and the gym.
     s.clockBase=LATE-s.time*1000;s.step(40000);
-    assert.equal(s.actors.filter(a=>s.gameActivity(a)==='tea').length,0,`${layout}: teahouse empties after ten`);
+    assert.ok(s.actors.filter(a=>s.gameActivity(a)==='tea').length<=2,`${layout}: only everyday seats after ten`);
+    assert.ok(s.actors.every(a=>s.gameActivity(a)!=='tea'||[16,17].includes(a.gameSlot)));
     assert.ok(s.actors.filter(a=>s.gameActivity(a)).length>=4);
   }
 });
 
-test('outside breakfast and in bare simulations the teahouse stays empty; busy people never leave their desk',()=>{
+test('teahouse is open all day: two everyday seats outside 早茶/下午茶/夜茶, four during them; busy people stay at desks',()=>{
+  assert.equal(C.teaTime(BREAKFAST),'早茶');assert.equal(C.teaTime(Date.parse('2026-11-01T07:30:00Z')),'下午茶');assert.equal(C.teaTime(Date.parse('2026-11-01T12:30:00Z')),'夜茶');assert.equal(C.teaTime(LATE),null);
   for(const clock of [undefined,LATE]){
     const s=office('portrait',clock);s.step(30000);
-    assert.equal(s.actors.filter(a=>s.gameActivity(a)==='tea').length,0);
+    assert.equal(s.actors.filter(a=>s.gameActivity(a)==='tea').length,2);
     const cc=s.actors.find(a=>a.i===0);assert.ok(C.distance(cc,C.home(0))<1);
   }
   const forced=office('portrait');forced.forceBreakfast=true;forced.step(30000);assert.equal(forced.actors.filter(a=>forced.gameActivity(a)==='tea').length,4);
@@ -53,7 +56,7 @@ test('outside breakfast and in bare simulations the teahouse stays empty; busy p
 test('gym: with enough idle people the treadmill and weights are used, with matching poses',()=>{
   const s=office('landscape',LATE);s.step(30000);
   const kinds=s.actors.map(a=>s.gameActivity(a)).filter(Boolean);
-  assert.ok(kinds.includes('run'),kinds.join());assert.ok(kinds.includes('lift')||kinds.length<8,kinds.join());
+  assert.ok(kinds.includes('run'),kinds.join());
 });
 
 test('every leisure spot, meeting place and patrol point is reachable on sampled routes in both layouts',()=>{

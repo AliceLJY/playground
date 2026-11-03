@@ -3,7 +3,7 @@ const Core=require('../office-core.js'),MV=require('../mv.js'),script=structured
 // Keep the archived phone-shot regression on the unchanged consult branch.
 for(const e of script.events)if(e.scene?.call)e.scene.call.kind='consult';
 function run(){
- const L=Core.layouts.portrait,C={...Core,...L,home:i=>Core.home(i,L)},sim=C.create(script.roster,script.seed,L),mv=MV.create(script,C),frames=new Map();mv.start(sim);
+ const L=Core.layouts.film,C={...Core,...L,home:i=>Core.home(i,L)},sim=C.create(script.roster,script.seed,L),mv=MV.create(script,C),frames=new Map();mv.start(sim);
  for(let t=0;t<Math.round(script.seconds*1000);t+=20){mv.tick(t,sim);sim.night=C.isNight(mv.clock(t+20));sim.step(20*mv.pace(t+20));mv.observe(t+20,sim);
   if((t+20)%100===0)frames.set((t+20)/1000,JSON.parse(JSON.stringify({scene:sim.scene,actors:sim.actors.map(a=>({...a,game:sim.gameActivity(a)})),visitors:sim.visitors,ball:sim.pingPongBall(),flights:sim.flightPoints(),guard:sim.guard,delivery:sim.delivery,boss:sim.boss,camera:mv.camera(t+20),subtitle:mv.subtitle(t+20),dark:mv.darkness(t+20),plates:C.nameplates(sim.actors,n=>n.length*4,[],L)})));
  }return {frames,log:mv.log,mv,C};
