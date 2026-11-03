@@ -71,9 +71,11 @@ const hand={x:-999,y:-999,angle:0,active:false,seen:false,tx:0,ty:0,swing:0};
 const pilotHands={get state(){return game.state;},swipe(x0,y0,x1,y1){
   for(let i=0;i<=5;i++)fx.trail.push({x:x0+(x1-x0)*i/5,y:y0+(y1-y0)*i/5,t:(5-i)*0.012,brk:i===0});
   hand.tx=x1;hand.ty=y1;hand.angle=Math.atan2(y1-y0,x1-x0);hand.swing=0.14;hand.seen=true;return game.swipe(x0,y0,x1,y1);}};
-function start(seed){
-  game=Core.create({seed:seed==null?(Math.random()*1e9)|0:seed,aspect:cw/ch});pilot=null;screen='play';paused=false;up();syncControls();endTimer=0;
+function start(seed,mode){
+  game=Core.create({seed:seed==null?(Math.random()*1e9)|0:seed,aspect:cw/ch,mode});pilot=null;screen='play';paused=false;up();syncControls();endTimer=0;
+  best=0;try{best=+localStorage.getItem(game.state.night?'slipper-night-best':'slipper-best')||0;}catch(e){}
   fx.splats.length=fx.bits.length=fx.pops.length=fx.trail.length=0;fx.shake=fx.flash=fx.banner=0;fx.down=null;resize();
+  fx.combo=null;hand.seen=false;canvas.focus();
   hand.x=hand.tx=game.state.W/2;hand.y=hand.ty=H*0.8;
 }
 function pop(text,x,y,color,size){fx.pops.push({text,x,y,color:color||COLOR.cream,size:size||44,t:0});}
@@ -88,12 +90,14 @@ function handle(e){
     fx.shake=Math.max(fx.shake,5);e.kind==='gold'?sfx.gold():0;sfx.slap(e.combo);
   }else if(e.type==='tea'){
     burst(e.x,e.y,16,COLOR.tea,560);burst(e.x,e.y,6,'#3a2616',380);pop('奶茶洒了！',e.x,e.y-80,COLOR.alert,54);fx.flash=0.4;fx.shake=16;sfx.tea();
+  }else if(e.type==='stolen'){
+    pop('被偷喝一杯！',s.W/2,H*0.84,COLOR.alert,Math.min(50,s.W*0.08));fx.flash=0.3;fx.shake=12;sfx.tea();
   }else if(e.type==='boss'){fx.banner=2.4;sfx.boss();}
   else if(e.type==='bossHit'){burst(e.x+(Math.random()-0.5)*120,e.y+(Math.random()-0.5)*160,6,COLOR.amber,520);pop('+'+e.pts,e.x+(Math.random()-0.5)*160,e.y-s.boss.r*0.9,COLOR.amber,46);fx.shake=Math.max(fx.shake,8);sfx.thump();if(e.combo>=3)fx.combo={n:e.combo,mult:e.mult,t:0};}
   else if(e.type==='bossDown'){fx.down={x:e.x,y:e.y,r:s.boss.r,t:0};burst(e.x,e.y,40,COLOR.gold,900);burst(e.x,e.y,20,COLOR.cream,700);pop('拍扁！+'+e.bonus,e.x,e.y-s.boss.r,COLOR.gold,64);fx.shake=24;sfx.thump();sfx.win();}
   else if(e.type==='over'){
     endTimer=e.reason==='win'?2.0:1.0;if(e.reason!=='win')sfx.lose();
-    if(s.score>best){best=s.score;try{localStorage.setItem('slipper-best',String(best));}catch(err){}}
+    if(s.score>best){best=s.score;try{localStorage.setItem(s.night?'slipper-night-best':'slipper-best',String(best));}catch(err){}}
   }
 }
 function tick(dt){
@@ -118,7 +122,25 @@ function tick(dt){
 // ---------- input ----------
 let lastPt=null,gestureId=null;
 const pauseButton=document.getElementById('pause-btn'),pausePanel=document.getElementById('pause-panel'),resumeButton=document.getElementById('resume'),muteButton=document.getElementById('pause-mute');
-function syncControls(){pauseButton.hidden=screen!=='play';pausePanel.hidden=!paused;muteButton.textContent=muted?'声音：关':'声音：开';}
+const nightEntry=document.getElementById('night-entry'),nightMenu=document.getElementById('night-menu'),nightStart=document.getElementById('night-start'),nightBack=document.getElementById('night-back'),nightReturn=document.getElementById('night-return'),nightHud=document.getElementById('night-hud');
+const nightResultControls=document.getElementById('night-result-controls'),nightRetry=document.getElementById('night-retry');
+function syncControls(){
+  pauseButton.hidden=screen!=='play';pausePanel.hidden=!paused;muteButton.textContent=muted?'声音：关':'声音：开';
+  nightEntry.hidden=screen!=='title';nightMenu.hidden=screen!=='nightMenu';
+  const s=game&&game.state;
+  nightResultControls.hidden=screen!=='result'||!s?.night||fx.resultT<=0.7;
+  nightHud.hidden=screen!=='play'||!s?.night;
+  if(!nightHud.hidden)nightHud.textContent='守夜 · 溜到摊后 '+s.misses+' 只\n本组 '+s.night.pending+'/'+Core.NIGHT_MISS_LIMIT+' · 被偷 '+s.night.stolen+' 杯';
+}
+function returnTitle(){
+  up();game=null;pilot=null;paused=false;screen='title';endTimer=0;acc=0;
+  fx.splats.length=fx.bits.length=fx.pops.length=fx.trail.length=0;fx.shake=fx.flash=fx.banner=0;fx.down=fx.combo=null;hand.seen=false;
+  resize();syncControls();canvas.focus();
+}
+nightEntry.addEventListener('click',()=>{screen='nightMenu';up();syncControls();nightStart.focus();});
+nightStart.addEventListener('click',()=>{audio();if(ac&&ac.state==='suspended')ac.resume();start(null,'night');});
+nightBack.addEventListener('click',returnTitle);nightReturn.addEventListener('click',returnTitle);
+nightRetry.addEventListener('click',()=>start(null,'night'));
 function setPause(on){
   if(screen!=='play'||frozen)return;
   up();fx.trail.length=0;paused=on;acc=0;syncControls();
@@ -134,7 +156,8 @@ function down(ev){
   if(screen!=='play'&&px>=m.x&&px<=m.x+m.w&&py>=m.y&&py<=m.y+m.h){toggleMute();return;}
   if(frozen)return;
   if(screen==='title'){start();return;}
-  if(screen==='result'){if(fx.resultT>0.7)start();return;}
+  if(screen==='result'){if(fx.resultT>0.7)start(null,game.state.mode);return;}
+  if(screen!=='play')return;
   if(gestureId!==null)return;gestureId=ev.pointerId;
   const p=toWorld(ev.clientX,ev.clientY);lastPt=p;hand.active=true;hand.seen=true;hand.x=p.x;hand.y=p.y;fx.trail.push({x:p.x,y:p.y,t:0,brk:true});
   try{canvas.setPointerCapture(ev.pointerId);}catch(e){}
@@ -158,7 +181,7 @@ function up(ev){
 canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
 canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);canvas.addEventListener('lostpointercapture',up);
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='Escape'){e.preventDefault();setPause(!paused);return;}if(paused)return;if((e.key===' '||e.key==='Enter')&&!frozen){if(screen==='title')start();else if(screen==='result'&&fx.resultT>0.7)start();}});
+addEventListener('keydown',e=>{if(e.repeat)return;if(e.key==='Escape'){e.preventDefault();if(screen==='nightMenu')returnTitle();else setPause(!paused);return;}if(paused||e.target?.tagName==='BUTTON')return;if((e.key===' '||e.key==='Enter')&&!frozen){if(screen==='title')start();else if(screen==='result'&&fx.resultT>0.7)start(null,game.state.mode);}});
 
 // ---------- drawing ----------
 function text(str,x,y,size,color,align,weight){
@@ -230,11 +253,12 @@ function drawHud(s){
     text('最靓的仔'+(s.phase==='boss'?'　'+Math.max(0,Math.ceil(CFG.bossTime-s.bossT))+' 秒后溜走':''),W/2,by-24,24,COLOR.amber);
   }else{ctx.fillStyle=COLOR.amber;ctx.fillRect(bx,by,bw*Math.min(1,s.t/CFG.waveTime),12);}
   if(fx.combo){const c=fx.combo,k=Math.min(1,c.t*8),a=Math.max(0,1-Math.max(0,c.t-0.7)/0.4);ctx.save();ctx.globalAlpha=a;
-    text(c.n+' 连拍'+(c.mult>1?'  ×'+c.mult:''),W/2,bossOn?Math.min(H-120,s.boss.y+s.boss.r*1.5+50):236,(40+Math.min(c.n,20))*(0.7+0.3*k),c.mult>1?COLOR.gold:COLOR.cream);ctx.restore();}
+    const cy=bossOn?Math.min(H-120,s.boss.y+s.boss.r*1.5+50):236;
+    text(c.n+' 连拍'+(c.mult>1?'  ×'+c.mult:''),W/2,s.night?Math.max(330,cy):cy,(40+Math.min(c.n,20))*(0.7+0.3*k),c.mult>1?COLOR.gold:COLOR.cream);ctx.restore();}
   if(fx.banner>0){const a=Math.min(1,fx.banner,(2.4-fx.banner)*4);ctx.save();ctx.globalAlpha=a;ctx.fillStyle='rgba(6,8,12,0.6)';ctx.fillRect(0,H*0.52,W,150);
-    text('最靓的仔 登场！',W/2,H*0.52+58,Math.min(72,W*0.11),COLOR.amber);text('对着它连续划，拍到它服',W/2,H*0.52+116,Math.min(30,W*0.05),COLOR.cream,'center',700);ctx.restore();}
+    text('最靓的仔 登场！',W/2,H*0.52+58,Math.min(72,W*0.11),COLOR.amber);text(s.night?'还剩 '+s.lives+' 杯 · 拍服它，护住奶茶':'对着它连续划，拍到它服',W/2,H*0.52+116,Math.min(30,W*0.05),COLOR.cream,'center',700);ctx.restore();}
 }
-function polaroid(cx,cy,w,reason,tilt){
+function polaroid(cx,cy,w,reason,tilt,night){
   const h=w*1.12,pw=w*0.9,ph=w*0.82;ctx.save();ctx.translate(cx,cy);ctx.rotate(tilt);
   ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(-w/2+10,-h/2+14,w,h);ctx.fillStyle='#fbf8f1';ctx.fillRect(-w/2,-h/2,w,h);
   const px=-pw/2,py=-h/2+w*0.05;ctx.save();ctx.beginPath();ctx.rect(px,py,pw,ph);ctx.clip();ctx.fillStyle='#ffffff';ctx.fillRect(px,py,pw,ph);
@@ -243,7 +267,7 @@ function polaroid(cx,cy,w,reason,tilt){
   if(win){const rh=ph*0.8,rx=px+pw*0.69,ry=py+ph*0.6;sprite(img.front,rx,ry,rh,0.04);slipper(rx-2,ry-rh*0.41,-0.5,rh*0.27);}
   ctx.restore();
   ctx.fillStyle='#3a3530';ctx.font='700 '+w*0.062+'px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText(win?'和最靓的仔合个影，拖鞋送它了':reason==='tea'?'奶茶全洒了，今晚先收工':'让最靓的仔溜了，明晚再战',0,h/2-w*0.105);
+  ctx.fillText(win?'和最靓的仔合个影，拖鞋送它了':night&&reason!=='escaped'?'奶茶没了，今晚先收工':reason==='tea'?'奶茶全洒了，今晚先收工':'让最靓的仔溜了，明晚再战',0,h/2-w*0.105);
   ctx.restore();
 }
 function drawTitle(t){
@@ -262,18 +286,19 @@ function drawResult(s,t){
   const W=s.W,r=s.result,k=Math.min(1,fx.resultT*3),e=1-(1-k)*(1-k);
   ctx.fillStyle='rgba(6,8,12,'+0.62*e+')';ctx.fillRect(-view.ox/view.scale,-view.oy/view.scale,cw/view.scale,ch/view.scale);
   ctx.save();ctx.globalAlpha=e;
-  text(r.reason==='win'?'拍服了！':r.reason==='tea'?'奶茶洒光了':'它溜了',W/2,H*0.085,Math.min(84,W*0.14),r.reason==='win'?COLOR.gold:COLOR.cream);
-  polaroid(W/2,H*0.40-(1-e)*60,Math.min(W*0.8,H*0.44),r.reason,-0.045);
+  text(s.night?(r.reason==='win'?'守住 '+r.lives+' 杯！':r.lives===0?'奶茶没了':'守夜未完成'):(r.reason==='win'?'拍服了！':r.reason==='tea'?'奶茶洒光了':'它溜了'),W/2,H*0.085,Math.min(84,W*0.14),r.reason==='win'?COLOR.gold:COLOR.cream);
+  polaroid(W/2,H*0.40-(1-e)*60,Math.min(W*0.8,H*0.44),r.reason,-0.045,s.night);
   text(String(r.score)+' 分',W/2,H*0.725,Math.min(92,W*0.15),COLOR.amber);
   if(r.score>=best&&r.score>0)text('新纪录',W/2,H*0.725-Math.min(92,W*0.15)*0.72,Math.min(26,W*0.045),COLOR.gold);
   text('拍扁 '+r.kills+' 只　最长 '+r.bestCombo+' 连拍　漏掉 '+r.misses+' 只',W/2,H*0.795,Math.min(28,W*0.046),COLOR.cream,'center',700);
-  ctx.globalAlpha=e*(0.6+0.4*Math.sin(t*4));text('点一下再来一局',W/2,H*0.905,Math.min(42,W*0.07),COLOR.gold);ctx.restore();
+  if(s.night)text('保住 '+r.lives+' 杯 · 被偷 '+r.night.stolen+' 杯 · 误拍 '+r.night.spilled+' 杯',W/2,H*0.845,Math.min(28,W*0.046),COLOR.cream,'center',700);
+  if(!s.night){ctx.globalAlpha=e*(0.6+0.4*Math.sin(t*4));text('点一下再来一局',W/2,H*0.905,Math.min(42,W*0.07),COLOR.gold);}ctx.restore();
 }
 function draw(){
   const t=clock;syncControls();drawBackdrop();
   const sh=fx.shake>0?fx.shake*dpr*0.5:0;
   ctx.setTransform(view.scale,0,0,view.scale,view.ox+(Math.random()-0.5)*sh,view.oy+(Math.random()-0.5)*sh);
-  if(screen==='title')drawTitle(t);
+  if(screen==='title'||screen==='nightMenu')drawTitle(t);
   else if(game){
     const s=game.state;
     for(const p of fx.splats){const a=Math.max(0,1-p.t/0.7),r=CFG.radius[p.kind];sprite(p.kind==='gold'?(img.gold||img.front):p.kind==='flyer'?img.back:img.front,p.x,p.y,r*3.3,p.rot,a,1.25,0.4);}
@@ -305,7 +330,7 @@ function frame(now){
 function advance(seconds){const n=Math.round(seconds/CFG.step);for(let i=0;i<n;i++)tick(CFG.step);}
 const VIEWS={hero:{seed:5,pilot:'human',t:13.2},stress:{seed:11,pilot:null,t:40.6},boss:{seed:8,pilot:'human',t:49.4},win:{seed:5,pilot:'precise',t:80}};
 const hook=window.__slipper={ready:false,metrics,
-  start(seed){start(seed);return hook;},
+  start(seed,mode){start(seed,mode);return hook;},
   autopilot(level,seed){pilot=level?Core.pilot(level,seed==null?1:seed):null;return hook;},
   sound(){audio();return hook;},
   advance(seconds){advance(seconds);return hook;},
@@ -313,7 +338,7 @@ const hook=window.__slipper={ready:false,metrics,
   probe(){const s=game&&game.state,px=e=>({kind:e.kind,x:(view.ox+e.x*view.scale)/dpr,y:(view.oy+e.y*view.scale)/dpr,r:e.r*view.scale/dpr});
     return{screen,paused,muted,particleCount:fx.bits.length,gestureActive:gestureId!==null,frozen,dpr,canvas:[cw,ch],css:[innerWidth,innerHeight],view:{scale:view.scale,ox:view.ox,oy:view.oy,W:view.W},
       assets:{front:ok(img.front),back:ok(img.back),alley:ok(img.alley),keeper:ok(img.keeper)},
-      state:s?{t:+s.t.toFixed(3),phase:s.phase,score:s.score,lives:s.lives,combo:s.combo,kills:s.kills,live:s.ents.length,result:s.result,
+      state:s?{t:+s.t.toFixed(3),phase:s.phase,score:s.score,lives:s.lives,combo:s.combo,kills:s.kills,misses:s.misses,mode:s.mode,night:s.night?{...s.night}:null,live:s.ents.length,result:s.result,
         boss:s.boss?Object.assign(px({kind:'boss',x:s.boss.x,y:s.boss.y,r:s.boss.r}),{hp:s.boss.hp}):null,ents:s.ents.map(px)}:null};}
 };
 function boot(){

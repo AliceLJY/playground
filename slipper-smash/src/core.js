@@ -3,6 +3,7 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.SlipperCore=factory();})(typeof self!=='undefined'?self:this,function(){
 'use strict';
 const H=1000;
+const NIGHT_MISS_LIMIT=3; // Night Watch only; awaiting human playtesting.
 const CFG={
   gravity:1500,          // units / s^2
   waveTime:45,           // seconds of ordinary waves before the boss
@@ -32,6 +33,8 @@ function create(opts){
   const aspect=clamp(opts.aspect||0.5625,0.42,2.2),W=H*aspect,rand=rng(opts.seed==null?1:opts.seed);
   const s={W,H,aspect,t:0,phase:'waves',ents:[],queue:[],nextWave:0.9,score:0,combo:0,bestCombo:0,lastKill:-9,
     kills:0,misses:0,lives:CFG.lives,boss:null,bossT:0,events:[],spawned:{roach:0,flyer:0,gold:0,tea:0},result:null,nextId:1,peakLive:0};
+  s.mode=opts.mode==='night'?'night':'casual';
+  s.night=s.mode==='night'?{pending:0,stolen:0,spilled:0,bossLives:null}:null;
   const emit=e=>{s.events.push(e);};
   const liveCount=()=>s.ents.length+s.queue.length;
 
@@ -70,6 +73,7 @@ function create(opts){
   function finish(reason){
     if(s.result)return;
     s.phase='over';s.result={reason,score:s.score,bestCombo:s.bestCombo,kills:s.kills,misses:s.misses,lives:s.lives,time:s.t};
+    if(s.night)s.result.night={...s.night};
     emit({type:'over',reason});
   }
 
@@ -78,7 +82,7 @@ function create(opts){
     s.t+=dt;
     if(s.phase==='waves'){
       if(s.t>=CFG.waveTime){s.phase='bossIn';s.queue.length=0;const r=Math.min(170,W*0.3);
-        s.boss={x:W/2,y:-r-90,r,hp:CFG.bossHp,maxHp:CFG.bossHp,lastHit:-9,flinch:0,enter:0,nextThrow:1.1,home:185+r*1.5};emit({type:'boss'});}
+        s.boss={x:W/2,y:-r-90,r,hp:CFG.bossHp,maxHp:CFG.bossHp,lastHit:-9,flinch:0,enter:0,nextThrow:1.1,home:185+r*1.5};if(s.night)s.night.bossLives=s.lives;emit({type:'boss'});}
       else if(s.t>=s.nextWave)wave();
     }
     for(let i=0;i<s.queue.length;i++){const q=s.queue[i];if(s.t>=q.at){s.queue.splice(i--,1);q.kind==='flyer'?fly():toss(q.kind);}}
@@ -105,7 +109,13 @@ function create(opts){
         if(e.y<e.minY){e.minY=e.y;e.apexX=e.x;}
         gone=e.vy>0&&e.y>H+120;
       }
-      if(gone){s.ents.splice(i--,1);if(e.kind!=='tea'){s.misses++;s.combo=0;emit({type:'miss',kind:e.kind,x:e.x});}}
+      if(gone){s.ents.splice(i--,1);if(e.kind!=='tea'){
+        s.misses++;s.combo=0;emit({type:'miss',kind:e.kind,x:e.x});
+        if(s.night&&++s.night.pending>=NIGHT_MISS_LIMIT){
+          s.night.pending=0;s.night.stolen++;s.lives--;emit({type:'stolen',lives:s.lives});
+          if(s.lives<=0){finish('stolen');return;}
+        }
+      }}
     }
     if(s.ents.length>s.peakLive)s.peakLive=s.ents.length;
   }
@@ -113,6 +123,7 @@ function create(opts){
   function kill(e,index,sx,sy){
     s.ents.splice(index,1);
     if(e.kind==='tea'){
+      if(s.night)s.night.spilled++;
       s.lives--;s.combo=0;emit({type:'tea',x:e.x,y:e.y,lives:s.lives});
       if(s.lives<=0)finish('tea');
       return;
@@ -177,5 +188,5 @@ function pilot(level,seed){
     next=s.t+0.05;
   };
 }
-return{H,CFG,create,pilot,rng,segDist,multiplier};
+return{H,CFG,NIGHT_MISS_LIMIT,create,pilot,rng,segDist,multiplier};
 });
