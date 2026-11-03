@@ -242,8 +242,6 @@
     r(g,'#c9a27a',312,488,30,28); text(g,'二 楼 · 热 闹 层',150,506,8,'#655b40'); text(g,'↓ 二楼',327,484,6,'#655b40');
     r(g,'#6d725e',10,842,340,204); r(g,'#dedbc3',14,846,332,16); r(g,'#c7c7ac',14,860,332,6); r(g,'#c9a27a',14,866,332,166); planks(g,14,866,332,166);
     r(g,'#c9a27a',312,842,30,24); text(g,'三 楼 · 安 静 层',150,858,8,'#655b40'); text(g,'↓ 三楼',327,838,6,'#655b40');
-    plant(g,300,986,true); plant(g,256,986);
-    r(g,'#77563f',258,1012,40,6); r(g,'#a97c52',258,1010,40,3); r(g,'#77563f',260,1018,3,5); r(g,'#77563f',293,1018,3,5);
     if (light!=='day') { g.fillStyle = light==='night' ? '#323d6220' : '#e79e4120'; g.fillRect(14,516,332,298); g.fillRect(14,866,332,166); }
   }
   // Compact meeting room beside the boss desk: screen, four chairs, a table, a lectern, a two-seat bench.
@@ -293,6 +291,15 @@
     r(g,'#9aa7a2',6,70,50,12); r(g,'#ffffff',8,70,46,8); r(g,'#cfe3dc',8,70,12,6); r(g,'#9aa7a2',6,82,3,4); r(g,'#9aa7a2',53,82,3,4);
     plaque(g,'医务室',14,88,38,'#b5473a');
   }
+  // 充电房, 66×48: a charging pod (the battery over the sleeper is drawn with the person) and the boss's washing machine.
+  function chargeRoom(g) {
+    r(g,'#dfe6e2',0,0,66,48); r(g,'#67b779',0,0,66,1); r(g,'#67b779',0,47,66,1); r(g,'#67b779',0,0,1,48); r(g,'#67b779',65,0,1,48);
+    r(g,'#9aa7a2',4,12,38,8); r(g,'#cfe3dc',6,13,34,5); r(g,'#67b779',8,14,6,2); r(g,'#3e4b47',4,20,38,2);
+    r(g,'#c9d4cf',4,22,38,14); r(g,'#e8eef2',5,23,36,11); r(g,'#9aa7a2',4,36,38,2);
+    r(g,'#e8eef2',46,8,16,26); r(g,'#9aa7a2',46,8,16,4); r(g,'#3e4b47',49,15,10,10); r(g,'#7aa7b8',50,16,8,8); r(g,'#d96952',58,9,2,2);
+    text(g,'老板专用',54,40,5,'#45534b');
+    plaque(g,'充电房',4,37,32,'#4a8a5a');
+  }
   function annex(g) {
     if (C.bands) towerShell(g);
     else if (C.id!=='landscape') {
@@ -324,6 +331,7 @@
     if(!mv && C.poolOffset) placed(g,C.poolOffset,()=>poolRoom(g));
     if(!mv && C.catOffset) placed(g,C.catOffset,()=>catTree(g));
     if(!mv && C.clinicOffset) placed(g,C.clinicOffset,()=>clinicRoom(g));
+    if(!mv && C.chargeOffset) placed(g,C.chargeOffset,()=>chargeRoom(g));
     if(!mv && C.funOffsets) funFloor(g);
     if(!mv && C.lobby) {
       // Lobby by the entrance: a waiting sofa for guests, a low table, two plants.
@@ -585,6 +593,7 @@
         if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',22 + j * 3,30 + ((t * 20 + j * 5) % 10),1,2);
       });
     }
+    if (C.chargeOffset) placed(ctx,C.chargeOffset,()=>{ const busy=sim.actors.some(a=>a.activity==='quota'), k=Math.floor(sim.time*(busy?8:2))%4; r(ctx,'#5a8aa8',50+(k%2)*4,16+(k>>1)*4,4,4); });
     if (hotspots() && C.teaOffset) placed(ctx,C.teaOffset,()=>{ r(ctx,'#fff6dc',20,15,38,8); text(ctx,'▶ 点我饮茶',39,21,5,'#8a4a3e'); });
     if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
     if (!mv) {
@@ -1297,7 +1306,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : '额度用完 · 回休息室充电') : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv && a.awayPost!=='kitchen' ? '打盹中 · 随叫随到' : a.status==='idle' && a.gameSlot===36 && sim.gameActivity(a)==='cheer' ? '烧烤 · 碰杯' : a.status==='idle' && [39,40].includes(a.gameSlot) && sim.gameActivity(a)==='eat' ? `吃${C.dishOf(a.id)[1]} · ${C.dishOf(a.id)[0]}` : a.status==='idle' && [37,38].includes(a.gameSlot) && sim.gameActivity(a) ? `做${C.dishOf(a.id)[1]}` : a.status==='idle' && a.gameSlot===35 && sim.gameActivity(a)==='eat' ? '涮火锅' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.activity==='chef' ? (sim.chefActivity(a)==='grill'?'后勤主厨 · 烤串':'后勤主厨 · 做饭') : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : (C.chargePod?'额度用完 · 进充电房充电':'额度用完 · 回休息室充电')) : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv && a.awayPost!=='kitchen' ? '打盹中 · 随叫随到' : a.status==='idle' && a.gameSlot===36 && sim.gameActivity(a)==='cheer' ? '烧烤 · 碰杯' : a.status==='idle' && [39,40].includes(a.gameSlot) && sim.gameActivity(a)==='eat' ? `吃${C.dishOf(a.id)[1]} · ${C.dishOf(a.id)[0]}` : a.status==='idle' && [37,38].includes(a.gameSlot) && sim.gameActivity(a) ? `做${C.dishOf(a.id)[1]}` : a.status==='idle' && a.gameSlot===35 && sim.gameActivity(a)==='eat' ? '涮火锅' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.activity==='chef' ? (sim.chefActivity(a)==='grill'?'后勤主厨 · 烤串':'后勤主厨 · 做饭') : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
