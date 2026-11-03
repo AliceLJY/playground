@@ -26,3 +26,25 @@
  .lobby{top:8px;padding:10px 20px}.lobby .setup{margin:5px 0;padding:5px 0;gap:4px}.lobby .lead{margin:4px 0!important}
  .lobby .auto-pedal{min-height:44px}.lobby .lobby-links{margin-top:6px}
 }
+
+/* The optional exam owns its HUD; the cup keeps its existing layout. */
+#license-open{min-height:48px;font-size:14px;margin-top:10px}#license-open small{font-size:10px;display:block;color:#b5c6bd}
+.lobby{max-height:calc(100dvh - 24px);overflow-y:auto}
+#license-intro .panel,.license-result-panel{max-height:94dvh;overflow:auto}
+#license-intro .primary,.license-result-panel .primary{min-height:44px}
+#license-hud{position:absolute;left:14px;top:13px;width:288px;padding:12px 14px;background:#18343df2;border:1px solid #d3d9b52c;border-radius:5px}
+.license-heading{display:flex;justify-content:space-between;align-items:center;font-size:14px}#license-clock{font-variant-numeric:tabular-nums;color:#f5bf75}
+#license-stamps{display:flex;align-items:center;gap:12px;margin-top:8px}#license-stamps span{color:#b5c6bd;opacity:.45}#license-stamps .earned{color:#f5bf75;opacity:1}#license-stamps .pending{color:#f5bf75;opacity:.65}#license-stamps svg{display:block;width:26px;height:26px;fill:currentColor}#license-awards svg{width:38px;height:38px;margin:0 8px;fill:currentColor}#license-stage{font-size:12px;margin-left:auto;color:#f5bf75}
+#license-cue{font-size:12px;line-height:1.6;margin:8px 0 0;min-height:20px;color:#fff8df}
+#license-awards{font-size:18px;color:#f5bf75;margin:12px 0}.license-result-panel{text-align:center}
+.license-mode .race-top,.license-mode #leaderboard,.license-mode #pause-leaderboard{display:none}
+@media(max-width:480px){.license-mode .map-wrap{display:none}.license-mode .race-buttons{top:150px}.license-mode #toast{top:42%}}
+@media(max-height:440px) and (min-width:600px){
+ #license-hud{top:12px;left:12px;width:310px;padding:8px 12px}#license-stamps{margin-top:4px}#license-cue{margin-top:4px}
+ .license-mode #pause-overlay .panel{grid-template-columns:1fr;width:370px}
+ .license-mode #toast{top:39%}
+ #license-intro .panel{width:620px;padding:16px}#license-intro h2{font-size:24px;margin:8px 0}#license-intro h2 br{display:none}#license-intro p{font-size:12px;margin:8px 0}
+ .license-result-panel{padding:16px}.license-result-panel h2{margin:8px 0}.license-result-panel p{margin:8px 0}
+}
+.license-mode #exit{min-height:44px;min-width:88px}
+.license-mode .race-buttons button{min-width:44px;min-height:44px}

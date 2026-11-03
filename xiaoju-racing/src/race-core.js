@@ -47,6 +47,8 @@ const FIELD={
  normal:{base:21.6,spread:1.6,mistake:[9,15],catchUp:.06,easeOff:.05},
  hard:{base:22.2,spread:1.5,mistake:[14,22],catchUp:.07,easeOff:.03}
 };
+// Optional solo exercises; distances are on the existing Shamian section (metres).
+const LICENSE={limit:45,approach:25,bends:[{from:245,to:290},{from:315,to:360},{from:385,to:430}]};
 function rnd(s){let t=s.rngState=(s.rngState+0x6D2B79F5)>>>0;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
 function create(options={}){
  const laps=[1,2,3].includes(Number(options.laps))?Number(options.laps):2;
@@ -56,12 +58,38 @@ function create(options={}){
  // Shuffle who is fast each race; offsets span the field evenly around the difficulty base.
  const f=FIELD[difficulty],slots=[-1,-.5,0,.5,1];for(let i=slots.length-1;i>0;i--){const j=Math.floor(rnd(s)*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
  s.riders.slice(1).forEach((r,i)=>{r.pace=f.base+slots[i]*f.spread;r.mistakeIn=f.mistake[0]+rnd(s)*(f.mistake[1]-f.mistake[0]);r.wobble=0;r.wobbleDir=0;r.lineBias=(rnd(s)-.5)*2;});
+ if(options.license===true){s.license={stamps:0,mini:false,retries:0,rail:false,outcome:null,notice:'',noticeUntil:0};s.riders=[s.riders[0]];placeLicense(s);}
  return s;
+}
+function placeLicense(s){
+ const progress=LICENSE.bends[s.license.stamps].from-LICENSE.approach,p=at(progress);
+ const r=rider(0);Object.assign(r,{...p,progress,lateral:0,velocityHeading:p.heading,collisions:s.riders[0].collisions});s.riders[0]=r;
+ s.license.mini=false;s.license.rail=false;
+}
+function retryLicense(s,reason){
+ const l=s.license;l.retries++;l.notice=reason+' · 只重试本弯';l.noticeUntil=s.time+2;
+ placeLicense(s);emit(s,'license-retry',l.notice);
+}
+function finishLicense(s,outcome){s.license.outcome=outcome;s.phase='result';s.riders[0].finished=true;s.riders[0].finishTime=s.time;s.riders[0].boost=0;s.riders[0].mini=0;s.riders[0].drifting=false;}
+function updateLicense(s,events){
+ const l=s.license,r=s.riders[0],bend=LICENSE.bends[l.stamps];
+ // A rail touch wins over a mini emitted in the same physics step.
+ if(l.rail)retryLicense(s,'碰到护栏');
+ else if(r.progress<bend.from-LICENSE.approach-10)retryLicense(s,'回到弯前');
+ else{
+  if(r.progress>=bend.from&&r.progress<=bend.to&&events.some(e=>e.type==='mini'))l.mini=true;
+  if(r.progress>bend.to){
+   if(!l.mini)retryLicense(s,'还没触发小喷');
+   else{l.stamps++;emit(s,'license-stamp','第 '+l.stamps+' 枚猫爪章');if(l.stamps===LICENSE.bends.length)finishLicense(s,'pass');else placeLicense(s);}
+  }
+ }
+ if(s.phase==='racing'&&s.time>=LICENSE.limit){s.time=LICENSE.limit;finishLicense(s,'timeout');}
 }
 function start(s){if(s.phase!=='menu'&&s.phase!=='result')return false;s.phase='countdown';return true;}
 function pause(s){if(s.phase==='paused'){s.phase=s.resumePhase;s.resumePhase=null;}else if(['racing','countdown'].includes(s.phase)){s.resumePhase=s.phase;s.phase='paused';}}
-function reset(s){const fresh=create({laps:s.laps,difficulty:s.difficulty,seed:s.seed+1});Object.assign(s,fresh);start(s);}
+function reset(s){const fresh=create({laps:s.laps,difficulty:s.difficulty,seed:s.seed+1,license:!!s.license});Object.assign(s,fresh);start(s);}
 function recover(s){
+ if(s.license){if(s.phase==='racing')retryLicense(s,'扶正重试');return;}
  if(s.phase!=='racing'||s.riders[0].finished)return;const r=s.riders[0],n=nearest(r.x,r.z),p=at(n.s,0);r.x=p.x;r.z=p.z;r.y=p.y;r.heading=p.heading;r.velocityHeading=p.heading;r.speed=0;r.drifting=false;r.drift=0;r.jumpY=0;r.jumpV=0;r.hit=.5;
 }
 function emit(s,type,text){s.events.push({type,text});}
@@ -111,6 +139,7 @@ function integrate(s,r,input,dt){
  r.x-=Math.sin(r.velocityHeading)*r.speed*dt;r.z-=Math.cos(r.velocityHeading)*r.speed*dt;
  let n=nearest(r.x,r.z);const bound=track.width-.65;
  if(Math.abs(n.lateral)>bound){
+  if(s.license)s.license.rail=true;
   const p=at(n.s,Math.sign(n.lateral)*bound);r.x=p.x;r.z=p.z;
   const impact=Math.abs(Math.sin(wrap(r.velocityHeading-n.heading)))*r.speed;
   if(r.hit===0&&impact>2){r.collisions++;r.speed*=.55;r.hit=.65;if(r.id===0)emit(s,'hit','擦碰护栏');}
@@ -126,6 +155,7 @@ function substep(s,input,dt){
  if(s.phase!=='racing')return;
  s.time+=dt;s.go=Math.max(0,s.go-dt);
  const controls={throttle:!!(input.forward||input.autoPedal)&&!input.brake,brake:!!input.brake,steer:(input.right?1:0)-(input.left?1:0),drift:!!input.drift,jump:!!input.jump};
+ if(s.license){const first=s.events.length;integrate(s,s.riders[0],controls,dt);updateLicense(s,s.events.slice(first));return;}
  const wasFinished=s.riders[0].finished;
  for(const r of s.riders)integrate(s,r,r.id===0?controls:botInput(s,r,dt),dt);
  s.finishOrder.sort((a,b)=>s.riders[a].finishTime-s.riders[b].finishTime);
@@ -145,6 +175,6 @@ function step(s,input,dt){
  let remaining=Math.min(dt,.12);while(remaining>1e-8){const h=Math.min(remaining,1/90);substep(s,input,h);remaining-=h;}
 }
 function order(s){return [...s.riders].sort((a,b)=>a.finished&&b.finished?a.finishTime-b.finishTime:a.finished?-1:b.finished?1:b.progress-a.progress);}
-const api={track,L,at,nearest,elevation,pads,names,create,start,pause,reset,recover,boost,step,order,clamp,wrap,FIELD};
+const api={track,L,at,nearest,elevation,pads,names,create,start,pause,reset,recover,boost,step,order,clamp,wrap,FIELD,LICENSE};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RaceCore=api;
 })(typeof window!=='undefined'?window:globalThis);
