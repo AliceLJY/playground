@@ -211,6 +211,15 @@
     if (ended()) tl.restart(); else tl.paused(!tl.paused());
     syncPlayButton();
   }
+  function showPage(pi) {
+    if (!tl) return;
+    // A completed sheet is easiest to inspect whole; leave the scrolling camera for playback.
+    if (!ui.pagemode.checked) { ui.pagemode.checked = true; buildTimeline(true); tl.timeScale(parseFloat(ui.speed.value)); }
+    tl.pause(); tl.seek(marks.pageDone[pi], false); tl.eventCallback('onUpdate')();
+    pagenumEl.textContent = (pi + 1) + ' / ' + PAGES.length;
+  }
+  $('page-first').addEventListener('click', function () { showPage(0); });
+  $('page-second').addEventListener('click', function () { showPage(1); });
   ui.pagemode.addEventListener('change', function () { rebuild(true); });
   ui.speed.addEventListener('change', function () { if (tl) tl.timeScale(parseFloat(ui.speed.value)); });
   ui.font.addEventListener('change', function () {

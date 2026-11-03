@@ -51,12 +51,15 @@
   .bar button:focus-visible, .bar select:focus-visible, .bar input:focus-visible, .frame:focus-visible { outline: 2px solid #e08a3c; outline-offset: 2px; }
   .bar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 36px; padding: 0 4px; }
   .bar input[type=checkbox] { width: 18px; height: 18px; margin: 0; }
+  .page-nav { display:flex; gap:6px; }
+  .page-nav button { min-height:44px; }
   .prog { flex: 1 1 90px; height: 6px; background: #37312a; border-radius: 999px; overflow: hidden; min-width: 80px; }
   .prog i { display: block; height: 100%; width: 0; background: #e08a3c; }
   .hint { opacity: .7; min-width: 7.5em; text-align: right; font-variant-numeric: tabular-nums; }
   @media (pointer: coarse), (max-width: 900px) {
     .bar button, .bar select, .bar label { min-height: 44px; }
     .bar select { font-size: 16px; }
+    .prog { display:none; }
     .bar input[type=checkbox] { width: 22px; height: 22px; }
   }
   @media (max-height: 520px) { .head { display: none; } .wrap { padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); gap: 8px; } }
@@ -118,6 +121,7 @@
       <option value='"HanziPen SC"'>翩翩体</option>
       <option value='"STKaiti", "Kaiti SC"'>楷体</option>
     </select>
+    <div class="page-nav" aria-label="查看成稿"><button id="page-first" type="button">第一页</button><button id="page-second" type="button">第二页</button></div>
     <div class="prog" aria-hidden="true"><i id="progbar"></i></div>
     <span class="hint" id="clock">0.0s</span>
   </div>

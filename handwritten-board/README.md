@@ -10,11 +10,13 @@ It fits phones in either orientation and desktop. On a phone held upright the bo
 
 - Tap or click the board, press Space on a desktop, or use the first button: pause and resume. After the last page the same control starts it again.
 - Replay, speed (1x to 2x), the page-mode switch and the font menu are in the bar under the board. Page mode stacks two pages and turns the page; with it off the pages run down one long scroll and the camera follows the pen.
+- The first-page and second-page buttons pause on the completed sheet with all red marks drawn and the hand hidden. From long-scroll mode they return to page mode to show the entire sheet; playback and replay remain available.
 - The font menu lists Long Cang, which ships with the page, plus four handwriting fonts that come with Apple systems; a font the device does not have is greyed out.
 
 ## How it is built
 
 - Plain static files, no build step and no network request. The board is DOM text, one `<span>` per character, revealed left to right with an animated `clip-path`; the red circles, lines and arrows are SVG paths drawn with stroke-dashoffset; the hand is an inline SVG that moves on the same GSAP timeline as the reveal, so pen and letters stay in step.
+- This page uses character counts, fixed base durations and seeded jitter. A narration timeline is a possible extension; no narration drives this page.
 - `src/pages.js` holds the words, `src/core.js` the timing numbers, the two board shapes and the doodle geometry (no DOM, so Node can test it), `src/board.js` the page logic.
 - The font is a subset of Long Cang cut to the characters on the board plus ASCII and common Chinese punctuation: about 40 KB instead of 5 MB. Rebuild it with `node tools/subset-font.cjs <LongCang-Regular.ttf>`.
 - The one-page spec is [SPEC.md](SPEC.md) (in Chinese): colours, composition numbers, performance budget and ten acceptance items.

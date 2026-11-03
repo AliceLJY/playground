@@ -14,7 +14,7 @@
       lines: [
         { text: "翻页模式:一页一页讲,像 PPT", doodle: "arrow" },
         { text: "自由模式:长卷往下写,镜头跟笔", doodle: "underline", target: "镜头跟笔" },
-        { text: "TTS 旁白定每行时长,零生图", doodle: "circle", target: "零生图" },
+        { text: "本页按字数定时,也能接旁白时间轴", doodle: "circle", target: "按字数定时" },
       ] },
   ];
   if (typeof module === 'object' && module.exports) module.exports = PAGES; else root.HB_PAGES = PAGES;
