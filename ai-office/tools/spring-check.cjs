@@ -17,6 +17,8 @@ const solidBlocks=(page,box)=>page.evaluate(({x,y,w,h})=>{
   return solid/total;
 },box);
 
+// Only the page's own origin is reachable (so the same run works on the local preview and on Pages).
+const offsite=r=>new URL(r.request().url()).origin===new URL(base).origin?r.continue():r.abort();
 (async()=>{
   await fs.mkdir(out,{recursive:true});
   const browser=await chromium.launch({headless:true,...(process.platform==='darwin'?{channel:'chrome'}:{})});report.browser=browser.version();
@@ -29,7 +31,7 @@ const solidBlocks=(page,box)=>page.evaluate(({x,y,w,h})=>{
   for(const run of runs){
     const context=await browser.newContext({viewport:run.viewport,deviceScaleFactor:run.dpr,isMobile:!!run.mobile,hasTouch:!!run.mobile,reducedMotion:run.reduced?'reduce':'no-preference'});
     const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-    await page.route('https://**/*',r=>r.abort());
+    await page.route('https://**/*',offsite);
     await page.clock.install({time:new Date('2026-11-01T02:00:00Z')});
     await page.goto(new URL('?demo=1',base).href);await page.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100,timeout:20000});
     let swing=[0,0];
@@ -77,8 +79,9 @@ const solidBlocks=(page,box)=>page.evaluate(({x,y,w,h})=>{
     const context=await browser.newContext({viewport:{width:390,height:664},deviceScaleFactor:3,isMobile:true,hasTouch:true});
     const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     const feed={...structuredClone(fixture),guest:true,notices:[]};
+    // Later routes win in Playwright: the fake feed goes last so it also answers the guest API host.
+    await page.route('https://**/*',offsite);
     await page.route('**/api/state',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(feed)}));
-    await page.route('https://**/*',r=>r.abort());
     await page.goto(base);await page.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100,timeout:20000});
     let s=await page.evaluate(()=>window.__PLAYTEST__.snapshot());check('guest feed is the live (not demo) page',!s.demo,s.demo);
     await page.locator('#pose').click();let arm=0;
