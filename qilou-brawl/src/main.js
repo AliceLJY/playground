@@ -83,6 +83,7 @@ async function ensureChar(o) {
   const v = { o, c: null, key: '', loading: true };
   chars.set(o.id, v);
   v.c = await Character.load(scene, `${ASSET}chars/${CHARS[o.kind]}.vsplat`, { position: { x: o.x, y: 0, z: o.z } });
+  if (chars.get(o.id) !== v) { v.c.destroy(); return v; } // A practice exit may finish while this character is loading.
   v.loading = false;
   return v;
 }
@@ -172,6 +173,9 @@ function handleEvents() {
       case 'clear': if (ev.wave < C.WAVES.length - 1) banner('往前走 ▲'); break;
       case 'win': sfx.gong(); winCam = true; setTimeout(() => showEnd(true), 2600); break;
       case 'lose': setTimeout(() => showEnd(false), 1400); break;
+      case 'practice-reset': banner('挨掌了 · 连挡重新计数'); break;
+      case 'practice-early': banner(sim.practice.blocks < C.PRACTICE.blocks ? '先挡住三掌' : '松开挡 · 还一脚'); break;
+      case 'practice-win': case 'practice-timeout': clearInput(); showPracticeEnd(); break;
     }
   }
 }
@@ -273,6 +277,10 @@ function bindInput() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) leave(); });
   $('resume').addEventListener('click', () => setPause(false));
   $('start').addEventListener('click', () => { sfx.unlock(); startGame(); });
+  $('practice').addEventListener('click', () => { sfx.unlock(); resetSession(); startGame(true); });
+  $('practice-again').addEventListener('click', () => { resetSession(); startGame(true); });
+  $('practice-main').addEventListener('click', () => { resetSession(); startGame(); });
+  for (const id of ['practice-menu', 'practice-exit']) $(id).addEventListener('click', () => { resetSession(); $('title').classList.remove('hidden'); });
   $('again').addEventListener('click', () => again());
   $('mute').addEventListener('click', () => { sfx.setMuted(!sfx.muted); $('mute').textContent = sfx.muted ? '🔇' : '🔊'; });
   $('pause-btn').addEventListener('click', togglePause);
@@ -285,10 +293,33 @@ function setPause(on) {
 function togglePause() { setPause(!paused); }
 
 // ---------- 流程 ----------
-function startGame() {
+function startGame(practice = false) {
   $('title').classList.add('hidden'); $('hud').classList.remove('hidden');
+  document.body.classList.toggle('practice', practice);
+  $('practice-hud').classList.toggle('hidden', !practice);
+  $('practice-exit').classList.toggle('hidden', !practice);
   started = true; bot = C.makeBot(SEED * 7, 1);
-  C.start(sim, { wave: 0 }); handleEvents(); sim.events.length = 0;
+  C.start(sim, { wave: 0, practice });
+  chars.get(0).o = sim.player; // Practice creates a fresh player; the renderer must follow it too.
+  handleEvents(); sim.events.length = 0;
+}
+function resetSession() {
+  document.activeElement?.blur(); // Hidden result buttons must not reactivate on the next Enter/Space.
+  clearInput(); acc = 0; started = paused = winCam = false; talk = null;
+  for (const id of ['end', 'practice-end', 'paused', 'hud']) $(id).classList.add('hidden');
+  for (const id of ['dialog', 'banner', 'hurt-flash']) $(id).classList.remove('on');
+  $('popups').replaceChildren(); bannerT = shake = 0;
+  document.body.classList.remove('practice');
+  for (const v of chars.values()) if (v.c && v.o.kind !== 'player') v.c.destroy();
+  const p = chars.get(0); chars = new Map([[0, p]]);
+  sim = C.create({ seed: SEED }); p.o = sim.player; p.key = '';
+  camYaw = 0; camDist = 5.2; camPos.set(0, 3, -4); camLook.set(0, 1, 2);
+}
+function showPracticeEnd() {
+  const win = sim.phase === 'practice-win';
+  $('practice-end').classList.remove('hidden');
+  $('practice-end-title').textContent = win ? '借过喇 · 讨教完成' : '一分钟到';
+  $('practice-end-sub').textContent = win ? '阿婆：擂台开锣，借借路！' : '先挡住三掌，再还一脚。再练一次？';
 }
 function again() {
   $('end').classList.add('hidden');
@@ -328,7 +359,14 @@ function updateHud(dt) {
   $('gong').classList.toggle('ready', sim.gong >= C.FEEL.gong.max && sim.gongT <= 0);
   $('gong').classList.toggle('active', sim.gongT > 0);
   $('combo').classList.toggle('on', sim.combo >= 3); $('combo-n').textContent = sim.combo;
-  $('wave-name').textContent = sim.wave >= 0 ? `${C.WAVES[sim.wave].name}  ${sim.wave + 1} / ${C.WAVES.length}` : '';
+  $('wave-name').textContent = sim.practice ? '街口讨教' : sim.wave >= 0 ? `${C.WAVES[sim.wave].name}  ${sim.wave + 1} / ${C.WAVES.length}` : '';
+  if (sim.practice) {
+    const ready = sim.practice.blocks === C.PRACTICE.blocks;
+    $('practice-count').textContent = `${sim.practice.blocks} / ${C.PRACTICE.blocks}`;
+    $('practice-time').textContent = `${Math.ceil(C.PRACTICE.duration - sim.practice.elapsed)} s`;
+    $('practice-hint').textContent = ready ? '借过喇 · 松开挡，还一脚' : '按住挡，连挡三掌 · 挨掌只清零';
+    $('practice-hud').classList.toggle('ready', ready);
+  }
   const boss = sim.enemies.find((e) => e.kind === 'lionhead' && !e.dead);
   $('boss').classList.toggle('on', !!boss);
   if (boss) $('boss-fill').style.width = (boss.hp / boss.maxHp * 100) + '%';
@@ -348,7 +386,7 @@ function setupView(v) {
 }
 function info() {
   const p = sim.player;
-  return { phase: sim.phase, wave: sim.wave, t: +sim.t.toFixed(2), hp: p.hp, x: +p.x.toFixed(2), z: +p.z.toFixed(2), state: p.state, enemies: sim.enemies.filter((e) => !e.dead).length,
+  return { phase: sim.phase, wave: sim.wave, practice: sim.practice ? { ...sim.practice } : null, t: +sim.t.toFixed(2), hp: p.hp, x: +p.x.toFixed(2), z: +p.z.toFixed(2), state: p.state, enemies: sim.enemies.filter((e) => !e.dead).length,
     chars: [...chars.values()].filter((v) => v.c).length, anims: [...have], fps: Math.round(fps) };
 }
 // 验收用：从左右锁骨骨骼的世界坐标算身体实际朝向，和逻辑朝向比。返回角度差（度，-180..180）。

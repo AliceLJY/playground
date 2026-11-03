@@ -18,6 +18,8 @@ Dusk on an old Xiguan arcade street in Guangzhou. The neighbours have set up a l
 
 Losing restarts the current section, not the whole street.
 
+Choose the optional one-minute “街口讨教” practice from the title menu: block one granny three times, then land a kick when “借过喇” appears; taking a hit only resets the count, and the result screen leads to the regular brawl or back to the menu.
+
 The touch introduction explains movement in the lower left, camera dragging on the right, and using the gong once its bar is full. Opening dialogue waits for a tap before combat starts. Hold 挡 to keep blocking; releasing or cancelling the touch ends the guard. Leaving the window or hiding the page clears input and pauses combat; tap 继续 to return (Esc / P on a keyboard).
 
 ## How it is made
