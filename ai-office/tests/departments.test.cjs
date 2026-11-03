@@ -96,7 +96,9 @@ test('night 7×24: ordinary colleagues stay; kitchen staff go home; nappers fill
     for(const a of s.actors)s.setStatus(a.id,a.name==='Grok Bot'?'away':'off');s.step(40000);
     const grok=s.actors.find(a=>a.name==='Grok Bot');assert.ok(C.distance(grok,L.door)<1,'away still leaves');
     for(const a of s.actors.filter(a=>a.status==='off'&&a.awayPost==='kitchen'))assert.ok(C.distance(a,L.door)<1,'off-duty chef goes home');
-    const off=s.actors.filter(a=>a.status==='off'&&a.awayPost!=='kitchen').sort((a,b)=>a.i-b.i);
+    // 11-03: etwin-cc (desk 7) and Cobbler never sleep — they keep the night shift awake at their own spots.
+    const duty=a=>a.i===7||s.isCourier(a);for(const a of s.actors.filter(a=>a.status==='off'&&duty(a)))assert.ok(!s.napping(a)&&C.distance(a,C.home(a.i,L))<1,`${layout}: ${a.name} stays up`);
+    const off=s.actors.filter(a=>a.status==='off'&&a.awayPost!=='kitchen'&&!duty(a)).sort((a,b)=>a.i-b.i);
     for(const a of off){assert.ok(C.distance(a,L.door)>3,`${layout}: ${a.name} stayed in`);assert.ok(s.napping(a),`${layout}: ${a.name} asleep`);}
     const spots=[...L.beds,...[6,7,15].map(i=>C.leisure(L)[i])];
     off.forEach((a,k)=>assert.ok(C.distance(a,spots[k]||C.home(a.i,L))<1,`${layout}: ${a.name} in spot ${k}`));
@@ -152,7 +154,7 @@ test('codex review regressions: patrol survives a layout switch mid-lap; one wak
   const t=C.create(script.roster,7,'portrait');for(const a of t.actors)t.setStatus(a.id,'off');t.step(60000);
   const before=Object.fromEntries(t.actors.map(a=>[a.id,t.napSpot(a)]));t.setStatus(t.actors.find(a=>a.i===0).id,'busy');t.step(1000);
   // Only someone who had no spot (sleeping at their desk) may take the freed bed; everyone in a spot stays put.
-  const moved=t.actors.filter(a=>a.i!==0&&t.napSpot(a)!==before[a.id]);
+  const moved=t.actors.filter(a=>a.i!==0&&C.distance(t.napSpot(a),before[a.id])>=1); // by position: napSpot returns a fresh home point for those who stay up
   assert.ok(moved.every(a=>C.distance(before[a.id],C.home(a.i,C.layouts.portrait))<1),'nobody else changes bed');assert.ok(moved.length<=1);
   assert.equal(C.blocked(62,684,C.layouts.portrait),true,'bunk frame');assert.equal(C.blocked(470,334,C.layouts.landscape),true,'lobby table');
   for(const id of ['portrait','landscape'])for(const b of C.layouts[id].beds)assert.equal(C.blocked(b.x,b.y,C.layouts[id]),false,'berth stays reachable');
@@ -178,6 +180,6 @@ test('dim sum at night with everyone asleep: nobody wakes, the boss goes down to
   for(const a of s.actors)s.setStatus(a.id,a.i===0?'busy':a.awayLabel?'away':'off');s.step(20000);
   s.treat('dimsum','2026-11-01T15:30:20Z');let started=null;for(let i=0;i<4000&&!started;i++){s.step(20);if(s.feast)started=s.time;}
   assert.ok(started);s.step(60000);
-  assert.equal(s.actors.filter(a=>s.feastSpot(a)).length,0);assert.ok(s.actors.filter(a=>a.status==='off').every(a=>s.napping(a)));
+  assert.equal(s.actors.filter(a=>s.feastSpot(a)).length,0);assert.ok(s.actors.filter(a=>a.status==='off'&&!(a.i===7||s.isCourier(a))).every(a=>s.napping(a)));
   assert.ok(C.distance(s.boss,L.tea[0])<1,'the boss is at the teahouse');
 });
