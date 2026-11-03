@@ -53,6 +53,7 @@
     }
 
     function start(sim) {
+      sim.classicLeisure = true; // the published film keeps the pre-department game corner allocation
       sim.eventsEnabled = !!script.performances;
       for (const a of sim.actors) { sim.setStatus(a.id, 'off'); a.x = C.door.x; a.y = C.door.y; a.path = []; a.dest = null; }
       sim.boss.x = C.door.x; sim.boss.y = C.door.y; sim.boss.path = []; sim.boss.dest = null; sim.bossTarget = { ...C.door }; sim.bossAway = true;

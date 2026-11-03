@@ -13,7 +13,7 @@
     {
       "id": "builder",
       "name": "Codex",
-      "role": "构筑师",
+      "role": "工程审查部 · 写码",
       "color": "#6D9D8E",
       "status": "busy",
       "badge": "",
@@ -22,7 +22,7 @@
     {
       "id": "twin-a",
       "name": "Kimi",
-      "role": "推理搭档",
+      "role": "工程审查部 · 审查",
       "color": "#7F91BC",
       "status": "busy",
       "badge": "",
@@ -31,25 +31,27 @@
     {
       "id": "artist",
       "name": "Agy",
-      "role": "创意搭档",
+      "role": "工程审查部 · 审查",
       "color": "#8DA66F",
       "status": "busy",
       "badge": "",
-      "desk": 4
+      "desk": 3,
+      "look": 4
     },
     {
       "id": "companion",
       "name": "etwin-cc",
-      "role": "陪伴搭档",
+      "role": "前台 · 陪伴热线",
       "color": "#D69A9E",
       "status": "idle",
       "badge": "",
-      "desk": 5
+      "desk": 7,
+      "look": 5
     },
     {
       "id": "scout",
       "name": "Grok Bot",
-      "role": "探索员",
+      "role": "制片室 · 出片",
       "color": "#6F8585",
       "status": "away",
       "badge": "",
@@ -59,16 +61,17 @@
     {
       "id": "filmmaker",
       "name": "Muse",
-      "role": "影像搭档",
+      "role": "制片室 · 出片",
       "color": "#B397B8",
       "status": "away",
       "badge": "",
-      "desk": 7
+      "desk": 8,
+      "look": 7
     },
     {
       "id": "writer",
       "name": "豆包",
-      "role": "写作搭档",
+      "role": "志愿者 · 选题雷达",
       "color": "#C6A160",
       "status": "busy",
       "badge": "",
@@ -79,20 +82,21 @@
     {
       "id": "helper",
       "name": "Dots",
-      "role": "候补搭档",
+      "role": "收发室 · 收纳 X 帖",
       "color": "#9FA866",
       "status": "idle",
       "badge": "等派活",
-      "desk": 9
+      "desk": 5,
+      "look": 9
     },
     {
       "id": "courier",
       "name": "Cobbler",
-      "role": "送信员",
+      "role": "收发室 · 送信",
       "color": "#BD8955",
       "status": "idle",
       "badge": "",
-      "desk": 8,
+      "desk": 4,
       "look": 10,
       "courier": true
     }

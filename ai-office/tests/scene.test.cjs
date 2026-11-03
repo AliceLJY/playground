@@ -20,7 +20,7 @@ test('busy at desk, waiting at boss, departure actually exits, seed-reproducible
     waiting.forEach((a,i)=>assert.ok(C.distance(a,C.queuePoint(i))<1,`${a.id} did not reach queue`));
     assert.ok(C.distance(s.boss,C.bossDesk)<1);
     s.actors.filter(a=>a.status==='busy').forEach(a=>assert.ok(C.distance(a,C.home(a.i))<1));
-    const muse=s.actors.find(a=>a.i===7);assert.ok(C.distance(muse,C.door)<1,'away actor must leave the room');
+    const muse=s.actors.find(a=>a.name==='Muse');assert.ok(C.distance(muse,C.door)<1,'away actor must leave the room');
     const other=run(simulation(seed),20000);assert.equal(s.boss.x,other.boss.x);assert.equal(s.boss.y,other.boss.y);
   }
 });

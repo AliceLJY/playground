@@ -15,7 +15,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'breakfast', 'leisure', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -90,7 +90,8 @@
     // Director's partition has an open doorway onto the main aisle.
     r(g, '#8a9c8735', 20, 87, 91, 68); r(g, '#8f9a7d', 20, 87, 91, 3); r(g, '#8f9a7d', 20, 87, 3, 72); r(g, '#96a38b', 109, 88, 3, 58);
     r(g, '#6d806a', 28, 91, 34, 10); text(g, '总监室', 45, 99, 6, '#f2ebd3');
-    C.desks.forEach(([x, y], i) => { if (i !== 10) desk(g, x, y, i); });
+    if (!mv) departments(g);
+    C.desks.forEach(([x, y], i) => { if (i !== 10 && (mv || i !== 9)) desk(g, x, y, i); });
     // The bookshelf stays put; the little lounge becomes a game corner on the office page.
     r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
     for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
@@ -101,7 +102,7 @@
     r(g, '#775841', 149, 369, 88, 23); r(g, '#bf9568', 147, 365, 91, 15); r(g, '#dcba87', 147, 363, 91, 5); r(g, '#eddfb7', 180, 368, 25, 9); text(g, '小试AI', 192, 375, 7, '#665c44');
     r(g, '#f3e9c8', 155, 368, 16, 9); r(g, '#c7bc9a', 158, 370, 9, 1); r(g, '#c7bc9a', 158, 373, 7, 1); r(g, '#496f5d', 219, 367, 8, 8);
     placed(g,[C.desks[10][0]-308,C.desks[10][1]-339],()=>{
-    r(g, '#865e43', 285, 340, 47, 23); r(g, '#c09a69', 282, 337, 51, 10); r(g, '#e5c595', 282, 337, 51, 2); text(g, '前 台', 307, 356, 7, '#f2e6c7'); r(g, '#f0e4c4', 312, 333, 14, 7); r(g, '#9da384', 313, 335, 12, 1);
+    r(g, '#865e43', 285, 340, 47, 23); r(g, '#c09a69', 282, 337, 51, 10); r(g, '#e5c595', 282, 337, 51, 2); text(g, mv ? '前 台' : '志愿者', 307, 356, 7, '#f2e6c7'); r(g, '#f0e4c4', 312, 333, 14, 7); r(g, '#9da384', 313, 335, 12, 1);
     });
     r(g, '#556b5b', 329, 374, 17, 26); r(g, '#99a288', 330, 376, 16, 22); r(g, '#f5e3af', 333, 386, 2, 3); text(g, 'OUT', 334, 371, 5, '#5b6857');
     plant(g, 329, 94, true); plant(g, 32, 380, true); plant(g, 124, 200); plant(g, 271, 279);
@@ -110,10 +111,27 @@
     annex(g);
   }
 
+  // Rooms are only floor tints and plaques: no new walls, so every route through the office stays as it was.
+  function plaque(g, label, x, y, w, color = '#6d806a', ink = '#f2ebd3') { r(g, '#4c4d4040', x + 1, y + 1, w, 10); r(g, color, x, y, w, 10); text(g, label, x + w / 2, y + 8, 6, ink); }
+  function departments(g) {
+    // Engineering & review: Codex, Kimi, Agy along the top row; its plaque hangs on the wainscot above them.
+    r(g, '#7f9c9a26', 120, 92, 224, 60); r(g, '#7f9c9a', 120, 92, 224, 1);
+    plaque(g, '工程审查部', 196, 74, 66);
+    // Mailroom & archive: the bookshelf keeps Dots' X clippings, Cobbler sorts the notes.
+    r(g, '#c6a1602a', 20, 162, 172, 88); r(g, '#c6a160', 20, 162, 1, 88);
+    plaque(g, '收发室', 26, 163, 36, '#a3824f');
+    r(g, '#efe2bd', 104, 180, 12, 8); r(g, '#b1966b', 106, 182, 8, 1); r(g, '#b1966b', 106, 185, 6, 1);
+    // Production: Grok and Muse share the film room; a little camera on a tripod in the corner.
+    r(g, '#6b5a7a2e', 196, 162, 148, 88); r(g, '#8d7aa0', 343, 162, 1, 88);
+    plaque(g, '制片室', 200, 163, 36, '#7e6a8f');
+    r(g, '#4a4552', 334, 222, 2, 22); r(g, '#4a4552', 330, 242, 10, 2); r(g, '#2f3a3c', 329, 214, 12, 9); r(g, '#90b8a3', 331, 216, 4, 4); r(g, '#d96952', 338, 215, 2, 2);
+    // Companionship line on etwin's desk.
+    { const [x, y] = C.desks[7]; r(g, '#b9a99a', x + 22, y - 12, 1, 9); r(g, '#e58f9a', x + 19, y - 19, 3, 3); r(g, '#e58f9a', x + 23, y - 19, 3, 3); r(g, '#e58f9a', x + 19, y - 17, 7, 3); r(g, '#e58f9a', x + 20, y - 14, 5, 2); r(g, '#e58f9a', x + 21, y - 12, 3, 1); r(g, '#fbd3d8', x + 20, y - 18, 1, 1); }
+  }
   function gameFurniture(g) {
-    r(g,'#91a38a',22,260,166,78); r(g,'#dad7b4',24,262,162,74);
-    text(g,'游戏角',95,278,7,'#45534b');
-    for(const x of [24,48]) {
+    r(g,'#91a38a',22,260,238,78); r(g,'#dad7b4',24,262,234,74);
+    plaque(g,'游戏室',72,263,34,'#5d7f6e');
+    for(const x of [24,48,200,224]) {
       r(g,'#35474a',x,260,20,29); r(g,'#739780',x+1,261,18,4);
       r(g,'#213b40',x+3,266,14,10); r(g,'#90b8a3',x+5,268,4,2);
       r(g,'#c2976b',x,278,20,6); r(g,'#d1ad83',x,278,20,2);
@@ -134,8 +152,8 @@
     for(let x=136;x<176;x+=4)r(g,'#9cbab1',x,296,2,2);
   }
   function gamesUnder() {
-    for(const [j,x] of [24,48].entries()) {
-      const active=sim.actors.some(a=>a.gameSlot===j+4 && sim.gameActivity(a)==='arcade');
+    for(const [x,slot] of [[24,4],[48,5],[200,10],[224,11]]) {
+      const active=sim.actors.some(a=>a.gameSlot===slot && sim.gameActivity(a)==='arcade');
       r(ctx,active && Math.floor(sim.time*3)%2?'#90b8a3':'#213b40',x+3,266,14,8);
       if(active) { const shift=Math.floor(sim.time*4)%4; r(ctx,'#efc66c',x+5+shift,268,3,3); r(ctx,'#f4ebd8',x+12,271-shift%2*2,2,2); }
       else r(ctx,'#739780',x+7,269,6,2);
@@ -163,28 +181,68 @@
     r(g,'#c9a27a',312,420,30,72); text(g,'↓ 附楼',327,449,6);
     }
     placed(g,C.meetingOffset,()=>{
-    r(g,'#6c897b',20,490,220,3); r(g,'#9cbab160',20,493,3,137);
-    r(g,'#6c897b',236,490,3,108); r(g,'#9cbab140',224,493,12,105);
-    r(g,'#6c897b',20,630,184,3); r(g,'#9cbab190',20,617,184,13);
-    for(const x of [20,76,132,200]) r(g,'#6c897b',x,614,2,19);
-    r(g,'#547064',28,496,168,31); r(g,'#fff4d5',30,498,164,27);
+    // Compact meeting room (meetings come a few times a week): four seats, podium, one standing row.
+    r(g,'#6c897b',20,490,159,3); r(g,'#9cbab160',20,493,3,107);
+    r(g,'#6c897b',176,490,3,86); r(g,'#9cbab140',164,493,12,83);
+    r(g,'#6c897b',20,600,159,3); r(g,'#9cbab190',20,587,156,13);
+    for(const x of [20,60,100,140]) r(g,'#6c897b',x,584,2,19);
+    r(g,'#547064',28,496,140,25); r(g,'#fff4d5',30,498,136,21);
     for(const p of Core.seats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
-    r(g,'#77563f',70,562,116,24); r(g,'#a97c52',70,562,116,20); r(g,'#dfb987',71,562,114,4);
-    r(g,'#eee4c7',98,572,15,9); r(g,'#8d9a80',101,575,9,1); r(g,'#eee4c7',148,572,15,9);
-    text(g,'会议室',130,600,7,'#655b40');
-    r(g,'#71583f',76,650,52,17); r(g,'#a3ac8f',76,648,52,6); r(g,'#d2b285',76,660,52,5);
-    r(g,'#71583f',78,667,3,3); r(g,'#71583f',123,667,3,3); text(g,'旁听席',102,684,7,'#655b40');
+    r(g,'#77563f',36,552,96,20); r(g,'#a97c52',36,552,96,16); r(g,'#dfb987',37,552,94,4);
+    r(g,'#eee4c7',56,560,15,8); r(g,'#8d9a80',59,563,9,1); r(g,'#eee4c7',100,560,15,8);
+    text(g,'会议室',152,572,7,'#655b40');
+    r(g,'#71583f',40,616,52,17); r(g,'#a3ac8f',40,614,52,6); r(g,'#d2b285',40,626,52,5);
+    r(g,'#71583f',42,633,3,3); r(g,'#71583f',87,633,3,3); text(g,'旁听席',66,648,7,'#655b40');
     });
+    if(!mv) { placed(g,C.teaOffset,()=>teahouse(g)); placed(g,C.gymOffset,()=>gym(g)); }
     placed(g,C.boothOffset,()=>{
     r(g,'#6d806a',268,494,67,5); r(g,'#6d806a',268,499,3,61); r(g,'#6d806a',332,499,3,61); r(g,'#b4cdc14a',271,499,61,61);
     r(g,'#47625d',310,512,12,26); r(g,'#e7dbb8',312,515,7,10); r(g,'#364944',313,529,5,6);
     text(g,'电话亭',300,579,7);
     });
     placed(g,C.storageOffset,()=>{
-    text(g,'储物间',298,602,7);
-    r(g,'#8f785c',262,610,72,68); r(g,'#b6a58a',265,613,66,62); r(g,'#796b54',265,673,66,3);
+    if (mv) { text(g,'储物间',298,602,7); r(g,'#8f785c',262,610,72,68); r(g,'#b6a58a',265,613,66,62); r(g,'#796b54',265,673,66,3); return; }
+    // Showcase: a glass cabinet of tiny keepsakes from the playground; tapping it opens the works and accounts.
+    text(g,'陈列室',298,602,7);
+    r(g,'#4c4d4040',264,676,72,4); r(g,'#77563f',262,606,72,72); r(g,'#a97c52',264,608,68,68); r(g,'#cfe3dc',267,611,62,62); r(g,'#e6f1ec',268,612,8,60);
+    for (const y of [631,651]) { r(g,'#a97c52',267,y,62,3); r(g,'#d1a272',267,y,62,1); }
+    r(g,'#a97c52',267,671,62,2);
+    // top shelf: roach in sunglasses, a gear, a tiny cabin
+    r(g,'#7a3f22',274,624,10,6); r(g,'#9c5530',275,623,8,3); r(g,'#2f3a3c',273,622,6,2); r(g,'#5a3b2a',272,629,2,2); r(g,'#5a3b2a',284,629,2,2);
+    r(g,'#9aa3a0',293,620,10,10); r(g,'#cfe3dc',296,623,4,4); r(g,'#9aa3a0',297,618,2,14); r(g,'#9aa3a0',291,624,14,2);
+    r(g,'#8c5a3a',312,624,12,7); r(g,'#ba5045',311,620,14,4); r(g,'#efc66c',316,626,3,3); r(g,'#f4ebd8',318,616,4,4);
+    // middle shelf: a scroll, a Xiguan door, a sandworm curl
+    r(g,'#e9d7b0',272,642,14,8); r(g,'#8c3a2e',271,641,2,10); r(g,'#8c3a2e',285,641,2,10); r(g,'#7a9c84',275,645,7,2);
+    r(g,'#5a3b2a',294,638,12,12); r(g,'#8c3a2e',296,640,8,10); r(g,'#efc66c',299,644,2,2);
+    r(g,'#b98a52',312,645,14,5); r(g,'#d7b47a',314,642,6,4); r(g,'#7a5a3e',324,643,3,3);
+    // bottom shelf: a trophy and a little pixel office
+    r(g,'#efc66c',275,660,8,6); r(g,'#d6a845',277,666,4,3); r(g,'#8c6447',275,669,8,2); r(g,'#efc66c',273,661,2,3); r(g,'#efc66c',283,661,2,3);
+    r(g,'#6d725e',295,658,30,13); r(g,'#d1ad83',297,660,26,9); r(g,'#35474a',300,661,5,4); r(g,'#35474a',309,661,5,4); r(g,'#35474a',318,661,3,4);
     });
     placed(g,C.totalsOffset,()=>{r(g,'#77563f',24,426,276,52); r(g,'#a17c52',27,429,270,46);});
+  }
+  // 茶楼 · 早市, 78×100 local: sign, one round table with four stools, a dim sum cart. Opens on the datai-teahouse game.
+  function teahouse(g) {
+    r(g,'#e9d7b0',0,4,78,96); r(g,'#d8c194',0,4,78,1);
+    r(g,'#8c3a2e',12,0,54,13); r(g,'#b5473a',13,1,52,11); text(g,'茶楼 · 早市',39,10,7,'#f6d68a');
+    for(const x of [4,72]) { r(g,'#5a3b2a',x+1,0,1,4); r(g,'#d9564d',x-2,4,7,9); r(g,'#efc66c',x-2,7,7,1); r(g,'#efc66c',x,13,3,2); }
+    for(const [x,y] of [[16,68],[62,68],[29,46],[49,46]]) { r(g,'#7a5a3e',x-6,y-3,12,4); r(g,'#a97c52',x-6,y-4,12,2); r(g,'#7a5a3e',x-5,y+1,2,3); r(g,'#7a5a3e',x+3,y+1,2,3); }
+    r(g,'#4c4d4040',27,63,26,4); r(g,'#77563f',26,54,26,10); r(g,'#c99a64',24,50,30,8); r(g,'#e0b786',26,50,26,2);
+    r(g,'#b98a52',30,48,9,4); r(g,'#d7b47a',30,47,9,1); r(g,'#b98a52',40,46,9,6); r(g,'#d7b47a',40,45,9,1); r(g,'#9c7444',40,49,9,1);
+    r(g,'#f4ebd8',44,52,6,2); r(g,'#3f6f68',33,52,5,4); r(g,'#3f6f68',38,53,2,1);
+    r(g,'#8f6a48',6,84,18,10); r(g,'#b98a52',7,79,16,5); r(g,'#d7b47a',7,78,16,1); r(g,'#b98a52',9,74,12,4); r(g,'#d7b47a',9,73,12,1);
+    r(g,'#3e4b47',8,94,3,3); r(g,'#3e4b47',20,94,3,3);
+    text(g,'08:00–10:00',58,94,5,'#8c6a44');
+  }
+  // 健身房, 96×80 local: treadmill, dumbbell rack, punching bag, yoga mat.
+  function gym(g) {
+    r(g,'#b7c2b0',0,2,96,78); r(g,'#cbd3c2',2,4,92,74);
+    r(g,'#3e4b47',6,6,16,10); r(g,'#90b8a3',9,8,8,4); r(g,'#2f3a3c',7,16,14,34); r(g,'#4a5652',9,18,10,30); r(g,'#3e4b47',5,16,2,20); r(g,'#3e4b47',21,16,2,20);
+    r(g,'#77563f',30,6,24,10); r(g,'#a97c52',30,6,24,3);
+    for(const x of [33,41,49]) { r(g,'#3e4b47',x,9,2,5); r(g,'#3e4b47',x+2,11,2,1); r(g,'#3e4b47',x+3,9,2,5); }
+    r(g,'#5d6b60',62,2,20,2); r(g,'#3e4b47',71,4,1,12); r(g,'#ba5045',67,16,10,14); r(g,'#d96952',68,17,3,12); r(g,'#8c3a2e',67,28,10,2);
+    r(g,'#7aa7a0',26,62,34,9); r(g,'#93bbb3',27,63,32,7);
+    text(g,'健身房',82,74,7,'#45534b');
   }
   function folder(x,y) {
     r(ctx,'#8c6337',x-6,y-5,13,9); r(ctx,'#efc66c',x-5,y-4,11,7); r(ctx,'#efc66c',x-5,y-7,5,3); r(ctx,'#fff0bc',x-3,y-1,6,1);
@@ -197,9 +255,25 @@
     const lines = [`来过客人 ${num(stats.visitorsTotal)} · 收到礼物 ${num(stats.treatsTotal)}` + (!mv ? ` · 接待 ${num(stats.meetsTotal)} 拨` : ''), `开过会 ${num(stats.meetingsTotal)} · 递过活 ${num(stats.handoffsTotal)}` + (Number.isInteger(stats.notesTotal) && stats.notesTotal >= 0 ? ` · 纸条 ${num(stats.notesTotal)}` : ''), `今天：客人 ${num(t.visitors)} · 礼物 ${num(t.treats)} · 会 ${num(t.meetings)} · 递活 ${num(t.handoffs)}` + (!mv ? ` · 接待 ${num(t.meets)} 拨` : '')];
     if(!mv)lines.push(`安检门拦下 ${num(stats.gatesBlockedTotal)} 次`);return lines;
   };
+  function leisureUnder() {
+    if (mv || !C.teaOffset) return;
+    const busy = kind => sim.actors.some(a => sim.gameActivity(a) === kind), t = sim.time;
+    placed(ctx,C.teaOffset,()=>{
+      // Steam over the baskets while anyone eats; the open lamp lights 08:00–10:00 Beijing time.
+      const open = Core.isBreakfast(now());
+      r(ctx,open?'#efc66c':'#9a8f78',34,89,3,3);
+      if (busy('tea')) for (let j=0;j<3;j++) { const k=(t*1.3+j/3)%1; r(ctx,'#ffffff90',32+j*6+Math.round(Math.sin(t*3+j)),44-Math.round(k*12),2,2); }
+    });
+    placed(ctx,C.gymOffset,()=>{
+      if (busy('run')) for (let y=18+Math.floor(t*20)%6; y<48; y+=6) r(ctx,'#6d7a74',10,y,8,1);
+      if (busy('box')) { const sway=Math.round(Math.sin(t*6)*1.5); r(ctx,'#cbd3c2',66,15,12,16); r(ctx,'#3e4b47',71,4,1,12); r(ctx,'#ba5045',67+sway,16,10,14); r(ctx,'#d96952',68+sway,17,3,12); r(ctx,'#8c3a2e',67+sway,28,10,2); }
+    });
+    if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
+    if (hotspots()) { const blink=Math.floor(sim.time*1.5)%2; r(ctx,'#fff6dc',72,274,34,9); r(ctx,blink?'#c85b4a':'#d9a56d',72,274,34,1); text(ctx,'▶ 点我玩',89,281,6,'#8a4a3e'); }
+  }
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
-    gamesUnder();
+    gamesUnder(); leisureUnder();
     if(!mv)drawGate(false);
     placed(ctx,C.totalsOffset,()=>{
     text(ctx,`办公室累计${demo?' · 演示':''}`,162,440,8,'#fff4d5');
@@ -207,18 +281,18 @@
     });
     placed(ctx,C.meetingOffset,()=>{
     if (m) {
-      text(ctx,m.kind==='review'?`互审 · 第 ${m.round ?? '—'} 轮`:`碰头会 · ${m.members.length} 人`,112,509,9);
-      if (m.kind==='review' && m.slide) text(ctx,`采纳 ${m.slide.adopted} · 反驳 ${m.slide.rejected} · 待议 ${m.slide.open}`,112,521,8);
-      text(ctx,`${Math.max(0,Math.floor((now()-Date.parse(m.since))/60000))} 分钟`,207,488,6);
+      text(ctx,m.kind==='review'?`互审 · 第 ${m.round ?? '—'} 轮`:`碰头会 · ${m.members.length} 人`,98,508,8);
+      if (m.kind==='review' && m.slide) text(ctx,`采纳 ${m.slide.adopted} · 反驳 ${m.slide.rejected} · 待议 ${m.slide.open}`,98,517,7);
+      text(ctx,`${Math.max(0,Math.floor((now()-Date.parse(m.since))/60000))} 分钟`,160,488,6);
     } else if(sim.reception?.venue==='meeting' && sim.reception.phase!=='leaving') {
-      text(ctx,'来谈事 · '+C.MEET_NAMES[sim.reception.kind],128,508,8);
+      text(ctx,'来谈事 · '+C.MEET_NAMES[sim.reception.kind],98,511,8);
     } else {
       const last=[...events].filter(e=>e.kind==='meeting').sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))[0];
       const label=mv?(last?`上次开会 ${formatClock(Date.parse(last.at))}`:'今天还没开会'):C.meetingBoardText(stats,events);
-      text(ctx,label,112,515,label.length>20?6.5:8);
+      text(ctx,label,98,512,label.length>16?6.5:7.5);
     }
     });
-    placed(ctx,C.storageOffset,()=>{
+    if(mv)placed(ctx,C.storageOffset,()=>{
     const layers=C.diskLayers(s.disk);
     for(let j=0;j<layers;j++) for(let i=0;i<3;i++) {
       const x=268+i*20,y=666-j*7;
@@ -277,7 +351,7 @@
   function sceneOver() {
     const ball=sim.pingPongBall();
     if(ball)r(ctx,'#fff4d5',ball.x,ball.y,ball.size,ball.size);
-    if(C.id==='landscape')r(ctx,sim.scene.meeting?'#efc66c':'#84917c',588,210,9,4);
+    if(C.id==='landscape')r(ctx,sim.scene.meeting?'#efc66c':'#84917c',532,198,9,4);
     else if(sim.scene.meeting) {
       r(ctx,'#77563f',274,398,68,18); r(ctx,'#efc66c',276,400,64,14);
       r(ctx,'#fff4d5',278,404,3,3); text(ctx,'开会中 ↓',311,410,8,'#45534b');
@@ -398,7 +472,7 @@
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    const seated = (a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const seated = (sim.gameActivity(a)==='tea' || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
@@ -453,6 +527,32 @@
       const top=a.gameSlot===0,swing=Math.sin(t*Math.PI/0.8+(top?0:Math.PI))>0?2:0,handY=top?y+1:y-18;
       r(ctx,color,x+5,y-9,3,top?12:5); r(ctx,'#e4bb91',x+5-swing,handY,4,3);
       r(ctx,'#77563f',x+7-swing,handY,2,5); r(ctx,top?'#d96952':'#efc66c',x+5-swing,handY+(top?3:-3),6,4);
+    }
+    if (!greets && game === 'tea') {
+      // A bite every couple of seconds: chopsticks up with a har gow, then back to the cup.
+      const bite = Math.sin(t * 2.2 + a.i) > .55;
+      r(ctx,'#e4bb91',x+5,bite?y-15:y-8,3,3); r(ctx,'#5a3b2a',x+7,bite?y-19:y-11,1,7);
+      if (bite) r(ctx,'#f4ebd8',x+4,y-17,4,3); else { r(ctx,'#eee4c7',x-10,y-8,4,4); r(ctx,'#c99a64',x-10,y-8,4,1); }
+    }
+    if (!greets && game === 'run') {
+      const l = Math.sin(t * 14 + a.i) > 0 ? 2 : -2;
+      r(ctx,'#34483e',x-5,y-2,4,3+l); r(ctx,'#34483e',x+2,y-2,4,3-l);
+      r(ctx,color,x-8,y-10-l,3,5); r(ctx,color,x+5,y-10+l,3,5);
+    }
+    if (!greets && game === 'lift') {
+      const up = Math.sin(t * 2.6 + a.i) > 0, hy = up ? y - 24 : y - 13;
+      r(ctx,color,x-8,hy+3,3,up?12:4); r(ctx,color,x+5,hy+3,3,up?12:4);
+      for (const hx of [x-9, x+4]) { r(ctx,'#3e4b47',hx-1,hy,7,2); r(ctx,'#3e4b47',hx-2,hy-1,2,4); r(ctx,'#3e4b47',hx+5,hy-1,2,4); }
+    }
+    if (!greets && game === 'box') {
+      const jab = Math.sin(t * 6 + a.i) > .3;
+      r(ctx,color,x+4,y-14,jab?8:4,3); r(ctx,'#ba5045',x+(jab?11:7),y-15,4,4);
+      r(ctx,'#ba5045',x-9,y-15,4,4);
+    }
+    if (!greets && game === 'yoga') {
+      const reach = Math.sin(t * 1.2 + a.i) > 0 ? 2 : 0;
+      r(ctx,color,x-8,y-22-reach,3,10); r(ctx,color,x+5,y-22-reach,3,10);
+      r(ctx,'#e4bb91',x-7,y-25-reach,3,3); r(ctx,'#e4bb91',x+4,y-25-reach,3,3);
     }
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
@@ -630,6 +730,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
+  const leisureLabel = kind => ({tea:'饮早茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
@@ -682,7 +783,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
@@ -724,12 +825,14 @@
   function resetDemo() {
     historyAvailable=false;
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
-    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : '2026-11-01T02:00:00Z');
+    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : '2026-11-01T02:00:00Z');
     currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv || mv.performances;
     stats = mv ? mv.stats : structuredClone(script.stats || null); events = []; treatsToday = {}; noticesToday=undefined;
     if (!mv) sim.setScene(demoScene(script.scene),now());
     if (mv) mv.start(sim);
     else for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
+    // ?view=breakfast / leisure: everyone but the director off duty, so the teahouse and gym fill up (script events skipped this lap).
+    if (!mv && ['breakfast','leisure'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
   }
   function demoScene(value) {
@@ -953,6 +1056,16 @@
       $('#drawer').classList.add('expanded'); $('#drawer-toggle').setAttribute('aria-expanded',true);
     });
   }
+  // The game room's cabinets and the teahouse open the real playground games (visitors play them, the AIs only pretend).
+  function hotspots() { return !mvMode && !wallMode; }
+  const arcade=$('#arcade');
+  $('#hot-games').addEventListener('click',()=>{ showcase.hidden=true; arcade.hidden=!arcade.hidden; $('#hot-games').setAttribute('aria-expanded',String(!arcade.hidden)); if(!arcade.hidden)arcade.querySelector('a').focus(); });
+  const showcase=$('#showcase');
+  $('#hot-show').addEventListener('click',()=>{ arcade.hidden=true; showcase.hidden=!showcase.hidden; $('#hot-show').setAttribute('aria-expanded',String(!showcase.hidden)); if(!showcase.hidden)showcase.querySelector('a').focus(); });
+  $('#showcase-close').addEventListener('click',()=>{ showcase.hidden=true; $('#hot-show').setAttribute('aria-expanded','false'); $('#hot-show').focus(); });
+  showcase.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#showcase-close').click(); });
+  $('#arcade-close').addEventListener('click',()=>{ arcade.hidden=true; $('#hot-games').setAttribute('aria-expanded','false'); $('#hot-games').focus(); });
+  arcade.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#arcade-close').click(); });
   $('#wall-board').addEventListener('click',()=>{
     boardRequested=true; $(`#${guest && !demo?'today':'board'}-tab`).click(); $('#drawer-body').scrollTop=0; updateUI();
   });
@@ -966,6 +1079,10 @@
     $('#canvas-wrap').style.width=''; $('#room-viewport').scrollTop=0;
     $('#room-viewport').setAttribute('aria-label',wide?'办公室全景，整栋楼同屏':'办公室与附楼，可上下滚动');
     canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏角、会议室和电话亭之间活动。整栋楼同屏，详细状态可在手记中阅读。':'AI 伙伴在工位、游戏角和老板桌之间活动。下方附楼有会议室、电话亭和累计看板，可上下滚动。');
+    for (const [id,rect] of [['#hot-show',{x:C.storageOffset[0]+258,y:C.storageOffset[1]+594,w:80,h:88}],['#hot-games',C.gameRect],['#hot-tea',C.teaOffset && {x:C.teaOffset[0],y:C.teaOffset[1],w:78,h:100}]]) {
+      const el=$(id); el.hidden=!hotspots() || !rect; if(!rect)continue;
+      Object.assign(el.style,{left:`${rect.x/C.W*100}%`,top:`${rect.y/C.H*100}%`,width:`${rect.w/C.W*100}%`,height:`${rect.h/C.H*100}%`});
+    }
     const b=C.noticeRect,button=$('#wall-board'); button.hidden=mvMode || wallMode;
     Object.assign(button.style,{left:`${b.x/C.W*100}%`,top:`${b.y/C.H*100}%`,width:`${b.w/C.W*100}%`,height:`${b.h/C.H*100}%`});
     fitRoom();
@@ -992,7 +1109,9 @@
     } else script = await (await fetch('demo-script.json')).json();
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
-    if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
+    // breakfast / leisure keep playing after the walk over (they show a routine, not one frozen moment).
+    if (view && demo && ['breakfast','leisure'].includes(view)) advance(20000);
+    else if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
     ready = true; draw();
