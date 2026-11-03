@@ -587,45 +587,62 @@
       if (dancer) { const t2 = [[0,1],[1,0],[2,1],[1,2]][beat % 4]; r(ctx, '#ffe9a0', 221 + t2[0] * 10, 318 + t2[1] * 6, 9, 5); }
     }
   }
-  // The office cat roams the whole tower (Alice: 「猫咪在办公室里面跑……不用锁在花园了」). Page-only state: it walks the
-  // same BFS grid as everyone, naps on the cat tree at night, comes to whoever pets or feeds it, and purrs at passers-by.
-  let cat=null;
+  // Two office cats roam the whole tower, like the two at Alice's home (11-03 photos): 小橘, an orange tabby, and 山花, a calico.
+  // Page-only state: they walk the same BFS grid as everyone, nap on the cat tree at night, come to whoever pets or feeds them,
+  // purr at passers-by, and every so often one chases the other into a little play-fight.
+  const CAT_LOOKS = [{name:'小橘',fur:'#e8963a',stripe:'#c8732a',belly:'#f2b46a',head:'#e8963a',muzzle:'#f2b46a'},
+                     {name:'山花',fur:'#f4f1e6',stripe:'#5a4636',belly:'#f4f1e6',head:'#8a6a4a',muzzle:'#f4f1e6',patch:'#e8963a'}];
+  let cats=null, catPlay=null;
   function catTick() {
     if (!C.catSpot || mv) return null;
-    const L=C.id,home={x:C.catSpot.x+14,y:C.catSpot.y};
-    if (!cat || cat.layout!==L || cat.sim!==sim) cat={x:home.x,y:home.y,path:[],wait:3,last:sim.time,layout:L,sim,goal:null};
-    const dt=Math.min(.5,Math.max(0,sim.time-cat.last)); cat.last=sim.time;
+    const L=C.id, homeOf=k=>({x:C.catSpot.x+14+k*12,y:C.catSpot.y-k*2});
+    if (!cats || cats.layout!==L || cats.sim!==sim) { cats=CAT_LOOKS.map((look,k)=>({...homeOf(k),k,look,path:[],wait:3+k*4,goal:null})); cats.layout=L; cats.sim=sim; cats.last=sim.time; catPlay=null; }
+    const dt=Math.min(.5,Math.max(0,sim.time-cats.last)); cats.last=sim.time;
     const petter=sim.actors.find(a=>sim.gameActivity(a)==='cat'), fed=sim.playing?.('cat'), sleepy=sim.night && !fed;
-    const want=fed||petter||sleepy?home:null;
-    const go=p=>{ if(cat.goal&&Core.distance(cat.goal,p)<1)return; cat.goal=p; cat.path=Core.route(cat,p,L); };
-    if (want) go(want);
-    else if (!cat.path.length) {
-      cat.wait-=dt;
-      if (cat.wait<=0) {
-        cat.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870},home].filter(p=>p&&!Core.blocked(p.x,p.y,L));
-        cat.goal=null; go(cat.spots[Math.floor(Math.random()*cat.spots.length)]); cat.wait=4+Math.random()*6;
+    cats.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870}].filter(p=>p&&!Core.blocked(p.x,p.y,L));
+    const go=(c,p)=>{ if(c.goal&&Core.distance(c.goal,p)<4)return; c.goal=p; c.path=Core.route(c,p,L); };
+    // A chase starts now and then (never at night or while someone is petting/feeding): the chaser keeps re-aiming at the runner.
+    if (!catPlay && !sleepy && !fed && !petter && Math.random()<dt/35) { const runner=cats[Math.random()<.5?0:1]; catPlay={phase:'chase',runner,chaser:cats[1-runner.k],until:sim.time+9,aim:0}; runner.goal=null; go(runner,cats.spots[Math.floor(Math.random()*cats.spots.length)]); }
+    if (catPlay && (sleepy||fed||petter)) catPlay=null;
+    if (catPlay?.phase==='chase') {
+      const {runner,chaser}=catPlay;
+      if (sim.time>catPlay.aim) { catPlay.aim=sim.time+.8; chaser.goal=null; go(chaser,{x:Math.round(runner.x/4)*4,y:Math.round(runner.y/4)*4}); }
+      if (Core.distance(runner,chaser)<10 || sim.time>catPlay.until) { catPlay={phase:'tussle',a:runner,b:chaser,until:sim.time+2.5}; runner.path=[]; chaser.path=[]; }
+    } else if (catPlay?.phase==='tussle' && sim.time>catPlay.until) { catPlay=null; for(const c of cats){c.goal=null;c.wait=2+Math.random()*4;} }
+    for (const c of cats) {
+      const playing=!!catPlay;
+      if (!playing) {
+        const want=fed||petter||sleepy?homeOf(c.k):null;
+        if (want) go(c,want);
+        else if (!c.path.length) { c.wait-=dt; if (c.wait<=0) { c.goal=null; go(c,cats.spots[Math.floor(Math.random()*cats.spots.length)]); c.wait=4+Math.random()*7; } }
       }
+      let step=dt*(catPlay?.phase==='chase'?46:22);
+      while (step>0 && c.path.length) { const q=c.path[0],d=Core.distance(c,q); if(d<=step){c.x=q.x;c.y=q.y;c.path.shift();step-=d;} else {c.x+=(q.x-c.x)/d*step;c.y+=(q.y-c.y)/d*step;step=0;} }
     }
-    let step=dt*24;
-    while (step>0 && cat.path.length) { const q=cat.path[0],d=Core.distance(cat,q); if(d<=step){cat.x=q.x;cat.y=q.y;cat.path.shift();step-=d;} else {cat.x+=(q.x-cat.x)/d*step;cat.y+=(q.y-cat.y)/d*step;step=0;} }
     const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
-    return {x:Math.round(cat.x),y:Math.round(cat.y),moving:cat.path.length>0,fed,petted:!!petter||!cat.path.length&&people.some(p=>Core.distance(p,cat)<14),asleep:sleepy&&!cat.path.length};
+    return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,fed,running:catPlay?.phase==='chase',
+      tussle:catPlay?.phase==='tussle',petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length}));
   }
-  function drawCat() {
-    const c=catTick(); if(!c)return; const t=sim.time,p=c;
-    if (c.fed) { r(ctx,'#b5473a',home0().x-6,home0().y-2,10,4); r(ctx,'#e9c9a0',home0().x-5,home0().y-3,8,2); }
-    const leg=c.moving&&Math.floor(t*8)%2;
-    r(ctx,'#4c4d4030',p.x-6,p.y,12,2);
-    if (c.asleep) { r(ctx,'#e8963a',p.x-6,p.y-5,12,5); r(ctx,'#c8732a',p.x-3,p.y-5,1,5); r(ctx,'#c8732a',p.x+1,p.y-5,1,5); r(ctx,'#e8963a',p.x+4,p.y-7,4,3); text(ctx,'z',p.x+9,p.y-10-(t%3|0),6,'#45534b'); return; }
-    r(ctx,'#e8963a',p.x-5,p.y-6,10,5); r(ctx,'#e8963a',p.x+3,p.y-9,5,5); r(ctx,'#e8963a',p.x+3,p.y-11,1,2); r(ctx,'#e8963a',p.x+7,p.y-11,1,2);
-    r(ctx,'#c8732a',p.x-3,p.y-6,1,5); r(ctx,'#c8732a',p.x,p.y-6,1,5); r(ctx,'#2f3a3c',p.x+5,p.y-8,1,1);
-    r(ctx,'#c8732a',p.x-4+leg,p.y-1,1,2); r(ctx,'#c8732a',p.x+2-leg,p.y-1,1,2); r(ctx,'#e8963a',p.x-8,p.y-8+(Math.floor(t*2)%2),3,2);
-    if (c.petted||c.fed) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
+  function drawCats() {
+    const list=catTick(); if(!list)return; const t=sim.time;
+    if (list[0].fed) { const p={x:C.catSpot.x+6,y:C.catSpot.y+2}; r(ctx,'#b5473a',p.x-6,p.y-2,10,4); r(ctx,'#e9c9a0',p.x-5,p.y-3,8,2); }
+    for (const c of list) {
+      const L=c.look,bob=c.tussle?(Math.floor(t*10+c.k)%2)*2:0,p={x:c.x+(c.tussle?(c.k?3:-3):0),y:c.y-bob},leg=c.moving&&Math.floor(t*(c.running?14:8))%2;
+      r(ctx,'#4c4d4030',c.x-6,c.y,12,2);
+      if (c.asleep) { r(ctx,L.fur,p.x-6,p.y-5,12,5); r(ctx,L.stripe,p.x-3,p.y-5,1,5); if(L.patch)r(ctx,L.patch,p.x-1,p.y-5,3,3); r(ctx,L.head,p.x+4,p.y-7,4,3); text(ctx,'z',p.x+9,p.y-10-(t%3|0),6,'#45534b'); continue; }
+      r(ctx,L.fur,p.x-5,p.y-6,10,5); r(ctx,L.belly,p.x-3,p.y-3,6,2);
+      if (L.patch) { r(ctx,L.patch,p.x-4,p.y-6,3,2); r(ctx,L.stripe,p.x,p.y-6,3,3); } else { r(ctx,L.stripe,p.x-3,p.y-6,1,5); r(ctx,L.stripe,p.x,p.y-6,1,5); }
+      r(ctx,L.head,p.x+3,p.y-9,5,5); r(ctx,L.head,p.x+3,p.y-11,1,2); r(ctx,L.head,p.x+7,p.y-11,1,2); r(ctx,L.muzzle,p.x+5,p.y-6,3,2); if(L.patch)r(ctx,'#e8963a',p.x+3,p.y-9,2,2);
+      r(ctx,'#2f3a3c',p.x+5,p.y-8,1,1);
+      r(ctx,L.stripe,p.x-4+leg,p.y-1,1,2); r(ctx,L.stripe,p.x+2-leg,p.y-1,1,2); r(ctx,L.patch?L.stripe:L.fur,p.x-8,p.y-8+(Math.floor(t*(c.running?8:2))%2),3,2);
+      if (c.tussle && Math.floor(t*6+c.k)%2) r(ctx,'#f4f1e6',p.x+(c.k?-6:8),p.y-10,3,2);
+      if (c.petted||c.fed) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
+    }
+    if (list[0].tussle) { const mx=(list[0].x+list[1].x)/2,my=Math.min(list[0].y,list[1].y)-16; text(ctx,'喵！',mx,my-(t*4%2|0),6,'#b5473a'); for(let j=0;j<3;j++) r(ctx,'#ffffffc0',mx-8+j*7,my+4+((t*9+j*3)%5|0),2,2); }
   }
-  const home0=()=>({x:C.catSpot.x+6,y:C.catSpot.y+2});
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
-    gamesUnder(); leisureUnder(); drawCat();
+    gamesUnder(); leisureUnder(); drawCats();
     if(!mv)drawGate(false);
     placed(ctx,C.totalsOffset,()=>{
     const T=C.totals||{x:24,y:426,w:276,h:52},cx=T.x+T.w/2;
@@ -703,7 +720,31 @@
       r(ctx,'#fff6dc',actor.x,by+14,3,3);text(ctx,b.text,bx+w/2,by+10,8,'#6a4b30');
     }
   }
+  // When Alice gives CC (desk 0) or etwin-cc (desk 7) something to do, their status flips to busy: the boss sends the order
+  // over by the most old-fashioned means available, a paper plane or a toy drone with a note, alternately. Page-only.
+  let orderSeen=null, orders=[], orderCount=0;
+  function watchOrders() {
+    if (mv || !sim) return;
+    const targets=sim.actors.filter(a=>a.i===0||a.i===7);
+    if (!orderSeen || orderSeen.sim!==sim) { orderSeen={sim,map:new Map(targets.map(a=>[a.id,a.status]))}; orders=[]; return; }
+    for (const a of targets) { const before=orderSeen.map.get(a.id); if (a.status==='busy' && before && before!=='busy') orders.push({id:a.id,at:sim.time,kind:Core.distance(a,sim.boss)<50?'note':orderCount++%2?'drone':'plane',from:{x:sim.boss.x,y:sim.boss.y-18}}); orderSeen.map.set(a.id,a.status); }
+    orders=orders.filter(o=>sim.time-o.at<3.4 && sim.time>=o.at);
+  }
+  function drawOrders() {
+    watchOrders(); const t=sim.time;
+    for (const o of orders) {
+      const a=sim.actors.find(a=>a.id===o.id); if(!a)continue;
+      const to={x:a.x,y:a.y-26},p=Math.min(1,(t-o.at)/1.8),e=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+      const x=o.from.x+(to.x-o.from.x)*e, y=o.from.y+(to.y-o.from.y)*e-(o.kind==='plane'?Math.sin(Math.PI*p)*36:Math.sin(Math.PI*p)*14+Math.sin(t*10));
+      if (o.kind==='note') { if (t-o.at>.3) text(ctx,'收到！',to.x,to.y-4,6,'#8c3a2e'); continue; }  // she answered it face to face at her desk
+      if (p<1) {
+        if (o.kind==='plane') { const dir=to.x>=o.from.x?1:-1; r(ctx,'#fffaf0',x-4*dir,y-1,8,2); r(ctx,'#fffaf0',x-2*dir,y-3,4,2); r(ctx,'#d9d2bc',x-4*dir,y+1,6,1); for(let j=1;j<4;j++) r(ctx,'#ffffff60',x-dir*(6+j*4),y+j,2,1); }
+        else { const blink=Math.floor(t*20)%2; r(ctx,'#5d6b60',x-4,y-1,8,3); r(ctx,blink?'#c9d4cf':'#9aa7a2',x-8,y-3,5,1); r(ctx,blink?'#9aa7a2':'#c9d4cf',x+3,y-3,5,1); r(ctx,'#d96952',x,y,1,1); r(ctx,'#8d9279',x,y+2,1,4); r(ctx,'#fff4d5',x-2,y+6,5,4); }
+      } else text(ctx,o.kind==='plane'?'纸飞机到！':'无人机送达',to.x,to.y-4-Math.min(4,(t-o.at-1.8)*6),6,'#8c3a2e');
+    }
+  }
   function sceneOver() {
+    drawOrders();
     const ball=sim.pingPongBall();
     if(ball)r(ctx,'#fff4d5',ball.x,ball.y,ball.size,ball.size);
     if(C.id==='landscape')r(ctx,sim.scene.meeting?'#efc66c':'#84917c',514,190,9,4);
@@ -1013,7 +1054,9 @@
     if (i === 9) { r(ctx, '#66715d', x, y - 26, 1, 5); r(ctx, color, x - 1, y - 28, 3, 3); }
     if (i === 10) { r(ctx, color, x - 6, y - 23, 12, 5); r(ctx, '#eddca8', x - 8, y - 19, 16, 2); r(ctx, '#e6d2a7', x + 6, y - 5, 7, 5); }
     if(!mv && a.activity==='chef') {r(ctx,'#fff6dc',x-7,y-28,14,7);r(ctx,'#fff6dc',x-5,y-31,4,4);r(ctx,'#fff6dc',x+1,y-31,4,4);r(ctx,'#c9d4cf',x-6,y-22,12,2);}
-    if (boss) { r(ctx, '#dcb159', x + 2, y - 22, 4, 3); r(ctx, '#5a4839', x - 7, y - 18, 3, 10); }
+    if (boss) { r(ctx, '#dcb159', x + 2, y - 22, 4, 3); r(ctx, '#5a4839', x - 7, y - 18, 3, 10);
+      // Alice asked to be visibly in the office herself: a gold name tag over the boss.
+      if (!mv) { ctx.font='5px "PingFang SC",system-ui,sans-serif'; const w=Math.ceil(ctx.measureText('老板 · 小试AI').width)+6; r(ctx,'#efc66c',x-w/2,y-35,w,7); r(ctx,'#8c3a2e',x-w/2,y-35,2,7); text(ctx,'老板 · 小试AI',x+1,y-29,5,'#5a3b2a'); } }
     // A visitor: a lanyard badge on the chest, a little camera in hand, and a sun hat on every other one.
     if (a.visitor && a.carry) item(a.carry, x + 7, y - 12);
     if (a.visitor) {
@@ -1567,7 +1610,7 @@
   layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: ['kitchen','bbq'].includes(view) && sim?.actors.some(a=>sim.chefActivity(a)===(view==='kitchen'?'cook':'grill')) && sim?.actors.some(a=>a.status==='idle' && (view==='kitchen'?[37,38,39,40]:[34,35,36]).includes(a.gameSlot) && sim.gameActivity(a)) ? view : view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a),chef:sim.chefActivity(a),awayPost:a.awayPost, standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0, hop: hopOf(a, false) })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, greetPose: sim && (sim.greeting() || sim.thanksNow()) ? Core.greetPose(sim.time - (sim.greeting() || sim.thanksNow()).at, calm.matches) : null, calm: calm.matches, sheetSway: sim ? sheetBorn.map(at => at === undefined ? 0 : Core.swayAt(sim.time - at, calm.matches)) : [], thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, orders:orders.map(o=>({...o})), cats:cats&&cats.map(c=>({x:c.x,y:c.y,name:c.look.name})), gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: ['kitchen','bbq'].includes(view) && sim?.actors.some(a=>sim.chefActivity(a)===(view==='kitchen'?'cook':'grill')) && sim?.actors.some(a=>a.status==='idle' && (view==='kitchen'?[37,38,39,40]:[34,35,36]).includes(a.gameSlot) && sim.gameActivity(a)) ? view : view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a),chef:sim.chefActivity(a),awayPost:a.awayPost, standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0, hop: hopOf(a, false) })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, greetPose: sim && (sim.greeting() || sim.thanksNow()) ? Core.greetPose(sim.time - (sim.greeting() || sim.thanksNow()).at, calm.matches) : null, calm: calm.matches, sheetSway: sim ? sheetBorn.map(at => at === undefined ? 0 : Core.swayAt(sim.time - at, calm.matches)) : [], thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
