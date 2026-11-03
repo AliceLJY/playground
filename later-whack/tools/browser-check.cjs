@@ -30,7 +30,7 @@ const url=q=>base.replace(/[?#].*$/,'')+q;
   const probe=page=>page.evaluate(()=>window.__later.probe());
 
   // 1. title and the four fixed views on three screens
-  const expect={title:p=>p.screen==='title',hero:p=>p.view==='hero'&&p.frozen&&new Set(p.state.ents.filter(e=>e.state==='up').map(e=>e.kind)).size===3,
+  const expect={title:p=>p.screen==='title',hero:p=>p.view==='hero'&&p.frozen&&new Set(p.state.ents.filter(e=>e.state==='up').map(e=>e.kind)).size===3&&p.state.ents.filter(e=>e.state==='up'&&e.kind!=='tail').every(e=>e.hint),
     stress:p=>p.view==='stress'&&p.frozen&&p.state.up>=5,over:p=>p.view==='over'&&p.screen==='result'&&p.state.result.reason==='pile',
     win:p=>p.view==='win'&&p.screen==='result'&&p.state.result.reason==='time'};
   for(const size of Object.keys(SIZES))for(const name of Object.keys(expect)){

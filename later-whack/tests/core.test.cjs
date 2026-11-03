@@ -131,3 +131,15 @@ test('rules: tapping an empty desk breaks the combo and blocks the slipper for 0
   assert.equal(g.tap(75,120).type,'whiff');assert.equal(s.combo,0);
   assert.equal(g.tap(75,120).type,'locked');g.step(0.26);assert.equal(g.tap(75,120).type,'whiff');
 });
+
+test('no reading needed: the first blue and the first green of every round carry the picture hint, later ones do not',()=>{
+  for(const seed of SEEDS){
+    const firsts={wait:0,observer:0},later={wait:0,observer:0},seen=new Set();
+    C.run(seed,'precise',st=>{for(const e of st.ents){if(seen.has(e.id))continue;seen.add(e.id);if(e.kind==='tail'){assert.ok(!e.hint,'tails never carry a hint');continue;}
+      if(e.hint)firsts[e.kind]++;else later[e.kind]++;}});
+    assert.equal(firsts.wait,1,`seed ${seed}: exactly one hinted 等她, got ${firsts.wait}`);
+    assert.equal(firsts.observer,1,`seed ${seed}: exactly one hinted observer, got ${firsts.observer}`);
+    assert.ok(later.wait+later.observer>0,'later blue / green signs should appear without the hint');
+  }
+  assert.equal(C.create({seed:1}).state.seen.wait,undefined,'a new round starts with the hints again');
+});

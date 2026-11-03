@@ -1,8 +1,8 @@
-# Later
+# Office Whack-a-Mole · Later
 
 [Chinese version](README_CN.md)
 
-Whack-a-mole in a pixel office. Little workers keep popping up behind nine desks, each holding up a sign with a classic way of putting things off: "I'll get to it next time", "Leave it for the next window", "Good enough for now", "Fix it later". Tap one with a single thumb and a slipper knocks it back down: fixed in this round. The slipper is a nod to the neighbouring [slipper-smash](../slipper-smash/).
+Whack-a-mole in a pixel office: hit the orange square signs, leave the blue round ones, ignore the green diamonds. No reading needed. Little workers keep popping up behind nine desks, each holding up a sign with a classic way of putting things off: "I'll get to it next time", "Leave it for the next window", "Good enough for now", "Fix it later". Tap one with a single thumb and a slipper knocks it back down: fixed in this round. The slipper is a nod to the neighbouring [slipper-smash](../slipper-smash/).
 
 Two of them work the other way round:
 
@@ -12,6 +12,8 @@ Two of them work the other way round:
 A round lasts 60 seconds; things pop up faster and several at a time as it goes on. Every 4 hits in a row double the score (up to ×8), and every 10 in a row fix one item from the pile. Missed tails pile up at the bottom of the screen; three of them end the round: "the loose ends left for the next window won't be done by the next window either".
 
 Built for a phone held upright, one thumb, sound off: the three kinds differ by sign shape (square / round / diamond), colour (orange / blue / green) and motion (fidgeting / holding high / arms crossed, still). The text is extra. The signs only carry generic phrases and refer to no real task.
+
+Playable without knowing anything about AI: the rule is plain whack-a-mole, the title screen explains it with a green check, a red cross and a grey clock, and the first blue and first green sign of every round get a bobbing cross or clock beside them. The AI-workflow phrases are only names and in-jokes.
 
 ## Run locally
 
