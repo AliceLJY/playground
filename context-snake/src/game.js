@@ -5,6 +5,7 @@ const Core=window.SnakeCore,CFG=Core.CFG,COLS=CFG.cols,ROWS=CFG.rows;
 const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search),viewName=params.get('view');
+const VIEW_NAMES=['hero','long','burst','end'];
 const FONT='"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif';
 const COLOR={bg:'#101218',field:'#171a22',grid:'#262a35',ink:'#111111',cream:'#f3ead8',dim:'#9a9486',pink:'#ff3d7f',
   file:'#6aa8ff',web:'#5fd39a',log:'#ffc04d',chat:'#c9c2b4',summary:'#ff8fb5',sub:'#4fd1ff',alert:'#ff4d4d',mud:'#7d6aa8',gold:'#ffd75a'};
@@ -64,6 +65,15 @@ function setMuted(m){muted=m;try{localStorage.setItem('context-snake-muted',m?'1
   if(m&&ac){try{ac.close();}catch(e){}ac=null;}
   $('mute-btn').textContent=$('pause-mute').textContent=m?'声音：关':'声音：开';}
 setMuted(muted);
+// speed: slow / medium / fast, remembered on this device; one tap on the title cycles it
+const SPEED_ORDER=['slow','normal','fast'],SPEED_NAME={slow:'慢',normal:'中',fast:'快'};
+let speed=CFG.speedDefault;
+try{const v=localStorage.getItem('context-snake-speed');if(CFG.speeds[v])speed=v;}catch(e){}
+function setSpeed(v,keep){speed=v;if(!keep)try{localStorage.setItem('context-snake-speed',v);}catch(e){}$('speed-btn').textContent='速度：'+SPEED_NAME[v];}
+setSpeed(speed,true);
+// a fixed view always runs at the speed it declares (default slow), never at whatever this device last picked
+const urlSpeed=CFG.speeds[params.get('speed')]?params.get('speed'):null;
+if(urlSpeed||VIEW_NAMES.includes(viewName))setSpeed(urlSpeed||CFG.speedDefault,true);
 
 // ---------- game state ----------
 let game=null,pilot=null,screen='title',paused=false,frozen=false,clock=0,best=0,seedUsed=1;
@@ -71,7 +81,7 @@ try{best=+localStorage.getItem('context-snake-best')||0;}catch(e){}
 const fx={pops:[],puffs:[],bursts:[],flash:0,shake:0,banner:null,overT:0,lastTurnLag:0,moveFlash:0};
 function start(seed){
   seedUsed=seed==null?(Math.random()*1e9)|0:seed;
-  game=Core.create({seed:seedUsed});pilot=null;screen='play';paused=false;
+  game=Core.create({seed:seedUsed,speed});pilot=null;screen='play';paused=false;
   fx.pops.length=fx.puffs.length=fx.bursts.length=0;fx.flash=fx.shake=0;fx.banner={text:L&&L.land?'方向键转弯 · 吃东西 · 别撞自己':'滑动或按方向键 · 吃东西 · 别撞自己',color:COLOR.cream,t:0,life:3.2};fx.overT=0;
   swipe=null;syncUi();canvas.focus&&canvas.focus();
 }
@@ -110,6 +120,7 @@ $('start-btn').addEventListener('click',()=>{audio();start();});
 $('again-btn').addEventListener('click',()=>{audio();start();});
 $('home-btn').addEventListener('click',toTitle);
 $('mute-btn').addEventListener('click',()=>setMuted(!muted));
+$('speed-btn').addEventListener('click',()=>setSpeed(SPEED_ORDER[(SPEED_ORDER.indexOf(speed)+1)%3]));
 $('pause-mute').addEventListener('click',()=>setMuted(!muted));
 $('pause-btn').addEventListener('click',()=>setPaused(true));
 $('resume-btn').addEventListener('click',()=>setPaused(false));
@@ -455,19 +466,19 @@ const VIEWS={
   // mid-game: the precise pilot with sub-agents out
   hero:{seed:3,pilot:'precise',until:s=>s.t>=22&&s.subs.length>=2,extra:0},
   // a long body whose turn has to coast: bend marker on screen
-  long:{seed:1,pilot:'human',until:s=>s.body.length>=17&&s.queue.length>0,extra:0},
+  long:{seed:3,pilot:'human',until:s=>s.body.length>=17&&s.queue.length>0,extra:0},
   // the moment a 4th sub-agent goes out with 3 already out
-  burst:{seed:6,pilot:'human',until:s=>s.stats.bursts>0,extra:0.25},
+  burst:{seed:31,pilot:'human',until:s=>s.stats.bursts>0,extra:0.25},
   // the result page after the snake bites itself
   end:{seed:5,pilot:'human',until:s=>s.phase==='over',extra:1.2}
 };
 function snapshot(){
   const s=game&&game.state,px=c=>({x:+cx(c.x).toFixed(1),y:+cy(c.y).toFixed(1)});
   const rect=el=>{if(!el||el.hidden)return null;const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};};
-  return{screen,paused,muted,frozen,view:viewName,resultBottom:screen==='result'?resultBottom:null,seed:seedUsed,dpr,css:[vw,vh],layout:L&&{land:L.land,cell:L.cell,field:L.field,hud:L.hud,pad:L.pad},
+  return{screen,paused,muted,frozen,speed,view:viewName,resultBottom:screen==='result'?resultBottom:null,seed:seedUsed,dpr,css:[vw,vh],layout:L&&{land:L.land,cell:L.cell,field:L.field,hud:L.hud,pad:L.pad},
     buttons:{up:rect(document.querySelector('#dpad .u')),compress:rect($('btn-compress')),dispatch:rect($('btn-dispatch')),start:rect($('start-btn')),again:rect($('again-btn')),pause:rect($('pause-btn'))},
     gestureActive:swipe!==null,
-    state:s?{t:+s.t.toFixed(3),phase:s.phase,score:s.score,len:s.body.length,delay:Core.turnDelay(s.body.length),dir:s.dir,moves:s.moves,queue:s.queue.length,
+    state:s?{speed:s.speed,t:+s.t.toFixed(3),phase:s.phase,score:s.score,len:s.body.length,delay:Core.turnDelay(s.body.length),dir:s.dir,moves:s.moves,queue:s.queue.length,
       head:px(s.body[0]),body:s.body.map(px),items:s.items.map(i=>Object.assign(px(i),{kind:i.kind})),
       subs:s.subs.map(b=>({phase:b.phase,tokens:b.tokens,head:px(b.body[0]),len:b.body.length})),stats:s.stats,result:s.result}:null};
 }

@@ -76,17 +76,27 @@ test('the shared playtest hook works',()=>{
 
 test('the skill buttons say when to press and when not to, with colour and dots instead of words',()=>{
   // compress pulses pink once turns lag and it is ready; dispatch turns red when all three slots are out
-  const p=page();p.el('start-btn').fire('click');p.hook.start(3).autopilot('precise');
   let hinted=0,warned=0,hintWrong=0,warnWrong=0;
+  // the precise pilot keeps three out early; the shaky one lets turns start to lag before it compresses
+  for(const [seed,level] of [[3,'precise'],[2,'human']]){
+  const p=page();p.el('start-btn').fire('click');p.hook.start(seed).autopilot(level);
   for(let i=0;i<60*110&&p.hook.probe().screen==='play';i++){
     p.hook.advance(1/60);const s=p.hook.probe().state;
     const h=p.el('btn-compress').classList.contains('hint'),w=p.el('btn-dispatch').classList.contains('warn');
     if(h)hinted++;if(w)warned++;
     if(h&&s.delay<1)hintWrong++;
     if(w&&s.subs.length<3&&s.stats.bursts===0)warnWrong++;
-  }
+  }}
   assert.ok(hinted>0,'self-check: the compress hint must actually light up in a real round');
   assert.ok(warned>0,'self-check: the dispatch warning must actually light up when three are out');
   assert.equal(hintWrong,0,'the compress hint only lights while turns lag');
   assert.equal(warnWrong,0,'the dispatch warning only lights with three out (or during the 429 lock)');
+});
+
+test('the speed button cycles slow, medium, fast, starts rounds at that speed and is remembered',()=>{
+  const p=page();assert.equal(p.el('speed-btn').textContent,'速度：慢','slow is the default on a fresh device');
+  p.el('speed-btn').fire('click');assert.equal(p.el('speed-btn').textContent,'速度：中');
+  p.el('start-btn').fire('click');assert.equal(p.hook.probe().state.speed,'normal','a round starts at the picked speed');
+  p.el('speed-btn').fire('click');p.el('speed-btn').fire('click');assert.equal(p.el('speed-btn').textContent,'速度：慢','it wraps back to slow');
+  assert.equal(p.win.localStorage.getItem('context-snake-speed'),'slow','the choice is kept on this device');
 });

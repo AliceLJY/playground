@@ -6,8 +6,9 @@ const CFG={
   cols:13,rows:17,
   startLen:3,
   roundTime:120,          // seconds in one session; surviving it ends the round well
-  moveStart:0.17,         // seconds per cell at the start
-  moveEnd:0.13,           // seconds per cell at the end of the round
+  // seconds per cell at the start and at the end of the round, per speed setting; slow is the default
+  speeds:{slow:[0.30,0.24],normal:[0.22,0.17],fast:[0.17,0.13]},
+  speedDefault:'slow',
   chatEvery:7,            // the conversation itself adds one segment this often (seconds)
   delayStep:8,            // every this many segments past delayFree, turns take one more cell to land
   delayFree:8,
@@ -32,7 +33,8 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
 const turnDelay=len=>clamp(Math.floor(Math.max(0,len-CFG.delayFree)/CFG.delayStep),0,CFG.delayMax);
 const compressCut=len=>len<CFG.compressMinLen?0:Math.max(2,Math.floor((len-3)/2));
-const moveInterval=t=>CFG.moveStart+(CFG.moveEnd-CFG.moveStart)*clamp(t/CFG.roundTime,0,1);
+const speedOf=n=>CFG.speeds[n]?n:CFG.speedDefault;
+const moveInterval=(t,speed)=>{const [a,b]=CFG.speeds[speedOf(speed)];return a+(b-a)*clamp(t/CFG.roundTime,0,1);};
 const wrapX=x=>(x+CFG.cols)%CFG.cols,wrapY=y=>(y+CFG.rows)%CFG.rows;
 function wdist(ax,ay,bx,by){const dx=Math.abs(ax-bx),dy=Math.abs(ay-by);return Math.min(dx,CFG.cols-dx)+Math.min(dy,CFG.rows-dy);}
 // one step along the shorter way round toward (bx,by)
@@ -49,7 +51,7 @@ function create(opts){
   opts=opts||{};
   const rand=rng(opts.seed==null?1:opts.seed);
   const cx=Math.floor(CFG.cols/2),cy=Math.floor(CFG.rows*0.62);
-  const s={t:0,phase:'play',dir:0,moves:0,moveAcc:0,body:[],kinds:[],grow:0,queue:[],items:[],respawn:[],nextChat:CFG.chatEvery,
+  const s={speed:speedOf(opts.speed),t:0,phase:'play',dir:0,moves:0,moveAcc:0,body:[],kinds:[],grow:0,queue:[],items:[],respawn:[],nextChat:CFG.chatEvery,
     pendingKinds:[],score:0,subs:[],compressReady:0,dispatchReady:0,lockUntil:0,nextId:1,events:[],result:null,
     stats:{eaten:{file:0,web:0,log:0},chat:0,compress:0,cutTotal:0,dispatched:0,reports:0,reportChars:[],subPeak:[],lost429:0,bursts:0,peakLen:CFG.startLen,maxDelay:0}};
   for(let i=0;i<CFG.startLen;i++){s.body.push({x:cx,y:cy+i});s.kinds.push(i===0?'head':'chat');}
@@ -188,7 +190,7 @@ function create(opts){
       moveSub(b,dt);
     }
     s.moveAcc+=dt;
-    const iv=moveInterval(s.t);
+    const iv=moveInterval(s.t,s.speed);
     if(s.moveAcc>=iv){s.moveAcc-=iv;moveSnake();}
   }
   // where the snake will be when a turn asked now lands: the cell the page marks with the bend arrow

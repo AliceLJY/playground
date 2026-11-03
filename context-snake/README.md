@@ -8,6 +8,8 @@ A round lasts at most two minutes (one "session"). It is built for phones held u
 
 ## How to play
 
+- The speed button on the title screen cycles slow (default), medium and fast, and remembers your pick on this device.
+
 - Phone: swipe on the board, or press the arrow pad below it (a turn fires on press, not on release). One long drag can bend twice.
 - Desktop: arrow keys or WASD to turn, Q to compress, E to dispatch a sub-agent, Esc or P to pause.
 - The board wraps at every edge; only biting yourself loses.
