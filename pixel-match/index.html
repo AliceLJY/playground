@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#dedbc3">
+<link rel="icon" href="data:,">
+<title>像素连连看</title>
+<meta name="description" content="像素办公室的小人连连看：点两张一样的，线拐不超过两个弯就消掉。越往后，长得越像。">
+<style>
+html,body{margin:0;height:100%;background:#f1e7ce;overflow:hidden;overscroll-behavior:none;font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+button{min-width:48px;min-height:48px;border:2px solid #d9a56d;border-radius:10px;background:#fff6dc;color:#45534b;font:700 17px/1.2 inherit;font-family:inherit;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{opacity:.45;cursor:default}
+button.main{background:#e8963a;border-color:#c8732a;color:#fff;min-height:56px;font-size:20px;padding:0 28px}
+#bar{position:fixed;left:0;right:0;bottom:0;height:78px;padding:0 max(10px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(10px,env(safe-area-inset-left));display:flex;gap:10px;align-items:center;justify-content:center;box-sizing:border-box}
+#bar button{flex:1;max-width:150px;height:56px}
+#bar small{font-weight:400;font-size:14px;margin-left:4px;font-variant-numeric:tabular-nums}
+#panel{position:fixed;left:50%;transform:translateX(-50%);width:min(360px,calc(100vw - 32px));text-align:center;color:#45534b;pointer-events:none}
+#panel .card{background:#fff6dcf2;border:2px solid #d9a56d;border-radius:12px;padding:14px 16px 16px;pointer-events:auto}
+#panel h1{margin:0 0 6px;font-size:26px;color:#8a4a3e}
+#panel h2{margin:0 0 6px;font-size:22px;color:#8a4a3e}
+#panel p{margin:6px 0 12px;font-size:16px;line-height:1.55}
+#panel .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+noscript{color:#45534b;font:16px sans-serif;position:fixed;inset:0;display:grid;place-items:center}
+</style>
+</head>
+<body>
+<canvas id="stage" tabindex="-1" aria-label="像素连连看：点两张一样的小人把它们连起来"></canvas>
+<div id="panel" hidden><div class="card" role="dialog" aria-live="polite">
+<h1 id="panel-title"></h1>
+<p id="panel-text"></p>
+<div class="row" id="panel-buttons"></div>
+</div></div>
+<div id="bar" hidden>
+<button id="hint-btn" type="button" aria-label="提示">提示<small id="hint-n"></small></button>
+<button id="shuffle-btn" type="button" aria-label="洗牌">洗牌<small id="shuffle-n"></small></button>
+<button id="pause-btn" type="button" aria-label="暂停">暂停</button>
+</div>
+<noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>
+<script src="src/figures.js"></script>
+<script src="src/raster.js"></script>
+<script src="src/card.js"></script>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
