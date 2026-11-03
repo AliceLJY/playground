@@ -122,7 +122,7 @@ test('every 1–10 membership change preserves valid places; chess also waits fo
 test('all activity routes and left-workstation routes are free at subpixel travel samples',()=>{
   function clearRoute(from,to){const path=C.route(from,to);assert.ok(path.length,JSON.stringify({from,to}));let previous=from;for(const p of path){const n=Math.max(1,Math.ceil(C.distance(previous,p)));for(let i=0;i<=n;i++){const x=previous.x+(p.x-previous.x)*i/n,y=previous.y+(p.y-previous.y)*i/n;assert.equal(C.blocked(x,y),false,JSON.stringify({from,to,x,y}));}previous=p;}}
   for(const start of [...C.desks.map((_,i)=>C.home(i)),C.door,C.bossDesk])for(const p of [...C.leisure('portrait'),C.gameWatch,{x:124,y:372}])clearRoute(start,p);
-  for(const start of [C.home(5),{x:64,y:208}])for(const end of [C.bossDesk,C.door,C.pantry])clearRoute(start,end);
+  for(const start of [C.home(5),{x:60,y:250}])for(const end of [C.bossDesk,C.door,C.pantry])clearRoute(start,end);
 });
 
 const swappedRoster=()=>fixture.roster.map(a=>({...a,...(a.desk===10?{desk:8,look:10,courier:true}:a.desk===8?{desk:10,look:8}:{})}));

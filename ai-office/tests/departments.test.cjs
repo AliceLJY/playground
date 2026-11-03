@@ -88,16 +88,16 @@ test('game room and teahouse links point at games that exist in this repo',()=>{
   assert.ok(html.includes('https://github.com/AliceLJY')&&html.includes('我的AI小木屋'),'showcase carries the public accounts');
 });
 
-test('night 7×24: no one goes home; nappers take beanbags and the yoga mat, the rest sleep at their desks; work wakes them',()=>{
+test('night 7×24: no one goes home; nappers fill the rest room bunks, then beanbags and the yoga mat; work wakes them',()=>{
   for(const layout of ['portrait','landscape']){
     const s=C.create(script.roster,7,layout),L=C.layouts[layout];
     for(const a of s.actors)s.setStatus(a.id,a.name==='Grok Bot'?'away':'off');s.step(40000);
     const grok=s.actors.find(a=>a.name==='Grok Bot');assert.ok(C.distance(grok,L.door)<1,'away still leaves');
     const off=s.actors.filter(a=>a.status==='off').sort((a,b)=>a.i-b.i);
     for(const a of off){assert.ok(C.distance(a,L.door)>3,`${layout}: ${a.name} stayed in`);assert.ok(s.napping(a),`${layout}: ${a.name} asleep`);}
-    const spots=[6,7,15].map(i=>C.leisure(L)[i]);
-    off.slice(0,3).forEach((a,k)=>assert.ok(C.distance(a,spots[k])<1));
-    off.slice(3).forEach(a=>assert.ok(C.distance(a,C.home(a.i,L))<1));
+    const spots=[...L.beds,...[6,7,15].map(i=>C.leisure(L)[i])];
+    off.forEach((a,k)=>assert.ok(C.distance(a,spots[k]||C.home(a.i,L))<1,`${layout}: ${a.name} in spot ${k}`));
+    assert.equal(off.filter(a=>s.inBed(a)).length,Math.min(6,off.length),'the rest room beds fill first');
     const codex=s.actors.find(a=>a.name==='Codex');s.setStatus(codex.id,'busy');s.step(20000);
     assert.ok(C.distance(codex,C.home(codex.i,L))<1);assert.equal(s.napping(codex),false);
   }

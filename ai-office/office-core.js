@@ -6,7 +6,8 @@
     [53, 224], [229, 194], [301, 269], [301, 194], [157, 269], [308, 339]
   ];
   // etwin-cc (desk 7) keeps the boss company on a stool beside her desk instead of a workstation.
-  const desks = mvDesks.map((p,i)=>i===9 ? [229,269] : i===7 ? [140,351] : p);
+  // Dots (desk 5) reads X clippings standing at a board in the small mailroom; the showcase takes the old shelf corner.
+  const desks = mvDesks.map((p,i)=>i===9 ? [229,269] : i===7 ? [140,351] : i===5 ? [115,209] : p);
   const mvRest = [[35, 294], [61, 294], [87, 294], [35, 324], [61, 324], [87, 324], [116, 294], [116, 323], [35, 351], [68, 351], [308, 362]];
   const games = [[156,268,'pingpong'],[156,332,'pingpong'],[80,304,'chess'],[116,304,'chess'],[36,294,'arcade'],[60,294,'arcade'],[36,328,'nap'],[60,328,'read'],[88,340,'watch'],[116,340,'watch'],[210,294,'arcade'],[234,294,'arcade']].map(([x,y,kind])=>({x,y,kind}));
   const rest = [...games.slice(0,10).map(p=>[p.x,p.y]),[308,366]], gameWatch = {x:92,y:372};
@@ -15,6 +16,8 @@
   const teaLocal = [[16,68,'tea'],[62,68,'tea'],[29,46,'tea'],[49,46,'tea']], teaLocalObstacles = [{x:26,y:52,w:26,h:14},{x:6,y:84,w:18,h:10}];
   // A treat of dim sum seats four at the table and two more standing at its ends.
   const feastLocal = [[8,54,'stand'],[70,54,'stand']];
+  // Rest room, 104×66 local: three bunk beds, upper and lower berth each.
+  const bedLocal = [[17,32,'bed'],[17,56,'bed'],[51,32,'bed'],[51,56,'bed'],[85,32,'bed'],[85,56,'bed']];
   const atOrigin = (list,[ox,oy]) => list.map(([x,y,kind])=>({x:x+ox,y:y+oy,kind}));
   const obstaclesAt = (list,[ox,oy]) => list.map(o=>({...o,x:o.x+ox,y:o.y+oy}));
   // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
@@ -37,23 +40,26 @@
   const isBreakfast = time => !!teaTime(time);
   const door = { x: 340, y: 388 }, bossDesk = { x: 195, y: 352 }, handoff = { x: 221, y: 352 }, pantry = { x: 198, y: 247 };
   const deskObstacles = layout => layout.map(([x, y], i) => ({ x: x - (i === 10 ? 23 : 27), y: y - 9, w: i === 10 ? 46 : 54, h: 29 }));
-  const obstacles = deskObstacles(desks).map((o,i)=>i===9?{x:200,y:260,w:44,h:22}:i===7?{x:-100,y:-100,w:0,h:0}:o);
+  const NOWHERE = {x:-100,y:-100,w:0,h:0}, SHOWCASE = {x:24,y:172,w:72,h:68};
+  const obstacles = deskObstacles(desks).map((o,i)=>i===9?{x:200,y:260,w:44,h:22}:i===7?NOWHERE:i===5?{x:104,y:206,w:22,h:8}:o);
   obstacles.push({ x: 150, y: 366, w: 84, h: 28 });
   obstacles.push({ x: 26, y: 173, w: 72, h: 29 }, { x: 109, y: 88, w: 3, h: 58 });
   for (const [x, y] of [[119,198],[266,277],[323,93],[27,378]]) obstacles.push({ x, y, w: 12, h: 13 });
   // The fixed MV keeps its old lounge; ordinary pages use the corner's solid cabinets and seat backs.
   const mvObstacles = [...deskObstacles(mvDesks),...obstacles.slice(desks.length),{x:22,y:269,w:78,h:10}];
+  obstacles[12] = SHOWCASE; obstacles[14] = NOWHERE; // bookshelf → showcase cabinet; the little plant goes
   obstacles.push({x:186,y:306,w:20,h:22},{x:218,y:300,w:32,h:14},{x:24,y:260,w:20,h:22},{x:48,y:260,w:20,h:22},{x:88,y:284,w:20,h:16},{x:26,y:312,w:20,h:6},{x:50,y:312,w:20,h:6},{x:136,y:276,w:40,h:40});
-  const podium = { x: 156, y: 532 }, booth = { x: 296, y: 560 };
+  const podium = { x: 156, y: 532 }, booth = { x: 284, y: 540 };
   const seats = [[44,540],[70,540],[96,540],[122,540]].map(([x,y]) => ({x,y}));
   const standing = [32,56,80,104,128,152].map(x=>({x,y:592}));
   const audience = [{x:52,y:630},{x:80,y:630}];
-  const patrol = [door, {x:244,y:708}, {x:28,y:708}, {x:244,y:620}, {x:180,y:620}, {x:248,y:604}, {x:340,y:492}, door, {x:198,y:247}, {x:125,y:169}, door];
+  const patrol = [door, {x:340,y:492}, {x:248,y:604}, {x:200,y:640}, {x:28,y:640}, {x:180,y:612}, {x:340,y:492}, door, {x:198,y:247}, {x:125,y:169}, door];
   const mainObstacles=obstacles.slice();
   const meetingObstacles=[{x:36,y:552,w:96,h:20}, {x:20,y:490,w:3,h:113}, {x:176,y:490,w:3,h:86}, {x:20,y:600,w:159,h:3}, {x:40,y:614,w:52,h:6}];
-  const boothObstacles=[{x:268,y:494,w:3,h:66}, {x:332,y:494,w:3,h:66}, {x:310,y:512,w:12,h:26}],storageObstacle={x:266,y:616,w:64,h:60};
-  const gymOrigin=[120,636], teaOrigin=[186,494];
-  obstacles.push(...meetingObstacles,...boothObstacles,storageObstacle,...obstaclesAt(gymLocalObstacles,gymOrigin),...obstaclesAt(teaLocalObstacles,teaOrigin));
+  // A one-person phone booth (CC alone ever uses it).
+  const boothObstacles=[{x:268,y:494,w:3,h:46}, {x:299,y:494,w:3,h:46}, {x:290,y:504,w:10,h:20}],storageObstacle={x:266,y:616,w:64,h:60};
+  const gymOrigin=[212,630], teaOrigin=[186,494], restOrigin=[24,652];
+  obstacles.push(...meetingObstacles,...boothObstacles,...obstaclesAt(gymLocalObstacles,gymOrigin),...obstaclesAt(teaLocalObstacles,teaOrigin));
   const emptyScene = () => ({meeting:null, dispatched:[], call:null, disk:null, guard:null});
   const diskLayers = disk => disk ? Math.ceil(disk.usedPct / 12.5) : 0;
   const isNight = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 23 || h < 8; };
@@ -101,21 +107,25 @@
   const filmQueuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:104,y:390},gameWatch];
   const portrait = {id:'portrait',W,H,desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
-    gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
-    gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[0,0],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
+    beds:atOrigin(bedLocal,restOrigin),restOffset:restOrigin,gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
+    gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[-238,-438],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
-  const landscape = {...portrait,id:'landscape',W:640,H:420,desks:desks.map((p,i)=>i===10?[600,258]:p),
-    podium:shift(podium,352,-394),seats:seats.map(p=>shift(p,352,-394)),standing:standing.map(p=>shift(p,352,-394)),audience:audience.map(p=>shift(p,352,-394)),
-    gym:atOrigin(gymLocal,[452,250]),tea:atOrigin(teaLocal,[542,94]),feastStand:atOrigin(feastLocal,[542,94]),feastDrop:atOrigin([[39,82,'drop']],[542,94])[0],gymOffset:[452,250],teaOffset:[542,94],
-    booth:shift(booth,290,-184),meetingOffset:[352,-394],boothOffset:[290,-184],storageOffset:[116,-304],totalsOffset:[328,-403],
+  // Landscape wing, two columns. Left (by the entrance): meeting room with its audience bench, then the front desk
+  // beside the door and the gym. Right, one aligned stack: teahouse, showcase, phone booth. An aisle runs between.
+  const W_MEET=[334,-398], W_TEA=[536,92], W_BOOTH=[182,-282], W_GYM=[526,206], W_REST=[520,316];
+  const landscape = {...portrait,id:'landscape',W:640,H:420,desks:desks.map((p,i)=>i===10?[384,350]:p),
+    podium:shift(podium,...W_MEET),seats:seats.map(p=>shift(p,...W_MEET)),standing:standing.map(p=>shift(p,...W_MEET)),audience:audience.map(p=>shift(p,...W_MEET)),
+    beds:atOrigin(bedLocal,W_REST),restOffset:W_REST,gym:atOrigin(gymLocal,W_GYM),tea:atOrigin(teaLocal,W_TEA),feastStand:atOrigin(feastLocal,W_TEA),feastDrop:atOrigin([[39,82,'drop']],W_TEA)[0],gymOffset:W_GYM,teaOffset:W_TEA,
+    booth:shift(booth,...W_BOOTH),meetingOffset:W_MEET,boothOffset:W_BOOTH,totalsOffset:[328,-403],lobby:{x:440,y:304,w:60,h:14},
     queuePoint:i=>({x:[248,276,304,248,276,304,376,404,432,460,488][i%11],y:i<3?344:388})};
   landscape.obstacles=[...mainObstacles.filter((_,i)=>i!==10),...deskObstacles(landscape.desks).slice(10),
-    ...meetingObstacles.map(p=>shift(p,352,-394)),...boothObstacles.map(p=>shift(p,290,-184)),shift(storageObstacle,116,-304),
-    ...obstaclesAt(gymLocalObstacles,[452,250]),...obstaclesAt(teaLocalObstacles,[542,94])];
-  landscape.tour=[...tour,{x:500,y:368},{x:584,y:220}];
-  landscape.patrol=[door,{x:352,y:392},{x:524,y:392},{x:560,y:292},{x:616,y:292},{x:616,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
+    ...meetingObstacles.map(p=>shift(p,...W_MEET)),...boothObstacles.map(p=>shift(p,...W_BOOTH)),landscape.lobby,
+    ...obstaclesAt(gymLocalObstacles,W_GYM),...obstaclesAt(teaLocalObstacles,W_TEA)];
+  landscape.tour=[...tour,{x:470,y:332},{x:512,y:240}];
+  landscape.patrol=[door,{x:352,y:392},{x:512,y:392},{x:512,y:296},{x:616,y:296},{x:616,y:196},{x:524,y:196},{x:524,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
   // The published MV films (v5–v7) keep desk 7 as a workstation; ordinary pages seat etwin-cc beside the boss.
-  const film={...portrait,id:'film',desks:desks.map((p,i)=>i===7?mvDesks[7]:p),obstacles:portrait.obstacles.map((o,i)=>i===7?deskObstacles(mvDesks)[7]:o),tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
+  const filmPatrol=[door,{x:244,y:708},{x:28,y:708},{x:244,y:620},{x:180,y:620},{x:248,y:604},{x:340,y:492},door,{x:198,y:247},{x:125,y:169},door];
+  const film={...portrait,id:'film',patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...portrait.obstacles.map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
   const layouts={portrait,landscape,film,legacy:{...portrait,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   const getLayout = value => value && typeof value==='object' ? value : layouts[value===true?'legacy':value || 'portrait'];
   const blocked = (x,y,selection=false) => {
@@ -667,10 +677,11 @@
     // everyone else head-down at their own desk; a real signal wakes them straight back to work. Away still leaves.
     const napper = b => b.status==='off' && !legacy && !sim.classicLeisure && !feastSpot(b);
     function napSpot(a) {
-      const spots=[games[6],games[7],games[15]].filter(Boolean), order=sim.actors.filter(napper).sort((x,y)=>x.i-y.i);
+      const spots=[...(L.beds||[]),games[6],games[7],games[15]].filter(Boolean), order=sim.actors.filter(napper).sort((x,y)=>x.i-y.i);
       return spots[order.indexOf(a)] || home(a.i);
     }
     const napping = a => napper(a) && !a.path.length && distance(a,napSpot(a))<1;
+    const inBed = a => napping(a) && napSpot(a).kind==='bed';
     // Dim sum from the boss (or a visitor): for two minutes everyone free — idle or napping — eats at the teahouse.
     const feasting = () => sim.feast && sim.time < sim.feast.until && !legacy && !sim.classicLeisure && L.tea;
     function feastSpot(a) {
@@ -815,7 +826,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
