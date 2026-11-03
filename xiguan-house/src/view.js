@@ -302,10 +302,12 @@
   huntDialog.addEventListener('click', e => {
     if (e.target === huntDialog || e.target.id === 'hunt-canvas') hintHunt();
   });
+  // Letters follow the pins top to bottom on screen, not the order the clues ask for, so A-B-C is never the answer.
+  const pinLetter = XG.GATES.map((g) => String.fromCharCode(65 + XG.GATES.filter((o) => o.pin[1] < g.pin[1]).length));
   const gateButtons = XG.GATES.map((g, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'gate-pin'; b.dataset.gate = g.id;
-    b.textContent = String.fromCharCode(65 + i);
+    b.textContent = pinLetter[i];
     // Names support nonvisual input; visible letters leave the visual identification to the visitor.
     b.setAttribute('aria-label', `${b.textContent} · ${g.title}`);
     b.addEventListener('click', () => {
@@ -331,7 +333,7 @@
     gateButtons.forEach((b, i) => {
       const found = i < hunt.count;
       b.dataset.found = String(found); b.setAttribute('aria-pressed', String(found));
-      b.textContent = found ? XG.GATES[i].title : String.fromCharCode(65 + i);
+      b.textContent = found ? XG.GATES[i].title : pinLetter[i];
     });
     drawHunt();
   }
@@ -369,7 +371,7 @@
     hideWelcome(); hunt = XG.huntAction(hunt, { type: 'start' });
     firstHunt = first;
     document.getElementById('hunt-exit').textContent = first ? '直接打开' : '回到全屋';
-    huntDialog.showModal(); updateHunt(); gateButtons[0].focus();
+    huntDialog.showModal(); updateHunt(); document.getElementById('hunt-title').focus(); // focusing a pin would ring the first answer
   }
   huntStart.addEventListener('click', () => startHunt());
   function leaveHunt() {

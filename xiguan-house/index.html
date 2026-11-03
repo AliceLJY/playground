@@ -56,6 +56,7 @@
   #hunt-canvas{display:block;width:100%;height:100%}
   .gate-pin{position:absolute;width:44px;height:44px;border:1px solid var(--ink);border-radius:50%;background:var(--paper);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;touch-action:manipulation}
   .gate-pin[data-found="true"]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+  #hunt-title:focus{outline:none}
   .gate-pin:focus-visible,#hunt-start:focus-visible,#hunt-exit:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
   #hunt-exit{justify-self:start}
   #welcome{position:fixed;top:12px;left:16px;width:min(420px,calc(100% - 122px));padding:10px 12px;background:var(--paper);border:1px solid var(--ink);box-shadow:0 3px 16px #2c383320;display:flex;align-items:center;gap:12px;font-size:14px;line-height:1.5}
@@ -82,7 +83,7 @@
 <div id="landmarks" aria-label="展开后的细节"></div>
 <button id="hunt-start" type="button" aria-controls="hunt-dialog">找三件头</button>
 <dialog id="hunt-dialog" aria-labelledby="hunt-title" aria-describedby="hunt-prompt">
-  <h2 id="hunt-title">找三件头 <span id="hunt-progress">0 / 3</span></h2>
+  <h2 id="hunt-title" tabindex="-1">找三件头 <span id="hunt-progress">0 / 3</span></h2>
   <div class="hunt-layout">
     <p id="hunt-prompt"></p>
     <div id="hunt-stage"><canvas id="hunt-canvas" aria-label="闭合门面正面放大图，三枚标记指向门上的构件"></canvas></div>
