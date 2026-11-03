@@ -92,3 +92,33 @@ test('同一行原话一轮引用超过两次会被抓出', () => {
   s.candidates[2].items.push({ delta: 1, cite: { id: 'T-1', quote: '超级无敌好' } }); s.candidates[2].total = -1;
   assert.match(validate(s, rows, cks).join('\n'), /T-1 被引用了 3 次/);
 });
+test('逐帧图挪进媒体目录所在卷的废纸篓', () => {
+  const { trashFor } = require('../tools/record.cjs');
+  assert.strictEqual(trashFor('/Volumes/ColdData/产出/x'), `/Volumes/ColdData/.Trashes/${process.getuid()}`);
+  assert.strictEqual(trashFor('/tmp/x'), path.join(require('os').homedir(), '.Trash'));
+});
+test('入库：同种只有更高分才替换，意外项只进 history', () => {
+  const os = require('os'), { ingest } = require('../tools/ingest.cjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lab-ingest-')), group = path.join(root, 'group'), media = path.join(root, 'media');
+  const mk = (round, totals) => {
+    const r = path.join(root, round); fs.mkdirSync(media, { recursive: true });
+    for (const s of ['a', 'b', 'c']) {
+      fs.mkdirSync(path.join(r, 'candidates', s), { recursive: true });
+      fs.writeFileSync(path.join(r, 'candidates', s, 'index.html'), `<p>${round}-${s}</p>`);
+      fs.writeFileSync(path.join(r, 'candidates', s, 'checks.json'), JSON.stringify({ allPass: true, params: { name: s, kind: s, spring: { k: 400, c: 20 } }, demo: [] }));
+      fs.writeFileSync(path.join(media, `${s}.gif`), 'GIF');
+    }
+    fs.writeFileSync(path.join(r, 'ledger-rows.json'), JSON.stringify({ taste: [{ id: 'T-1', date: '09-26', piece: 'p', quote: '「很心动」' }], craft: [] }));
+    fs.writeFileSync(path.join(r, 'scores.json'), JSON.stringify({ judge: 'kimi', keep: ['a', 'b'], surprise: 'c', surpriseWhy: 'x',
+      candidates: ['a', 'b', 'c'].map((s, i) => ({ slug: s, total: totals[i], verdict: 'keep', items: [{ delta: totals[i], why: 'w', cite: { id: 'T-1', quote: '很心动' } }] })) }));
+    return r;
+  };
+  ingest({ round: mk('r1', [3, 3, 1]), media, group, roundName: 'r1', date: '2026-11-03' });
+  const out = ingest({ round: mk('r2', [4, 3, 1]), media, group, roundName: 'r2', date: '2026-11-10' });
+  assert.match(fs.readFileSync(path.join(group, 'a', 'index.html'), 'utf8'), /r2-a/, '更高分应替换');
+  assert.match(fs.readFileSync(path.join(group, 'b', 'index.html'), 'utf8'), /r1-b/, '同分不应替换');
+  assert.ok(!fs.existsSync(path.join(group, 'c')), '意外项不入库');
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(group, 'history.json'), 'utf8')).filter((h) => h.slug === 'c').length, 2);
+  assert.strictEqual(out.entries, 2);
+  assert.match(fs.readFileSync(path.join(group, 'README.md'), 'utf8'), /「很心动」/);
+});

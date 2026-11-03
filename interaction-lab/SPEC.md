@@ -8,13 +8,14 @@
 - 场地：生成与筛选全在作者的 Mac mini 上跑；候选本身按手机竖屏单手设计（视口 390×664），也要在电脑上能用。默认无声。
 - 循环型：每轮重复跑，验的是「判官会不会把明显难看的放进来」和「留下的会不会越来越窄」，不验通关率。
 
-## 一轮的三段
+## 一轮的四段
 
 | 段 | 谁做 | 产物 |
 |---|---|---|
 | 生成 | Codex（`codex-run.sh -m write`） | `<轮目录>/candidates/<slug>/index.html`，每轮 8 个 |
 | 录屏与自动检查 | `tools/record.cjs`（本机 Playwright + ffmpeg） | 每个候选：首帧截图、3 秒 mp4、6 格联系表、`checks.json` |
 | 判官 | 另一个端（Kimi，撞额度换 Grok），不能是生成者 | `scores.json`（每一分都引用原话或检查项），`tools/validate-scores.cjs` 校验 |
+| 入库 | `tools/ingest.cjs` | 弹药库分组目录：每种交互一个目录、`history.json`、分组 README 表 |
 
 ## 候选合同（生成者必须遵守，`tools/record.cjs` 逐条检查）
 
