@@ -37,8 +37,22 @@ const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
         const s = 1080 / cam.w; g.drawImage(src, 0, 0, src.width, src.height, -x * s, -y * s, W * s, H * s);
         g.fillStyle = '#25333480'; g.fillRect(0, 0, 1080, 92); g.font = '600 38px "PingFang SC",system-ui'; g.fillStyle = '#fff6dc'; g.textAlign = 'center'; g.fillText(tag, 540, 60);
         if (caption) {
-          g.font = '600 46px "PingFang SC",system-ui'; const lines = []; let line = '';
-          for (const ch of caption) { if (g.measureText(line + ch).width > 900 && !'。，、！？；：'.includes(ch)) { lines.push(line); line = ''; } line += ch; } lines.push(line); // punctuation never starts a line
+          g.font = '600 46px "PingFang SC",system-ui';
+          // Break by clauses (11-04 Alice: 「按句子分上下行」): split after 。，、；：！？ into units, then choose the line breaks
+          // that keep every line within 900 px and as even as possible; only a clause wider than a line is cut by characters.
+          const W = 900, w = t => g.measureText(t).width, units = [];
+          for (const part of caption.match(/[^。，、；：！？]+[。，、；：！？]*/g) || [caption]) {
+            if (w(part) <= W) { units.push(part); continue; }
+            let cur = ''; for (const ch of part) { if (w(cur + ch) > W) { units.push(cur); cur = ''; } cur += ch; } units.push(cur);
+          }
+          const n = units.length, best = Array(n + 1).fill(null); best[0] = { cost: 0, lines: [] };
+          for (let i = 1; i <= n; i++) for (let j = 0; j < i; j++) {
+            if (!best[j]) continue; const text = units.slice(j, i).join(''), tw = w(text); if (tw > W) continue;
+            // Prefer ending a line on a full stop (keeps 「会干活，会吃饭，会撸猫。」 together); a comma break costs extra.
+            const c = { cost: best[j].cost + (W - tw) ** 2 + 1e6 + (i < n && !/[。！？]$/.test(text) ? 120000 : 0), lines: [...best[j].lines, text] };
+            if (!best[i] || c.cost < best[i].cost) best[i] = c;
+          }
+          const lines = best[n] ? best[n].lines : [caption];
           const bh = 40 + lines.length * 64, by = top ? 130 : 1920 - 120 - bh;
           g.fillStyle = '#253334d8'; g.beginPath(); g.roundRect(60, by, 960, bh, 22); g.fill();
           g.fillStyle = '#fff6dc'; lines.forEach((l, j) => g.fillText(l, 540, by + 66 + j * 64));
