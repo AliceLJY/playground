@@ -122,3 +122,12 @@ test('dim sum treat: carried to the teahouse, everyone free (idle or napping) ea
     s.step(130000);assert.equal(s.actors.filter(a=>s.feastEating(a)).length,0);assert.ok(s.actors.filter(a=>a.status==='off').every(a=>s.napping(a)));
   }
 });
+
+test('game room machines: dance and claw get players, and the waiting queue stays clear of them',()=>{
+  const s=office('portrait',LATE);s.step(30000);
+  const kinds=s.actors.map(a=>s.gameActivity(a)).filter(Boolean);
+  assert.ok(kinds.includes('dance'),kinds.join());assert.ok(kinds.includes('claw'),kinds.join());
+  const L=C.layouts.portrait,machines=C.leisure(L).slice(20);
+  for(let i=0;i<11;i++){const q=L.queuePoint(i);assert.equal(C.blocked(q.x,q.y,L),false,JSON.stringify(q));for(const m of machines)assert.ok(C.distance(q,m)>=16,`queue ${i} on a machine`);}
+  assert.notDeepEqual(C.layouts.film.queuePoint(4),L.queuePoint(4),'the published film keeps its own queue');
+});

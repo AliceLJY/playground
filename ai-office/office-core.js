@@ -19,7 +19,9 @@
   const obstaclesAt = (list,[ox,oy]) => list.map(o=>({...o,x:o.x+ox,y:o.y+oy}));
   // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
   // The teahouse is open all day (two seats in the ordinary rotation); at 早茶/下午茶/夜茶 it fills first.
-  const LEISURE_ORDER = [0,1,4,16,17,12,2,3,5,13,10,18,14,11,19,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
+  // 20 = dance machine, 21 = claw machine (bottom-right of the game room).
+  const LEISURE_ORDER = [0,1,4,20,16,17,12,2,3,21,5,13,10,18,14,11,19,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
+  const machineSpots = [{x:234,y:332,kind:'dance'},{x:196,y:336,kind:'claw'}];
   const PAIRS = {0:1,2:3};
   function leisureSlots(count, breakfast=false) {
     const order=breakfast?BREAKFAST_ORDER:LEISURE_ORDER, picked=[];
@@ -41,7 +43,7 @@
   for (const [x, y] of [[119,198],[266,277],[323,93],[27,378]]) obstacles.push({ x, y, w: 12, h: 13 });
   // The fixed MV keeps its old lounge; ordinary pages use the corner's solid cabinets and seat backs.
   const mvObstacles = [...deskObstacles(mvDesks),...obstacles.slice(desks.length),{x:22,y:269,w:78,h:10}];
-  obstacles.push({x:24,y:260,w:20,h:22},{x:48,y:260,w:20,h:22},{x:88,y:284,w:20,h:16},{x:26,y:312,w:20,h:6},{x:50,y:312,w:20,h:6},{x:136,y:276,w:40,h:40});
+  obstacles.push({x:186,y:306,w:20,h:22},{x:218,y:300,w:32,h:14},{x:24,y:260,w:20,h:22},{x:48,y:260,w:20,h:22},{x:88,y:284,w:20,h:16},{x:26,y:312,w:20,h:6},{x:50,y:312,w:20,h:6},{x:136,y:276,w:40,h:40});
   const podium = { x: 156, y: 532 }, booth = { x: 296, y: 560 };
   const seats = [[44,540],[70,540],[96,540],[122,540]].map(([x,y]) => ({x,y}));
   const standing = [32,56,80,104,128,152].map(x=>({x,y:592}));
@@ -94,7 +96,9 @@
     }
     return plates;
   }
-  const queuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
+  // The waiting queue grows away from the game room's machines into the floor etwin's old desk left free.
+  const queuePoint = i => ({ x: [247, 273, 273, 299, 325, 273, 299, 325, 286, 312, 338][i % 11], y: [352, 352, 325, 325, 325, 300, 300, 300, 276, 276, 276][i % 11] });
+  const filmQueuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:104,y:390},gameWatch];
   const portrait = {id:'portrait',W,H,desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
     gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
@@ -111,8 +115,8 @@
   landscape.tour=[...tour,{x:500,y:368},{x:584,y:220}];
   landscape.patrol=[door,{x:352,y:392},{x:524,y:392},{x:560,y:292},{x:616,y:292},{x:616,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
   // The published MV films (v5–v7) keep desk 7 as a workstation; ordinary pages seat etwin-cc beside the boss.
-  const film={...portrait,id:'film',desks:desks.map((p,i)=>i===7?mvDesks[7]:p),obstacles:portrait.obstacles.map((o,i)=>i===7?deskObstacles(mvDesks)[7]:o),tour:tour.map((p,i)=>i===3?{x:124,y:372}:p)};
-  const layouts={portrait,landscape,film,legacy:{...portrait,id:'legacy',desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
+  const film={...portrait,id:'film',desks:desks.map((p,i)=>i===7?mvDesks[7]:p),obstacles:portrait.obstacles.map((o,i)=>i===7?deskObstacles(mvDesks)[7]:o),tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
+  const layouts={portrait,landscape,film,legacy:{...portrait,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   const getLayout = value => value && typeof value==='object' ? value : layouts[value===true?'legacy':value || 'portrait'];
   const blocked = (x,y,selection=false) => {
     const L=getLayout(selection);
@@ -158,7 +162,7 @@
     const L=getLayout(selection),legacy=L.id==='legacy';
     const {desks:layout,door,bossDesk,handoff,pantry,games:gameSpots,gameWatch,podium,booth,seats,standing,audience,patrol,queuePoint,tour}=L;
     // One list of leisure places: game room 0–11, gym 12–15, teahouse 16–19 (see LEISURE_ORDER).
-    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[])];
+    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[]),...machineSpots];
     const home = i => ({x:layout[i][0],y:layout[i][1]+27});
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
@@ -987,7 +991,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, teaTime, LEISURE_ORDER, BREAKFAST_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[])];}, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, teaTime, LEISURE_ORDER, BREAKFAST_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots];}, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
