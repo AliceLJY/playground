@@ -352,6 +352,9 @@
     }
     const freeForReception = a => !handoffActor(a) && !quotaClaim(a) && a.status==='idle' && !a.boss && !a.visitor && !isCourier(a) && !meetingTarget(a.id) && !(a===director() && boothCall());
     const receptionist = a => sim.reception?.hosts.includes(a.id) && sim.reception.phase!=='leaving';
+    // Night shift (Alice 11-03: 「就让那个常年不睡的 etwin-cc 和 cobbler」): with everyone else asleep, etwin-cc (the stool beside the
+    // boss, desk 7) and Cobbler (the courier) receive guests at the teahouse even while marked off; the boss only steps in without them.
+    const nightDuty = a => !legacy && !sim.classicLeisure && (a.i===7 || isCourier(a)) && a.status==='off';
     function receptionPoint(index, handshake = false) {
       const m=sim.reception;
       if(m.venue==='door') return {x:door.x-16,y:door.y};
@@ -367,6 +370,7 @@
       // Everyone asleep: the boss receives the guest herself (Alice 11-03: 「我去接待吧」); the film and old pages keep the guard.
       if(m.mode==='closed' && !legacy && !sim.classicLeisure) return {id:'boss',text:sim.time-m.started<5?'大家都睡了，我来招呼你':'白天再来玩呀'};
       if(m.mode==='closed') return {id:sim.guard?.id || m.visitor.id,text:legacy || sim.classicLeisure || !sim.actors.some(a=>a.status==='off') ? '下班了，明天再来' : '都在打盹，明天再来'};
+      if(m.mode==='tea' && m.nightShift) return {id:m.hosts[Math.floor((sim.time-m.started)/5)%m.hosts.length] || m.visitor.id,text:sim.time-m.started<5?'大家都睡了，我们值夜班':'喝杯热茶再走'};
       if(m.mode==='tea') return {id:m.hosts[0] || m.visitor.id,text:m.uncertain?'先喝杯茶，等伙伴有空':'都在赶活，先喝杯茶'};
       if(m.redirectAt!=null && sim.time-m.redirectAt<7) return {id:m.hosts[0] || m.visitor.id,text:'会议室有人，我们在这儿聊'};
       if(m.phase==='arriving') return {id:m.visitor.id,text:MEET_NAMES[m.kind]};
@@ -382,15 +386,17 @@
         const rank = id => {let h=2166136261;for(const c of event.at+'|'+id) h=Math.imul(h^c.charCodeAt(0),16777619)>>>0;return h;};
         const hosts=sim.actors.filter(freeForReception).sort((a,b)=>rank(a.id)-rank(b.id)||a.id.localeCompare(b.id)).slice(0,event.kind==='chat'?1:2).map(a=>a.id);
         const closed=sim.actors.every(a=>['off','away'].includes(a.status));
-        const mode=hosts.length?'normal':closed?'closed':'tea';
+        const duty=!hosts.length && closed ? sim.actors.filter(a=>nightDuty(a) && !quotaClaim(a)).sort((a,b)=>a.i-b.i).map(a=>a.id) : [];
+        if(duty.length) hosts.push(...duty);
+        const mode=duty.length?'tea':hosts.length?'normal':closed?'closed':'tea';
         if(mode==='tea' && courier && !quotaClaim(courier) && !meetingTarget(courier.id) && !(courier===director()&&boothCall()) && !sim.delivery && !['off','away'].includes(courier.status)) hosts.push(courier.id);
-        sim.reception={...event,hosts,mode,venue:mode==='closed'?'door':mode==='tea'||sim.scene.meeting?'pantry':'meeting',phase:'arriving',started:sim.time,talkAt:null,handshakeAt:null,
+        sim.reception={...event,hosts,mode,nightShift:duty.length>0,venue:mode==='closed'?'door':mode==='tea'||sim.scene.meeting?'pantry':'meeting',phase:'arriving',started:sim.time,talkAt:null,handshakeAt:null,
           uncertain:!sim.actors.some(a=>['busy','waiting','done'].includes(a.status)),redirectAt:mode==='normal'&&sim.scene.meeting?sim.time:null,
           visitor:{id:'reception-guest',visitor:true,receptionGuest:true,i:24,color:'#c9a35b',...door,path:[],dest:null,status:'visiting',activity:'reception'}};
       }
       const m=sim.reception;if(!m)return;
       // A later real signal takes the colleague back immediately; never save/restore a stale status.
-      m.hosts=m.hosts.filter(id=>{const a=sim.actors.find(a=>a.id===id);return a && (m.mode==='normal'?freeForReception(a):!quotaClaim(a)&&!sim.delivery&&!meetingTarget(id)&&!(a===director()&&boothCall())&&!['off','away'].includes(a.status));});
+      m.hosts=m.hosts.filter(id=>{const a=sim.actors.find(a=>a.id===id);return a && (m.mode==='normal'?freeForReception(a):m.nightShift?nightDuty(a)&&!quotaClaim(a):!quotaClaim(a)&&!sim.delivery&&!meetingTarget(id)&&!(a===director()&&boothCall())&&!['off','away'].includes(a.status));});
       if(m.mode==='normal' && !m.hosts.length && m.phase!=='leaving') {m.phase='leaving';m.visitor.dest=null;}
       if(sim.scene.meeting && m.venue==='meeting' && m.phase!=='leaving') {m.venue='pantry';m.redirectAt=sim.time;m.visitor.dest=null;}
       const v=m.visitor;
@@ -792,7 +798,7 @@
     }
     // Night: nobody goes home (7×24). Colleagues with no work nap in the office: two beanbags and the yoga mat first,
     // everyone else head-down at their own desk; a real signal wakes them straight back to work. Away still leaves.
-    const napper = b => b.status==='off' && !kitchenStaff(b) && !legacy && !sim.classicLeisure && !feastSpot(b) && !quotaClaim(b);
+    const napper = b => b.status==='off' && !kitchenStaff(b) && !nightDuty(b) && !legacy && !sim.classicLeisure && !feastSpot(b) && !quotaClaim(b);
     // Each napper keeps the spot it got until it wakes; a free spot goes to the next one (lowest desk first).
     sim.napSeats = {};
     function napSpot(a) {

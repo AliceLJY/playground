@@ -33,8 +33,16 @@ test('no idle: Cobbler tea greeting lasts 20s; unknown is not idle',()=>{
  const u=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'unknown'])));u.meet('learn',at);u.step(40);assert.equal(u.reception.mode,'tea');assert.ok(u.reception.uncertain);
 });
 // 11-03 Alice: 「深夜……我去接待吧」— with everyone asleep the boss receives the guest at the door, guard or not; sleepers stay put.
-test('all off: the boss receives at the door, visible entry then exit after 10s, sleepers stay asleep',()=>{
- for(const guard of [false,true]) {const s=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'off'])));s.night=guard;if(guard)s.setScene({...C.emptyScene(),guard:{phase:'patrol',at,ok:null}});
+// 11-03 Alice: 「如果要接待的话，就让那个常年不睡的 etwin-cc 和 cobbler 吧」— they take the night shift at the teahouse.
+test('all off: etwin-cc and Cobbler, awake on the night shift, receive at the teahouse; nobody else gets up',()=>{
+ const s=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'off'])));s.step(60000);const duty=a=>a.i===7||s.isCourier(a);
+ const before=s.actors.filter(a=>!duty(a)).map(a=>[a.x,a.y]);s.meet('chat',at);s.step(500);
+ assert.equal(s.reception.mode,'tea');assert.deepEqual([...s.reception.hosts].sort(),s.actors.filter(duty).map(a=>a.id).sort());assert.match(s.receptionSpeech().text,/值夜班/);
+ s.step(15000);for(const id of s.reception.hosts)assert.ok(C.distance(s.actors.find(a=>a.id===id),s.layout.pantry)<30);assert.match(s.receptionSpeech().text,/热茶/);
+ finish(s);assert.deepEqual(s.actors.filter(a=>!duty(a)).map(a=>[a.x,a.y]),before);
+});
+test('all off and the night shift away: the boss receives at the door, visible entry then exit after 10s, sleepers stay asleep',()=>{
+ for(const guard of [false,true]) {const s=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'off'])));for(const a of s.actors)if(a.i===7||s.isCourier(a))s.setStatus(a.id,'away',at);s.night=guard;if(guard)s.setScene({...C.emptyScene(),guard:{phase:'patrol',at,ok:null}});
  s.step(60000);const before=s.actors.map(a=>[a.x,a.y]);s.meet('chat',at);s.step(1000);assert.equal(s.reception.mode,'closed');assert.match(s.receptionSpeech().text,/我来招呼你/);assert.equal(s.receptionSpeech().id,'boss');assert.ok(C.distance(s.reception.visitor,s.layout.door)>1);
  s.step(5000);assert.ok(C.distance(s.boss,{x:s.layout.door.x-40,y:s.layout.door.y})<1,'the boss is at the door');assert.match(s.receptionSpeech().text,/白天再来/);assert.ok(finish(s,12000)>=3000);assert.deepEqual(s.actors.map(a=>[a.x,a.y]),before);}
 });
