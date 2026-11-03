@@ -36,11 +36,11 @@ h1{font-family:var(--serif);font-weight:700;font-size:clamp(26px,4vw,38px);line-
 
 .stepper{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:18px 0 8px}
 .steps{display:flex;gap:6px;flex-wrap:wrap}
-.steps button{font:inherit;font-size:13px;line-height:1.2;min-height:36px;min-width:36px;padding:6px 12px;border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:999px;cursor:pointer}
+.steps button{font:inherit;font-size:13px;line-height:1.2;min-height:44px;min-width:44px;padding:6px 12px;border:1px solid var(--line);background:var(--card);color:var(--ink2);border-radius:999px;cursor:pointer}
 .steps button span{margin-left:6px}
 .steps button[aria-current="true"]{border-color:var(--engine);color:var(--engine);background:var(--engine-soft);font-weight:600}
 .ctl{margin-left:auto}
-.ctl button,.pager button{font:inherit;font-size:14px;min-height:40px;padding:6px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;cursor:pointer}
+.ctl button,.pager button{font:inherit;font-size:14px;min-height:44px;padding:6px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;cursor:pointer}
 button:focus-visible,.fc:focus-visible{outline:2px solid var(--engine);outline-offset:2px}
 .bar{height:3px;background:var(--line2);border-radius:2px;overflow:hidden;margin-bottom:12px}
 .bar i{display:block;height:100%;width:0;background:var(--engine)}
@@ -180,7 +180,16 @@ footer a{color:var(--engine)}
 }
 @media (max-width:560px){
   .stage{padding:14px}
-  .steps button{width:40px;height:40px;padding:0;text-align:center}
+  .steps{gap:4px}
+  .steps button{width:44px;height:44px;padding:0;text-align:center}
   .steps button span{display:none}
   .panel h2{font-size:20px}
+}
+
+/* One short row stays in reach while reading a long chapter. */
+.compact-nav{display:none}
+@media (max-width:860px){
+  .compact-nav{display:flex;position:sticky;top:0;z-index:5;align-items:center;gap:8px;background:var(--paper);border-bottom:1px solid var(--line);padding:4px 0;margin-bottom:8px}
+  .compact-nav span{flex:1;text-align:center;font-size:14px;line-height:1.4}
+  .compact-nav button{flex:none;width:44px;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer}
 }
