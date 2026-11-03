@@ -358,7 +358,7 @@
     const oneLine = compact || (portrait && (H < 740 || W < 430));
     const labelBlock = oneLine ? LABEL_BLOCK_COMPACT : LABEL_BLOCK;
     const narrow = portrait && W < 560;   // phones held upright: no subtitle, one-line counters
-    const header = compact ? 44 : tall ? 74 : portrait ? 56 : 60;
+    const header = opts && Number.isFinite(opts.headerHeight) ? opts.headerHeight : compact ? 44 : tall ? 74 : portrait ? 56 : 60;
     const footer = compact ? 74 : narrow ? 86 : portrait ? 108 : 96;
     const captionH = compact ? 40 : portrait ? 64 : 56;
     const stage = { x: 0, y: header, w: W, h: H - header - footer };
@@ -372,7 +372,7 @@
     const authorBox = { x: author.x - ar - 4, y: author.y - ar - 4, w: 2 * ar + 8 + 28, h: 2 * ar + 26 };
     // big readout in the top-right corner; short landscape screens skip it (the counter row says the same)
     const rw = portrait ? 150 : 200, rh = portrait ? 46 : 76;
-    const readout = compact ? null : { x: W - rw - 10, y: live.y + 6, w: rw, h: rh };
+    let readout = compact ? null : { x: W - rw - 10, y: live.y + 6, w: rw, h: rh };
     const midY = live.y + live.h / 2 - (oneLine ? 6 : 10);
     // where the dispatcher sits and which way the executors spread: all round, fanned right, or fanned down
     const anchors = [
@@ -421,9 +421,16 @@
         if (ok) { best = { r, score: scoreOf(r, cd.weight), ax, ay, rings, slots, boxes, center, a0: an.a0, span: an.span, grid: !!an.grid }; break; }
       }
     }
-    if (!best) {   // nothing fits: fall back to one ring at the smallest radius, the tests will say so
-      const an = anchors[0], slots = slotsFor(n, an.c, an.ax, an.ay, [1], an.a0, an.span);
-      best = { r: 6, ax: an.ax, ay: an.ay, rings: [1], slots, boxes: slots.map((s) => cellBox(s, 6, labelBlock, narrow)), center: an.c, a0: an.a0, span: an.span };
+    const listOnly = !best;
+    if (listOnly) {
+      readout = null;
+      // Small screens keep the diagram as dots; full labels stay in the task list.
+      // Never let the old emergency ring push text beyond the canvas edge.
+      const cols = Math.ceil(Math.sqrt(n * W / Math.max(1, live.h - 110))), rows = Math.ceil(n / cols);
+      const cw = (W - 24) / cols, ch = Math.max(4, (live.h - 110) / rows);
+      const r = Math.max(1, Math.min(10, (ch - 2) / 2, (cw - 4) / 2));
+      const slots = Array.from({ length: n }, (_, i) => ({ x: 12 + (i % cols + 0.5) * cw, y: live.y + 108 + (Math.floor(i / cols) + 0.5) * ch, ring: 0 }));
+      best = { r, ax: 0, ay: 0, rings: [], slots, boxes: slots.map((s) => ({ x:s.x-r, y:s.y-r, w:2*r, h:2*r, lw:0 })), center:{x:W/2,y:live.y+44}, a0:0, span:0, grid:true };
     }
     const rUnit = best.r;
     const font = clamp(rUnit * 0.4 + 6, MIN_FONT, 14);
@@ -438,7 +445,7 @@
     const endBig = { x: gridArea.x + gridArea.w * 0.4, y: gridArea.y + gridArea.h / 2 - 10, r: endUnit * sumRatio };
     const endCc = { x: gridArea.x + gridArea.w * 0.82, y: endBig.y, r: endUnit * ccRatio };
     return {
-      W, H, portrait, compact, tall, narrow, oneLine, labelBlock, header, footer, captionH, stage, gridArea, author, authorBox, readout,
+      W, H, portrait, compact, tall, narrow, oneLine, listOnly, labelBlock, header, footer, captionH, stage, gridArea, author, authorBox, readout,
       cc: best.center, cells, rUnit, font, orbits: { ax: best.ax, ay: best.ay, rings: best.rings, a0: best.a0, span: best.span, grid: !!best.grid },
       cols: n, rows: best.rings.length, ccMaxR: rUnit * ccRatio, ccHalo: CC_HALO, ccLabelW, endUnit, endBig, endCc,
       timeline: { x0: 16, x1: W - 16, y: H - (compact ? 22 : narrow ? 28 : portrait ? 36 : 30) },

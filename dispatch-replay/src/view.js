@@ -45,6 +45,7 @@
     setPlayback(playback);
     resize();
     window.addEventListener('resize', resize);
+    new ResizeObserver(resize).observe(document.querySelector('header'));
     bindControls();
     const view = qs.get('view'), tq = parseFloat(qs.get('t'));
     if (view === 'hero') seek(model.heroT);
@@ -140,7 +141,7 @@
     $('restart').onclick = () => { seek(0); setPlaying(true); };
     $('speed').onchange = (e) => { setPlayback(Number(e.target.value)); seek(t); };
     window.addEventListener('keydown', (e) => {
-      if (e.target && e.target.tagName === 'SELECT') return;
+      if (e.target && e.target.closest('select,button,dialog')) return;
       if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
       if (e.code === 'ArrowRight') seek(t + endT * 0.03);
       if (e.code === 'ArrowLeft') seek(t - endT * 0.03);
@@ -152,13 +153,37 @@
         scrub(p.x);
         return;
       }
-      selected = hitCell(p);
+      const hit = hitCell(p);
+      if (hit >= 0) selectTask(hit);
+      else selected = -1;
     });
     canvas.addEventListener('pointermove', (e) => { if (dragging) scrub(point(e).x); });
     const up = () => { if (dragging) { dragging = false; if (wasPlaying && t < endT) setPlaying(true); } };
     canvas.addEventListener('pointerup', up);
-    canvas.addEventListener('pointercancel', up);
-    $('detail').onclick = () => { selected = -1; };
+    const cancel = () => { dragging = false; wasPlaying = false; };
+    canvas.addEventListener('pointercancel', cancel);
+    canvas.addEventListener('lostpointercapture', cancel);
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) cancel(); });
+    $('detail-close').onclick = () => { selected = -1; draw(); };
+    $('tasks').onclick = $('end-tasks').onclick = openTasks;
+    $('tasks-close').onclick = () => $('task-dialog').close();
+  }
+  const phaseNames = { idle:'待派出', dispatching:'派出中', working:'进行中', collapsing:'交回中', returning:'交回中', done:'已交回' };
+  function selectTask(i) {
+    selected = i; setPlaying(false); $('hint').style.visibility = 'hidden'; draw();
+  }
+  function openTasks() {
+    setPlaying(false);
+    const list = $('task-list'); list.replaceChildren();
+    model.agents.forEach((a, i) => {
+      const b = document.createElement('button');
+      const phase = C.agentState(a, t, clock).phase;
+      b.textContent = a.label + ' · ' + (phaseNames[phase] || '待派出');
+      b.onclick = () => { $('task-dialog').close(); selectTask(i); };
+      list.appendChild(b);
+    });
+    $('task-dialog').showModal();
   }
   function point(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   function scrub(x) {
@@ -180,7 +205,9 @@
     dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-    L = C.layout(model, W, H, { picker: index.length > 1 });
+    const headerHeight = document.querySelector('header').getBoundingClientRect().height;
+    document.documentElement.style.setProperty('--header-height', headerHeight + 'px');
+    L = C.layout(model, W, H, { picker: index.length > 1, headerHeight });
     shortLabels = null;
     const cap = $('caption');
     cap.style.top = (L.stage.y + L.stage.h - L.captionH) + 'px';
@@ -412,7 +439,7 @@
     if (s.phase === 'idle') {
       ctx.fillStyle = hexA(TH.idle, 0.35); ctx.fillRect(c.cx - 1, c.cy - 1, 2, 2);
       ctx.strokeStyle = hexA(TH.idle, 0.18); ctx.lineWidth = 1; circle(c.cx, c.cy, 5); ctx.stroke();
-      text(fitLabel(a.label, c.lw - 4, L.font, 400), c.cx, c.labelY + L.font, L.font, hexA(TH.dim, 0.65));
+      if (!L.listOnly) text(fitLabel(a.label, c.lw - 4, L.font, 400), c.cx, c.labelY + L.font, L.font, hexA(TH.dim, 0.65));
       return;
     }
     const peakR = a.hasBubble ? C.radiusFor(a.peakTokens, r0, model.maxPeak) : holeR();
@@ -445,6 +472,7 @@
     }
     if (sel) brackets(c.cx, c.cy, Math.max(peakR, r0 * 0.6) + 8, '#FFFFFF', 0.85, 1);
     ctx.globalAlpha = base;
+    if (L.listOnly) return;
     const f = L.font;
     text(fitLabel(a.label, c.lw - 4, f, 600), c.cx, c.labelY + f, f, hexA(TH.label, s.phase === 'done' ? 0.6 : 0.95), 'center', 600);
     if (!L.oneLine) {
@@ -454,7 +482,7 @@
       } else if (a.hasBubble) {
         line = C.fmtTokensTight(s.tokens || 0) + ' · ' + toolsSoFar(a) + '次';
       } else {
-        line = '已跑 ' + C.fmtClock(t - a.dispatchT);      // an external AI's inside is not in the transcript
+        line = '已跑 ' + C.fmtClock(Math.max(0, t - a.dispatchT));      // an external AI's inside is not in the transcript
       }
       text(line, c.cx, c.labelY + f * 2 + 3, f - 1 >= C.MIN_FONT ? f - 1 : C.MIN_FONT, hexA(color, s.phase === 'done' ? 0.7 : 1), 'center', 600, MONO);
     }
@@ -698,24 +726,25 @@
     $('play').textContent = playing ? '暂停' : t >= endT ? '再看一遍' : '播放';
 
     const d = $('detail');
-    if (selected >= 0 && !(t >= endT)) {
+    if (selected >= 0) {
       const a = model.agents[selected], s = states[selected];
       const groups = {};
       a.tools.forEach((x) => { if (x[0] <= t) groups[x[1]] = (groups[x[1]] || 0) + 1; });
       const toolLine = Object.keys(groups).map((g) => (C.GROUP[g] || C.GROUP.other).label + ' ' + groups[g]).join(' · ') || '还没调工具';
       const done = s.phase === 'done' || s.phase === 'returning' || s.phase === 'collapsing';
-      d.innerHTML = '';
-      const add = (cls, txt) => { const p = document.createElement('p'); p.className = cls; p.textContent = txt; d.appendChild(p); };
+      const content = $('detail-content'); content.replaceChildren();
+      const add = (cls, txt) => { const p = document.createElement('p'); p.className = cls; p.textContent = txt; content.appendChild(p); };
       const ext = a.kind === 'external';
       add('d-title', a.label + ' · ' + C.agentBadge(a) + (ext ? ' · 外部 AI' : '') + (a.effort ? ' · effort ' + a.effort : ''));
-      add('', '派出于 ' + C.fmtClock(a.dispatchT) + (!done ? '，已跑 ' + C.fmtClock(t - a.dispatchT)
+      add('', '状态：' + (phaseNames[s.phase] || '待派出'));
+      add('', '派出于 ' + C.fmtClock(a.dispatchT) + (!done ? '，已跑 ' + C.fmtClock(Math.max(0, t - a.dispatchT))
         : ext ? '，' + C.fmtClock(a.handbackT - a.dispatchT) + ' 后总调度读回结果' : '，跑了 ' + C.fmtClock(a.handbackT - a.dispatchT)));
       if (ext && done && a.endT != null) add('', '它自己跑了 ' + C.fmtClock(a.endT - a.dispatchT) + '（脚本自报）');
       if (a.hasBubble) add('', (done ? '上下文峰值 ' + C.fmtTokens(a.peakTokens) : '当前上下文 ' + C.fmtTokens(s.tokens || 0)) + ' token');
       if (ext) add('', '会话记录里看不到它读了什么、调了什么');
       else add('', '工具：' + toolLine);
-      add('', done ? (ext ? '总调度读回 ' : '交回报告 ') + C.fmtInt(a.handbackChars) + ' 字' : '还在干活');
-      add('d-hint', '点这里关闭');
+      add('', s.phase === 'idle' ? '尚未派出' : done ? (ext ? '总调度读回 ' : '交回报告 ') + C.fmtInt(a.handbackChars) + ' 字' : '还在干活');
+      add('d-hint', t >= endT ? '已结束 · 点再看一遍可重播' : '已暂停 · 点播放可继续');
       d.hidden = false;
     } else d.hidden = true;
   }
@@ -724,11 +753,11 @@
     const states = model.agents.map((a) => C.agentState(a, t, clock));
     const cap = C.caption(model, t, clock);
     return {
-      t, endT, playback, playing, slow: clock.isSlow(t), length: clock.length, maxConcurrent: model.maxConcurrent,
+      t, endT, playback, playing, dragging, selected, slow: clock.isSlow(t), length: clock.length, maxConcurrent: model.maxConcurrent,
       counters: C.counters(model, Math.min(t, model.duration)),
       phases: states.map((s) => s.phase),
       caption: cap ? cap.text : null,
-      layout: { W: L.W, H: L.H, cols: L.cols, rows: L.rows, rUnit: L.rUnit, font: L.font, portrait: L.portrait, compact: L.compact,
+      layout: { header: L.header, listOnly: L.listOnly, W: L.W, H: L.H, cols: L.cols, rows: L.rows, rUnit: L.rUnit, font: L.font, portrait: L.portrait, compact: L.compact,
         endRulerY: L.endBig.y + L.endBig.r + Math.max(12, L.font) + 6 },
       cells: L.cells.map((c, i) => ({ x: c.cx, y: c.cy, kind: model.agents[i].kind, color: colorOf(model.agents[i]) })),
       timeline: L.timeline, play: clock.play(t),
