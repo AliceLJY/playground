@@ -903,8 +903,9 @@
   }
   // A sleeper's name sits on the bunk: above the upper berth, below the lower one (berths are only 24 px apart).
   function bedTag(a, x, y) {
-    const beds = sim.layout.beds || [], i = beds.findIndex(b => C.distance(b, a) < 1); if (i < 0) return;
-    const name = C.plateName(a.name); ctx.font = '5px "PingFang SC",system-ui,sans-serif'; const w = Math.ceil(ctx.measureText(name).width) + 6, ty = i % 2 ? y + 8 : y - 31;
+    // The charging pod counts as a berth too: nameplates() leaves everyone lying down to this tag (11-03, Grok Bot had none).
+    const beds = sim.layout.beds || [], pod = sim.chargeBed?.(), inPod = !!pod && !(beds.includes(pod)) && C.distance(pod, a) < 1, i = beds.findIndex(b => C.distance(b, a) < 1); if (i < 0 && !inPod) return;
+    const name = C.plateName(a.name); ctx.font = '5px "PingFang SC",system-ui,sans-serif'; const w = Math.ceil(ctx.measureText(name).width) + 6, ty = inPod ? y - 33 : i % 2 ? y + 8 : y - 31;
     r(ctx, '#fff6dc', x - w / 2, ty, w, 7); r(ctx, a.color, x - w / 2, ty, 2, 7); text(ctx, name, x + 1, ty + 6, 5, '#253334');
   }
   function drawPerson(a, boss, hop) {
