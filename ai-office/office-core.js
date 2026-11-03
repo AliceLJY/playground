@@ -69,7 +69,8 @@
   // nothing needs her (no queue, no note, no guest). Spots are local to a room offset (see BOSS_SPOTS); 'desk' and 'stroll' wander.
   const BOSS_DAY = [[30,'home','回家睡觉'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
     [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
-    [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1230,'bbq','撸串涮火锅'],[1290,'sing','唱K'],[1320,'dance','跳舞'],[1380,'read','看书']];
+    [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1290,'bbq','撸串涮火锅'],[1350,'sing','唱K'],[1380,'dance','跳舞'],[1410,'read','看书']];
+  // A show runs two hours (Alice: 「看剧一般是两个小时的」): 19:30–21:30, then BBQ, then K 房.
   // 11-03: K 房 is one stretch after the BBQ (唱K then 跳舞), not two visits split by it (Alice: 「这么奇怪的」).
   const bossPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); let p=BOSS_DAY[BOSS_DAY.length-1]; for(const e of BOSS_DAY) if(e[0]<=m) p=e; return {kind:p[1],label:p[2]}; };
   const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
