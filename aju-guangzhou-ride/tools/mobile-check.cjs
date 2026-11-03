@@ -6,9 +6,14 @@ const [base,out]=process.argv.slice(2);if(!base||!out)throw Error('URL and outpu
  for(const [w,h] of [[390,664],[320,568],[844,340],[844,300],[1365,900]]){
   const ctx=await browser.newContext({viewport:{width:w,height:h},hasTouch:w<1000,isMobile:w<1000,deviceScaleFactor:w<1000?2:1}),p=await ctx.newPage(),checks=[],errors=[];
   p.on('pageerror',e=>errors.push(String(e)));const check=(name,ok,data)=>{checks.push({name,ok:!!ok,data});if(!ok)failed++;console.log(`${ok?'PASS':'FAIL'} ${w}x${h} ${name}`);};
-  if(h<=340)await p.setViewportSize({width:390,height:664});
   await p.goto(base);await p.waitForFunction(()=>window.__ride?.ready,null,{polling:100});
   const meta=await p.evaluate(()=>{const c=document.querySelector('#world canvas'),g=c.getContext('webgl2'),e=g.getExtension('WEBGL_debug_renderer_info');return {renderer:g.getParameter(e.UNMASKED_RENDERER_WEBGL),dpr:devicePixelRatio,renderRatio:c.width/innerWidth,three:THREE.REVISION};});
+  const intro=await p.locator('#start').evaluate(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {x:r.x,y:r.y,w:r.width,h:r.height,bottom:r.bottom,viewport:{w:innerWidth,h:innerHeight},inside:r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,hit:e.contains(hit)};});
+  check('direct-open Start is fully inside the viewport',intro.inside,intro);
+  check('direct-open Start center hits the button',intro.hit,intro);
+  await p.screenshot({path:`${out}/${w}x${h}-intro.png`});
+  // Keep reporting the existing ride checks even if the direct-open regression fails.
+  if(h<=340&&(!intro.inside||!intro.hit))await p.setViewportSize({width:390,height:664});
   await p.locator('#start').click();if(h<=340)await p.setViewportSize({width:w,height:h});
   if(w<1000){
    const pre=await p.evaluate(()=>__ride.state);await p.waitForTimeout(500);const after=await p.evaluate(()=>__ride.state);
