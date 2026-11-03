@@ -19,6 +19,7 @@ function worldWidth(){return game?game.state.W:H*aspectNow();}
 function resize(){
   dpr=Math.min(window.devicePixelRatio||1,2);cw=Math.max(1,Math.round(innerWidth*dpr));ch=Math.max(1,Math.round(innerHeight*dpr));
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
+  if(game){cancelDrag();game.resize(aspectNow());fx.fly.length=fx.pops.length=fx.ripples.length=0;}
   const W=worldWidth(),scale=Math.min(cw/W,ch/H);view={scale,ox:(cw-W*scale)/2,oy:(ch-H*scale)/2,W};backdrop=null;
 }
 addEventListener('resize',resize);addEventListener('orientationchange',resize);
@@ -63,6 +64,7 @@ const fx={fly:[],pops:[],ripples:[],baskets:[0,0,0,0],shown:[[],[],[],[]],combo:
 // what the autopilot holds: the same taps, but a ripple shows where its finger landed
 const pilotHands={get state(){return game.state;},tapAt(x,y){fx.ripples.push({x,y,t:0});return game.tapAt(x,y);}};
 function start(seed){
+  document.getElementById('result').hidden=true;
   game=Core.create({seed:seed==null?(Math.random()*1e9)|0:seed,aspect:cw/ch});pilot=null;screen='play';endT=0;resultT=0;lastTick=-1;
   fx.fly.length=fx.pops.length=fx.ripples.length=0;fx.baskets=[0,0,0,0];fx.shown=[[],[],[],[]];fx.combo=null;fx.flash=0;fx.cardFlip.clear();drag=null;resize();
 }
@@ -85,7 +87,7 @@ function tick(dt){
     if(s.phase!=='over'){if(pilot)pilot(pilotHands);game.step(dt);}
     const ev=s.events;for(let i=0;i<ev.length;i++)handle(ev[i]);ev.length=0;
     const left=Math.ceil(CFG.round-s.t);if(s.phase!=='over'&&left<=5&&left!==lastTick){lastTick=left;sfx.tick();}
-    if(s.phase==='over'){endT-=dt;if(endT<=0){screen='result';resultT=0;}}
+    if(s.phase==='over'){endT-=dt;if(endT<=0){screen='result';resultT=0;showResult();}}
   }
   if(screen==='result')resultT+=dt;
   for(let i=fx.fly.length-1;i>=0;i--){const f=fx.fly[i];f.t+=dt;if(f.t>=f.dur){fx.baskets[f.b]=0.3;const sh=fx.shown[f.b];sh.push(f.k);if(sh.length>3)sh.shift();fx.fly.splice(i,1);}}
@@ -106,7 +108,7 @@ function down(ev){
   if(screen!=='play'&&px>=m.x&&px<=m.x+m.w&&py>=m.y&&py<=m.y+m.h){muted=!muted;try{localStorage.setItem('herb-match-muted',muted?'1':'0');}catch(e){}return;}
   if(frozen)return;
   if(screen==='title'){start();sfx.start();return;}
-  if(screen==='result'){if(resultT>0.8){start();sfx.start();}return;}
+  if(screen==='result')return;
   if(!game||pilot||game.state.phase==='over')return;
   const p=toWorld(ev.clientX,ev.clientY);
   if(p.y>=CFG.tapTop){fx.ripples.push({x:p.x,y:p.y,t:0});game.tapAt(p.x,p.y);return;}
@@ -125,12 +127,19 @@ function up(ev){
   if(r!==null)fx.ripples.push({x:p.x,y:Math.max(p.y,CFG.basketTop+40),t:0});
 }
 canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
-canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+function cancelDrag(){
+  if(!drag)return;const {h,id}=drag;drag=null;
+  game.release(h,h.gx,CFG.spawnY);
+  if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);
+}
+canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',cancelDrag);
+canvas.addEventListener('lostpointercapture',cancelDrag);addEventListener('blur',cancelDrag);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelDrag();});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 const KEYS={'1':0,'2':1,'3':2,'4':3,a:0,s:1,d:2,f:3,ArrowLeft:0,ArrowDown:1,ArrowUp:2,ArrowRight:3};
 addEventListener('keydown',e=>{
   if(frozen)return;
-  if(e.key===' '||e.key==='Enter'){if(screen==='title'||(screen==='result'&&resultT>0.8)){audio();start();sfx.start();}return;}
+  if(e.key===' '||e.key==='Enter'){if(screen==='title'){audio();start();sfx.start();}return;}
   if(screen==='play'&&game&&!pilot&&e.key in KEYS){const b=KEYS[e.key],B=game.state.L.baskets[b];fx.ripples.push({x:B.cx,y:B.cy,t:0});game.tapBasket(b);}
 });
 
@@ -273,33 +282,27 @@ function drawTitle(){
   ctx.save();ctx.globalAlpha=0.6+0.4*Math.sin(clock*4);text('点一下开始',W/2,y0+fs*5.1,Math.min(46,W*0.08),C.seal,'center',900);ctx.restore();
   L.baskets.forEach(B=>drawBasket(B,B.i,true));
 }
-function drawResult(s){
-  const W=s.W,r=s.result,k=Math.min(1,resultT*3),e=1-(1-k)*(1-k);
-  ctx.fillStyle='rgba(243,231,207,'+e+')';ctx.fillRect(-view.ox/view.scale,-view.oy/view.scale,cw/view.scale,ch/view.scale);
-  ctx.save();ctx.globalAlpha=e;ctx.translate(0,(1-e)*30);
-  text(r.score+' 分',W/2,82,Math.min(84,W*0.14),C.seal,'center',900);
-  const isBest=r.score>=best&&r.score>0;
-  text((isBest?'新纪录　':'')+'分对 '+r.correct+' / '+(r.filed+r.missed)+'　最长 '+r.bestCombo+' 连对',W/2,142,Math.min(28,W*0.05),C.ink,'center',800);
-  const big=Math.min(118,W*0.2);text('寒热温凉',W/2,236,big,C.seal,'center',900);
-  const fs=Math.min(30,W*0.052);ctx.font='900 '+fs+'px '+FONT;const pw=Math.min(W-28,Math.max(...KEY_LINE.map(l=>ctx.measureText(l).width))+48);
-  pill(W/2-pw/2+5,312+7,pw,fs*2.9,22,C.mintDark);pill(W/2-pw/2,312,pw,fs*2.9,22,C.mint);
-  KEY_LINE.forEach((l,i)=>text(l,W/2,312+fs*(0.95+i*1.05),fs,'#FFFFFF','center',900));
-  // what went wrong this round: each herb once, with its real nature
-  const seen=new Set(),slips=[];for(const x of r.slips)if(!seen.has(x.k)){seen.add(x.k);slips.push(x);}
-  const y0=312+fs*2.9+46;
-  if(slips.length){
-    text('这几味没分对',W/2,y0,Math.min(26,W*0.046),C.muted,'center',800);
-    const cols=W<700?2:4,cw2=Math.min(250,(W-40)/cols),show=slips.slice(0,cols*3);
-    show.forEach((x,i)=>{const col=i%cols,row=Math.floor(i/cols),cx=W/2+(col-(cols-1)/2)*cw2,cy=y0+46+row*64,h=HERBS[x.k];
-      pill(cx-cw2/2+6,cy-26,cw2-12,52,14,C.card,'rgba(59,42,30,0.3)',2);
-      herbAt(x.k,cx-cw2/2+36,cy,0.34,0,{mood:'calm'});
-      text(h.name,cx-cw2/2+64,cy-11,22,C.ink,'left',900);ctx.font='700 16px '+FONT;const room=cw2-12-64-58,tw=ctx.measureText(h.taste).width;text(h.taste,cx-cw2/2+64,cy+13,Math.min(16,16*room/tw),C.muted,'left',700);
-      ctx.fillStyle=NAT[h.nature];ctx.beginPath();ctx.arc(cx+cw2/2-34,cy,18,0,6.283);ctx.fill();text(NATURES[h.nature].label,cx+cw2/2-34,cy+1,22,'#FFFFFF');});
-    if(slips.length>show.length)text('还有 '+(slips.length-show.length)+' 味',W/2,y0+46+3*64-8,20,C.muted,'center',700);
-  }else text('一味都没分错！',W/2,y0+30,Math.min(36,W*0.06),C.mintDark,'center',900);
-  ctx.globalAlpha=e*(0.6+0.4*Math.sin(clock*4));text('点一下再来一局',W/2,H-150,Math.min(42,W*0.072),C.seal,'center',900);
-  ctx.restore();
+function showResult(){
+  const r=game.state.result,panel=document.getElementById('result'),list=document.getElementById('review-list');
+  document.getElementById('result-score').textContent=r.score+' 分';
+  document.getElementById('result-stats').textContent=(r.score>=best&&r.score>0?'新纪录　':'')+'分对 '+r.correct+' / '+(r.filed+r.missed)+'　最长 '+r.bestCombo+' 连对';
+  list.replaceChildren();const seen=new Set();
+  for(const slip of r.slips){
+    if(seen.has(slip.k))continue;seen.add(slip.k);const h=HERBS[slip.k],detail=document.createElement('details'),summary=document.createElement('summary');
+    const name=document.createElement('span');name.className='review-name';name.textContent=h.name;
+    const icon=document.createElement('canvas');icon.className='review-icon';icon.width=80;icon.height=90;icon.setAttribute('aria-hidden','true');const ic=icon.getContext('2d');ic.translate(40,45);ic.scale(.6,.6);Art.drawHerb(ic,h.id,0,{mood:'calm'});
+    const nature=document.createElement('span');nature.className='review-nature';nature.style.background=NAT[h.nature];nature.textContent=NATURES[h.nature].label;name.append(nature);
+    const taste=document.createElement('span');taste.className='review-taste';taste.textContent=h.taste;summary.append(icon,name,taste);
+    const note=document.createElement('p');note.className='review-note';note.textContent=h.note;
+    const chosen=document.createElement('p');chosen.className='review-chosen';chosen.textContent=lastLine(slip);
+    detail.append(summary,note,chosen);list.append(detail);
+  }
+  document.getElementById('review-title').textContent=seen.size?'这 '+seen.size+' 味没分对 · 点开看药签':'一味都没分错！';
+  document.getElementById('result-mute').textContent=muted?'声音：关':'声音：开';
+  panel.hidden=false;document.getElementById('review').scrollTop=0;
 }
+document.getElementById('restart').addEventListener('click',()=>{audio();start();sfx.start();});
+document.getElementById('result-mute').addEventListener('click',e=>{muted=!muted;e.currentTarget.textContent=muted?'声音：关':'声音：开';try{localStorage.setItem('herb-match-muted',muted?'1':'0');}catch(e){}});
 function drawSheet(){
   const W=view.W,cols=W<900?4:8,rows=16/cols,cw2=W/cols,rh=(H-90)/rows,k=Math.min(0.75,cw2/170,rh/230);
   text('药材一览',W/2,40,36,C.ink);
@@ -329,7 +332,7 @@ function draw(){
   for(const r of fx.ripples){const k=r.t/0.4;ctx.strokeStyle='rgba(59,42,30,'+(0.5*(1-k))+')';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x,r.y,18+50*k,0,6.283);ctx.stroke();}
   for(const h of s.herbs)if(h.grabbed){ctx.save();ctx.globalAlpha=0.25;ctx.fillStyle=C.ink;ctx.beginPath();ctx.ellipse(h.x+8,h.y+70,48,12,0,0,6.283);ctx.fill();ctx.restore();herbAt(h.k,h.x,h.y,1.12,0,moodFor(h,s),true);}
   if(screen==='play')drawHud(s);
-  if(screen==='result')drawResult(s);
+
   drawFooter();
   if(screen==='result')drawMute();
   if(fx.flash>0){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='rgba(184,50,42,'+fx.flash*0.25+')';ctx.fillRect(0,0,cw,ch);}

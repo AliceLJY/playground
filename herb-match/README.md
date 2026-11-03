@@ -9,8 +9,10 @@ It plays on phones in either orientation and on desktop. This is a small game fo
 ## Controls
 
 - Phone: tap a basket to file the lowest herb into it, or hold a herb and drag it into a basket.
-- Desktop: click a basket or drag a herb; keys 1–4, A S D F or the arrow keys ← ↓ ↑ → map to cold, cool, warm and hot. Space or Enter starts a round.
+- Desktop: click a basket or drag a herb; keys 1–4, A S D F or the arrow keys ← ↓ ↑ → map to cold, cool, warm and hot. Space or Enter starts the first round; only the result screen’s “再来一局” button restarts.
 - Sound can be switched off at the top right of the title and result screens.
+- Scroll through every missed herb in the result screen and tap one to expand its original explanation. Property lines and explanations keep a readable size.
+- Rotating during a round relays the herbs, labels and baskets while keeping the timer, score and mistakes.
 
 ## Herbs and sources
 
