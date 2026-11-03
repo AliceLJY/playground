@@ -355,7 +355,6 @@
     placed(g,C.storageOffset,()=>{
     if (mv) { text(g,'储物间',298,602,7); r(g,'#8f785c',262,610,72,68); r(g,'#b6a58a',265,613,66,62); r(g,'#796b54',265,673,66,3); return; }
     // Showcase: a glass cabinet of tiny keepsakes from the playground; tapping it opens the works and accounts.
-    plaque(g,'陈列室',278,600,40,'#a87a2c');
     r(g,'#4c4d4040',264,676,72,4); r(g,'#77563f',262,606,72,72); r(g,'#a97c52',264,608,68,68); r(g,'#cfe3dc',267,611,62,62); r(g,'#e6f1ec',268,612,8,60);
     for (const y of [631,651]) { r(g,'#a97c52',267,y,62,3); r(g,'#d1a272',267,y,62,1); }
     r(g,'#a97c52',267,671,62,2);
@@ -370,6 +369,7 @@
     // bottom shelf: a trophy and a little pixel office
     r(g,'#efc66c',275,660,8,6); r(g,'#d6a845',277,666,4,3); r(g,'#8c6447',275,669,8,2); r(g,'#efc66c',273,661,2,3); r(g,'#efc66c',283,661,2,3);
     r(g,'#6d725e',295,658,30,13); r(g,'#d1ad83',297,660,26,9); r(g,'#35474a',300,661,5,4); r(g,'#35474a',309,661,5,4); r(g,'#35474a',318,661,3,4);
+    plaque(g,'陈列室',278,598,40,'#a87a2c'); // drawn last: the cabinet top used to cover its lower half
     });
     placed(g,C.totalsOffset,()=>{const T=C.totals||{x:24,y:426,w:276,h:52};
       if(C.totals){r(g,'#4c4d4040',T.x+2,T.y+T.h,T.w,3);r(g,'#5a3b2a',T.x+10,T.y+T.h-2,3,4);r(g,'#5a3b2a',T.x+T.w-13,T.y+T.h-2,3,4);}
@@ -1473,6 +1473,9 @@
   $('#pose').addEventListener('click', () => { if (!sim || replay) return; sim.wave('pose'); $('#pose').disabled = true; setTimeout(() => { $('#pose').disabled = false; }, 5000); });
   $('#meet-toggle').addEventListener('click',()=>{if(replay)return;const menu=$('#meet-menu');menu.hidden=!menu.hidden;$('#meet-toggle').setAttribute('aria-expanded',!menu.hidden);$('#treat-menu').hidden=true;$('#treat-toggle').setAttribute('aria-expanded',false);});
   document.querySelectorAll('#meet-menu button').forEach(b=>b.addEventListener('click',()=>sendMeet(b.dataset.kind)));
+  // 找到我: opens a small menu of links and handles; any other menu button closes it, and it closes the others.
+  $('#find-toggle').addEventListener('click',()=>{ for(const id of ['treat','meet','play']){$(`#${id}-menu`).hidden=true;$(`#${id}-toggle`).setAttribute('aria-expanded',false);} const menu=$('#find-menu'); menu.hidden=!menu.hidden; $('#find-toggle').setAttribute('aria-expanded',!menu.hidden); });
+  for(const id of ['treat','meet','play','pose']) $(`#${id}${id==='pose'?'':'-toggle'}`).addEventListener('click',()=>{ $('#find-menu').hidden=true; $('#find-toggle').setAttribute('aria-expanded',false); });
   $('#treat-toggle').addEventListener('click', () => { if(replay)return;$('#meet-menu').hidden=true;$('#meet-toggle').setAttribute('aria-expanded',false); const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
   document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
   // 一起玩: page-local performances; party/song/cat scroll to the fun floor.

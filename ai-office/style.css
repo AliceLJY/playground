@@ -11,6 +11,10 @@
 .treat-menu{display:flex;gap:5px;flex-wrap:wrap}
 .photo-hint{margin:0 0 4px;font-size:9px;color:#8e6642}
 .treat-menu button{background:#f1e5c6}
+/* 找到我 (11-03, Alice: 「我最终目的都是希望别人看见我」): the first button, in the warm accent; its menu holds links and handles. */
+.treat button.find{background:#efc66c;color:#4b2f12;font-weight:600}
+.find-menu a,.find-menu span{border:2px solid #786747;background:#fff6dc;color:#4b3b24;font-size:11px;padding:5px 9px;min-height:30px;display:inline-flex;align-items:center;text-decoration:none;box-shadow:3px 3px 0 #25333428}
+.find-menu a{background:#f1e5c6;cursor:pointer}
 .treat button:disabled{opacity:.55;cursor:default}
 .treat-note{margin:0;font-size:10px;color:#5a4b33;background:#fffdf6cc;padding:2px 5px;max-width:100%}
 .treat-note:empty{display:none}
