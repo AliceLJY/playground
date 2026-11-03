@@ -343,6 +343,11 @@
       ]
     },
     {
+      "at": 96,
+      "id": "director",
+      "status": "idle"
+    },
+    {
       "at": 100,
       "scene": {
         "snack": {
@@ -370,6 +375,11 @@
           "clear": true
         }
       ]
+    },
+    {
+      "at": 110,
+      "id": "director",
+      "status": "busy"
     },
     {
       "at": 120,
@@ -473,6 +483,16 @@
       "at": 224,
       "id": "writer",
       "status": "away"
+    },
+    {
+      "at": 226,
+      "id": "director",
+      "status": "idle"
+    },
+    {
+      "at": 240,
+      "id": "director",
+      "status": "busy"
     },
     {
       "at": 250,
