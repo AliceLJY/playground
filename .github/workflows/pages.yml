@@ -107,6 +107,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Context Snake
+        working-directory: context-snake
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Pixel Match
         working-directory: pixel-match
         run: |
@@ -290,6 +297,13 @@ jobs:
           mkdir -p _site/slipper-smash
           cp slipper-smash/index.html _site/slipper-smash/index.html
           cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
+
+      - name: Assemble Context Snake
+        run: |
+          # 上下文蛇：二维画布的贪吃蛇，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/context-snake
+          cp context-snake/index.html _site/context-snake/index.html
+          cp -R context-snake/src _site/context-snake/
 
       - name: Assemble Pixel Match
         run: |

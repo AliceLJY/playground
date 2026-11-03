@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#101218">
+<link rel="icon" href="data:,">
+<title>上下文蛇</title>
+<meta name="description" content="小黑煤球版贪吃蛇：蛇身就是上下文，越长越难转弯，撞到自己叫上下文污染。会压缩，会派子 agent。">
+<style>
+html,body{margin:0;height:100%;background:#101218;overflow:hidden;overscroll-behavior:none;font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+noscript{color:#f3ead8;font:16px sans-serif;position:fixed;inset:0;display:grid;place-items:center}
+[hidden]{display:none!important}
+button{min-width:44px;min-height:44px;border:2px solid #3a3f4d;border-radius:12px;background:#1c1f28;color:#f3ead8;font:700 16px/1.2 inherit;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:pointer;padding:0}
+button:active,button.on{background:#2a2e3a;border-color:#ff3d7f}
+#pad{position:fixed;display:grid;align-items:center;justify-items:center;touch-action:none}
+#dpad{display:grid;gap:4px}
+#dpad button{width:var(--b);height:var(--b);font-size:calc(var(--b)*0.42)}
+#dpad .u{grid-area:1/2}#dpad .l{grid-area:2/1}#dpad .r{grid-area:2/3}#dpad .d{grid-area:3/2}
+#skills{display:grid;gap:10px}
+#skills button{position:relative;width:calc(var(--b)*2.3);height:calc(var(--b)*1.18);overflow:hidden;font-size:calc(var(--b)*0.3)}
+#skills button small{display:block;font-weight:400;font-size:calc(var(--b)*0.22);color:#b9b3a6;margin-top:2px;font-variant-numeric:tabular-nums}
+#skills button::after{content:"";position:absolute;left:0;bottom:0;height:4px;width:calc(var(--ready,1)*100%);background:#ff3d7f}
+#skills button.off{opacity:.45}
+#pause-btn{position:fixed;width:44px;height:44px;font-size:14px}
+.sheet{position:fixed;left:50%;transform:translateX(-50%);display:flex;gap:12px;justify-content:center;flex-wrap:wrap;width:min(420px,calc(100vw - 24px))}
+.sheet button{min-height:52px;padding:0 18px;font-size:18px;border-color:#ff3d7f;background:#1c1f28f2}
+.sheet button.main{background:#ff3d7f;color:#101218;flex:1 1 auto}
+#pause-panel{position:fixed;inset:0;display:grid;place-items:center;background:#101218d9;color:#f3ead8;text-align:center}
+#pause-panel h2{margin:0 0 16px;color:#ff3d7f}
+#pause-panel button{display:block;width:200px;margin:12px auto;min-height:48px}
+</style>
+</head>
+<body>
+<canvas id="stage" tabindex="-1" aria-label="上下文蛇：用滑动或方向键带小黑煤球吃东西，别撞到自己"></canvas>
+<div id="pad" hidden>
+  <div id="dpad" aria-label="方向键">
+    <button class="u" type="button" data-dir="0" aria-label="上">▲</button>
+    <button class="l" type="button" data-dir="3" aria-label="左">◀</button>
+    <button class="r" type="button" data-dir="1" aria-label="右">▶</button>
+    <button class="d" type="button" data-dir="2" aria-label="下">▼</button>
+  </div>
+  <div id="skills">
+    <button id="btn-compress" type="button">压缩<small id="cd-compress">就绪</small></button>
+    <button id="btn-dispatch" type="button">派子 agent<small id="cd-dispatch">0/3</small></button>
+  </div>
+</div>
+<button id="pause-btn" type="button" aria-label="暂停" hidden>暂停</button>
+<div id="title-sheet" class="sheet"><button id="start-btn" class="main" type="button">开始会话</button><button id="mute-btn" type="button">声音：开</button></div>
+<div id="result-sheet" class="sheet" hidden><button id="again-btn" class="main" type="button">再来一局</button><button id="home-btn" type="button">回标题</button></div>
+<div id="pause-panel" role="dialog" aria-modal="true" aria-label="已暂停" hidden><div><h2>歇一会儿</h2><button id="resume-btn" type="button">继续</button><button id="pause-mute" type="button">声音：开</button></div></div>
+<noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
