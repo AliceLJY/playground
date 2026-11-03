@@ -107,6 +107,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Pixel Match
+        working-directory: pixel-match
+        run: |
+          # 像素连连看：牌面小人从 ai-office 原样抽取，测试会比对两边是否一致
+          for f in src/*.js tools/*.cjs; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Later Whack
         working-directory: later-whack
         run: |
@@ -283,6 +290,13 @@ jobs:
           mkdir -p _site/slipper-smash
           cp slipper-smash/index.html _site/slipper-smash/index.html
           cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
+
+      - name: Assemble Pixel Match
+        run: |
+          # 像素连连看：二维画布连连看，小人是像素办公室的原样代码，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/pixel-match
+          cp pixel-match/index.html _site/pixel-match/index.html
+          cp -R pixel-match/src _site/pixel-match/
 
       - name: Assemble Later Whack
         run: |
