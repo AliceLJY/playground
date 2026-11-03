@@ -20,6 +20,8 @@ Choose 1–3 laps and one of three difficulty levels. Hold acceleration after th
 
 Touch buttons are available on small screens; landscape is recommended. Optional automatic pedalling is off by default and can be enabled in the touch menu or pause panel; braking takes priority. The pause panel also offers recovery followed by resume. Short landscape viewports move the full standings into pause and keep compact speed, map, position, lap and nitro readouts. The menu includes a character close-up and a lower-cost graphics setting.
 
+The menu also offers an optional Shamian Three-Turn Drift Licence: a 45-second solo exam that awards paw stamps for real mini boosts and clean exits, retries only the current turn after a rail hit, supports automatic pedalling and returns to the regular cup.
+
 ## Run, check and package
 
 No package installation, account or API key is needed. Three.js r160 is bundled locally.
