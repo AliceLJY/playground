@@ -121,6 +121,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Message Pipe
+        working-directory: message-pipe
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Herb Match
         working-directory: herb-match
         run: |
@@ -290,6 +297,13 @@ jobs:
           mkdir -p _site/secret-sweeper
           cp secret-sweeper/index.html _site/secret-sweeper/index.html
           cp -R secret-sweeper/src _site/secret-sweeper/
+
+      - name: Assemble Message Pipe
+        run: |
+          # 一条消息的旅程：二维画布的管道拼接解谜，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/message-pipe
+          cp message-pipe/index.html _site/message-pipe/index.html
+          cp -R message-pipe/src _site/message-pipe/
 
       - name: Assemble Shared Table
         run: |
