@@ -730,8 +730,8 @@
       const feast=!!feasting();
       const rotation=!legacy && !sim.classicLeisure && sim.clockKnown ? Math.floor(signalNow()/1200000) : 0;
       const party=playing('party') ? 'party' : playing('song') ? 'song' : '';
-      const key=meal+'|'+reserved.join(',')+'|'+breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? pickSlots(idle.length,LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&!reserved.includes(slot))).filter(slot=>games[slot]) : party==='song' ? pickSlots(idle.length,[22,23,24,29,30,31,32,33,25,26,27,28,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.funFirst || party ? pickSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : pickSlots(idle.length,meal==='kitchen'?KITCHEN_ORDER:meal==='bbq'?(isBreakfast(signalNow())?BBQ_ORDER:[34,35,36,...LEISURE_ORDER.filter(i=>i<34||i>36)]):breakfast,rotation,reserved).filter(slot=>games[slot]);
+      const key=(sim.leisureFirst||'')+'|'+meal+'|'+reserved.join(',')+'|'+breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? pickSlots(idle.length,LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&!reserved.includes(slot))).filter(slot=>games[slot]) : party==='song' ? pickSlots(idle.length,[22,23,24,29,30,31,32,33,25,26,27,28,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.funFirst || party ? pickSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.leisureFirst ? pickSlots(idle.length,[...sim.leisureFirst,...LEISURE_ORDER.filter(i=>!sim.leisureFirst.includes(i))]) : pickSlots(idle.length,meal==='kitchen'?KITCHEN_ORDER:meal==='bbq'?(isBreakfast(signalNow())?BBQ_ORDER:[34,35,36,...LEISURE_ORDER.filter(i=>i<34||i>36)]):breakfast,rotation,reserved).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -858,7 +858,7 @@
         moveTo(sim.boss, [tour[0],pantry,bossDesk,tour[3]][Math.floor(random() * 4)]);
         sim.nextWander = sim.time + 7 + random() * 5;
       }
-      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery || sim.radar?.phase==='showing' ? 1 : 0.5));
+      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery || sim.radar?.phase==='showing' || L.clinicDoctor && sim.boss.dest && distance(sim.boss.dest,L.clinicDoctor)<1 ? 1 : 0.5));
     }
     // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.

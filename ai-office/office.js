@@ -15,7 +15,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'kitchen', 'bbq', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate', 'pool', 'farm', 'cat', 'clinic'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'kitchen', 'bbq', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate', 'orders', 'pool', 'farm', 'cat', 'clinic'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -602,7 +602,7 @@
     cats.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870}].filter(p=>p&&!Core.blocked(p.x,p.y,L));
     const go=(c,p)=>{ if(c.goal&&Core.distance(c.goal,p)<4)return; c.goal=p; c.path=Core.route(c,p,L); };
     // A chase starts now and then (never at night or while someone is petting/feeding): the chaser keeps re-aiming at the runner.
-    if (!catPlay && !sleepy && !fed && !petter && !cats.some(c=>c.task) && Math.random()<dt/35) { const runner=cats[Math.random()<.5?0:1]; catPlay={phase:'chase',runner,chaser:cats[1-runner.k],until:sim.time+9,aim:0}; runner.goal=null; go(runner,cats.spots[Math.floor(Math.random()*cats.spots.length)]); }
+    if (!catPlay && !sleepy && !fed && !petter && !cats.some(c=>c.task) && (Math.random()<dt/35 || view==='cat' && !cats.chased && sim.time>2 && (cats.chased=true))) { const runner=cats[Math.random()<.5?0:1]; catPlay={phase:'chase',runner,chaser:cats[1-runner.k],until:sim.time+9,aim:0}; runner.goal=null; go(runner,cats.spots[Math.floor(Math.random()*cats.spots.length)]); }
     if (catPlay && (sleepy||fed||petter)) catPlay=null;
     if (catPlay?.phase==='chase') {
       const {runner,chaser}=catPlay;
@@ -1332,6 +1332,9 @@
     // ?view=breakfast / leisure: everyone but the director off duty, so the teahouse and gym fill up (script events skipped this lap).
     if (!mv && ['breakfast','leisure','fun','kitchen','bbq'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; sim.funFirst = view === 'fun'; }
     if(!mv && ['kitchen','bbq'].includes(view)) for(const a of sim.actors) if(a.awayPost==='kitchen') sim.setStatus(a.id,'away');
+    // Scene previews for the tower (also the recruitment film): put idle colleagues where the shot needs them first.
+    const FIRST={clinic:[45,41,42,43],pool:[41,42,43,44],cat:[44,41],farm:[27,28,25,26],orders:[]};
+    if(!mv && C.bands && FIRST[view]) { for (const a of sim.actors) if (!sim.isCourier(a)) sim.setStatus(a.id, a.awayPost==='kitchen'?'away':view==='orders'&&a.i!==0?'busy':'idle'); cursor = Infinity; sim.leisureFirst=FIRST[view]; if (view==='clinic') sim.bossTarget=C.clinicDoctor; }
     // ?view=nap / feast: 23:30, everyone but CC asleep in the office; feast sends dim sum right away.
     if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
@@ -1354,6 +1357,11 @@
     for (let left = ms; left > 0; left -= 20) {
       const part = Math.min(left, 20);
       if (mv) { mv.tick(elapsed, sim); events=mv.events; elapsed += part; sim.night=C.isNight(now()); sim.step(part * mv.pace(elapsed)); mv.observe(elapsed, sim); continue; }
+      if (demo && view==='orders' && C.bands) {
+        // ?view=orders: CC takes three orders in a row so the paper plane, the drone and the cat each get a turn.
+        sim.bossTarget=C.bossDesk;
+        for (const [at,status] of [[800,'busy'],[3000,'idle'],[3600,'busy'],[5000,'idle'],[5600,'busy'],[22000,'idle']]) if (elapsed>=at && elapsed<at+part) sim.setStatus(sim.actors.find(a=>a.i===0).id,status,new Date(now()).toISOString());
+      }
       if (demo) {
         const local = elapsed - cycle * script.duration * 1000;
         sim.setVisitors(local >= 12_000 && local < 42_000 ? 1 : local >= 44_000 && local < 90_000 ? 3 : 0);
