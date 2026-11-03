@@ -125,7 +125,7 @@ function substep(s,input,dt){
  if(s.phase==='countdown'){s.countdown-=dt;if(s.countdown<=0){s.phase='racing';s.go=1;emit(s,'go','出发！');}return;}
  if(s.phase!=='racing')return;
  s.time+=dt;s.go=Math.max(0,s.go-dt);
- const controls={throttle:!!input.forward,brake:!!input.brake,steer:(input.right?1:0)-(input.left?1:0),drift:!!input.drift,jump:!!input.jump};
+ const controls={throttle:!!(input.forward||input.autoPedal)&&!input.brake,brake:!!input.brake,steer:(input.right?1:0)-(input.left?1:0),drift:!!input.drift,jump:!!input.jump};
  const wasFinished=s.riders[0].finished;
  for(const r of s.riders)integrate(s,r,r.id===0?controls:botInput(s,r,dt),dt);
  s.finishOrder.sort((a,b)=>s.riders[a].finishTime-s.riders[b].finishTime);
