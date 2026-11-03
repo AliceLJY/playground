@@ -57,6 +57,7 @@ function startGame(wave){
   if(wave===undefined)C.start(s);else C.start(s,{wave});
   $('menu').hidden=true;$('pause').hidden=true;$('result').hidden=true;$('hud').hidden=false;$('boss').hidden=true;
   resultAt=0;playStart=real;playEnd=0;shownHints.clear();
+  hintUntil=0;$('hint').classList.remove('on');orientationUntil=real+3;$('orientation').hidden=false;
 }
 function setPaused(on){if(!world)return;C.pause(s,on);$('pause').hidden=!s.paused;}
 function togglePause(){if(!$('menu').hidden||!$('result').hidden)return;setPaused(!s.paused);}
@@ -70,9 +71,9 @@ $('sound').addEventListener('click',()=>{audio.setMuted(!audio.muted);$('sound')
 function toMenu(){s=C.create({seed:1+Math.floor(Math.random()*1e6)});audio.ambience(false);$('menu').hidden=false;$('hud').hidden=true;$('pause').hidden=true;$('result').hidden=true;}
 
 // ---- HUD and hints --------------------------------------------------------------------
-const shownHints=new Set();let hintUntil=0;
+const shownHints=new Set();let hintUntil=0,orientationUntil=0;
 const T=()=>document.body.classList.contains('touchy');
-function hint(id,text,seconds=4.5){if(id&&shownHints.has(id))return;if(id)shownHints.add(id);$('hint').textContent=text;$('hint').classList.add('on');hintUntil=real+seconds;}
+function hint(id,text,seconds=4.5){if(id&&shownHints.has(id))return;if(id)shownHints.add(id);$('orientation').hidden=true;$('hint').textContent=text;$('hint').classList.add('on');hintUntil=real+seconds;}
 function call(text){const el=$('call');el.textContent=text;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');}
 function plate(title,name){$('plate-title').textContent=title;$('plate-name').textContent=name;const el=$('plate');el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
 const key=(k,t)=>T()?t:k;
@@ -117,6 +118,7 @@ let shown={};
 function setBar(id,v){v=Math.max(0,Math.min(1,v));if(shown[id]===v)return;shown[id]=v;$(id).style.transform=`scaleX(${v})`;}
 function hud(){
   if($('hud').hidden)return;
+  if(real>=orientationUntil)$('orientation').hidden=true;
   const p=s.player;setBar('oil',p.hp/p.maxHp);setBar('posture',p.posture/p.maxPosture);
   $('posture').parentElement.classList.toggle('hot',p.posture/p.maxPosture>.7);
   const chain=s.stats.chain>=2?`连弹 ×${s.stats.chain}`:'';if(shown.chain!==chain){shown.chain=chain;$('chain').textContent=chain;}

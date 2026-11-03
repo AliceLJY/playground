@@ -13,6 +13,7 @@ Four scenes per run — moths, scissors, a mixed crowd and the rat king — in t
 - Dodge: L or Shift. Red attacks cannot be blocked, only dodged.
 - Move: A and D or the arrow keys. Esc pauses.
 - Touch: ◀ ▶ at the bottom left, gong, drumstick and dodge buttons at the bottom right. Landscape plays best.
+- The portrait orientation suggestion appears for at most three seconds after starting and hides immediately when a combat hint appears.
 
 ## How it is built
 

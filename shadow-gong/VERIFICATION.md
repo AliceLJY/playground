@@ -1,3 +1,30 @@
+# 竖屏提示避让 · 2026-11-03（B4）
+
+仅修本批指定的方向提示：开场显示至多 3 真实秒，战斗提示出现时立即隐藏；重开时清掉上一局提示并重新计时。没有修改招架窗口、攻击预警、难度、角色、声音或战斗规则，也没有增加「三锣小考」。
+
+## 先红后绿
+
+在修改实现前，为现有 `tools/browser-check.cjs` 增加 `--orientation-only`。旧代码的 27 条浏览器检查里有 **6 条失败**：390 × 664、320 × 568 两档竖屏各在「首条战斗提示立即避让」「无战斗提示时三秒到期」「完美招架提示不被方向建议覆盖」三项失败。截图复现了报告的文字重叠。
+
+修复后，源码入口及重新构建的 `灯影守夜.html` 各 **27/27 通过**，零页面错误、零外部请求。检查还断言开场只在竖屏显示建议、hero 钩子确实进入固定种子真实模拟得到的完美弹反并冻结（而非仅检查 URL）。计时单独在开局立即暂停、尚无战斗提示时测量，避免被「提示一来就隐藏」掩盖。原有 Node 测试 **20/20 通过**。构建文件沿用忽略规则，CI 会重新生成，无需提交产物。
+
+## 浏览器、读图和边界
+
+- Chrome 156.0.8078.80，Playwright，Apple M4 真实 GPU（`ANGLE Metal Renderer: Apple M4`），Three.js r160。
+- 源码和单文件均测 390 × 664、320 × 568、844 × 340、844 × 300、1365 × 900；手机模拟 DPR 2，桌面 DPR 1。正常开局沿用默认抗锯齿与自适应，hero 仅沿用原有的自适应锁定，不更换渲染路径。
+- 修复前后各视口的开局、首次提示、完美招架截图逐张打开核对；战斗提示仍在，方向建议已收起。另录构建版默认竖屏 30 秒操作，包含移动、格挡、出槌、闪避和暂停恢复，抽帧复核，零页面错误。
+- 证据在仓外 B4 输出目录的 `shadow-red/`、`shadow-source/`、`shadow-built/`（各有截图与 `report.json`）、`shadow-node.txt`、`shadow-smoke/`。关键帧为 `shadow-built/390x664-parry.png`，可与 `shadow-red/390x664-parry.png` 比较。
+- 真手机、Safari、声音和真人手感仍未验。本批没有重新跑浏览器整局、全套像素读数或性能测量；下方旧记录保留原日期，不当作本批新证据。竖屏舞台较小、窄屏操控区等既有布局未扩修。
+
+在仓根启动 `python3 -m http.server 8844 --bind 127.0.0.1`，另开终端在本目录运行：
+
+```sh
+node --test tests/*.test.cjs
+python3 build.py
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/b4-shadow-source http://127.0.0.1:8844/shadow-gong/ --orientation-only
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/b4-shadow-built 'http://127.0.0.1:8844/shadow-gong/灯影守夜.html' --orientation-only
+```
+
 # 灯影守夜 · 验证记录（2026-10-02）
 
 对照 [SPEC.md](SPEC.md) 第 9 节逐条记录。机器是一台 Apple M4 的 Mac，浏览器为 Google Chrome 155.0.8059.27（headless，经 Playwright 驱动），WebGL 报告的 GPU 是 `ANGLE (Apple, ANGLE Metal Renderer: Apple M4)`，即真实 GPU，不是软件渲染。没有在真手机、Safari、Firefox 或低端设备上测过。
