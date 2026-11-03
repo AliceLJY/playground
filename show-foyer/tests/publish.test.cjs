@@ -71,3 +71,15 @@ test('验收 10 剧目信息只用公开事实，并在节目单里写明来源�
     assert.ok(!/(场次|票房|营收|投资额|万元)/.test(text), `${f} 不该出现内部经营数字类字样`);
   }
 });
+
+for (const [file, heading] of [['README_CN.md', '谁会点开、AI 素材'], ['README.md', 'Audience and AI materials']]) {
+  test(`F1 交付边界：${file} 有受众披露、性能预算和人工验收边界`, () => {
+    const text = read(file), sections = text.split(/^## /m);
+    assert.ok(sections.at(-1).startsWith(heading), '末节缺受众与 AI 素材披露');
+    assert.match(text, /60 fps/, '缺目标帧率');
+    assert.match(text, /p95.*16\.7 ms/, '缺帧耗时上限');
+    assert.match(text, /1500/, '缺绘制调用上限');
+    assert.match(text, /view=full/, '缺测量场景');
+    assert.match(text, /未做陌生人复述|stranger retelling has not been tested/, '不能把自动检查写成人工验收');
+  });
+}
