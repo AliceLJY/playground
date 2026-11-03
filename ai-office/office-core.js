@@ -177,15 +177,17 @@
   const T_BANDS=[[88,466],[516,808],[868,1030]];
   const T_FUN={ktv:[16,526],cinema:[128,526],snack:[240,526],bbq:[178,632],read:[16,876],garden:[16,962]};
   const T_TEA=[16,616],T_KITCHEN=[98,632],T_GYM=[16,724],T_POOL=[116,726],T_REST=[134,888],T_CAT=[250,630],T_CLINIC=[242,878],T_CHARGE=[242,982],T_BOOTH=[-6,136];
-  const towerLocal={...funLocal,garden:[[60,32,'water'],[112,52,'pick']]}, towerLocalObstacles={...funLocalObstacles,garden:[{x:176,y:6,w:30,h:18}]};
+  // 11-03: the farm gives its right end to a small playroom for the boss's and her friend's children (Alice: 「花园的位置那么多，挖一块出来给他」).
+  const towerLocal={...funLocal,garden:[[60,32,'water'],[90,52,'pick']]}, towerLocalObstacles={...funLocalObstacles,garden:[{x:112,y:6,w:30,h:18}]};
+  const T_KIDS=[168,962], kidsLocalObstacles=[{x:6,y:10,w:24,h:12},{x:40,y:44,w:20,h:8}];
   // 11-03: the phone booth is gone from the tower (Alice: 「小纸条都通过小猫咪送了，把电话亭去掉」); the cat tree takes its corner and
   // the pool widens into the cat tree's old place. CC takes calls at her own desk (booth point = her desk).
   const POOL_W=184, poolLocal=[[34,40,'swim'],[88,50,'swim'],[POOL_W-16,62,'lounge']], poolLocalObstacles=[{x:POOL_W-28,y:20,w:22,h:12}];
   // 医务室 (Alice: 「缺了一个医务室，我给你们看病刚好合适」): a colleague sits by the bed for a check-up; the boss drops in as the doctor.
   const clinicLocal=[[28,62,'checkup']], clinicLocalObstacles=[{x:4,y:14,w:18,h:22},{x:34,y:24,w:26,h:10},{x:6,y:70,w:50,h:12}], clinicDoctorLocal=[48,50];
   // 充电房 (Alice: 「你们应该是用那个……充额度的充电房」): a colleague out of quota lies in the pod till the window resets;
-  // the washing machine in the corner is the boss's (the only one here who wears clothes that need washing).
-  const chargeLocal=[24,34], chargeLocalObstacles=[{x:4,y:12,w:38,h:8},{x:46,y:8,w:16,h:26}];
+  // (the boss's washing machine went again the same night: 「我其实不太需要」).
+  const chargeLocal=[24,34], chargeLocalObstacles=[{x:4,y:12,w:38,h:8}];
   const catTreeLocal=[[18,62,'cat']], catTreeLocalObstacles=[{x:24,y:6,w:24,h:42}];
   // Compact meeting room, absolute coordinates: x 16–120, y 350–468; the door is a gap in its right wall.
   const T_MEET={x:16,y:350,w:104,h:118};
@@ -193,7 +195,7 @@
   const T_TOTALS={x:142,y:410,w:164,h:54};
   const towerObstacles=[...mainObstacles.filter(o=>!(o.x===27&&o.y===378)),...towerMeetingObstacles,{...T_TOTALS},
     ...obstaclesAt(gymLocalObstacles,T_GYM),...obstaclesAt(teaLocalObstacles,T_TEA),
-    ...obstaclesAt(bedLocalObstacles,T_REST),...obstaclesAt(kitchenLocalObstacles,T_KITCHEN),...obstaclesAt(poolLocalObstacles,T_POOL),...obstaclesAt(catTreeLocalObstacles,T_CAT),...obstaclesAt(clinicLocalObstacles,T_CLINIC),...obstaclesAt(chargeLocalObstacles,T_CHARGE),
+    ...obstaclesAt(bedLocalObstacles,T_REST),...obstaclesAt(kitchenLocalObstacles,T_KITCHEN),...obstaclesAt(poolLocalObstacles,T_POOL),...obstaclesAt(catTreeLocalObstacles,T_CAT),...obstaclesAt(clinicLocalObstacles,T_CLINIC),...obstaclesAt(chargeLocalObstacles,T_CHARGE),...obstaclesAt(kidsLocalObstacles,T_KIDS),
     ...funObstacles(T_FUN,towerLocalObstacles)];
   const towerGameWatch={x:172,y:350};
   // Where the boss stands for each plan item in the tower (clear of colleagues' slots; checked walkable by kitchen.test).
@@ -207,7 +209,7 @@
     booth:{x:65,y:139},boothOffset:T_BOOTH,noBooth:true,poolW:POOL_W,totals:T_TOTALS,totalsOffset:[0,0],
     beds:atOrigin(bedLocal,T_REST),restOffset:T_REST,gym:atOrigin(gymLocal,T_GYM),gymOffset:T_GYM,tea:atOrigin(teaLocal,T_TEA),teaOffset:T_TEA,
     feastStand:atOrigin(feastLocal,T_TEA),feastDrop:atOrigin([[39,82,'drop']],T_TEA)[0],
-    kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,chargeOffset:T_CHARGE,chargePod:{x:T_CHARGE[0]+chargeLocal[0],y:T_CHARGE[1]+chargeLocal[1]},clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},
+    kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,chargeOffset:T_CHARGE,kidsOffset:T_KIDS,chargePod:{x:T_CHARGE[0]+chargeLocal[0],y:T_CHARGE[1]+chargeLocal[1]},clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},
     funTop:488,obstacles:towerObstacles,bossSpots:BOSS_SPOTS,
     patrol:[door,{x:326,y:488},{x:326,y:612},{x:40,y:612},{x:40,y:716},{x:230,y:716},{x:326,y:716},{x:326,y:488},door,pantry,{x:125,y:169},door]};
   const layouts={portrait:tower,landscape,film,legacy:{...classic,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
