@@ -32,9 +32,11 @@ test('no idle: Cobbler tea greeting lasts 20s; unknown is not idle',()=>{
  const before=states(s);s.step(18000);assert.ok(s.reception);finish(s,15000);assert.deepEqual(states(s),before);
  const u=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'unknown'])));u.meet('learn',at);u.step(40);assert.equal(u.reception.mode,'tea');assert.ok(u.reception.uncertain);
 });
-test('all off: door goodbye, visible entry then exit after 10s, guard speaks if present',()=>{
+// 11-03 Alice: 「深夜……我去接待吧」— with everyone asleep the boss receives the guest at the door, guard or not; sleepers stay put.
+test('all off: the boss receives at the door, visible entry then exit after 10s, sleepers stay asleep',()=>{
  for(const guard of [false,true]) {const s=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'off'])));s.night=guard;if(guard)s.setScene({...C.emptyScene(),guard:{phase:'patrol',at,ok:null}});
- s.meet('chat',at);s.step(1000);assert.equal(s.reception.mode,'closed');assert.match(s.receptionSpeech().text,/下班了|都在打盹/);assert.equal(s.receptionSpeech().id,guard?'night-guard':'reception-guest');assert.ok(C.distance(s.reception.visitor,s.layout.door)>1);assert.ok(finish(s,12000)>=9000);}
+ s.step(60000);const before=s.actors.map(a=>[a.x,a.y]);s.meet('chat',at);s.step(1000);assert.equal(s.reception.mode,'closed');assert.match(s.receptionSpeech().text,/我来招呼你/);assert.equal(s.receptionSpeech().id,'boss');assert.ok(C.distance(s.reception.visitor,s.layout.door)>1);
+ s.step(5000);assert.ok(C.distance(s.boss,{x:s.layout.door.x-40,y:s.layout.door.y})<1,'the boss is at the door');assert.match(s.receptionSpeech().text,/白天再来/);assert.ok(finish(s,12000)>=3000);assert.deepEqual(s.actors.map(a=>[a.x,a.y]),before);}
 });
 test('real meeting reserves the room initially and mid-visit, and new work/calls release hosts',()=>{
  for(const layout of ['portrait','landscape']) {const s=create(layout);s.meet('research',at);s.step(16000);assert.equal(s.reception.phase,'talking');const ids=s.reception.hosts.slice();

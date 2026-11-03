@@ -1226,7 +1226,7 @@
   }
   function drawReceptionSpeech() {
     const speech=sim.receptionSpeech(); if(!speech || mv && !mv.performances)return;
-    const a=[...sim.actors,sim.reception.visitor,sim.guard].find(a=>a?.id===speech.id);if(!a)return;
+    const a=speech.id==='boss'?sim.boss:[...sim.actors,sim.reception.visitor,sim.guard].find(a=>a?.id===speech.id);if(!a)return;
     ctx.font='8px \"PingFang SC\",system-ui,sans-serif'; const w=ctx.measureText(speech.text).width+12, x=Math.max(20,Math.min(C.W-w-20,a.x-w/2)),y=a.y-64;
     speechBoxes.push({x,y,w,h:14});r(ctx,'#786747',x,y,w,14);r(ctx,'#fff6dc',x+1,y+1,w-2,12);text(ctx,speech.text,x+w/2,y+10,8,'#6a4b30');r(ctx,'#b59b72',a.x,y+14,1,15);
   }
