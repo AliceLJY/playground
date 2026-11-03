@@ -58,6 +58,9 @@
   .book .nav { display: flex; flex-shrink: 0; justify-content: space-between; align-items: center; border-top: 1px solid rgba(42,33,24,.18); padding-top: 8px; font-size: 12px; color: rgba(42,33,24,.6); }
   .book .nav button { font: inherit; font-size: 14px; background: none; border: 1px solid rgba(42,33,24,.4); color: #2a2118; border-radius: 4px; min-width: 44px; min-height: 44px; padding: 5px 14px; cursor: pointer; }
   .book .nav button:disabled { opacity: .3; cursor: default; }
+  [hidden] { display: none !important; }
+  .tea-note { position: fixed; top: calc(76px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); padding: 5px 10px; border: 1px solid #c9a24a; border-radius: 6px; background: #2a1e16; color: #f7dc9a; font-size: 12px; text-align: center; pointer-events: none; }
+  .photo-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .curtain-box { display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .curtain-box .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 </style>
@@ -73,6 +76,7 @@
   </div>
 </div>
 <canvas id="scene" aria-label="戏台与候场的座席"></canvas>
+<div class="tea-note" id="teaNote" role="status" hidden></div>
 <div class="hint" id="hint"></div>
 <div class="bottom" id="bar">
   <button data-act="0" id="btnSit">落座</button>
@@ -93,7 +97,7 @@
   <h2>今晚谁来过</h2>
   <img id="photoImg" alt="合影图：戏台、座席上的人影与名单">
   <p>长按图片保存。图上只有座席上的身影和「你 · 几天前」这样的标记，没有任何个人信息。</p>
-  <button class="close" data-close="photoOverlay">收起</button>
+  <div class="photo-actions"><button class="close" data-close="photoOverlay">收起</button><button class="close" id="photoGiftExit" hidden>回到普通候场</button></div>
 </div>
 <div class="overlay" id="programmeOverlay" role="dialog" aria-label="节目单">
   <div class="book">
@@ -107,7 +111,7 @@
   <div class="curtain-box">
     <h2>开演</h2>
     <p id="curtainText"></p>
-    <div class="row"><button class="close" id="curtainPhotoBtn">看合影</button><button class="close" id="nextShowBtn">等下一场</button></div>
+    <div class="row"><button class="close" id="curtainPhotoBtn">看合影</button><button class="close" id="nextShowBtn">等下一场</button><button class="close" id="curtainGiftBtn" hidden>再试回礼</button></div>
   </div>
 </div>
 

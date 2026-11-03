@@ -55,6 +55,26 @@
     return Math.abs(ri - rj) <= 1 && Math.abs(ci - cj) <= 1;
   }
 
+  // 可选回礼：独立、短暂的状态，不进入来访存档；仍用原来的落座/递茶/离席意图。
+  function newTeaGift(enabled) { return { phase: enabled ? 'door' : 'off', elapsed: 0, seat: null, ticket: null }; }
+  function teaGift(state, intent, data = {}) {
+    if (intent === 'exit') return newTeaGift(false);
+    if (state.phase === 'off') return state;
+    if (intent === 4) return newTeaGift(true);
+    if (intent === 0 && state.phase === 'door') return { ...state, phase: 'waiting' };
+    if (intent === 'curtain') return state.ticket ? state : { ...state, phase: 'missed', seat: null };
+    if (intent === 'tick' && state.phase === 'waiting') {
+      if (!Number.isFinite(data.dt) || data.dt < 0) return state;
+      const elapsed = state.elapsed + data.dt;
+      const seat = ORDER.find(s => adjacent(data.seat, s) && !(data.occupied || []).includes(s));
+      return { ...state, elapsed, phase: elapsed >= 25 && seat !== undefined ? 'invited' : 'waiting', seat: elapsed >= 25 && seat !== undefined ? seat : null };
+    }
+    if (intent === 3 && state.phase === 'invited') {
+      return { ...state, phase: 'done', ticket: { hall: data.hall, seat: data.seat } };
+    }
+    return state;
+  }
+
   // ---------- 分厅 ----------
   // house = { cap, halls: Map<厅号, Map<来客 id, 座位下标>> }
   function createHouse(cap) { return { cap: cap || CAP, halls: new Map() }; }
@@ -269,7 +289,7 @@
 
   return {
     COLS, ROWS, CAP, MAX_VISITS, MIN_GHOST_STAY, MAX_DUR, OPEN_MINUTES, RESIDENTS, BELLS, ACTS, PLAYER_ACTS, MAX_ACT, ORDER,
-    rng, seatOrder, adjacent, createHouse, seat, leave, hallOf, summary, hallList,
+    rng, seatOrder, adjacent, newTeaGift, teaGift, createHouse, seat, leave, hallOf, summary, hallList,
     newVisit, recordAct, closeVisit, isVisit, encodeVisits, decodeVisits, pushVisit,
     planGhosts, residentsFor, residentSchedule, dueActs, backstageSchedule, backstageDue,
     nextGong, gongCrossed, curtainAt, countdown, bellsDue, houseLight, syntheticVisits,

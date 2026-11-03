@@ -6,6 +6,8 @@ A real half hour is compressed to a five-minute sitting. It is the same mechanis
 
 **[Play online](https://aliceljy.github.io/playground/show-foyer/)**
 
+Optional “A cup of tea in return”: enter from the programme cover, sit for 25 seconds, then offer tea to the explicitly labelled simulated usher to receive a stamped paper keepsake that appears in your group photo; return to the unchanged normal foyer at any time (see [SPEC.md](SPEC.md)).
+
 ## About the show
 
 The show title and company on the page are real, public information: the dance drama *Yingge* was created by Guangzhou Song and Dance Theatre and has toured widely; in August 2026 it was performed in Beijing at the 7th National Ethnic Minority Arts Festival (Xinhua, 2026-08-21: [report](https://www.news.cn/culture/20260821/932cd7fea0a74d1f9ae58ad9555e21a7/c.html)). The programme's "about the show" page only paraphrases that report (Yingge dance as the vehicle, intangible-heritage crafts woven in, a story of a people standing together), and its "what is Yingge" page states common public knowledge about the folk dance and its listing as national intangible cultural heritage in 2006. No scheduling or box-office information appears anywhere; the programme's cover says so.
@@ -97,4 +99,4 @@ Inspired in October 2026 by a Korean web temple where strangers sit in silence t
 ## Audience and AI materials
 
 - For visitors who want a quiet few minutes on a phone and a chance to encounter a replay of their previous visit.
-- Code, the Canvas stage and figures, replay gestures and Web Audio synthesis were made with AI assistance. No external generated images, 3D models, motion capture, recordings or music files are used. Show facts come from the public report cited above.
+- Code, the Canvas stage, figures and paper keepsake, replay gestures and Web Audio synthesis were made with AI assistance. No external generated images, 3D models, motion capture, recordings or music files are used. Show facts come from the public report cited above.
