@@ -27,7 +27,7 @@ Fixed views: `?view=hero` (all three signs in one frame), `?view=stress` (six up
 
 ## Demo film
 
-Portrait 1080×1920, about 40 seconds including the signature card. It is recorded frame by frame from the real game with real touch taps: title, fixing tails, one deliberate tap on a green and one on a blue sign, a fast-forwarded middle, the last seconds, the result, the signature card. The bouncy chiptune is synthesised in code and lands a note on every hit.
+Portrait 1080×1920, about 40 seconds including the signature card. It is recorded frame by frame from the real game with real touch taps: title, fixing tails, one deliberate tap on a green and one on a blue sign, a fast-forwarded middle, the last seconds, the result, the signature card. The swing tune (ukulele, whistle, marimba, hand claps) is synthesised in code, with a bubble pop on every hit; it deliberately avoids the chiptune sound of the neighbouring pixel-match film.
 
 ```bash
 cd later-whack && python3 -m http.server 8963 --bind 127.0.0.1
