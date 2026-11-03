@@ -10,6 +10,8 @@ AI 记忆系统里，旧记忆的检索分会乘上一个越来越小的倍率�
 
 规格与验收见 [SPEC.md](SPEC.md)。
 
+页面下方「可选小实验 → 三次想起」可用三枚标记安排日期，对比从今天起第 180 天的「你的安排」与「不干预」，随时返回原推演；这是 RecallNest 衰减规则的小实验，不是人类记忆训练法。
+
 ## 本地预览
 
 ```bash
@@ -23,9 +25,12 @@ python3 -m http.server 8790
 ```bash
 node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/shoot.cjs http://localhost:8790/ <仓外输出目录>
+NODE_PATH="$(npm root -g)" node tools/experiment-check.cjs http://localhost:8790/ <另一个仓外输出目录>
 ```
 
 浏览器脚本使用本机 Playwright，覆盖扣栏手机视口及桌面，失败返回非零；截图只取当前可视区。最小试玩钩子为 `window.__PLAYTEST__.ready` / `snapshot()`，原有 `__fade` 仍可用。实测与未测范围见 [VERIFICATION.md](VERIFICATION.md)。
+
+两个浏览器脚本顺序运行；新脚本走真实键盘和触屏的安排、失败、重试、完成与返回。`snapshot().experiment` 给出实验的实际状态，未进入时为 null。本站没有构建步骤，发布时原样复制 `index.html` 和 `src/`。
 
 ## 谁会点开、AI 素材
 
