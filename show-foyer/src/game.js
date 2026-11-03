@@ -232,6 +232,10 @@
   function hint(text) { if (!text) { hintEl.classList.remove('show'); return; } hintEl.textContent = text; hintEl.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => hintEl.classList.remove('show'), 2600); }
   function show(id) { el(id).classList.add('show'); }
   function hide(id) { el(id).classList.remove('show'); }
+  function closeOverlay(id) {
+    hide(id);
+    if (S.phase === 'curtain') show('curtainOverlay');
+  }
 
   // ---------- 节目单 ----------
   let page = 0;
@@ -292,7 +296,16 @@
     curtain() { noise({ type: 'bandpass', f0: 500, q: 0.6, dur: 2.4, vol: 0.25, curve: 1.2 }); tone({ f0: 196, dur: 2.6, vol: 0.12, exact: true, attack: 0.6 }); tone({ f0: 294, dur: 2.4, vol: 0.08, exact: true, attack: 0.8, delay: 0.3 }); },
     page() { noise({ type: 'highpass', f0: 1500, dur: 0.12, vol: 0.25, curve: 1.6 }); },
   };
-  function setMuted(m) { muted = m; if (!FIXED) try { localStorage.setItem('show-foyer-muted', m ? '1' : '0'); } catch (e) {} hint(m ? '已静音' : '已开声'); }
+  function updateSoundButton() {
+    el('soundBtn').textContent = muted ? '声音：关' : '声音：开';
+    el('soundBtn').setAttribute('aria-pressed', String(!muted));
+  }
+  function setMuted(m) {
+    muted = m;
+    if (muted && audio) audio.suspend(); else if (!muted) unlockAudio();
+    if (!FIXED) try { localStorage.setItem('show-foyer-muted', m ? '1' : '0'); } catch (e) {}
+    updateSoundButton(); hint(m ? '已静音' : '已开声');
+  }
 
   // ---------- 画面 ----------
   function resize() {
@@ -442,18 +455,22 @@
   bar.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act !== undefined) act(Number(b.dataset.act)); else if (b.id === 'btnPhoto') { unlockAudio(); photo(); } });
   el('gongBtn').addEventListener('click', () => { unlockAudio(); gong(false); });
   el('infoBtn').addEventListener('click', () => openProgramme(0));
+  el('soundBtn').addEventListener('click', () => setMuted(!muted));
   el('progPrev').addEventListener('click', () => flip(-1));
   el('progNext').addEventListener('click', () => flip(1));
   el('nextShowBtn').addEventListener('click', () => nextShow());
   el('curtainPhotoBtn').addEventListener('click', () => { hide('curtainOverlay'); photo(); });
-  for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => hide(b.dataset.close));
+  for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => closeOverlay(b.dataset.close));
   window.addEventListener('keydown', (e) => {
     if (e.key >= '1' && e.key <= '5') act(Number(e.key) - 1);
     else if (e.key === 'm' || e.key === 'M') setMuted(!muted); else if (e.key === 'p' || e.key === 'P') photo();
     else if (e.key === 'b' || e.key === 'B') openProgramme(0); else if (e.key === 's' || e.key === 'S') act(5);
     else if (e.key === 'ArrowLeft' && el('programmeOverlay').classList.contains('show')) flip(-1);
     else if (e.key === 'ArrowRight' && el('programmeOverlay').classList.contains('show')) flip(1);
-    else if (e.key === 'Escape') for (const o of document.querySelectorAll('.overlay.show')) o.classList.remove('show');
+    else if (e.key === 'Escape') {
+      for (const o of document.querySelectorAll('.overlay.show')) hide(o.id);
+      if (S.phase === 'curtain') show('curtainOverlay');
+    }
   });
   window.addEventListener('resize', resize);
 
@@ -492,5 +509,5 @@
     step(ms) { paused = true; tick(ms / 1000); draw(); frameStamp++; },
   };
 
-  resize(); visits = loadVisits(); enterHall(); requestAnimationFrame(frame);
+  updateSoundButton(); resize(); visits = loadVisits(); enterHall(); requestAnimationFrame(frame);
 })();

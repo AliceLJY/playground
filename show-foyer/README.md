@@ -22,22 +22,23 @@ This is a personal toy, not an official page of the theatre or the production; i
 - Programme: tap the booklet at stage left (or the "i" button). Five pages: cover, about the show, what is Yingge, house notes, who was here tonight (with a button to render the group picture, and a "clear the house" button: tap twice to delete every visit this browser remembers; replays leave, grey figures fill in).
 - Trace limit: the browser keeps at most 12 visits, exactly one hall; with a full hall you are seated in hall 2, and replays leave on their own once they have sat as long as they did.
 - Leave (fifth button): this visit is recorded; next time you enter you are already in the hall. The hall re-seats on the new history and you see "you · just now" sit down.
-- Bells: first bell three minutes before curtain, second one minute before with the house lights fading over that minute, third bell at curtain: the drapes part on a row of Yingge dancers in silhouette, the visit is recorded, the five action buttons go dark, and an overlay offers the group picture or the next show.
+- Bells: first bell three minutes before curtain, second one minute before with the house lights fading over that minute, third bell at curtain: the drapes part on a row of Yingge dancers in silhouette, the visit is recorded, the five action buttons go dark, and an overlay offers the group picture or the next show. Closing the ending picture (including Esc) returns to that overlay; Esc keeps the next-show route available.
+- Sound: open the programme and tap “声音：开/关” beside its title. It shares the M-key toggle and remembers the browser’s choice; muting suspends live audio and enabling resumes it. First visits still default to sound on, unlocked by a user gesture; `mute=1` forces this visit to start muted.
 - The gong time in the top bar is the next gong; tap it to hear one.
-- Keys 1–5 map to the five buttons, S photographs the stage, B opens the programme (arrow keys turn pages), P renders the picture, M mutes, Esc closes overlays. Phone portrait first; landscape and desktop also work.
+- Keys 1–5 map to the five buttons, S photographs the stage, B opens the programme (arrow keys turn pages), P renders the picture, M mutes, Esc closes overlays while keeping the next-show route after curtain. Phone portrait first; landscape and desktop also work.
 
 ## Spec
 
 - One line: wait for curtain in the same foyer as strangers without talking, using a few gestures a theatre already has to say "I am here, so are you", and then the show really starts.
 - Aesthetics (MDA): fellowship (silent co-presence) and sensation (red and gold stage, the gong, backstage drums, the bells); expression as secondary.
-- Venue: phone, portrait, usually muted, one hand, five minutes. Every action changes the picture, so it reads muted; all buttons visible without scrolling at 390×664.
+- Venue: phone, portrait, usually muted, one hand, five minutes. Every action changes the picture, so it reads muted; main controls are visible without scrolling at 390×664. On short screens only the programme body scrolls; navigation, sound and close stay on the paper. Touch targets are at least 44×44 CSS px; also check 320×568, 844×340 and 1365×900.
 - Arc plus loop: a sitting has a beginning (entering), a middle (backstage sounds, the gong) and an end (bells to curtain); the hall differs each visit (last time's you is there). We test "do you see yourself from last time" and "does five minutes end properly", not completion rate.
 - Seating rules: twelve per hall; newcomers join the fullest hall that is not full; ties go to the lowest hall number; when all are full the lowest unused number opens; the last to leave closes a hall. Replays follow the same rules in the order they originally arrived, then you.
 - Backstage: a seeded schedule per sitting, first event no earlier than 12 s, then every 20–40 s, drums, tuning and curtain-brush in rotation without immediate repeats; heads turn when something is heard.
 - Bells: at 180 s, 60 s and 0 s before curtain, each once; a time jump catches up all at once. House light fades from 1 to 0.35 over the last minute and is 0.2 after curtain, dimming only the seats, not the stage.
 - Colours (sRGB): curtain `#6a241a` `#7a2a1e`, stage gold `#c9a24a`, floor `#2a1e16` to `#1a120d`, seats `#9b2d20` at 55%, you `#e0b25a`, replays cycle twelve colours, grey figures `#8a8a8a` at 55%, programme paper `#efe6d2` with a `#9b2d20` spine.
 - Layout: stage is the top 36% of the canvas (30% in landscape), 4×3 seats in the lower 60%; figures scale down when row pitch is under 58 px so landscape phones do not overlap. The curtain parts to both sides over 2.6 s onto warm light and seven dancers with raised sticks.
-- Performance: Canvas 2D, no images or font files, a bit over a hundred primitives per frame.
+- Performance: Canvas 2D, no image/font files, Three.js, dependencies or build step. Target midrange phone browsers and desktop Chromium at 60 fps. Measure 390×664 (DPR2) and 1365×900 (DPR1), normal antialiasing, DPR capped at 2, render scale 1: open `?view=full&t=6`, sit, resume real RAF, and sample 120 frames with 10 people and 9 lanterns. Canvas paint operations are in the hundreds, capped at 1500 per frame (fill/stroke, rectangles, text, drawImage etc., not WebGL draw calls); simulation plus draw callback p95 ≤16.7 ms. Record the graphics backend; a local pass does not prove phone frame rate.
 - Sound: all Web Audio synthesis, created on first touch; ±6% random pitch except bells, drums and tuning. The gong is a 98 Hz fundamental with four inharmonic partials over 3.2 s; bells are 1760 Hz sines with one high partial, one to three strokes; drums are six low-passed noise hits with a 90→52 Hz sine in a Yingge pattern; tuning is two sines sliding past each other; the curtain is 2.4 s of band-passed noise over two low tones; the shutter is two very short noise clicks.
 - The hourly gong follows the real clock in the local time zone, fires once on the frame that crosses the hour.
 
@@ -60,6 +61,21 @@ This is a personal toy, not an official page of the theatre or the production; i
 | 13 | Backstage schedule: first ≥12 s, gaps 20–40 s, three kinds without immediate repeats, reproducible | `tests/core.test.cjs` | pass |
 | 14 | Stage photos recorded and replayed; frozen at t=301: all bells caught up, curtain open, light 0.2, buttons off, overlay shown | Node test + `tools/browser-check.cjs` group 13 (`?view=full&t=301`) | pass |
 
+### F1 repair verification (2026-11-03)
+
+- Item 1: closing the ending photo by button or Esc returns to curtain-up; Esc at curtain-up keeps “next show” available, and the next sitting can start. All 12 return checks (three branches × four viewports) failed before and pass after.
+- Item 2: the programme sound button reuses `setMuted`. Real Web Audio suspend/resume, M-key synchronization and persisted mute choice pass. All four viewports lacked a touch sound entry before. First-visit sound remains on.
+- Item 3: top-bar info/gong and overlay buttons have targets ≥44×44 CSS px. Only the programme body scrolls; navigation/close stay on paper. Landscape photo height leaves room for close. `tools/regression.cjs` checks every enabled button across five pages, saved visits and clear confirmation: dimensions, viewport bounds, centre hit and paper bounds. All 52 layout groups failed before and pass after.
+- Item 4: both READMEs now include budgets, audience and AI disclosure; two added Node documentation checks failed before and pass after. The stranger retelling has not been tested: ask a first-time visitor who the people are and when the visit ends. Automated checks do not replace that acceptance.
+
+Current Node result: **21 tests, 21 pass, 0 fail**. New browser regression: **100/100** (the old version failed 68 of 76 checks; sound and restart fixes enabled 24 further checks). Existing fixed views: **13/13 groups**; original walkthrough: **21/21**. Viewports: 390×664, 320×568, 844×340 at DPR2, and 1365×900 at DPR1; default antialiasing/render path, no quality reduction. The new checks start at the normal URL without forcing `mute=1`. Logs/screenshots are outside Git in `out-F1/foyer-red/`, `foyer-green/`, `foyer-fixed/` and `foyer-walk/`; each was visually inspected for reachable return controls and readable navigation/close on the paper.
+
+Chromium 156.0.8078.4, Apple M4 Metal (not SwiftShader). `tools/performance.cjs` samples 120 real RAF frames: phone p95 **0.50 ms**, maximum **175** paint calls; desktop p95 **0.60 ms**, maximum **246**. This verifies the local callback budget, not midrange-phone frame rate.
+
+`tools/record.cjs` records `foyer-record/opening-30s.mp4`: 780×1328 portrait, 30 fps, 900 continuous frames from normal entry, real touch gestures for sitting, lantern, clap, stage photo, programme, leave/re-enter, tea, gong and photo, plus keyboard M. No state jumps occur in those 30 seconds. `opening-and-ending.mp4` adds an explicitly accelerated ending after second 30, through photo → close → next show → sit again, for 1080 frames total. All 22 contact sheets were read frame by frame (900 opening plus 180 ending frames); gestures, curtain motion and return remained correct. All 11 state checks pass with zero page errors. Only recording disables CSS transitions/animations to avoid wall-clock drift. Videos contain no audio track and do not claim a listening test or a full five-minute demonstration.
+
+Reproduce: run `node --test tests/*.test.cjs` here; serve the repository locally, then run each `NODE_PATH="$(npm root -g)" node tools/<tool>.cjs <page-url> <external-output-dir>` for `regression`, `performance`, `record`, `browser-check` and `walkthrough`. There is no build: the tested `index.html` + `src/` are the published files. This reuses existing overlays/audio and native CSS, without new dependencies or gameplay.
+
 Not tried on a real phone yet; nobody has listened to the sounds, only their trigger names are verified.
 
 ## Fixed views
@@ -77,3 +93,8 @@ With `view` set, localStorage is neither read nor written. Hooks: `window.__foye
 ## Origin
 
 Inspired in October 2026 by a Korean web temple where strangers sit in silence together: others are present but nobody has to speak; a full room opens the next; grey labelled figures keep an empty room company. This borrows that atmosphere layer and changes the setting to a theatre foyer; it pairs with Shared Table (the teahouse) in this repo. The first version had only the five actions and a playtest called it monotonous; the programme, stage photos, backstage sounds and the bells-to-curtain ending were added the same day without new buttons. Sharing traces between visitors is not built.
+
+## Audience and AI materials
+
+- For visitors who want a quiet few minutes on a phone and a chance to encounter a replay of their previous visit.
+- Code, the Canvas stage and figures, replay gestures and Web Audio synthesis were made with AI assistance. No external generated images, 3D models, motion capture, recordings or music files are used. Show facts come from the public report cited above.
