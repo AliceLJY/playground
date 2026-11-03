@@ -36,8 +36,10 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     return page.evaluate(sel=>{const b=document.querySelector(sel);if(!b||b.hidden)return{sel,ok:false,why:'missing'};
       const r=b.getBoundingClientRect(),cx=r.x+r.width/2,cy=r.y+r.height/2,hit=document.elementFromPoint(cx,cy);
       const inside=r.x>=0&&r.y>=0&&r.right<=innerWidth+0.5&&r.bottom<=innerHeight+0.5;
-      const ok=r.width>=44&&r.height>=44&&inside&&(hit===b||b.contains(hit));
-      return{sel,ok,w:Math.round(r.width),h:Math.round(r.height),x:Math.round(r.x),y:Math.round(r.y)};},sel);
+      // nothing written on the button may run past its edge
+      const spill=[b,...b.querySelectorAll('*')].some(e=>{const q=e.getBoundingClientRect();return q.width>0&&(q.left<r.left-0.5||q.right>r.right+0.5);})||b.scrollWidth>b.clientWidth+1;
+      const ok=r.width>=44&&r.height>=44&&inside&&!spill&&(hit===b||b.contains(hit));
+      return{sel,ok,spill,w:Math.round(r.width),h:Math.round(r.height),x:Math.round(r.x),y:Math.round(r.y)};},sel);
   }
   const overlap=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
 
