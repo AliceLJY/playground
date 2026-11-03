@@ -452,7 +452,9 @@
     for(const x of [13,21,29]) {r(g,'#d1ad83',x,12,1,12);r(g,'#d96952',x-1,14,3,3);r(g,'#e8963a',x-1,19,3,3);}
     r(g,'#35474a',10,27,3,5); r(g,'#35474a',29,27,3,5);
     for(const x of [20,54]) {r(g,'#d1ad83',x-6,57,12,3);r(g,'#35474a',x-5,60,2,5);r(g,'#35474a',x+3,60,2,5);}
-    plaque(g,'烧烤',40,19,28,'#8c4f37');
+    // Hotpot shares the terrace (Alice: 「烧烤或者火锅吧，把它放到一块儿」): a red-broth pot on a low table between the stools.
+    r(g,'#77563f',27,47,22,8); r(g,'#a97c52',27,47,22,3); r(g,'#35474a',30,42,16,7); r(g,'#b5473a',31,42,14,3); r(g,'#efc66c',34,42,2,1); r(g,'#efc66c',40,43,2,1);
+    plaque(g,'烧烤火锅',36,19,34,'#8c4f37');
   }
   function cinemaRoom(g) {
     r(g,'#26303a',0,0,110,80); frame(g,'#7a8a9a');
@@ -522,6 +524,7 @@
         for(const x of [11,17,23,29]) r(ctx,f?'#e8963a':'#d96952',x,24,3,2);
         for(let j=0;j<3;j++) {const k=(t*.7+j/3)%1;r(ctx,'#e8eef280',16+j*5+Math.round(Math.sin(t+j)*2),12-Math.floor(k*11),2,2);}
         for(let x=5;x<70;x+=12) r(ctx,(x+f)%3?'#fff6dc':'#efc66c',x-1,6,3,3);
+        r(ctx,f?'#d9564d':'#b5473a',31,42,14,3); for(let j=0;j<2;j++){const k=(t*.9+j/2)%1;r(ctx,'#ffffffa0',34+j*6,40-Math.floor(k*9),2,2);}
       });
       placed(ctx,o.ktv,()=>{
         // Lyrics scroll while someone sings; the disco ball always turns.
@@ -1171,7 +1174,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({cook:'做饭',chop:'切菜',eat:'吃饭 · 撸串',grill:'烤串',buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:C.bands?'浇菜':'浇花',cat:'撸猫',swim:'游泳',lounge:'池边晒太阳',pick:'摘菜',checkup:'医务室 · 体检',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({cook:'做饭',chop:'切菜',eat:'吃饭 · 涮锅撸串',grill:'烤串',buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:C.bands?'浇菜':'浇花',cat:'撸猫',swim:'游泳',lounge:'池边晒太阳',pick:'摘菜',checkup:'医务室 · 体检',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
@@ -1224,7 +1227,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : '额度用完 · 回休息室充电') : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv && a.awayPost!=='kitchen' ? '打盹中 · 随叫随到' : a.status==='idle' && a.gameSlot===36 && sim.gameActivity(a)==='cheer' ? '烧烤 · 碰杯' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.activity==='chef' ? (sim.chefActivity(a)==='grill'?'后勤主厨 · 烤串':'后勤主厨 · 做饭') : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : '额度用完 · 回休息室充电') : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv && a.awayPost!=='kitchen' ? '打盹中 · 随叫随到' : a.status==='idle' && a.gameSlot===36 && sim.gameActivity(a)==='cheer' ? '烧烤 · 碰杯' : a.status==='idle' && [39,40].includes(a.gameSlot) && sim.gameActivity(a)==='eat' ? `吃${C.dishOf(a.id)[1]} · ${C.dishOf(a.id)[0]}` : a.status==='idle' && [37,38].includes(a.gameSlot) && sim.gameActivity(a) ? `做${C.dishOf(a.id)[1]}` : a.status==='idle' && a.gameSlot===35 && sim.gameActivity(a)==='eat' ? '涮火锅' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.activity==='chef' ? (sim.chefActivity(a)==='grill'?'后勤主厨 · 烤串':'后勤主厨 · 做饭') : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
