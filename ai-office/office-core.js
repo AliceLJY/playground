@@ -65,6 +65,12 @@
   }
   const teaTime = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 8 && h < 10 ? '早茶' : h >= 15 && h < 17 ? '下午茶' : h >= 20 && h < 23 ? '夜茶' : null; };
   const mealTime = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); return m>=690 && m<780 ? '午餐' : m>=1050 && m<1140 ? '晚餐' : null; };
+  // The boss's own day in the tower (Alice 11-03: 「给我安排点事儿……老板在唱歌、游泳、撸猫」). Beijing minutes → what she does when
+  // nothing needs her (no queue, no note, no guest). Spots are local to a room offset (see BOSS_SPOTS); 'desk' and 'stroll' wander.
+  const BOSS_DAY = [[30,'home','回家睡觉'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
+    [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
+    [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1230,'sing','唱K'],[1290,'bbq','撸串涮火锅'],[1350,'dance','跳舞'],[1380,'read','看书']];
+  const bossPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); let p=BOSS_DAY[BOSS_DAY.length-1]; for(const e of BOSS_DAY) if(e[0]<=m) p=e; return {kind:p[1],label:p[2]}; };
   const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
   const isBreakfast = time => !!teaTime(time);
   const isFunTime = time => Math.floor(time / 1200000) % 3 === 2;
@@ -190,6 +196,11 @@
     ...obstaclesAt(bedLocalObstacles,T_REST),...obstaclesAt(kitchenLocalObstacles,T_KITCHEN),...obstaclesAt(poolLocalObstacles,T_POOL),...obstaclesAt(catTreeLocalObstacles,T_CAT),...obstaclesAt(clinicLocalObstacles,T_CLINIC),...obstaclesAt(chargeLocalObstacles,T_CHARGE),
     ...funObstacles(T_FUN,towerLocalObstacles)];
   const towerGameWatch={x:172,y:350};
+  // Where the boss stands for each plan item in the tower (clear of colleagues' slots; checked walkable by kitchen.test).
+  const BOSS_SPOTS = {tea:{x:T_TEA[0]+70,y:T_TEA[1]+54}, kitchen:{x:T_KITCHEN[0]+38,y:T_KITCHEN[1]+76}, pet:{x:T_CAT[0]+46,y:T_CAT[1]+66},
+    swim:{x:T_POOL[0]+60,y:T_POOL[1]+30}, gym:{x:T_GYM[0]+70,y:T_GYM[1]+66}, farm:{x:T_FUN.garden[0]+30,y:T_FUN.garden[1]+52},
+    theatre:{x:T_FUN.cinema[0]+100,y:T_FUN.cinema[1]+66}, sing:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+52}, dance:{x:T_FUN.ktv[0]+70,y:T_FUN.ktv[1]+52},
+    bbq:{x:T_FUN.bbq[0]+40,y:T_FUN.bbq[1]+64}, read:{x:T_FUN.read[0]+55,y:T_FUN.read[1]+70}};
   const tower={...classic,id:'portrait',H:1050,bands:T_BANDS,funOffsets:T_FUN,funLocal:towerLocal,fun:funSpots(T_FUN,towerLocal),partySpot:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+56},
     gameWatch:towerGameWatch,tour:[tour[0],pantry,tour[2],{x:132,y:420},towerGameWatch],
     meetingRect:T_MEET,meetingOffset:[0,0],podium:{x:104,y:386},seats:[32,50,68,86].map(x=>({x,y:390})),standing:[...[28,48,68,88,108].map(x=>({x,y:432})),{x:100,y:456}],audience:[{x:36,y:458},{x:60,y:458}],
@@ -197,7 +208,7 @@
     beds:atOrigin(bedLocal,T_REST),restOffset:T_REST,gym:atOrigin(gymLocal,T_GYM),gymOffset:T_GYM,tea:atOrigin(teaLocal,T_TEA),teaOffset:T_TEA,
     feastStand:atOrigin(feastLocal,T_TEA),feastDrop:atOrigin([[39,82,'drop']],T_TEA)[0],
     kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,chargeOffset:T_CHARGE,chargePod:{x:T_CHARGE[0]+chargeLocal[0],y:T_CHARGE[1]+chargeLocal[1]},clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},
-    funTop:488,obstacles:towerObstacles,
+    funTop:488,obstacles:towerObstacles,bossSpots:BOSS_SPOTS,
     patrol:[door,{x:326,y:488},{x:326,y:612},{x:40,y:612},{x:40,y:716},{x:230,y:716},{x:326,y:716},{x:326,y:488},door,pantry,{x:125,y:169},door]};
   const layouts={portrait:tower,landscape,film,legacy:{...classic,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   // Extend only office layouts after film/legacy have captured their original arrays and offsets.
@@ -870,11 +881,20 @@
       else if (L.clinicDoctor && sim.actors.some(a => gameActivity(a) === 'checkup')) moveTo(sim.boss, L.clinicDoctor);
       else if (feasting() && !legacy && !sim.actors.some(a => feastSpot(a))) moveTo(sim.boss, L.tea[0]);
       else if (sim.reception?.mode === 'closed' && sim.reception.phase !== 'leaving' && !legacy && !sim.classicLeisure) moveTo(sim.boss, { x: door.x - 40, y: door.y });
+      else if (L.bossSpots && sim.clockKnown && !legacy && !sim.classicLeisure) {
+        // Her own day: go where the plan says; at the desk or strolling with the cat she still wanders between a few points.
+        const plan = bossPlan(signalNow()); sim.bossPlan = plan; sim.bossAway = plan.kind === 'home';
+        if (plan.kind === 'home') moveTo(sim.boss, door);
+        else if (L.bossSpots[plan.kind]) moveTo(sim.boss, L.bossSpots[plan.kind]);
+        else if (plan.kind === 'desk') moveTo(sim.boss, bossDesk);
+        else if (sim.time >= sim.nextWander) { moveTo(sim.boss, [tour[0],pantry,tour[2],tour[3],gameWatch][Math.floor(random() * 5)]); sim.nextWander = sim.time + 7 + random() * 5; }
+      }
       else if (sim.time >= sim.nextWander) {
         moveTo(sim.boss, [tour[0],pantry,bossDesk,tour[3]][Math.floor(random() * 4)]);
         sim.nextWander = sim.time + 7 + random() * 5;
       }
-      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery || sim.radar?.phase==='showing' || L.clinicDoctor && sim.boss.dest && distance(sim.boss.dest,L.clinicDoctor)<1 || sim.reception?.mode==='closed' ? 1 : 0.5));
+      if (!(L.bossSpots && sim.clockKnown && !legacy && !sim.classicLeisure)) sim.bossPlan = null;
+      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery || sim.radar?.phase==='showing' || L.clinicDoctor && sim.boss.dest && distance(sim.boss.dest,L.clinicDoctor)<1 || sim.reception?.mode==='closed' || sim.bossPlan && !['desk','stroll'].includes(sim.bossPlan.kind) ? 1 : 0.5));
     }
     // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
@@ -981,7 +1001,22 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { chefTarget,chefActivity,play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    // What the boss is doing right now, for poses and the drawer: the plan item once she is at its spot (or strolling/at her desk).
+    function bossActivity() {
+      const p=sim.bossPlan; if(!p) return null; if(p.kind==='stroll' && !sim.actors.some(a=>a.status==='waiting') && !sim.delivery) return 'stroll'; if(sim.boss.path.length) return null;
+      if(p.kind==='desk') return distance(sim.boss,bossDesk)<1 ? 'desk' : null;
+      if(p.kind==='stroll') return 'stroll';
+      const spot=L.bossSpots?.[p.kind]; return spot && distance(sim.boss,spot)<1 ? p.kind : null;
+    }
+    function bossLabel() {
+      if(sim.actors.some(a=>a.status==='waiting')) return '在老板桌等着拍板';
+      if(sim.reception?.mode==='closed') return '在门口接待客人';
+      if(L.clinicDoctor && distance(sim.boss,L.clinicDoctor)<1) return '在医务室坐诊';
+      const p=sim.bossPlan; if(!p) return '在办公室转转';
+      if(sim.boss.path.length && p.kind!=='stroll') return p.kind==='home'?'下班回家':'正要去'+p.label.replace(/^在/,'');
+      return p.label;
+    }
+    return Object.assign(sim, { bossActivity,bossLabel,chefTarget,chefActivity,play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
@@ -1157,7 +1192,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, bossPlan, BOSS_DAY, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
