@@ -952,9 +952,9 @@ const buttons = STEPS.map((s, i) => `<button type="button" class="nc-step" data-
 const controls = `<aside class="nc-side">
   <div class="nc-mode" role="group" aria-label="播放方式"><button type="button" data-mode="manual" aria-pressed="true">手动</button><button type="button" data-mode="auto" aria-pressed="false">自动</button></div>
   <div class="nc-mode nc-theme" role="group" aria-label="白天或黑夜"><button type="button" data-theme-set="light" aria-pressed="${THEME === "light"}">白天</button><button type="button" data-theme-set="dark" aria-pressed="${THEME === "dark"}">黑夜</button></div>
-  <div class="nc-steps">${buttons}</div>
+  <details class="nc-directory"><summary>11 步目录</summary><div class="nc-steps">${buttons}</div></details>
   <a href="#" class="nc-reset" data-reset>从头来</a>
-  ${inset.html}
+  <details class="nc-cutaway"><summary>斗栱剖视窗</summary>${inset.html}</details>
 </aside>`;
 const chips = `<div class="nc-chips" data-chips>
   <span class="nc-chip"><b>当前</b><i data-chip="part">台基</i></span>
@@ -966,14 +966,16 @@ const chips = `<div class="nc-chips" data-chips>
 </div>`;
 const slider = `<label class="nc-slider"><span>换一把尺子：1 分 =</span><input type="range" min="12" max="20" step="0.5" value="16.5" data-fen aria-label="分值，毫米"><output data-fen-out>16.5 mm</output><em data-fen-note>实测（张荣 2022）</em></label>`;
 const corners = `<div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Fig 1</span><span class="iso-plate-corner" data-corner="title">南禅寺大殿 · 唐 782</span><span class="iso-plate-corner" data-corner="hint">按左边亮着的那一步</span><span class="iso-plate-corner" data-corner="readout" data-readout>还是一块空地</span></div>`;
-const stage = `<div class="nc-stage" tabindex="0" role="group" aria-label="南禅寺大殿搭建演示。左侧按钮按顺序一步步搭起来；空格键按下一步。">
+const stage = `<div class="nc-stage" tabindex="0" role="group" aria-label="南禅寺大殿搭建演示。按下一步逐层搭建；空格键按下一步。">
+  <div class="nc-current" data-current aria-live="polite">当前：空地</div>
   <div class="nc-tiprow"><div class="nc-tip" data-tip aria-live="polite">先把地基夯结实。按「1 夯台基」。</div><div class="nc-speed" data-speed hidden>${M.SPEED_NOTE}</div></div>
   ${svgMain}
   <div class="nc-sound" data-sound aria-hidden="true"></div>
 </div>`;
+const actions = `<div class="nc-actions"><button type="button" data-next-step>下一步：夯台基</button><div class="nc-reviews" hidden>${[['bracket','斗栱'],['beam','梁架'],['apart','拆开'],['again','装回']].map(([id,name])=>`<button type="button" data-review="${id}" disabled>${name}</button>`).join('')}</div></div>`;
 const caption = `一句话：<strong>整座殿可以用一把尺子量出来——材。</strong>图里每个零件都按「分」建（1 分 = 材广的十五分之一，这里取 16.5 mm）：明间 300 分，次间和进深各 200 分，柱高 13 尺，斗栱层高 95 分，举高 130 分。<span class="nc-small">以宋《营造法式》（1103 年刊行）的材分回量这座唐构，是今人的分析方法（祁英涛、柴泽俊 1980；张荣等 2022），不是唐人留下的图纸。殿内没有一根内柱：两根四椽栿从前檐跨到后檐，屋顶的重量经斗栱一层层落到 12 根檐柱上。出檐、台基外轮廓、生起、阑额截面、门钉与椽的数量为示意。</span>`;
 const legend = `<figcaption class="iso-legend"><div class="nc-swatches"><span><i class="sw sw-zhu"></i>土朱：柱、额、斗栱</span><span><i class="sw sw-bai"></i>白粉：墙、栱头</span><span><i class="sw sw-wa"></i>灰瓦</span><span><i class="sw sw-shi"></i>青灰石</span></div><span class="iso-caption">${caption}</span></figcaption>`;
-const body = `<figure class="iso-figure nc"><div class="iso-plate">${corners}<div class="nc-layout">${controls}<div class="nc-main">${stage}${chips}${slider}</div></div></div>${legend}</figure>`;
+const body = `<figure class="iso-figure nc"><div class="iso-plate">${corners}<div class="nc-layout">${controls}<div class="nc-main">${stage}${actions}${chips}${slider}</div></div></div>${legend}</figure>`;
 
 const CSS = readFileSync(join(HERE, "nanchan.css"), "utf8");
 const LIVE = readFileSync(join(HERE, "live.js"), "utf8").replace("__DATA__", JSON.stringify(DATA)) + inset.script;
