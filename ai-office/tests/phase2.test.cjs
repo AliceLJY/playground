@@ -23,7 +23,7 @@ test('meeting starts from desks or rest, seats every member, round changes do no
     for(const id of fixture.scene.meeting.members){const a=s.actors.find(a=>a.id===id);assert.ok(C.distance(a,s.meetingTarget(id))<1,id);}
     const points=s.actors.filter(a=>a.activity).map(a=>[a.x,a.y]);s.setScene({...s.scene,meeting:{...s.scene.meeting,round:3}});s.step(1000);assert.deepEqual(s.actors.filter(a=>a.activity).map(a=>[a.x,a.y]),points);
     scene(s,{});walk(s,35);for(const id of ['cc','codex','grok']){const a=s.actors.find(a=>a.id===id);assert.ok(C.distance(a,C.home(a.i))<1);}
-    const k=s.actors.find(a=>a.id==='kimi');assert.ok(C.distance(k,C.games[k.gameSlot])<1);
+    const k=s.actors.find(a=>a.id==='kimi');assert.ok(C.distance(k,C.leisure('portrait')[k.gameSlot])<1);
   }
   const full=C.create(Array.from({length:11},(_,desk)=>({id:desk?'a'+desk:'cc',desk})));scene(full,{meeting:{...fixture.scene.meeting,members:full.actors.map(a=>a.id)}});walk(full,35);assert.equal(new Set(full.actors.map(a=>`${a.x},${a.y}`)).size,11);full.actors.forEach(a=>assert.ok(C.distance(a,full.meetingTarget(a.id))<1));
 });
@@ -62,7 +62,7 @@ test('event templates cover every public event, use fixed treat names, ignore un
 function idleGroup(n,seed=7){const s=C.create(Array.from({length:11},(_,desk)=>({id:desk?'a'+desk:'cc',desk})),seed);for(const a of s.actors)s.setStatus(a.id,a.i<n?'idle':'busy');s.step(15000);return s;}
 test('idle only: game room, then gym, then rest; 1–10 never overlap; Cobbler stays home',()=>{
   const kinds=n=>C.leisureSlots(n).map(slot=>C.leisure('portrait')[slot].kind);
-  assert.deepEqual(C.leisureSlots(1),[4]);assert.deepEqual(C.leisureSlots(3),[0,1,4]);assert.deepEqual(C.leisureSlots(5),[0,1,4,12,5]);
+  assert.deepEqual(C.leisureSlots(1),[4]);assert.deepEqual(C.leisureSlots(3),[0,1,4]);assert.deepEqual(C.leisureSlots(5),[0,1,4,16,17]);assert.deepEqual(C.leisureSlots(6),[0,1,4,16,17,12]);
   for(let n=1;n<=11;n++){const s=idleGroup(n),idle=s.actors.filter(a=>a.status==='idle'&&a.i!==10);assert.equal(idle.filter(a=>a.gameSlot!=null&&a.gameSlot<2).length,n===1?0:2);
     assert.deepEqual(idle.map(a=>s.gameActivity(a)).sort(),kinds(idle.length).sort());
     for(let i=0;i<s.actors.length;i++)for(const b of s.actors.slice(i+1)){const a=s.actors[i];assert.ok(Math.abs(a.x-b.x)>=18||Math.abs(a.y-b.y)>=32,`${n} idle: overlapping ${a.id}/${b.id}`);}
@@ -71,7 +71,7 @@ test('idle only: game room, then gym, then rest; 1–10 never overlap; Cobbler s
   }
 });
 test('idle allocation is stable, sorted initially, and each 5 to 4 removal moves only the vacancy replacement',()=>{
-  for(let removed=0;removed<5;removed++){const s=idleGroup(5),before=s.actors.map(a=>a.gameSlot);assert.deepEqual(before.slice(0,5),[0,1,4,12,5]);
+  for(let removed=0;removed<5;removed++){const s=idleGroup(5),before=s.actors.map(a=>a.gameSlot);assert.deepEqual(before.slice(0,5),[0,1,4,16,17]);
     s.step(8000);assert.deepEqual(s.actors.map(a=>a.gameSlot),before);const gone=s.actors[removed];s.setStatus(gone.id,'busy');s.step(15000);
     const changed=s.actors.filter(a=>a.i!==removed&&a.gameSlot!==before[a.i]);assert.ok(changed.length<=1,`5→4 removal ${removed} moved ${changed.map(a=>a.i)}`);assert.ok(C.distance(gone,C.home(gone.i))<1);assert.equal(s.actors.filter(a=>a.gameSlot!=null&&a.gameSlot<2).length,2);
   }
@@ -115,7 +115,7 @@ test('every 1–10 membership change preserves valid places; chess also waits fo
     for(const a of s.actors.filter(a=>a.status==='idle'))if(slots(n-1).includes(before[a.i]))assert.equal(a.gameSlot,before[a.i],`${n}→${n-1}, removal ${removed}: unaffected ${a.id} moved`);
     assert.deepEqual(s.actors.filter(a=>a.status==='idle').map(a=>a.gameSlot).sort((a,b)=>a-b),slots(n-1));
   }
-  const s=idleGroup(5);s.setStatus('a9','idle');let unmatched=0;
+  const s=idleGroup(7);s.setStatus('a9','idle');let unmatched=0;
   for(let i=0;i<750;i++){s.step(20);const pair=s.actors.filter(a=>[2,3].includes(a.gameSlot));if(pair.filter(a=>!a.path.length).length===1){unmatched++;assert.ok(pair.every(a=>s.gameActivity(a)===null));}}
   assert.ok(unmatched>0);assert.equal(s.actors.filter(a=>s.gameActivity(a)==='chess').length,2);
 });

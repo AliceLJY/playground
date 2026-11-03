@@ -5,7 +5,7 @@
   const mvMode = params.get('mv') === '1', mvFrom = Math.max(0, Number(params.get('from')) || 0);
   // MV helpers also read desks/home: use the current portrait layout for the film.
   const Core=window.OfficeCore, landscapeQuery=matchMedia('(min-width:1000px) and (min-aspect-ratio:5/4)');
-  const layoutKey=()=>mvMode?'portrait':params.get('wall')!=='1' && landscapeQuery.matches?'landscape':'portrait';
+  const layoutKey=()=>mvMode?'film':params.get('wall')!=='1' && landscapeQuery.matches?'landscape':'portrait';
   const withLayout=key=>{const L=Core.layouts[key];return {...Core,...L,home:i=>Core.home(i,L),nameplates:(actors,measure,exclusions)=>Core.nameplates(actors,measure,exclusions,L)};};
   let C=withLayout(layoutKey());
   // ctx is swapped for a sprite while a squashing actor is painted (see person); everything else draws to the screen.
@@ -52,11 +52,23 @@
   function desk(g, x, y, index) {
     const owner = currentRoster.find((a, k) => (Number.isInteger(a.desk) ? a.desk : k) === index);
     const color = owner?.color || '#829e87';
+    if (!mv && owner?.courier) { mailCounter(g, x, y, owner, color); return; }
     r(g, '#4c4d4050', x - 25, y + 17, 56, 10);
     r(g, '#77563f', x - 26, y + 4, 52, 18); r(g, '#a97c52', x - 26, y + 4, 52, 11); r(g, '#d1a272', x - 28, y, 56, 10); r(g, '#e0b786', x - 28, y, 56, 2);
     r(g, '#715543', x - 24, y + 17, 4, 8); r(g, '#715543', x + 20, y + 17, 4, 8);
     r(g, '#35474a', x - 12, y - 12, 24, 16); r(g, '#213b40', x - 10, y - 10, 20, 12); r(g, '#71a29a', x - 8, y - 8, 15, 1); r(g, '#5c8d83', x - 8, y - 5, 9, 1); r(g, '#90b8a3', x - 8, y - 2, 12, 1); r(g, '#394947', x - 2, y + 4, 4, 3);
     r(g, '#e1d8ba', x - 9, y + 9, 18, 4); r(g, '#768474', x - 7, y + 10, 14, 1); r(g, color, x + 18, y - 2, 5, 7); r(g, '#e2ceac', x + 23, y, 2, 3);
+    r(g, '#d9b98b', x - 23, y + 34, 46, 9); text(g, owner?.name || '', x, y + 41, 7, '#574e3b');
+  }
+  // Cobbler sorts notes: pigeonholes behind a counter, no computer.
+  function mailCounter(g, x, y, owner, color) {
+    r(g, '#4c4d4050', x - 25, y + 17, 56, 10);
+    r(g, '#77563f', x - 24, y - 16, 48, 20); r(g, '#a97c52', x - 23, y - 15, 46, 18);
+    for (let j = 0; j < 6; j++) for (let k = 0; k < 2; k++) { const px = x - 22 + j * 7.5, py = y - 14 + k * 9; r(g, '#5d4330', px, py, 6, 7); if ((j + k) % 3) r(g, ['#fff0c9', '#edc4a2', '#d9e3c6'][(j + k) % 3], px + 1, py + 2, 4, 4); }
+    r(g, '#77563f', x - 26, y + 4, 52, 18); r(g, '#a97c52', x - 26, y + 4, 52, 11); r(g, '#d1a272', x - 28, y, 56, 10); r(g, '#e0b786', x - 28, y, 56, 2);
+    r(g, '#715543', x - 24, y + 17, 4, 8); r(g, '#715543', x + 20, y + 17, 4, 8);
+    r(g, '#fff4d5', x - 12, y + 2, 10, 6); r(g, '#c85b4a', x - 4, y + 2, 2, 2); r(g, '#f3e6b2', x + 2, y + 1, 9, 6); r(g, '#edc4a2', x + 3, y + 3, 9, 6);
+    r(g, color, x + 18, y - 2, 5, 7); r(g, '#e2ceac', x + 23, y, 2, 3);
     r(g, '#d9b98b', x - 23, y + 34, 46, 9); text(g, owner?.name || '', x, y + 41, 7, '#574e3b');
   }
   // The room is cached on the backdrop for the office page; the MV draws it straight onto the canvas every frame
@@ -91,7 +103,7 @@
     r(g, '#8a9c8735', 20, 87, 91, 68); r(g, '#8f9a7d', 20, 87, 91, 3); r(g, '#8f9a7d', 20, 87, 3, 72); r(g, '#96a38b', 109, 88, 3, 58);
     r(g, '#6d806a', 28, 91, 34, 10); text(g, '总监室', 45, 99, 6, '#f2ebd3');
     if (!mv) departments(g);
-    C.desks.forEach(([x, y], i) => { if (i !== 10 && (mv || i !== 9)) desk(g, x, y, i); });
+    C.desks.forEach(([x, y], i) => { if (i !== 10 && (mv || i !== 9 && i !== 7)) desk(g, x, y, i); });
     // The bookshelf stays put; the little lounge becomes a game corner on the office page.
     r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
     for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
@@ -113,21 +125,24 @@
 
   // Rooms are only floor tints and plaques: no new walls, so every route through the office stays as it was.
   function plaque(g, label, x, y, w, color = '#6d806a', ink = '#f2ebd3') { r(g, '#4c4d4040', x + 1, y + 1, w, 10); r(g, color, x, y, w, 10); text(g, label, x + w / 2, y + 8, 6, ink); }
+  // A translucent block with a 1-pixel outline per department; the plaque sits inside its own block.
+  function zone(g, x, y, w, h, color) { r(g, color + '30', x, y, w, h); r(g, color + 'b0', x, y, w, 1); r(g, color + 'b0', x, y + h - 1, w, 1); r(g, color + 'b0', x, y, 1, h); r(g, color + 'b0', x + w - 1, y, 1, h); }
   function departments(g) {
     // Engineering & review: Codex, Kimi, Agy along the top row; its plaque hangs on the wainscot above them.
-    r(g, '#7f9c9a26', 120, 92, 224, 60); r(g, '#7f9c9a', 120, 92, 224, 1);
-    plaque(g, '工程审查部', 196, 74, 66);
-    // Mailroom & archive: the bookshelf keeps Dots' X clippings, Cobbler sorts the notes.
-    r(g, '#c6a1602a', 20, 162, 172, 88); r(g, '#c6a160', 20, 162, 1, 88);
-    plaque(g, '收发室', 26, 163, 36, '#a3824f');
+    zone(g, 116, 88, 228, 66, '#4f86a8'); plaque(g, '工程审查部', 196, 74, 66, '#4f7d98');
+    // Mailroom: Dots' X clippings on the bookshelf, Cobbler's sorting counter.
+    zone(g, 18, 162, 174, 88, '#6f9f5a'); plaque(g, '收发室', 24, 164, 36, '#5f8a4d');
     r(g, '#efe2bd', 104, 180, 12, 8); r(g, '#b1966b', 106, 182, 8, 1); r(g, '#b1966b', 106, 185, 6, 1);
     // Production: Grok and Muse share the film room; a little camera on a tripod in the corner.
-    r(g, '#6b5a7a2e', 196, 162, 148, 88); r(g, '#8d7aa0', 343, 162, 1, 88);
-    plaque(g, '制片室', 200, 163, 36, '#7e6a8f');
+    zone(g, 198, 162, 146, 88, '#8a63a8'); plaque(g, '制片室', 247, 164, 36, '#7a5896');
     r(g, '#4a4552', 334, 222, 2, 22); r(g, '#4a4552', 330, 242, 10, 2); r(g, '#2f3a3c', 329, 214, 12, 9); r(g, '#90b8a3', 331, 216, 4, 4); r(g, '#d96952', 338, 215, 2, 2);
-    // Companionship line on etwin's desk.
-    { const [x, y] = C.desks[7]; r(g, '#b9a99a', x + 22, y - 12, 1, 9); r(g, '#e58f9a', x + 19, y - 19, 3, 3); r(g, '#e58f9a', x + 23, y - 19, 3, 3); r(g, '#e58f9a', x + 19, y - 17, 7, 3); r(g, '#e58f9a', x + 20, y - 14, 5, 2); r(g, '#e58f9a', x + 21, y - 12, 3, 1); r(g, '#fbd3d8', x + 20, y - 18, 1, 1); }
+    // Companion: etwin-cc's stool beside the boss desk, a pink rug and a heart cushion.
+    const [cx, cy] = C.desks[7], hx = cx, hy = cy + 27;
+    r(g, '#e58f9a30', hx - 16, hy - 20, 30, 26); r(g, '#e58f9a90', hx - 16, hy + 5, 30, 1);
+    r(g, '#8c6447', hx - 7, hy - 3, 14, 4); r(g, '#e58f9a', hx - 7, hy - 5, 14, 3); r(g, '#8c6447', hx - 6, hy + 1, 2, 4); r(g, '#8c6447', hx + 4, hy + 1, 2, 4);
+    plaque(g, '陪伴', hx - 12, hy + 7, 24, '#c9727e');
   }
+
   function gameFurniture(g) {
     r(g,'#91a38a',22,260,238,78); r(g,'#dad7b4',24,262,234,74);
     plaque(g,'游戏室',72,263,34,'#5d7f6e');
@@ -224,7 +239,7 @@
   // 茶楼 · 早市, 78×100 local: sign, one round table with four stools, a dim sum cart. Opens on the datai-teahouse game.
   function teahouse(g) {
     r(g,'#e9d7b0',0,4,78,96); r(g,'#d8c194',0,4,78,1);
-    r(g,'#8c3a2e',12,0,54,13); r(g,'#b5473a',13,1,52,11); text(g,'茶楼 · 早市',39,10,7,'#f6d68a');
+    r(g,'#8c3a2e',12,0,54,13); r(g,'#b5473a',13,1,52,11); text(g,'茶  楼',39,10,8,'#f6d68a');
     for(const x of [4,72]) { r(g,'#5a3b2a',x+1,0,1,4); r(g,'#d9564d',x-2,4,7,9); r(g,'#efc66c',x-2,7,7,1); r(g,'#efc66c',x,13,3,2); }
     for(const [x,y] of [[16,68],[62,68],[29,46],[49,46]]) { r(g,'#7a5a3e',x-6,y-3,12,4); r(g,'#a97c52',x-6,y-4,12,2); r(g,'#7a5a3e',x-5,y+1,2,3); r(g,'#7a5a3e',x+3,y+1,2,3); }
     r(g,'#4c4d4040',27,63,26,4); r(g,'#77563f',26,54,26,10); r(g,'#c99a64',24,50,30,8); r(g,'#e0b786',26,50,26,2);
@@ -232,7 +247,6 @@
     r(g,'#f4ebd8',44,52,6,2); r(g,'#3f6f68',33,52,5,4); r(g,'#3f6f68',38,53,2,1);
     r(g,'#8f6a48',6,84,18,10); r(g,'#b98a52',7,79,16,5); r(g,'#d7b47a',7,78,16,1); r(g,'#b98a52',9,74,12,4); r(g,'#d7b47a',9,73,12,1);
     r(g,'#3e4b47',8,94,3,3); r(g,'#3e4b47',20,94,3,3);
-    text(g,'08:00–10:00',58,94,5,'#8c6a44');
   }
   // 健身房, 96×80 local: treadmill, dumbbell rack, punching bag, yoga mat.
   function gym(g) {
@@ -260,8 +274,8 @@
     const busy = kind => sim.actors.some(a => sim.gameActivity(a) === kind), t = sim.time;
     placed(ctx,C.teaOffset,()=>{
       // Steam over the baskets while anyone eats; the open lamp lights 08:00–10:00 Beijing time.
-      const open = Core.isBreakfast(now());
-      r(ctx,open?'#efc66c':'#9a8f78',34,89,3,3);
+      const sitting = Core.teaTime(now());
+      r(ctx,sitting?'#efc66c':'#c9a35b',34,89,3,3); text(ctx,sitting?sitting+'时间':'全天营业',58,94,6,sitting?'#8c3a2e':'#8c6a44');
       if (busy('tea')) for (let j=0;j<3;j++) { const k=(t*1.3+j/3)%1; r(ctx,'#ffffff90',32+j*6+Math.round(Math.sin(t*3+j)),44-Math.round(k*12),2,2); }
     });
     placed(ctx,C.gymOffset,()=>{
@@ -730,7 +744,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({tea:'饮早茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);

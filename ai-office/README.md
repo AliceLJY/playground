@@ -215,7 +215,7 @@ Run `node --test tests/*.test.cjs` and `NODE_PATH="$(npm root -g)" node tests/ba
 
 ## Departments, breakfast, gym and showcase (2026-11-03)
 
-Seats follow departments instead of one desk each: director's office, engineering & review, mailroom, production room, companionship line and a volunteer front desk. Desk 9 became two more arcade cabinets. Idle colleagues fill the game room, then the gym; 08:00–10:00 Beijing time they eat breakfast in the teahouse first. The meeting room is half its old size and the storage room is now a showcase. Visitors can tap the game room (playground mini-games), the teahouse (搭台 · 茶楼早市) and the showcase (3D exhibits, AI backstage pages, accounts). Previews `?view=breakfast` and `?view=leisure`; tests in `tests/departments.test.cjs`. Older browser pixel baselines predate this layout and need re-baselining.
+Seats follow departments instead of one desk each, each department a translucent block: director's office, engineering & review, mailroom (Cobbler at a sorting counter), production room and a volunteer front desk; etwin-cc sits on a stool beside the boss desk. Desk 9 became two more arcade cabinets. Idle colleagues use the game room, teahouse and gym; the teahouse is open all day and fills first at 早茶, 下午茶 and 夜茶. The meeting room is half its old size and the storage room is now a showcase. Visitors can tap the game room (playground mini-games), the teahouse (搭台 · 茶楼早市) and the showcase (3D exhibits, AI backstage pages, accounts). Previews `?view=breakfast` and `?view=leisure`; tests in `tests/departments.test.cjs`. Older browser pixel baselines predate this layout and need re-baselining.
 
 ## Spring feel (2026-11-03)
 

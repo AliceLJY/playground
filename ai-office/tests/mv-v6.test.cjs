@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const Core=require('../office-core.js'),MV=require('../mv.js'),script=require('../mv-script.json');
-const L=Core.layouts.portrait,C={...Core,...L,home:i=>Core.home(i,L)};
+const L=Core.layouts.film,C={...Core,...L,home:i=>Core.home(i,L)};
 function run(){
  const sim=C.create(script.roster,script.seed,L),mv=MV.create(script,C),frames=[];mv.start(sim);
  for(let t=0;t<script.seconds*1000;t+=20){
