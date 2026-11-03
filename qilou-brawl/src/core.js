@@ -48,18 +48,25 @@ const WAVES=[
   {name:'擂台',z0:40,z1:52,foes:[['lionhead',0,49]],boss:true}
 ];
 const HALF_W=3.6;
+const PRACTICE={duration:60,blocks:3}; // 待试玩校准；只用于菜单里的练招。
 
 function rng(seed){let s=seed>>>0||1;return()=>{s^=s<<13;s>>>=0;s^=s>>17;s^=s<<5;s>>>=0;return s/4294967296;};}
 
 function create({seed=1}={}){
-  const s={seed,rand:rng(seed),t:0,phase:'title',wave:-1,clear:false,enemies:[],nextId:1,
+  const s={seed,rand:rng(seed),t:0,phase:'title',wave:-1,clear:false,enemies:[],nextId:1,practice:null,
     player:{id:0,kind:'player',x:0,z:1,a:0,hp:PLAYER.hp,state:'idle',st:0,move:null,hitDone:false,
       buffered:null,bufT:0,chainT:0,lastMove:null,inv:false,rollCool:0,posture:0,guard:false,speed:0},
     gong:0,gongT:0,combo:0,comboT:0,kills:0,hitstop:0,
     tokens:{holders:[],lastGrant:-9},events:[],stats:{dmgTaken:0,hitsLanded:0,maxAttackers:0}};
   return s;
 }
-function start(s,{wave=0}={}){s.phase='fight';beginWave(s,wave);}
+function start(s,{wave=0,practice=false}={}){
+  // Re-entering either mode from practice starts a clean session, never a wave retry.
+  if(practice||s.practice)Object.assign(s,create({seed:s.seed}));
+  s.phase='fight';
+  if(practice){s.wave=0;s.practice={blocks:0,elapsed:0};spawn(s,'apo',0,2.5);}
+  else beginWave(s,wave);
+}
 function beginWave(s,i){
   s.wave=i;s.clear=false;const w=WAVES[i];
   for(const [k,x,z] of w.foes)spawn(s,k,x,z);
@@ -141,6 +148,13 @@ function playerStrike(s,M){
   const p=s.player;let n=0;
   for(const e of alive(s)){
     if(e.dying||!inArc(p,e,M.reach,M.arc||FEEL.hitArc))continue;
+    if(s.practice){
+      if(s.practice.blocks===PRACTICE.blocks&&(M===MOVES.kick||M===MOVES.spin)){
+        s.stats.hitsLanded++;s.phase='practice-win';setState(p,'win');
+        s.events.push({type:'practice-win'});return;
+      }
+      s.events.push({type:'practice-early'});continue;
+    }
     const dmg=M.dmg*(s.gongT>0?FEEL.gong.dmg:1);
     e.hp-=dmg;n++;s.stats.hitsLanded++;
     s.combo++;s.comboT=2.2;s.gong=Math.min(FEEL.gong.max,s.gong+FEEL.gong.perHit);
@@ -163,6 +177,17 @@ function hurtPlayer(s,e,M){
   const p=s.player;
   if(p.inv||p.state==='dead'||p.state==='down'||p.state==='getup')return s.events.push({type:'dodged',id:e.id});
   const facing=Math.abs(wrap(Math.atan2(e.x-p.x,e.z-p.z)-p.a))<=FEEL.block.arc/2;
+  if(s.practice){
+    if(p.state==='block'&&facing){
+      s.practice.blocks=Math.min(PRACTICE.blocks,s.practice.blocks+1);
+      s.events.push({type:'blocked',id:e.id});s.hitstop=Math.max(s.hitstop,.04);
+      if(s.practice.blocks===PRACTICE.blocks){releaseToken(s,e);setState(e,'idle');s.events.push({type:'practice-ready'});}
+    }else{
+      s.practice.blocks=0;setState(p,'hurt');s.hitstop=Math.max(s.hitstop,.07);
+      s.events.push({type:'hurt',id:e.id,dmg:0,heavy:false},{type:'practice-reset'});
+    }
+    return;
+  }
   if(p.state==='block'&&facing){
     const d=M.dmg*(1-FEEL.block.cut);p.hp-=d;s.stats.dmgTaken+=d;p.posture+=FEEL.block.posture*(M.heavy?2:1);
     s.events.push({type:'blocked',id:e.id});s.hitstop=Math.max(s.hitstop,.04);
@@ -178,6 +203,7 @@ function hurtPlayer(s,e,M){
 // ---------- enemies ----------
 function releaseToken(s,e){const h=s.tokens.holders,i=h.indexOf(e.id);if(i>=0)h.splice(i,1);}
 function enemyStep(s,e,dt){
+  if(s.practice&&(s.practice.blocks===PRACTICE.blocks||s.phase!=='fight'))return;
   const K=KINDS[e.kind],p=s.player;e.st+=dt;e.hurtCool=Math.max(0,(e.hurtCool||0)-dt);
   if(e.dead)return;
   if(K.boss&&!e.phase2&&!e.dying&&e.hp<=e.maxHp/2){e.phase2=true;s.events.push({type:'phase2',id:e.id});spawn(s,'apo',-3,WAVES[s.wave].z1-1);spawn(s,'apo',3,WAVES[s.wave].z1-1);}
@@ -225,7 +251,19 @@ function enemyStep(s,e,dt){
 function step(s,inp,dt){
   s.events.length=0;
   if(s.phase!=='fight')return s;
-  if(s.hitstop>0){s.hitstop=Math.max(0,s.hitstop-dt);return s;}
+  if(s.practice){
+    s.practice.elapsed=Math.min(PRACTICE.duration,s.practice.elapsed+dt);
+    if(s.practice.elapsed>=PRACTICE.duration-1e-9){
+      s.practice.elapsed=PRACTICE.duration;s.phase='practice-timeout';setState(s.player,'idle');
+      for(const e of s.enemies){releaseToken(s,e);setState(e,'idle');}
+      s.events.push({type:'practice-timeout'});return s;
+    }
+  }
+  if(s.hitstop>0){
+    // The third blocked palm invites a kick immediately; retain that tap during its freeze.
+    if(s.practice)for(const k of ['punch','kick','roll'])if(inp&&inp[k]){s.player.buffered=k;s.player.bufT=FEEL.buffer;}
+    s.hitstop=Math.max(0,s.hitstop-dt);return s;
+  }
   s.t+=dt;if(s.gongT>0)s.gongT=Math.max(0,s.gongT-dt);
   if(s.comboT>0){s.comboT-=dt;if(s.comboT<=0)s.combo=0;}
   playerStep(s,inp||{},dt);
@@ -276,6 +314,6 @@ function makeBot(seed=7,skill=1){
 }
 function run(s,bot,maxT=900){let n=0;while(s.phase==='fight'&&s.t<maxT&&n<maxT/STEP*2){step(s,bot(s),STEP);n++;}return s;}
 
-const api={STEP,FEEL,MOVES,PLAYER,KINDS,WAVES,HALF_W,create,start,beginWave,spawn,retry,step,alive,makeBot,run,bounds,setState,wrap};
+const api={STEP,FEEL,MOVES,PLAYER,KINDS,WAVES,HALF_W,PRACTICE,create,start,beginWave,spawn,retry,step,alive,makeBot,run,bounds,setState,wrap};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.QilouCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
