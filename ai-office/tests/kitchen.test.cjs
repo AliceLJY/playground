@@ -55,7 +55,8 @@ test('awayPost is independent of ID/desk: chef walks to reserved stove/grill, of
 test('chef speaks occasionally only while stationed with meal guests; no stale speech after work resumes',()=>{
   const s=office('portrait','12:00',5,true),a=s.actors.at(-1);s.step(40000);const lines=new Set();let quiet=0;
   for(let i=0;i<36;i++){s.step(1000);const b=s.eventSpeech().find(b=>b.id===a.id);if(b)lines.add(b.text);else quiet++;}
-  assert.deepEqual([...lines].sort(),['开饭啦','加个菜？','小心烫'].sort());assert.ok(quiet>=20);
+  // 11-03: every other call names a diner's home dish (「X的Y好了」).
+  assert.ok([...lines].every(l=>['开饭啦','加个菜？','小心烫'].includes(l)||/的.+好了$/.test(l)),[...lines].join());assert.ok([...lines].some(l=>/好了$/.test(l))&&[...lines].some(l=>!/好了$/.test(l)));assert.ok(quiet>=20);
   for(const b of s.actors)s.setStatus(b.id,'busy');s.step(20);assert.ok(!s.eventSpeech().some(b=>b.id===a.id));
   const alone=office('portrait','12:00',1,true);alone.step(48000);assert.equal(alone.eventSpeech().length,0);
 });

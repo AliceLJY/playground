@@ -31,6 +31,12 @@
   FUN_ORDER = [22,25,32,41,28,44,23,24,29,30,26,27,33,31,42,0,1,4,20,12,2,3,21,5,13,10,14,11,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
   const KITCHEN_ORDER = [37,38,39,40,...LEISURE_ORDER.filter(i=>i<37)], BBQ_ORDER = [34,35,36,...BREAKFAST_ORDER.filter(i=>i<34||i>36)];
   const kitchenLocal = [[16,40,'cook'],[46,40,'chop'],[16,70,'eat'],[60,70,'eat']], kitchenLocalObstacles = [{x:6,y:10,w:22,h:16},{x:36,y:12,w:18,h:14},{x:58,y:6,w:14,h:25},{x:28,y:53,w:20,h:14}];
+  // Alice: 「根据他们是哪里的AI就做哪里的菜」. Each colleague orders its home cuisine (made by whoever runs it); demo and unknown
+  // ids get one by hash. 豆包 is the chef and cooks Cantonese for the house, since the boss lives in Guangzhou.
+  const CUISINES = {cc:['意大利菜','肉酱面'],codex:['美式','汉堡'],kimi:['京味','炸酱面'],agy:['墨西哥菜','塔可'],grok:['德州菜','烤牛胸'],muse:['日料','寿司'],
+    dots:['韩料','炸鸡'],cobbler:['甜点','桃子馅饼'],etwin:['湘菜','剁椒鱼头'],doubao:['粤菜','白切鸡']};
+  const CUISINE_POOL = [['川菜','麻婆豆腐'],['粤菜','烧鹅'],['湘菜','小炒肉'],['日料','拉面'],['韩料','石锅拌饭'],['意大利菜','披萨'],['泰国菜','冬阴功'],['西北菜','手抓羊肉']];
+  const dishOf = id => CUISINES[id] || CUISINE_POOL[stableHash(String(id||'')) % CUISINE_POOL.length];
   const machineSpots = [{x:234,y:332,kind:'dance'},{x:196,y:336,kind:'claw'}];
   // Fun floor downstairs: four 110×80 rooms. Leisure slots 22–31.
   const funLocal = {ktv:[[26,50,'sing'],[60,68,'cheer'],[86,68,'cheer']], read:[[30,64,'book'],[80,64,'book']], garden:[[28,44,'water'],[78,62,'cat']], cinema:[[32,70,'movie'],[56,70,'movie'],[80,70,'movie']], snack:[[16,50,'buy'],[48,72,'soda']], bbq:[[20,40,'grill'],[20,62,'eat'],[54,62,'cheer']]};
@@ -697,7 +703,14 @@
       if(e?.phase==='huff')for(const id of e.ids)result.push({id,text:'哼'});
       if(sim.melon){const n=Math.floor(sim.time/1.5),id=sim.melon.ids[n%sim.melon.ids.length];result.push({id,text:n%3===2?'':n%3?'咋了咋了':'啧啧',icon:n%3===2?'melon':null});}
       if(L.kitchen && sim.clockKnown && mealTime(signalNow()) && sim.time%12<3 && sim.actors.some(a=>a.status==='idle' && [37,38,39,40].includes(a.gameSlot) && gameActivity(a))) {
-        for(const a of sim.actors) if(chefActivity(a)==='cook') result.push({id:a.id,text:['开饭啦','加个菜？','小心烫'][Math.floor(sim.time/12)%3]});
+        const eaters=sim.actors.filter(a=>a.status==='idle' && [37,38,39,40].includes(a.gameSlot) && gameActivity(a)), n=Math.floor(sim.time/12), guest=eaters[n%eaters.length];
+        for(const a of sim.actors) if(chefActivity(a)==='cook') result.push({id:a.id,text:n%2?`${guest.name}的${dishOf(guest.id)[1]}好了`:['开饭啦','加个菜？','小心烫'][n%3]});
+      }
+      // Diners name what they ordered now and then; hotpot and skewers downstairs at night.
+      if(L.kitchen && sim.clockKnown && sim.time%12>=6 && sim.time%12<8.5) for(const a of sim.actors) {
+        if(a.status!=='idle' || !gameActivity(a)) continue;
+        if(a.gameSlot===39 || a.gameSlot===40) result.push({id:a.id,text:`${dishOf(a.id)[0]}真香`});
+        if(a.gameSlot===35) result.push({id:a.id,text:['涮毛肚！','七上八下','再来一串'][Math.floor(sim.time/12)%3]});
       }
       return result;
     }
@@ -1128,7 +1141,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
