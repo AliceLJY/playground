@@ -28,6 +28,8 @@
   if (wallMode) {
     document.body.classList.add('wall');
     const place = { wl: 12, wt: 6, ww: 44, wh: 84 };
+    // ?wr=<width/height> stretches the wallpaper room sideways to fill a wide empty patch (default 6/7, unstretched).
+    const wr = Number(params.get('wr')); if (Number.isFinite(wr) && wr >= 0.5 && wr <= 2) document.body.style.setProperty('--wr', String(wr));
     for (const k in place) { const v = Number(params.get(k)); document.body.style.setProperty(`--${k}`, `${Number.isFinite(v) && v >= 0 && v <= 100 && params.has(k) ? v : place[k]}${k === 'wl' || k === 'ww' ? 'vw' : 'vh'}`); }
   }
   let mv = null, mvUI = null;
