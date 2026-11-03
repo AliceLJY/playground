@@ -6,7 +6,7 @@ const fresh=()=>({meeting:null,dispatched:[],call:null,disk:null,guard:null});
 test('landscape targets: every desk, activity, queue and patrol route is clear at <=1 px samples',()=>{
   const L=C.layouts.landscape;
   const homes=L.desks.map(([x,y])=>({x,y:y+27}));
-  const targets=[...homes,...L.games,...L.seats,...L.standing,...L.audience,...L.patrol,...L.tour,...Array.from({length:11},(_,i)=>L.queuePoint(i)),L.podium,L.booth,L.gameWatch,L.door,L.bossDesk,L.handoff,L.pantry];
+  const targets=[...homes,...C.leisure(L),...L.seats,...L.standing,...L.audience,...L.patrol,...L.tour,...Array.from({length:11},(_,i)=>L.queuePoint(i)),L.podium,L.booth,L.gameWatch,L.door,L.bossDesk,L.handoff,L.pantry];
   for(const from of [...homes,L.door,L.bossDesk,{x:64,y:208}])for(const to of targets){
     const path=C.route(from,to,L);assert.ok(path.length,JSON.stringify({from,to}));let p=from;
     for(const q of path){const n=Math.max(1,Math.ceil(C.distance(p,q)));for(let j=0;j<=n;j++)assert.equal(C.blocked(p.x+(q.x-p.x)*j/n,p.y+(q.y-p.y)*j/n,L),false,JSON.stringify({from,to,p,q,j}));p=q;}
@@ -67,7 +67,7 @@ test('layout rebuild preserves state, resolves each status immediately and never
     const before={time:s.time,scene:structuredClone(s.scene),delivery:structuredClone(s.delivery),delivered:s.delivered,status:s.actors.map(a=>a.status),flight:s.flights[0].at};
     for(const key of ['landscape','portrait','landscape']){
       s=s.relayout(key);assert.equal(s.layout.id,key);assert.deepEqual(s.scene,before.scene);assert.deepEqual(s.actors.map(a=>a.status),before.status);assert.equal(s.time,before.time);assert.deepEqual(s.delivery,before.delivery);assert.equal(s.delivered,before.delivered);assert.equal(s.flights.length,1);assert.equal(s.flights[0].at,before.flight);
-      for(const a of s.actors){assert.equal(a.path.length,0);assert.equal(C.blocked(a.x,a.y,s.layout),false);const target=a.activity==='call'?s.layout.booth:a.activity==='meeting'?s.meetingTarget(a.id):s.isCourier(a)&&s.delivery?s.layout.handoff:a.status==='waiting'?s.layout.queuePoint(s.actors.indexOf(a)):a.gameSlot!=null?s.layout.games[a.gameSlot]:C.home(a.i,s.layout);assert.ok(C.distance(a,target)<1,a.id);}
+      for(const a of s.actors){assert.equal(a.path.length,0);assert.equal(C.blocked(a.x,a.y,s.layout),false);const target=a.activity==='call'?s.layout.booth:a.activity==='meeting'?s.meetingTarget(a.id):s.isCourier(a)&&s.delivery?s.layout.handoff:a.status==='waiting'?s.layout.queuePoint(s.actors.indexOf(a)):a.gameSlot!=null?C.leisure(s.layout)[a.gameSlot]:C.home(a.i,s.layout);assert.ok(C.distance(a,target)<1,a.id);}
     }
     if(mode==='delivery'){s.step(6000);assert.equal(s.delivered,1);s.step(20000);assert.equal(s.delivery,null);}
   }

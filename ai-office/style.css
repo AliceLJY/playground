@@ -119,3 +119,16 @@ body:not(.mv):not(.wall) .treat-row button{white-space:nowrap}
 #history-note{font-size:12px;line-height:1.8;color:#72796e}#history-days button{width:100%;text-align:left;margin:0 0 8px}#history-days small{display:block;color:#72796e;margin-top:3px}
 body.replaying #treat,body.replaying #photo{display:none!important}
 .tabs{gap:9px}.tabs button{min-width:40px}
+
+.hotspot{position:absolute;padding:0;border:0;background:transparent;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;z-index:2}
+.hotspot:focus-visible{outline:2px dashed #c85b4a;outline-offset:2px}
+.arcade{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,420px);max-height:80vh;overflow:auto;box-sizing:border-box;z-index:20;background:#fffdf6;border:2px solid #786747;box-shadow:4px 4px 0 #25333430;padding:8px 10px}
+.arcade-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#4b3b24;margin-bottom:6px}
+.arcade-head button{border:0;background:none;font-size:16px;cursor:pointer;color:#786747;min-width:32px;min-height:32px}
+.arcade-list{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.arcade-list a{display:block;padding:7px 4px;background:#f1e5c6;border:2px solid #786747;color:#4b3b24;font-size:11px;text-align:center;text-decoration:none}
+.arcade-list a:hover{background:#efc66c}
+.arcade-note{margin:6px 0 0;font-size:10px;color:#7e6a4a}
+body.mv .hotspot,body.mv .arcade,body.wall .hotspot,body.wall .arcade{display:none!important}
+.arcade-sub{margin:8px 0 4px;font-size:10px;color:#7e6a4a}
+.arcade-plain{display:block;padding:5px 4px;border:2px dashed #b9a07a;color:#4b3b24;font-size:10px;text-align:center;line-height:1.3}

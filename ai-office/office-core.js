@@ -7,26 +7,46 @@
   ];
   const desks = mvDesks.map((p,i)=>i===9 ? [229,269] : p);
   const mvRest = [[35, 294], [61, 294], [87, 294], [35, 324], [61, 324], [87, 324], [116, 294], [116, 323], [35, 351], [68, 351], [308, 362]];
-  const games = [[156,268,'pingpong'],[156,332,'pingpong'],[80,304,'chess'],[116,304,'chess'],[36,294,'arcade'],[60,294,'arcade'],[36,328,'nap'],[60,328,'read'],[88,340,'watch'],[116,340,'watch']].map(([x,y,kind])=>({x,y,kind}));
-  const rest = [...games.map(p=>[p.x,p.y]),[308,366]], gameWatch = {x:92,y:372};
+  const games = [[156,268,'pingpong'],[156,332,'pingpong'],[80,304,'chess'],[116,304,'chess'],[36,294,'arcade'],[60,294,'arcade'],[36,328,'nap'],[60,328,'read'],[88,340,'watch'],[116,340,'watch'],[210,294,'arcade'],[234,294,'arcade']].map(([x,y,kind])=>({x,y,kind}));
+  const rest = [...games.slice(0,10).map(p=>[p.x,p.y]),[308,366]], gameWatch = {x:92,y:372};
+  // Gym and teahouse are drawn from local origins (office.js) and placed per layout.
+  const gymLocal = [[14,44,'run'],[42,36,'lift'],[70,46,'box'],[42,68,'yoga']], gymLocalObstacles = [{x:6,y:6,w:16,h:10},{x:30,y:6,w:24,h:10},{x:67,y:16,w:10,h:14}];
+  const teaLocal = [[16,68,'tea'],[62,68,'tea'],[29,46,'tea'],[49,46,'tea']], teaLocalObstacles = [{x:26,y:52,w:26,h:14},{x:6,y:84,w:18,h:10}];
+  const atOrigin = (list,[ox,oy]) => list.map(([x,y,kind])=>({x:x+ox,y:y+oy,kind}));
+  const obstaclesAt = (list,[ox,oy]) => list.map(o=>({...o,x:o.x+ox,y:o.y+oy}));
+  // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
+  const LEISURE_ORDER = [0,1,4,12,2,3,5,13,10,14,11,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER];
+  const PAIRS = {0:1,2:3};
+  function leisureSlots(count, breakfast=false) {
+    const order=breakfast?BREAKFAST_ORDER:LEISURE_ORDER, picked=[];
+    for(const slot of order) {
+      if(picked.length>=count) break;
+      if(Object.values(PAIRS).includes(slot)) continue;
+      if(PAIRS[slot]!==undefined) { if(count-picked.length>=2) picked.push(slot,PAIRS[slot]); continue; }
+      picked.push(slot);
+    }
+    return picked;
+  }
+  const isBreakfast = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 8 && h < 10; };
   const door = { x: 340, y: 388 }, bossDesk = { x: 195, y: 352 }, handoff = { x: 221, y: 352 }, pantry = { x: 198, y: 247 };
   const deskObstacles = layout => layout.map(([x, y], i) => ({ x: x - (i === 10 ? 23 : 27), y: y - 9, w: i === 10 ? 46 : 54, h: 29 }));
-  const obstacles = deskObstacles(desks);
+  const obstacles = deskObstacles(desks).map((o,i)=>i===9?{x:200,y:260,w:44,h:22}:o);
   obstacles.push({ x: 150, y: 366, w: 84, h: 28 });
   obstacles.push({ x: 26, y: 173, w: 72, h: 29 }, { x: 109, y: 88, w: 3, h: 58 });
   for (const [x, y] of [[119,198],[266,277],[323,93],[27,378]]) obstacles.push({ x, y, w: 12, h: 13 });
   // The fixed MV keeps its old lounge; ordinary pages use the corner's solid cabinets and seat backs.
   const mvObstacles = [...deskObstacles(mvDesks),...obstacles.slice(desks.length),{x:22,y:269,w:78,h:10}];
   obstacles.push({x:24,y:260,w:20,h:22},{x:48,y:260,w:20,h:22},{x:88,y:284,w:20,h:16},{x:26,y:312,w:20,h:6},{x:50,y:312,w:20,h:6},{x:136,y:276,w:40,h:40});
-  const podium = { x: 208, y: 536 }, booth = { x: 296, y: 560 };
-  const seats = [[76,548],[108,548],[140,548],[172,548]].map(([x,y]) => ({x,y}));
-  const standing = [40,72,104,136,168,200].map(x=>({x,y:612}));
-  const audience = [{x:88,y:664},{x:116,y:664}];
-  const patrol = [door, {x:244,y:700}, {x:28,y:700}, {x:244,y:648}, {x:248,y:492}, {x:340,y:492}, door, {x:198,y:247}, {x:125,y:169}, door];
+  const podium = { x: 156, y: 532 }, booth = { x: 296, y: 560 };
+  const seats = [[44,540],[70,540],[96,540],[122,540]].map(([x,y]) => ({x,y}));
+  const standing = [32,56,80,104,128,152].map(x=>({x,y:592}));
+  const audience = [{x:52,y:630},{x:80,y:630}];
+  const patrol = [door, {x:244,y:708}, {x:28,y:708}, {x:244,y:620}, {x:180,y:620}, {x:248,y:604}, {x:340,y:492}, door, {x:198,y:247}, {x:125,y:169}, door];
   const mainObstacles=obstacles.slice();
-  const meetingObstacles=[{x:70,y:562,w:116,h:24}, {x:20,y:490,w:3,h:140}, {x:236,y:490,w:3,h:108}, {x:20,y:630,w:184,h:3}, {x:76,y:648,w:52,h:6}];
+  const meetingObstacles=[{x:36,y:552,w:96,h:20}, {x:20,y:490,w:3,h:113}, {x:176,y:490,w:3,h:86}, {x:20,y:600,w:159,h:3}, {x:40,y:614,w:52,h:6}];
   const boothObstacles=[{x:268,y:494,w:3,h:66}, {x:332,y:494,w:3,h:66}, {x:310,y:512,w:12,h:26}],storageObstacle={x:266,y:616,w:64,h:60};
-  obstacles.push(...meetingObstacles,...boothObstacles,storageObstacle);
+  const gymOrigin=[120,636], teaOrigin=[186,494];
+  obstacles.push(...meetingObstacles,...boothObstacles,storageObstacle,...obstaclesAt(gymLocalObstacles,gymOrigin),...obstaclesAt(teaLocalObstacles,teaOrigin));
   const emptyScene = () => ({meeting:null, dispatched:[], call:null, disk:null, guard:null});
   const diskLayers = disk => disk ? Math.ceil(disk.usedPct / 12.5) : 0;
   const isNight = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 23 || h < 8; };
@@ -72,16 +92,19 @@
   const queuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:124,y:372},gameWatch];
   const portrait = {id:'portrait',W,H,desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
+    gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
     gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[0,0],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
   const landscape = {...portrait,id:'landscape',W:640,H:420,desks:desks.map((p,i)=>i===10?[600,258]:p),
     podium:shift(podium,352,-394),seats:seats.map(p=>shift(p,352,-394)),standing:standing.map(p=>shift(p,352,-394)),audience:audience.map(p=>shift(p,352,-394)),
+    gym:atOrigin(gymLocal,[452,250]),tea:atOrigin(teaLocal,[542,94]),gymOffset:[452,250],teaOffset:[542,94],
     booth:shift(booth,290,-184),meetingOffset:[352,-394],boothOffset:[290,-184],storageOffset:[116,-304],totalsOffset:[328,-403],
     queuePoint:i=>({x:[248,276,304,248,276,304,376,404,432,460,488][i%11],y:i<3?344:388})};
   landscape.obstacles=[...mainObstacles.filter((_,i)=>i!==10),...deskObstacles(landscape.desks).slice(10),
-    ...meetingObstacles.map(p=>shift(p,352,-394)),...boothObstacles.map(p=>shift(p,290,-184)),shift(storageObstacle,116,-304)];
-  landscape.tour=[...tour,{x:512,y:280},{x:536,y:368}];
-  landscape.patrol=[door,{x:352,y:392},{x:524,y:392},{x:536,y:288},{x:616,y:288},{x:616,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
+    ...meetingObstacles.map(p=>shift(p,352,-394)),...boothObstacles.map(p=>shift(p,290,-184)),shift(storageObstacle,116,-304),
+    ...obstaclesAt(gymLocalObstacles,[452,250]),...obstaclesAt(teaLocalObstacles,[542,94])];
+  landscape.tour=[...tour,{x:500,y:368},{x:584,y:220}];
+  landscape.patrol=[door,{x:352,y:392},{x:524,y:392},{x:560,y:292},{x:616,y:292},{x:616,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
   const layouts={portrait,landscape,legacy:{...portrait,id:'legacy',desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   const getLayout = value => value && typeof value==='object' ? value : layouts[value===true?'legacy':value || 'portrait'];
   const blocked = (x,y,selection=false) => {
@@ -126,7 +149,9 @@
 
   function create(roster, seed = 7, selection = false) {
     const L=getLayout(selection),legacy=L.id==='legacy';
-    const {desks:layout,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,queuePoint,tour}=L;
+    const {desks:layout,door,bossDesk,handoff,pantry,games:gameSpots,gameWatch,podium,booth,seats,standing,audience,patrol,queuePoint,tour}=L;
+    // One list of leisure places: game room 0–11, gym 12–15, teahouse 16–19 (see LEISURE_ORDER).
+    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[])];
     const home = i => ({x:layout[i][0],y:layout[i][1]+27});
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
@@ -167,7 +192,7 @@
       return [{id:director().id,text:'这个交给你'},...(e.phase==='reply'?[{id:e.id,text:'收到'}]:[])];
     }
     function setScene(value, now) {
-      if(now!==undefined) sim.clockBase=now-sim.time*1000;
+      if(now!==undefined) {sim.clockBase=now-sim.time*1000;sim.clockKnown=true;}
       const next = value || emptyScene(), before = sim.scene.dispatched;
       if(next.call?.kind==='dispatch') {
         const key=next.call.since+'|'+next.call.with;
@@ -571,11 +596,13 @@
     function assignGames() {
       if (legacy) return;
       const idle=sim.actors.filter(a=>a.status==='idle' && !handoffActor(a) && !isCourier(a) && !cosmeticClaim(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && boothCall())).sort((a,b)=>a.i-b.i);
-      const key=idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,idle.length).map((_,i)=>i);
+      // Only a page that told us the real clock (live feed, demo, replay) has breakfast; bare simulations never do.
+      const breakfast=typeof sim.forceBreakfast==='boolean' ? sim.forceBreakfast : !!sim.clockKnown && isBreakfast(signalNow());
+      const key=breakfast+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : leisureSlots(idle.length,breakfast).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
-      for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot)) pending.shift().gameSlot=slot;
+      for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
     }
     function gameActivity(a) {
       if(legacy || a.status!=='idle' || a.activity || a.gameSlot==null || a.path.length || distance(a,games[a.gameSlot])>=1) return null;
@@ -754,7 +781,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
@@ -930,7 +957,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, LEISURE_ORDER, BREAKFAST_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[])];}, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
