@@ -56,7 +56,28 @@ fs.mkdirSync(out,{recursive:true});
     if(!(r.bottom<=r.h&&r.top>=0&&r.hit))fails.push(`start ${w}x${h}: 开锣 button not fully on the first screen (${Math.round(r.top)}–${Math.round(r.bottom)} of ${r.h})`);
     await p2.screenshot({path:`${out}/start-${w}x${h}.png`});await c2.close();
   }
-  const report={browser:browser.version(),played,cards,fold,errs,fails};
+  // B2: real forward/back navigation must expose the saved answer visually and accessibly.
+  const backChecks=[];
+  for(const [width,height] of [[390,664],[320,568],[844,340],[1365,900]]){
+    const c=await browser.newContext({viewport:{width,height},deviceScaleFactor:width===1365?1:2,hasTouch:true});
+    const p=await c.newPage();p.on('pageerror',e=>errs.push(String(e)));await p.goto(base);await p.locator('#go').click();
+    const opts=p.locator('#opts .opt');await opts.nth(2).click();await p.waitForFunction(()=>window.__pillar.st.i===1,null,{polling:50});
+    await p.locator('#back').click();
+    const read=()=>p.evaluate(()=>{const els=[...document.querySelectorAll('#opts .opt')];return{answer:window.__pillar.st.answers[0],selected:els.map(e=>e.classList.contains('chosen')),pressed:els.map(e=>e.getAttribute('aria-pressed')),labels:els.map(e=>e.textContent),backgrounds:els.map(e=>getComputedStyle(e).backgroundColor),overflow:document.documentElement.scrollWidth>innerWidth};});
+    const saved=await read();
+    if(!(saved.answer===2&&saved.selected.filter(Boolean).length===1&&saved.selected[2]&&saved.pressed[2]==='true'&&saved.labels[2].includes('上次选了这一项')&&saved.backgrounds[2]!==saved.backgrounds[0]&&!saved.overflow))fails.push(`back ${width}x${height}: saved C is not visibly and accessibly marked`);
+    await opts.nth(2).scrollIntoViewIfNeeded();await p.screenshot({path:`${out}/back-${width}x${height}.png`});
+    await opts.nth(0).click();await p.waitForFunction(()=>window.__pillar.st.i===1,null,{polling:50});await p.locator('#back').click();
+    const changed=await read();if(!(changed.answer===0&&changed.selected.filter(Boolean).length===1&&changed.selected[0]&&changed.pressed[0]==='true'&&changed.pressed[2]==='false'))fails.push(`back ${width}x${height}: changed A is not the sole marked choice`);
+    const bounds=await opts.evaluateAll(es=>es.map(e=>{const b=e.getBoundingClientRect();return{w:b.width,h:b.height};}));
+    if(!bounds.every(b=>b.w>=44&&b.h>=44))fails.push(`back ${width}x${height}: option target below 44px`);
+    // Finish with real clicks, then reset: no remembered choice should leak into the next test.
+    for(let i=0;i<8;i++){await p.locator('#opts .opt').first().click();await p.waitForFunction(n=>n===7?window.__pillar.st.result!==null:window.__pillar.st.i===n+1,i,{polling:50});}
+    await p.locator('#again').click();
+    if(await p.locator('#opts .chosen').count()||await p.locator('#opts [aria-pressed="true"]').count())fails.push(`back ${width}x${height}: restart kept a choice`);
+    backChecks.push({width,height,saved,changed,bounds});await c.close();
+  }
+  const report={browser:browser.version(),played,cards,fold,backChecks,errs,fails};
   fs.writeFileSync(`${out}/report.json`,JSON.stringify(report,null,2));
   console.log(fails.length?`FAIL\n- ${fails.join('\n- ')}`:'PASS',errs.length?`\npage errors: ${errs.join(' | ')}`:'');
   await browser.close();

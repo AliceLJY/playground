@@ -53,8 +53,9 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;-webki
 .qtext{margin-top:8px;font-size:clamp(25px,7vw,32px);font-weight:900;line-height:1.35}
 .opts{margin-top:22px;display:grid;gap:12px}
 .opt{display:flex;gap:10px;align-items:baseline;text-align:left;padding:17px 18px;border-radius:14px;background:#FFF8EA;border:2px solid var(--paper2);font-size:18px;line-height:1.5;transition:border-color .15s,background .15s}
+.opt .previous{display:block;font-size:14px;color:var(--red);margin-top:4px}
 .opt b{flex:0 0 22px;color:var(--red)}
-.opt:active,.opt.hit{border-color:var(--red);background:#FCE9DC}
+.opt:active,.opt.hit,.opt.chosen{border-color:var(--red);background:#FCE9DC}
 
 /* 结果 */
 .rhead{margin:0 -18px;padding:22px 18px 26px;background:var(--pc);color:#FFF7E6;position:relative;overflow:hidden}

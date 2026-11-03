@@ -25,8 +25,11 @@ function ask(i){
   $('qtext').textContent=q.q;
   const box=$('opts');box.innerHTML='';
   q.opts.forEach((o,k)=>{
-    const b=document.createElement('button');b.className='opt';
+    const selected=st.answers[i]===k;
+    const b=document.createElement('button');b.className='opt'+(selected?' chosen':'');
+    b.setAttribute('aria-pressed',String(selected));
     b.innerHTML=`<b>${'ABCD'[k]}</b>`;const t=document.createElement('span');t.textContent=o[0];b.appendChild(t);
+    if(selected){const mark=document.createElement('small');mark.className='previous';mark.textContent='上次选了这一项';t.appendChild(mark);}
     b.onclick=()=>{
       if(box.dataset.lock)return;box.dataset.lock='1';b.classList.add('hit');
       st.answers[i]=k;
