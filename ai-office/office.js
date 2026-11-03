@@ -268,12 +268,14 @@
   }
   // 泳池, 120×78: water, a ladder, a diving board, two deckchairs under an umbrella.
   function poolRoom(g) {
-    r(g,'#e8eef2',0,0,120,78); for (let y=2;y<78;y+=8) for (let x=2;x<120;x+=8) r(g,'#d5dee4',x,y,7,7);
-    r(g,'#7aa7b8',6,14,80,58); r(g,'#9ccfe0',8,16,76,54); r(g,'#7aa7b8',8,16,76,2);
-    r(g,'#c9a27a',34,6,10,12); r(g,'#e0b786',34,6,10,2); r(g,'#9aa3a0',82,22,2,14); r(g,'#9aa3a0',86,22,2,14); for (const yy of [25,30,35]) r(g,'#9aa3a0',82,yy,6,1);
-    for (const yy of [22,48]) { r(g,'#4c4d4030',93,yy+11,22,2); r(g,'#77563f',92,yy,22,10); r(g,'#efc66c',93,yy+1,20,8); r(g,'#d96952',93,yy+3,20,1); }
-    r(g,'#5a4636',114,8,1,16); r(g,'#d96952',106,4,18,5); r(g,'#efc66c',112,4,6,5);
-    r(g,'#ffffff',60,58,8,8); r(g,'#d96952',61,59,6,6); r(g,'#9ccfe0',63,61,2,2);
+    const w=C.poolW||120, water=w-40;
+    r(g,'#e8eef2',0,0,w,78); for (let y=2;y<78;y+=8) for (let x=2;x<w;x+=8) r(g,'#d5dee4',x,y,7,7);
+    r(g,'#7aa7b8',6,14,water,58); r(g,'#9ccfe0',8,16,water-4,54); r(g,'#7aa7b8',8,16,water-4,2);
+    r(g,'#c9a27a',34,6,10,12); r(g,'#e0b786',34,6,10,2); r(g,'#9aa3a0',water+2,22,2,14); r(g,'#9aa3a0',water+6,22,2,14); for (const yy of [25,30,35]) r(g,'#9aa3a0',water+2,yy,6,1);
+    for (const yy of [22,48]) { r(g,'#4c4d4030',w-27,yy+11,22,2); r(g,'#77563f',w-28,yy,22,10); r(g,'#efc66c',w-27,yy+1,20,8); r(g,'#d96952',w-27,yy+3,20,1); }
+    r(g,'#5a4636',w-6,8,1,16); r(g,'#d96952',w-14,4,18,5); r(g,'#efc66c',w-8,4,6,5);
+    r(g,'#ffffff',Math.round(water*.75),58,8,8); r(g,'#d96952',Math.round(water*.75)+1,59,6,6); r(g,'#9ccfe0',Math.round(water*.75)+3,61,2,2);
+    if (w>140) { r(g,'#ffffff',Math.round(water*.4),26,8,8); r(g,'#7ad7ff',Math.round(water*.4)+1,27,6,6); r(g,'#9ccfe0',Math.round(water*.4)+3,29,2,2); }
     plaque(g,'泳池',4,66,30,'#3a6a9a');
   }
   // Cat tree, 60×70: the office cat's home base (it roams the whole building).
@@ -330,7 +332,7 @@
       r(g,'#77563f',x+16,y+26,28,8); r(g,'#a97c52',x+16,y+26,28,3); r(g,'#efe2bd',x+22,y+27,8,2); r(g,'#e9c9a0',x+34,y+24,4,4);
       plant(g,x-14,y+6,true); plant(g,x+w+14,y+6,true); text(g,'大 堂',x+w/2,y-8,7,'#655b40');
     }
-    placed(g,C.boothOffset,()=>{
+    if (!C.noBooth) placed(g,C.boothOffset,()=>{
     if (mv) {
     r(g,'#6d806a',268,494,67,5); r(g,'#6d806a',268,499,3,61); r(g,'#6d806a',332,499,3,61); r(g,'#b4cdc14a',271,499,61,61);
     r(g,'#47625d',310,512,12,26); r(g,'#e7dbb8',312,515,7,10); r(g,'#364944',313,529,5,6);
@@ -696,7 +698,7 @@
     if (s.disk) text(ctx,`${s.disk.usedPct}%`,298,690,7);
     if (s.disk?.usedPct>=92) { r(ctx,'#ba5045',276,604,47,11); text(ctx,'快满了',299,612,8,'#fff4d5'); }
     });
-    placed(ctx,C.boothOffset,()=>r(ctx,sim.boothCall()?'#e8bc55':'#84917c',mv?296:281,490,9,4));
+    if (!C.noBooth) placed(ctx,C.boothOffset,()=>r(ctx,sim.boothCall()?'#e8bc55':'#84917c',mv?296:281,490,9,4));
     // s.guard can be null while sim.guard exists: the supper run borrows a guard when no backup patrol is on.
     if(sim.guard && (!mv || !sim.supper) && s.guard?.phase==='patrol' && sim.guard.path.length) {
       const a=sim.guard,p=a.path[0],angle=Math.atan2(p.y-a.y,p.x-a.x);
@@ -1669,7 +1671,7 @@
     if(view==='games' && C.id==='portrait') $('#room-viewport').scrollTop=Math.max(0,356*canvas.getBoundingClientRect().width/C.W-$('#room-viewport').clientHeight);
     if (C.bands && ['meeting','booth','board','night-guard','reception','argue','pool','farm','cat','clinic'].includes(view)) {
       // Tower: the meeting room and totals board are on the ground floor now; the rest sit a floor or two down.
-      const y={meeting:250,reception:250,argue:250,board:250,booth:C.boothOffset[1]+400,'night-guard':420,pool:C.poolOffset[1]-120,farm:C.funOffsets.garden[1]-160,cat:C.catOffset[1]-120,clinic:C.clinicOffset[1]-120}[view];
+      const y={meeting:250,reception:250,argue:250,board:250,booth:C.noBooth?0:C.boothOffset[1]+400,'night-guard':420,pool:C.poolOffset[1]-120,farm:C.funOffsets.garden[1]-160,cat:C.catOffset[1]-120,clinic:C.clinicOffset[1]-120}[view];
       $('#room-viewport').scrollTop=Math.max(0,y)*canvas.getBoundingClientRect().width/C.W;
     } else if (C.id!=='landscape' && ['meeting','booth','board','night-guard','reception','argue'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
     setInterval(() => { if (!forced && (!paused || replay)) loadLive(); }, 10000);

@@ -8,7 +8,7 @@ test('present neighbour receives a real handoff, never a phone or flight, then C
   const s=setup(layout,seed),cc=s.actors.find(a=>a.id==='cc'),to=s.actors.find(a=>a.id==='codex'),states=s.actors.map(a=>[a.status,a.statusSince]);dispatch(s);
   const phases=new Set(),words=new Set();let ended=null,walked=0;
   for(let i=0;i<1500;i++){
-   s.step(20);assert.equal(s.flights.length,0);assert.notEqual(cc.activity,'call');assert.ok(C.distance(cc,s.layout.booth)>30);
+   s.step(20);assert.equal(s.flights.length,0);assert.notEqual(cc.activity,'call');if(!s.layout.noBooth)assert.ok(C.distance(cc,s.layout.booth)>30); // 11-03: the tower has no booth; CC calls from her desk
    assert.deepEqual(s.actors.map(a=>[a.status,a.statusSince]),states);
    for(const a of s.actors)assert.equal(C.blocked(a.x,a.y,s.layout),false,a.id+' hits furniture');
    if(cc.path.length)walked++;
