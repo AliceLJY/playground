@@ -25,13 +25,25 @@ cd later-whack && python3 -m http.server 8963 --bind 127.0.0.1
 
 固定机位：`?view=hero`（三种牌子同框）、`?view=stress`（最后几秒六个同时在场）、`?view=over`（莽撞档输掉的结算页）、`?view=win`（打满 60 秒）。规格见 [SPEC.md](SPEC.md)，验证记录见 [VERIFICATION.md](VERIFICATION.md)。
 
+## 演示片
+
+竖屏 1080×1920、约 40 秒（含署名页），逐帧录真实游戏，所有点按都是真实触摸：标题 → 开局敲小尾巴 → 故意敲一次绿牌、一次蓝牌 → 中段快进 → 最后几秒 → 下班结算 → 署名页。配乐是代码合成的活泼小调子，卡在每次敲中上。
+
+```bash
+cd later-whack && python3 -m http.server 8963 --bind 127.0.0.1
+NODE_PATH="$(npm root -g)" node tools/record.cjs http://127.0.0.1:8963/index.html <输出目录> <署名页模板目录>
+python3 tools/demo-music.py <输出目录>/events.json <输出目录>/music-raw.wav     # 需要 numpy
+```
+
+合成命令写在 `tools/record.cjs` 文件头（响度单独做，画面缩放到 1080×1920）。
+
 ## 素材与来源
 
 - 打地鼠是这一类游戏的通用玩法；画面、规则和代码都是这里自己做的。
 - 小人和两个小孩的像素画法照着本仓 `ai-office/office.js` 里的画法重画，全部是代码画的，没有图片。
-- 没有声音。
+- 游戏本身没有声音；演示片的配乐由代码合成，没有采样素材。
 
 ## 谁会点开、AI 素材
 
 - 谁会点开：在手机上随手玩一分钟的人；常跟 AI 一起干活、见过「下次顺手」这句话的人会心一笑。
-- AI 素材清单：没有 AI 生成的图片、模型、动作或声音，画面全是代码画的像素块；代码由人与 AI 协作完成。
+- AI 素材清单：没有 AI 生成的图片、模型、动作或声音，画面全是代码画的像素块，演示片配乐也是代码合成；代码由人与 AI 协作完成。
