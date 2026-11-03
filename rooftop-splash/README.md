@@ -20,6 +20,8 @@ Choose blue or orange, 3v3 / 4v4 / 6v6, a score limit and bot difficulty. All ot
 
 Touch controls include a left movement stick, right look area and action buttons. Landscape is recommended. When pointer lock is unavailable, hold and drag the scene to aim. Losing focus pauses the match.
 
+On short phone screens, the opening button stays above the footer. Short landscape places a smaller radar beside the score, with jump, balloon and weapon switch in one compact row above aim, refill and fire, leaving room to drag the scene.
+
 ## Preview and checks
 
 From the repository root:
@@ -35,6 +37,8 @@ python3 rooftop-splash/build.py
 ```
 
 Open `http://127.0.0.1:8789/rooftop-splash/`. The build generates a standalone HTML file with no external runtime requests, suitable for offline play. GitHub Pages publishes that same bundle.
+
+See [VERIFICATION.md](VERIFICATION.md) for the mobile layout regression checks and remaining device and feel checks.
 
 ## Changing the setting
 
