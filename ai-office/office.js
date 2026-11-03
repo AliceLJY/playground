@@ -191,8 +191,8 @@
       r(g,'#33443f',x+4,276,2,5); r(g,'#d96952',x+3,275,4,3); r(g,'#efc66c',x+13,280,3,2);
       r(g,'#506b5b',x+2,284,16,7); r(g,'#213b40',x+8,286,5,2);
     }
-    r(g,'#77563f',88,284,20,20); r(g,'#dfb987',88,284,20,16);
-    for(let y=0;y<4;y++) for(let x=0;x<4;x++) r(g,(x+y)%2?'#9b7854':'#eee4c7',90+x*4,284+y*4,4,4);
+    r(g,'#77563f',88,292,20,20); r(g,'#dfb987',88,292,20,16);
+    for(let y=0;y<4;y++) for(let x=0;x<4;x++) r(g,(x+y)%2?'#9b7854':'#eee4c7',90+x*4,292+y*4,4,4);
     // Massage chairs (the old beanbag spots): padded back and headrest, arms, a remote, a green power light; labelled for visitors.
     for(const x of [26,50]) {
       if (mv) { const color=x===26?'#739780':'#b397b8'; r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3); r(g,'#d2d3b1',x+3,324,14,5); continue; }
@@ -218,7 +218,7 @@
       else r(ctx,'#739780',x+7,269,6,2);
     }
     const playing=sim.actors.some(a=>sim.gameActivity(a)==='chess'),turn=Math.floor(sim.time/3)%4;
-    for(const [x,y,c] of [[92,286,'#33443f'],[100,294,'#fff4d5'],[playing?92+turn*4:96,290,'#33443f']]) r(ctx,c,x,y,2,2);
+    for(const [x,y,c] of [[92,294,'#33443f'],[100,302,'#fff4d5'],[playing?92+turn*4:96,298,'#33443f']]) r(ctx,c,x,y,2,2);
   }
 
   function wingFloor(g) {
@@ -322,7 +322,7 @@
       text(g,'娱 乐 层',150,784,10,'#655b40'); text(g,'唱歌 · 看书 · 浇花撸猫 · 看片',150,798,6,'#7e856e');
     }
     const o = C.funOffsets;
-    placed(g,o.ktv,()=>ktvRoom(g)); placed(g,o.read,()=>readingRoom(g)); placed(g,o.garden,()=>gardenRoom(g)); placed(g,o.cinema,()=>cinemaRoom(g));
+    placed(g,o.ktv,()=>ktvRoom(g)); placed(g,o.read,()=>readingRoom(g)); placed(g,o.garden,()=>gardenRoom(g)); placed(g,o.cinema,()=>cinemaRoom(g)); if (o.snack) placed(g,o.snack,()=>snackBar(g));
   }
   function frame(g, color) { r(g, color, 0, 0, 110, 1); r(g, color, 0, 79, 110, 1); r(g, color, 0, 0, 1, 80); r(g, color, 109, 0, 1, 80); }
   function ktvRoom(g) {
@@ -348,6 +348,18 @@
     r(g,'#6b4430',89,12,4,12); r(g,'#5f8a4d',82,0,18,14); r(g,'#7aa36a',85,2,10,6);
     r(g,'#c9a27a',60,70,40,8); r(g,'#d1ad83',60,70,40,2);
     plaque(g,'小花园',4,66,34,'#5f8a4d');
+  }
+  // 小卖部, 68×80 local: a drinks machine and a snack machine, a little bar with two stools.
+  function snackBar(g) {
+    r(g,'#e9dcc0',0,0,68,80); r(g,'#c9963a',0,0,68,1); r(g,'#c9963a',0,79,68,1); r(g,'#c9963a',0,0,1,80); r(g,'#c9963a',67,0,1,80);
+    r(g,'#4c4d4040',5,37,48,4);
+    r(g,'#b5473a',4,2,22,36); r(g,'#d96952',5,3,20,3); r(g,'#2f3a3c',7,8,16,18); for (let j=0;j<4;j++) for (let k=0;k<3;k++) r(g,['#e8963a','#7ad7ff','#9cff8a','#e58fb0'][(j+k)%4],8+j*4,10+k*5,3,4);
+    r(g,'#efc66c',20,28,4,2); r(g,'#1b1b28',8,30,12,5);
+    r(g,'#3a6a9a',30,2,22,36); r(g,'#5a8aba',31,3,20,3); r(g,'#cfe3dc',33,8,16,20); for (let j=0;j<3;j++) for (let k=0;k<3;k++) r(g,['#efc66c','#d96952','#8a5a3e'][(j+k)%3],34+j*5,10+k*6,4,4);
+    r(g,'#1b1b28',34,30,12,5);
+    r(g,'#77563f',30,60,34,5); r(g,'#a97c52',30,60,34,2); r(g,'#5a4636',46,65,2,10);
+    for (const x of [40,56]) { r(g,'#3e4b47',x-3,70,7,3); r(g,'#3e4b47',x-1,73,2,5); }
+    plaque(g,'小卖部',2,66,34,'#a87a2c');
   }
   function cinemaRoom(g) {
     r(g,'#26303a',0,0,110,80); frame(g,'#7a8a9a');
@@ -418,6 +430,10 @@
         r(ctx,'#bcd2dc',10,4,90,18); r(ctx,'#8fa7b4',14,14,10,8); r(ctx,'#8fa7b4',30,10,8,12); r(ctx,'#8fa7b4',62,12,12,10); r(ctx,'#8fa7b4',82,9,8,13); r(ctx,'#c9a27a',10,22,90,10);
         const cx = 10 + Math.round(k) % 84; r(ctx,'#e8963a',cx,17,8,5); r(ctx,'#e8963a',cx+5,15,3,3); r(ctx,'#2f3a3c',cx,23,3,3); r(ctx,'#2f3a3c',cx+6,23,3,3);
         if (at('movie')) { ctx.fillStyle = '#fff6c020'; ctx.beginPath(); ctx.moveTo(100,74); ctx.lineTo(10,32); ctx.lineTo(100,32); ctx.closePath(); ctx.fill(); }
+      });
+      if (o.snack) placed(ctx,o.snack,()=>{
+        // A can drops into the drinks machine's tray now and then while someone is buying.
+        if (at('buy')) { const k = (t * 1.6) % 3; if (k < 1) r(ctx,'#d96952',12,30 + Math.round(k * 4),3,4); else r(ctx,'#d96952',12,33,3,2); }
       });
       placed(ctx,o.garden,()=>{
         // The office cat: purrs beside whoever pets it, otherwise strolls round the lawn.
@@ -728,6 +744,11 @@
       r(ctx,'#e4bb91',x+5,bite?y-15:y-8,3,3); r(ctx,'#5a3b2a',x+7,bite?y-19:y-11,1,7);
       if (bite) r(ctx,'#f4ebd8',x+4,y-17,4,3); else { r(ctx,'#eee4c7',x-10,y-8,4,4); r(ctx,'#c99a64',x-10,y-8,4,1); }
     }
+    if (!greets && game === 'buy') { const push = Math.floor(t * 2 + a.i) % 3 === 0; r(ctx,color,x-8,y-14,push?7:4,3); r(ctx,'#e4bb91',x-(push?10:9),y-15,3,3); }
+    if (!greets && game === 'soda') {
+      const sip = (t + a.i) % 4 < 1; r(ctx,color,x+5,y-(sip?16:12),3,sip?8:6); r(ctx,'#d96952',x+5,y-(sip?20:14),3,5); r(ctx,'#f4ebd8',x+5,y-(sip?20:14),3,1);
+      if (sip) for (let j = 0; j < 2; j++) r(ctx,'#ffffffb0',x+7+j*2,y-24-((t*8+j*3)%6),1,1);
+    }
     if (!greets && game === 'sing') {
       r(ctx,color,x+5,y-14,3,6); r(ctx,'#e4bb91',x+4,y-16,3,3); r(ctx,'#2f3a3c',x+2,y-18,3,4); r(ctx,'#2f3a3c',x+3,y-14,1,4);
       const k = (t * 1.5) % 2; text(ctx, k < 1 ? '♪' : '♫', x + 10 + Math.round(k * 3), y - 26 - Math.round(k * 6), 8, '#e58fb0');
@@ -890,7 +911,7 @@
       drawReceptionSpeech();
       if(!mv || mv.performances)drawEvents();
       ctx.font = '7px "PingFang SC",system-ui,sans-serif';
-      nameplates = C.nameplates([...sim.actors.filter(a=>(mv && !mv.performances) || !(sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))),...sim.visitors,...(sim.reception ? [sim.reception.visitor] : []),...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}], value=>ctx.measureText(value).width, speechBoxes);
+      nameplates = C.nameplates([...sim.actors.filter(a=>(mv && !mv.performances) || !(sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))),...sim.visitors,...(sim.reception ? [sim.reception.visitor] : []),...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}], value=>ctx.measureText(value).width, mv ? speechBoxes : [...speechBoxes,{x:70,y:262,w:64,h:23}]);
       // Leaders first, then opaque labels: a later leader must never cross another name.
       for(const p of nameplates) {
         const center=Math.round(p.x+p.w/2);
@@ -959,7 +980,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:'浇花',cat:'撸猫',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:'浇花',cat:'撸猫',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
