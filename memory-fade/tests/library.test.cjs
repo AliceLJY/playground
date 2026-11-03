@@ -22,8 +22,9 @@ test('验收 10 每行只有七个字段：类别、四个数、层级字母、�
   const body = src.slice(src.indexOf('FADE_LIBRARY ='));
   // 数据体里出现的字符串只能是类别名、层级字母和 meta 的键与日期
   const strings = body.match(/"[^"]*"/g).map((s) => s.slice(1, -1));
-  const allowed = new Set([...CATS, 'c', 'w', 'p', 'meta', 'rows', '2026-11-03', ...Object.keys(LIB.meta)]);
-  for (const s of strings) assert.ok(allowed.has(s), `数据里出现了不该有的字符串：${s}`);
+  const allowed = new Set([...CATS, 'c', 'w', 'p', 'meta', 'rows', ...Object.keys(LIB.meta)]);
+  for (const s of strings) assert.ok(allowed.has(s) || /^\d{4}-\d{2}-\d{2}$/.test(s), `数据里出现了不该有的字符串：${s}`);
+  assert.match(LIB.meta.date, /^\d{4}-\d{2}-\d{2}$/);
 });
 
 test('验收 10 抽样里真有页面要讲的几类：会掉分的、不掉分的、7 天窗口里的', () => {
