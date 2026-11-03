@@ -63,7 +63,8 @@ const url=q=>base.replace(/[?#].*$/,'')+q;
     const tapKind=async kind=>{const until=Date.now()+40000;while(Date.now()<until){const p=await probe(page);for(const q of p.state.ents)if(q.state==='up'&&!firstSeen.has(q.id))firstSeen.set(q.id,p.state.t);
       const e=p.state.ents.find(q=>q.kind===kind&&q.state==='up'&&p.state.t-firstSeen.get(q.id)<(kind==='tail'?0.4:1.2));
       if(p.screen!=='play'){report.runs.push({size,name:'round-ended-while-looking-for-'+kind,state:{t:p.state.t,pile:p.state.pile}});return null;}
-      if(e&&p.state.t<p.state.lockUntil){await page.waitForTimeout(40);continue;}
+      // probe rounds to ms; a tap right at the unlock instant can still land locked
+      if(e&&p.state.t<p.state.lockUntil+0.05){await page.waitForTimeout(40);continue;}
       if(e){const before=p.state;await tapAt(e.tapX,e.tapY);await page.waitForTimeout(30);return{before,after:(await probe(page)).state,e};}
       const tail=kind!=='tail'&&p.state.ents.find(q=>q.kind==='tail'&&q.state==='up');   // keep fixing tails for real so the round lasts
       if(tail){await tapAt(tail.tapX,tail.tapY);await page.waitForTimeout(260);continue;}

@@ -201,7 +201,12 @@ function drawFx(){
   for(const f of fx){
     const k=(clock-f.at)/f.dur;
     g.globalAlpha=Math.max(0,1-k*k);
-    if(f.type==='text')text(f.text,f.x,f.y-k*12,f.size||7,f.color);
+    if(f.type==='text'){
+      // top-row signs sit right under the bar: put their words below the sign instead of on top of it; a dark rim keeps them readable anywhere
+      const y=(f.y<38?f.y+34:f.y)-k*12,sz=f.size||7;
+      g.font='700 '+sz+'px '+FONT;g.textAlign='center';g.lineJoin='round';g.lineWidth=sz*0.32;g.strokeStyle='#253334';g.strokeText(f.text,f.x,y);
+      text(f.text,f.x,y,sz,f.color);
+    }
     else if(f.type==='stars')for(let i=0;i<6;i++){const a=i/6*6.283+f.seed,d=4+k*14;r(f.x+Math.cos(a)*d,f.y+Math.sin(a)*d,2,2,i%2?COL.gold:COL.paper);}
     else if(f.type==='ring'){g.strokeStyle=f.color;g.lineWidth=1.4;g.beginPath();g.arc(f.x,f.y,8+k*8,0,6.283);g.stroke();}
     else if(f.type==='cross'){g.strokeStyle=COL.red;g.lineWidth=2.4;g.beginPath();g.moveTo(f.x-8,f.y-8);g.lineTo(f.x+8,f.y+8);g.moveTo(f.x+8,f.y-8);g.lineTo(f.x-8,f.y+8);g.stroke();}

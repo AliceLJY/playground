@@ -25,13 +25,23 @@ Open `http://127.0.0.1:8963/`. Tests: `node --test tests/*.test.cjs`. There is n
 
 Fixed views: `?view=hero` (all three signs in one frame), `?view=stress` (six up at once in the last seconds), `?view=over` (result after the reckless autopilot loses), `?view=win` (a full 60 seconds). Spec in [SPEC.md](SPEC.md) (Chinese), verification notes in [VERIFICATION.md](VERIFICATION.md) (Chinese).
 
+## Demo film
+
+Portrait 1080×1920, about 40 seconds including the signature card. It is recorded frame by frame from the real game with real touch taps: title, fixing tails, one deliberate tap on a green and one on a blue sign, a fast-forwarded middle, the last seconds, the result, the signature card. The bouncy chiptune is synthesised in code and lands a note on every hit.
+
+```bash
+cd later-whack && python3 -m http.server 8963 --bind 127.0.0.1
+NODE_PATH="$(npm root -g)" node tools/record.cjs http://127.0.0.1:8963/index.html <out-dir> <signature-card-template-dir>
+python3 tools/demo-music.py <out-dir>/events.json <out-dir>/music-raw.wav     # needs numpy
+```
+
 ## Assets and sources
 
 - Whack-a-mole is a generic game type; the art, rules and code are made here.
 - The little workers and the two kids are redrawn in code after the pixel style in this repository's `ai-office/office.js`; there are no image files.
-- No sound.
+- The game itself has no sound; the demo film's music is synthesised in code, no samples.
 
 ## Who opens this, AI assets
 
 - Who opens this: someone with a minute to kill on a phone; people who work alongside AI and have heard "I'll get to it next time" will smile.
-- AI assets: no AI-generated images, models, motion or sound; everything on screen is pixel blocks drawn by code. The code was written by a person in collaboration with AI.
+- AI assets: no AI-generated images, models, motion or sound; everything on screen is pixel blocks drawn by code, and the demo music is synthesised in code. The code was written by a person in collaboration with AI.
