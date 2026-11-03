@@ -7,7 +7,7 @@ test('landscape targets: every desk, activity, queue and patrol route is clear a
   const L=C.layouts.landscape;
   const homes=L.desks.map(([x,y])=>({x,y:y+27}));
   const targets=[...homes,...C.leisure(L),...L.seats,...L.standing,...L.audience,...L.patrol,...L.tour,...Array.from({length:11},(_,i)=>L.queuePoint(i)),L.podium,L.booth,L.gameWatch,L.door,L.bossDesk,L.handoff,L.pantry];
-  for(const from of [...homes,L.door,L.bossDesk,{x:64,y:208}])for(const to of targets){
+  for(const from of [...homes,L.door,L.bossDesk,{x:60,y:250}])for(const to of targets){
     const path=C.route(from,to,L);assert.ok(path.length,JSON.stringify({from,to}));let p=from;
     for(const q of path){const n=Math.max(1,Math.ceil(C.distance(p,q)));for(let j=0;j<=n;j++)assert.equal(C.blocked(p.x+(q.x-p.x)*j/n,p.y+(q.y-p.y)*j/n,L),false,JSON.stringify({from,to,p,q,j}));p=q;}
   }

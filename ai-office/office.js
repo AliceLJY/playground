@@ -115,10 +115,10 @@
     r(g, '#8a9c8735', 20, 87, 91, 68); r(g, '#8f9a7d', 20, 87, 91, 3); r(g, '#8f9a7d', 20, 87, 3, 72); r(g, '#96a38b', 109, 88, 3, 58);
     r(g, '#6d806a', 28, 91, 34, 10); text(g, '总监室', 45, 99, 6, '#f2ebd3');
     if (!mv) departments(g);
-    C.desks.forEach(([x, y], i) => { if (i !== 10 && (mv || i !== 9 && i !== 7)) desk(g, x, y, i); });
+    C.desks.forEach(([x, y], i) => { if (i !== 10 && (mv || ![5, 7, 9].includes(i))) desk(g, x, y, i); });
     // The bookshelf stays put; the little lounge becomes a game corner on the office page.
-    r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
-    for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
+    if (mv) { r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
+    for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3); }
     gameFurniture(g);
     if (mv) { r(g, '#6d735b', 113, 267, 2, 20); r(g, '#ead3a2', 108, 262, 12, 7); r(g, '#7d7c60', 109, 287, 10, 2); }
     // Boss desk, mail reception and front door.
@@ -129,7 +129,7 @@
     r(g, '#865e43', 285, 340, 47, 23); r(g, '#c09a69', 282, 337, 51, 10); r(g, '#e5c595', 282, 337, 51, 2); text(g, mv ? '前 台' : '志愿者', 307, 356, 7, '#f2e6c7'); r(g, '#f0e4c4', 312, 333, 14, 7); r(g, '#9da384', 313, 335, 12, 1);
     });
     r(g, '#556b5b', 329, 374, 17, 26); r(g, '#99a288', 330, 376, 16, 22); r(g, '#f5e3af', 333, 386, 2, 3); text(g, 'OUT', 334, 371, 5, '#5b6857');
-    plant(g, 329, 94, true); plant(g, 32, 380, true); plant(g, 124, 200); plant(g, 271, 279);
+    plant(g, 329, 94, true); plant(g, 32, 380, true); if (mv) plant(g, 124, 200); plant(g, 271, 279);
     // A warm lamp pool is strictly decorative: no overlay on text or characters.
     if (L !== 'day') { g.fillStyle = L === 'night' ? '#323d6220' : '#e79e4120'; g.fillRect(14, 84, 332, 313); if (mv) r(g, '#f9d98c', 109, 263, 10, 3); }
     annex(g);
@@ -153,9 +153,14 @@
     r(g, '#8c6a3a', 103, 106, 1, 30); r(g, '#b07a32', 101, 135, 5, 2); r(g, '#f3dc9a', 99, 101, 9, 6); r(g, '#d9b45a', 99, 106, 9, 1);
     if (light && light !== 'day') { g.fillStyle = '#f9d98c22'; g.fillRect(92, 104, 17, 30); }
     zone(g, 116, 88, 228, 66, '#2f73c4', '4c'); plaque(g, '工程审查部', 196, 74, 66, '#2f68ae');
-    // Mailroom: Dots' X clippings on the bookshelf, Cobbler's sorting counter.
-    zone(g, 18, 162, 174, 88, '#6f9f5a'); plaque(g, '收发室', 24, 164, 36, '#5f8a4d');
-    r(g, '#efe2bd', 104, 180, 12, 8); r(g, '#b1966b', 106, 182, 8, 1); r(g, '#b1966b', 106, 185, 6, 1);
+    // Showcase corner: the first thing a visitor passes on the way in; tapping it opens works and accounts.
+    zone(g, 18, 162, 80, 92, '#c9963a'); 
+    // Mailroom, now small: Cobbler's sorting counter and Dots' X clipping board. The showcase has the corner to its left.
+    zone(g, 100, 162, 92, 88, '#6f9f5a'); plaque(g, '收发室', 150, 164, 36, '#5f8a4d');
+    r(g, '#4c4d4040', 105, 212, 22, 3); r(g, '#5a4636', 106, 206, 2, 8); r(g, '#5a4636', 122, 206, 2, 8);
+    r(g, '#8c6447', 103, 182, 24, 26); r(g, '#c9a27a', 105, 184, 20, 22);
+    for (const [x, y, c] of [[106, 186, '#f4ebd8'], [114, 185, '#e8eef2'], [107, 195, '#e8eef2'], [116, 194, '#f4ebd8']]) { r(g, c, x, y, 7, 8); r(g, '#9aa3a0', x + 1, y + 2, 5, 1); r(g, '#9aa3a0', x + 1, y + 4, 4, 1); r(g, '#c85b4a', x + 3, y - 1, 1, 2); }
+    r(g, '#2f3a3c', 118, 199, 5, 5); text(g, 'X', 120, 204, 5, '#ffffff');
     // Production: Grok and Muse share the film room; a little camera on a tripod in the corner.
     zone(g, 198, 162, 146, 88, '#8a63a8'); plaque(g, '制片室', 247, 164, 36, '#7a5896');
     r(g, '#4a4552', 334, 222, 2, 22); r(g, '#4a4552', 330, 242, 10, 2); r(g, '#2f3a3c', 329, 214, 12, 9); r(g, '#90b8a3', 331, 216, 4, 4); r(g, '#d96952', 338, 215, 2, 2);
@@ -188,9 +193,13 @@
     }
     r(g,'#77563f',88,284,20,20); r(g,'#dfb987',88,284,20,16);
     for(let y=0;y<4;y++) for(let x=0;x<4;x++) r(g,(x+y)%2?'#9b7854':'#eee4c7',90+x*4,284+y*4,4,4);
-    for(const [x,color] of [[26,'#739780'],[50,'#b397b8']]) {
-      r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3);
-      r(g,'#d2d3b1',x+3,324,14,5);
+    // Beanbags: round, slumped, with a sat-in dip, a highlight and a soft shadow (nap / read spots).
+    for(const [x,color,dark,light] of [[26,'#739780','#5a7a66','#9cbaa4'],[50,'#b397b8','#8f7596','#cdb8d0']]) {
+      if (mv) { r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3); r(g,'#d2d3b1',x+3,324,14,5); continue; }
+      r(g,'#4c4d4038',x+1,330,20,4);
+      for (const [dy,inset] of [[0,6],[2,3],[4,1],[6,0],[8,0],[10,0],[12,0],[14,0],[16,1],[18,3]]) r(g,dy<12?color:dark,x+inset,311+dy,20-inset*2,2);
+      r(g,dark,x+5,318,10,6); r(g,color,x+6,317,8,2); r(g,dark,x+4,323,12,2);
+      r(g,light,x+4,313,5,2); r(g,light,x+2,316,2,3); r(g,'#ffffff30',x+5,313,2,1);
     }
     r(g,'#77563f',138,308,4,12); r(g,'#77563f',170,308,4,12);
     r(g,'#35474a',136,276,40,40); r(g,'#527d72',138,278,36,36);
@@ -243,15 +252,30 @@
     r(g,'#71583f',42,633,3,3); r(g,'#71583f',87,633,3,3); text(g,'旁听席',66,648,7,'#655b40');
     });
     if(!mv) { placed(g,C.teaOffset,()=>teahouse(g)); placed(g,C.gymOffset,()=>gym(g)); }
+    if(!mv && C.restOffset) placed(g,C.restOffset,()=>restRoom(g));
+    if(!mv && C.lobby) {
+      // Lobby by the entrance: a waiting sofa for guests, a low table, two plants.
+      const {x,y,w}=C.lobby;
+      r(g,'#4c4d4040',x+1,y+12,w,4); r(g,'#7a5a3e',x,y-4,w,8); r(g,'#a3826a',x,y+4,w,10); r(g,'#bf9b80',x+2,y+5,w-4,4); r(g,'#7a5a3e',x-3,y-2,4,16); r(g,'#7a5a3e',x+w-1,y-2,4,16);
+      r(g,'#77563f',x+16,y+26,28,8); r(g,'#a97c52',x+16,y+26,28,3); r(g,'#efe2bd',x+22,y+27,8,2); r(g,'#e9c9a0',x+34,y+24,4,4);
+      plant(g,x-14,y+6,true); plant(g,x+w+14,y+6,true); text(g,'大 堂',x+w/2,y-8,7,'#655b40');
+    }
     placed(g,C.boothOffset,()=>{
+    if (mv) {
     r(g,'#6d806a',268,494,67,5); r(g,'#6d806a',268,499,3,61); r(g,'#6d806a',332,499,3,61); r(g,'#b4cdc14a',271,499,61,61);
     r(g,'#47625d',310,512,12,26); r(g,'#e7dbb8',312,515,7,10); r(g,'#364944',313,529,5,6);
     text(g,'电话亭',300,579,7);
+    } else {
+    // One-person booth: a red phone box with a glass door.
+    r(g,'#4c4d4040',269,540,34,3); r(g,'#a33a30',268,490,34,6); r(g,'#efc66c',276,491,18,3); r(g,'#a33a30',268,496,3,44); r(g,'#a33a30',299,496,3,44);
+    r(g,'#b4cdc15a',271,496,28,44); r(g,'#e6f1ec',273,498,2,38); r(g,'#47625d',290,504,10,20); r(g,'#e7dbb8',291,506,6,8); r(g,'#364944',292,517,5,5);
+    text(g,'电话亭',285,552,6);
+    }
     });
     placed(g,C.storageOffset,()=>{
     if (mv) { text(g,'储物间',298,602,7); r(g,'#8f785c',262,610,72,68); r(g,'#b6a58a',265,613,66,62); r(g,'#796b54',265,673,66,3); return; }
     // Showcase: a glass cabinet of tiny keepsakes from the playground; tapping it opens the works and accounts.
-    text(g,'陈列室',298,602,7);
+    plaque(g,'陈列室',278,600,40,'#a87a2c');
     r(g,'#4c4d4040',264,676,72,4); r(g,'#77563f',262,606,72,72); r(g,'#a97c52',264,608,68,68); r(g,'#cfe3dc',267,611,62,62); r(g,'#e6f1ec',268,612,8,60);
     for (const y of [631,651]) { r(g,'#a97c52',267,y,62,3); r(g,'#d1a272',267,y,62,1); }
     r(g,'#a97c52',267,671,62,2);
@@ -280,6 +304,18 @@
     r(g,'#f4ebd8',44,52,6,2); r(g,'#3f6f68',33,52,5,4); r(g,'#3f6f68',38,53,2,1);
     r(g,'#8f6a48',6,84,18,10); r(g,'#b98a52',7,79,16,5); r(g,'#d7b47a',7,78,16,1); r(g,'#b98a52',9,74,12,4); r(g,'#d7b47a',9,73,12,1);
     r(g,'#3e4b47',8,94,3,3); r(g,'#3e4b47',20,94,3,3);
+  }
+  // 休息室, 104×66 local: three bunk beds (berths at y 32 / 56), dim blue floor, a night light.
+  function restRoom(g) {
+    r(g,'#4a5a7a30',0,0,104,66); r(g,'#4a5a7ab0',0,0,104,1); r(g,'#4a5a7ab0',0,65,104,1); r(g,'#4a5a7ab0',0,0,1,66); r(g,'#4a5a7ab0',103,0,1,66);
+    plaque(g,'休息室',34,-12,36,'#4a5a7a');
+    for (const bx of [4,38,72]) {
+      r(g,'#4c4d4040',bx+1,62,28,3);
+      r(g,'#6b4430',bx,8,3,56); r(g,'#6b4430',bx+25,8,3,56);
+      for (const y of [22,46]) { r(g,'#6b4430',bx,y+8,28,4); r(g,'#e8e3d4',bx+3,y,22,9); r(g,'#f4f1e6',bx+3,y,7,4); r(g,'#9fb0c8',bx+10,y+2,15,7); }
+      r(g,'#6b4430',bx+25,12,3,1); for (let k=0;k<4;k++) r(g,'#8a5a3e',bx+25,14+k*4,3,1);
+    }
+    r(g,'#f9d98c',98,4,3,3);
   }
   // 健身房, 96×80 local: treadmill, dumbbell rack, punching bag, yoga mat.
   function gym(g) {
@@ -363,7 +399,7 @@
     if (s.disk) text(ctx,`${s.disk.usedPct}%`,298,690,7);
     if (s.disk?.usedPct>=92) { r(ctx,'#ba5045',276,604,47,11); text(ctx,'快满了',299,612,8,'#fff4d5'); }
     });
-    placed(ctx,C.boothOffset,()=>r(ctx,sim.boothCall()?'#e8bc55':'#84917c',296,490,9,4));
+    placed(ctx,C.boothOffset,()=>r(ctx,sim.boothCall()?'#e8bc55':'#84917c',mv?296:281,490,9,4));
     // s.guard can be null while sim.guard exists: the supper run borrows a guard when no backup patrol is on.
     if(sim.guard && (!mv || !sim.supper) && s.guard?.phase==='patrol' && sim.guard.path.length) {
       const a=sim.guard,p=a.path[0],angle=Math.atan2(p.y-a.y,p.x-a.x);
@@ -413,7 +449,7 @@
   function sceneOver() {
     const ball=sim.pingPongBall();
     if(ball)r(ctx,'#fff4d5',ball.x,ball.y,ball.size,ball.size);
-    if(C.id==='landscape')r(ctx,sim.scene.meeting?'#efc66c':'#84917c',532,198,9,4);
+    if(C.id==='landscape')r(ctx,sim.scene.meeting?'#efc66c':'#84917c',514,190,9,4);
     else if(sim.scene.meeting) {
       r(ctx,'#77563f',274,398,68,18); r(ctx,'#efc66c',276,400,64,14);
       r(ctx,'#fff4d5',278,404,3,3); text(ctx,'开会中 ↓',311,410,8,'#45534b');
@@ -423,7 +459,7 @@
     const cc=sim.actors.find(a=>a.activity==='call');
     if(cc && !cc.path.length) {
       r(ctx,'#354c47',cc.x+5,cc.y-18,3,11); r(ctx,'#354c47',cc.x+3,cc.y-18,5,3); r(ctx,'#354c47',cc.x+3,cc.y-9,5,3);
-      if(!mv && sim.time%8<2.5) { const call=sim.scene.call, who=call?.kind==='dispatch' && sim.actors.find(a=>a.id===call.with)?.name; const word=who ? [`喂，${who}`,'交给你啦','做完叫我'][Math.floor(sim.time/8)%3] : ['嗯…','这个思路有意思','我记一下'][Math.floor(sim.time/8)%3]; placed(ctx,C.boothOffset,()=>{r(ctx,'#fff4d5',258,531,84,12); text(ctx,word,300,540,8);}); }
+      if(!mv && sim.time%8<2.5) { const call=sim.scene.call, who=call?.kind==='dispatch' && sim.actors.find(a=>a.id===call.with)?.name; const word=who ? [`喂，${who}`,'交给你啦','做完叫我'][Math.floor(sim.time/8)%3] : ['嗯…','这个思路有意思','我记一下'][Math.floor(sim.time/8)%3]; placed(ctx,C.boothOffset,()=>{const bx=mv?258:242,by=mv?531:472;r(ctx,'#fff4d5',bx,by,84,12); text(ctx,word,bx+42,by+9,8);}); }
     }
     if(sim.guard) {
       const a=sim.guard;
@@ -535,6 +571,14 @@
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
+    if (!boss && !a.visitor && sim.inBed?.(a)) {
+      // Tucked into a berth (spot = foot of the mattress line): head on the pillow, blanket in their colour, zZz.
+      const t = sim.time, x = Math.round(a.x), y = Math.round(a.y), k = (t + a.i * .7) % 3, rise = Math.sin(t * 1.4 + a.i) > 0 ? 0 : 1;
+      r(ctx, '#4b4639', x - 11, y - 10, 7, 3); r(ctx, '#e3b58d', x - 10, y - 8, 6, 5); r(ctx, '#273a34', x - 9, y - 6, 3, 1);
+      r(ctx, a.color, x - 3, y - 9 + rise, 14, 7 - rise); r(ctx, '#ffffff40', x - 3, y - 9 + rise, 14, 1);
+      text(ctx, 'z', x + 8, y - 12 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 12, y - 18 - k * 2, 8, '#45534b');
+      return;
+    }
     const feastSeat = !boss && !a.visitor && sim.feastEating?.(a) && sim.layout.tea?.some(p=>C.distance(p,a)<1), napAtDesk = !boss && !a.visitor && sim.napping?.(a) && C.distance(a,C.home(a.i))<1;
     const seated = (feastSeat || napAtDesk || sim.gameActivity(a)==='tea' || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
