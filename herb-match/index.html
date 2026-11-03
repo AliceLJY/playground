@@ -54,6 +54,10 @@ noscript{color:#3B2A1E;font:16px sans-serif;position:fixed;inset:0;display:grid;
 #practice footer{text-align:center}#practice footer p{font-size:12px;color:#7A6650;margin-top:10px}
 @media(max-width:360px){#practice{padding:10px}.practice-shell{gap:6px}#practice-card{padding:10px}#practice h1{font-size:22px}#practice-herb{width:80px;height:80px}#result #restart{padding:8px 12px}#practice-start{font-size:15px;padding:8px}}
 @media(max-height:420px){#practice{padding:8px 16px}.practice-shell{max-width:760px;gap:6px}#practice h1{font-size:22px}#practice header{display:flex;justify-content:center;align-items:center;gap:20px}#practice header p{margin:0}#practice-card{display:grid;grid-template-columns:170px minmax(0,1fr);gap:6px 16px;padding:10px}#practice-herb{width:80px;height:80px}#practice-name{font-size:24px}#practice-choices{margin-top:4px}#practice-feedback{margin:0;padding:0;border:0}#practice-done{grid-column:1/-1;padding:10px}#practice footer p{margin:4px 0 0}}
+/* The result's recommended next step; the normal restart remains an explicit skip. */
+#result.has-slips #practice-start{background:#B8322A;color:#FFF9EC;min-height:52px;padding:10px 18px;font-size:17px}
+#result.has-slips #restart{background:#FFF9EC;color:#B8322A;padding:8px 12px;font-size:14px}
+@media(max-width:360px){#result.has-slips #practice-start{padding:10px 12px;font-size:16px}}
 </style>
 </head>
 <body>

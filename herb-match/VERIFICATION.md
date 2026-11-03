@@ -117,3 +117,13 @@ NODE_PATH="$(npm root -g)" node tools/practice-check.cjs check-out/practice http
 NODE_PATH="$(npm root -g)" node tools/regression-check.cjs check-out/regression http://127.0.0.1:8941/
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs check-out/full http://127.0.0.1:8941/index.html
 ```
+
+## 2026-11-03 · D1 结算入口调整
+
+有错题（含漏接）时，复用原结果页与复习入口，只调整按钮层级：「这几味再认一次」为更大、更醒目的主按钮，「再来一局」为至少 44px 的次要跳过入口；无错题保持原样。没有首访存储，也没有修改题库、计分、时长、练习规则或依赖。中英 README 与规格同步。
+
+新增 `tools/entry-check.cjs`，先在旧界面确认层级断言失败，调整后 **36/36**。四档 390×664、320×568、844×340、1365×900（DPR 2/2/2/1）检查清空存储后的普通开局、错题主按钮与跳过、完整练习后返回、完美局、刷新及原入口；页面/控制台零错误。原 Node **17/17**，原浏览器 `practice-check` **307/307**、`regression-check` **101/101**、`browser-check` **194/194**；截图逐张读图。Google Chrome 156.0.8078.80，默认 Canvas 2D 渲染。
+
+本目录无构建步骤，按发布流程复制 `index.html` 与 `src/` 并逐文件比对一致；发布副本另在四档视口走过入口→复习→返回→正常重开，**4/4**，零页面错误。复跑新增检查：在本目录运行 `NODE_PATH="$(npm root -g)" node tools/entry-check.cjs <页面地址> <仓外输出目录>`。
+
+本轮只调整入口，不重新导出演示片；原录片不被阻挡，仍直接开始正常局。未测真手机、Safari、声音试听和真人手感；未 push，未做线上复验。
