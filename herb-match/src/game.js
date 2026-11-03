@@ -306,6 +306,7 @@ function showResult(){
   }
   document.getElementById('review-title').textContent=seen.size?'这 '+seen.size+' 味没分对 · 点开看药签':'一味都没分错！';
   document.getElementById('practice-start').hidden=seen.size===0;
+  panel.classList.toggle('has-slips',seen.size>0);
   document.getElementById('result-mute').textContent=muted?'声音：关':'声音：开';
   panel.hidden=false;document.getElementById('review').scrollTop=0;
 }
