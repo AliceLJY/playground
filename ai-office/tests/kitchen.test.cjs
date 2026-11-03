@@ -97,3 +97,15 @@ test('awayPost validation and projection: private/guest HTTP preserve the field,
     for(const awayPost of [null,'bbq','',true,{},['kitchen']])assert.throws(()=>validate({...data,roster:[{...data.roster[0],awayPost}]}),/Invalid role/);
   }
 });
+
+// 11-03 Alice: 「给我安排点事儿……老板在唱歌、游泳、撸猫」— the boss's own day in the tower.
+test('boss day: the plan follows Beijing time, every spot is walkable, and a busy office still pulls her back to the desk',()=>{
+  const at=hm=>Date.parse(`2026-11-01T${hm}:00+08:00`);
+  for(const [hm,kind] of [['00:10','read'],['03:00','home'],['08:30','tea'],['10:40','stroll'],['12:00','kitchen'],['15:10','swim'],['16:40','gym'],['19:40','theatre'],['20:40','sing'],['21:40','bbq'],['22:40','dance'],['23:30','read']])
+    assert.equal(C.bossPlan(at(hm)).kind,kind,hm);
+  const L=C.layouts.portrait;
+  for(const [k,p] of Object.entries(L.bossSpots)){assert.equal(C.blocked(p.x,p.y,L),false,k);assert.ok(C.route(L.bossDesk,p,L).length,k);}
+  const s=C.create(require('../demo-script.json').roster,7,'portrait');s.setScene(C.emptyScene(),at('15:10'));for(const a of s.actors)s.setStatus(a.id,'busy');
+  s.step(30000);assert.equal(s.bossActivity(),'swim');assert.equal(s.bossLabel(),'游泳');
+  s.setStatus(s.actors[1].id,'waiting');s.step(30000);assert.ok(C.distance(s.boss,L.bossDesk)<1,'a waiting colleague brings her back');assert.equal(s.bossLabel(),'在老板桌等着拍板');
+});

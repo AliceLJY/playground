@@ -623,7 +623,7 @@
     const L=C.id, homeOf=k=>({x:C.catSpot.x+14+k*12,y:C.catSpot.y-k*2});
     if (!cats || cats.layout!==L || cats.sim!==sim) { cats=CAT_LOOKS.map((look,k)=>({...homeOf(k),k,look,path:[],wait:3+k*4,goal:null})); cats.layout=L; cats.sim=sim; cats.last=sim.time; catPlay=null; }
     const dt=Math.min(.5,Math.max(0,sim.time-cats.last)); cats.last=sim.time;
-    const petter=sim.actors.find(a=>sim.gameActivity(a)==='cat'), fed=sim.playing?.('cat'), sleepy=sim.night && !fed;
+    const petter=sim.actors.find(a=>sim.gameActivity(a)==='cat') || (sim.bossActivity?.()==='pet' ? sim.boss : null), fed=sim.playing?.('cat'), sleepy=sim.night && !fed;
     cats.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870}].filter(p=>p&&!Core.blocked(p.x,p.y,L));
     const go=(c,p)=>{ if(c.goal&&Core.distance(c.goal,p)<4)return; c.goal=p; c.path=Core.route(c,p,L); };
     // A chase starts now and then (never at night or while someone is petting/feeding): the chaser keeps re-aiming at the runner.
@@ -634,7 +634,10 @@
       if (sim.time>catPlay.aim) { catPlay.aim=sim.time+.8; chaser.goal=null; go(chaser,{x:Math.round(runner.x/4)*4,y:Math.round(runner.y/4)*4}); }
       if (Core.distance(runner,chaser)<10 || sim.time>catPlay.until) { catPlay={phase:'tussle',a:runner,b:chaser,until:sim.time+2.5}; runner.path=[]; chaser.path=[]; }
     } else if (catPlay?.phase==='tussle' && sim.time>catPlay.until) { catPlay=null; for(const c of cats){c.goal=null;c.wait=2+Math.random()*4;} }
+    const carried = sim.bossPlan?.kind==='stroll';
+    if (carried) { Object.assign(cats[0],{x:sim.boss.x,y:sim.boss.y,path:[],goal:null,task:null}); }
     for (const c of cats) {
+      if (carried && c.k===0) continue;
       // Courier duty (Alice: 「也可以让猫咪替我送信」): runs from the boss to the colleague with the note, then is free again.
       if (c.task) {
         const o=c.task,a=sim.actors.find(a=>a.id===o.id);
@@ -659,7 +662,9 @@
   function drawCats() {
     const list=catTick(); if(!list)return; const t=sim.time;
     if (list[0].fed) { const p={x:C.catSpot.x+6,y:C.catSpot.y+2}; r(ctx,'#b5473a',p.x-6,p.y-2,10,4); r(ctx,'#e9c9a0',p.x-5,p.y-3,8,2); }
+    const carried = sim.bossActivity?.()==='stroll' || (sim.bossPlan?.kind==='stroll');
     for (const c of list) {
+      if (carried && c.k===0) continue; // 小橘 is in the boss's arms
       const L=c.look,bob=c.tussle?(Math.floor(t*10+c.k)%2)*2:0,p={x:c.x+(c.tussle?(c.k?3:-3):0),y:c.y-bob},leg=c.moving&&Math.floor(t*(c.running?14:8))%2;
       r(ctx,'#4c4d4030',c.x-6,c.y,12,2);
       if (c.asleep) { r(ctx,L.fur,p.x-6,p.y-5,12,5); r(ctx,L.stripe,p.x-3,p.y-5,1,5); if(L.patch)r(ctx,L.patch,p.x-1,p.y-5,3,3); r(ctx,L.head,p.x+4,p.y-7,4,3); text(ctx,'z',p.x+9,p.y-10-(t%3|0),6,'#45534b'); continue; }
@@ -974,7 +979,9 @@
       const v=sim.reception.visitor, host=sim.actors.find(b=>b.id===sim.reception.hosts[0]);
       if(a===v || a===host) { const dx=a===v?-1:1, bob=Math.sin(t*9)>0?1:0; r(ctx,color,x+(dx<0?-12:5),y-12+bob,8,3); r(ctx,'#e4bb91',x+(dx<0?-14:11),y-12+bob,4,3); }
     }
-    const game = sim.chefActivity(a) || sim.gameActivity(a) || (!boss && !a.visitor && sim.feastEating?.(a) ? 'tea' : null);
+    // The boss's own day (Core BOSS_DAY): her plan item maps onto the colleagues' poses; dancing and carrying the cat are hers alone.
+    const BOSS_POSE = {tea:'tea',kitchen:'eat',bbq:'eat',pet:'cat',swim:'swim',gym:'lift',farm:'water',theatre:'movie',sing:'sing',dance:'bossdance',read:'book',stroll:'stroll'};
+    const game = boss ? (mv ? null : BOSS_POSE[sim.bossActivity?.()] || null) : sim.chefActivity(a) || sim.gameActivity(a) || (!a.visitor && sim.feastEating?.(a) ? 'tea' : null);
     if(!greets && ['cook','chop','grill'].includes(game)) {
       const lift=Math.floor(t*(game==='chop'?5:3))%2;
       r(ctx,color,x+5,y-16-lift*2,4,7); r(ctx,'#e4bb91',x+6,y-18-lift*2,3,3);
@@ -1074,6 +1081,9 @@
     // Pool: the swimmer is in up to the chest, arms taking turns; a deckchair regular wears shades and holds a drink.
     if (!greets && game === 'swim') { const k=Math.floor(t*2+a.i)%2; r(ctx,'#9ccfe0',x-10,y-9,20,10); r(ctx,'#c4e6f0',x-10,y-9,20,1); r(ctx,'#e4bb91',x+(k?6:-9),y-13,3,3); r(ctx,'#ffffffb0',x-12+((t*6)%4|0),y-9,3,1); r(ctx,'#ffffffb0',x+8-((t*6)%4|0),y-7,3,1); }
     if (!greets && game === 'lounge') { r(ctx,'#2f3a3c',x-5,y-15,10,2); r(ctx,'#efc66c',x+6,y-12,3,5); r(ctx,'#d96952',x+6,y-13,3,1); }
+    if (!greets && boss && game === 'sing') { const k=Math.floor(t*3)%2; r(ctx,'#2f3a3c',x+6,y-20,2,8); r(ctx,'#9aa3a0',x+5,y-23,4,4); r(ctx,'#e4bb91',x+5,y-14,3,3); text(ctx,'♪',x+12,y-28-(t*3%3|0),7,k?'#e58fb0':'#ffe066'); }
+    if (!greets && game === 'bossdance') { const k=Math.floor(t*4)%2; r(ctx,color,x+(k?5:-8),y-22,3,8); r(ctx,'#e4bb91',x+(k?5:-8),y-24,3,3); r(ctx,color,x+(k?-8:5),y-14,3,5); text(ctx,'♪',x+(k?10:-11),y-26-(t*3%3|0),6,'#b5473a'); }
+    if (!greets && game === 'stroll') { r(ctx,'#e8963a',x-6,y-15,11,6); r(ctx,'#c8732a',x-3,y-15,1,6); r(ctx,'#c8732a',x,y-15,1,6); r(ctx,'#e8963a',x+3,y-19,5,5); r(ctx,'#e8963a',x+3,y-21,1,2); r(ctx,'#e8963a',x+7,y-21,1,2); r(ctx,'#2f3a3c',x+5,y-18,1,1); r(ctx,'#e8963a',x-9,y-14+(Math.floor(t*2)%2),3,2); r(ctx,'#e4bb91',x-7,y-11,3,3); r(ctx,'#e4bb91',x+4,y-11,3,3); }
     if (!greets && game === 'pick') { const up=Math.floor(t*1.5+a.i)%2; r(ctx,'#a97c52',x+5,y-9,8,5); r(ctx,'#52745e',x+6,y-11,3,2); r(ctx,'#d96952',x+9,y-11,3,2); r(ctx,'#e4bb91',x-7,y-(up?12:5),3,3); }
     if (!greets && game === 'checkup') { r(ctx,'#f4f1e6',x-9,y-14,4,6); r(ctx,'#d9564d',x-8,y-12,2,2); text(ctx,'+',x+8,y-24-(t%2|0),7,'#d9564d'); }
     if (boss && C.clinicDoctor && Core.distance(a,C.clinicDoctor)<1) { r(ctx,'#f4f1e6',x-6,y-12,12,9); r(ctx,'#3e4b47',x-3,y-12,1,6); r(ctx,'#3e4b47',x-3,y-6,4,1); r(ctx,'#9aa3a0',x,y-7,2,2); }
@@ -1268,6 +1278,15 @@
   function buildRoster() {
     const n = currentRoster.length; $('#team-tab span').textContent = String(n); document.querySelectorAll('#drawer-toggle small').forEach(el => { if (/位伙伴/.test(el.textContent)) el.textContent = `${n} 位伙伴`; });
     $('#roster').replaceChildren();
+    if (C.bossSpots && !mv) {
+      // The boss's own line at the top of the drawer: what she is up to right now (her day is Core BOSS_DAY).
+      const li = document.createElement('li'); li.className = 'member boss-row'; li.dataset.id = '__boss';
+      const icon = document.createElement('span'); icon.className = 'avatar'; icon.style.setProperty('--actor', '#dcb159');
+      const name = document.createElement('span'); name.className = 'member-name'; name.textContent = '老板 · 小试AI';
+      const work = document.createElement('span'); work.className = 'member-work';
+      const meta = document.createElement('span'); meta.className = 'member-meta'; const status = document.createElement('span'); status.className = 'status'; meta.append(status);
+      li.append(icon, name, work, meta); $('#roster').append(li);
+    }
     for (const a of sim.actors) {
       const li = document.createElement('li'); li.className = 'member'; li.dataset.id = a.id;
       const icon = document.createElement('span'); icon.className = 'avatar'; icon.style.setProperty('--actor', a.color);
@@ -1292,6 +1311,7 @@
     const book = $('#guestbook'), total = !demo && Number.isInteger(visitorsTotal) ? visitorsTotal : null;
     book.hidden = total === null; if (total !== null) book.textContent = `来过 ${total.toLocaleString('zh-CN')} 位客人`;
     if (!waiting && !busy && visiting) $('#room-caption').textContent = '有人进来参观了';
+    const bossRow = document.querySelector('#roster li[data-id="__boss"] .status'); if (bossRow) bossRow.textContent = sim.bossLabel?.() || '';
     if (sim.scene.meeting) $('#room-caption').textContent = C.id==='landscape'?'会议室在开会':'楼下在开会';
     if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
     const thanks = sim.thanksNow(), carrier = sim.visitors.find(v => v.carry);
@@ -1306,6 +1326,7 @@
     const list = $('#roster');
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
+      if (li.dataset.id === '__boss') continue; // the boss row is written above
       const a = sim.actors.find(a => a.id === li.dataset.id);
       li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : (C.chargePod?'额度用完 · 进充电房充电':'额度用完 · 回休息室充电')) : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv && a.awayPost!=='kitchen' ? '打盹中 · 随叫随到' : a.status==='idle' && a.gameSlot===36 && sim.gameActivity(a)==='cheer' ? '烧烤 · 碰杯' : a.status==='idle' && [39,40].includes(a.gameSlot) && sim.gameActivity(a)==='eat' ? `吃${C.dishOf(a.id)[1]} · ${C.dishOf(a.id)[0]}` : a.status==='idle' && [37,38].includes(a.gameSlot) && sim.gameActivity(a) ? `做${C.dishOf(a.id)[1]}` : a.status==='idle' && a.gameSlot===35 && sim.gameActivity(a)==='eat' ? '涮火锅' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.activity==='chef' ? (sim.chefActivity(a)==='grill'?'后勤主厨 · 烤串':'后勤主厨 · 做饭') : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
@@ -1349,7 +1370,9 @@
   function resetDemo() {
     historyAvailable=false;
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
-    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'kitchen' ? '2026-11-01T04:00:00Z' : view === 'bbq' ? '2026-11-01T12:30:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : ['nap','feast'].includes(view) ? '2026-11-01T15:30:00Z' : '2026-11-01T02:00:00Z');
+    // ?at=HH:MM starts the demo at that Beijing time (handy to see the boss's day, e.g. ?demo=1&at=20:45).
+    const atMatch = /^(\d{1,2}):(\d{2})$/.exec(params.get('at') || ''), atBase = atMatch && +atMatch[1] < 24 ? Date.parse('2026-11-01T00:00:00+08:00') + (+atMatch[1] * 60 + +atMatch[2]) * 60000 : null;
+    wallBase = atBase ?? Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'kitchen' ? '2026-11-01T04:00:00Z' : view === 'bbq' ? '2026-11-01T12:30:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : ['nap','feast'].includes(view) ? '2026-11-01T15:30:00Z' : '2026-11-01T02:00:00Z');
     currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv || mv.performances;
     stats = mv ? mv.stats : structuredClone(script.stats || null); events = []; treatsToday = {}; noticesToday=undefined;
     if (!mv) sim.setScene(demoScene(script.scene),now());
@@ -1365,6 +1388,7 @@
     if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
   }
+  function atBaseOf() { const m=/^(\d{1,2}):(\d{2})$/.exec(params.get('at') || ''); return m && +m[1] < 24 ? Date.parse('2026-11-01T00:00:00+08:00') + (+m[1] * 60 + +m[2]) * 60000 : null; }
   function demoScene(value) {
     const s={...C.emptyScene(),...value};
     if(s.meeting) s.meeting={...s.meeting,since:sim.scene.meeting?.since || new Date(now()).toISOString(),roundAt:sim.scene.meeting?.round===s.meeting.round ? sim.scene.meeting.roundAt : new Date(now()).toISOString()};
@@ -1410,7 +1434,7 @@
       }
       elapsed += part; sim.night=C.isNight(now()); sim.step(part);
       if (demo && elapsed >= (cycle + 1) * script.duration * 1000) {
-        cycle++; cursor = 0; events=[]; wallBase=Date.parse(params.get('night')==='1'||view==='night-guard'?'2026-11-01T15:00:00Z':'2026-11-01T02:00:00Z')+cycle*86400000-elapsed;sim.setQuota({},now()); sim.setScene(demoScene(script.scene),now());
+        cycle++; cursor = 0; events=[]; wallBase=(atBaseOf()??Date.parse(params.get('night')==='1'||view==='night-guard'?'2026-11-01T15:00:00Z':'2026-11-01T02:00:00Z'))+cycle*86400000-elapsed;sim.setQuota({},now()); sim.setScene(demoScene(script.scene),now());
         for (const a of script.roster) sim.setStatus(a.id, a.status, new Date(now()).toISOString());
       }
     }
