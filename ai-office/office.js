@@ -258,11 +258,20 @@
   }
   // 菜地 (was the little garden), 220×70: three vegetable beds and a row of flowers; crops grow one stage a day.
   function farmRoom(g) {
-    r(g,'#8fb07a',0,0,220,70); r(g,'#5f8a4d',0,0,220,1); r(g,'#5f8a4d',0,69,220,1); r(g,'#5f8a4d',0,0,1,70); r(g,'#5f8a4d',219,0,1,70);
-    for (const y of [12,32,52]) { r(g,'#7a5638',8,y,150,10); r(g,'#94693f',8,y,150,2); }
-    r(g,'#6b4430',176,6,30,18); r(g,'#8c3a2e',174,4,34,5); r(g,'#e9d7b0',184,12,8,12); text(g,'工具',191,30,6,'#45534b');
-    for (let j=0;j<9;j++) { r(g,'#52745e',166+j*6,46,1,8); r(g,['#e58f9a','#efc66c','#b397b8','#f4f1e6'][j%4],165+j*6,43,4,4); }
-    plaque(g,'菜地',176,56,32,'#5f8a4d');
+    r(g,'#8fb07a',0,0,148,70); r(g,'#5f8a4d',0,0,148,1); r(g,'#5f8a4d',0,69,148,1); r(g,'#5f8a4d',0,0,1,70); r(g,'#5f8a4d',147,0,1,70);
+    for (const y of [12,32,52]) { r(g,'#7a5638',8,y,98,10); r(g,'#94693f',8,y,98,2); }
+    r(g,'#6b4430',112,6,30,18); r(g,'#8c3a2e',110,4,34,5); r(g,'#e9d7b0',120,12,8,12); text(g,'工具',127,30,6,'#45534b');
+    for (let j=0;j<5;j++) { r(g,'#52745e',114+j*6,46,1,8); r(g,['#e58f9a','#efc66c','#b397b8','#f4f1e6'][j%4],113+j*6,43,4,4); }
+    plaque(g,'菜地',112,57,32,'#5f8a4d');
+  }
+  // 儿童游乐室, 66×70: a slide, a block table and a soft rug, for the boss's and her friend's kids (animated in leisureUnder).
+  function kidsRoom(g) {
+    r(g,'#f6e7c8',0,0,66,70); r(g,'#e58fb0',0,0,66,1); r(g,'#e58fb0',0,69,66,1); r(g,'#e58fb0',0,0,1,70); r(g,'#e58fb0',65,0,1,70);
+    for (let y=34;y<62;y+=6) for (let x=4;x<36;x+=6) r(g,(x+y)%12?'#9ccfe0':'#f2b46a',x,y,6,6);
+    r(g,'#d96952',6,8,4,14); r(g,'#d96952',26,8,4,14); for (const yy of [10,14,18]) r(g,'#efc66c',6,yy,8,1);
+    r(g,'#efc66c',10,8,4,2); r(g,'#7ad7ff',14,8,4,3); r(g,'#7ad7ff',18,11,4,3); r(g,'#7ad7ff',22,14,4,3); r(g,'#7ad7ff',26,17,4,3); r(g,'#7ad7ff',30,20,5,3);
+    r(g,'#a97c52',40,44,20,8); r(g,'#d1ad83',40,44,20,2);
+    plaque(g,'游乐室',14,58,38,'#c4588a');
   }
   // 泳池, 120×78: water, a ladder, a diving board, two deckchairs under an umbrella.
   function poolRoom(g) {
@@ -291,13 +300,12 @@
     r(g,'#9aa7a2',6,70,50,12); r(g,'#ffffff',8,70,46,8); r(g,'#cfe3dc',8,70,12,6); r(g,'#9aa7a2',6,82,3,4); r(g,'#9aa7a2',53,82,3,4);
     plaque(g,'医务室',14,88,38,'#b5473a');
   }
-  // 充电房, 66×48: a charging pod (the battery over the sleeper is drawn with the person) and the boss's washing machine.
+  // 充电房, 66×48: a charging pod (the battery over the sleeper is drawn with the person) and a wall charger.
   function chargeRoom(g) {
     r(g,'#dfe6e2',0,0,66,48); r(g,'#67b779',0,0,66,1); r(g,'#67b779',0,47,66,1); r(g,'#67b779',0,0,1,48); r(g,'#67b779',65,0,1,48);
     r(g,'#9aa7a2',4,12,38,8); r(g,'#cfe3dc',6,13,34,5); r(g,'#67b779',8,14,6,2); r(g,'#3e4b47',4,20,38,2);
     r(g,'#c9d4cf',4,22,38,14); r(g,'#e8eef2',5,23,36,11); r(g,'#9aa7a2',4,36,38,2);
-    r(g,'#e8eef2',46,8,16,26); r(g,'#9aa7a2',46,8,16,4); r(g,'#3e4b47',49,15,10,10); r(g,'#7aa7b8',50,16,8,8); r(g,'#d96952',58,9,2,2);
-    text(g,'老板专用',54,40,5,'#45534b');
+    r(g,'#67b779',50,10,10,14); r(g,'#9cff8a',53,13,4,8); r(g,'#2f3a3c',54,24,2,10);
     plaque(g,'充电房',4,37,32,'#4a8a5a');
   }
   function annex(g) {
@@ -332,6 +340,7 @@
     if(!mv && C.catOffset) placed(g,C.catOffset,()=>catTree(g));
     if(!mv && C.clinicOffset) placed(g,C.clinicOffset,()=>clinicRoom(g));
     if(!mv && C.chargeOffset) placed(g,C.chargeOffset,()=>chargeRoom(g));
+    if(!mv && C.kidsOffset) placed(g,C.kidsOffset,()=>kidsRoom(g));
     if(!mv && C.funOffsets) funFloor(g);
     if(!mv && C.lobby) {
       // Lobby by the entrance: a waiting sofa for guests, a low table, two plants.
@@ -571,16 +580,16 @@
       if (C.bands) placed(ctx,o.garden,()=>{
         // Crops grow one stage a Beijing day: seeds, seedlings, ripe (cabbage, tomatoes, carrots); the waterer's can drips.
         const stage=Math.floor((now()+8*3600000)/86400000)%3, waterer=at('water'), picker=at('pick');
-        [14,34,54].forEach((y,row)=>{ for(let x=14;x<154;x+=12){
+        [14,34,54].forEach((y,row)=>{ for(let x=14;x<104;x+=12){
           if(stage===0){r(ctx,'#5a3b2a',x,y+4,2,2);}
           else if(stage===1){r(ctx,'#7aa36a',x,y+2,2,5);r(ctx,'#9cc48a',x-1,y+1,4,2);}
           else if(row===0){r(ctx,'#7aa36a',x-2,y,7,7);r(ctx,'#b9d6a0',x,y+2,3,3);}
           else if(row===1){r(ctx,'#52745e',x,y-1,1,8);r(ctx,'#d96952',x-2,y+2,3,3);r(ctx,'#d96952',x+1,y+5,3,3);}
           else {r(ctx,'#7aa36a',x,y-1,1,3);r(ctx,'#7aa36a',x+2,y-1,1,3);r(ctx,'#e8963a',x,y+2,3,5);}
         }});
-        text(ctx,['刚播种','发芽了','可以摘啦'][stage],120,9,6,stage===2?'#b5473a':'#45534b');
+        text(ctx,['刚播种','发芽了','可以摘啦'][stage],56,9,6,stage===2?'#b5473a':'#45534b');
         if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',52 + j * 3,22 + ((t * 20 + j * 5) % 10),1,2);
-        if (picker && stage===2) text(ctx,'丰收',112,40-(t%2|0),6,'#b5473a');
+        if (picker && stage===2) text(ctx,'丰收',90,40-(t%2|0),6,'#b5473a');
       });
       if (!C.bands) placed(ctx,o.garden,()=>{
         // The office cat: purrs beside whoever pets it, otherwise strolls round the lawn.
@@ -593,7 +602,16 @@
         if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',22 + j * 3,30 + ((t * 20 + j * 5) % 10),1,2);
       });
     }
-    if (C.chargeOffset) placed(ctx,C.chargeOffset,()=>{ const busy=sim.actors.some(a=>a.activity==='quota'), k=Math.floor(sim.time*(busy?8:2))%4; r(ctx,'#5a8aa8',50+(k%2)*4,16+(k>>1)*4,4,4); });
+    if (C.kidsOffset) placed(ctx,C.kidsOffset,()=>{
+      // Two little visitors, 08:00–21:00 Beijing: one climbs and slides on a loop, one stacks blocks till the tower topples.
+      const h=new Date(now()+8*3600000).getUTCHours(); if (h<8 || h>=21) return;
+      const t=sim.time, k=(t/4)%1, kid=(x,y,shirt)=>{ r(ctx,'#4c4d4030',x-4,y,8,2); r(ctx,shirt,x-3,y-7,6,6); r(ctx,'#e4bb91',x-3,y-12,6,5); r(ctx,'#4b4639',x-3,y-13,6,2); r(ctx,'#2f3a3c',x-2,y-1,2,2); r(ctx,'#2f3a3c',x+1,y-1,2,2); };
+      const sx = k<.35 ? 8 : k<.75 ? 10+(k-.35)/.4*24 : 34+(k-.75)/.25*6, sy = k<.35 ? 24-(k/.35)*14 : k<.75 ? 10+(k-.35)/.4*12 : 22;
+      kid(Math.round(sx),Math.round(sy)+6,'#e58fb0'); if (k>.4 && k<.75) text(ctx,'呜～',Math.round(sx)+6,Math.round(sy)-8,5,'#b5473a');
+      const n=Math.floor((t%14)/1.6); for (let j=0;j<Math.min(n,7);j++) r(ctx,['#d96952','#efc66c','#7ad7ff','#9cff8a'][j%4],47+(j%2),42-j*4,6,4);
+      if (n>=8) { for (let j=0;j<5;j++) r(ctx,['#d96952','#efc66c','#7ad7ff','#9cff8a'][j%4],40+j*5,54,5,4); text(ctx,'哗啦',50,36,5,'#b5473a'); }
+      kid(54,62,'#7aa36a');
+    });
     if (hotspots() && C.teaOffset) placed(ctx,C.teaOffset,()=>{ r(ctx,'#fff6dc',20,15,38,8); text(ctx,'▶ 点我饮茶',39,21,5,'#8a4a3e'); });
     if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
     if (!mv) {
