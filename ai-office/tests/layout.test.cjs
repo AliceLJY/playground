@@ -26,7 +26,7 @@ function separated(s){
   const active=s.actors.filter(a=>a.activity || !['away','off'].includes(a.status));
   for(let i=0;i<active.length;i++)for(const b of active.slice(i+1)){const a=active[i];assert.ok(Math.abs(a.x-b.x)>=18||Math.abs(a.y-b.y)>=32,`${a.id}/${b.id}: ${a.x},${a.y} / ${b.x},${b.y}`);}
   const plates=C.nameplates(s.actors,measure,[],s.layout);
-  for(const p of plates){assert.ok(p.x>=2&&p.x+p.w<=638&&p.y+p.h<=418);for(const q of plates)if(q!==p)assert.ok(p.x+p.w+1<=q.x||q.x+q.w+1<=p.x||p.y+p.h+1<=q.y||q.y+q.h+1<=p.y);}
+  for(const p of plates){assert.ok(p.x>=2&&p.x+p.w<=638&&p.y+p.h<=C.layouts.landscape.H-2);for(const q of plates)if(q!==p)assert.ok(p.x+p.w+1<=q.x||q.x+q.w+1<=p.x||p.y+p.h+1<=q.y||q.y+q.h+1<=p.y);}
   return plates;
 }
 const fullRoster=()=>Array.from({length:11},(_,desk)=>({id:desk?'a'+desk:'cc',name:['CC','Codex','Kimi','GrokBot','Agy','etwin-cc','Gemini','Muse','Cobbler','Dots','豆包'][desk],color:'#739780',desk,courier:desk===8}));
