@@ -27,6 +27,9 @@ let browser,staticServer;
     await page.goto(url);await page.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100,timeout:20000});
     return {context,page,errors,external};
   }
+  // The reception caption sits above every other caption (9c95916), and the demo's reception overlaps the meeting views.
+  // Step real time until the visitor has left, then read the caption the scene itself should show.
+  async function afterReception(run){let s;for(let i=0;i<60;i++){s=await run.page.evaluate(()=>window.__PLAYTEST__.snapshot());if(!s.reception)return s;await run.page.evaluate(()=>window.__PLAYTEST__.step(500));}return s;}
   async function save(run,name,actual){
     // Snapshot and pixels must come from the SAME render. page.clock.install fixes Date,
     // but its animation clock still runs between awaited CDP calls (including after midnight).
@@ -78,7 +81,7 @@ let browser,staticServer;
   for(const name of ['hero','queue','notice','meeting','booth','handoff','board','night-guard','games']){
     const run=await open(`?demo=1&view=${name}`),s=await save(run,name,name);
     check(name+' labelled demo',s.demo&&s.stats?.visitorsTotal===137&&await run.page.locator('#mode').textContent().then(x=>x.includes('演示')));
-    if(name==='meeting'){check('meeting seated and two listeners',s.actors.filter(a=>a.activity==='meeting').length===3&&s.visitors.filter(v=>v.listening).length===2);check('second slide visible',s.scene.meeting.round===2);check('meeting caption visible',await run.page.locator('#room-caption').textContent()==='楼下在开会');check('meeting sign is lit',s.meetingSign && await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(277*2,401*2,1,1).data].join()==='239,198,108,255'));await run.page.evaluate(()=>document.querySelector('#room-viewport').scrollTop=0);await save(run,'meeting-main');await run.page.locator('#pose').click();await run.page.evaluate(()=>window.__PLAYTEST__.step(300));check('greeting overrides meeting caption',await run.page.locator('#room-caption').textContent().then(x=>x.includes('打了个招呼')));}
+    if(name==='meeting'){check('meeting seated and two listeners',s.actors.filter(a=>a.activity==='meeting').length===3&&s.visitors.filter(v=>v.listening).length===2);check('second slide visible',s.scene.meeting.round===2);check('meeting caption: reception on top while it lasts',!s.reception||await run.page.locator('#room-caption').textContent()!=='楼下在开会',s.reception?.phase);check('meeting sign is lit',s.meetingSign && await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(277*2,401*2,1,1).data].join()==='239,198,108,255'));await run.page.evaluate(()=>document.querySelector('#room-viewport').scrollTop=0);await save(run,'meeting-main');{const after=await afterReception(run);check('meeting caption visible',!after.reception&&!!after.scene.meeting&&await run.page.locator('#room-caption').textContent()==='楼下在开会',{reception:!!after.reception,meeting:!!after.scene.meeting,caption:await run.page.locator('#room-caption').textContent()});}await run.page.locator('#pose').click();await run.page.evaluate(()=>window.__PLAYTEST__.step(300));check('greeting overrides meeting caption',await run.page.locator('#room-caption').textContent().then(x=>x.includes('打了个招呼')));}
     if(name==='notice')check('desk 8 courier actually holding',s.actors.some(a=>a.courier&&a.desk===8&&a.look===10&&a.x===221&&a.y===352)&&s.delivery.phase==='holding');
     if(name==='games'){check('each game participant has a foot plate',s.actors.filter(a=>a.game).every(a=>s.nameplates.some(p=>p.id===a.id)));check('six real idle colleagues play',s.actors.filter(a=>a.game).length===6&&s.actors.filter(a=>a.game).every(a=>a.status==='idle'));check('tennis pair plays in games view',s.actors.filter(a=>a.game==='pingpong').length===2&&s.pingPongBall?.size>=2);check('no meeting means no lit sign',!s.meetingSign && await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(277*2,401*2,1,1).data].join()!=='239,198,108,255'));}
     if(name==='booth')check('booth CC at target',s.actors.some(a=>a.activity==='call'&&a.x===296&&a.y===560));
@@ -104,8 +107,9 @@ let browser,staticServer;
   }
   for(const width of [390,320]) {
     const run=await open('?view=games',{width,height:width===390?664:568});check('nameplate type readable '+width,await run.page.evaluate(()=>document.querySelector('#office').getBoundingClientRect().width/360*7)>=(width===390?6:5));await save(run,'games-mobile-'+width,'games');await save(run,'mobile-'+width,'games');
+    // Since 9c95916 the page itself scrolls ?view=games so the corner clears the toolbar row; the visitor must not have to.
     const visible=await run.page.evaluate(()=>{const c=document.querySelector('#office').getBoundingClientRect(),v=document.querySelector('#room-viewport'),b=v.getBoundingClientRect();return {scroll:v.scrollTop,top:c.y+240*c.width/360,bottom:c.y+344*c.width/360,left:c.x+20*c.width/360,right:c.x+192*c.width/360,clipBottom:b.bottom,clipTop:b.top,width:innerWidth};});
-    check('games visible without scrolling '+width,visible.scroll===0&&visible.top>=visible.clipTop&&visible.bottom<=visible.clipBottom&&visible.left>=0&&visible.right<=visible.width,visible);
+    check('games visible without scrolling '+width,visible.top>=visible.clipTop&&visible.bottom<=visible.clipBottom&&visible.left>=0&&visible.right<=visible.width,visible);
     const plateVisibility=await run.page.evaluate(()=>{const c=document.querySelector('#office'),b=c.getBoundingClientRect(),v=document.querySelector('#room-viewport').getBoundingClientRect(),s=window.__PLAYTEST__.snapshot(),scale=b.width/360;return s.nameplates.filter(p=>s.actors.some(a=>a.id===p.id&&a.game)).map(p=>({id:p.id,inside:b.y+p.y*scale>=v.top&&b.y+(p.y+p.h)*scale<=v.bottom,clear:[.1,.5,.9].every(k=>[.1,.5,.9].every(j=>document.elementFromPoint(b.x+(p.x+p.w*k)*scale,b.y+(p.y+p.h*j)*scale)===c))}));});
     check('all six game plates visible above mobile controls '+width,plateVisibility.length===6&&plateVisibility.every(p=>p.inside&&p.clear),plateVisibility);
     const regions=[[27,266,14,8],[27,275,18,9],[88,284,20,16],[84,288,30,7],[140,278,30,34],[158,266,12,14],[158,309,12,14]];
@@ -190,8 +194,9 @@ let browser,staticServer;
     check(name+' original character scale retained',l.cssScale>=1.57,l.cssScale);
     if(view==='games')check(name+' all six game names visible',s.actors.filter(a=>a.game).every(a=>s.nameplates.some(p=>p.id===a.id)));
     if(view==='meeting'){
-      check(name+' doorway lamp replaces downstairs sign',s.meetingLamp&&!s.meetingSign&&await run.page.locator('#room-caption').textContent()==='会议室在开会');
+      check(name+' doorway lamp replaces downstairs sign',s.meetingLamp&&!s.meetingSign,{lamp:s.meetingLamp,sign:s.meetingSign});
       check(name+' lamp actual pixels',await run.page.evaluate(()=>[...document.querySelector('#office').getContext('2d').getImageData(589*2,211*2,1,1).data].join()==='239,198,108,255'));
+      const after=await afterReception(run);check(name+' meeting-room caption',!after.reception&&after.meetingLamp&&await run.page.locator('#room-caption').textContent()==='会议室在开会',{reception:!!after.reception,lamp:after.meetingLamp,caption:await run.page.locator('#room-caption').textContent()});
     }
     await run.context.close();
   }
@@ -271,9 +276,11 @@ let browser,staticServer;
   const stableFeed=async page=>page.route('**/demo-script.json',route=>{const d=JSON.parse(execFileSync('git',['show','7e27359:ai-office/demo-script.json'],{cwd:root,encoding:'utf8'}));d.roster.forEach(a=>a.status='busy');d.events=[];d.scene={meeting:null,dispatched:[],call:null,disk:null,guard:null};return route.fulfill({json:d});});
   const pixels=page=>page.evaluate(()=>Array.from(document.querySelector('#office').getContext('2d').getImageData(0,0,720,840).data));
   const before=await open('?demo=1&view=hero',undefined,true,async page=>{await originalPage(page);await stableFeed(page);}),after=await open('?demo=1&view=hero',undefined,true,stableFeed);
-  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page);const outsideBoard=i=>{const x=Math.floor(i/4)%720/2,y=Math.floor(i/2880)/2;return !(x>=226&&x<329&&y>=23&&y<72);};
+  const rawBefore=await pixels(before.page),rawAfter=await pixels(after.page);// Outside the board, and outside the review gate added by CC's desk in 92fbabb (drawn at gatePoint, 30×39).
+  const gate=require('../office-core.js').layouts.portrait.gatePoint;
+  const outsideBoard=i=>{const x=Math.floor(i/4)%720/2,y=Math.floor(i/2880)/2;return !(x>=226&&x<329&&y>=23&&y<72)&&!(x>=gate.x-15&&x<gate.x+15&&y>=gate.y-38&&y<gate.y+1);};
   const different=rawBefore.filter((v,i)=>outsideBoard(i)&&v!==rawAfter[i]).length;
-  check('7e27359 main room RGBA identical outside board',different===0,{different});
+  check('7e27359 main room RGBA identical outside board and gate',different===0,{different});
   await before.page.screenshot({path:path.join(out,'room-before.png')});await after.page.screenshot({path:path.join(out,'room-after.png')});await before.context.close();await after.context.close();
   for(const width of [390,320]) {
     const backgrounds=[];
@@ -285,16 +292,17 @@ let browser,staticServer;
     }
     const backgroundDiff=backgrounds[0].filter((v,i)=>outsideBoard(i)&&v!==backgrounds[1][i]).length;check('7e27359 background RGBA identical outside board '+width,backgroundDiff===0,{different:backgroundDiff});
   }
-  // v5 deliberately replaces legacy shots: assert current portrait states, not v4 pixel identity.
+  // Current MV (v7) states at their script seconds: hand-off pat 25.5 (was the v5 booth at 28), review round 2 at 86.5
+  // (was 56), finished patrol at 103.5 (was 73.8). The film's own checks are tools/mv-check.cjs and tests/mv-v6.test.cjs.
   const mv=await open('?mv=1&hold=1',{width:540,height:960});let mvAt=0;
-  for(const t of [14,20,28,32,43,53,56,62,73.8,79.9]){
+  for(const t of [14,20,25.5,32,43,53,62,73.8,79.9,86.5,103.5]){
     await mv.page.evaluate(ms=>window.__PLAYTEST__.step(ms),(t-mvAt)*1000);mvAt=t;
-    const m=await save(mv,`mv-v5-${t}`);
+    const m=await save(mv,`mv-v7-${t}`);
     check('MV portrait '+t,m.layout==='portrait'&&m.actors.some(a=>a.courier&&a.desk===8&&a.look===10));
     if(t===14)check('MV actual games and names',m.pingPongBall&&m.actors.filter(a=>a.game==='chess').length===2&&m.actors.some(a=>a.game==='arcade')&&m.nameplates.length>=5);
-    if(t===28)check('MV actual booth',m.actors.some(a=>a.activity==='call'&&!a.moving));
-    if(t===56)check('MV actual review with listeners',m.scene.meeting.round===2&&m.actors.filter(a=>a.activity==='meeting'&&!a.moving).length===5&&m.visitors.filter(v=>v.listening).length===2);
-    if(t===73.8)check('MV actual completed patrol',m.scene.guard?.phase==='done'&&m.scene.guard.ok===true);
+    if(t===25.5)check('MV actual hand-off pat',m.handoffWalk?.phase==='pat',m.handoffWalk?.phase);
+    if(t===86.5)check('MV actual review with listeners',m.scene.meeting.round===2&&m.actors.filter(a=>a.activity==='meeting'&&!a.moving).length===5&&m.visitors.filter(v=>v.listening).length===2);
+    if(t===103.5)check('MV actual completed patrol',m.scene.guard?.phase==='done'&&m.scene.guard.ok===true);
   }await mv.context.close();
   const wall=await open('?wall=1',{width:1440,height:900});await wall.page.evaluate(()=>window.__PLAYTEST__.step(35000));await save(wall,'wall');check('wall hides photo and controls',await wall.page.locator('#treat').isHidden()&&await wall.page.locator('#photo').isHidden());await wall.context.close();
   // Normal entrance, genuine UI actions and 30 seconds of default movement.
