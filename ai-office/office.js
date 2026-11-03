@@ -15,7 +15,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'breakfast', 'leisure', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'breakfast', 'leisure', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -298,7 +298,8 @@
     placed(ctx,C.teaOffset,()=>{
       // Steam over the baskets while anyone eats; the open lamp lights 08:00–10:00 Beijing time.
       const sitting = Core.teaTime(now());
-      r(ctx,sitting?'#efc66c':'#c9a35b',34,89,3,3); text(ctx,sitting?sitting+'时间':'全天营业',58,94,6,sitting?'#8c3a2e':'#8c6a44');
+      const feast = sim.feast && sim.time < sim.feast.until ? (sim.feast.night ? '夜宵开席' : '早茶开席') : null;
+      r(ctx,feast||sitting?'#efc66c':'#c9a35b',34,89,3,3); text(ctx,feast || (sitting?sitting+'时间':'全天营业'),58,94,6,feast||sitting?'#8c3a2e':'#8c6a44');
       if (busy('tea')) for (let j=0;j<3;j++) { const k=(t*1.3+j/3)%1; r(ctx,'#ffffff90',32+j*6+Math.round(Math.sin(t*3+j)),44-Math.round(k*12),2,2); }
     });
     placed(ctx,C.gymOffset,()=>{
@@ -412,6 +413,7 @@
   function item(kind, x, y) {
     if (kind === 'milktea') { r(ctx, '#e9c9a0', x, y - 8, 7, 8); r(ctx, '#7a4b2a', x + 1, y - 5, 5, 4); r(ctx, '#3b2a1e', x + 2, y - 3, 1, 1); r(ctx, '#3b2a1e', x + 4, y - 3, 1, 1); r(ctx, '#c85b4a', x + 3, y - 12, 1, 5); }
     if (kind === 'coffee') { r(ctx, '#f6f1e6', x, y - 7, 6, 7); r(ctx, '#5a3b26', x + 1, y - 6, 4, 2); r(ctx, '#f6f1e6', x + 6, y - 6, 2, 3); r(ctx, '#d9d2c2', x + 1, y - 10, 1, 2); r(ctx, '#d9d2c2', x + 3, y - 11, 1, 3); }
+    if (kind === 'dimsum') { r(ctx, '#9c7444', x - 1, y - 6, 10, 6); r(ctx, '#d7b47a', x - 1, y - 7, 10, 2); r(ctx, '#b98a52', x, y - 10, 8, 3); r(ctx, '#d7b47a', x, y - 11, 8, 1); r(ctx, '#ffffffa0', x + 3, y - 14, 2, 2); }
     if (kind === 'cake') { r(ctx, '#f3d9a4', x, y - 6, 8, 6); r(ctx, '#e8a3a8', x, y - 4, 8, 2); r(ctx, '#f8f1e2', x, y - 7, 8, 1); r(ctx, '#c84a4a', x + 3, y - 9, 2, 2); }
     if (kind === 'cloud') {r(ctx,'#b89073',x+5,y-6,2,7);r(ctx,'#edb6cc',x+1,y-12,10,6);r(ctx,'#edb6cc',x-1,y-10,14,3);r(ctx,'#fff6ee',x+2,y-15,5,7);r(ctx,'#fff6ee',x+6,y-13,5,6);r(ctx,'#fff6ee',x,y-11,5,5);}
     if (kind === 'papers') {for(let n=0;n<3;n++){r(ctx,'#b9ae92',x+n,y-2-n*2,13,3);r(ctx,'#fff4d5',x+n,y-3-n*2,12,2);}r(ctx,'#8aa79b',x+5,y-6,7,1);}
@@ -509,7 +511,8 @@
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    const seated = (sim.gameActivity(a)==='tea' || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const feastSeat = !boss && !a.visitor && sim.feastEating?.(a) && sim.layout.tea?.some(p=>C.distance(p,a)<1), napAtDesk = !boss && !a.visitor && sim.napping?.(a) && C.distance(a,C.home(a.i))<1;
+    const seated = (feastSeat || napAtDesk || sim.gameActivity(a)==='tea' || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
@@ -550,7 +553,7 @@
       const v=sim.reception.visitor, host=sim.actors.find(b=>b.id===sim.reception.hosts[0]);
       if(a===v || a===host) { const dx=a===v?-1:1, bob=Math.sin(t*9)>0?1:0; r(ctx,color,x+(dx<0?-12:5),y-12+bob,8,3); r(ctx,'#e4bb91',x+(dx<0?-14:11),y-12+bob,4,3); }
     }
-    const game = sim.gameActivity(a);
+    const game = sim.gameActivity(a) || (!boss && !a.visitor && sim.feastEating?.(a) ? 'tea' : null);
     if (!greets && game === 'arcade') {
       const shift=Math.sin(t*8)>0?1:0;
       r(ctx,color,x-8,y-16,3,8); r(ctx,'#e4bb91',x-9+shift,y-18,3,3);
@@ -590,6 +593,12 @@
       const reach = Math.sin(t * 1.2 + a.i) > 0 ? 2 : 0;
       r(ctx,color,x-8,y-22-reach,3,10); r(ctx,color,x+5,y-22-reach,3,10);
       r(ctx,'#e4bb91',x-7,y-25-reach,3,3); r(ctx,'#e4bb91',x+4,y-25-reach,3,3);
+    }
+    if (!boss && !a.visitor && sim.napping?.(a)) {
+      // Asleep: eyes shut, head nodding a pixel, a zZz rising every three seconds.
+      const nod = Math.sin(t * 1.4 + a.i) > .3 ? 1 : 0, k = (t + a.i * .7) % 3;
+      r(ctx, '#e3b58d', x - 4, y - 14 + nod, 9, 3); r(ctx, '#273a34', x - 4, y - 13 + nod, 3, 1); r(ctx, '#273a34', x + 2, y - 13 + nod, 3, 1);
+      text(ctx, 'z', x + 7, y - 24 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 11, y - 30 - k * 2, 8, '#45534b'); if (k > .5) text(ctx, 'z', x + 9, y - 27 - k * 2, 7, '#45534b');
     }
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
@@ -809,7 +818,7 @@
     if (sim.greeting()) $('#room-caption').textContent = '来人了，大家回头打了个招呼';
     const thanks = sim.thanksNow(), carrier = sim.visitors.find(v => v.carry);
     if (carrier) $('#room-caption').textContent = `有人拎着${TREAT_NAMES[carrier.carry]}来探班了`;
-    if (thanks) $('#room-caption').textContent = `${TREAT_NAMES[thanks.kind]}到了，大家说谢谢`;
+    if (thanks) $('#room-caption').textContent = thanks.kind === 'dimsum' ? `请吃${sim.feast?.night ? '夜宵' : '早茶'}，大家去茶楼开席` : `${TREAT_NAMES[thanks.kind]}到了，大家说谢谢`;
     const tally = Object.entries(treatsToday).filter(([, n]) => n > 0).map(([k, n]) => `${TREAT_NAMES[k]} ×${n}`).join('、');
     if (!waiting && !busy && !thanks && !carrier && !sim.greeting() && !sim.scene.meeting && tally) $('#room-caption').textContent = `今天收到 ${tally}`;
     const m=sim.reception;if(m) {const names=m.hosts.map(id=>sim.actors.find(a=>a.id===id)?.name).join(' 和 '); $('#room-caption').textContent=m.phase==='leaving'||m.phase==='handshake'?'谈完了，送客':m.mode==='closed'?'下班了，明天再来':m.mode==='tea'?'先喝杯茶，稍坐一会儿':m.phase==='arriving'?`有客人来洽谈，${names} 去接待`:m.venue==='pantry'?'茶水位在谈事':C.id==='landscape'?'会议室在谈事':'楼下在谈事';}
@@ -820,7 +829,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv ? '打盹中 · 随叫随到' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
@@ -862,7 +871,7 @@
   function resetDemo() {
     historyAvailable=false;
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
-    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : '2026-11-01T02:00:00Z');
+    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : ['nap','feast'].includes(view) ? '2026-11-01T15:30:00Z' : '2026-11-01T02:00:00Z');
     currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv || mv.performances;
     stats = mv ? mv.stats : structuredClone(script.stats || null); events = []; treatsToday = {}; noticesToday=undefined;
     if (!mv) sim.setScene(demoScene(script.scene),now());
@@ -870,6 +879,8 @@
     else for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
     // ?view=breakfast / leisure: everyone but the director off duty, so the teahouse and gym fill up (script events skipped this lap).
     if (!mv && ['breakfast','leisure'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; }
+    // ?view=nap / feast: 23:30, everyone but CC asleep in the office; feast sends dim sum right away.
+    if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
   }
   function demoScene(value) {
@@ -893,7 +904,7 @@
       if (demo) {
         const local = elapsed - cycle * script.duration * 1000;
         sim.setVisitors(local >= 12_000 && local < 42_000 ? 1 : local >= 44_000 && local < 90_000 ? 3 : 0);
-        if (local >= 20_000 && local < 20_000 + part) sim.treat(['milktea', 'coffee', 'cake', 'melon'][cycle % 4], new Date(wallBase + elapsed).toISOString());
+        if (local >= 20_000 && local < 20_000 + part) sim.treat(['milktea', 'dimsum', 'coffee', 'cake', 'melon'][cycle % 5], new Date(wallBase + elapsed).toISOString());
         if (local >= script.receptionAt * 1000 && local < script.receptionAt * 1000 + part) {
           const at=new Date(wallBase+elapsed).toISOString();sim.meet(Object.keys(C.MEET_NAMES)[cycle%4],at);
           if(stats) {stats.meetsTotal=(stats.meetsTotal||0)+1;stats.today.meets=(stats.today.meets||0)+1;}events.push({kind:'reception',at});
@@ -1095,9 +1106,16 @@
   }
   // The game room's cabinets and the teahouse open the real playground games (visitors play them, the AIs only pretend).
   function hotspots() { return !mvMode && !wallMode; }
-  const arcade=$('#arcade');
+  const arcade=$('#arcade'), scrim=document.createElement('div');
+  // Menus live at the top of the page (not inside the room) so no button, drawer or photo card can cover them; a
+  // scrim behind them closes on any tap outside.
+  scrim.className='scrim'; scrim.hidden=true; document.body.append(scrim,arcade,$('#showcase'));
+  const syncScrim=()=>{ scrim.hidden=arcade.hidden && $('#showcase').hidden; };
+  scrim.addEventListener('click',()=>{ arcade.hidden=true; $('#showcase').hidden=true; $('#hot-games').setAttribute('aria-expanded','false'); $('#hot-show').setAttribute('aria-expanded','false'); syncScrim(); });
+  new MutationObserver(syncScrim).observe(arcade,{attributes:true,attributeFilter:['hidden']});
   $('#hot-games').addEventListener('click',()=>{ showcase.hidden=true; arcade.hidden=!arcade.hidden; $('#hot-games').setAttribute('aria-expanded',String(!arcade.hidden)); if(!arcade.hidden)arcade.querySelector('a').focus(); });
   const showcase=$('#showcase');
+  new MutationObserver(syncScrim).observe(showcase,{attributes:true,attributeFilter:['hidden']});
   $('#hot-show').addEventListener('click',()=>{ arcade.hidden=true; showcase.hidden=!showcase.hidden; $('#hot-show').setAttribute('aria-expanded',String(!showcase.hidden)); if(!showcase.hidden)showcase.querySelector('a').focus(); });
   $('#showcase-close').addEventListener('click',()=>{ showcase.hidden=true; $('#hot-show').setAttribute('aria-expanded','false'); $('#hot-show').focus(); });
   showcase.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#showcase-close').click(); });
@@ -1147,7 +1165,7 @@
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
     // breakfast / leisure keep playing after the walk over (they show a routine, not one frozen moment).
-    if (view && demo && ['breakfast','leisure'].includes(view)) advance(20000);
+    if (view && demo && ['breakfast','leisure','nap','feast'].includes(view)) advance(view === 'feast' ? 45000 : 20000);
     else if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);

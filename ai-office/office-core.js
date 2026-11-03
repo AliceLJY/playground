@@ -13,6 +13,8 @@
   // Gym and teahouse are drawn from local origins (office.js) and placed per layout.
   const gymLocal = [[14,44,'run'],[42,36,'lift'],[70,46,'box'],[42,68,'yoga']], gymLocalObstacles = [{x:6,y:6,w:16,h:10},{x:30,y:6,w:24,h:10},{x:67,y:16,w:10,h:14}];
   const teaLocal = [[16,68,'tea'],[62,68,'tea'],[29,46,'tea'],[49,46,'tea']], teaLocalObstacles = [{x:26,y:52,w:26,h:14},{x:6,y:84,w:18,h:10}];
+  // A treat of dim sum seats four at the table and two more standing at its ends.
+  const feastLocal = [[8,54,'stand'],[70,54,'stand']];
   const atOrigin = (list,[ox,oy]) => list.map(([x,y,kind])=>({x:x+ox,y:y+oy,kind}));
   const obstaclesAt = (list,[ox,oy]) => list.map(o=>({...o,x:o.x+ox,y:o.y+oy}));
   // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
@@ -95,12 +97,12 @@
   const queuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:104,y:390},gameWatch];
   const portrait = {id:'portrait',W,H,desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
-    gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
+    gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
     gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[0,0],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
   const landscape = {...portrait,id:'landscape',W:640,H:420,desks:desks.map((p,i)=>i===10?[600,258]:p),
     podium:shift(podium,352,-394),seats:seats.map(p=>shift(p,352,-394)),standing:standing.map(p=>shift(p,352,-394)),audience:audience.map(p=>shift(p,352,-394)),
-    gym:atOrigin(gymLocal,[452,250]),tea:atOrigin(teaLocal,[542,94]),gymOffset:[452,250],teaOffset:[542,94],
+    gym:atOrigin(gymLocal,[452,250]),tea:atOrigin(teaLocal,[542,94]),feastStand:atOrigin(feastLocal,[542,94]),feastDrop:atOrigin([[39,82,'drop']],[542,94])[0],gymOffset:[452,250],teaOffset:[542,94],
     booth:shift(booth,290,-184),meetingOffset:[352,-394],boothOffset:[290,-184],storageOffset:[116,-304],totalsOffset:[328,-403],
     queuePoint:i=>({x:[248,276,304,248,276,304,376,404,432,460,488][i%11],y:i<3?344:388})};
   landscape.obstacles=[...mainObstacles.filter((_,i)=>i!==10),...deskObstacles(landscape.desks).slice(10),
@@ -255,7 +257,7 @@
     }
     function receptionSpeech() {
       const m=sim.reception; if(!m || m.phase==='leaving') return null;
-      if(m.mode==='closed') return {id:sim.guard?.id || m.visitor.id,text:'下班了，明天再来'};
+      if(m.mode==='closed') return {id:sim.guard?.id || m.visitor.id,text:legacy || sim.classicLeisure || !sim.actors.some(a=>a.status==='off') ? '下班了，明天再来' : '都在打盹，明天再来'};
       if(m.mode==='tea') return {id:m.hosts[0] || m.visitor.id,text:m.uncertain?'先喝杯茶，等伙伴有空':'都在赶活，先喝杯茶'};
       if(m.redirectAt!=null && sim.time-m.redirectAt<7) return {id:m.hosts[0] || m.visitor.id,text:'会议室有人，我们在这儿聊'};
       if(m.phase==='arriving') return {id:m.visitor.id,text:MEET_NAMES[m.kind]};
@@ -604,8 +606,9 @@
       const idle=sim.actors.filter(a=>a.status==='idle' && !handoffActor(a) && !isCourier(a) && !cosmeticClaim(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && boothCall())).sort((a,b)=>a.i-b.i);
       // Only a page that told us the real clock (live feed, demo, replay) has breakfast; bare simulations never do.
       const breakfast=typeof sim.forceBreakfast==='boolean' ? sim.forceBreakfast : !!sim.clockKnown && isBreakfast(signalNow());
-      const key=breakfast+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : leisureSlots(idle.length,breakfast).filter(slot=>games[slot]);
+      const feast=!!feasting();
+      const key=breakfast+'|'+feast+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&games[slot]).slice(0,idle.length) : leisureSlots(idle.length,breakfast).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -656,6 +659,22 @@
         else { a.x += (p.x - a.x) / d * budget; a.y += (p.y - a.y) / d * budget; budget = 0; }
       }
     }
+    // Night: nobody goes home (7×24). Colleagues with no work nap in the office: two beanbags and the yoga mat first,
+    // everyone else head-down at their own desk; a real signal wakes them straight back to work. Away still leaves.
+    const napper = b => b.status==='off' && !legacy && !sim.classicLeisure && !feastSpot(b);
+    function napSpot(a) {
+      const spots=[games[6],games[7],games[15]].filter(Boolean), order=sim.actors.filter(napper).sort((x,y)=>x.i-y.i);
+      return spots[order.indexOf(a)] || home(a.i);
+    }
+    const napping = a => napper(a) && !a.path.length && distance(a,napSpot(a))<1;
+    // Dim sum from the boss (or a visitor): for two minutes everyone free — idle or napping — eats at the teahouse.
+    const feasting = () => sim.feast && sim.time < sim.feast.until && !legacy && !sim.classicLeisure && L.tea;
+    function feastSpot(a) {
+      if(!feasting() || !['idle','off'].includes(a.status) || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a)) return null;
+      const order=sim.actors.filter(b=>['idle','off'].includes(b.status) && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b)).sort((x,y)=>x.i-y.i);
+      return [...L.tea,...(L.feastStand||[])][order.indexOf(a)] || null;
+    }
+    const feastEating = a => { const p=feastSpot(a); return !!p && !a.path.length && distance(a,p)<1; };
     function tick(dt) {
       sim.time += dt; sim.flights = sim.flights.filter(f => sim.time - f.at < 1); tickHandoff(); tickEvents(); tickGuard(dt); assignGames();
       const waiting = sim.actors.filter(a => a.status === 'waiting' && (!isCourier(a) || !sim.delivery));
@@ -678,7 +697,9 @@
         else if (isCourier(a) && sim.delivery) target = sim.delivery.phase === 'returning' ? home(a.i) : handoff;
         else if (a.status === 'busy' || a.status === 'unknown' || a.status === 'done' && (!legacy || a.doneArrived == null || sim.time - a.doneArrived < 2)) target = home(a.i);
         else if (a.status === 'waiting') target = queuePoint(Math.max(0, waiting.indexOf(a)));
-        else if (a.status === 'away' || a.status === 'off') target = door;
+        else if (feastSpot(a)) target = feastSpot(a);
+        else if (a.status === 'away' || a.status === 'off' && (legacy || sim.classicLeisure)) target = door;
+        else if (a.status === 'off') target = napSpot(a);
         else if (a.status === 'idle' && (isCourier(a) || legacy && [4, 5, 9].includes(a.i))) target = home(a.i);
         else target = legacy ? { x: mvRest[a.i][0], y: mvRest[a.i][1] } : games[a.gameSlot] || home(a.i);
         moveTo(a, target); travel(a, dt*(handoffActor(a)?sim.handoffWalk.speed:1));
@@ -705,8 +726,9 @@
     sim.visitors = []; sim.visitorTarget = 0; sim.visitorSeq = 0; sim.hello = null;
     // Treats: a visitor picks something from the menu; a visitor figure carries it to the pantry spot, everyone at
     // work says thanks for a few seconds, and a cup sits on every occupied desk for a while.
-    const TREATS = ['milktea', 'coffee', 'cake', 'melon'];
-    sim.treats = []; sim.thanks = null; sim.deskTreat = null; sim.carrier = null;
+    const TREATS = ['milktea', 'coffee', 'cake', 'melon', 'dimsum'];
+    sim.treats = []; sim.thanks = null; sim.deskTreat = null; sim.carrier = null; sim.feast = null; sim.clockKnown = !!sim.clockKnown;
+    const dropFor = kind => kind==='dimsum' && L.feastDrop && !legacy ? L.feastDrop : pantry;
     function treat(kind, at) { if (TREATS.includes(kind)) sim.treats.push({ kind, at }); }
     const thanksNow = () => sim.thanks && sim.time - sim.thanks.at < GREET_SECONDS ? sim.thanks : null;
     const deskTreatNow = () => sim.deskTreat && sim.time < sim.deskTreat.until ? sim.deskTreat : null;
@@ -723,8 +745,10 @@
       }
       const v = sim.carrier && sim.visitors.find(x => x.id === sim.carrier);
       if (!v) { sim.carrier = null; return; }
-      if (distance(v, pantry) < 1) {
-        sim.thanks = { at: sim.time, kind: v.carry }; sim.deskTreat = { kind: v.carry, until: sim.time + 120 };
+      if (distance(v, dropFor(v.carry)) < 1) {
+        sim.thanks = { at: sim.time, kind: v.carry };
+        if (v.carry === 'dimsum' && dropFor('dimsum') !== pantry) sim.feast = { at: sim.time, until: sim.time + 120, night: isNight(signalNow()) };
+        else sim.deskTreat = { kind: v.carry, until: sim.time + 120 };
         v.carry = null; sim.carrier = null; v.dest = null; v.until = null;
         if (v.runner) { v.phase = 'leaving'; }
       }
@@ -752,7 +776,7 @@
         if (wasListening && !v.listening) { v.dest = null; v.until = null; }
         if (v.listening) { moveTo(v,audience[seat]); travel(v,dt*.7); continue; }
         if (v.phase === 'leaving') { moveTo(v, door); travel(v, dt * 0.8); continue; }
-        if (v.carry) { moveTo(v, pantry); travel(v, dt * 0.8); continue; }
+        if (v.carry) { moveTo(v, dropFor(v.carry)); travel(v, dt * 0.8); continue; }
         if (!v.dest) { moveTo(v, tour[Math.floor(random() * tour.length)]); v.until = null; }
         else if (!v.path.length) {
           if (v.until == null) v.until = sim.time + 4 + random() * 6;
@@ -765,7 +789,7 @@
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickReception(dt); tickTreats(dt); tickVisitors(dt); } }
     function relayout(selection) {
       const next=create(sim.actors.map(a=>({...a,desk:a.i})),seed,selection);
-      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','gate','gateFolder','gateHistoryCounts','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
+      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','gate','gateFolder','gateHistoryCounts','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','feast','clockKnown','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
       if(next.reception) Object.assign(next.reception.visitor,next.layout.door,{path:[],dest:null});
       next.replaying=sim.replaying;next.replayVisitorsUntil=sim.replayVisitorsUntil;
       next.scene=JSON.parse(JSON.stringify(sim.scene));next.dispatchCall=sim.dispatchCall && {...sim.dispatchCall};next.handoffWalk=sim.handoffWalk && {...sim.handoffWalk};next.flights=[];
@@ -787,7 +811,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
@@ -821,7 +845,7 @@
     };
     apply();return replay;
   }
-  const TREAT_NAMES = {milktea:'奶茶',coffee:'咖啡',cake:'蛋糕',melon:'西瓜'};
+  const TREAT_NAMES = {milktea:'奶茶',coffee:'咖啡',cake:'蛋糕',melon:'西瓜',dimsum:'点心'};
   const validISO = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Date.parse(v) > 946684800000 && Date.parse(v) < 4102444800000 && new Date(v.slice(0,10)+'T00:00:00Z').toISOString().slice(0,10) === v.slice(0,10);
   // Structured public signals only. Missing extension fields mean an old office, not made-up zeros.
   function validateSceneFields(data) {

@@ -18,7 +18,7 @@ const ASSETS = new Map([['/', ['index.html', 'text/html']], ['/index.html', ['in
 
 // What a visitor may bring: the menu on the page, nothing free-form ever crosses the wire.
 export const MEET_KINDS = ['pitch', 'research', 'learn', 'chat'];
-export const TREAT_KINDS = ['milktea', 'coffee', 'cake', 'melon'];
+export const TREAT_KINDS = ['milktea', 'coffee', 'cake', 'melon', 'dimsum'];
 
 export function validateConfig(config) {
   if (!config || !Array.isArray(config.roster) || config.roster.length < 1 || config.roster.length > 11) throw new Error('Config must define 1 to 11 roles');

@@ -34,7 +34,7 @@ test('no idle: Cobbler tea greeting lasts 20s; unknown is not idle',()=>{
 });
 test('all off: door goodbye, visible entry then exit after 10s, guard speaks if present',()=>{
  for(const guard of [false,true]) {const s=create('portrait',Object.fromEntries(roster.map(a=>[a.id,'off'])));s.night=guard;if(guard)s.setScene({...C.emptyScene(),guard:{phase:'patrol',at,ok:null}});
- s.meet('chat',at);s.step(1000);assert.equal(s.reception.mode,'closed');assert.match(s.receptionSpeech().text,/下班了/);assert.equal(s.receptionSpeech().id,guard?'night-guard':'reception-guest');assert.ok(C.distance(s.reception.visitor,s.layout.door)>1);assert.ok(finish(s,12000)>=9000);}
+ s.meet('chat',at);s.step(1000);assert.equal(s.reception.mode,'closed');assert.match(s.receptionSpeech().text,/下班了|都在打盹/);assert.equal(s.receptionSpeech().id,guard?'night-guard':'reception-guest');assert.ok(C.distance(s.reception.visitor,s.layout.door)>1);assert.ok(finish(s,12000)>=9000);}
 });
 test('real meeting reserves the room initially and mid-visit, and new work/calls release hosts',()=>{
  for(const layout of ['portrait','landscape']) {const s=create(layout);s.meet('research',at);s.step(16000);assert.equal(s.reception.phase,'talking');const ids=s.reception.hosts.slice();
