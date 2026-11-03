@@ -28,10 +28,32 @@ noscript{color:#3B2A1E;font:16px sans-serif;position:fixed;inset:0;display:grid;
 .review-chosen{font-size:14px;padding:0 12px 12px;margin:0;color:#B8322A}
 #result button{font:inherit;min-height:44px;min-width:44px;border-radius:12px;cursor:pointer;border:1px solid #B8322A}
 #restart{background:#B8322A;color:#FFF9EC;padding:8px 28px;margin:10px 0 6px}
+#practice-start{background:#FFF9EC;color:#B8322A;padding:8px 12px;margin:6px 6px 6px 0}
 #result-mute{position:absolute;right:0;top:0;font-size:13px;background:#FFF9EC;color:#3B2A1E;padding:4px 8px}
 #result footer{flex:none;text-align:center;font-size:12px;color:#7A6650}
 @media(max-width:360px){#result{padding:10px}#review-list{gap:6px}#review-list summary{padding:8px}.review-name{font-size:17px}#result-score{font-size:30px}#result-mute{right:0;font-size:12px}}
 @media(max-height:420px){#result{padding:6px 16px}#result header{display:grid;grid-template-columns:1fr 2fr;gap:0 16px;padding-right:80px;box-sizing:border-box}#result-score{font-size:24px}#result-stats{font-size:12px}#result h1{font-size:26px;grid-column:2;grid-row:1}#result .key-line{font-size:14px;grid-column:2;grid-row:2;margin:0 0 6px;padding:3px 8px}#review-list{grid-template-columns:repeat(4,minmax(0,1fr))}#restart{margin:6px 0 2px}}
+#practice{position:fixed;inset:0;z-index:2;overflow-y:auto;box-sizing:border-box;padding:16px;background:#F3E7CF;color:#3B2A1E;font:700 16px/1.5 "PingFang SC","Microsoft YaHei",sans-serif}
+#practice[hidden],#practice [hidden]{display:none}
+.practice-shell{max-width:640px;min-height:100%;margin:auto;display:flex;flex-direction:column;justify-content:center;gap:12px}
+#practice header{text-align:center}#practice h1{font-size:24px;line-height:1.3;color:#B8322A;margin:0 0 6px}#practice p{margin:4px 0}
+#practice-progress{color:#2F7A45;font-variant-numeric:tabular-nums}
+#practice-card{background:#FFF9EC;border:1px solid #b8a58a;border-radius:18px;padding:16px;text-align:center}
+#practice-herb{position:static;inset:auto;width:110px;height:110px;margin:auto;touch-action:auto}
+#practice-name{font-size:28px;margin:0}#practice-streak{color:#7A6650;font-variant-numeric:tabular-nums}
+#practice-choices{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+#practice button{font:inherit;min-width:44px;min-height:44px;padding:8px 12px;border:1px solid #B8322A;border-radius:12px;background:#FFF9EC;color:#B8322A;cursor:pointer;touch-action:manipulation}
+#practice button:focus-visible,#practice-start:focus-visible{outline:3px solid #3B2A1E;outline-offset:3px}
+#practice-choices button{background:#C99A5B;border-color:#9C6B34;color:#3B2A1E;font-size:26px;min-height:64px;padding:6px}
+#practice-choices span{display:inline-block;border-radius:50%;width:40px;line-height:40px;color:white}
+#practice-keys{font-size:13px;color:#7A6650}
+#practice-feedback{border-top:1px solid #D9C29C;margin-top:10px;padding-top:8px}
+#practice-verdict{color:#B8322A}#practice-taste{font-size:18px}#practice-note{font-size:16px}
+#practice #practice-next,#practice #practice-restart{background:#B8322A;color:#FFF9EC}
+#practice-next{margin-top:8px}#practice-done{padding:24px 0}#practice-done h2{font-size:28px;color:#2F7A45;margin:0 0 10px}
+#practice footer{text-align:center}#practice footer p{font-size:12px;color:#7A6650;margin-top:10px}
+@media(max-width:360px){#practice{padding:10px}.practice-shell{gap:6px}#practice-card{padding:10px}#practice h1{font-size:22px}#practice-herb{width:80px;height:80px}#result #restart{padding:8px 12px}#practice-start{font-size:15px;padding:8px}}
+@media(max-height:420px){#practice{padding:8px 16px}.practice-shell{max-width:760px;gap:6px}#practice h1{font-size:22px}#practice header{display:flex;justify-content:center;align-items:center;gap:20px}#practice header p{margin:0}#practice-card{display:grid;grid-template-columns:170px minmax(0,1fr);gap:6px 16px;padding:10px}#practice-herb{width:80px;height:80px}#practice-name{font-size:24px}#practice-choices{margin-top:4px}#practice-feedback{margin:0;padding:0;border:0}#practice-done{grid-column:1/-1;padding:10px}#practice footer p{margin:4px 0 0}}
 </style>
 </head>
 <body>
@@ -39,7 +61,19 @@ noscript{color:#3B2A1E;font:16px sans-serif;position:fixed;inset:0;display:grid;
 <section id="result" hidden aria-label="本局结果与错题回看">
 <header><div id="result-score"></div><div id="result-stats"></div><h1>寒热温凉</h1><p class="key-line">四气是药物作用于人体后的反应，<br>不是药材本身的温度</p><button id="result-mute" type="button">声音</button></header>
 <div id="review"><h2 id="review-title">这几味没分对 · 点开看药签</h2><div id="review-list"></div></div>
-<footer><button id="restart" type="button">再来一局</button><div>小游戏只为认识四气，不是医疗建议；用药请遵医嘱</div></footer>
+<footer><button id="practice-start" type="button" hidden>这几味再认一次</button><button id="restart" type="button">再来一局</button><div>小游戏只为认识四气，不是医疗建议；用药请遵医嘱</div></footer>
+</section>
+<section id="practice" hidden aria-labelledby="practice-title">
+<div class="practice-shell">
+<header><h1 id="practice-title">这几味再认一次</h1><div><p>不计时 · 每味连对两次出师</p><p id="practice-progress"></p></div></header>
+<div id="practice-card">
+<div id="practice-question"><canvas id="practice-herb" width="220" height="220" aria-hidden="true"></canvas><h2 id="practice-name" tabindex="-1"></h2><p id="practice-streak"></p></div>
+<div id="practice-answer"><p>这味药，归哪个篓？</p><div id="practice-choices" role="group" aria-label="选择药篓"></div><p id="practice-keys">键盘 1–4 / A S D F / ← ↓ ↑ →</p></div>
+<div id="practice-feedback" hidden aria-live="polite"><p id="practice-verdict"></p><p id="practice-taste"></p><p id="practice-note"></p><button id="practice-next" type="button">继续</button></div>
+<div id="practice-done" hidden><h2 id="practice-summary"></h2><p>每味都已连续认对两次</p></div>
+</div>
+<footer><button id="practice-back" type="button">回结算页</button> <button id="practice-restart" type="button" hidden>再来一局</button><p>小游戏只为认识四气，不是医疗建议；用药请遵医嘱</p></footer>
+</div>
 </section>
 <noscript>这个小游戏需要打开 JavaScript 才能玩。<br>小游戏只为认识四气，不是医疗建议；用药请遵医嘱。</noscript>
 <script src="src/core.js"></script>
