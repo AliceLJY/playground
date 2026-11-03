@@ -57,7 +57,9 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     const teas=s.ents.filter(e=>e.kind==='tea'),scale=p.view.scale/p.dpr;
     const safe=e=>teas.every(t=>Math.hypot(t.x-e.x,t.y-e.y)>t.r+60*scale);
     const target=s.ents.find(e=>e.kind!=='tea'&&e.x>12&&e.x<w-12&&e.y>Math.max(110,h*.29)&&e.y<h-40&&safe(e))||(s.phase==='boss'&&safe(s.boss)?s.boss:null);
-    if(target&&s.phase!=='over'){
+    // A flying bug can pass behind the pause button; hit-test the actual page before tapping.
+    const onCanvas=target&&await page.evaluate(({x,y})=>[-2,0,2].every(dx=>document.elementFromPoint(x+dx,y)?.id==='stage'),target);
+    if(onCanvas&&s.phase!=='over'){
       // Native taps and mouse strokes both reach game.swipe through the existing handlers.
       if(w!==1365)await page.touchscreen.tap(target.x,target.y);
       else{await page.mouse.move(target.x-2,target.y);await page.mouse.down();await page.mouse.move(target.x+2,target.y);await page.mouse.up();}
