@@ -106,7 +106,7 @@
   }
   function syncUI() {
     $('stage-label').textContent = '0' + (selected + 1) + ' / ' + s.stage.name;
-    $('clock').textContent = s.boss >= 0 ? fmt(s.tick / 60) : fmt((s.stage.duration - s.tick) / 60);
+    $('clock').textContent = s.boss >= 0 ? '首领 ' + fmt((s.tick - s.stage.duration) / 60) : fmt((s.stage.duration - s.tick) / 60); $('clock').classList.toggle('bossclock', s.boss >= 0);
     $('hearts').textContent = '♥'.repeat(Math.max(0, s.hp)) + '♡'.repeat(s.maxHP - Math.max(0, s.hp)); $('hearts').setAttribute('aria-label', '生命 ' + s.hp);
     $('rank').textContent = '等级 ' + s.level + ' · 击败 ' + s.kills;
     const previous = s.prevXP;
