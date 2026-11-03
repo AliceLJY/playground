@@ -14,9 +14,11 @@ Dusk on an old Xiguan arcade street in Guangzhou. The neighbours have set up a l
 | Roll | Space | 滚 |
 | Block (hold) | Q | 挡 |
 | Gong-and-drum mode when the bar is full | E | 锣 |
-| Camera | drag, wheel to zoom | drag empty space |
+| Camera | drag, wheel to zoom | drag empty space on the right |
 
 Losing restarts the current section, not the whole street.
+
+The touch introduction explains movement in the lower left, camera dragging on the right, and using the gong once its bar is full. Opening dialogue waits for a tap before combat starts. Hold 挡 to keep blocking; releasing or cancelling the touch ends the guard. Leaving the window or hiding the page clears input and pauses combat; tap 继续 to return (Esc / P on a keyboard).
 
 ## How it is made
 
