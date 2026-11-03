@@ -157,6 +157,9 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
       await shot();
     }
   }
+  // 署名页布局自检：GitHub 条不许压到名字，煤球不许出框（11-03 名字被条整个盖住，看缩略图没发现）
+  const lay = await page.evaluate(() => window.SignatureEndcard && window.SignatureEndcard.lastLayout);
+  if (EC && !lay) errors.push('署名页模板没回报布局，查不了压字'); if (lay) { ev.endcard = lay; if (!lay.fits || lay.pillBot > lay.yHand - 70) errors.push('署名页布局压字或出框：' + JSON.stringify(lay)); }
   ev.seconds = n / fps;
   await b.close();
   fs.writeFileSync(path.join(outDir, 'events.json'), JSON.stringify(ev));
