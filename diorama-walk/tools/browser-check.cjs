@@ -1666,7 +1666,7 @@ const isExternal = (u) => {
     report.n1 = { c0, c1, a1, c2, calm, cv, cp, cp2, same: s0 === s1, moved: s2 !== s1 };
     const inBox = (b, w, h) => b[0] >= 0 && b[1] >= 0 && b[2] <= w && b[3] <= h;
     check('N1', 'opening card: shown on the normal entry; drag, wheel and keys do nothing until it is closed; one click closes it and starts the sound; the calm link; not on fixed views; whole on 390x844',
-      c0.open && /深夜杂货店/.test(c0.text) && /建议戴耳机、关灯玩/.test(c0.text) && /放大，走进去/.test(c0.text) && c0.linkText === '不敢玩？安心版' && c0.link === '?calm=1' &&
+      c0.open && /深夜杂货店/.test(c0.text) && /建议戴耳机、关灯玩/.test(c0.text) && /点一下开始/.test(c0.text) && c0.linkText === '不敢玩？安心版' && c0.link === '?calm=1' &&
       s0 === s1 && c1 && a1 === 'not started' && !c2.card && c2.audio === 'running' && s2 !== s1 &&
       calm.search === '?calm=1' && calm.calm && /安心版：不会有吓人的东西/.test(calm.card.text) && calm.card.link === '?' && !cv.shown &&
       cp.card.open && inBox(cp.card.box, cp.iw, cp.ih) && cp.sw <= cp.iw && !cp2.card && cp2.audio === 'running',
