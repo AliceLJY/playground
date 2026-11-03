@@ -486,6 +486,13 @@ const hook=window.__snake={ready:false,metrics,
   start(seed){start(seed);return hook;},
   autopilot(level,seed){pilot=level?Core.pilot(level,seed==null?seedUsed:seed):null;return hook;},
   advance(seconds){advance(seconds);return hook;},
+  // what an autopilot would do right now, without doing it: the demo recorder turns this into real taps
+  suggest(level){if(!game||screen!=='play')return[];const out=[];
+    const k='_sg_'+level;if(!hook[k]||hook[k].seed!==seedUsed){hook[k]=Core.pilot(level,seedUsed);hook[k].seed=seedUsed;}
+    const proxy={state:game.state,project:()=>game.project(),get len(){return game.len;},get delay(){return game.delay;},
+      turn:d=>{out.push(DIRNAME[d]);return true;},compress:()=>{if(game.state.t>=game.state.compressReady&&Core.compressCut(game.len)>0)out.push('compress');return true;},
+      dispatch:()=>{if(game.len>=CFG.dispatchMinLen&&game.state.t>=game.state.dispatchReady&&game.state.t>=game.state.lockUntil)out.push('dispatch');return true;}};
+    hook[k](proxy);return out;},
   freeze(on){frozen=on!==false;return hook;},
   intent(n){intent(n);return hook;},
   pause(p){setPaused(p!==false);return hook;},
