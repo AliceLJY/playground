@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>西关大屋 · 推开看</title>
+<link rel="icon" href="data:,">
 <meta name="description" content="一座可以点开的西关大屋等距线稿：趟栊拉进墙里，大门推开，屋面折起，三面墙倒下，看见门官厅、天井、满洲窗和正厅。">
 <style>
   :root { --paper: #efe9dc; --ink: #2c3833; --muted: rgba(44,56,51,.62); --accent: #9e3b2b; }
@@ -40,6 +41,34 @@
   #detail-canvas{display:block;width:100%;height:min(280px,40dvh)}
   #detail-close{font:inherit;min-height:44px;padding:8px 18px;color:var(--ink);background:rgba(255,255,255,.5);border:1px solid var(--ink);cursor:pointer}
   @media(max-height:400px){#detail-dialog{padding:10px}#detail-canvas{height:120px}#detail-dialog p{margin:5px 0;line-height:1.4}}
+  #hunt-start,#hunt-exit,#welcome-close{font:inherit;min-height:44px;padding:8px 12px;color:var(--ink);background:var(--paper);border:1px solid var(--ink);border-radius:2px;cursor:pointer}
+  #hunt-start{position:fixed;right:16px;top:12px;font-size:13px}
+  #hunt-start:disabled{opacity:.45;cursor:default}
+  @media(max-width:640px){.note{right:130px}}
+  #hunt-dialog{width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:16px;background:var(--paper);color:var(--ink);border:1px solid var(--ink)}
+  #hunt-dialog::backdrop{background:rgba(44,56,51,.3)}
+  #hunt-dialog h2{font-size:18px;margin:0 0 10px;display:flex;justify-content:space-between;gap:12px}
+  #hunt-progress{font-size:14px;font-variant-numeric:tabular-nums;font-weight:normal}
+  .hunt-layout{display:grid;gap:10px}
+  #hunt-prompt,#hunt-feedback{font-size:14px;line-height:1.6;margin:0}
+  #hunt-feedback{min-height:3.2em}
+  #hunt-stage{position:relative;height:min(310px,44dvh);border:1px solid rgba(44,56,51,.2);overflow:hidden}
+  #hunt-canvas{display:block;width:100%;height:100%}
+  .gate-pin{position:absolute;width:44px;height:44px;border:1px solid var(--ink);border-radius:50%;background:var(--paper);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;touch-action:manipulation}
+  .gate-pin[data-found="true"]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+  .gate-pin:focus-visible,#hunt-start:focus-visible,#hunt-exit:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  #hunt-exit{justify-self:start}
+  #welcome{position:fixed;top:12px;left:16px;width:min(420px,calc(100% - 122px));padding:10px 12px;background:var(--paper);border:1px solid var(--ink);box-shadow:0 3px 16px #2c383320;display:flex;align-items:center;gap:12px;font-size:14px;line-height:1.5}
+  body:has(#welcome:not([hidden])) .note{visibility:hidden}
+  #welcome[hidden]{display:none}
+  #welcome-close{margin-left:auto;flex-shrink:0;min-width:44px}
+  @media(max-height:400px){
+    #hunt-dialog{width:min(720px,calc(100% - 24px));padding:10px}
+    #hunt-dialog h2{margin-bottom:8px}
+    .hunt-layout{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto 1fr auto;gap:8px 16px}
+    #hunt-stage{grid-column:1;grid-row:1 / 4;height:calc(100dvh - 92px)}
+    #hunt-prompt,#hunt-feedback,#hunt-exit{grid-column:2}
+  }
 </style>
 </head>
 <body>
@@ -51,6 +80,17 @@
   <div class="hint">点屋子，或按空格 / 回车</div>
 </div>
 <div id="landmarks" aria-label="展开后的细节"></div>
+<button id="hunt-start" type="button" aria-controls="hunt-dialog">找三件头</button>
+<dialog id="hunt-dialog" aria-labelledby="hunt-title" aria-describedby="hunt-prompt">
+  <h2 id="hunt-title">找三件头 <span id="hunt-progress">0 / 3</span></h2>
+  <div class="hunt-layout">
+    <p id="hunt-prompt"></p>
+    <div id="hunt-stage"><canvas id="hunt-canvas" aria-label="闭合门面正面放大图，三枚标记指向门上的构件"></canvas></div>
+    <p id="hunt-feedback" role="status" aria-live="polite"></p>
+    <button id="hunt-exit" type="button">回到全屋</button>
+  </div>
+</dialog>
+<div id="welcome" role="status" hidden><span>三件齐了。请进，去天井坐坐。</span><button id="welcome-close" type="button" aria-label="关闭请进提示">好</button></div>
 <dialog id="detail-dialog" aria-labelledby="detail-title">
   <h2 id="detail-title"></h2><canvas id="detail-canvas" aria-label="构件局部放大"></canvas><p id="detail-text"></p><button id="detail-close" type="button">回到全屋</button>
 </dialog>
