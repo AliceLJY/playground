@@ -107,6 +107,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Later Whack
+        working-directory: later-whack
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Secret Sweeper
         working-directory: secret-sweeper
         run: |
@@ -269,6 +276,13 @@ jobs:
           mkdir -p _site/slipper-smash
           cp slipper-smash/index.html _site/slipper-smash/index.html
           cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
+
+      - name: Assemble Later Whack
+        run: |
+          # 推到以后：二维画布的像素打地鼠，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/later-whack
+          cp later-whack/index.html _site/later-whack/index.html
+          cp -R later-whack/src _site/later-whack/
 
       - name: Assemble Secret Sweeper
         run: |
