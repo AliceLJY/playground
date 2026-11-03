@@ -4,6 +4,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('../src/core.js');
 
+test('同日召回：库里最后一次与页面新增记录都阻止再次召回，隔天仍可召回', () => {
+  const mem = { recalls: [101], history: { count: 1, last: 100 } };
+  assert.equal(F.canRecall(mem, 100), false, '历史记录中的当天不能再加一次');
+  assert.equal(F.canRecall(mem, 101), false, '页面新增的当天不能再加一次');
+  assert.equal(F.canRecall(mem, 102), true, '隔天仍可想起');
+  assert.equal(F.canRecall({ recalls: [], history: null }, 0), true);
+  assert.equal(F.canRecall({ recalls: [], history: { count: 2, last: null } }, 0), true);
+});
+
 // 用 RecallNest 原代码（src/decay-engine.ts 的 weibullDecay，提交 42d6432）跑出来的值，2026-11-03 记下。
 // 这里的公式是照抄过来的，对照表防的是抄的时候抄错、或以后改坏。
 const REF = {"peripheral|0|60":1,"peripheral|30|60":0.865056,"peripheral|60|60":0.725,"peripheral|120|60":0.549802,"peripheral|365|60":0.450391,"peripheral|90|150":0.834953,"working|0|60":1,"working|30|60":0.897487,"working|60|60":0.825,"working|120|60":0.7375,"working|365|60":0.655162,"working|90|150":0.880914,"core|0|60":1,"core|30|60":0.950738,"core|60|60":0.925,"core|120|60":0.894871,"core|365|60":0.857941,"core|90|150":0.944633};

@@ -13,21 +13,22 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font: 15px/1.55 -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif; }
-  main { max-width: 480px; margin: 0 auto; padding: 18px 16px 28px; }
+  main { max-width: 480px; margin: 0 auto; padding: 12px 16px 28px; }
   h1 { font-size: 21px; margin: 4px 0 2px; letter-spacing: .02em; }
   .sub { color: var(--mute); font-size: 13px; margin: 0 0 6px; }
   svg { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
-  #stage { touch-action: none; }
-  #plot { touch-action: none; cursor: ew-resize; margin-top: 2px; }
+  #stage { touch-action: pan-y; }
+  #plot { touch-action: pan-y; cursor: ew-resize; margin-top: 2px; }
   #coil { fill: none; stroke: #5b5145; stroke-width: 2.2; stroke-linejoin: round; }
   .ceiling { fill: #cdbfa8; }
-  #card { cursor: grab; outline: none; }
+  #card { cursor: grab; outline: none; touch-action: none; }
   #card:active { cursor: grabbing; }
   #card:focus-visible .paper { stroke: var(--accent); stroke-width: 2.5; }
   .paper { fill: var(--card); stroke: #c9bba3; stroke-width: 1.2; }
   #card.pinned .paper { stroke: var(--keep); }
   .memo { font-size: 15px; fill: var(--ink); }
   .memo-meta { font-size: 11px; fill: var(--mute); }
+  .sample-label { font-size: 10px; fill: var(--mute); }
   #ledge rect { fill: var(--floor); opacity: .85; }
   #ledge text { font-size: 11px; fill: var(--floor); }
   #nail circle { fill: var(--keep); }
@@ -51,7 +52,7 @@
   #playhead { stroke: var(--ink); stroke-width: 1; opacity: .35; }
   #dot { fill: var(--accent); stroke: #fff; stroke-width: 2; }
   .axis-note { display: flex; justify-content: space-between; color: var(--mute); font-size: 12px; margin: -2px 0 8px; }
-  input[type=range] { width: 100%; accent-color: var(--accent); height: 30px; margin: 0; }
+  input[type=range] { display: block; width: 100%; accent-color: var(--accent); height: 44px; margin: 0; }
   .row { display: flex; gap: 8px; margin: 8px 0; }
   button { flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid #cbbfa9; background: #fffaf0; color: var(--ink);
     font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation; }
@@ -71,15 +72,28 @@
   code { font-size: 12px; background: #ebe3d4; padding: 1px 4px; border-radius: 4px; }
   footer { margin-top: 14px; font-size: 12px; color: var(--mute); }
   footer a { color: var(--mute); }
+  @media (min-width: 900px) {
+    main { max-width: 980px; }
+    .workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+  }
+  @media (min-width: 700px) and (max-height: 480px) {
+    main { max-width: 920px; padding-top: 8px; }
+    .interaction { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; align-items: start; }
+    #stage { grid-column: 1; grid-row: 1 / 6; height: min(260px, calc(100svh - 76px)); }
+    .interaction > :not(#stage) { grid-column: 2; }
+    .interaction .row { margin: 4px 0; }
+  }
   @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
 </style>
 </head>
 <body>
 <main>
   <h1>一条记忆是怎么被忘掉的</h1>
-  <p class="sub">AI 记忆系统里，旧记忆的检索分会乘上一个越来越小的倍率。卡片是从我自己的记忆库里抽的一条真实记忆：拖时间轴看它往后会怎么沉；点一下卡片，就是想起它一次。</p>
+  <p class="sub">AI 记忆的检索分会随时间降低。拖时间轴、点卡片或钉住它试试。</p>
 
-  <svg id="stage" viewBox="0 0 360 346" aria-label="挂在弹簧上的记忆卡片，越往下沉，检索时越不容易被想起">
+  <div class="workspace">
+  <section class="interaction" aria-label="记忆推演">
+  <svg id="stage" viewBox="0 0 360 302" aria-label="挂在弹簧上的记忆卡片，越往下沉，检索时越不容易被想起">
     <rect class="ceiling" x="96" y="8" width="168" height="10" rx="3"/>
     <path id="coil"/>
     <g id="ledge">
@@ -89,8 +103,9 @@
     <g id="card" tabindex="0" role="button" aria-label="想起它一次">
       <g id="cardbody">
         <rect class="paper" x="-118" y="-37" width="236" height="74" rx="10"/>
-        <text id="memo" class="memo" x="-102" y="-6"></text>
-        <text id="memometa" class="memo-meta" x="-102" y="17"></text>
+        <text class="sample-label" x="-102" y="-20">入库样本</text>
+        <text id="memo" class="memo" x="-102" y="0"></text>
+        <text id="memometa" class="memo-meta" x="-102" y="22"></text>
       </g>
       <g id="nail" style="display:none"><circle cx="0" cy="-37" r="6"/></g>
     </g>
@@ -100,8 +115,19 @@
     <div class="meta"><b id="day">今天</b> · <b id="tier">边缘层</b> · 半衰期 <b id="hl">60</b> 天 · 想起 <b id="count">0</b> 次</div>
     <div id="factor">×1.00</div>
   </div>
+  <input id="scrub" type="range" min="0" max="365" step="1" value="0" aria-label="往后推多少天">
+  <div class="row">
+    <button id="play" class="primary" aria-pressed="false">让时间走</button>
+    <button id="recall">想起它一次</button>
+  </div>
+  <div class="row">
+    <button id="pin" aria-pressed="false">钉住它</button>
+    <button id="another">换一条</button>
+  </div>
   <p id="why"></p>
+  </section>
 
+  <section class="context" aria-label="曲线与入库样本">
   <svg id="plot" viewBox="0 0 360 178" aria-label="检索分倍率随天数变化的曲线，可横向拖动选择日子">
     <g id="axes"></g>
     <rect id="pastshade" class="past" x="34" y="14" width="0" height="136"/>
@@ -116,24 +142,17 @@
   </svg>
   <div class="axis-note"><span>纵轴：检索分倍率</span><span>横轴：写入后第几天</span></div>
   <p id="libnote" class="libnote"></p>
-  <input id="scrub" type="range" min="0" max="365" step="1" value="0" aria-label="往后推多少天">
-
-  <div class="row">
-    <button id="play" class="primary" aria-pressed="false">让时间走</button>
-    <button id="recall">想起它一次</button>
-  </div>
-  <div class="row">
-    <button id="pin" aria-pressed="false">钉住它</button>
-    <button id="another">换一条</button>
-  </div>
   <label class="slider">假如重要性改成 <b id="imp">0.50</b>（到 0.8 进工作层，到 0.95 永不褪色）
     <input id="importance" type="range" min="0" max="1" step="0.05" value="0.5">
   </label>
+  </section>
+  </div>
 
   <details>
     <summary>这条曲线是怎么算的</summary>
     <p>倍率 = 地板 + (1 − 地板) × e<sup>−λt<sup>β</sup></sup>，λ = ln2 ÷ 半衰期<sup>β</sup>。三层记忆的形状和地板不同：边缘层 β 1.3、地板 0.45，起步就掉得快；工作层 β 1、地板 0.65；核心层 β 0.8、地板 0.85，掉得慢。</p>
     <p>被想起会改三件事：7 天内整条不掉分；半衰期按 60 + 60 × 0.5 × ln(1 + 次数 × 新鲜度) 拉长，最多 3 倍，新鲜度按距上次想起的天数以 30 天衰减；想起满 3 次升工作层、满 10 次升核心层。钉住的、重要性到 0.95 的，永远不掉分。</p>
+    <p>本页推演同一天只能想起一次，入库样本中当天已有的召回也算；按钮、点卡片和卡片上的 Enter / 空格一致。卡片上保留入库时的数字，下方显示推演后的读数。</p>
     <p>操作方法类的记忆（库里叫 patterns）不按时间掉分：会做的事不会因为久了就不会，只会因为前提变了而作废。</p>
     <p id="cliffnote"></p>
     <p>曲线只画今天往后：库里每条记忆只存了被想起几次和最后一次是哪天，之前每次是哪天没有记，所以写入到今天这一段不画。</p>

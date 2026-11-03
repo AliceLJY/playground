@@ -46,6 +46,9 @@
 
   const RANK = { peripheral: 0, working: 1, core: 2 };
 
+  // 页面推演每天最多新增一次；库里当天已经被想起的也算在内。
+  const canRecall = (mem, day) => !mem.recalls.includes(day) && !(mem.history && mem.history.last === day);
+
   // 第 day 天这条记忆的检索分倍率，以及是哪条规则在起作用（页面上那句解释就读 why）
   // mem = { importance, pinned, recalls: [召回发生在第几天, ...] }，记忆写入于第 0 天。
   // 真实记忆另带：category；history = { count, last }（库里只存了次数和最后一次，不知道每次是哪天）；
@@ -92,6 +95,6 @@
 
   return {
     TIERS, BASE_HALF_LIFE, REINFORCE, MAX_MULT, ACCESS_FRESH_HALF, RECENT_DAYS, DAYS,
-    weibull, effectiveHalfLife, tierOf, stateAt, curve, spring, springStep, dampingRatio,
+    weibull, effectiveHalfLife, tierOf, canRecall, stateAt, curve, spring, springStep, dampingRatio,
   };
 });
