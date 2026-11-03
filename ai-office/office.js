@@ -377,7 +377,7 @@
     r(g,'#8f6a48',6,84,18,10); r(g,'#b98a52',7,79,16,5); r(g,'#d7b47a',7,78,16,1); r(g,'#b98a52',9,74,12,4); r(g,'#d7b47a',9,73,12,1);
     r(g,'#3e4b47',8,94,3,3); r(g,'#3e4b47',20,94,3,3);
   }
-  // 娱乐层 downstairs: a new storey under the building with four 110×80 rooms (K 房, 阅读室, 小花园, 放映角).
+  // 娱乐层 downstairs: a new storey under the building with four 110×80 rooms (K 房, 阅读室, 小花园, 黑匣子剧场).
   function planks(g, x, y, w, h) { for (let yy = y; yy < y + h; yy += 18) { r(g, '#b58c63', x, yy, w, 1); for (let xx = x + 8 + (yy % 36 ? 24 : 0); xx < x + w; xx += 48) r(g, '#b58c63', xx, yy, 1, Math.min(18, y + h - yy)); } }
   function funFloor(g) {
     if (C.bands) {
@@ -456,12 +456,16 @@
     r(g,'#77563f',27,47,22,8); r(g,'#a97c52',27,47,22,3); r(g,'#35474a',30,42,16,7); r(g,'#b5473a',31,42,14,3); r(g,'#efc66c',34,42,2,1); r(g,'#efc66c',40,43,2,1);
     plaque(g,'烧烤火锅',36,19,34,'#8c4f37');
   }
+  // 黑匣子剧场 (11-03, was 放映角; Alice: 「我爱看舞台演出……那里也可以放电影」): a black room, a low stage with red side
+  // curtains and a lighting bar; shows and films take turns (drawn in leisureUnder). Seats and walls unchanged for routing.
   function cinemaRoom(g) {
-    r(g,'#26303a',0,0,110,80); frame(g,'#7a8a9a');
-    r(g,'#5a6470',8,2,94,32); r(g,'#e8eef2',10,4,90,28);
+    r(g,'#16161c',0,0,110,80); frame(g,'#4a4a58');
+    r(g,'#22222b',8,2,94,24); r(g,'#7a5a3e',8,24,94,8); r(g,'#a97c52',8,24,94,2); r(g,'#5a3b2a',8,31,94,2);
+    r(g,'#7a1f2a',8,2,11,24); r(g,'#9c2a36',11,2,2,24); r(g,'#9c2a36',15,2,2,24); r(g,'#7a1f2a',91,2,11,24); r(g,'#9c2a36',94,2,2,24); r(g,'#9c2a36',98,2,2,24);
+    r(g,'#3e3e48',8,2,94,2); for (const x of [26,53,80]) { r(g,'#6d6d78',x,1,5,3); r(g,'#efc66c',x+1,4,3,1); }
     for (const x of [32,56,80]) { r(g,'#7a2a2a',x-8,58,16,12); r(g,'#a33a30',x-7,59,14,5); r(g,'#7a2a2a',x-8,70,3,4); r(g,'#7a2a2a',x+5,70,3,4); }
-    r(g,'#3e4b47',96,72,10,6); r(g,'#efc66c',97,74,3,2);
-    plaque(g,'放映角',4,40,34,'#4a5a6a');
+    r(g,'#3e4b47',96,72,10,6); r(g,'#9cff8a',97,74,3,2);
+    plaque(g,'黑匣子剧场',4,40,50,'#3a3a4a');
   }
   // 休息室, 104×66 local: three bunk beds (berths at y 32 / 56), dim blue floor, a night light.
   function restRoom(g) {
@@ -534,11 +538,21 @@
         if (singing) for (let j = 0; j < 4; j++) { const k = (t * 2 + j) % 4; r(ctx, ['#ff7ab0','#7ad7ff','#ffe066','#9cff8a'][j], 8 + ((j * 29 + Math.floor(t * 5) * 13) % 96), 24 + ((j * 17 + Math.floor(t * 3) * 7) % 30), 2, 2); }
       });
       placed(ctx,o.cinema,()=>{
-        // On screen: a little orange cat on a bike rolling past a skyline (阿橘骑游), looping.
-        const k = (t * 14) % 110;
-        r(ctx,'#bcd2dc',10,4,90,18); r(ctx,'#8fa7b4',14,14,10,8); r(ctx,'#8fa7b4',30,10,8,12); r(ctx,'#8fa7b4',62,12,12,10); r(ctx,'#8fa7b4',82,9,8,13); r(ctx,'#c9a27a',10,22,90,10);
-        const cx = 10 + Math.round(k) % 84; r(ctx,'#e8963a',cx,17,8,5); r(ctx,'#e8963a',cx+5,15,3,3); r(ctx,'#2f3a3c',cx,23,3,3); r(ctx,'#2f3a3c',cx+6,23,3,3);
-        if (at('movie')) { ctx.fillStyle = '#fff6c020'; ctx.beginPath(); ctx.moveTo(100,74); ctx.lineTo(10,32); ctx.lineTo(100,32); ctx.closePath(); ctx.fill(); }
+        // Shows and films take turns every 40 s. Show: a follow spot on a performer in costume flicking water sleeves.
+        // Film: the screen comes down and plays 阿橘骑游 (an orange cat on a bike past a skyline), with a projector beam.
+        if (Math.floor(t / 40) % 2 === 0) {
+          ctx.fillStyle = '#fff6c02a'; ctx.beginPath(); ctx.moveTo(52,3); ctx.lineTo(58,3); ctx.lineTo(68,30); ctx.lineTo(42,30); ctx.closePath(); ctx.fill();
+          const px = 55 + Math.round(Math.sin(t * .5) * 8), sw = Math.sin(t * 3);
+          r(ctx,'#00000040',px-6,27,12,2); r(ctx,'#b5473a',px-4,14,8,13); r(ctx,'#efc66c',px-4,18,8,2); r(ctx,'#e4bb91',px-2,8,5,6); r(ctx,'#1b1b22',px-3,6,7,3); r(ctx,'#efc66c',px-1,4,3,2);
+          r(ctx,'#f4f1e6',px+4,14+Math.round(sw*3),3+Math.round(Math.abs(sw)*5),3); r(ctx,'#f4f1e6',px-7-Math.round(Math.abs(sw)*4),15-Math.round(sw*2),3+Math.round(Math.abs(sw)*4),3);
+          text(ctx,'演出中',84,46,5,'#efc66c');
+        } else {
+          const k = (t * 14) % 110;
+          r(ctx,'#5a6470',12,3,86,23); r(ctx,'#bcd2dc',14,4,82,15); r(ctx,'#8fa7b4',18,12,9,7); r(ctx,'#8fa7b4',32,9,7,10); r(ctx,'#8fa7b4',60,11,11,8); r(ctx,'#8fa7b4',80,8,8,11); r(ctx,'#c9a27a',14,19,82,6);
+          const cx = 14 + Math.round(k) % 74; r(ctx,'#e8963a',cx,15,8,4); r(ctx,'#e8963a',cx+5,13,3,3); r(ctx,'#2f3a3c',cx,19,3,3); r(ctx,'#2f3a3c',cx+6,19,3,3);
+          if (at('movie')) { ctx.fillStyle = '#fff6c020'; ctx.beginPath(); ctx.moveTo(100,74); ctx.lineTo(14,26); ctx.lineTo(96,26); ctx.closePath(); ctx.fill(); }
+          text(ctx,'放映中',84,46,5,'#bcd2dc');
+        }
       });
       if (o.snack) placed(ctx,o.snack,()=>{
         // A can drops into the drinks machine's tray now and then while someone is buying.
@@ -1228,7 +1242,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({cook:'做饭',chop:'切菜',eat:'吃饭 · 涮锅撸串',grill:'烤串',buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:C.bands?'浇菜':'浇花',cat:'撸猫',swim:'游泳',lounge:'池边晒太阳',pick:'摘菜',checkup:'医务室 · 体检',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({cook:'做饭',chop:'切菜',eat:'吃饭 · 涮锅撸串',grill:'烤串',buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:C.bands?'浇菜':'浇花',cat:'撸猫',swim:'游泳',lounge:'池边晒太阳',pick:'摘菜',checkup:'医务室 · 体检',movie:'黑匣子剧场 · 看戏看片',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
@@ -1605,7 +1619,7 @@
     $('#canvas-wrap').style.width=''; $('#room-viewport').scrollTop=0;
     if(funHint) funHint.textContent=C.bands?'↓ 二楼 · 三楼':'↓ 娱乐层';
     $('#room-viewport').setAttribute('aria-label',wide?'办公室全景：上两层同屏，往下滚是娱乐层':C.bands?'办公室三层楼，可上下滚动':'办公室、附楼和娱乐层，可上下滚动');
-    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏室、茶楼、健身房和会议室之间活动，楼下娱乐层有 K 房、阅读室、小花园、放映角和小卖部。详细状态可在手记中阅读。':C.bands?'一楼是工位、游戏室、老板桌旁的会议室和累计木牌；二楼是热闹的 K 房、放映角、小卖部、茶楼、自助厨房、烧烤、电话亭、健身房、泳池和猫窝；三楼安静，有阅读室、休息室、医务室和菜地。橘猫满楼跑。可上下滚动。':'AI 伙伴在工位、游戏室和老板桌之间活动。下方附楼有会议室、茶楼、休息室和健身房，再往下是娱乐层，可上下滚动。');
+    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏室、茶楼、健身房和会议室之间活动，楼下娱乐层有 K 房、阅读室、小花园、黑匣子剧场和小卖部。详细状态可在手记中阅读。':C.bands?'一楼是工位、游戏室、老板桌旁的会议室和累计木牌；二楼是热闹的 K 房、黑匣子剧场、小卖部、茶楼、自助厨房、烧烤、电话亭、健身房、泳池和猫窝；三楼安静，有阅读室、休息室、医务室和菜地。橘猫满楼跑。可上下滚动。':'AI 伙伴在工位、游戏室和老板桌之间活动。下方附楼有会议室、茶楼、休息室和健身房，再往下是娱乐层，可上下滚动。');
     for (const [id,rect] of [['#hot-show',{x:C.storageOffset[0]+258,y:C.storageOffset[1]+594,w:80,h:88}],['#hot-games',C.gameRect],['#hot-tea',C.teaOffset && {x:C.teaOffset[0],y:C.teaOffset[1],w:78,h:100}]]) {
       const el=$(id); el.hidden=!hotspots() || !rect; if(!rect)continue;
       Object.assign(el.style,{left:`${rect.x/C.W*100}%`,top:`${rect.y/C.H*100}%`,width:`${rect.w/C.W*100}%`,height:`${rect.h/C.H*100}%`});
