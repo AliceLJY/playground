@@ -89,12 +89,14 @@ body.touch #stick.on{opacity:1}
 .practice .phud{width:auto}
 .practice #pad button[data-act=punch],.practice #pad button[data-act=roll],.practice #pad button[data-act=gong]{visibility:hidden}
 .practice #practice-hud{top:40px;max-width:calc(100vw - 132px)}
-.practice #banner{font-size:clamp(18px,4vw,26px);letter-spacing:.08em}
+.practice #banner{top:max(26%,196px);font-size:clamp(18px,4vw,26px);letter-spacing:.08em}
 #practice-end h1{font-size:clamp(25px,6vw,38px);letter-spacing:.02em}
 .practice-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:16px}
 .practice-actions button{margin:0;min-height:44px}
 #practice-main{width:100%;max-width:280px;margin:0;font-size:16px}
-@media(max-height:400px){#title .practice-entry{margin-top:8px}#title .touch-help{margin-bottom:6px}#practice-end .practice-actions{margin-top:10px}.practice #banner{top:42%;font-size:24px}.practice #practice-hud{font-size:12px}}
+@media(max-height:400px){#title .practice-entry{margin-top:8px}#title .touch-help{margin-bottom:6px}#practice-end .practice-actions{margin-top:10px}.practice #banner{top:52%;font-size:24px}.practice #practice-hud{font-size:12px}}
+#practice-skip{pointer-events:auto;margin:8px 0 0;width:100%;font-size:13px;padding:8px;background:var(--gold);color:var(--ink);font-weight:700}
+#practice-pause-skip{display:none}.practice #practice-pause-skip{display:block}
 </style>
 </head>
 <body>
@@ -121,7 +123,7 @@ body.touch #stick.on{opacity:1}
     <div id="gong"><span>锣鼓</span><div class="bar2"><div id="gong-fill"></div></div><span class="k">E</span></div>
   </div>
   <div id="wave-name"></div>
-  <div id="practice-hud" class="hidden"><div>连挡 <strong id="practice-count">0 / 3</strong><span id="practice-time">60 s</span></div><div id="practice-hint">按住挡，连挡三掌 · 挨掌只清零</div><div class="keys" style="margin:0">Q 挡 · K 脚</div></div>
+  <div id="practice-hud" class="hidden"><div>连挡 <strong id="practice-count">0 / 3</strong><span id="practice-time">60 s</span></div><div id="practice-hint">按住挡，连挡三掌 · 挨掌只清零</div><div class="keys" style="margin:0">Q 挡 · K 脚</div><button id="practice-skip" class="practice-entry" type="button">跳过，直接上擂台</button></div>
   <div id="boss">醒狮头<div class="bar2"><div id="boss-fill"></div></div></div>
   <div id="combo"><span id="combo-n">0</span><small>连击</small></div>
   <div id="popups"></div>
@@ -134,7 +136,7 @@ body.touch #stick.on{opacity:1}
 <div id="pad"><button data-act="punch">拳</button><button data-act="kick">脚</button><button data-act="roll">滚</button><button data-act="block">挡</button><button data-act="gong">锣</button></div>
 
 <div id="end" class="screen hidden"><div class="card"><h1 id="end-title" style="font-size:clamp(26px,7vw,44px);letter-spacing:.06em;white-space:nowrap"></h1><div id="end-sub" class="sub"></div><button id="again" class="big">再来</button></div></div>
-<div id="paused" class="screen hidden"><div class="card"><h1 style="font-size:40px">歇一歇</h1><div class="sub">按 Esc 或点继续</div><button id="resume" class="big" type="button">继续</button><button id="practice-exit" class="practice-entry hidden" type="button">回到菜单</button></div></div>
+<div id="paused" class="screen hidden"><div class="card"><h1 style="font-size:40px">歇一歇</h1><div class="sub">按 Esc 或点继续</div><button id="resume" class="big" type="button">继续</button><button id="practice-pause-skip" class="practice-entry" type="button">跳过，直接上擂台</button><button id="practice-exit" class="practice-entry hidden" type="button">回到菜单</button></div></div>
 <div id="practice-end" class="screen hidden"><div class="card"><div class="kicker">街口讨教</div><h1 id="practice-end-title"></h1><div id="practice-end-sub" class="sub"></div><div class="practice-actions"><button id="practice-main" class="big" type="button">进入正式擂台</button><button id="practice-again" class="practice-entry" type="button">再练一次</button><button id="practice-menu" class="practice-entry" type="button">回到菜单</button></div></div></div>
 
 <script type="module" src="./main.js"></script>

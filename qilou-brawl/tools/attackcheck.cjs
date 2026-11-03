@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
   const [url, out] = process.argv.slice(2);
   const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-gpu', '--ignore-gpu-blocklist'] });
   const page = await (await b.newContext({ viewport: { width: 960, height: 600 } })).newPage();
-  await page.goto(url);
+  const entry=new URL(url);entry.searchParams.set('intro','skip');await page.goto(entry.href);
   await page.waitForFunction(() => window.__qilou && window.__qilou.ready, null, { polling: 200, timeout: 90000 });
   await page.click('#start'); await page.waitForTimeout(300);
   await page.keyboard.press('Enter'); await page.waitForTimeout(150); await page.keyboard.press('Enter');

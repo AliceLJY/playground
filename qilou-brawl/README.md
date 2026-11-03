@@ -18,7 +18,7 @@ Dusk on an old Xiguan arcade street in Guangzhou. The neighbours have set up a l
 
 Losing restarts the current section, not the whole street.
 
-Choose the optional one-minute “街口讨教” practice from the title menu: block one granny three times, then land a kick when “借过喇” appears; taking a hit only resets the count, and the result screen leads to the regular brawl or back to the menu.
+On your first visit, “开锣” opens the one-minute “街口讨教” lesson: block one granny three times, then land a kick when “借过喇” appears; taking a hit only resets the count. Use “跳过，直接上擂台” to go straight to the regular brawl. Completion or skipping is remembered locally; later visits start the regular brawl. The practice menu entry remains available. If storage is unavailable, every visit offers practice again.
 
 The touch introduction explains movement in the lower left, camera dragging on the right, and using the gong once its bar is full. Opening dialogue waits for a tap before combat starts. Hold 挡 to keep blocking; releasing or cancelling the touch ends the guard. Leaving the window or hiding the page clears input and pauses combat; tap 继续 to return (Esc / P on a keyboard).
 
@@ -31,6 +31,8 @@ The touch introduction explains movement in the lower left, camera dragging on t
 - Game logic lives in `src/core.js` with no renderer, so it runs in Node; the autopilot (`makeBot`) drives the tests, full playthroughs and fixed camera views.
 
 The workflow follows akokoi1's "Chang'an Street Fight" (also PINOC characters on PlayCanvas). Only the approach is borrowed; none of its code or assets.
+
+Automation can use `?intro=skip` to keep Start on the original game without writing visit history. Existing view, autopilot, recording and simulation hooks retain their original entry paths.
 
 ## Local
 
