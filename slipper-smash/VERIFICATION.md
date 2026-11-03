@@ -129,3 +129,5 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$OUT/views" "$BASE"
 发布副本的原守夜 **72/72**、控制 **63/63**、固定机位／实控／转屏 **64/64** 也全部通过，零页面／控制台错误；对应 40、12、20 张截图逐张检查。Chrome 156 / Playwright，原 Canvas 2D 渲染路径，手机模拟 DPR 2、桌面 DPR 1；未测真实手机、Safari、声音听感与真人手感，不以本机计时推断真机帧率。按要求未 push／上线，故没有线上复验。
 
 原 record.cjs 实际输出 390×664、4 秒／240 帧 MP4，保留原标题停留并进入轻松拍 waves 阶段，零页面错误；每秒抽看一帧，共 4 帧。本轮只验录片入口兼容，未重录整支演示片或试听音轨。
+
+- 2026-11-03 CC review fix: on narrow short phones (320×568) the stacked mode buttons covered the third rules line drawn on the canvas; a max-width 480 / max-height 600 rule lowers and slims them (56 px buttons, still above 44 px). Checked by screenshot at 320×568, 390×664, 412×700, 844×340, 1365×900; `tests/` 22/22 and `tools/entry-check.cjs` rerun.
