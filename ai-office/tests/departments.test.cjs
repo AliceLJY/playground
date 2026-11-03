@@ -108,7 +108,8 @@ test('night 7×24: ordinary colleagues stay; kitchen staff go home; nappers fill
   assert.ok(film.actors.every(a=>C.distance(a,C.layouts.film.door)<1),'the published film still sends everyone home');
 });
 
-test('dim sum treat: carried to the teahouse, everyone free (idle or napping) eats for two minutes, then back',()=>{
+// 11-03 Alice: 「睡觉的就好好睡……还没睡的才出来」— only awake colleagues eat; nappers stay asleep.
+test('dim sum treat: carried to the teahouse, everyone awake and free eats for two minutes, sleepers stay asleep, then back',()=>{
   for(const layout of ['portrait','landscape']){
     const L=C.layouts[layout],s=C.create(script.roster,7,layout);s.setScene(C.emptyScene(),Date.parse('2026-11-01T15:30:00Z'));
     for(const a of s.actors)s.setStatus(a.id,a.i===0?'busy':a.i<4?'off':'idle');s.step(20000);
@@ -118,8 +119,8 @@ test('dim sum treat: carried to the teahouse, everyone free (idle or napping) ea
     assert.ok(started,`${layout}: the treat reached the teahouse`);assert.equal(s.feast.night,true);
     s.step(25000);
     const eaters=s.actors.filter(a=>s.feastEating(a));
-    assert.equal(eaters.length,Math.min(6,s.actors.filter(a=>['idle','off'].includes(a.status)).length),`${layout}: ${eaters.length} at the table`);
-    assert.ok(eaters.some(a=>a.status==='off'),'nappers are woken for it');
+    assert.equal(eaters.length,Math.min(6,s.actors.filter(a=>a.status==='idle').length),`${layout}: ${eaters.length} at the table`);
+    assert.ok(eaters.every(a=>a.status==='idle'),'nappers are not woken for it');assert.ok(s.actors.filter(a=>a.status==='off').every(a=>s.napping(a)&&!s.feastSpot(a)),'nappers keep napping');
     const cc=s.actors.find(a=>a.i===0);assert.ok(C.distance(cc,C.home(0,L))<1,'busy director keeps working');
     const others=s.actors.filter(a=>a.status==='idle'&&!s.feastSpot(a));for(const a of others)assert.ok(![16,17,18,19].includes(a.gameSlot),'leftovers do not share the feast table');
     s.step(130000);assert.equal(s.actors.filter(a=>s.feastEating(a)).length,0);assert.ok(s.actors.filter(a=>a.status==='off').every(a=>s.napping(a)));
@@ -170,4 +171,13 @@ test('一起玩: party and song take free colleagues and a guest downstairs, the
     assert.equal(s.play('cheer'),true);assert.equal(s.hello.kind,'play-cheer');assert.equal(s.play('cat'),true);assert.ok(s.playing('cat'));
   }
   const film=C.create(script.roster,7,'film');film.classicLeisure=true;assert.equal(film.play('party'),false,'the published film never plays');
+});
+
+test('dim sum at night with everyone asleep: nobody wakes, the boss goes down to the teahouse herself',()=>{
+  const L=C.layouts.portrait,s=C.create(script.roster,7,'portrait');s.setScene(C.emptyScene(),Date.parse('2026-11-01T15:30:00Z'));
+  for(const a of s.actors)s.setStatus(a.id,a.i===0?'busy':a.awayLabel?'away':'off');s.step(20000);
+  s.treat('dimsum','2026-11-01T15:30:20Z');let started=null;for(let i=0;i<4000&&!started;i++){s.step(20);if(s.feast)started=s.time;}
+  assert.ok(started);s.step(60000);
+  assert.equal(s.actors.filter(a=>s.feastSpot(a)).length,0);assert.ok(s.actors.filter(a=>a.status==='off').every(a=>s.napping(a)));
+  assert.ok(C.distance(s.boss,L.tea[0])<1,'the boss is at the teahouse');
 });

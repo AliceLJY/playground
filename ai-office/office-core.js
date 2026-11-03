@@ -364,6 +364,8 @@
     }
     function receptionSpeech() {
       const m=sim.reception; if(!m || m.phase==='leaving') return null;
+      // Everyone asleep: the boss receives the guest herself (Alice 11-03: 「我去接待吧」); the film and old pages keep the guard.
+      if(m.mode==='closed' && !legacy && !sim.classicLeisure) return {id:'boss',text:sim.time-m.started<5?'大家都睡了，我来招呼你':'白天再来玩呀'};
       if(m.mode==='closed') return {id:sim.guard?.id || m.visitor.id,text:legacy || sim.classicLeisure || !sim.actors.some(a=>a.status==='off') ? '下班了，明天再来' : '都在打盹，明天再来'};
       if(m.mode==='tea') return {id:m.hosts[0] || m.visitor.id,text:m.uncertain?'先喝杯茶，等伙伴有空':'都在赶活，先喝杯茶'};
       if(m.redirectAt!=null && sim.time-m.redirectAt<7) return {id:m.hosts[0] || m.visitor.id,text:'会议室有人，我们在这儿聊'};
@@ -808,11 +810,12 @@
     }
     const napping = a => napper(a) && !a.path.length && distance(a,napSpot(a))<1;
     const inBed = a => napping(a) && napSpot(a).kind==='bed';
-    // Dim sum from the boss (or a visitor): for two minutes everyone free — idle or napping — eats at the teahouse.
+    // Dim sum from the boss (or a visitor): for two minutes everyone free and awake eats at the teahouse. Sleepers stay asleep
+    // (Alice 11-03: 「睡觉的就好好睡……还没睡的才出来」); with nobody awake the boss goes down to receive it herself.
     const feasting = () => sim.feast && sim.time < sim.feast.until && !legacy && !sim.classicLeisure && L.tea;
     function feastSpot(a) {
-      if(!feasting() || a.status==='off' && kitchenStaff(a) || !['idle','off'].includes(a.status) || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a) || (isCourier(a) && sim.delivery)) return null;
-      const order=sim.actors.filter(b=>!(b.status==='off' && kitchenStaff(b)) && ['idle','off'].includes(b.status) && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b) && !(isCourier(b) && sim.delivery)).sort((x,y)=>x.i-y.i);
+      if(!feasting() || a.status!=='idle' || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a) || (isCourier(a) && sim.delivery)) return null;
+      const order=sim.actors.filter(b=>b.status==='idle' && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b) && !(isCourier(b) && sim.delivery)).sort((x,y)=>x.i-y.i);
       return [...L.tea,...(L.feastStand||[])][order.indexOf(a)] || null;
     }
     const feastEating = a => { const p=feastSpot(a); return !!p && !a.path.length && distance(a,p)<1; };
@@ -859,11 +862,13 @@
       else if (sim.eventsEnabled && sim.radar?.phase==='showing') moveTo(sim.boss,bossRadarPoint);
       // Someone is in for a check-up: the boss goes up to the clinic as the doctor (she trained in medicine).
       else if (L.clinicDoctor && sim.actors.some(a => gameActivity(a) === 'checkup')) moveTo(sim.boss, L.clinicDoctor);
+      else if (feasting() && !legacy && !sim.actors.some(a => feastSpot(a))) moveTo(sim.boss, L.tea[0]);
+      else if (sim.reception?.mode === 'closed' && sim.reception.phase !== 'leaving' && !legacy && !sim.classicLeisure) moveTo(sim.boss, { x: door.x - 40, y: door.y });
       else if (sim.time >= sim.nextWander) {
         moveTo(sim.boss, [tour[0],pantry,bossDesk,tour[3]][Math.floor(random() * 4)]);
         sim.nextWander = sim.time + 7 + random() * 5;
       }
-      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery || sim.radar?.phase==='showing' || L.clinicDoctor && sim.boss.dest && distance(sim.boss.dest,L.clinicDoctor)<1 ? 1 : 0.5));
+      travel(sim.boss, dt * (sim.bossTarget || waiting.length || sim.delivery || sim.radar?.phase==='showing' || L.clinicDoctor && sim.boss.dest && distance(sim.boss.dest,L.clinicDoctor)<1 || sim.reception?.mode==='closed' ? 1 : 0.5));
     }
     // Visitors: people looking at the public page. Each comes in through the door, strolls between a few spots the
     // host also uses (all known walkable), lingers, and leaves through the door when the count drops. Five at most.
