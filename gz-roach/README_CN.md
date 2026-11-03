@@ -15,6 +15,7 @@
 - **X 光、拆开、张翅**。
 - **最靓的仔**：立起来，腹尾点地，中足举起来秀肌肉，触角往后甩成两条马尾，墨镜从天而降。
 - **导览**：不操作时，一个光标自己去点这些按钮，走完一遍 36 秒。点画面或控件就交给你；持续拖动时保持手动，松手后 25 秒不动再交回去，也可按「继续导览」立即返回。
+- **你来找换腿点**：导览播完邀请你调速找四足、二足，再单看后足并确认；每步稳定观察约一秒，答错只提示重看，完成会戴墨镜亮相，也可点「不了，继续看」跳过。
 
 ## 操作
 
@@ -41,9 +42,12 @@ node tools/build.mjs            # 打成一个文件：dist/index.html
 node --test tests/*.test.cjs    # 模型、导览与换档说明
 # 先在仓根启动 python3 -m http.server 8763 --bind 127.0.0.1
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check http://127.0.0.1:8763/gz-roach/dist/index.html   # 浏览器验收，需要本机已有 Playwright 和 Chrome
+NODE_PATH="$(npm root -g)" node tools/discovery-check.cjs /tmp/roach-discovery http://127.0.0.1:8763/gz-roach/dist/index.html   # 四档视口的新玩法与真实输入
 ```
 
 手机保留「1/25 慢放」和操作状态，按钮与速度条命中区至少 44 像素。导览字幕与单看说明共用一个位置；短横屏折叠垂直力和速度档图，窄屏收起次要换算行。
+
+新玩法每次打开只邀请一次，活动中不会因静置被导览接走；`?discovery=off` 保留原循环。固定机位、`?capture` 与 `__roach.render(t)` 自动绕过邀请，原录片脚本无需另加参数。
 
 规格、数字来源与验收条目见 [SPEC.md](SPEC.md)，本批修复的红绿检查与未覆盖项见 [VERIFICATION.md](VERIFICATION.md)。
 

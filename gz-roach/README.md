@@ -15,6 +15,7 @@ Then press 最靓的仔 ("the flashiest guy").
 - **X-ray, take apart, spread the wings.**
 - **最靓的仔**: it stands up on its hind legs with the abdomen as a third leg, raises its middle legs to flex, sweeps its antennae back like two ponytails, and a pair of sunglasses drops onto its face.
 - **Tour**: left alone, a cursor clicks through the buttons by itself in 36 seconds. Touch the scene or a control and it is yours. Holding a drag keeps manual control; the 25-second idle countdown starts on release. Press 继续导览 (resume tour) to return immediately.
+- **Find the gait changes**: after the tour, try four-legged running, then two-legged running, then isolate and confirm the hind legs; observe each for about a second, retry with a hint if needed, and earn the original sunglasses pose—or skip with 不了，继续看 (keep watching).
 
 ## Controls
 
@@ -41,9 +42,12 @@ node tools/build.mjs            # one file: dist/index.html
 node --test tests/*.test.cjs    # model, tour and switch-point wording
 # First serve the repository root: python3 -m http.server 8763 --bind 127.0.0.1
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check http://127.0.0.1:8763/gz-roach/dist/index.html   # browser acceptance; needs Playwright and Chrome already installed
+NODE_PATH="$(npm root -g)" node tools/discovery-check.cjs /tmp/roach-discovery http://127.0.0.1:8763/gz-roach/dist/index.html   # four viewports, new activity and real inputs
 ```
 
 On phones, the 1/25 slow-motion note and control status stay visible, with targets at least 44 CSS pixels high and wide. Tour captions and part notes share one slot. Short landscape screens hide the force and speed-band charts; narrow screens hide the secondary body-length conversion row.
+
+The activity is offered once per visit and keeps manual control while open; `?discovery=off` preserves the original loop. Fixed views, `?capture` and `__roach.render(t)` bypass the invitation automatically, so recording scripts need no extra flag.
 
 The spec and number sources are in [SPEC.md](SPEC.md); regression results and limits are in [VERIFICATION.md](VERIFICATION.md) (Chinese).
 
