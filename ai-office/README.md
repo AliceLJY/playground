@@ -213,6 +213,12 @@ The gate is nonblocking at the aisle near CC in both layouts. An available colle
 
 Run `node --test tests/*.test.cjs` and `NODE_PATH="$(npm root -g)" node tests/batch3-browser.cjs`. The latter uses a real temporary HTTP service and fake history/audit only. Screenshots, event-to-performance mapping, implementation locations, measured regressions and known archive gaps are in [HANDOFF-batch3.md](HANDOFF-batch3.md). Source files are the publication artifact; no extra asset or workflow change is required.
 
+## Spring feel (2026-11-03)
+
+Only how things move changed; no state, signal, server or config change. Springs use the memory-fade integrator (mass 1, fixed 1/240 s steps, so 30 and 120 fps agree) and are driven by the age of the event in page time, so a still actor integrates nothing and MV frames can be seeked. Done: a crouch, four lower hops, a 2–3 row squash on each landing that springs back, a one-row stretch in the air. A greeting (visitor, treat, photo): everyone perks up two pixels, the waving arm springs a few pixels past the top and settles, the word pops up from the head. A sheet that goes up on the notice board while the page is open swings on its pin twice and stops. Squash is done by painting the actor into a sprite at screen scale and copying it back a whole logical row and column at a time, so nothing lands between pixels. `prefers-reduced-motion` lifts every damping ratio to 1 (no overshoot) and the squash to zero; hops stay.
+
+`node --test tests/*.test.cjs` includes `tests/spring.test.cjs` (30/120 fps agreement, reduced motion never overshoots, whole pixels, NaN and bad input). `NODE_PATH="$(npm root -g)" node tools/spring-check.cjs http://127.0.0.1:3191/ [out]` stops the demo on a real landing, wave and swinging sheet on desktop, iPhone 390×664 at DPR 3, landscape and reduced motion, plus the guest feed, and requires every logical pixel there to be a solid 2×2 block.
+
 ## Who might open this; AI materials
 
 For someone who enjoys seeing a tiny team turn ideas into work, or wants a quiet glance at local AI activity.
