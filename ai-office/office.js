@@ -8,7 +8,10 @@
   const layoutKey=()=>mvMode?'portrait':params.get('wall')!=='1' && landscapeQuery.matches?'landscape':'portrait';
   const withLayout=key=>{const L=Core.layouts[key];return {...Core,...L,home:i=>Core.home(i,L),nameplates:(actors,measure,exclusions)=>Core.nameplates(actors,measure,exclusions,L)};};
   let C=withLayout(layoutKey());
-  const canvas = document.querySelector('#office'), ctx = canvas.getContext('2d');
+  // ctx is swapped for a sprite while a squashing actor is painted (see person); everything else draws to the screen.
+  const canvas = document.querySelector('#office'), screenCtx = canvas.getContext('2d');
+  let ctx = screenCtx;
+  const calm = matchMedia('(prefers-reduced-motion: reduce)');
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
@@ -362,15 +365,47 @@
       if(speech.icon)item(speech.icon,x+6,y+11);else text(ctx,speech.text,x+w/2,y+10,8,'#6a4b30');
     }
   }
+  // Squash and stretch: the actor is painted into a sprite at the screen's own pixel scale, then copied back a whole
+  // logical row and column at a time: body rows dropped (squash) or doubled (stretch), the middle column widened or
+  // removed. Nothing lands between two pixels, and only an actor that is squashing right now pays for it.
+  const sprite = document.createElement('canvas'), SPRITE = { left: 32, top: 64, w: 64, h: 88, band: 30 };
+  const hopOf = (a, boss) => {
+    const doneAge = a.doneArrived == null ? Infinity : sim.time - a.doneArrived;
+    return !boss && a.status === 'done' && (mv || !a.activity) && doneAge < Core.HOP_SECONDS ? Core.hopAt(doneAge, calm.matches) : null;
+  };
   function person(a, boss = false) {
+    const hop = hopOf(a, boss);
+    if (!hop?.squash || a.path.length) return drawPerson(a, boss, hop);
+    const main = ctx, S = Math.max(2, Math.ceil(Math.abs(main.getTransform().a) - 1e-6)), { left, top, w, h, band } = SPRITE;
+    const x = Math.round(a.x), x0 = x - left, y0 = Math.round(a.y) - top, feet = Math.round(a.y - hop.lift) + 2 - y0;
+    if (sprite.width !== w * S || sprite.height !== h * S) { sprite.width = w * S; sprite.height = h * S; }
+    const g = sprite.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, sprite.width, sprite.height); g.setTransform(S, 0, 0, S, -x0 * S, -y0 * S); g.imageSmoothingEnabled = false;
+    ctx = g;
+    try { drawPerson(a, boss, hop); } finally { ctx = main; }
+    const q = hop.squash, rows = band - q, bandTop = feet - band, blit = (sx, sy, sw, sh, dx, dy, dw = sw) => { if (sw > 0 && sh > 0) main.drawImage(sprite, sx * S, sy * S, sw * S, sh * S, x0 + dx, y0 + dy, dw, sh); };
+    blit(0, 0, w, bandTop, 0, q);
+    blit(0, feet, w, h - feet, 0, feet);
+    const wide = hop.widen, lw = Math.floor(Math.max(0, wide) / 2), rw = Math.max(0, wide) - lw;
+    for (let i = 0; i < rows; i++) {
+      const sy = bandTop + Math.min(band - 1, Math.floor((i + .5) * band / rows)), dy = feet - rows + i;
+      if (wide > 0) { blit(0, sy, left, 1, -lw, dy); blit(left, sy, 1, 1, left - lw, dy, wide + 1); blit(left + 1, sy, w - left - 1, 1, left + rw + 1, dy); }
+      else if (wide < 0) { blit(0, sy, left, 1, 0, dy); blit(left + 1, sy, w - left - 1, 1, left, dy); }
+      else blit(0, sy, w, 1, 0, dy);
+    }
+  }
+  function drawPerson(a, boss, hop) {
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
     const seated = (a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
-    const bounce = !boss && a.status === 'done' && (mv || !a.activity) && doneAge < 2 ? Math.abs(Math.sin(doneAge * 7)) * 6 : 0;
-    let x = Math.round(a.x), y = Math.round(a.y - bounce - (moving ? Math.abs(Math.sin(t * 10 + (a.i || 0))) : 0));
+    // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
+    const hello = sim.greeting(), thanks = sim.thanksNow(), present = !boss && !a.visitor && !['away', 'off'].includes(a.status);
+    const greets = present && (mv || !['handoff-walk','handoff-receive','reception','argue','quota','melon','snack','souvenir','radar','gate'].includes(a.activity)) && !!(hello || thanks);
+    const pose = greets ? Core.greetPose(t - (hello || thanks).at, calm.matches) : null;
+    let x = Math.round(a.x), y = Math.round(a.y - (hop?.lift || 0) - (pose?.perk || 0) - (moving ? Math.abs(Math.sin(t * 10 + (a.i || 0))) : 0));
     const color = boss ? '#c97859' : a.status === 'unknown' ? '#989d98' : a.color;
     r(ctx, '#4c584e30', x - 8, a.y - 1, 17, 3);
     if (!boss && !moving && (working || seated)) {
@@ -379,9 +414,6 @@
     }
     r(ctx, '#33443f', x - 6, y - 18, 12, 15); r(ctx, color, x - 5, y - 10, 10, 8);
     r(ctx, '#e3b58d', x - 5, y - 16, 10, 7); r(ctx, '#4b4639', x - 6, y - 21, 12, 6); r(ctx, '#544c3a', x - 6, y - 16, 2, 5);
-    // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
-    const hello = sim.greeting(), thanks = sim.thanksNow(), present = !boss && !a.visitor && !['away', 'off'].includes(a.status);
-    const greets = present && (mv || !['handoff-walk','handoff-receive','reception','argue','quota','melon','snack','souvenir','radar','gate'].includes(a.activity)) && !!(hello || thanks);
     const look = a.activity==='melon' && sim.melon ? Math.sign(sim.melon.source.x-a.x) : greets ? Math.sign((hello ? hello.x : C.pantry.x) - a.x) : 0;
     r(ctx, '#273a34', x - 3 + look, y - 13, 2, 2); r(ctx, '#273a34', x + 2 + look, y - 13, 2, 2);
     const leg = moving ? Math.sin(t * 11) > 0 ? 2 : -2 : 0;
@@ -391,15 +423,17 @@
     const hands = !boss && working && !moving ? 14 : 4;
     r(ctx, '#e4bb91', x - 8, y - hands - typing, 3, 3);
     if (greets) {
-      // Right arm up, hand swinging: a wave. Then a word above the head, each desk its own.
-      const swing = Math.sin(t * 9) > 0 ? 2 : -1;
-      r(ctx, '#33443f', x + 5, y - 10, 3, 6); r(ctx, color, x + 5, y - 17, 3, 7); r(ctx, '#e4bb91', x + 5 + swing, y - 20, 3, 3);
+      // Right arm springs up (a little past the top, then settles), hand swinging: a wave. A word pops up above the head.
+      const hand = Math.round(-4 - 16 * pose.arm), swing = hand > -17 ? 0 : Math.sin(t * 9) > 0 ? 2 : -1;
+      if (hand < -10) { r(ctx, '#33443f', x + 5, y - 10, 3, 6); r(ctx, color, x + 5, y + hand + 3, 3, -13 - hand); }
+      r(ctx, '#e4bb91', x + 5 + swing, y + hand, 3, 3);
       const word = hello?.kind === 'pose' ? ['茄子', '耶', '✌', '茄子', '笑一个', '耶', '看这里', '茄子', '比心', '耶', '茄子'][a.i % 11]
         : hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
         : ['谢谢', '好耶', '谢啦', '太好了', '谢谢你', '哇', '开心', '干杯', '谢谢啦', '好香', '谢谢'][a.i % 11];
       const w = word.length * 6 + 6, bx = Math.max(22, Math.min(C.W-22 - w, x - w / 2 + 1));
       speechBoxes.push({x:bx,y:y-36,w,h:10});
-      r(ctx, '#fff6dc', bx, y - 36, w, 10); r(ctx, '#d9a56d', bx, y - 36, w, 1); text(ctx, word, bx + w / 2, y - 28, 6, '#6a4b30');
+      const by = y - 36 + pose.pop;
+      r(ctx, '#fff6dc', bx, by, w, 10); r(ctx, '#d9a56d', bx, by, w, 1); text(ctx, word, bx + w / 2, by + 8, 6, '#6a4b30');
     } else r(ctx, '#e4bb91', x + 5, y - hands + typing, 3, 3);
     if(a.activity==='reception' && sim.reception?.phase==='handshake' && !moving) {
       const v=sim.reception.visitor, host=sim.actors.find(b=>b.id===sim.reception.hosts[0]);
@@ -572,12 +606,26 @@
     ctx.font='8px \"PingFang SC\",system-ui,sans-serif'; const w=ctx.measureText(speech.text).width+12, x=Math.max(20,Math.min(C.W-w-20,a.x-w/2)),y=a.y-64;
     speechBoxes.push({x,y,w,h:14});r(ctx,'#786747',x,y,w,14);r(ctx,'#fff6dc',x+1,y+1,w-2,12);text(ctx,speech.text,x+w/2,y+10,8,'#6a4b30');r(ctx,'#b59b72',a.x,y+14,1,15);
   }
+  // A sheet that goes up while the page is open swings on its pin twice and stops; the ones already there at load,
+  // a new day or a rewound demo never swing.
+  let sheetSim=null,sheetSeen=0,sheetBorn=[];
   function drawWallBoard() {
     const b=wallBoard();
+    if(sheetSim!==sim || b.sheets<sheetSeen || sheetBorn.some(at=>at>sim.time)) {sheetSim=sim;sheetBorn=[];}
+    else for(let j=sheetSeen;j<b.sheets;j++)sheetBorn[j]=sim.time;
+    sheetSeen=b.sheets;
     for(let j=0;j<b.sheets;j++) {
-      const x=236+j%4*21,y=41+Math.floor(j/4)*14;
-      r(ctx,['#fff0c9','#d9e3c6','#edc4a2','#f3e6b2'][j%4],x,y,16,11);
-      r(ctx,'#b9b194',x+3,y+5,10,1); r(ctx,'#c1b597',x+3,y+8,7,1);
+      const x=236+j%4*21,y=41+Math.floor(j/4)*14,color=['#fff0c9','#d9e3c6','#edc4a2','#f3e6b2'][j%4];
+      const sway=sheetBorn[j]===undefined?0:Core.swayAt(sim.time-sheetBorn[j],calm.matches);
+      if(sway) {
+        // Hung from the pin: each row slides a whole pixel further the lower it is.
+        const at=row=>Math.round(sway*(row+1)/11);
+        for(let row=0;row<11;row++)r(ctx,color,x+at(row),y+row,16,1);
+        r(ctx,'#b9b194',x+3+at(5),y+5,10,1); r(ctx,'#c1b597',x+3+at(8),y+8,7,1);
+      } else {
+        r(ctx,color,x,y,16,11);
+        r(ctx,'#b9b194',x+3,y+5,10,1); r(ctx,'#c1b597',x+3,y+8,7,1);
+      }
       r(ctx,b.recent && j===b.sheets-1 && sim.time%1.6<.4?'#d9564d':'#a56c4b',x+7,y-1,2,3);
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
@@ -932,7 +980,7 @@
   layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0 })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0, hop: hopOf(a, false) })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, greetPose: sim && (sim.greeting() || sim.thanksNow()) ? Core.greetPose(sim.time - (sim.greeting() || sim.thanksNow()).at, calm.matches) : null, calm: calm.matches, sheetSway: sim ? sheetBorn.map(at => at === undefined ? 0 : Core.swayAt(sim.time - at, calm.matches)) : [], thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {

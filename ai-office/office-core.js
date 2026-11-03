@@ -877,7 +877,60 @@
       default: return null;
     }
   }
-  const api = { createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  // Springs for the drawing only: mass 1, x'' = -k(x - target) - c v, in fixed 1/240 s steps so 30 and 120 fps agree
+  // (the memory-fade integrator). Reduced motion lifts the damping ratio to 1, which never overshoots. Every pose
+  // below is a function of the event's age, so a still actor integrates nothing and the MV recorder can seek.
+  function spring(stiffness, ratio, reduced = false) { return { k: stiffness, c: Math.max(ratio, reduced ? 1 : 0) * 2 * Math.sqrt(stiffness), x: 0, v: 0, target: 0 }; }
+  function springStep(s, dt) {
+    const h = 1 / 240;
+    let left = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 3) : 0;
+    while (left > 1e-9) {
+      const step = Math.min(h, left);
+      s.v += (-s.k * (s.x - s.target) - s.c * s.v) * step;
+      s.x += s.v * step;
+      left -= step;
+    }
+    if (!Number.isFinite(s.x) || !Number.isFinite(s.v)) { s.x = Number.isFinite(s.target) ? s.target : 0; s.v = 0; }
+    return s;
+  }
+  function springAt(stiffness, ratio, age, { from = 0, to = 1, v = 0 } = {}, reduced = false) {
+    const s = spring(stiffness, ratio, reduced); s.x = from; s.target = to; s.v = v;
+    return springStep(s, age).x;
+  }
+  // Done: a crouch, four hops that get lower, a squash on every landing that springs back. squash > 0 is that many
+  // logical rows shorter (and a little wider), < 0 stretched; whole pixels only, so the art never smears.
+  const HOPS = [[.12, .42, 6], [.52, .82, 6], [.92, 1.22, 5], [1.32, 1.62, 4]], HOP_SECONDS = 2;
+  function hopAt(age, reduced = false) {
+    if (!(age >= 0) || age >= HOP_SECONDS) return { lift: 0, squash: 0, widen: 0 };
+    let lift = 0;
+    for (const [start, end, height] of HOPS) if (age >= start && age < end) { const p = (age - start) / (end - start); lift = Math.round(height * 4 * p * (1 - p)); }
+    if (reduced) return { lift, squash: 0, widen: 0 };
+    const s = spring(600, .35); s.target = 2;
+    let t = 0;
+    const until = at => { const to = Math.min(at, age); springStep(s, to - t); t = to; return t < age; };
+    for (let i = 0; i < HOPS.length; i++) {
+      const [start, end, height] = HOPS[i];
+      if (!until(start)) break;
+      s.target = 0; s.v -= 35; // take off: a stretch
+      if (!until(end)) break;
+      s.v += height * 10; s.target = i < HOPS.length - 1 ? 1.5 : 0; // land: a squash
+    }
+    until(age);
+    const squash = Math.max(-2, Math.min(3, Math.round(s.x))) + 0; // + 0: no -0
+    return { lift, squash, widen: Math.max(-1, Math.min(2, Math.round(squash * .6))) + 0 };
+  }
+  // Called by a visitor, a treat or a photo: perk up a step, the waving arm springs past the top and settles,
+  // the word pops up from the head. arm 0 is down, 1 up.
+  function greetPose(age, reduced = false) {
+    if (!(age >= 0)) return { arm: 1, perk: 0, pop: 0 };
+    const t = Math.min(age, 1.5);
+    return { arm: springAt(260, .48, t, {}, reduced), perk: Math.round(springAt(300, .4, t, { to: 0, v: 70 }, reduced)) + 0, pop: Math.round(5 * (1 - springAt(420, .5, t, {}, reduced))) + 0 };
+  }
+  // A sheet just pinned to the notice board swings on its pin twice and stops: whole-pixel offset of its bottom row.
+  const SWAY_SECONDS = 2.5;
+  function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
+
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
