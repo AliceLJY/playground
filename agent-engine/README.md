@@ -8,8 +8,8 @@ It opens on the first scene and plays that scene's entrance, then waits for you:
 
 ## Watching it
 
-- Nothing moves on its own until you press the autoplay button (top right). Then it stays on each scene for its animation plus time to skim the text (12 to 40 seconds), stops after the last scene and does not loop. The longest scene takes about 77 seconds to read at skimming speed, so autoplay is a tour speed, not a promise that you finish reading; any tap, key, wheel or touch-scroll takes over, and the button resumes it.
-- Step buttons at the top, previous and next below the card, or the left and right arrow keys. Opening a new scene from the bottom of a long one scrolls back to the top.
+- Nothing moves on its own until you press the autoplay button (top right). Then it stays on each scene for its animation plus time to skim the text (12 to 40 seconds), stops after the last scene and does not loop. The longest scene takes about 77 seconds to read at skimming speed, so autoplay is a tour speed, not a promise that you finish reading; any tap, key, wheel or touch-scroll takes over, and the button resumes both the animation and the remaining scene time from the pause point.
+- Step buttons at the top, previous and next below the card, or the left and right arrow keys. Opening a new scene from the bottom of a long one scrolls back to the top. A compact chapter name and 44 px previous/next buttons stay at the top while scrolling on phones.
 - Scene 4: tap or press Enter on a failure card to flip it from the problem to how an engine catches it, with one line computed live.
 - With "reduce motion" on, every scene shows its final state and nothing autoplays.
 

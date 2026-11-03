@@ -12,9 +12,16 @@
   const query = C.parseView(location.search);
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const S = { cur: 0, mode: 'manual', playing: false, ended: false, settled: false, timers: [], dwellTimer: 0, dwell: [] };
-  const later = (fn, ms) => S.timers.push(setTimeout(fn, ms));
-  const clearTimers = () => { S.timers.forEach(clearTimeout); S.timers = []; };
+  const S = { cur: 0, mode: 'manual', playing: false, ended: false, settled: false, timers: [], paused: false, animations: [], dwellTimer: 0, dwellLeft: 0, dwellStarted: 0, dwell: [] };
+  function arm(timer) {
+    timer.at = performance.now();
+    timer.id = setTimeout(() => { S.timers.splice(S.timers.indexOf(timer), 1); timer.fn(); }, timer.left);
+  }
+  const later = (fn, ms) => { const timer = { fn, left: ms }; S.timers.push(timer); arm(timer); };
+  const clearTimers = () => {
+    S.timers.forEach((t) => clearTimeout(t.id)); S.timers = [];
+    S.animations.forEach((a) => a.cancel()); S.animations = []; S.paused = false;
+  };
 
   // ---------- step buttons ----------
   scenes.forEach((s, i) => {
@@ -148,18 +155,22 @@
     S.cur = (i + scenes.length) % scenes.length;
     scenes.forEach((s, k) => s.classList.toggle('on', k === S.cur));
     $$('button', stepsBox).forEach((b, k) => b.setAttribute('aria-current', k === S.cur ? 'true' : 'false'));
+    $('#chapter-name').textContent = (S.cur + 1) + '/6 · ' + (S.cur === 3 ? '故障怎么接住' : scenes[S.cur].dataset.title);
     const sc = SCENE[S.cur];
     sc.reset();
     if (animate) { S.settled = false; sc.play(); later(() => { S.settled = true; }, sc.anim); }
     else { sc.settle(); S.settled = true; }
   }
-  function dwellStart() {
+  function dwellStart(resume) {
     clearTimeout(S.dwellTimer);
-    barFill.style.transition = 'none'; barFill.style.width = '0';
+    if (!resume) S.dwellLeft = S.dwell[S.cur];
+    barFill.style.transition = 'none';
+    barFill.style.width = (100 * (1 - S.dwellLeft / S.dwell[S.cur])) + '%';
     if (!S.playing || root.classList.contains('still')) return;
     void barFill.offsetWidth;
-    barFill.style.transition = 'width ' + S.dwell[S.cur] + 'ms linear'; barFill.style.width = '100%';
-    S.dwellTimer = setTimeout(autoNext, S.dwell[S.cur]);
+    barFill.style.transition = 'width ' + S.dwellLeft + 'ms linear'; barFill.style.width = '100%';
+    S.dwellStarted = performance.now();
+    S.dwellTimer = setTimeout(autoNext, S.dwellLeft);
   }
   function autoNext() {
     if (!S.playing) return;
@@ -168,20 +179,34 @@
   }
   function label() { playBtn.textContent = S.playing ? '暂停播放' : S.ended ? '重新播放' : '自动播放'; }
   function stopAuto(mode) {
+    if (S.playing) {
+      const now = performance.now();
+      S.timers.forEach((t) => { clearTimeout(t.id); t.left = Math.max(0, t.left - (now - t.at)); });
+      S.animations = scenes[S.cur].getAnimations({ subtree: true }).filter((a) => a.playState === 'running');
+      S.animations.forEach((a) => a.pause());
+      S.dwellLeft = Math.max(0, S.dwellLeft - (now - S.dwellStarted));
+      S.paused = true;
+      barFill.style.transition = 'none';
+      barFill.style.width = (100 * (1 - S.dwellLeft / S.dwell[S.cur])) + '%';
+    }
     clearTimeout(S.dwellTimer);
-    S.playing = false; S.mode = mode || 'manual'; barFill.style.transition = 'none'; barFill.style.width = '0'; label();
+    S.playing = false; S.mode = mode || 'manual'; label();
   }
   function userGo(i) {
     stopAuto('manual'); S.ended = false; label();
     if (!reduced) root.classList.remove('still');
-    show(i, !reduced);
+    show(i, !reduced); barFill.style.transition = 'none'; barFill.style.width = '0';
     // coming from the pager at the bottom of a long scene: bring the top of the new scene into view
     const top = $('.stepper').getBoundingClientRect().top;
     if (top < 0 || top > window.innerHeight * 0.6) window.scrollTo({ top: window.scrollY + top - 8, behavior: reduced ? 'auto' : 'smooth' });
   }
   function startAuto(from) {
     root.classList.remove('still'); S.ended = false; S.playing = true; S.mode = 'auto'; label();
-    show(from, true); dwellStart();
+    if (S.paused && from === S.cur) {
+      S.paused = false; S.timers.forEach(arm);
+      S.animations.forEach((a) => a.play()); S.animations = [];
+      dwellStart(true);
+    } else { show(from, true); dwellStart(); }
   }
   playBtn.addEventListener('click', () => {
     if (S.playing) { stopAuto('manual'); return; }
@@ -190,6 +215,8 @@
   // anything the visitor does on the page means they are reading or exploring: autoplay hands over (the play button resumes it)
   const engage = (e) => { if (S.playing && !(e.target.closest && e.target.closest('#play'))) stopAuto('manual'); };
   ['pointerdown', 'keydown', 'wheel', 'touchmove'].forEach((t) => document.addEventListener(t, engage, { passive: true }));
+  $('#compact-prev').addEventListener('click', () => userGo(S.cur - 1));
+  $('#compact-next').addEventListener('click', () => userGo(S.cur + 1));
   $('#prev').addEventListener('click', () => userGo(S.cur - 1));
   $('#next').addEventListener('click', () => userGo(S.cur + 1));
   document.addEventListener('keydown', (e) => {

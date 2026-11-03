@@ -112,3 +112,11 @@ python3 -I tools/mutate-node.py
 ## 发布时拷贝哪些文件
 
 `index.html` 和 `src/`（`core.js`、`view.js`、`style.css`）原样发布，合计 69 KB，没有构建步骤，没有 `vendor/`。`README*.md`、`SPEC.md`、`VERIFICATION.md`、`THIRD_PARTY_NOTICES.md`、`tests/`、`tools/` 留在仓里，不发布。接入 CI 时在该目录跑 `node --check src/core.js`、`node --check src/view.js` 和 `node --test tests/*.test.cjs`。
+
+## B3 回归（2026-11-03）
+
+- 修复暂停语义：保留本幕每个未执行事件和换幕的剩余毫秒，暂停正在进行的 CSS 过渡，继续时从原点走；换章节仍从该章节开头播放。
+- 手机及窄横屏正文上方增加一行带章节名的吸顶前后导航，导航和播放点击区至少 44 px。第四幕用「故障怎么接住」识别章节。
+- 新检查：`NODE_PATH="$(npm root -g)" node tools/b3-check.cjs <输出目录> <页面地址>`。在 390×664、1365×900、320×568、844×340 下，检查第 2/3/6 幕暂停 2 秒事件不变、恢复不重播、剩余事件时间及换幕时间、长幕滚动中标题和前后键可达。旧发布文件 55 项中 31 项红；修复后 58 项全绿（新增导航存在后另验 3 次真实切幕）。截图实际打开检查过。
+- Node 29 条全过；原有浏览器脚本 `AE_SIZES=desktop,phone AE_ONLY=fixed,interact` 404 项全过，涵盖深浅主题、六幕和真实点击。Chrome 156.0.8078.80，本轮专项 DPR 1，正常渲染，无 three.js、无构建步骤；本地静态发布文件零页面错误。
+- 未验证：真手机、Safari、屏幕阅读器及陌生访客的阅读体验；无音频。本批不做急救题或权限门新玩法，不推送发布。
