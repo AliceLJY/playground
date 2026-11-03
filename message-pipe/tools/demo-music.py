@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""一条消息的旅程 · 演示片配乐（没有配音）。numpy 离线合成，时间只读 tools/record.cjs 写的 events.json。
+"""一条消息的旅程 · 演示片配乐（没有配音）：法式街头手风琴三拍子小圆舞曲，像橘猫骑车穿过小街。
+numpy 离线合成，时间只读 tools/record.cjs 写的 events.json。
 
 用法（需要 numpy，例如 ~/.venv-kokoro/bin/python3）：
     python3 tools/demo-music.py <events.json> <输出.wav>
 
-- 铺底：104 BPM，C 大调五声，四小节一轮 C–Am–F–G 的软正弦和弦 + 三角波八分琶音；关卡段加轻底鼓。
-- 事件：每次点按一声高音拨弦（音高在五声音阶里轮换），发车一串上行琶音，送到一个大三和弦铃声，
-  卡在半路（漏站 / 空箱子）两声下行的闷音，失败提示期间琶音压低。按钮一声轻嗒。
-- 署名页：和弦收在 C，1.8 s、2.8 s 各一声落定音（对应盖印章、按指纹），最后 1 秒淡出。
+刻意和本仓其他演示片拉开距离（像素连连看是方波芯片乐，打地鼠是尤克里里口哨马林巴，凸透镜是木琴五声琶音，
+像素办公室是电钢八音盒）：这里一个方波、三角波琶音、木琴都不用。
+- 乐器：手风琴（两组略微失谐的锯齿波 + 低通 + 风箱颤音，即 musette 味道）唱一条原创 G 大调旋律；
+  拨弦低音提琴（Karplus-Strong）走第一拍；手风琴左手和弦在第二、三拍「嘭–恰–恰」；关卡段加鼓刷（滤波噪声）。
+- 156 BPM 的 3/4 拍，八小节一句：G G D7 D7 G C D7 G。标题段只有长和弦和一声车铃；失败提示期间旋律停。
+- 事件：点按一声木块轻响，发车两声自行车铃「叮铃」，送到车铃 + 一个手风琴大三和弦，
+  卡在半路（漏站 / 空箱子）一声刹车吱声加两个往下的低音。按钮一声轻嗒。
+- 署名页：收在 G 和弦长音，1.8 s、2.8 s 各一声闷鼓落定音（盖印章、按指纹），最后 1 秒淡出。
 母带：tanh 轻驱动，峰值 -3 dBFS；响度另用 ffmpeg loudnorm 单独做成 wav 再混流（别在混流时带 -shortest）。
 """
 import json, sys, wave
@@ -19,98 +24,130 @@ SR = 44100
 T = ev["seconds"]
 N = int(round(T * SR))
 mix = np.zeros((N, 2))
+rng = np.random.default_rng(11)
 marks = ev["marks"]
 sec = sorted((s["t"], s["kind"]) for s in ev["sections"])
 END = next((m["t"] for m in marks if m["name"] == "endcard"), T)
-BPM = 104
+FIRST_LEVEL = next((t for t, k in sec if k.startswith("level")), 0)
+BPM = 156
 beat = 60 / BPM
+bar = 3 * beat
 
-def note(m):  # midi -> Hz
-    return 440 * 2 ** ((m - 69) / 12)
+hz = lambda m: 440 * 2 ** ((m - 69) / 12)
 
 def add(sig, t0, gain=1.0, pan=0.0):
     i = int(t0 * SR)
-    if i >= N or i + len(sig) <= 0:
+    if i >= N or i < 0:
         return
-    s = sig[: max(0, N - i)]
+    s = sig[: N - i]
     l, r = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
     mix[i:i + len(s), 0] += s * gain * l
     mix[i:i + len(s), 1] += s * gain * r
 
-def env(n, a=0.005, d=0.3):
-    t = np.arange(n) / SR
-    return np.minimum(1, t / a) * np.exp(-t / d)
+def lowpass(x, fc):
+    a = np.exp(-2 * np.pi * fc / SR); y = np.empty_like(x); acc = 0.0
+    for i in range(len(x)):
+        acc = (1 - a) * x[i] + a * acc; y[i] = acc
+    return y
 
-def tone(f, dur, kind="sine", a=0.005, d=0.3):
-    n = int(dur * SR); t = np.arange(n) / SR
-    if kind == "tri":
-        w = 2 / np.pi * np.arcsin(np.sin(2 * np.pi * f * t))
-    elif kind == "sq":
-        w = np.tanh(3 * np.sin(2 * np.pi * f * t)) * 0.6
-    else:
-        w = np.sin(2 * np.pi * f * t)
-    return w * env(n, a, d)
+def adsr(n, a=0.03, r=0.08):
+    e = np.ones(n); na, nr = int(a * SR), int(r * SR)
+    e[:na] = np.linspace(0, 1, max(1, na))[:na]
+    if nr: e[-nr:] *= np.linspace(1, 0, nr)
+    return e
 
-# ---- bed ----
-CHORDS = [[48, 52, 55, 60], [45, 48, 52, 57], [41, 45, 48, 53], [43, 47, 50, 55]]  # C Am F G
-fail_spans = []
-for m in marks:
-    if m["name"] in ("fail", "emptybox"):
-        fail_spans.append((m["t"], m["t"] + 2.6))
-def ducked(t):
-    return any(a <= t < b for a, b in fail_spans)
-in_level = lambda t: any(k.startswith("level") and t0 <= t < (sec[i + 1][0] if i + 1 < len(sec) else T) for i, (t0, k) in enumerate(sec))
+def accordion(midis, dur, bright=1800):
+    n = int(dur * SR); t = np.arange(n) / SR; x = np.zeros(n)
+    for m in midis:
+        f = hz(m)
+        for det in (-0.0025, 0.0025):  # two reeds a hair apart: the musette shimmer
+            ph = (f * (1 + det) * t) % 1
+            x += 2 * ph - 1
+    x = lowpass(lowpass(x / (2 * len(midis)), bright), bright * 1.6)  # two poles: reedy, not buzzy
+    x *= 1 + 0.12 * np.sin(2 * np.pi * 5.5 * t)  # bellows tremolo
+    return x * adsr(n, 0.035, min(0.1, dur * 0.4))
 
-bar = 4 * beat
-t = 0.0; k = 0
+def pluck(midi, dur, damp=0.996):  # Karplus-Strong double-bass pizzicato
+    f = hz(midi); p = int(SR / f); n = int(dur * SR)
+    buf = rng.uniform(-1, 1, p); buf = lowpass(buf, 700); out = np.empty(n)
+    for i in range(n):
+        out[i] = buf[i % p]
+        buf[i % p] = damp * 0.5 * (buf[i % p] + buf[(i + 1) % p])
+    return out * adsr(n, 0.002, 0.05)
+
+def brush(dur, level):
+    n = int(dur * SR); src = rng.normal(0, 1, n); x = lowpass(src, 3200) - lowpass(src, 600)
+    return x * np.exp(-np.arange(n) / SR / (dur * 0.5)) * level
+
+def bell(t0, gain):  # bicycle bell: inharmonic partials, two strikes
+    for k, dt in enumerate((0, 0.13)):
+        n = int(1.2 * SR); t = np.arange(n) / SR; x = np.zeros(n)
+        for ratio, amp, dec in ((1, 1, 0.5), (2.76, 0.5, 0.3), (5.40, 0.25, 0.15), (8.93, 0.12, 0.08)):
+            x += amp * np.sin(2 * np.pi * 2350 * ratio * t) * np.exp(-t / dec)
+        x *= 1 + 0.3 * np.sin(2 * np.pi * 18 * t)
+        add(x * 0.25, t0 + dt, gain * (0.8 if k else 1), pan=0.35)
+
+fail_spans = [(m["t"], m["t"] + 2.6) for m in marks if m["name"] in ("fail", "emptybox")]
+ducked = lambda t: any(a <= t < b for a, b in fail_spans)
+def in_level(t):
+    for i, (t0, k) in enumerate(sec):
+        t1 = sec[i + 1][0] if i + 1 < len(sec) else T
+        if t0 <= t < t1: return k.startswith("level") or k == "final"
+    return False
+
+CH = {"G": (43, [59, 62, 67]), "D7": (38, [60, 62, 66]), "C": (36, [60, 64, 67])}
+PROG = ["G", "G", "D7", "D7", "G", "C", "D7", "G"]
+MEL = [[67, 71, 74], [79, None, 78], [76, 74, 72], [74, None, None], [71, 74, 79], [81, 79, 76], [78, 74, 72], [71, None, None]]
+
+t = 0.0; b = 0
 while t < T:
-    ch = CHORDS[k % 4] if t < END else [48, 52, 55, 60]
-    for m in ch:
-        add(tone(note(m), bar + 0.4, "sine", a=0.4, d=2.2), t, 0.045, pan=((m % 7) - 3) / 6)
-    for j in range(8):  # eighth-note arpeggio
-        tt = t + j * beat / 2
-        if tt >= T: break
-        m = ch[j % 4] + (12 if j % 8 >= 4 else 0) + 12
-        g = 0.035 * (0.35 if ducked(tt) else 1)
-        add(tone(note(m), 0.4, "tri", d=0.18), tt, g, pan=0.3 if j % 2 else -0.3)
-    if in_level(t) and t < END:
-        for j in (0, 2):
-            tt = t + j * beat; n = int(0.25 * SR); x = np.arange(n) / SR
-            kick = np.sin(2 * np.pi * (55 * x + 60 * (1 - np.exp(-x * 30)) / 30)) * np.exp(-x * 14)
-            add(kick, tt, 0.16)
-    t += bar; k += 1
+    name = PROG[b % 8] if t < END else "G"
+    root, chord = CH[name]
+    if t < FIRST_LEVEL or t >= END:  # title and end card: one long held chord per bar, no rhythm
+        add(accordion(chord + [root + 24], bar * 1.02, 1400), t, 0.10)
+        if t >= END: add(pluck(root, bar), t, 0.22)
+    else:
+        add(pluck(root if b % 2 == 0 else root + 7, beat * 1.6), t, 0.26, pan=-0.1)       # oom
+        for j in (1, 2):                                                                   # pah pah
+            add(accordion(chord, beat * 0.55, 1600), t + j * beat, 0.075, pan=-0.25)
+        if in_level(t):
+            add(brush(beat * 0.9, 0.035), t, 1, pan=0.2)
+            for j in (1, 2): add(brush(beat * 0.35, 0.02), t + j * beat, 1, pan=0.2)
+        for j, m in enumerate(MEL[b % 8]):
+            if m is None: continue
+            tt = t + j * beat
+            if ducked(tt) or tt >= END: continue
+            ln = 1
+            while j + ln < 3 and MEL[b % 8][j + ln] is None: ln += 1
+            add(accordion([m, m + 12] if b % 16 >= 8 else [m], beat * ln * 0.95, 2400), tt, 0.10, pan=0.15)
+    t += bar; b += 1
 
-# ---- events ----
-PENTA = [72, 74, 76, 79, 81, 84]
-tap_i = 0
 for m in marks:
     nm, tt = m["name"], m["t"]
-    if nm == "tap":
-        add(tone(note(PENTA[tap_i % len(PENTA)]), 0.25, "tri", a=0.002, d=0.07), tt, 0.11, pan=0.15); tap_i += 1
+    if nm == "tap":  # wood block tick
+        n = int(0.06 * SR); x = np.arange(n) / SR
+        add((np.sin(2 * np.pi * 1250 * x) + 0.4 * np.sin(2 * np.pi * 2900 * x)) * np.exp(-x / 0.012), tt, 0.16, pan=0.1)
     elif nm == "button":
-        n = int(0.03 * SR); add(np.random.default_rng(int(tt * 1000)).normal(0, 1, n) * env(n, 0.001, 0.008), tt, 0.05)
+        n = int(0.03 * SR); add(lowpass(rng.normal(0, 1, n), 3000) * np.exp(-np.arange(n) / SR / 0.006), tt, 0.12)
     elif nm == "ride":
-        for j, mm in enumerate([60, 64, 67, 72]):
-            add(tone(note(mm), 0.35, "tri", d=0.15), tt + j * 0.07, 0.09)
+        bell(tt, 0.5)
     elif nm == "deliver":
-        for mm in (72, 76, 79, 84):
-            add(tone(note(mm), 1.6, "sine", a=0.003, d=0.7) + 0.3 * tone(note(mm) * 2.01, 1.6, "sine", a=0.003, d=0.4), tt, 0.07)
+        bell(tt, 0.4)
+        add(accordion([67, 71, 74, 79], 1.6, 2600), tt + 0.12, 0.13)
     elif nm in ("fail", "emptybox"):
-        add(tone(note(55), 0.3, "sq", d=0.12), tt, 0.09)
-        add(tone(note(50), 0.45, "sq", d=0.2), tt + 0.22, 0.09)
+        n = int(0.45 * SR); x = np.arange(n) / SR  # brake squeal
+        f = 3300 - 700 * x / 0.45
+        sq = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 + 0.5 * np.sin(2 * np.pi * 30 * x)) * adsr(n, 0.01, 0.15)
+        add(sq, tt, 0.05, pan=0.3)
+        add(pluck(43, 0.5), tt + 0.15, 0.3); add(pluck(42, 0.7), tt + 0.42, 0.3)
 
-# endcard: two settling pops (stamp, fingerprint)
-for d in (1.8, 2.8):
-    n = int(0.25 * SR); x = np.arange(n) / SR
-    pop = np.sin(2 * np.pi * (90 * x + 200 * (1 - np.exp(-x * 40)) / 40)) * np.exp(-x * 18)
-    add(pop, END + d, 0.35)
-    add(tone(note(84), 0.3, "sine", a=0.001, d=0.08), END + d, 0.06)
+for d in (1.8, 2.8):  # end card: stamp and fingerprint settle
+    n = int(0.3 * SR); x = np.arange(n) / SR
+    add(np.sin(2 * np.pi * (70 * x + 150 * (1 - np.exp(-x * 40)) / 40)) * np.exp(-x * 14), END + d, 0.4)
 
-# fade the last second
 f = int(1.0 * SR); mix[-f:] *= np.linspace(1, 0, f)[:, None]
-mix = np.tanh(mix * 1.4)
+mix = np.tanh(mix * 1.3)
 mix *= 10 ** (-3 / 20) / max(1e-9, np.abs(mix).max())
-pcm = (mix * 32767).astype("<i2")
 with wave.open(OUT, "wb") as w:
-    w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())
+    w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((mix * 32767).astype("<i2").tobytes())
 print(OUT, round(T, 2), "s")
