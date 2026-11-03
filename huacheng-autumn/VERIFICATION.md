@@ -82,7 +82,7 @@ Node 原文摘要：
 
 ### 红绿证据
 
-证据均在工作副本外 `/Volumes/ColdData/tmp/playground-wt2/out-F4/`。
+证据当时写在工作副本外的临时目录，没有保留。
 
 | 检查 | 修改前 | 修改后 |
 |---|---|---|
@@ -101,7 +101,7 @@ node --test tests/*.test.cjs
 node tools/build.mjs
 node tools/serve.cjs . 18964
 # 另一个终端：
-CHECK_OUT=/Volumes/ColdData/tmp/playground-wt2/out-F4
+CHECK_OUT=/path/to/evidence-dir
 NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/final-build-controls" http://127.0.0.1:18964/dist/index.html
 NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/final-source-controls" http://127.0.0.1:18964/dev.html
 node tools/flower-audit.mjs . "$CHECK_OUT/audit.html"
