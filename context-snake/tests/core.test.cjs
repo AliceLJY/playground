@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const C=require('../src/core.js'),{CFG}=C;
 const SEEDS=Array.from({length:40},(_,i)=>i+1);
 function play(seed,level,o){
-  o=o||{};const g=C.create({seed}),p=level?C.pilot(level,seed):null;
+  o=o||{};const g=C.create({seed,speed:o.speed}),p=level?C.pilot(level,seed):null;
   if(o.noSkills){g.compress=()=>false;g.dispatch=()=>false;}
   const events=[];let n=0;
   while(g.state.phase==='play'&&n++<200*60){if(p)p(g);const prev=o.watch?{body:g.state.body.map(c=>({...c})),subs:g.state.subs.map(b=>b.body.map(c=>({...c})))}:null;g.step(CFG.step);if(o.watch)o.watch(g,prev);events.push(...g.state.events);g.state.events.length=0;}
@@ -143,7 +143,7 @@ test('length and difficulty across seeds 1-40: idle, precise, human, reckless',(
   const ht=mean(human.map(x=>x.r.t));
   assert.ok(ht>=45&&ht<=110,'spec 7.8: shaky human rounds should last 45-110 s on average, got '+ht.toFixed(1));
   assert.ok(done(human)>=0.02&&done(human)<=0.6,'spec 7.8: shaky human should neither always die nor always survive, survived '+done(human));
-  assert.ok(human.some(x=>x.r.stats.compress>0)&&human.some(x=>x.r.stats.reports>0)&&human.some(x=>x.r.stats.bursts>0),'spec 7.8: the human sample must really compress, collect a report and hit 429');
+  assert.ok(human.some(x=>x.r.stats.compress>0)&&human.some(x=>x.r.stats.reports>0),'spec 7.8: the human sample must really compress and collect a report');
   assert.ok(reckless.every(x=>x.r.reason==='pollution'),'spec 7.8: the reckless pilot must always crash');
   assert.ok(mean(reckless.map(x=>x.r.t))<=30,'spec 7.8: and crash within 30 s on average');
 });
@@ -157,4 +157,19 @@ test('a lost round can be restarted cleanly',()=>{
   const a=play(11,'reckless').r;assert.equal(a.reason,'pollution');
   const g=C.create({seed:11}),s=g.state;
   assert.equal(s.phase,'play');assert.equal(s.score,0);assert.equal(s.body.length,CFG.startLen);assert.equal(s.subs.length,0);assert.equal(s.queue.length,0);
+});
+
+test('three speeds: slow is the default, each step up is harder, fast still loses sometimes',()=>{
+  assert.equal(C.create({}).state.speed,'slow','spec 2: slow is the default speed');
+  assert.equal(C.create({speed:'nonsense'}).state.speed,'slow');
+  const life={};
+  for(const sp of ['slow','normal','fast']){
+    const g=C.create({seed:1,speed:sp}),s=g.state;s.nextChat=1e9;let m=0;while(s.t<10){g.step(CFG.step);}
+    const [a,b]=CFG.speeds[sp],want=10/((a+(a+(b-a)*10/CFG.roundTime))/2);
+    assert.ok(Math.abs(s.moves-want)<=2,`spec 2: ${sp} should make about ${want.toFixed(0)} moves in 10 s, made ${s.moves}`);
+    const h=SEEDS.map(x=>play(x,'human',{speed:sp}).r);life[sp]=mean(h.map(r=>r.t));
+    if(sp==='fast'){assert.ok(h.some(r=>r.reason==='pollution')&&h.some(r=>r.reason==='done'),'spec 7.8: at fast the shaky player both wins and loses');
+      assert.ok(h.some(r=>r.stats.bursts>0),'spec 7.8: the shaky sample must really hit 429 somewhere');}
+  }
+  assert.ok(life.slow>life.normal&&life.normal>life.fast,'spec 2: slower speeds should keep the shaky player alive longer '+JSON.stringify(life));
 });

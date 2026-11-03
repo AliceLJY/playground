@@ -47,8 +47,8 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     // 1. title page
     {const {ctx,page,errors,external}=await open('',size);await page.waitForTimeout(300);
       await page.screenshot({path:path.join(out,size+'-title.png')});
-      const btns=[await buttonOk(page,'#start-btn'),await buttonOk(page,'#mute-btn')];
-      check(size+' title: start and sound buttons usable',btns.every(b=>b.ok),btns);
+      const btns=[await buttonOk(page,'#start-btn'),await buttonOk(page,'#speed-btn'),await buttonOk(page,'#mute-btn')];
+      check(size+' title: start, speed and sound buttons usable',btns.every(b=>b.ok),btns);
       // 2. start with a real click, then check the board and the controls
       await page.click('#start-btn');await page.waitForTimeout(150);
       const p=await probe(page),f=p.layout.field,pad=p.layout.pad;
