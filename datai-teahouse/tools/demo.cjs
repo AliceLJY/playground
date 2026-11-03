@@ -1,5 +1,6 @@
 // 竖屏体验片（1080×1920）：真点击走完一市——进门、拣茶、洗杯、斟茶、翻报、唔该下单、点心车要笼、夹件、出品、揭盖、
-// 邻座斟茶后叩指、离席埋单——最后接署名页。进门时桌上已坐着「你 · 昨天」「你 · 3 天前」。
+// 邻座斟茶后叩指、离席埋单——最后接署名页。进门先等痕迹服务（伙计说稍等、门口有人等位），桌上坐着「有人 · 几天前」
+// 和「你 · 昨天」。别人的痕迹是脚本里合成的，请求拦在浏览器里作答，不碰线上服务。
 //   NODE_PATH="$(npm root -g)" node tools/demo.cjs <page-url> <out-dir> <endcard.js 路径>
 // 做法：暂停页面自己的动画循环，用钩子 step(1000/30) 一帧一帧推游戏时间再截图（page.clock 只管 Date，拿来算「你 · 昨天」）；
 // 等菜等车的空档只推不拍。每帧之后读游戏的音效日志，按视频时间记进 events.json，配乐由 tools/demo-music.py 按它合成。
@@ -12,18 +13,30 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: dpr, hasTouch: true });
   const page = await ctx.newPage();
-  // 本地页面的来源不在痕迹服务的放行名单里：对服务的请求一律回空列表，走「没有别人」的路（痕迹另由 traces-check 验）
-  await page.route((u) => !['127.0.0.1', 'localhost'].includes(u.hostname) && /^\/traces?$/.test(u.pathname), (r) => r.fulfill({ status: r.request().method() === 'GET' ? 200 : 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }, body: r.request().method() === 'GET' ? '[]' : '{}' }));
+  // 别人的痕迹：五条合成记录（2–6 天前来过，各坐四五分钟，斟茶、翻报、夹件、叩指），隔 1.4 秒才回，好拍到门口那声「稍等」。
+  // 请求拦在浏览器里作答；离席的上传也拦下，不往线上服务写任何东西
+  const DAY = 86400000, T0 = new Date('2026-10-31T07:00:00+08:00').getTime();
+  const others = [6, 5, 4.2, 3.5, 2].map((d, i) => ({ k: 'demo' + i, at: T0 - d * DAY, v: 1, dur: 260 + i * 15,
+    acts: [[5 + i, 1], [12 + i, 4], [20, 5], [27 + i, 2], [38, 1], [52 + i, 4], [66, 5], [80, 2], [95 + i, 1], [118, 4], [140, 5], [160, 1], [185, 4], [210, 2], [235, 1]] }));
+  // 取痕迹的请求先压住，镜头到了门口、拍过「稍等」再放行（不然片头字幕那几秒里就取完了）
+  let release; const gate = new Promise((res) => { release = res; });
+  await page.route((u) => !['127.0.0.1', 'localhost'].includes(u.hostname) && /^\/traces?$|^\/trace\//.test(u.pathname), async (r) => {
+    const get = r.request().method() === 'GET';
+    if (get) await gate;
+    r.fulfill({ status: get ? 200 : 201, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type' }, body: get ? JSON.stringify(others) : '{}' });
+  });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.install({ time: new Date('2026-10-31T07:00:00+08:00') });
-  // 预埋两次来访：昨天、三天前，各坐过一阵、斟过茶叩过指，这样一进门桌上就有「你 · 昨天」
+  // 时钟停住：只在逐帧 runFor 时走。否则截图花的真实时间会让「等痕迹最多 3 秒」提前到点
+  await page.clock.pauseAt(new Date('2026-10-31T07:00:01+08:00'));
+  // 预埋两次来访：昨天、三小时前，各坐过一阵、斟过茶叩过指，这样一进门桌上就有「你 · 昨天」（比别人的痕迹晚，排桌时和你同一桌）
   await page.addInitScript(() => {
     if (location.search.includes('view=')) return;
     const day = 86400000, now = Date.now();
     const v = (at, dur, acts) => ({ v: 1, at, dur, acts });
     localStorage.setItem('datai-visits', JSON.stringify([
-      v(now - 3 * day, 150, [[4, 1], [9, 4], [16, 2], [30, 5], [41, 1], [60, 5], [75, 2], [92, 4], [110, 1]]),
-      v(now - day, 180, [[6, 1], [13, 4], [20, 5], [25, 2], [45, 1], [58, 4], [72, 5], [80, 2], [99, 1], [120, 4], [140, 1]]),
+      v(now - day, 240, [[4, 1], [9, 4], [16, 2], [30, 5], [41, 1], [60, 5], [75, 2], [92, 4], [110, 1], [150, 4], [190, 1]]),
+      v(now - 3 * 3600000, 240, [[6, 1], [13, 4], [20, 5], [25, 2], [45, 1], [58, 4], [72, 5], [80, 2], [99, 1], [120, 4], [140, 1]]),
     ]));
     localStorage.setItem('datai-muted', '1');
   });
@@ -51,7 +64,7 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
       title: '搭台 · 茶楼早市',
       notes: [
         ['资料', '茶位、头泡洗杯、点心纸五档盖印、点心车、叩指谢茶、揭盖加水，都是广州茶楼本来就有的事；价钱取中档茶楼大概数'],
-        ['画面', '纯代码二维画布，十四样点心各画各的；桌上的别人是浏览器记着的你自己前几次来访的回放，灰色身影标明不是真人'],
+        ['画面', '纯代码二维画布，十四样点心各画各的；桌上的别人是最近来过的人和你自己前几次的回放，只留动作不留名字；门口等位与灰色身影是画的，标明不是真人。片中别人的回放为演示合成'],
         ['声音', '页面里的声音全部 Web Audio 合成，没有音频文件；片中配乐与音效由代码合成，原创五声小曲，按游戏日志卡点'],
         ['借鉴', '满桌开新桌、新人进最满的桌，这两条规则抽自一座韩国线上静修站的分殿做法；只取规则，不取皮'],
         ['构思', '小试AI · 与 Claude Code 协作完成'],
@@ -70,6 +83,8 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
     await page.screenshot({ path: path.join(frames, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 });
     n++;
   };
+  // 片头只拍字幕，不推游戏也不推页面时钟：门口那声「稍等」（等痕迹最多 3 秒）要留到镜头切过去再发生
+  const shotStill = async () => { await page.screenshot({ path: path.join(frames, String(n).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); n++; };
   const hold = async (s) => { for (let i = 0; i < Math.round(s * fps); i++) await shot(); };
   // 推进时钟不拍帧（等菜、等车）；直到条件满足或到时
   const skipUntil = async (cond, maxS) => {
@@ -92,10 +107,14 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
 
   // 0. 片头
   ev.marks.title = 0;
-  for (let i = 0; i < Math.round(2.6 * fps); i++) { const t = i / fps; await page.evaluate((o) => { document.querySelector('.vid-title').style.opacity = o; }, t < 0.4 ? t / 0.4 : t > 2.1 ? Math.max(0, 1 - (t - 2.1) / 0.5) : 1); await shot(); }
+  for (let i = 0; i < Math.round(2.6 * fps); i++) { const t = i / fps; await page.evaluate((o) => { document.querySelector('.vid-title').style.opacity = o; }, t < 0.4 ? t / 0.4 : t > 2.1 ? Math.max(0, 1 - (t - 2.1) / 0.5) : 1); await shotStill(); }
   await page.evaluate(() => { document.querySelector('.vid-title').style.opacity = 0; });
-  // 1. 门口：看一眼大堂，伙计指桌
-  await hold(1.6);
+  // 1. 门口：伙计先说稍等（在等别人的痕迹），回来了再指桌；门口排着画出来的等位
+  await hold(1.3);
+  release();
+  for (let i = 0; i < 4 * fps && await page.evaluate(() => window.__datai.snapshot().waiting); i++) await shot();
+  ev.marks.seated = n / fps;
+  await hold(2.2);
   await tapAt(act(0), '落座'); await hold(1.0);
   // 2. 饮乜茶：拣普洱，等壶到，头泡洗杯
   await hold(0.8); await tapAt('#cart button[data-tea="puer"]', '普洱');
