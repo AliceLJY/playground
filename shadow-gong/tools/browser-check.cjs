@@ -1,17 +1,17 @@
 // Browser acceptance for 灯影守夜, run by hand (not part of CI or the build).
 // Needs an existing Playwright install and Google Chrome; this repository does not install either.
 //   python3 -m http.server 8917 --bind 127.0.0.1          (inside shadow-gong/)
-//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [base-url] [--full]
+//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [base-url] [--full | --orientation-only]
 // Writes screenshots and report.json into <output-dir>. --full also plays a whole match in real time (about 3 minutes).
 const {chromium}=require('playwright');
 const fs=require('fs'),path=require('path');
-const args=process.argv.slice(2),full=args.includes('--full'),pos=args.filter(a=>!a.startsWith('--'));
+const args=process.argv.slice(2),full=args.includes('--full'),orientationOnly=args.includes('--orientation-only'),pos=args.filter(a=>!a.startsWith('--'));
 const out=pos[0]||'browser-check',base=pos[1]||'http://127.0.0.1:8917/index.html',origin=new URL(base).origin;
 fs.mkdirSync(out,{recursive:true});
 const shot=name=>path.join(out,name+'.png');
 
 (async()=>{
-  const browser=await chromium.launch({channel:'chrome',headless:true});
+  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-gpu','--ignore-gpu-blocklist','--use-angle=metal']});
   const report={base,browser:browser.version(),runs:[]};
   async function open(query,options={}){
     const ctx=await browser.newContext({viewport:{width:1280,height:720},deviceScaleFactor:1,...options});
@@ -23,6 +23,36 @@ const shot=name=>path.join(out,name+'.png');
     return{ctx,page,errors,external};
   }
   const read=page=>page.evaluate(()=>({metrics:window.__duel.metrics,probe:window.__duel.probe()}));
+
+  // B4 regression: a short orientation suggestion must yield to real combat hints.
+  if(orientationOnly){
+    let failures=0;
+    for(const [width,height] of [[390,664],[320,568],[844,340],[844,300],[1365,900]]){
+      const {ctx,page,errors,external}=await open('',{viewport:{width,height},deviceScaleFactor:width<1000?2:1,hasTouch:width<1000,isMobile:width<1000});
+      const checks=[],portrait=width<height&&width<700;
+      const check=(name,ok,data)=>{checks.push({name,ok:!!ok,data});if(!ok)failures++;console.log(`${ok?'PASS':'FAIL'} ${width}x${height} ${name}`);};
+      await page.click('#start');await page.waitForTimeout(150);
+      check('opening suggestion follows orientation',(await page.locator('#orientation').isVisible())===portrait);
+      await page.screenshot({path:shot(`${width}x${height}-opening`)});
+      await page.waitForFunction(()=>document.querySelector('#hint').classList.contains('on'),null,{polling:50});
+      check('first combat hint immediately hides orientation',!await page.locator('#orientation').isVisible(),await page.locator('#hint').innerText());
+      await page.screenshot({path:shot(`${width}x${height}-hint`)});
+      if(portrait){
+        // Pause before the first combat hint, so this tests the timer independently.
+        await page.reload();await page.waitForFunction(()=>window.__duel?.ready,null,{polling:100});
+        await page.click('#start');await page.click('#pause-button');await page.waitForTimeout(3200);
+        check('suggestion expires after three seconds without a combat hint',!await page.locator('#orientation').isVisible());
+      }
+      await page.goto(base+'?view=hero&seed=11');await page.waitForFunction(()=>window.__duel?.ready,null,{polling:100});
+      const state=await page.evaluate(()=>({view:__duel.view,frozen:__duel.frozen,stats:__duel.state.stats}));
+      check('hero hook reached a real perfect parry',state.view==='hero'&&state.frozen&&state.stats.perfect>0,state);
+      check('perfect-parry hint has no orientation overlay',!await page.locator('#orientation').isVisible()&&await page.locator('#hint').evaluate(e=>e.classList.contains('on')),await page.locator('#hint').innerText());
+      await page.screenshot({path:shot(`${width}x${height}-parry`)});
+      check('zero page errors and external requests',errors.length===0&&external.length===0,{errors,external});
+      report.runs.push({width,height,checks,metrics:await page.evaluate(()=>__duel.metrics)});await ctx.close();
+    }
+    await browser.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));process.exitCode=failures?1:0;return;
+  }
 
   // 1. fixed camera views (adaptive resolution locked, nothing else changed)
   for(const [name,query] of [['view-hero','?view=hero'],['view-hero-plain','?view=hero&plain=1'],['view-wide','?view=wide'],['view-stress','?view=stress']]){
