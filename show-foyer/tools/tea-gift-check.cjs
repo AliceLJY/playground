@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // Optional tea gift: real touch/keyboard inputs, real RAF under the page clock.
 // NODE_PATH="$(npm root -g)" node tools/tea-gift-check.cjs <page-url> <out-dir>
 const { chromium } = require('playwright');
@@ -25,7 +26,7 @@ function check(name, pass, detail) { report.checks.push({ name, pass: !!pass, de
       };
     });
     await p.clock.install({ time: new Date('2026-11-03T12:15:00Z') });
-    await p.goto(url); await p.waitForFunction(() => window.__foyer?.ready, null, { polling: 50 });
+    await p.goto(skipIntro(url)); await p.waitForFunction(() => window.__foyer?.ready, null, { polling: 50 });
     await p.clock.pauseAt(new Date('2026-11-03T12:15:01Z'));
     const snap = () => p.evaluate(() => __foyer.snapshot());
     const touch = async selector => {
@@ -55,7 +56,7 @@ function check(name, pass, detail) { report.checks.push({ name, pass: !!pass, de
     }));
     await touch('#btnSit'); await p.evaluate(() => __foyer.step(30000));
     let s = await snap();
-    check(`${tag} default first visit stays unchanged after 30s`, s.gift.phase === 'off' && s.residents === 3 && !s.usher && !s.gift.ticket && await p.locator('#btnTea').isDisabled(), s);
+    check(`${tag} intro=skip retains original foyer after 30s`, s.gift.phase === 'off' && s.residents === 3 && !s.usher && !s.gift.ticket && await p.locator('#btnTea').isDisabled(), s);
     // Save a real ordinary visit before the optional round, then prove no history changes.
     await touch('#btnLeave'); await p.clock.runFor(1500);
     const stored = await p.evaluate(() => localStorage.getItem('show-foyer-visits'));

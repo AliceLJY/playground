@@ -46,7 +46,7 @@
   function makeResident(i, seatNo, hall) {
     return { id: 'r' + i, kind: 'resident', seat: seatNo, hall, color: C.resident, label: '身影 · 非真人', pose: 'idle', poseUntil: 0, bubble: null, glow: 0, sched: D.residentSchedule(seed, i), prev: -1, here: true, gone: false };
   }
-  function enterHall(withGift = false) {
+  function enterHall(withGift = false, skipGift = false) {
     const now = FIXED ? 1700000000000 + 13 * 3600000 : Date.now();
     const plan = D.planGhosts(withGift ? [] : visits);
     const ghosts = plan.ghosts.map((g, i) => ({
@@ -67,7 +67,7 @@
       t: 0, tau: 0, phase: 'door', seatT: 0, enterMs: now, curtain: D.curtainAt(now), house: plan.house, me: plan.me, ghosts, residents,
       mePose: 'idle', mePoseUntil: 0, meBubble: null, meGlow: 0, lamps: [], claps: 0, teas: 0, snaps: [], effects: [], lastSound: null, visit: null,
       lastClockMs: now, gongFlash: 0, gongCount: 0, bells: [], light: 1, backstage: D.backstageSchedule(seed), bsPrev: -1, lastBackstage: null,
-      gift: D.newTeaGift(withGift), usher: null,
+      gift: D.newTeaGift(withGift || (!skipGift && !FIXED && Q.get('intro') !== 'skip' && visits.length === 0)), giftReplay: withGift, usher: null,
       curtainSway: -9, curtainOpen: -1, flash: -9, shows: (S ? S.shows : 0),
     };
     for (const g of ghosts) for (const a of g.acts) if (a[1] === 1 && g.hall === plan.me.hall) { S.lamps.push({ by: g.id, t: -1 }); g.lamp = true; break; }
@@ -89,13 +89,21 @@
   function giftActive() { return S.gift.phase !== 'off'; }
   function startGift() {
     // Switching modes preserves any ordinary visit already in progress.
-    if (!giftActive() && S.visit) { D.closeVisit(S.visit, S.t - S.seatT); visits = D.pushVisit(visits, S.visit); saveVisits(); }
+    if (!S.giftReplay && S.visit) { D.closeVisit(S.visit, S.t - S.seatT); visits = D.pushVisit(visits, S.visit); saveVisits(); }
     for (const o of document.querySelectorAll('.overlay.show')) hide(o.id);
     enterHall(true);
   }
   function exitGift() {
     for (const o of document.querySelectorAll('.overlay.show')) hide(o.id);
-    S.gift = D.teaGift(S.gift, 'exit'); enterHall();
+    if (S.giftReplay) { enterHall(false, true); return; }
+    // Skip only the invitation: retain the ordinary visit, seat and curtain time.
+    S.gift = D.teaGift(S.gift, 'exit');
+    if (S.usher) {
+      S.usher.seat = S.usherHomeSeat; S.usher.label = '身影 · 非真人';
+      S.usher.bubble = null; S.usher.pose = 'idle'; S.usher = null;
+    }
+    if (S.phase === 'curtain') show('curtainOverlay');
+    updateTop();
   }
   function neighbors() {
     if (S.phase !== 'seated') return [];
@@ -143,9 +151,9 @@
     if (code === 5) { snap('me', S.me.seat); D.recordAct(S.visit, tau, 5); hint('拍了一张舞台，开演后就不能拍了'); }
     if (code === 4) {
       D.recordAct(S.visit, tau, 4); D.closeVisit(S.visit, tau);
-      if (!giftActive()) { visits = D.pushVisit(visits, S.visit); saveVisits(); }
+      if (!S.giftReplay) { visits = D.pushVisit(visits, S.visit); saveVisits(); }
       S.lastSound = 'leave'; sfx.leave(); S.phase = 'door'; S.visit = null;
-      if (giftActive()) { enterHall(true); hint('重新落座后，再等领位人来'); }
+      if (S.giftReplay) { enterHall(true); hint('重新落座后，再等领位人来'); }
       else {
         hint('这一趟记下了，下次进门你就坐在厅里');
         const leaving = S;
@@ -177,7 +185,7 @@
     if (n === 3) { hint('三铃 · 开演'); curtainUp(); }
   }
   function curtainUp() {
-    if (S.phase === 'seated' && S.visit) { const tau = S.t - S.seatT; D.closeVisit(S.visit, tau); if (!giftActive()) { visits = D.pushVisit(visits, S.visit); saveVisits(); } S.visit = null; }
+    if (S.phase === 'seated' && S.visit) { const tau = S.t - S.seatT; D.closeVisit(S.visit, tau); if (!S.giftReplay) { visits = D.pushVisit(visits, S.visit); saveVisits(); } S.visit = null; }
     S.gift = D.teaGift(S.gift, 'curtain');
     S.phase = 'curtain'; S.curtainOpen = S.t; S.lastSound = 'curtain'; sfx.curtain();
     for (const g of S.ghosts) if (g.hall === S.me.hall && g.here && !g.gone && g.claps) { pose(g, 'clap', 1.6); bubble(g, '👏'); }
@@ -219,12 +227,12 @@
       }
       g.prev = S.tau;
     }
-    // 邀请由真实落座时间推进；只在可选趟里把一个灰影挪到空邻座。
+    // 邀请由真实落座时间推进；首访或可选重玩时把一个灰影挪到空邻座。
     if (giftActive() && S.phase === 'seated') {
       const before = S.gift.phase;
       S.gift = D.teaGift(S.gift, 'tick', { dt, seat: S.me.seat, occupied: hereOthers().filter(o => o.id !== 'r0').map(o => o.seat) });
       if (before === 'waiting' && S.gift.phase === 'invited') {
-        S.usher = S.residents[0]; S.usher.seat = S.gift.seat; S.usher.label = '领位人 · 非真人';
+        S.usher = S.residents[0]; S.usherHomeSeat = S.usher.seat; S.usher.seat = S.gift.seat; S.usher.label = '领位人 · 非真人';
         bubble(S.usher, '🍵'); pose(S.usher, 'look', 2); updateTop();
       }
     }
@@ -257,7 +265,8 @@
     el('btnSit').textContent = S.phase === 'door' ? '落座' : '已落座';
     el('curtainGiftBtn').hidden = !giftActive();
     const note = el('teaNote'); note.hidden = !giftActive();
-    note.textContent = !giftActive() ? '' : ({ door: '一杯茶的回礼 · 请先落座', waiting: '一杯茶的回礼 · 领位人稍后就来', invited: '领位人 · 非真人　🍵 请递一杯茶', done: '纸票已收好 · 点合影看看回礼', missed: '这次没递出茶 · 节目单里可以重试' })[S.gift.phase];
+    el('giftSkip').hidden = S.phase === 'curtain';
+    el('teaText').textContent = !giftActive() ? '' : ({ door: '一杯茶的回礼 · 请先落座', waiting: '一杯茶的回礼 · 领位人稍后就来', invited: '领位人 · 非真人　🍵 请递一杯茶', done: '纸票已收好 · 点合影看看回礼', missed: '这次没递出茶 · 节目单里可以重试' })[S.gift.phase];
   }
   let hintTimer = 0;
   function hint(text) { if (!text) { hintEl.classList.remove('show'); return; } hintEl.textContent = text; hintEl.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => hintEl.classList.remove('show'), 2600); }
@@ -273,7 +282,7 @@
   function programmePages() {
     const others = S.ghosts.filter((g) => g.hall === S.me.hall && g.here && !g.gone).map((g) => g.label);
     return [
-      { h: '节目单', b: (giftActive() ? '<p><button class="close" id="giftExit">回到普通候场</button> <button class="close" id="giftStart">再试一次</button></p><p class="small">落座后等 25 秒，给领位人递茶，收一张纸票。离席会重新计时。</p>' : '<p><button class="close" id="giftStart">一杯茶的回礼</button></p><p class="small">可选：落座后等 25 秒，给「领位人 · 非真人」递茶，收一张纸票。独立候场，不写入来访。</p>') + '<p class="big">' + SHOW.kind + '《' + SHOW.name + '》</p><p>' + SHOW.troupe + '</p><p class="small">候场厅 · 第 ' + S.me.hall + ' 厅 · 开演前</p><p class="small">剧目名与演出单位取自公开报道，是真实信息；这个候场厅是个人做着玩的小玩意，不是剧院或剧目的官方页面，不售票、不联网。以后有新戏上演，戏名会跟着换。</p>' },
+      { h: '节目单', b: (giftActive() ? '<p><button class="close" id="giftExit">回到普通候场</button> <button class="close" id="giftStart">再试一次</button></p><p class="small">落座后等 25 秒，给领位人递茶，收一张纸票。</p>' : '<p><button class="close" id="giftStart">一杯茶的回礼</button></p><p class="small">可选：落座后等 25 秒，给「领位人 · 非真人」递茶，收一张纸票。独立候场，不写入来访。</p>') + '<p class="big">' + SHOW.kind + '《' + SHOW.name + '》</p><p>' + SHOW.troupe + '</p><p class="small">候场厅 · 第 ' + S.me.hall + ' 厅 · 开演前</p><p class="small">剧目名与演出单位取自公开报道，是真实信息；这个候场厅是个人做着玩的小玩意，不是剧院或剧目的官方页面，不售票、不联网。以后有新戏上演，戏名会跟着换。</p>' },
       { h: '这出戏', b: '<p>据公开报道，' + SHOW.kind + '《' + SHOW.name + '》由' + SHOW.troupe + '创排演出，以岭南民俗舞蹈英歌为载体，把传统英歌舞和木雕、嵌瓷、潮绣、铁枝木偶、潮州油纸灯笼这些非遗元素揉进现代舞台，讲的是民族危难之际同仇敌忾、舍家卫国的家国情怀。近年在各地巡演，二〇二六年八月在北京天桥剧场参加第七届全国少数民族文艺会演。</p>' },
       { h: '英歌是什么', b: '<p>英歌是流行于广东潮汕一带的民间广场舞蹈，舞者扮作水浒人物，脸上勾画脸谱，双手各持一根短槌，边击槌边行进起舞，配以大鼓和锣钹，阵势很大。二〇〇六年，英歌（普宁英歌、潮阳英歌）列入第一批国家级非物质文化遗产名录。</p><p class="small">候场时如果听见幕后有鼓点，那是在热身。</p>' },
       { h: '观演小贴士', b: '<p>开演前有三遍铃：一铃在开演前三分钟，二铃在前一分钟，三铃就开演，场灯会跟着渐暗。</p><p>候场时拍舞台随意，开演后请把手机收好，不拍照不录像。</p><p>迟到请在换场的间隙入场。</p><p class="small">这里一场候场是五分钟：真剧场的半小时，压成了五分钟。</p>' },
@@ -510,6 +519,7 @@
   el('soundBtn').addEventListener('click', () => setMuted(!muted));
   el('progPrev').addEventListener('click', () => flip(-1));
   el('progNext').addEventListener('click', () => flip(1));
+  el('giftSkip').addEventListener('click', exitGift);
   el('nextShowBtn').addEventListener('click', () => nextShow());
   el('curtainGiftBtn').addEventListener('click', startGift);
   el('photoGiftExit').addEventListener('click', exitGift);
@@ -547,7 +557,7 @@
       effects: S.effects.map((e) => e.kind), visits: visits.length, hint: hintEl.textContent, hallTag: hallTag.textContent, countText: countEl.textContent, countdown: cdEl.textContent,
       gongOpen: el('gongOverlay').classList.contains('show'), photoOpen: el('photoOverlay').classList.contains('show'),
       programmeOpen: el('programmeOverlay').classList.contains('show'), programmePage: page, programmeTitle: el('progTitle').textContent,
-      gift: { ...S.gift }, usher: S.usher ? { seat: S.usher.seat, label: S.usher.label } : null,
+      gift: { ...S.gift }, giftReplay: S.giftReplay, usher: S.usher ? { seat: S.usher.seat, label: S.usher.label } : null,
       curtainOverlay: el('curtainOverlay').classList.contains('show'), frameStamp,
     };
   }

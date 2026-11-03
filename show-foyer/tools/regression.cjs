@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // F1: ending return paths, actual audio control, and every overlay's touch targets.
 // NODE_PATH="$(npm root -g)" node tools/regression.cjs <page-url> <out-dir>
 const { chromium } = require('playwright');
@@ -22,7 +23,7 @@ function check(name, pass, detail) { report.checks.push({ name, pass: !!pass, de
     p.on('pageerror', e => errors.push(e.message));
     p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
     await p.clock.install({ time: new Date('2026-11-03T12:15:00Z') });
-    await p.goto(url);
+    await p.goto(skipIntro(url));
     await p.waitForFunction(() => window.__foyer?.ready, null, { polling: 50 });
     report.environment.push(await p.evaluate(() => {
       const gl = document.createElement('canvas').getContext('webgl'), ext = gl?.getExtension('WEBGL_debug_renderer_info');

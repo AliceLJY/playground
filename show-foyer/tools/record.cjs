@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // Normal entry: 30 continuous seconds of real taps/keys, then an accelerated ending return.
 // NODE_PATH="$(npm root -g)" node tools/record.cjs <page-url> <out-dir>
 const { chromium } = require('playwright');
@@ -10,7 +11,7 @@ fs.mkdirSync(out, { recursive: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 664 }, deviceScaleFactor: 2, hasTouch: true });
   const page = await context.newPage(), errors = [], frames = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.clock.install({ time: new Date('2026-11-03T12:15:00Z') }); await page.goto(url);
+  await page.clock.install({ time: new Date('2026-11-03T12:15:00Z') }); await page.goto(skipIntro(url));
   await page.waitForFunction(() => window.__foyer?.ready, null, { polling: 50 });
   await page.clock.pauseAt(new Date('2026-11-03T12:15:01Z'));
   // CSS transitions use wall time, so only the recording disables them. Game rendering is unchanged.
