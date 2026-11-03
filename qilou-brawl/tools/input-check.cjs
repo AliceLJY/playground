@@ -26,7 +26,7 @@ const path = require('node:path');
       });
       page.on('pageerror', e => report.errors.push(e.message));
       page.on('console', m => { if (m.type() === 'error') report.errors.push(m.text()); });
-      await page.goto(base);
+      const entry=new URL(base);entry.searchParams.set('intro','skip');await page.goto(entry.href);
       await page.waitForFunction(() => window.__qilou?.ready, null, { polling: 100, timeout: 90000 });
       const shot = name => page.screenshot({ path: path.join(out, `${width}x${height}-${name}.png`) });
       const info = () => page.evaluate(() => window.__qilou.info());

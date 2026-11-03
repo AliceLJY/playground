@@ -213,6 +213,7 @@ function readInput() {
 function bindInput() {
   addEventListener('keydown', (e) => {
     if (e.repeat) return; sfx.unlock();
+    if (e.target?.tagName === 'BUTTON' && e.target.getClientRects().length && ['Space', 'Enter'].includes(e.code)) return;
     if (e.code === 'Escape' || e.code === 'KeyP') return togglePause();
     if (e.code === 'KeyM') { sfx.setMuted(!sfx.muted); $('mute').textContent = sfx.muted ? '🔇' : '🔊'; return; }
     if (paused) return;
@@ -276,10 +277,10 @@ function bindInput() {
   addEventListener('blur', leave);
   document.addEventListener('visibilitychange', () => { if (document.hidden) leave(); });
   $('resume').addEventListener('click', () => setPause(false));
-  $('start').addEventListener('click', () => { sfx.unlock(); startGame(); });
+  $('start').addEventListener('click', () => { sfx.unlock(); startGame(q.get('intro') !== 'skip' && !practiceSeen()); });
   $('practice').addEventListener('click', () => { sfx.unlock(); resetSession(); startGame(true); });
   $('practice-again').addEventListener('click', () => { resetSession(); startGame(true); });
-  $('practice-main').addEventListener('click', () => { resetSession(); startGame(); });
+  for (const id of ['practice-main', 'practice-skip', 'practice-pause-skip']) $(id).addEventListener('click', () => { rememberPractice(); resetSession(); startGame(); });
   for (const id of ['practice-menu', 'practice-exit']) $(id).addEventListener('click', () => { resetSession(); $('title').classList.remove('hidden'); });
   $('again').addEventListener('click', () => again());
   $('mute').addEventListener('click', () => { sfx.setMuted(!sfx.muted); $('mute').textContent = sfx.muted ? '🔇' : '🔊'; });
@@ -293,6 +294,8 @@ function setPause(on) {
 function togglePause() { setPause(!paused); }
 
 // ---------- 流程 ----------
+function practiceSeen() { try { return localStorage.getItem('qilou-practice-seen') === '1'; } catch { return false; } }
+function rememberPractice() { try { localStorage.setItem('qilou-practice-seen', '1'); } catch {} }
 function startGame(practice = false) {
   $('title').classList.add('hidden'); $('hud').classList.remove('hidden');
   document.body.classList.toggle('practice', practice);
@@ -317,6 +320,8 @@ function resetSession() {
 }
 function showPracticeEnd() {
   const win = sim.phase === 'practice-win';
+  if (win) rememberPractice();
+  $('practice-main').textContent = win ? '进入正式擂台' : '跳过，直接上擂台';
   $('practice-end').classList.remove('hidden');
   $('practice-end-title').textContent = win ? '借过喇 · 讨教完成' : '一分钟到';
   $('practice-end-sub').textContent = win ? '阿婆：擂台开锣，借借路！' : '先挡住三掌，再还一脚。再练一次？';
