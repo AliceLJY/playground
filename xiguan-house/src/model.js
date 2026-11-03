@@ -532,7 +532,35 @@
   // 某一时刻所有部件的世界坐标顶点
   function worldVerts(s, M = poseAt(s)) { return SOLIDS.map((sd) => sd.verts.map((v) => apply(M[sd.group], v))); }
 
+  // Optional gate hunt: shared input reducer, no dependency on a canvas or wall-clock time.
+  // Anchors lie on visible parts of the CLOSED entrance; the main-door anchor is between bars.
+  const GATES = [
+    { id: 'jiaomen', title: '脚门', at: [-40, 1, 90], pin: [0.14, 0.75],
+      clue: '先找脚门：最外侧的矮门。', text: '脚门是门口第一道屏风门。' },
+    { id: 'tanglong', title: '趟栊', at: [38, 11, 237.3], pin: [0.86, 0.22],
+      clue: '再找趟栊：横向圆木组成的拉门。', text: '趟栊沿水平方向滑动，推进墙里的槽。' },
+    { id: 'damen', title: '大门', at: [40, 27, 205.7], pin: [0.86, 0.53],
+      clue: '最后找大门：圆木后面的厚木门。', text: '大门朝里推开，门后用横闩扣门。' },
+  ];
+  const newHunt = () => ({ phase: 'idle', count: 0, feedback: '', remaining: 0 });
+  function huntAction(state, action) {
+    if (action.type === 'start') return { ...newHunt(), phase: 'finding' };
+    if (action.type === 'exit') return newHunt();
+    if (action.type === 'pick' && state.phase === 'finding') {
+      const index = GATES.findIndex((g) => g.id === action.id);
+      if (index !== state.count) return { ...state, feedback: index >= 0 && index < state.count ? 'repeat' : 'wrong' };
+      const count = state.count + 1;
+      return { phase: count === GATES.length ? 'reading' : 'finding', count, feedback: action.id, remaining: count === GATES.length ? 1800 : 0 };
+    }
+    if (action.type === 'elapse' && state.phase === 'reading' && Number.isFinite(action.ms) && action.ms >= 0) {
+      const remaining = Math.max(0, state.remaining - action.ms);
+      return { ...state, remaining, phase: remaining === 0 ? 'opening' : 'reading' };
+    }
+    return state;
+  }
+
   const api = {
+    GATES, newHunt, huntAction,
     SOLIDS, GROUPS, TIMELINE, T, OVERSHOOT, poseAt, apply, applyN, worldVerts, seg, ease,
     dims: { E, PITCH, D, HALF, WT, IN, YR, OVER, RIDGE_TOP, THV, DOOR, DOOR_H, LINTEL, STAND, BAR_COUNT, STEP_COUNT, TANG_TRAVEL, Z_HINGE_B },
     parts: { BARS, STEPS },

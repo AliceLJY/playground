@@ -179,9 +179,9 @@
     return order;
   }
   function path(c, pts) { c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]))); c.closePath(); }
-  function drawFace(F) {
+  function drawFace(F, highlighted = false) {
     path(ctx, F.scr);
-    const fill = shade(F.sd.mat, F.n);
+    const fill = highlighted ? '#9e3b2b' : shade(F.sd.mat, F.n);
     ctx.fillStyle = fill; ctx.fill();
     ctx.strokeStyle = fill; ctx.lineWidth = 0.9; ctx.lineJoin = 'round'; ctx.stroke(); // 盖住相邻两块之间的抗锯齿缝
     if (F.f.tex.length) {
@@ -283,7 +283,93 @@
     } finally { ctx=saved.ctx; K=saved.K; OX=saved.OX; OY=saved.OY; VIEW=saved.VIEW; RIGHT=saved.RIGHT; UP=saved.UP; }
   }
   document.getElementById('detail-close').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => { detailState = null; });
+  // A queued close event from the previous detail must not clear a newly opened one.
+  dialog.addEventListener('close', () => { if (!dialog.open) detailState = null; });
+
+  // The optional close-up reuses closed geometry; only its camera and found-part colour differ.
+  const huntDialog = document.getElementById('hunt-dialog'), huntStart = document.getElementById('hunt-start');
+  const welcome = document.getElementById('welcome');
+  let hunt = XG.newHunt(), huntTick = 0, welcomeTimer = null;
+  const gateButtons = XG.GATES.map((g, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'gate-pin'; b.dataset.gate = g.id;
+    b.textContent = String.fromCharCode(65 + i);
+    // Names support nonvisual input; visible letters leave the visual identification to the visitor.
+    b.setAttribute('aria-label', `${b.textContent} · ${g.title}`);
+    b.addEventListener('click', () => {
+      const next = XG.huntAction(hunt, { type: 'pick', id: g.id });
+      if (next === hunt) return;
+      hunt = next;
+      huntTick = performance.now(); updateHunt();
+    });
+    document.getElementById('hunt-stage').appendChild(b);
+    return b;
+  });
+  function hideWelcome() {
+    clearTimeout(welcomeTimer); welcomeTimer = null; welcome.hidden = true;
+  }
+  document.getElementById('welcome-close').addEventListener('click', hideWelcome);
+  function updateHunt() {
+    document.getElementById('hunt-progress').textContent = `${hunt.count} / 3`;
+    document.getElementById('hunt-prompt').textContent = XG.GATES[hunt.count]?.clue || '三件齐了，即将推开全屋。';
+    const last = XG.GATES.find((g) => g.id === hunt.feedback);
+    document.getElementById('hunt-feedback').textContent = last ? last.text : hunt.feedback === 'wrong'
+      ? '还不是这一件。已找到的保留，再试一次。' : hunt.feedback === 'repeat'
+        ? '这一件已经找到了。接着找下一件。' : '看引线指向的位置，点标记辨认。';
+    gateButtons.forEach((b, i) => {
+      const found = i < hunt.count;
+      b.dataset.found = String(found); b.setAttribute('aria-pressed', String(found));
+      b.textContent = found ? XG.GATES[i].title : String.fromCharCode(65 + i);
+    });
+    drawHunt();
+  }
+  function drawHunt() {
+    if (!huntDialog.open) return;
+    const c = document.getElementById('hunt-canvas'), r = c.getBoundingClientRect();
+    c.width = Math.round(r.width * DPR); c.height = Math.round(r.height * DPR);
+    const saved = { ctx, K, OX, OY, VIEW, RIGHT, UP };
+    try {
+      ctx = c.getContext('2d'); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.fillStyle = PAL.paper; ctx.fillRect(0, 0, r.width, r.height);
+      VIEW = [0, -1, 0]; RIGHT = [1, 0, 0]; UP = [0, 0, 1];
+      K = Math.min(r.width / 420, r.height / 360); OX = r.width / 2; OY = r.height / 2 + K * 170;
+      for (const f of sortFaces(buildFaces(0))) {
+        const found = (hunt.count > 0 && f.sd.name === '脚门') || (hunt.count > 1 && f.sd.group === 'tang') || (hunt.count > 2 && ['doorL', 'doorR'].includes(f.sd.group));
+        drawFace(f, found);
+      }
+      XG.GATES.forEach((g, i) => {
+        const [x, y] = P(g.at), px = r.width * g.pin[0], py = r.height * g.pin[1];
+        const b = gateButtons[i]; b.style.left = (px - 22) + 'px'; b.style.top = (py - 22) + 'px';
+        ctx.strokeStyle = i < hunt.count ? '#9e3b2b' : PAL.paper; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+        ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = PAL.paper; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      });
+    } finally { ctx = saved.ctx; K = saved.K; OX = saved.OX; OY = saved.OY; VIEW = saved.VIEW; RIGHT = saved.RIGHT; UP = saved.UP; }
+  }
+  function exitHunt() {
+    hunt = XG.huntAction(hunt, { type: 'exit' }); huntTick = 0;
+    gateButtons.forEach((b) => { b.dataset.found = 'false'; b.setAttribute('aria-pressed', 'false'); });
+    if (huntDialog.open) huntDialog.close();
+  }
+  huntStart.addEventListener('click', () => {
+    if (anim) return;
+    hideWelcome(); hunt = XG.huntAction(hunt, { type: 'start' });
+    huntDialog.showModal(); updateHunt(); gateButtons[0].focus();
+  });
+  document.getElementById('hunt-exit').addEventListener('click', exitHunt);
+  huntDialog.addEventListener('cancel', (e) => { e.preventDefault(); exitHunt(); });
+  huntDialog.addEventListener('close', () => { if (!huntDialog.open) exitHunt(); });
+  function advanceHunt(now) {
+    if (hunt.phase !== 'reading') return;
+    hunt = XG.huntAction(hunt, { type: 'elapse', ms: Math.max(0, now - huntTick) }); huntTick = now;
+    if (hunt.phase !== 'opening') return;
+    exitHunt();
+    // Finish in the existing overview, using its normal timeline and reduced-motion setting.
+    s = target = 0; stopped = false; trigger();
+    welcome.hidden = false; welcomeTimer = setTimeout(hideWelcome, 6000);
+    btn.focus();
+  }
 
   // ---------- 交互：点屋子、按钮、空格或回车；动画期间不接新指令 ----------
   const btn = document.getElementById('toggle'), pauseBtn = document.getElementById('inspect-pause');
@@ -293,9 +379,10 @@
   const view = params.get('view');
   if (view === 'open') s = target = T;
   else if (view === 'mid') s = target = +(params.get('t') || 1.9);
-  function label() { btn.textContent = target >= T ? '合上' : '推开'; btn.setAttribute('aria-pressed', target >= T ? 'true' : 'false'); pauseBtn.disabled = !anim && !stopped; pauseBtn.textContent = stopped ? '继续开合' : '停在这儿'; }
+  function label() { btn.textContent = target >= T ? '合上' : '推开'; btn.setAttribute('aria-pressed', target >= T ? 'true' : 'false'); pauseBtn.disabled = !anim && !stopped; pauseBtn.textContent = stopped ? '继续开合' : '停在这儿'; huntStart.disabled = !!anim; }
   function trigger() {
-    if (anim) return false;
+    if (anim || huntDialog.open) return false;
+    hideWelcome();
     const to = target >= T ? 0 : T;
     target = to; stopped = false;
     if (reduced) { s = to; dirty = true; label(); return true; }
@@ -310,7 +397,7 @@
     label(); dirty = true;
   });
   window.addEventListener('keydown', (e) => {
-    if (e.target.closest('button,dialog,input') || dialog.open) return;
+    if (e.target.closest('button,dialog,input') || dialog.open || huntDialog.open) return;
     if (e.code === 'Space' || e.key === 'Enter') {
       if (document.activeElement === btn && e.key === 'Enter') return; // 按钮自己会响应
       e.preventDefault(); trigger();
@@ -326,11 +413,13 @@
     }
   }
   function frame(now) {
+    advanceHunt(now);
     advance(now);
     if (dirty) { render(s); dirty = false; api.frames++; }
     requestAnimationFrame(frame);
   }
   const api = (window.__xiguan = {
+    get hunt() { return { ...hunt }; },
     get detail() { return detailState; }, get s() { return s; }, get busy() { return !!anim; }, get target() { return target; }, T, cycles: 0, frames: 0, faces: 0, ready: false,
     set(t) { anim = null; stopped = false; s = target = t; label(); dirty = true; },
     trigger, range: RANGE, view: VIEW,
@@ -341,7 +430,7 @@
     },
     project: (p) => P(p),
   });
-  window.addEventListener('resize', () => { layout(); if (dialog.open && detailState) drawDetail(detailState.index); });
+  window.addEventListener('resize', () => { layout(); if (dialog.open && detailState) drawDetail(detailState.index); if (huntDialog.open) drawHunt(); });
   layout(); label();
   requestAnimationFrame((t) => { frame(t); api.ready = true; });
 })();
