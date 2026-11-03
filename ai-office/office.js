@@ -1474,8 +1474,10 @@
   $('#meet-toggle').addEventListener('click',()=>{if(replay)return;const menu=$('#meet-menu');menu.hidden=!menu.hidden;$('#meet-toggle').setAttribute('aria-expanded',!menu.hidden);$('#treat-menu').hidden=true;$('#treat-toggle').setAttribute('aria-expanded',false);});
   document.querySelectorAll('#meet-menu button').forEach(b=>b.addEventListener('click',()=>sendMeet(b.dataset.kind)));
   // 找到我: opens a small menu of links and handles; any other menu button closes it, and it closes the others.
-  $('#find-toggle').addEventListener('click',()=>{ for(const id of ['treat','meet','play']){$(`#${id}-menu`).hidden=true;$(`#${id}-toggle`).setAttribute('aria-expanded',false);} const menu=$('#find-menu'); menu.hidden=!menu.hidden; $('#find-toggle').setAttribute('aria-expanded',!menu.hidden); });
-  for(const id of ['treat','meet','play','pose']) $(`#${id}${id==='pose'?'':'-toggle'}`).addEventListener('click',()=>{ $('#find-menu').hidden=true; $('#find-toggle').setAttribute('aria-expanded',false); });
+  // Optional chaining on purpose: for up to ten minutes after a deploy a cached older index.html (no 找到我 button) can meet
+  // this script; a throw here once left 探班 dead for a visitor (11-03).
+  $('#find-toggle')?.addEventListener('click',()=>{ for(const id of ['treat','meet','play']){$(`#${id}-menu`).hidden=true;$(`#${id}-toggle`).setAttribute('aria-expanded',false);} const menu=$('#find-menu'); if(!menu)return; menu.hidden=!menu.hidden; $('#find-toggle').setAttribute('aria-expanded',!menu.hidden); });
+  for(const id of ['treat','meet','play','pose']) $(`#${id}${id==='pose'?'':'-toggle'}`)?.addEventListener('click',()=>{ const m=$('#find-menu'); if(m){m.hidden=true; $('#find-toggle')?.setAttribute('aria-expanded',false);} });
   $('#treat-toggle').addEventListener('click', () => { if(replay)return;$('#meet-menu').hidden=true;$('#meet-toggle').setAttribute('aria-expanded',false); const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
   document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
   // 一起玩: page-local performances; party/song/cat scroll to the fun floor.
