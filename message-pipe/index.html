@@ -12,8 +12,8 @@ html,body{margin:0;height:100%;background:#181a26;color:#f4ecd8;font-family:-app
 [hidden]{display:none!important}
 #app{position:fixed;inset:0;display:grid;grid-template-rows:auto auto 1fr auto auto;padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));box-sizing:border-box;gap:6px}
 body.wide #app{grid-template-columns:minmax(240px,34%) 1fr;grid-template-rows:auto auto auto auto 1fr;column-gap:16px}
-body.wide #go{align-self:start}
-body.wide #hud,body.wide #chips,body.wide #msg,body.wide #go{grid-column:1}
+body.wide #bottom{align-self:start}
+body.wide #hud,body.wide #chips,body.wide #msg,body.wide #bottom{grid-column:1}
 body.wide #board{grid-column:2;grid-row:1/span 5}
 #hud{display:flex;flex-direction:column;gap:4px}
 #title{font-size:16px;font-weight:700;color:#ffb347;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -22,7 +22,9 @@ body.wide #board{grid-column:2;grid-row:1/span 5}
 #fill.low{background:#ff5d5d}
 #stats{font-size:13px;font-variant-numeric:tabular-nums;color:#c9c2b2}
 #chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:13px}
-.chip{padding:3px 7px;border-radius:12px;background:#2c3048;color:#f4ecd8;white-space:nowrap}
+.chip{padding:2px 8px 2px 4px;border-radius:14px;background:#2c3048;color:#f4ecd8;white-space:nowrap;display:inline-flex;align-items:center;gap:3px}
+.chip b{font-size:19px;line-height:1;color:#3fb8a0}.chip small{font-size:11px;color:#c9c2b2}
+.chip.done b{color:#9fe3c8}.chip.alert b,.chip.alert small{color:#181a26}
 .chip.done{background:#2f6b5a}
 .chip.alert{background:#ff5d5d;color:#181a26;font-weight:700}
 .arrow{color:#6b7090}
@@ -31,15 +33,26 @@ body.wide #board{grid-column:2;grid-row:1/span 5}
 #msg.alert{color:#ff8a7a;font-weight:700}
 #msg.good{color:#9fe3c8;font-weight:700}
 button{min-width:48px;min-height:48px;border:2px solid #ffb347;border-radius:12px;background:#24283a;color:#f4ecd8;font:700 17px inherit;font-family:inherit;touch-action:manipulation;cursor:pointer}
-#go{width:100%;min-height:56px;background:#ffb347;color:#181a26;font-size:20px}
+#bottom{display:flex;gap:8px}
+#go{flex:1;min-height:56px;background:#ffb347;color:#181a26;font-size:20px}
+#go.ready{animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{from{transform:scale(1);box-shadow:0 0 0 0 #ffb34766}to{transform:scale(1.04);box-shadow:0 0 0 8px #ffb34700}}
+#again{width:56px;min-height:56px;font-size:24px}
 #go:disabled{opacity:.45}
 #card{position:fixed;inset:0;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;background:#181a26e8;overflow:auto;padding:16px;box-sizing:border-box}
 #card .box{width:min(340px,100%);text-align:center;line-height:1.5}
 #card h1{font-size:26px;color:#ffb347;margin:4px 0 8px}
 #card h2{font-size:21px;color:#ffb347;margin:4px 0 6px}
 #card p{margin:8px 0;font-size:15px}
-#card .route{color:#9fe3c8;font-size:14px}
-#card .lesson{background:#24283a;border-left:3px solid #ffb347;padding:8px 10px;text-align:left;border-radius:6px}
+#card .route{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px}
+#card .rn{display:inline-flex;flex-direction:column;align-items:center;font-size:30px;line-height:1.1;color:#3fb8a0;font-weight:800}
+#card .rn small{font-size:11px;color:#c9c2b2;font-weight:400}
+#card .ra{color:#6b7090;font-size:18px}
+#card .big{font-size:18px;font-weight:700}
+#card .how{display:flex;justify-content:center;align-items:center;gap:6px;font-size:14px}
+#card .how b{font-size:22px;color:#3fb8a0}#card .how .go1{color:#ffb347}
+#card button.ghost{border-color:#6b7090;min-height:44px;font-size:15px}
+#card .lesson{background:#24283a;border-left:3px solid #ffb347;padding:6px 10px;text-align:left;border-radius:6px;font-size:13px;color:#c9c2b2}
 #card .small{font-size:13px;color:#c9c2b2}
 #card button{display:block;width:100%;margin:10px 0}
 #card .levels{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
@@ -54,7 +67,7 @@ button{min-width:48px;min-height:48px;border:2px solid #ffb347;border-radius:12p
   <div id="chips" aria-label="必经的站，按顺序"></div>
   <canvas id="board" aria-label="管道棋盘：点一格让它顺时针转 90 度"></canvas>
   <div id="msg" aria-live="polite"></div>
-  <button id="go" type="button">发车</button>
+  <div id="bottom"><button id="go" type="button" aria-label="发车">▶ 发车 🚲</button><button id="again" type="button" aria-label="重来，重新打乱">↻</button></div>
 </div>
 <div id="card" role="dialog" aria-modal="true"><div class="box" id="cardbox"></div></div>
 <noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>

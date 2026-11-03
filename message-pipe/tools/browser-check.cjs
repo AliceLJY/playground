@@ -30,6 +30,7 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
   const probe=p=>p.evaluate(()=>window.__pipe.probe());
   const visible=async(page,sel)=>page.evaluate(s=>{const e=document.querySelector(s);if(!e)return {ok:false};const r=e.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,hit=document.elementFromPoint(cx,cy);
     return {ok:r.width>=44&&r.height>=44&&r.left>=0&&r.top>=0&&r.right<=innerWidth+0.5&&r.bottom<=innerHeight+0.5&&!!hit&&(hit===e||e.contains(hit)),w:r.width,h:r.height,top:r.top,bottom:r.bottom};},sel);
+  async function pressGo(page){const b=await page.locator('#go').boundingBox();await page.mouse.click(b.x+b.width/2,b.y+b.height/2);} // it pulses when ready, so never 'stable' for page.click
   async function tapCell(page,size,idx){const p=await page.evaluate(i=>window.__pipe.cellCenter(i),idx);
     if(SIZES[size].hasTouch)await page.touchscreen.tap(p.x,p.y);else await page.mouse.click(p.x,p.y);}
 
@@ -61,6 +62,9 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     check(size+' 开始 shows the level intro',(await page.evaluate(()=>window.__pipe.snapshot().card))==='intro');
     await page.click('#c-go');await page.waitForTimeout(150);
     const taps=await page.evaluate(()=>window.__pipe.solution());
+    const p0=await probe(page);
+    check(size+' plain-player cue: a turning arrow sits on a pipe before the first tap, 发车 is not lit yet',p0.hint===taps[0]&&!p0.ready,{hint:p0.hint,first:taps[0],ready:p0.ready});
+    await page.screenshot({path:path.join(out,size+'-hint.png')});
     // response: the tap is in the state before the next frame
     const before=(await page.evaluate(()=>window.__pipe.snapshot())).steps;
     await tapCell(page,size,taps[0]);
@@ -70,12 +74,24 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     for(const i of taps.slice(1)){await tapCell(page,size,i);await page.waitForTimeout(60);}
     const s1=await page.evaluate(()=>window.__pipe.snapshot());
     check(size+' tapping the solution connects the route',s1.outcome==='delivered'&&s1.steps===taps.length,s1);
+    const p1=await probe(page);
+    check(size+' plain-player cue: once the pipe reaches the end the 发车 button pulses and the arrow is gone',p1.ready&&p1.hint===null,{ready:p1.ready,hint:p1.hint});
     await page.screenshot({path:path.join(out,size+'-connected.png')});
-    await page.click('#go');
+    await pressGo(page);
     await page.waitForFunction(()=>window.__pipe.snapshot().card==='cleared',null,{polling:100,timeout:15000}).catch(()=>{});
     const s2=await page.evaluate(()=>window.__pipe.snapshot());
     check(size+' 发车 delivers and shows the lesson card',s2.phase==='cleared'&&s2.card==='cleared',s2);
     await page.screenshot({path:path.join(out,size+'-cleared.png')});
+    const order=await page.evaluate(()=>[...document.querySelectorAll('#cardbox button,#cardbox .lesson')].map(e=>e.id||e.className));
+    check(size+' the 真事 line sits below the next/replay buttons, never in front of them',order.indexOf('lesson')>order.indexOf('c-again')&&order.indexOf('c-again')>order.indexOf('c-go'),order);
+    const ag=await visible(page,'#c-again');check(size+' ↻ 这关再玩 is whole and hittable on the cleared card',ag.ok,ag);
+    await page.click('#c-again');await page.waitForTimeout(200);
+    const s3=await page.evaluate(()=>window.__pipe.snapshot());
+    check(size+' ↻ 这关再玩 starts the same level clean',s3.card===null&&s3.level===0&&s3.steps===0&&s3.phase==='play',s3);
+    const rb=await visible(page,'#again');check(size+' in-game ↻ restart is whole and hittable',rb.ok,rb);
+    await page.click('#again');await page.waitForTimeout(150);
+    const s4=await page.evaluate(()=>window.__pipe.snapshot());
+    check(size+' in-game ↻ reshuffles with a fresh clock',s4.steps===0&&s4.seed!==s3.seed&&s4.timeLeft>34,s4);
     const p=await probe(page);
     check(size+' draw time (spec 6: mean ≤ 4 ms, worst ≤ 16 ms)',p.drawMean<=4&&p.drawMax<=16,{mean:+p.drawMean.toFixed(2),max:+p.drawMax.toFixed(2)});
     check(size+' no page errors, nothing fetched off-site',errors.length===0&&external.length===0,{errors,external});
@@ -87,12 +103,12 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     const {ctx,page,errors}=await open('',"phone");
     await page.evaluate(()=>window.__pipe.start(2,3));
     for(const i of await page.evaluate(()=>window.__pipe.bypass())){await tapCell(page,'phone',i);await page.waitForTimeout(40);}
-    await page.click('#go');
+    await pressGo(page);
     await page.waitForFunction(()=>{const s=window.__pipe.snapshot();return s.fail&&s.fail.kind;},null,{polling:50,timeout:15000}).catch(()=>{});
     const s=await page.evaluate(()=>window.__pipe.snapshot());
     check('phone level 3 shortcut ends in the empty box and lights 验货',s.fail&&s.fail.kind==='emptybox'&&s.fail.station===4,s.fail);
     const chip=await page.evaluate(()=>{const c=document.querySelector('.chip.alert');return c&&c.textContent;});
-    check('phone the 验货 chip turns red, the note is on screen',chip&&chip.includes('验货')&&(await page.textContent('#msg')).includes('空箱子'),chip);
+    check('phone the 验货 chip turns red, the note is on screen',chip&&chip.includes('验货')&&(await page.textContent('#msg')).includes('箱子是空的'),chip);
     await page.screenshot({path:path.join(out,'phone-emptybox-real.png')});
     check('phone level 3: no page errors',errors.length===0,errors);
     await ctx.close();
@@ -127,7 +143,7 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
       const el=Date.now()-t0;
       if(el>frame*1000){await page.screenshot({path:path.join(out,'opening',String(frame).padStart(2,'0')+'.png')});frame++;}
       if(el>2500+k*1600&&k<taps.length){await tapCell(page,'phone',taps[k]);k++;}
-      else if(k>=taps.length&&!sent&&el>2500+k*1600){await page.click('#go');sent=true;}
+      else if(k>=taps.length&&!sent&&el>2500+k*1600){await pressGo(page);sent=true;}
       await page.waitForTimeout(80);
       if((await page.evaluate(()=>window.__pipe.snapshot().card))==='cleared'){await page.screenshot({path:path.join(out,'opening','cleared.png')});break;}
     }

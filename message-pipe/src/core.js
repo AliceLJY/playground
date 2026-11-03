@@ -219,13 +219,28 @@ function create(opts){
   return s;
 }
 
+// Notes lead with the station numbers (①②③…), which is all a player needs; the names that follow are only flavour.
+const NUM='①②③④⑤⑥⑦⑧⑨';
 function failText(def,o){
-  const name=k=>'「'+def.stations[k].name+'」';
-  if(o.kind==='break')return o.station>=0?'管道在这儿断了，下一站该是'+name(o.station):'管道在这儿断了，还没接到「'+def.end.label+'」';
-  if(o.kind==='order')return name(o.at)+'之前要先过'+name(o.station);
-  if(o.kind==='missing')return '还没经过'+name(o.station)+'就到终点了';
-  if(o.kind==='emptybox')return '说做完了，带回来的是个空箱子：没人验货';
+  const tag=k=>NUM[k]+' '+def.stations[k].name;
+  if(o.kind==='break')return o.station>=0?'这里断了，下一站是 '+tag(o.station):'这里断了，还没接到终点';
+  if(o.kind==='order')return '先到 '+tag(o.station)+'，再到 '+tag(o.at);
+  if(o.kind==='missing')return '还差 '+tag(o.station)+' 没经过';
+  if(o.kind==='emptybox')return '箱子是空的！先过 '+tag(o.station)+' 再到终点';
   return '';
+}
+// Does the pipe from the start physically reach the end, whatever the stations say? (lights the send button)
+function reaches(def,cells){
+  const {cols,rows}=def;let c=def.start.c,r=def.start.r,dir=cells[r*cols+c].open;
+  for(let g=0;g<cols*rows*2+4;g++){
+    const nc=c+DC[dir],nr=r+DR[dir],inSide=opp(dir);
+    if(nc<0||nr<0||nc>=cols||nr>=rows)return false;
+    const cell=cells[nr*cols+nc],m=maskOf(cell);
+    if(!(m&(1<<inSide))||cell.type==='S')return false;
+    if(cell.type==='E')return true;
+    dir=cell.type==='X'?opp(inSide):[0,1,2,3].find(d=>d!==inSide&&(m&(1<<d)));c=nc;r=nr;
+  }
+  return false;
 }
 
 // The cat's polyline in cell units (cell centre = c+0.5, r+0.5): through each entry edge and each centre.
@@ -289,5 +304,5 @@ function run(level,seed,mode,boardSeed){
   return {state:s,stat:p.stat};
 }
 
-return {CFG,HUMAN,LEVELS,DC,DR,BASE,rotMask,maskOf,rng,layout,trace,solve,scramble,create,routePoints,pointAt,failText,pilot,run,costTo};
+return {NUM,reaches,CFG,HUMAN,LEVELS,DC,DR,BASE,rotMask,maskOf,rng,layout,trace,solve,scramble,create,routePoints,pointAt,failText,pilot,run,costTo};
 });

@@ -14,36 +14,37 @@ let S=null,seed=+params.get('seed')||((Date.now()%100000)+1),paused=false,frozen
 let geo={ts:60,ox:0,oy:0};
 
 // ---------- cards ----------
-function routeLine(def){return def.stations.map(s=>s.name).join(' → ');}
+const NUM=C.NUM;
+// numbers carry the rule; names are small flavour text
+function routeLine(def){return def.stations.map((s,k)=>`<span class="rn">${NUM[k]}<small>${s.name}</small></span>`).join('<span class="ra">→</span>');}
 function showCard(mode){
   cardMode=mode;const box=$('cardbox');$('card').hidden=false;
   const def=S?S.def:LV[0];
   if(mode==='title'){
     let lv='';for(let i=0;i<LV.length;i++)lv+=`<button type="button" data-level="${i}" ${i<unlocked?'':'disabled'} aria-label="第 ${i+1} 关">${i+1}</button>`;
-    box.innerHTML=`<h1>一条消息的旅程</h1><p>点一格管道，它顺时针转 90°。<br>把起点接到终点，小橘猫骑车载着消息跑过去。</p>
-      <p>路上的<b style="color:#3fb8a0">站</b>要按顺序全部经过：漏一站或走反了，猫会卡在半路。</p>
-      <button type="button" id="c-go">开始第 ${Math.min(unlocked,LV.length)} 关</button><p class="small">选关</p><div class="levels">${lv}</div>`;
+    box.innerHTML=`<h1>一条消息的旅程</h1><p class="how"><span>👆 点管道<br>转一转</span><span class="ra">→</span><span><b class="n1">① ② ③</b><br>按数字接</span><span class="ra">→</span><span><b class="go1">▶</b><br>发车</span></p>
+      <button type="button" id="c-go">▶ 开始第 ${Math.min(unlocked,LV.length)} 关</button><p class="small">选关</p><div class="levels">${lv}</div>`;
     $('c-go').onclick=()=>intro(Math.min(unlocked,LV.length)-1);
     box.querySelectorAll('[data-level]').forEach(b=>b.onclick=()=>intro(+b.dataset.level));
   }else if(mode==='intro'){
     box.innerHTML=`<p class="small">第 ${S.level+1} 关 / 共 ${LV.length} 关</p><h2>${def.title}</h2>
-      <p>从「${def.start.label}」到「${def.end.label}」，按顺序经过：</p><p class="route">${routeLine(def)}</p>
-      <p class="small">限时 ${def.time} 秒。猫跑错了要等它回来，也算时间。</p><button type="button" id="c-go">开始</button>`;
+      <p class="route"><span class="rn">▶</span><span class="ra">→</span>${routeLine(def)}<span class="ra">→</span><span class="rn">🏁</span></p>
+      <p class="big">⏱ ${def.time} 秒</p><button type="button" id="c-go">▶ 开始</button>`;
     $('c-go').onclick=hideCard;
   }else if(mode==='cleared'){
     const r=S.result,lastLevel=S.level===LV.length-1;
-    box.innerHTML=`<h2>送到了</h2><p class="small">用时 ${r.time.toFixed(1)} 秒 · 转了 ${r.steps} 下（最少 ${r.min} 下）</p>
-      <p class="lesson">${def.lesson}</p><button type="button" id="c-go">${lastLevel?'看全部五段流程':'下一关'}</button><button type="button" id="c-home">回标题</button>`;
-    $('c-go').onclick=()=>lastLevel?showCard('final'):intro(S.level+1);$('c-home').onclick=()=>showCard('title');
+    box.innerHTML=`<h2>🎉 送到了</h2><p class="big">⏱ ${r.time.toFixed(1)} 秒 · 👆 ${r.steps} 下 <span class="small">（最少 ${r.min} 下）</span></p>
+      <button type="button" id="c-go">${lastLevel?'▶ 看全部五段':'▶ 下一关'}</button><button type="button" id="c-again">↻ 这关再玩</button>
+      <p class="lesson">🐱 ${def.lesson}</p><button type="button" id="c-home" class="ghost">回标题</button>`;
+    $('c-go').onclick=()=>lastLevel?showCard('final'):intro(S.level+1);$('c-again').onclick=()=>{seed++;start(S.level,seed);hideCard();};$('c-home').onclick=()=>showCard('title');
   }else if(mode==='timeout'){
-    box.innerHTML=`<h2>超时了</h2><p>${S.rides?'猫跑了 '+S.rides+' 趟，还没送到。':'这次没来得及发车。'}</p><p class="small">管道会重新打乱，站的顺序不变。</p>
-      <button type="button" id="c-go">再来一次</button><button type="button" id="c-home">回标题</button>`;
+    box.innerHTML=`<h2>⏱ 时间到</h2><button type="button" id="c-go">↻ 再来一次</button><p class="small">管道会重新打乱，数字顺序不变。</p><button type="button" id="c-home" class="ghost">回标题</button>`;
     $('c-go').onclick=()=>{seed++;start(S.level,seed);hideCard();};$('c-home').onclick=()=>showCard('title');
   }else if(mode==='final'){
-    box.innerHTML=`<h2>五段流程都跑通了</h2><ol>${LV.map(d=>`<li><b>${d.title}</b>：${d.lesson}</li>`).join('')}</ol><button type="button" id="c-go">从第一关再玩</button>`;
+    box.innerHTML=`<h2>🎉 五关都通了</h2><button type="button" id="c-go">↻ 从第一关再玩</button><ol>${LV.map(d=>`<li><b>${d.title}</b>：${d.lesson}</li>`).join('')}</ol>`;
     $('c-go').onclick=()=>intro(0);
   }else if(mode==='pause'){
-    box.innerHTML=`<h2>暂停了</h2><p class="small">计时停着，管道和猫都没动。</p><button type="button" id="c-go">继续</button>`;
+    box.innerHTML=`<h2>⏸ 暂停</h2><button type="button" id="c-go">▶ 继续</button>`;
     $('c-go').onclick=()=>{paused=false;hideCard();};
   }
   const first=box.querySelector('button:not([disabled])');if(first&&!VIEW)first.focus({preventScroll:true});
@@ -52,7 +53,7 @@ function hideCard(){$('card').hidden=true;cardMode=null;last=performance.now();}
 function intro(level){seed++;start(level,seed);showCard('intro');}
 
 // ---------- state ----------
-function start(level,sd){S=C.create({level,seed:sd});anim={};face=1;paused=false;frozen=false;hud();layoutBoard();}
+function start(level,sd){S=C.create({level,seed:sd});S.hint=C.solve(S.def,S.cells).taps[0];anim={};face=1;paused=false;frozen=false;hud();layoutBoard();}
 function hud(){
   if(!S)return;const def=S.def;
   $('title').textContent=`第 ${S.level+1} 关 · ${def.title}`;
@@ -62,14 +63,15 @@ function hud(){
   let passed=tr.visited;
   if(S.ride){passed=0;tr.steps.forEach((sp,i)=>{const cell=S.cells[sp.r*def.cols+sp.c];if(cell.station>=0&&S.ride.pts.cum[2+2*i]<=S.ride.pos+1e-6)passed=Math.max(passed,cell.station+1);});if(S.fail)passed=S.ride.trace.visited;}
   S.passed=passed;
-  const chips=def.stations.map((s,k)=>`<span class="chip ${k===hi?'alert':k<passed?'done':''}">${k+1} ${s.name}</span>`).join('<span class="arrow">→</span>');
+  const chips=def.stations.map((s,k)=>`<span class="chip ${k===hi?'alert':k<passed?'done':''}"><b>${NUM[k]}</b><small>${s.name}</small></span>`).join('<span class="arrow">→</span>');
   if($('chips').dataset.k!==chips){$('chips').innerHTML=chips;$('chips').dataset.k=chips;}
   const msg=$('msg');
   if(S.fail){msg.textContent=S.fail.text;msg.className='alert';}
   else if(S.phase==='ride'){msg.textContent='小橘猫出发了……';msg.className='';}
   else if(S.phase==='cleared'){msg.textContent='送到了！';msg.className='good';}
-  else{msg.textContent=tr.outcome.kind==='delivered'?'路线接通了，点「发车」。':'点管道转 90°，接好后点「发车」。亮起来的是已经接上起点的部分。';msg.className='';}
+  else{const ok=C.reaches(def,S.cells);msg.textContent=ok?'▶ 接到终点了，发车！':'👆 点管道转一转，按 '+def.stations.map((x,k)=>NUM[k]).join(' ')+' 接到终点';msg.className=ok?'good':'';}
   $('go').disabled=S.phase!=='play';
+  $('go').classList.toggle('ready',S.phase==='play'&&!S.fail&&C.reaches(def,S.cells));
 }
 
 // ---------- geometry ----------
@@ -92,6 +94,7 @@ canvas.addEventListener('pointerdown',e=>{
   const idx=r*S.def.cols+c;if(S.tap(idx)){anim[idx]=performance.now();hud();}
   e.preventDefault();
 });
+$('again').addEventListener('click',()=>{if(!S||cardMode||frozen)return;seed++;start(S.level,seed);});
 $('go').addEventListener('click',()=>{if(S&&!cardMode&&!frozen&&S.dispatch())hud();});
 addEventListener('keydown',e=>{if(e.key==='Enter'&&!cardMode&&S&&document.activeElement!==$('go')){if(S.dispatch())hud();}if(e.key==='Escape'&&!cardMode&&S&&!VIEW)pause();});
 function pause(){if(!S||cardMode||frozen||S.phase==='cleared'||S.phase==='timeout')return;paused=true;showCard('pause');}
@@ -137,10 +140,12 @@ function draw(){
     if(cell.station>=0){
       const k=cell.station,hot=fail&&fail.station===k,blink=hot&&Math.floor(now/260)%2===0;
       const bg=hot?(blink?COL.alert:'#a83a3a'):k<(S.passed==null?tr.visited:S.passed)?COL.done:COL.station;
-      pill(cx,cy,def.stations[k].name,bg,hot?'#fff':COL.bg,Math.max(10,Math.min(14,ts*0.19)));
-      ctx.beginPath();ctx.arc(x+ts*0.2,y+ts*0.2,ts*0.12,0,7);ctx.fillStyle=bg;ctx.fill();
-      ctx.fillStyle=hot?'#fff':COL.bg;ctx.font=`800 ${Math.round(ts*0.15)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(k+1,x+ts*0.2,y+ts*0.21);
-      if(hot){ctx.strokeStyle=COL.alert;ctx.lineWidth=3;rr(x+2,y+2,ts-4,ts-4,ts*0.16);ctx.stroke();}
+      // the big number is the whole rule; the name underneath is only a skin
+      ctx.beginPath();ctx.arc(cx,cy-ts*0.04,ts*0.24,0,7);ctx.fillStyle=bg;ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#181a26';ctx.stroke();
+      ctx.fillStyle=hot?'#fff':COL.bg;ctx.font=`900 ${Math.round(ts*0.3)}px -apple-system,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(k+1,cx,cy-ts*0.02);
+      ctx.font=`600 ${Math.round(Math.max(9,ts*0.135))}px -apple-system,"PingFang SC",sans-serif`;ctx.fillStyle=hot?'#ff8a7a':'#c9c2b2';ctx.fillText(def.stations[k].name,cx,cy+ts*0.34);
+      if(hot){ctx.strokeStyle=COL.alert;ctx.lineWidth=3;rr(x+2,y+2,ts-4,ts-4,ts*0.16);ctx.stroke();
+        const ay=y-ts*0.02+Math.sin(now/140)*ts*0.05;ctx.fillStyle=COL.alert;ctx.beginPath();ctx.moveTo(cx-ts*0.13,ay-ts*0.16);ctx.lineTo(cx+ts*0.13,ay-ts*0.16);ctx.lineTo(cx,ay);ctx.fill();}
     }
   }
   if(fail&&fail.kind==='break'&&S.ride){ // red cross on the broken joint
@@ -158,10 +163,20 @@ function draw(){
   cat(ox+p.x*ts,oy+p.y*ts-ts*0.1,ts*0.74,face,moving?S.t:0,cargo,empty,S.phase==='cleared');
   for(const tm of [def.start,def.end]){ // terminal labels go on top of the cat so they stay readable when it parks there
     const cell=S.cells[tm.r*def.cols+tm.c],cx=ox+(tm.c+0.5)*ts,cy=oy+(tm.r+0.5)*ts,ly=cy+(cell.open===0?ts*0.3:-ts*0.3);
-    pill(cx,ly,tm.label,cell.type==='S'?'#ffd27a':'#9fe3c8',COL.bg,Math.max(11,Math.min(15,ts*0.2)));
+    const fs=Math.max(11,Math.min(15,ts*0.2)),pw=pill(cx,ly,(cell.type==='S'?'▶ ':'')+tm.label,cell.type==='S'?'#ffd27a':'#9fe3c8',COL.bg,fs);
+    if(cell.type==='E')flag(cx-pw/2-fs*0.95,ly,fs);
+  }
+  // first-move hint: a turning arrow on one pipe until the player taps anything
+  if(S.phase==='play'&&S.steps===0&&!S.ride&&S.hint!=null){
+    const hc=S.hint%def.cols,hr=Math.floor(S.hint/def.cols),hx=ox+(hc+0.5)*ts,hy=oy+(hr+0.5)*ts,a=0.55+0.45*Math.sin(now/220),rad=ts*0.4;
+    ctx.save();ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,ts*0.06);ctx.lineCap='round';
+    const a0=-Math.PI*0.4+now/600,a1=a0+Math.PI*1.5;ctx.beginPath();ctx.arc(hx,hy,rad,a0,a1);ctx.stroke();
+    const ex=hx+Math.cos(a1)*rad,ey=hy+Math.sin(a1)*rad,tx=-Math.sin(a1),ty=Math.cos(a1),hw=ts*0.1;
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(ex+tx*hw*1.4,ey+ty*hw*1.4);ctx.lineTo(ex-ty*hw,ey+tx*hw);ctx.lineTo(ex+ty*hw,ey-tx*hw);ctx.fill();ctx.restore();
   }
   drawMs.push(performance.now()-t0);if(drawMs.length>300)drawMs.shift();
 }
+function flag(x,y,s){ctx.fillStyle='#f4ecd8';ctx.fillRect(x-1,y-s*0.7,2,s*1.4);for(let i=0;i<3;i++)for(let j=0;j<2;j++){ctx.fillStyle=(i+j)%2?'#181a26':'#f4ecd8';ctx.fillRect(x+1+i*s*0.25,y-s*0.7+j*s*0.25,s*0.25,s*0.25);}}
 function phone(x,y,s){ctx.fillStyle=COL.bg;rr(x-s*0.55,y-s,s*1.1,s*2,s*0.25);ctx.fill();ctx.fillStyle='#ffd27a';rr(x-s*0.38,y-s*0.78,s*0.76,s*1.4,s*0.1);ctx.fill();}
 
 // Side view orange tabby on a bicycle, about `w` wide, code drawn after the cats in xiaoju-racing / aju-guangzhou-ride.
@@ -256,7 +271,7 @@ function snapshot(){
     fail:S.fail&&{kind:S.fail.kind,station:S.fail.station,text:S.fail.text},outcome:C.trace(S.def,S.cells).outcome.kind,frozen,paused,view:viewInfo};
 }
 function api(){
-  return {ready:true,view:viewInfo,snapshot,probe(){const g=geo,b=canvas.getBoundingClientRect(),go=$('go').getBoundingClientRect();return {snap:snapshot(),geo:{ts:g.ts,ox:g.ox,oy:g.oy,canvas:[b.left,b.top,b.width,b.height]},go:[go.left,go.top,go.width,go.height],viewport:[innerWidth,innerHeight],dpr:devicePixelRatio,
+  return {ready:true,view:viewInfo,snapshot,probe(){const g=geo,b=canvas.getBoundingClientRect(),go=$('go').getBoundingClientRect();return {hint:S&&S.phase==='play'&&S.steps===0&&!S.ride?S.hint:null,ready:$('go').classList.contains('ready'),snap:snapshot(),geo:{ts:g.ts,ox:g.ox,oy:g.oy,canvas:[b.left,b.top,b.width,b.height]},go:[go.left,go.top,go.width,go.height],viewport:[innerWidth,innerHeight],dpr:devicePixelRatio,
       drawMean:drawMs.length?drawMs.reduce((a,b)=>a+b,0)/drawMs.length:0,drawMax:drawMs.length?Math.max(...drawMs):0};},
     cellCenter,solution(){return C.solve(S.def,S.cells).taps;},bypass(){const seq=S.def.stations.map((s,k)=>k).filter(k=>!S.def.stations[k].verify);const r=C.solve(S.def,S.cells,seq);return r?r.taps:null;},
     start(level,sd){start(level,sd);hideCard();},advance,freeze(f){frozen=f!==false;},
