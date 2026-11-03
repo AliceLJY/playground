@@ -53,12 +53,24 @@
     const owner = currentRoster.find((a, k) => (Number.isInteger(a.desk) ? a.desk : k) === index);
     const color = owner?.color || '#829e87';
     if (!mv && owner?.courier) { mailCounter(g, x, y, owner, color); return; }
+    if (!mv && index === 0) { execDesk(g, x, y, owner, color); return; }
     r(g, '#4c4d4050', x - 25, y + 17, 56, 10);
     r(g, '#77563f', x - 26, y + 4, 52, 18); r(g, '#a97c52', x - 26, y + 4, 52, 11); r(g, '#d1a272', x - 28, y, 56, 10); r(g, '#e0b786', x - 28, y, 56, 2);
     r(g, '#715543', x - 24, y + 17, 4, 8); r(g, '#715543', x + 20, y + 17, 4, 8);
     r(g, '#35474a', x - 12, y - 12, 24, 16); r(g, '#213b40', x - 10, y - 10, 20, 12); r(g, '#71a29a', x - 8, y - 8, 15, 1); r(g, '#5c8d83', x - 8, y - 5, 9, 1); r(g, '#90b8a3', x - 8, y - 2, 12, 1); r(g, '#394947', x - 2, y + 4, 4, 3);
     r(g, '#e1d8ba', x - 9, y + 9, 18, 4); r(g, '#768474', x - 7, y + 10, 14, 1); r(g, color, x + 18, y - 2, 5, 7); r(g, '#e2ceac', x + 23, y, 2, 3);
     r(g, '#d9b98b', x - 23, y + 34, 46, 9); text(g, owner?.name || '', x, y + 41, 7, '#574e3b');
+  }
+  // The director's walnut desk: gold trim, two screens, a brass lamp and a gilt nameplate.
+  function execDesk(g, x, y, owner, color) {
+    r(g, '#4c4d4050', x - 27, y + 17, 58, 10);
+    r(g, '#3d2418', x - 28, y + 4, 56, 18); r(g, '#5a3524', x - 28, y + 4, 56, 11); r(g, '#6e4330', x - 30, y, 60, 10); r(g, '#8a5a3e', x - 30, y, 60, 2); r(g, '#d9a441', x - 30, y + 9, 60, 1);
+    r(g, '#d9a441', x - 26, y + 12, 52, 1); r(g, '#3d2418', x - 26, y + 17, 4, 8); r(g, '#3d2418', x + 22, y + 17, 4, 8);
+    for (const dx of [-21, -1]) { r(g, '#2a3436', x + dx, y - 13, 22, 15); r(g, '#1b2b30', x + dx + 2, y - 11, 18, 11); r(g, '#71a29a', x + dx + 4, y - 9, 12, 1); r(g, '#90b8a3', x + dx + 4, y - 6, 9, 1); r(g, '#5c8d83', x + dx + 4, y - 3, 11, 1); }
+    r(g, '#2a3436', x - 2, y + 2, 4, 3); r(g, '#e1d8ba', x - 9, y + 5, 18, 3); r(g, '#768474', x - 7, y + 6, 14, 1);
+    r(g, '#b07a32', x + 24, y - 1, 2, 2); r(g, '#b07a32', x + 25, y - 10, 1, 9); r(g, '#d9a441', x + 21, y - 13, 7, 4);
+    r(g, color, x - 27, y - 2, 5, 7); r(g, '#e2ceac', x - 22, y, 2, 3);
+    r(g, '#b07a32', x - 24, y + 33, 48, 11); r(g, '#efc66c', x - 23, y + 34, 46, 9); text(g, owner?.name || '', x, y + 41, 7, '#5a3b16');
   }
   // Cobbler sorts notes: pigeonholes behind a counter, no computer.
   function mailCounter(g, x, y, owner, color) {
@@ -126,10 +138,21 @@
   // Rooms are only floor tints and plaques: no new walls, so every route through the office stays as it was.
   function plaque(g, label, x, y, w, color = '#6d806a', ink = '#f2ebd3') { r(g, '#4c4d4040', x + 1, y + 1, w, 10); r(g, color, x, y, w, 10); text(g, label, x + w / 2, y + 8, 6, ink); }
   // A translucent block with a 1-pixel outline per department; the plaque sits inside its own block.
-  function zone(g, x, y, w, h, color) { r(g, color + '30', x, y, w, h); r(g, color + 'b0', x, y, w, 1); r(g, color + 'b0', x, y + h - 1, w, 1); r(g, color + 'b0', x, y, 1, h); r(g, color + 'b0', x + w - 1, y, 1, h); }
+  function zone(g, x, y, w, h, color, alpha = '30') { r(g, color + alpha, x, y, w, h); r(g, color + 'c0', x, y, w, 1); r(g, color + 'c0', x, y + h - 1, w, 1); r(g, color + 'c0', x, y, 1, h); r(g, color + 'c0', x + w - 1, y, 1, h); }
   function departments(g) {
     // Engineering & review: Codex, Kimi, Agy along the top row; its plaque hangs on the wainscot above them.
-    zone(g, 116, 88, 228, 66, '#4f86a8'); plaque(g, '工程审查部', 196, 74, 66, '#4f7d98');
+    // Director's office: warm gold inside the glass partition, so it never reads as part of the blue team next door.
+    r(g, '#d9a44138', 23, 90, 86, 69);
+    plaque(g, '总监室', 28, 91, 34, '#b07a32');
+    // A director's office worth the name: red-and-gold rug, trophy cabinet, brass floor lamp and a big plant.
+    r(g, '#7a2e2a', 30, 116, 72, 38); r(g, '#9c3b33', 32, 118, 68, 34); r(g, '#d9a441', 34, 120, 64, 1); r(g, '#d9a441', 34, 149, 64, 1); r(g, '#d9a441', 34, 120, 1, 30); r(g, '#d9a441', 97, 120, 1, 30);
+    for (let k = 0; k < 4; k++) { r(g, '#d9a441', 42 + k * 16, 134, 4, 2); r(g, '#d9a441', 43 + k * 16, 133, 2, 4); }
+    r(g, '#4c4d4040', 25, 139, 11, 3); r(g, '#4a2f22', 24, 104, 11, 36); r(g, '#6b4430', 25, 105, 9, 34);
+    for (const [y, c] of [[107, '#7c9c84'], [117, '#ad7058'], [127, '#2f68ae']]) { r(g, '#4a2f22', 25, y + 8, 9, 1); r(g, c, 26, y, 2, 8); r(g, '#e1d2a6', 28, y + 1, 2, 7); }
+    r(g, '#efc66c', 30, 127, 3, 3); r(g, '#d6a845', 31, 130, 1, 3); r(g, '#b07a32', 29, 133, 5, 2);
+    r(g, '#8c6a3a', 103, 106, 1, 30); r(g, '#b07a32', 101, 135, 5, 2); r(g, '#f3dc9a', 99, 101, 9, 6); r(g, '#d9b45a', 99, 106, 9, 1);
+    if (light && light !== 'day') { g.fillStyle = '#f9d98c22'; g.fillRect(92, 104, 17, 30); }
+    zone(g, 116, 88, 228, 66, '#2f73c4', '4c'); plaque(g, '工程审查部', 196, 74, 66, '#2f68ae');
     // Mailroom: Dots' X clippings on the bookshelf, Cobbler's sorting counter.
     zone(g, 18, 162, 174, 88, '#6f9f5a'); plaque(g, '收发室', 24, 164, 36, '#5f8a4d');
     r(g, '#efe2bd', 104, 180, 12, 8); r(g, '#b1966b', 106, 182, 8, 1); r(g, '#b1966b', 106, 185, 6, 1);
