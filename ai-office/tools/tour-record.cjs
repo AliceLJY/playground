@@ -38,7 +38,7 @@ const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
         g.fillStyle = '#25333480'; g.fillRect(0, 0, 1080, 92); g.font = '600 38px "PingFang SC",system-ui'; g.fillStyle = '#fff6dc'; g.textAlign = 'center'; g.fillText(tag, 540, 60);
         if (caption) {
           g.font = '600 46px "PingFang SC",system-ui'; const lines = []; let line = '';
-          for (const ch of caption) { if (g.measureText(line + ch).width > 900) { lines.push(line); line = ''; } line += ch; } lines.push(line);
+          for (const ch of caption) { if (g.measureText(line + ch).width > 900 && !'。，、！？；：'.includes(ch)) { lines.push(line); line = ''; } line += ch; } lines.push(line); // punctuation never starts a line
           const bh = 40 + lines.length * 64, by = top ? 130 : 1920 - 120 - bh;
           g.fillStyle = '#253334d8'; g.beginPath(); g.roundRect(60, by, 960, bh, 22); g.fill();
           g.fillStyle = '#fff6dc'; lines.forEach((l, j) => g.fillText(l, 540, by + 66 + j * 64));
