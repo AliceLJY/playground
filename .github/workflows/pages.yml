@@ -94,6 +94,12 @@ jobs:
           node --check tools/record.cjs
           node --test tests/*.test.cjs
 
+      - name: Check Coal Shift
+        working-directory: coal-shift
+        run: |
+          node --check verify.cjs
+          node --test tests/*.test.cjs
+
       - name: Check Slipper Smash
         working-directory: slipper-smash
         run: |
@@ -243,6 +249,12 @@ jobs:
           mkdir -p _site/memory-fade
           cp memory-fade/index.html _site/memory-fade/index.html
           cp -R memory-fade/src _site/memory-fade/
+
+      - name: Assemble Coal Shift
+        run: |
+          # 煤球打工记：Codex 一句话做的单文件小游戏，没有构建步骤，原样发布
+          mkdir -p _site/coal-shift
+          cp coal-shift/index.html _site/coal-shift/index.html
 
       - name: Assemble Slipper Smash
         run: |
