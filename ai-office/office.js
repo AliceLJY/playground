@@ -602,7 +602,7 @@
     cats.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870}].filter(p=>p&&!Core.blocked(p.x,p.y,L));
     const go=(c,p)=>{ if(c.goal&&Core.distance(c.goal,p)<4)return; c.goal=p; c.path=Core.route(c,p,L); };
     // A chase starts now and then (never at night or while someone is petting/feeding): the chaser keeps re-aiming at the runner.
-    if (!catPlay && !sleepy && !fed && !petter && Math.random()<dt/35) { const runner=cats[Math.random()<.5?0:1]; catPlay={phase:'chase',runner,chaser:cats[1-runner.k],until:sim.time+9,aim:0}; runner.goal=null; go(runner,cats.spots[Math.floor(Math.random()*cats.spots.length)]); }
+    if (!catPlay && !sleepy && !fed && !petter && !cats.some(c=>c.task) && Math.random()<dt/35) { const runner=cats[Math.random()<.5?0:1]; catPlay={phase:'chase',runner,chaser:cats[1-runner.k],until:sim.time+9,aim:0}; runner.goal=null; go(runner,cats.spots[Math.floor(Math.random()*cats.spots.length)]); }
     if (catPlay && (sleepy||fed||petter)) catPlay=null;
     if (catPlay?.phase==='chase') {
       const {runner,chaser}=catPlay;
@@ -610,6 +610,14 @@
       if (Core.distance(runner,chaser)<10 || sim.time>catPlay.until) { catPlay={phase:'tussle',a:runner,b:chaser,until:sim.time+2.5}; runner.path=[]; chaser.path=[]; }
     } else if (catPlay?.phase==='tussle' && sim.time>catPlay.until) { catPlay=null; for(const c of cats){c.goal=null;c.wait=2+Math.random()*4;} }
     for (const c of cats) {
+      // Courier duty (Alice: 「也可以让猫咪替我送信」): runs from the boss to the colleague with the note, then is free again.
+      if (c.task) {
+        const o=c.task,a=sim.actors.find(a=>a.id===o.id);
+        if (!c.path.length) { if(!o.arrived){o.arrived=sim.time;} if(sim.time-o.arrived>2.5){o.done=true;c.task=null;c.wait=3;} }
+        else if (a && sim.time-(c.reaim||0)>2) { c.reaim=sim.time; c.path=Core.route(c,a,L); }
+        let step=dt*34; while (step>0 && c.path.length) { const q=c.path[0],d=Core.distance(c,q); if(d<=step){c.x=q.x;c.y=q.y;c.path.shift();step-=d;} else {c.x+=(q.x-c.x)/d*step;c.y+=(q.y-c.y)/d*step;step=0;} }
+        continue;
+      }
       const playing=!!catPlay;
       if (!playing) {
         const want=fed||petter||sleepy?homeOf(c.k):null;
@@ -620,8 +628,8 @@
       while (step>0 && c.path.length) { const q=c.path[0],d=Core.distance(c,q); if(d<=step){c.x=q.x;c.y=q.y;c.path.shift();step-=d;} else {c.x+=(q.x-c.x)/d*step;c.y+=(q.y-c.y)/d*step;step=0;} }
     }
     const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
-    return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,fed,running:catPlay?.phase==='chase',
-      tussle:catPlay?.phase==='tussle',petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length}));
+    return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,carrying:!!c.task&&!c.task.arrived,fed,running:catPlay?.phase==='chase',
+      tussle:catPlay?.phase==='tussle',petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
   }
   function drawCats() {
     const list=catTick(); if(!list)return; const t=sim.time;
@@ -636,7 +644,8 @@
       r(ctx,'#2f3a3c',p.x+5,p.y-8,1,1);
       r(ctx,L.stripe,p.x-4+leg,p.y-1,1,2); r(ctx,L.stripe,p.x+2-leg,p.y-1,1,2); r(ctx,L.patch?L.stripe:L.fur,p.x-8,p.y-8+(Math.floor(t*(c.running?8:2))%2),3,2);
       if (c.tussle && Math.floor(t*6+c.k)%2) r(ctx,'#f4f1e6',p.x+(c.k?-6:8),p.y-10,3,2);
-      if (c.petted||c.fed) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
+      if (c.carrying) { r(ctx,'#fffaf0',p.x+7,p.y-7,5,4); r(ctx,'#c1b597',p.x+8,p.y-5,3,1); }
+      if ((c.petted||c.fed) && !c.carrying) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
     }
     if (list[0].tussle) { const mx=(list[0].x+list[1].x)/2,my=Math.min(list[0].y,list[1].y)-16; text(ctx,'喵！',mx,my-(t*4%2|0),6,'#b5473a'); for(let j=0;j<3;j++) r(ctx,'#ffffffc0',mx-8+j*7,my+4+((t*9+j*3)%5|0),2,2); }
   }
@@ -727,8 +736,9 @@
     if (mv || !sim) return;
     const targets=sim.actors.filter(a=>a.i===0||a.i===7);
     if (!orderSeen || orderSeen.sim!==sim) { orderSeen={sim,map:new Map(targets.map(a=>[a.id,a.status]))}; orders=[]; return; }
-    for (const a of targets) { const before=orderSeen.map.get(a.id); if (a.status==='busy' && before && before!=='busy') orders.push({id:a.id,at:sim.time,kind:Core.distance(a,sim.boss)<50?'note':orderCount++%2?'drone':'plane',from:{x:sim.boss.x,y:sim.boss.y-18}}); orderSeen.map.set(a.id,a.status); }
-    orders=orders.filter(o=>sim.time-o.at<3.4 && sim.time>=o.at);
+    for (const a of targets) { const before=orderSeen.map.get(a.id); if (a.status==='busy' && before && before!=='busy') orders.push({id:a.id,at:sim.time,kind:Core.distance(a,sim.boss)<50?'note':['plane','drone',C.catSpot?'cat':'plane'][orderCount++%3],from:{x:sim.boss.x,y:sim.boss.y-18}}); orderSeen.map.set(a.id,a.status); }
+    for (const o of orders) if (o.kind==='cat' && !o.cat && cats) { const c=cats[orderCount%2]; catPlay=null; Object.assign(c,{x:sim.boss.x+8,y:sim.boss.y,goal:null}); c.path=Core.route(c,sim.actors.find(a=>a.id===o.id)||c,C.id); c.task=o; o.cat=c.look.name; }
+    orders=orders.filter(o=>o.kind==='cat' ? !o.done && sim.time-o.at<40 : sim.time-o.at<3.4 && sim.time>=o.at);
   }
   function drawOrders() {
     watchOrders(); const t=sim.time;
@@ -736,6 +746,7 @@
       const a=sim.actors.find(a=>a.id===o.id); if(!a)continue;
       const to={x:a.x,y:a.y-26},p=Math.min(1,(t-o.at)/1.8),e=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
       const x=o.from.x+(to.x-o.from.x)*e, y=o.from.y+(to.y-o.from.y)*e-(o.kind==='plane'?Math.sin(Math.PI*p)*36:Math.sin(Math.PI*p)*14+Math.sin(t*10));
+      if (o.kind==='cat') { if (o.arrived) text(ctx,`${o.cat}送到啦`,to.x,to.y-4-Math.min(4,(t-o.arrived)*6),6,'#8c3a2e'); continue; }
       if (o.kind==='note') { if (t-o.at>.3) text(ctx,'收到！',to.x,to.y-4,6,'#8c3a2e'); continue; }  // she answered it face to face at her desk
       if (p<1) {
         if (o.kind==='plane') { const dir=to.x>=o.from.x?1:-1; r(ctx,'#fffaf0',x-4*dir,y-1,8,2); r(ctx,'#fffaf0',x-2*dir,y-3,4,2); r(ctx,'#d9d2bc',x-4*dir,y+1,6,1); for(let j=1;j<4;j++) r(ctx,'#ffffff60',x-dir*(6+j*4),y+j,2,1); }
