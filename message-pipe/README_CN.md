@@ -36,7 +36,7 @@
 cd message-pipe && python3 -m http.server 8942
 ```
 
-打开 `http://127.0.0.1:8942/`。测试：`node --test tests/*.test.cjs`。浏览器验收（需要本机已有 Playwright 和 Chrome）：`NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <输出目录> [页面地址]`。发布时原样拷贝 `index.html` 和 `src/`。
+打开 `http://127.0.0.1:8942/`。演示片（竖屏 1080×1920，从标题玩到通关再接署名页，需要 ffmpeg）：`NODE_PATH="$(npm root -g)" node tools/record.cjs <画面.mp4> <events.json> --endcard <署名页目录>`，配乐 `python3 tools/demo-music.py <events.json> <配乐.wav>`（需要 numpy）。测试：`node --test tests/*.test.cjs`。浏览器验收（需要本机已有 Playwright 和 Chrome）：`NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <输出目录> [页面地址]`。发布时原样拷贝 `index.html` 和 `src/`。
 
 ## 验收记录
 
