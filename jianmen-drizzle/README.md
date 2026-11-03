@@ -16,7 +16,7 @@ Turn around: Gao Jianfu never painted that side.
 | Look closer / wider | wheel | pinch |
 | Sound | the round sound button, top left | same |
 
-Hold your gaze on a place for a second; the ink ring in the middle fills. The poem slip, top right, starts with the four lines traced in faint red; each find inks its line. The compass bar along the bottom shows which way each of the four places lies, marked ↑ if it is above you and ↓ if below. After 25 seconds without a find, a short hint and an arrow appear. A visit takes two or three minutes.
+Hold your gaze on a place for a second; the ink ring in the middle fills. The poem slip, top right, starts with the four lines traced in faint red; each find inks its line. The compass bar along the bottom shows which way each of the four places lies, marked ↑ if it is above you and ↓ if below. After 25 seconds without a find, a short hint and an arrow appear. A visit takes two or three minutes. After completing the poem, “再看看” lets you keep looking around. The “原画” button at the top left returns to the ending scroll, where “重新入画” starts a fresh visit.
 
 ## How it was made
 

@@ -79,6 +79,7 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
 #arrow.on{opacity:.8}
 #arrow i{position:absolute;left:58px;top:-9px;width:0;height:0;border-left:16px solid var(--ochre);border-top:9px solid transparent;border-bottom:9px solid transparent}
 #sound{position:fixed;left:max(14px,env(safe-area-inset-left));top:max(14px,env(safe-area-inset-top));z-index:6;width:38px;height:38px;border-radius:50%;border:1px solid rgba(43,41,37,.5);background:rgba(237,230,214,.75);font-family:var(--kai);font-size:17px;color:var(--ink);cursor:pointer}
+#painting{position:fixed;left:max(14px,env(safe-area-inset-left));top:max(62px,calc(env(safe-area-inset-top) + 48px));z-index:6;min-width:44px;min-height:44px;padding:6px 12px;border:1px solid rgba(43,41,37,.5);border-radius:2px;background:rgba(237,230,214,.85);font-family:var(--kai);font-size:17px;color:var(--ink);cursor:pointer}
 #sound.off{opacity:.45;text-decoration:line-through}
 #how{position:absolute;left:50%;top:max(16px,env(safe-area-inset-top));transform:translateX(-50%);font-size:14px;letter-spacing:.15em;opacity:0;transition:opacity 1.2s ease;text-shadow:0 0 8px rgba(226,221,207,.95)}
 #how.on{opacity:.75}
@@ -120,6 +121,8 @@ button.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)
   <div id="compass"><div class="tks"></div><i class="base"></i><i class="needle"></i></div>
 </div>
 <button id="sound" class="hidden" aria-label="声音开关">声</button>
+
+<button id="painting" class="hidden" aria-label="回到原画，可重新入画">原画</button>
 
 <div id="intro" class="scroll-screen">
   <img src="assets/painting.jpg" alt="高剑父《山水》，1926 年，写陆游剑门诗意">
