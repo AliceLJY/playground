@@ -571,11 +571,19 @@
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    if (!boss && !a.visitor && sim.inBed?.(a)) {
+    const charging = !mv && !boss && a.activity === 'quota' && !a.path.length && sim.chargeBed?.() && C.distance(a, sim.chargeBed()) < 1;
+    if (!boss && !a.visitor && (sim.inBed?.(a) || charging)) {
       // Tucked into a berth (spot = foot of the mattress line): head on the pillow, blanket in their colour, zZz.
       const t = sim.time, x = Math.round(a.x), y = Math.round(a.y), k = (t + a.i * .7) % 3, rise = Math.sin(t * 1.4 + a.i) > 0 ? 0 : 1;
       r(ctx, '#4b4639', x - 11, y - 10, 7, 3); r(ctx, '#e3b58d', x - 10, y - 8, 6, 5); r(ctx, '#273a34', x - 9, y - 6, 3, 1);
       r(ctx, a.color, x - 3, y - 9 + rise, 14, 7 - rise); r(ctx, '#ffffff40', x - 3, y - 9 + rise, 14, 1);
+      if (charging) {
+        // A battery over the pillow fills as the quota window runs out.
+        const left = Math.max(0, (sim.quota[a.id] || 0) - now()), level = Math.max(1, Math.min(9, Math.round(9 * (1 - left / 3600000))));
+        r(ctx, '#3e4b47', x - 2, y - 22, 13, 7); r(ctx, '#3e4b47', x + 11, y - 20, 2, 3); r(ctx, '#e8eef2', x - 1, y - 21, 11, 5); r(ctx, level > 6 ? '#67b779' : level > 3 ? '#efc66c' : '#d96952', x, y - 20, level, 3);
+        if (Math.floor(sim.time * 2) % 2) text(ctx, '⚡', x + 4, y - 24, 6, '#d9a441');
+        return;
+      }
       text(ctx, 'z', x + 8, y - 12 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 12, y - 18 - k * 2, 8, '#45534b');
       return;
     }
@@ -907,7 +915,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? '额度用完 · 罚站中' : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv ? '打盹中 · 随叫随到' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : '额度用完 · 回休息室充电') : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv ? '打盹中 · 随叫随到' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
