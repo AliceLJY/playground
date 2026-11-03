@@ -3,7 +3,7 @@
 const fs=require('node:fs'),path=require('node:path');
 async function inspectLayout(page){
  return page.evaluate(()=>{
-  const selectors=['.brand','.badge','.copy h1','.copy p','.credit','.tele','.tools button','.hour span','#hour'];
+  const selectors=['.brand','.badge','.copy h1','.copy p','.credit','.tele','.tools button','[data-place]','.hour span','[data-hour]','#hour'];
   const boxes=selectors.flatMap(s=>Array.from(document.querySelectorAll(s)).filter(el=>el.checkVisibility({checkVisibilityCSS:true})).map((el,i)=>{
    const r=el.getBoundingClientRect(),clickable=el.matches('button,input'),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
    return{id:s+'['+i+']',x:r.x,y:r.y,w:r.width,h:r.height,inside:r.x>=0&&r.y>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,hit:!clickable||hit===el||el.contains(hit),clickable};
@@ -11,7 +11,7 @@ async function inspectLayout(page){
   const clashes=[];for(let i=0;i<boxes.length;i++)for(let j=i+1;j<boxes.length;j++){const a=boxes[i],b=boxes[j];if(a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y)clashes.push([a.id,b.id]);}
   const board=window.__huacheng.subjectBoxes().base,copy=document.querySelector('.copy').getBoundingClientRect();
   const copyVisible=getComputedStyle(document.querySelector('.copy')).visibility==='visible';
-  const boardAboveCopy=!copyVisible||(board.front&&board.y1*innerHeight<=copy.top);
+  const boardAboveCopy=innerWidth/innerHeight>=.8||!copyVisible||(board.front&&board.y1*innerHeight<=copy.top);
   return{boxes,clashes,copyVisible,boardAboveCopy,boardBottom:board.y1*innerHeight,copyTop:copy.top,pass:boxes.every(b=>b.inside&&b.hit)&&clashes.length===0&&boardAboveCopy};
  });
 }

@@ -69,3 +69,56 @@ Node 原文摘要：
 四张均在最终构建后由 tools/shot.cjs 重新输出，并用看图工具逐张打开。较早迭代图片放在 shots/r1/review/，用来说明修图过程，不能当最终验收结果。
 
 本轮未制作 README、录屏、音乐；未修改 CI、首页或其他玩意；未暂存、提交、推送。源码与打包的实测报告分别为 shots/r1/source/report.json 和 shots/r1/browser/report.json。
+
+## F4 交互修复（2026-11-03）
+
+范围仅为本目录体检「值得改的」第 1、2 条，基线 `217c874`。Three.js 仍为 0.186.1，未升级依赖，未改几何、材质、光照、原有机位和默认路线。只在修复分支提交，不推送、不发布。
+
+- 地名按钮经正式 `rig.goTo()` 沿既有路线较短方向缓入缓出，抵达后留驻；没有接到测试 `setView()`，场景时间和交通持续推进。可随时拖动、缩放、重选或复位；「自动游览 / 留在这里 · 继续」常显当前控制状态，显式继续立即开始 3 秒平滑归还。
+- 地名导航沿用固定近景的隐藏介绍文案行为。实现中间版曾在桌面「塔下」恢复文案、压住广州塔；真实点击复现为 `copyVisible: true`（`before/detail-copy.json/png`），补入三地名 × 两视口的检查后修复，未挪机位或景物。
+- 时间条命中高度由 24 增为 44 CSS px，细线 2 px、圆点 12 px 保留；三个时段文字变成至少 44×44 的原生按钮。短竖屏为控件让出空间，隐藏介绍小字；其余文字及主标题保留。
+- 新增 `tests/navigation.test.cjs` 两项：真实推进 5 个出发点 × 3 个目的地，检查速度、净空、准确到达、60 秒留驻、电车行驶样本、显式继续及输入中断。旧 19 项继续运行。
+- 新增 `tools/controls-check.cjs`：正常入口真实触控/鼠标/键盘，验证准确到达后 8 秒不归还、实际渲染电车移动、切换游览、复位、时段预设、细线之外的点击；五种视口测完整性、重叠和中心命中。`tools/layout.cjs` 扩充新控件采样；原先只用于竖屏的「沙盘在文案上方」判据明确只在竖屏执行，横屏仍检查控件边界与重叠。
+
+### 红绿证据
+
+证据均在工作副本外 `/Volumes/ColdData/tmp/playground-wt2/out-F4/`。
+
+| 检查 | 修改前 | 修改后 |
+|---|---|---|
+| Node 全套 | 19 通过，新增 2 项失败：缺少正式地名动作 | 21/21 通过 |
+| 地名入口与常显状态，5 个视口 | 5 项失败：三个入口缺失、自动按钮无常显文字 | 5 项通过；另实际走完三机位、留驻、继续 |
+| 时间命中区与文字预设，5 个视口 | 5 项失败：滑条 24 px、文字不可点 | 5 项通过；滑条 44 px，预设为 0 / .55 / 1，偏离线条的点击有效 |
+
+旧源码从本工作副本 `git show 217c874:huacheng-autumn/...` 重建到 `before/`，最终版相同 Node 检查重跑仍 0/2；相同浏览器检查在旧版为 6 通过、10 失败（5 组地名、5 组时间目标），页面错误为零。原始修改前日志另保留在 `before/node.txt` 和 `before/controls/`，不把检查脚本自身的适用范围校正计成产品修复。
+
+### 复现
+
+在本目录运行，所有 GPU 检查顺序执行：
+
+```sh
+node --test tests/*.test.cjs
+node tools/build.mjs
+node tools/serve.cjs . 18964
+# 另一个终端：
+CHECK_OUT=/Volumes/ColdData/tmp/playground-wt2/out-F4
+NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/final-build-controls" http://127.0.0.1:18964/dist/index.html
+NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/final-source-controls" http://127.0.0.1:18964/dev.html
+node tools/flower-audit.mjs . "$CHECK_OUT/audit.html"
+node tools/serve.cjs "$CHECK_OUT" 18965
+# 再一个终端，顺序运行原有检查：
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$CHECK_OUT/legacy-build" http://127.0.0.1:18964/dist/index.html http://127.0.0.1:18965/audit.html
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$CHECK_OUT/legacy-source" http://127.0.0.1:18964/dev.html http://127.0.0.1:18965/audit.html
+```
+
+浏览器为本机 Chrome 156.0.8078.80，真实硬件渲染器 `ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)`。五档为 390×664、320×568、844×340、844×390、1365×900；设备 DPR2，沿用默认自适应分辨率、FXAA 与 GTAO，没有为检查切换画质。
+
+最终结果：Node **21/21**；新增交互浏览器检查在源码与单文件上各 **53/53**；既有浏览器检查在两入口各 **28/28**，均零页面错误。交互检查记录的开场实际像素比为 2；较长的默认桌面性能检查自适应到 1.5，未锁分辨率。单文件在 390×664、1365×900 留驻时，电车实际渲染包围盒在 1.5 秒内分别移动约 6.43 m、6.35 m，相机位置不变。真实 pointerup、pointercancel、lostpointercapture 以及事件派发的 blur、visibilitychange 都清除了按住状态。
+
+最终截图与报告在 `final-build-controls/`、`final-source-controls/`（每组 11 张）和 `legacy-build/`、`legacy-source/`（每组 15 张）。逐张读图核对了五档开场、三个实际到达机位、六个原有机位和三种天色：按钮完整，新增控件不相互遮挡；320×568 省略介绍小字后保留主标题；塔下不再叠加介绍文案；花桥、花窗和两塔沿用原有构图与颜色。`review/` 保存按文件名顺序拼接的读图页，原图在各报告目录中。
+
+正常入口另录 `opening/opening-30s.webm`（390×664、DPR1，普通游玩渲染，不启用录片模式），含真实点地名、拖动、暂停/继续、切换三种天色和复位。`opening/report.json` 保存 1,792 次实际动画帧状态及 12 张时间点截图，状态全部有限、零页面错误。录屏所有编码帧解码为 `opening/frames/sheet-01.png` 至 `sheet-14.png` 后逐帧读图，未见非操作引起的镜头突跳或输入卡住；28 秒主动复位保留原有回开场行为。此录屏用于交互验收，不作帧率或演示片画质结论。
+
+最终单文件 `dist/index.html` 为 726813 bytes，SHA-256 `32e08d808b61417a53442eab3e35a0925f46093c9172bfe31844b627880f2506`。产物与 node_modules 均按既有规则忽略，不提交。另通过 JavaScript 语法检查与 `git diff --check`。
+
+仍未覆盖：iPhone/Android 真机、Safari、真人对导航节奏与单手触控手感的判断、部署后的线上复验。失焦与切后台清理通过事件派发检查，不能替代真机切后台。本页始终无声，未增加声音。体检第 3 条及所有「可以加的玩法」按本批要求不做。

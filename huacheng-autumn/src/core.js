@@ -203,18 +203,33 @@ export function screenBox(b,cam,target,aspect){const ps=boxCorners(b).map(p=>pro
 const spherical=(p,t)=>{const d=p.map((v,i)=>v-t[i]),r=Math.hypot(...d);return{r,az:Math.atan2(d[0],d[2]),el:Math.asin(clamp(d[1]/r,-1,1))};};
 const cartesian=(s,t)=>[t[0]+s.r*Math.cos(s.el)*Math.sin(s.az),t[1]+s.r*Math.sin(s.el),t[2]+s.r*Math.cos(s.el)*Math.cos(s.az)];
 export function createRig({u=0,auto=true}={}) {
-  const r={u,auto,mode:auto?'auto':'manual',idle:0,held:false,time:0,pos:pathAt(u).pos,look:pathAt(u).target};let sph=spherical(r.pos,r.look),returnFrom=null,returnTo=null,k=0;
-  r.grab=()=>{sph=spherical(r.pos,r.look);r.mode='manual';r.idle=0;};
+  const r={u,auto,mode:auto?'auto':'manual',destination:null,idle:0,held:false,time:0,pos:pathAt(u).pos,look:pathAt(u).target};let sph=spherical(r.pos,r.look),returnFrom=null,returnTo=null,k=0,travel=null;
+  r.grab=()=>{sph=spherical(r.pos,r.look);r.mode='manual';r.destination=null;r.idle=0;travel=null;};
   // Keep manual zoom within 32 m of the route: a 3 s smoothstep return then stays below 0.3 m/frame.
   // This still permits a full orbit; far-side zoom-out stops earlier than the open river side.
   const constrain=()=>{let nearest=null,best=Infinity;for(let i=0;i<800;i++){const p=pathAt(i/800).pos,d=dist(p,r.pos);if(d<best){best=d;nearest=p;}}if(best>32)r.pos=mix(nearest,r.pos,32/best);sph=spherical(r.pos,r.look);};
   r.drag=(az,el)=>{if(r.mode!=='manual')r.grab();r.idle=0;sph.az-=az;sph.el=clamp(sph.el+el,0.12,1.35);r.pos=cartesian(sph,r.look);constrain();};
   r.zoom=f=>{if(r.mode!=='manual')r.grab();r.idle=0;sph.r=clamp(sph.r*f,10,260);r.pos=cartesian(sph,r.look);constrain();};
-  r.setAuto=on=>{r.grab();r.auto=on;};
-  r.reset=()=>{r.u=0;r.pos=pathAt(0).pos;r.look=pathAt(0).target;r.auto=true;r.mode='auto';r.idle=0;};
+  r.setAuto=on=>{r.grab();r.auto=on;if(on)r.idle=IDLE_S;};
+  r.goTo=name=>{
+    if(!Object.hasOwn(VIEWS,name))return;
+    // Follow the existing clear route rather than cutting through the model.
+    // A manual pose's offset fades out during the first three seconds.
+    let start=r.u,best=dist(r.pos,pathAt(start).pos);
+    for(let i=0;i<1600;i++){const d=dist(r.pos,pathAt(i/1600).pos);if(d<best){best=d;start=i/1600;}}
+    const from=pathAt(start),delta=((VIEWS[name]-start+1.5)%1)-.5;
+    travel={start,delta,elapsed:0,duration:Math.max(RETURN_S,Math.abs(delta)*LOOP_S),pos:r.pos.map((v,i)=>v-from.pos[i]),look:r.look.map((v,i)=>v-from.target[i])};
+    r.auto=false;r.destination=name;r.mode='travel';r.idle=0;
+  };
+  r.reset=()=>{r.u=0;r.pos=pathAt(0).pos;r.look=pathAt(0).target;r.auto=true;r.mode='auto';r.destination=null;r.idle=0;travel=null;};
   r.update=(dt,time)=>{
     r.time=Number.isFinite(time)?time:r.time+dt;
-    if(r.mode==='auto'){r.u=(r.u+dt/LOOP_S)%1;const p=routeAt(r.u,r.time);
+    if(r.mode==='travel'){
+      travel.elapsed+=dt;const k=clamp(travel.elapsed/travel.duration,0,1),offset=1-smooth(clamp(travel.elapsed/RETURN_S,0,1));
+      r.u=((travel.start+travel.delta*smooth(k))%1+1)%1;const p=pathAt(r.u);
+      r.pos=p.pos.map((v,i)=>v+travel.pos[i]*offset);r.look=p.target.map((v,i)=>v+travel.look[i]*offset);
+      if(k>=1){r.mode='manual';r.idle=0;sph=spherical(r.pos,r.look);travel=null;}
+    }else if(r.mode==='auto'){r.u=(r.u+dt/LOOP_S)%1;const p=routeAt(r.u,r.time);
       // A manually rejoined camera can be out of phase with the tram. Bound catch-up speed,
       // while leaving the normal, synchronized tour unchanged (its peak is below 12 m/s).
       const step=dist(r.pos,p.pos);r.pos=mix(r.pos,p.pos,step?Math.min(1,dt*12/step):1);r.look=p.target;}
