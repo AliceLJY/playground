@@ -31,7 +31,8 @@ test('验收 8 所有文件都不含本机路径、内网地址、会话 id、�
 
 test('验收 8 页面不发任何请求，外链只有 RecallNest 仓库', () => {
   for (const f of ['index.html', 'src/core.js', 'src/game.js', 'src/experiment.js']) {
-    const text = read(f);
+    // Empty inline favicon prevents the browser's implicit network request.
+    const text = read(f).replace('<link rel="icon" href="data:,">', '');
     for (const u of text.match(/https?:\/\/[^\s'"`)<]+/gi) || [])
       assert.ok(u === 'https://github.com/AliceLJY/recallnest' || u === 'http://www.w3.org/2000/svg', `${f} 含外部地址 ${u}`);
     assert.ok(!/\b(fetch|XMLHttpRequest|WebSocket|sendBeacon|EventSource)\b/.test(text), `${f} 用了网络 API`);
