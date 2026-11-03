@@ -15,7 +15,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'breakfast', 'leisure', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -179,11 +179,11 @@
     r(g,'#4c4d4040',187,326,22,4); r(g,'#b5473a',186,300,20,28); r(g,'#d96952',187,301,18,3); r(g,'#cfe3dc',188,305,16,13); r(g,'#e6f1ec',189,306,3,11);
     for (const [x,y,c] of [[190,314,'#efc66c'],[195,315,'#e58f9a'],[200,314,'#90b8a3'],[193,312,'#b397b8'],[198,312,'#f4ebd8']]) r(g,c,x,y,4,4);
     r(g,'#8c3a2e',187,319,18,8); r(g,'#efc66c',193,321,6,2); r(g,'#2f3a3c',201,321,2,3); r(g,'#d9a441',189,322,2,2);
-    text(g,'抓娃娃',196,298,5,'#8c3a2e');
+    text(g,'抓娃娃',196,298,6,'#8c3a2e');
     // Dance machine: screen cabinet behind a 3×3 pad of arrow tiles.
     r(g,'#4c4d4040',219,313,32,3); r(g,'#3e4b47',218,300,32,14); r(g,'#1b2b30',220,302,28,10); r(g,'#2f3a3c',224,314,20,3);
     r(g,'#5d6b60',220,317,30,18); for (let j=0;j<3;j++) for (let k=0;k<3;k++) r(g,(j+k)%2?'#7a8a80':'#8fa09a',221+j*10,318+k*6,9,5);
-    text(g,'跳舞机',234,298,5,'#3e4b47');
+    text(g,'跳舞机',234,298,6,'#3e4b47');
     for(const x of [24,48,200,224]) {
       r(g,'#35474a',x,260,20,29); r(g,'#739780',x+1,261,18,4);
       r(g,'#213b40',x+3,266,14,10); r(g,'#90b8a3',x+5,268,4,2);
@@ -193,14 +193,16 @@
     }
     r(g,'#77563f',88,284,20,20); r(g,'#dfb987',88,284,20,16);
     for(let y=0;y<4;y++) for(let x=0;x<4;x++) r(g,(x+y)%2?'#9b7854':'#eee4c7',90+x*4,284+y*4,4,4);
-    // Beanbags: round, slumped, with a sat-in dip, a highlight and a soft shadow (nap / read spots).
-    for(const [x,color,dark,light] of [[26,'#739780','#5a7a66','#9cbaa4'],[50,'#b397b8','#8f7596','#cdb8d0']]) {
-      if (mv) { r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3); r(g,'#d2d3b1',x+3,324,14,5); continue; }
-      r(g,'#4c4d4038',x+1,330,20,4);
-      for (const [dy,inset] of [[0,6],[2,3],[4,1],[6,0],[8,0],[10,0],[12,0],[14,0],[16,1],[18,3]]) r(g,dy<12?color:dark,x+inset,311+dy,20-inset*2,2);
-      r(g,dark,x+5,318,10,6); r(g,color,x+6,317,8,2); r(g,dark,x+4,323,12,2);
-      r(g,light,x+4,313,5,2); r(g,light,x+2,316,2,3); r(g,'#ffffff30',x+5,313,2,1);
+    // Massage chairs (the old beanbag spots): padded back and headrest, arms, a remote, a green power light; labelled for visitors.
+    for(const x of [26,50]) {
+      if (mv) { const color=x===26?'#739780':'#b397b8'; r(g,'#506b5b',x,318,20,14); r(g,color,x,314,20,15); r(g,color,x+3,312,14,3); r(g,'#d2d3b1',x+3,324,14,5); continue; }
+      r(g,'#4c4d4038',x+1,330,20,4); r(g,'#2f2a2a',x+2,327,16,4);
+      r(g,'#5a4640',x+3,304,14,18); r(g,'#6e5850',x+4,305,12,16); for (const y of [309,313,317]) r(g,'#5a4640',x+5,y,10,1);
+      r(g,'#7a6258',x+5,301,10,5); r(g,'#8a7268',x+6,302,8,2);
+      r(g,'#4a3a36',x+2,319,16,8); r(g,'#5e4a44',x+3,320,14,3);
+      r(g,'#3a302c',x,316,3,11); r(g,'#3a302c',x+17,316,3,11); r(g,'#9aa3a0',x+17,314,2,3); r(g,'#67b779',x+18,315,1,1);
     }
+    if (!mv) { r(g,'#fff6dc',33,333,30,8); text(g,'按摩椅',48,340,6,'#5a3b16'); }
     r(g,'#77563f',138,308,4,12); r(g,'#77563f',170,308,4,12);
     r(g,'#35474a',136,276,40,40); r(g,'#527d72',138,278,36,36);
     r(g,'#c8d8bc',138,278,36,2); r(g,'#c8d8bc',138,312,36,2);
@@ -253,6 +255,7 @@
     });
     if(!mv) { placed(g,C.teaOffset,()=>teahouse(g)); placed(g,C.gymOffset,()=>gym(g)); }
     if(!mv && C.restOffset) placed(g,C.restOffset,()=>restRoom(g));
+    if(!mv && C.funOffsets) funFloor(g);
     if(!mv && C.lobby) {
       // Lobby by the entrance: a waiting sofa for guests, a low table, two plants.
       const {x,y,w}=C.lobby;
@@ -305,6 +308,54 @@
     r(g,'#8f6a48',6,84,18,10); r(g,'#b98a52',7,79,16,5); r(g,'#d7b47a',7,78,16,1); r(g,'#b98a52',9,74,12,4); r(g,'#d7b47a',9,73,12,1);
     r(g,'#3e4b47',8,94,3,3); r(g,'#3e4b47',20,94,3,3);
   }
+  // 娱乐层 downstairs: a new storey under the building with four 110×80 rooms (K 房, 阅读室, 小花园, 放映角).
+  function planks(g, x, y, w, h) { for (let yy = y; yy < y + h; yy += 18) { r(g, '#b58c63', x, yy, w, 1); for (let xx = x + 8 + (yy % 36 ? 24 : 0); xx < x + w; xx += 48) r(g, '#b58c63', xx, yy, 1, Math.min(18, y + h - yy)); } }
+  function funFloor(g) {
+    if (C.id === 'landscape') {
+      r(g,'#6d725e',10,408,620,150); r(g,'#dedbc3',14,412,612,28); r(g,'#c7c7ac',14,434,612,6); r(g,'#c9a27a',14,440,612,112); planks(g,14,440,612,112);
+      r(g,'#c9a27a',416,394,20,48); for (let y=400;y<440;y+=8) r(g,'#b58c63',417,y,18,1); text(g,'↓ 娱乐层',426,392,6,'#655b40');
+      text(g,'娱 乐 层',596,430,8,'#655b40');
+    } else {
+      r(g,'#6d725e',308,722,38,92); r(g,'#c9a27a',312,720,30,94); for (let y=728;y<808;y+=12) r(g,'#b58c63',313,y,28,1);
+      r(g,'#6d725e',10,744,340,292); r(g,'#dedbc3',14,748,332,58); r(g,'#c7c7ac',14,800,332,6); r(g,'#c9a27a',14,806,332,224); planks(g,14,806,332,224);
+      r(g,'#c9a27a',312,744,30,64); text(g,'↓ 娱乐层',327,736,6,'#655b40');
+      text(g,'娱 乐 层',150,784,10,'#655b40'); text(g,'唱歌 · 看书 · 浇花撸猫 · 看片',150,798,6,'#7e856e');
+    }
+    const o = C.funOffsets;
+    placed(g,o.ktv,()=>ktvRoom(g)); placed(g,o.read,()=>readingRoom(g)); placed(g,o.garden,()=>gardenRoom(g)); placed(g,o.cinema,()=>cinemaRoom(g));
+  }
+  function frame(g, color) { r(g, color, 0, 0, 110, 1); r(g, color, 0, 79, 110, 1); r(g, color, 0, 0, 1, 80); r(g, color, 109, 0, 1, 80); }
+  function ktvRoom(g) {
+    r(g,'#2e2540',0,0,110,80); frame(g,'#e58fb0');
+    r(g,'#1b1b28',34,4,46,18); r(g,'#3a4a7a',36,6,42,14);
+    r(g,'#4a3d66',14,46,24,8); r(g,'#2f3a3c',26,30,1,20); r(g,'#2f3a3c',23,50,7,2);
+    for (const x of [2,100]) { r(g,'#1b1b28',x,30,8,16); r(g,'#4a4a5a',x+2,33,4,4); r(g,'#4a4a5a',x+2,39,4,4); }
+    r(g,'#5a2a46',46,58,60,8); r(g,'#a34e78',46,64,60,7); r(g,'#7a3a5a',44,58,4,14); r(g,'#7a3a5a',104,58,4,14);
+    plaque(g,'K 房',4,67,26,'#b5477a');
+  }
+  function readingRoom(g) {
+    r(g,'#dcc8a4',0,0,110,80); frame(g,'#a07850'); r(g,'#8c5a3e',14,46,82,28); r(g,'#a8714f',16,48,78,24);
+    r(g,'#6b4430',4,2,102,24);
+    for (let row = 0; row < 2; row++) { r(g,'#4a2f22',4,13+row*11,102,2); for (let j = 0; j < 16; j++) r(g,['#7c9c84','#d2b37e','#ad7058','#6f88b8','#e1d2a6','#b07a9a'][(j+row*3)%6],6+j*6,4+row*11,5,9-(j%3)); }
+    for (const x of [30,80]) { r(g,'#5a4a6a',x-10,50,20,10); r(g,'#7a6a8a',x-9,51,18,7); r(g,'#5a4a6a',x-11,56,4,12); r(g,'#5a4a6a',x+7,56,4,12); r(g,'#8a7a9a',x-7,60,14,6); }
+    r(g,'#8c6a3a',55,32,1,30); r(g,'#3e4b47',52,61,7,2); r(g,'#f3dc9a',51,28,9,5);
+    plaque(g,'阅读室',72,30,34,'#7a5a3a');
+  }
+  function gardenRoom(g) {
+    r(g,'#8fb07a',0,0,110,80); frame(g,'#5f8a4d'); for (let j = 0; j < 14; j++) r(g,'#a3c48c',(j*29)%104+3,(j*17)%74+3,3,2);
+    r(g,'#8c6447',4,8,50,10); r(g,'#a97c52',4,8,50,3);
+    for (let j = 0; j < 7; j++) { r(g,'#52745e',8+j*7,2,1,7); r(g,['#e58f9a','#efc66c','#b397b8','#f4f1e6'][j%4],7+j*7,0,4,4); }
+    r(g,'#6b4430',89,12,4,12); r(g,'#5f8a4d',82,0,18,14); r(g,'#7aa36a',85,2,10,6);
+    r(g,'#c9a27a',60,70,40,8); r(g,'#d1ad83',60,70,40,2);
+    plaque(g,'小花园',4,66,34,'#5f8a4d');
+  }
+  function cinemaRoom(g) {
+    r(g,'#26303a',0,0,110,80); frame(g,'#7a8a9a');
+    r(g,'#5a6470',8,2,94,32); r(g,'#e8eef2',10,4,90,28);
+    for (const x of [32,56,80]) { r(g,'#7a2a2a',x-8,58,16,12); r(g,'#a33a30',x-7,59,14,5); r(g,'#7a2a2a',x-8,70,3,4); r(g,'#7a2a2a',x+5,70,3,4); }
+    r(g,'#3e4b47',96,72,10,6); r(g,'#efc66c',97,74,3,2);
+    plaque(g,'放映角',4,40,34,'#4a5a6a');
+  }
   // 休息室, 104×66 local: three bunk beds (berths at y 32 / 56), dim blue floor, a night light.
   function restRoom(g) {
     r(g,'#4a5a7a30',0,0,104,66); r(g,'#4a5a7ab0',0,0,104,1); r(g,'#4a5a7ab0',0,65,104,1); r(g,'#4a5a7ab0',0,0,1,66); r(g,'#4a5a7ab0',103,0,1,66);
@@ -352,6 +403,32 @@
       if (busy('run')) for (let y=18+Math.floor(t*20)%6; y<48; y+=6) r(ctx,'#6d7a74',10,y,8,1);
       if (busy('box')) { const sway=Math.round(Math.sin(t*6)*1.5); r(ctx,'#cbd3c2',66,15,12,16); r(ctx,'#3e4b47',71,4,1,12); r(ctx,'#ba5045',67+sway,16,10,14); r(ctx,'#d96952',68+sway,17,3,12); r(ctx,'#8c3a2e',67+sway,28,10,2); }
     });
+    if (C.funOffsets) {
+      const o = C.funOffsets, t = sim.time, at = kind => sim.actors.find(a => sim.gameActivity(a) === kind);
+      placed(ctx,o.ktv,()=>{
+        // Lyrics scroll while someone sings; the disco ball always turns.
+        const singing = !!at('sing');
+        for (let j = 0; j < 3; j++) r(ctx, singing ? ['#ffe066','#ffffff','#e58fb0'][j] : '#5a6a9a', 39, 8 + j * 4, singing ? 10 + ((Math.floor(t * 3) + j * 7) % 26) : 20, 2);
+        r(ctx,'#9aa3a0',19,0,1,5); r(ctx,'#d9e2dc',16,5,7,7); r(ctx,'#ffffff',17 + Math.floor(t * 4) % 4,6,2,2);
+        if (singing) for (let j = 0; j < 4; j++) { const k = (t * 2 + j) % 4; r(ctx, ['#ff7ab0','#7ad7ff','#ffe066','#9cff8a'][j], 8 + ((j * 29 + Math.floor(t * 5) * 13) % 96), 24 + ((j * 17 + Math.floor(t * 3) * 7) % 30), 2, 2); }
+      });
+      placed(ctx,o.cinema,()=>{
+        // On screen: a little orange cat on a bike rolling past a skyline (阿橘骑游), looping.
+        const k = (t * 14) % 110;
+        r(ctx,'#bcd2dc',10,4,90,18); r(ctx,'#8fa7b4',14,14,10,8); r(ctx,'#8fa7b4',30,10,8,12); r(ctx,'#8fa7b4',62,12,12,10); r(ctx,'#8fa7b4',82,9,8,13); r(ctx,'#c9a27a',10,22,90,10);
+        const cx = 10 + Math.round(k) % 84; r(ctx,'#e8963a',cx,17,8,5); r(ctx,'#e8963a',cx+5,15,3,3); r(ctx,'#2f3a3c',cx,23,3,3); r(ctx,'#2f3a3c',cx+6,23,3,3);
+        if (at('movie')) { ctx.fillStyle = '#fff6c020'; ctx.beginPath(); ctx.moveTo(100,74); ctx.lineTo(10,32); ctx.lineTo(100,32); ctx.closePath(); ctx.fill(); }
+      });
+      placed(ctx,o.garden,()=>{
+        // The office cat: purrs beside whoever pets it, otherwise strolls round the lawn.
+        const petter = at('cat'), waterer = at('water');
+        const p = petter ? {x: 66, y: 62} : {x: 40 + Math.round((Math.sin(t * .3) + 1) * 26), y: 40 + Math.round((Math.cos(t * .23) + 1) * 12)};
+        r(ctx,'#4c4d4030',p.x-1,p.y,12,2); r(ctx,'#e8963a',p.x,p.y-6,10,6); r(ctx,'#e8963a',p.x+8,p.y-9,5,5); r(ctx,'#e8963a',p.x+8,p.y-11,1,2); r(ctx,'#e8963a',p.x+12,p.y-11,1,2);
+        r(ctx,'#c8732a',p.x+2,p.y-6,1,6); r(ctx,'#c8732a',p.x+5,p.y-6,1,6); r(ctx,'#2f3a3c',p.x+10,p.y-8,1,1); r(ctx,'#e8963a',p.x-3,p.y-8 + (Math.floor(t * 2) % 2),3,2);
+        if (petter) text(ctx,'♥',p.x+6,p.y-14 - (t % 2) * 2,6,'#e58f9a');
+        if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',22 + j * 3,30 + ((t * 20 + j * 5) % 10),1,2);
+      });
+    }
     if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
     if (!mv) {
       // Marquee bulbs chase round the sign; the call to play is the big line.
@@ -588,14 +665,15 @@
       return;
     }
     const feastSeat = !boss && !a.visitor && sim.feastEating?.(a) && sim.layout.tea?.some(p=>C.distance(p,a)<1), napAtDesk = !boss && !a.visitor && sim.napping?.(a) && C.distance(a,C.home(a.i))<1;
-    const seated = (feastSeat || napAtDesk || sim.gameActivity(a)==='tea' || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const seated = (feastSeat || napAtDesk || ['tea','book','cheer','movie'].includes(sim.gameActivity(a)) || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
     const hello = sim.greeting(), thanks = sim.thanksNow(), present = !boss && !a.visitor && !['away', 'off'].includes(a.status);
     const greets = present && (mv || !['handoff-walk','handoff-receive','reception','argue','quota','melon','snack','souvenir','radar','gate'].includes(a.activity)) && !!(hello || thanks);
     const pose = greets ? Core.greetPose(t - (hello || thanks).at, calm.matches) : null;
-    let x = Math.round(a.x), y = Math.round(a.y - (hop?.lift || 0) - (pose?.perk || 0) - (moving ? Math.abs(Math.sin(t * 10 + (a.i || 0))) : 0));
+    const massaged = !boss && !a.visitor && !mv && sim.gameActivity(a) === 'massage';
+    let x = Math.round(a.x) + (massaged && Math.floor(t * 14) % 2 ? 1 : 0), y = Math.round(a.y - (hop?.lift || 0) - (pose?.perk || 0) - (moving ? Math.abs(Math.sin(t * 10 + (a.i || 0))) : 0));
     const color = boss ? '#c97859' : a.status === 'unknown' ? '#989d98' : a.color;
     r(ctx, '#4c584e30', x - 8, a.y - 1, 17, 3);
     if (!boss && !moving && (working || seated)) {
@@ -650,6 +728,21 @@
       r(ctx,'#e4bb91',x+5,bite?y-15:y-8,3,3); r(ctx,'#5a3b2a',x+7,bite?y-19:y-11,1,7);
       if (bite) r(ctx,'#f4ebd8',x+4,y-17,4,3); else { r(ctx,'#eee4c7',x-10,y-8,4,4); r(ctx,'#c99a64',x-10,y-8,4,1); }
     }
+    if (!greets && game === 'sing') {
+      r(ctx,color,x+5,y-14,3,6); r(ctx,'#e4bb91',x+4,y-16,3,3); r(ctx,'#2f3a3c',x+2,y-18,3,4); r(ctx,'#2f3a3c',x+3,y-14,1,4);
+      const k = (t * 1.5) % 2; text(ctx, k < 1 ? '♪' : '♫', x + 10 + Math.round(k * 3), y - 26 - Math.round(k * 6), 8, '#e58fb0');
+    }
+    if (!greets && game === 'cheer') {
+      const up = Math.floor(t * 3 + a.i) % 2; r(ctx,color,x-8,y-(up?20:14),3,8); r(ctx,color,x+5,y-(up?14:20),3,8);
+      r(ctx,'#ffe066',x-8,y-(up?26:20),2,6); r(ctx,'#7ad7ff',x+6,y-(up?20:26),2,6);
+    }
+    if (!greets && game === 'book') {
+      r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7);
+      if ((t + a.i * 3) % 9 < 1.2) text(ctx,'💡',x+9,y-26,8,'#efc66c');
+    }
+    if (!greets && game === 'water') { const tip = Math.sin(t * 2) > 0 ? 1 : 0; r(ctx,color,x+5,y-12,3,5); r(ctx,'#7aa3b8',x+7,y-12+tip,7,5); r(ctx,'#7aa3b8',x+14,y-12+tip,4,1); r(ctx,'#5d8aa0',x+8,y-14+tip,4,2); }
+    if (!greets && game === 'cat') { r(ctx,color,x+5,y-10,3,7); r(ctx,'#e4bb91',x+6,y-4 + (Math.floor(t * 3) % 2),3,3); }
+    if (!greets && game === 'movie') { r(ctx,'#f4f1e6',x-10,y-11,6,7); r(ctx,'#d96952',x-10,y-11,1,7); r(ctx,'#d96952',x-7,y-11,1,7); r(ctx,'#ffe9a0',x-10,y-13,6,2); r(ctx,'#e4bb91',x-6,y-15+(Math.floor(t*1.3+a.i)%3?0:2),3,3); }
     if (!greets && game === 'dance') {
       const b = Math.floor(t * 3 + a.i) % 4, l = b % 2 ? 2 : -1;
       r(ctx,'#34483e',x-5,y-2,4,3+l); r(ctx,'#34483e',x+2,y-2,4,3-l);
@@ -685,6 +778,10 @@
       const nod = Math.sin(t * 1.4 + a.i) > .3 ? 1 : 0, k = (t + a.i * .7) % 3;
       r(ctx, '#e3b58d', x - 4, y - 14 + nod, 9, 3); r(ctx, '#273a34', x - 4, y - 13 + nod, 3, 1); r(ctx, '#273a34', x + 2, y - 13 + nod, 3, 1);
       text(ctx, 'z', x + 7, y - 24 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 11, y - 30 - k * 2, 8, '#45534b'); if (k > .5) text(ctx, 'z', x + 9, y - 27 - k * 2, 7, '#45534b');
+    }
+    if (!greets && game === 'massage') {
+      r(ctx,'#e3b58d',x-4,y-14,9,3); r(ctx,'#273a34',x-3,y-13,2,1); r(ctx,'#273a34',x+2,y-13,2,1); r(ctx,'#c98a6a',x-1,y-11,3,1);
+      const w = Math.floor(t * 3) % 2; text(ctx, w ? '~' : '≈', x - 12, y - 18, 7, '#8a7268'); text(ctx, w ? '≈' : '~', x + 12, y - 20, 7, '#8a7268');
     }
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
@@ -862,7 +959,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:'浇花',cat:'撸猫',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
@@ -964,7 +1061,7 @@
     if (mv) mv.start(sim);
     else for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
     // ?view=breakfast / leisure: everyone but the director off duty, so the teahouse and gym fill up (script events skipped this lap).
-    if (!mv && ['breakfast','leisure'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; }
+    if (!mv && ['breakfast','leisure','fun'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; sim.funFirst = view === 'fun'; }
     // ?view=nap / feast: 23:30, everyone but CC asleep in the office; feast sends dim sum right away.
     if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
@@ -1212,7 +1309,8 @@
   });
   function fitRoom() {
     if(C.id!=='landscape')return;
-    const v=$('#room-viewport'); $('#canvas-wrap').style.width=`${Math.min(v.clientWidth,v.clientHeight*C.W/C.H)}px`;
+    // Fit the two upper storeys (420 rows) to the panel; the fun floor below is a short scroll away.
+    const v=$('#room-viewport'); $('#canvas-wrap').style.width=`${Math.min(v.clientWidth,v.clientHeight*C.W/420)}px`;
   }
   function layoutUI() {
     const wide=C.id==='landscape'; document.body.classList.toggle('landscape',wide);
@@ -1251,7 +1349,8 @@
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
     // breakfast / leisure keep playing after the walk over (they show a routine, not one frozen moment).
-    if (view && demo && ['breakfast','leisure','nap','feast'].includes(view)) advance(view === 'feast' ? 45000 : 20000);
+    if (view && demo && ['breakfast','leisure','fun','nap','feast'].includes(view)) advance(view === 'feast' ? 45000 : view === 'fun' ? 40000 : 20000);
+    if (view === 'fun') $('#room-viewport').scrollTop = $('#room-viewport').scrollHeight;
     else if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);

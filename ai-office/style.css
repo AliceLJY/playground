@@ -60,8 +60,8 @@ body.wall #canvas-wrap{max-height:calc(100% - 26px);box-shadow:0 10px 30px #0000
 
 /* The annex keeps the old room's coordinates. Scroll the room on a phone instead of shrinking its lettering. */
 #room-viewport{width:100%;min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;border-radius:2px}
-#canvas-wrap{width:min(100%,480px);height:auto;max-height:none;max-width:100%;aspect-ratio:18/37;margin:0 auto}
-#office{width:100%;height:auto;aspect-ratio:18/37}
+#canvas-wrap{width:min(100%,480px);height:auto;max-height:none;max-width:100%;aspect-ratio:9/26;margin:0 auto}
+#office{width:100%;height:auto;aspect-ratio:9/26}
 .room-meta{flex-wrap:wrap;gap:3px}.room-foot{flex-shrink:0}
 .treat{bottom:46%;max-width:67%}.paper{bottom:57%}.photo{bottom:45%}
 .tabs{gap:13px}.tabs button{min-width:48px}
@@ -70,7 +70,7 @@ body.wall #canvas-wrap{max-height:calc(100% - 26px);box-shadow:0 10px 30px #0000
 #events time{flex:none;font:10px Menlo,monospace;color:#72796e;font-variant-numeric:tabular-nums}#events span{min-width:0}
 body.mv #room-viewport{overflow:visible;height:100%}body.mv #office{aspect-ratio:auto;height:100%}
 body.wall #room-viewport{display:flex;justify-content:center;overflow:hidden;min-height:0}
-body.wall #canvas-wrap{width:auto;height:100%;max-height:none;max-width:100%;aspect-ratio:18/37;margin:0}
+body.wall #canvas-wrap{width:auto;height:100%;max-height:none;max-width:100%;aspect-ratio:9/26;margin:0}
 body.wall #office{height:100%;width:100%}
 @media(max-width:700px){.photo{bottom:45%}.paper{bottom:57%}.treat button{min-height:44px}.tabs{gap:12px}#room-viewport{scroll-padding-top:8px}}
 
@@ -92,8 +92,8 @@ body.wall.wall-room #canvas-wrap{aspect-ratio:6/7}
   body:not(.mv):not(.wall) .room-section{grid-column:1;grid-row:1/4}
   body:not(.mv):not(.wall) .drawer{grid-column:2;grid-row:3}
 }
-body.landscape #room-viewport{display:flex;align-items:center;justify-content:center;overflow:hidden}
-body.landscape #canvas-wrap,body.landscape #office{aspect-ratio:32/21}
+body.landscape #room-viewport{display:block;overflow-y:auto;overflow-x:hidden}
+body.landscape #canvas-wrap,body.landscape #office{aspect-ratio:8/7}body.landscape #canvas-wrap{margin:0 auto}
 body.landscape .treat{position:static;max-width:100%;padding:0 12px 10px;flex-shrink:0}
 body.landscape .treat button{min-height:36px}
 body.landscape .paper{left:12%;bottom:15%;width:40%}

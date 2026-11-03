@@ -1,6 +1,6 @@
 (function (root) {
   'use strict';
-  const W = 360, H = 740;
+  const W = 360, H = 740; // H is the original two-storey height (film, legacy); the office page adds the fun floor
   const mvDesks = [
     [65, 112], [157, 112], [229, 112], [301, 112], [157, 194],
     [53, 224], [229, 194], [301, 269], [301, 194], [157, 269], [308, 339]
@@ -23,8 +23,14 @@
   // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
   // The teahouse is open all day (two seats in the ordinary rotation); at 早茶/下午茶/夜茶 it fills first.
   // 20 = dance machine, 21 = claw machine (bottom-right of the game room).
-  const LEISURE_ORDER = [0,1,4,20,16,17,12,2,3,21,5,13,10,18,14,11,19,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
+  const LEISURE_ORDER = [0,1,4,20,16,17,12,22,2,3,21,25,28,5,13,29,23,10,26,27,18,14,24,30,11,19,15,31,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
   const machineSpots = [{x:234,y:332,kind:'dance'},{x:196,y:336,kind:'claw'}];
+  // Fun floor downstairs: four 110×80 rooms. Leisure slots 22–31.
+  const funLocal = {ktv:[[26,50,'sing'],[60,68,'cheer'],[86,68,'cheer']], read:[[30,64,'book'],[80,64,'book']], garden:[[28,44,'water'],[78,62,'cat']], cinema:[[32,70,'movie'],[56,70,'movie'],[80,70,'movie']]};
+  const funLocalObstacles = {ktv:[{x:34,y:4,w:46,h:18}], read:[{x:4,y:2,w:102,h:24}], garden:[{x:4,y:4,w:50,h:14},{x:84,y:8,w:14,h:14}], cinema:[{x:8,y:2,w:94,h:32}]};
+  const FUN_ROOMS = ['ktv','read','garden','cinema'];
+  const funSpots = offsets => FUN_ROOMS.flatMap(k=>atOrigin(funLocal[k],offsets[k]));
+  const funObstacles = offsets => FUN_ROOMS.flatMap(k=>obstaclesAt(funLocalObstacles[k],offsets[k]));
   const PAIRS = {0:1,2:3};
   function leisureSlots(count, breakfast=false) {
     const order=breakfast?BREAKFAST_ORDER:LEISURE_ORDER, picked=[];
@@ -106,31 +112,40 @@
   const queuePoint = i => ({ x: [247, 273, 273, 299, 325, 273, 299, 325, 286, 312, 338][i % 11], y: [352, 352, 325, 325, 325, 300, 300, 300, 276, 276, 276][i % 11] });
   const filmQueuePoint = i => ({ x: [247, 273, 273, 247, 221, 195, 195, 221, 247, 273, 299][i % 11], y: [352, 352, 325, 325, 325, 325, 300, 300, 300, 300, 300][i % 11] });
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:104,y:390},gameWatch];
-  const portrait = {id:'portrait',W,H,desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
+  const FUN_P = {ktv:[24,816],read:[150,816],garden:[24,924],cinema:[150,924]}, FUN_L = {ktv:[24,448],read:[146,448],cinema:[268,448],garden:[470,448]};
+  obstacles.push(...funObstacles(FUN_P));
+  const portrait = {id:'portrait',W,H:1040,funOffsets:FUN_P,fun:funSpots(FUN_P),desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
     beds:atOrigin(bedLocal,restOrigin),restOffset:restOrigin,gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
     gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[-238,-438],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
   // Landscape wing, two columns. Left (by the entrance): meeting room with its audience bench, then the front desk
   // beside the door and the gym. Right, one aligned stack: teahouse, showcase, phone booth. An aisle runs between.
   const W_MEET=[334,-398], W_TEA=[536,92], W_BOOTH=[182,-282], W_GYM=[526,206], W_REST=[520,316];
-  const landscape = {...portrait,id:'landscape',W:640,H:420,desks:desks.map((p,i)=>i===10?[384,350]:p),
+  const landscape = {...portrait,id:'landscape',W:640,H:560,funOffsets:FUN_L,fun:funSpots(FUN_L),desks:desks.map((p,i)=>i===10?[384,350]:p),
     podium:shift(podium,...W_MEET),seats:seats.map(p=>shift(p,...W_MEET)),standing:standing.map(p=>shift(p,...W_MEET)),audience:audience.map(p=>shift(p,...W_MEET)),
     beds:atOrigin(bedLocal,W_REST),restOffset:W_REST,gym:atOrigin(gymLocal,W_GYM),tea:atOrigin(teaLocal,W_TEA),feastStand:atOrigin(feastLocal,W_TEA),feastDrop:atOrigin([[39,82,'drop']],W_TEA)[0],gymOffset:W_GYM,teaOffset:W_TEA,
     booth:shift(booth,...W_BOOTH),meetingOffset:W_MEET,boothOffset:W_BOOTH,totalsOffset:[328,-403],lobby:{x:440,y:304,w:60,h:14},
     queuePoint:i=>({x:[248,276,304,248,276,304,376,404,432,460,488][i%11],y:i<3?344:388})};
   landscape.obstacles=[...mainObstacles.filter((_,i)=>i!==10),...deskObstacles(landscape.desks).slice(10),
     ...meetingObstacles.map(p=>shift(p,...W_MEET)),...boothObstacles.map(p=>shift(p,...W_BOOTH)),landscape.lobby,
-    ...obstaclesAt(gymLocalObstacles,W_GYM),...obstaclesAt(teaLocalObstacles,W_TEA)];
+    ...obstaclesAt(gymLocalObstacles,W_GYM),...obstaclesAt(teaLocalObstacles,W_TEA),...funObstacles(FUN_L)];
   landscape.tour=[...tour,{x:470,y:332},{x:512,y:240}];
   landscape.patrol=[door,{x:352,y:392},{x:512,y:392},{x:512,y:296},{x:616,y:296},{x:616,y:196},{x:524,y:196},{x:524,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
   // The published MV films (v5–v7) keep desk 7 as a workstation; ordinary pages seat etwin-cc beside the boss.
   const filmPatrol=[door,{x:244,y:708},{x:28,y:708},{x:244,y:620},{x:180,y:620},{x:248,y:604},{x:340,y:492},door,{x:198,y:247},{x:125,y:169},door];
-  const film={...portrait,id:'film',patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...portrait.obstacles.map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
+  const film={...portrait,id:'film',H,funOffsets:null,fun:null,patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...portrait.obstacles.map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
   const layouts={portrait,landscape,film,legacy:{...portrait,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   const getLayout = value => value && typeof value==='object' ? value : layouts[value===true?'legacy':value || 'portrait'];
   const blocked = (x,y,selection=false) => {
-    const L=getLayout(selection);
-    return x<18 || x>L.W-18 || y<88 || y>(L.id==='landscape'?392:720) || (L.id!=='landscape' && y>398 && y<490 && x<312) || L.obstacles.some(o=>x>o.x-4 && x<o.x+o.w+4 && y>o.y-3 && y<o.y+o.h+3);
+    const L=getLayout(selection), deep=!!L.funOffsets;
+    if (x<18 || x>L.W-18 || y<88) return true;
+    if (L.id==='landscape') { if (y>392 && !(deep && (y>=440 && y<=544 || x>=416 && x<=436 && y<440))) return true; }
+    else {
+      if (y>(deep?1022:720) || y>398 && y<490 && x<312) return true;
+      // Stairs from the annex's bottom-right down to the fun floor.
+      if (deep && y>720 && y<808 && x<312) return true;
+    }
+    return L.obstacles.some(o=>x>o.x-4 && x<o.x+o.w+4 && y>o.y-3 && y<o.y+o.h+3);
   };
   function noticeBoard(notices,time,guest=false,noticesToday) {
     const day=n=>new Date(n+8*3600000).toISOString().slice(0,10);
@@ -172,7 +187,7 @@
     const L=getLayout(selection),legacy=L.id==='legacy';
     const {desks:layout,door,bossDesk,handoff,pantry,games:gameSpots,gameWatch,podium,booth,seats,standing,audience,patrol,queuePoint,tour}=L;
     // One list of leisure places: game room 0–11, gym 12–15, teahouse 16–19 (see LEISURE_ORDER).
-    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[]),...machineSpots];
+    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[])];
     const home = i => ({x:layout[i][0],y:layout[i][1]+27});
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
@@ -623,8 +638,8 @@
       // Only a page that told us the real clock (live feed, demo, replay) has breakfast; bare simulations never do.
       const breakfast=typeof sim.forceBreakfast==='boolean' ? sim.forceBreakfast : !!sim.clockKnown && isBreakfast(signalNow());
       const feast=!!feasting();
-      const key=breakfast+'|'+feast+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&games[slot]).slice(0,idle.length) : leisureSlots(idle.length,breakfast).filter(slot=>games[slot]);
+      const key=breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&games[slot]).slice(0,idle.length) : sim.funFirst ? [22,23,24,25,26,27,28,29,30,31,...LEISURE_ORDER.filter(i=>i<22)].filter(slot=>games[slot]).slice(0,idle.length) : leisureSlots(idle.length,breakfast).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -634,7 +649,8 @@
       const p=games[a.gameSlot];
       const pair=p.kind==='pingpong' ? [0,1] : p.kind==='chess' ? [2,3] : null;
       if(pair && !pair.every(slot=>sim.actors.some(b=>b.gameSlot===slot && b.status==='idle' && !b.activity && !b.path.length && distance(b,games[slot])<1))) return null;
-      return p.kind;
+      // The two old beanbags are massage chairs on the office page (the published film keeps nap/read).
+      return ['nap','read'].includes(p.kind) && !sim.classicLeisure ? 'massage' : p.kind;
     }
     function pingPongBall() {
       if(!sim.actors.some(a=>gameActivity(a)==='pingpong')) return null;
@@ -1004,7 +1020,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, teaTime, LEISURE_ORDER, BREAKFAST_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots];}, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, teaTime, LEISURE_ORDER, BREAKFAST_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[])];}, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

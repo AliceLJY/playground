@@ -22,7 +22,7 @@ for(const layout of ['portrait','landscape']) {
  test(`melon ${layout}: only 2–3 idle game-corner colleagues, waits three seconds then returns; no idle means none`,()=>{
   const s=create(layout);s.step(20000);s.setStatus('director','waiting',iso(T));const before=states(s);s.step(5000);assert.ok(s.melon);assert.ok(s.melon.ids.length>=2&&s.melon.ids.length<=3);
   assert.ok(s.melon.ids.every(id=>s.actors.find(a=>a.id===id).status==='idle'));const ids=[...s.melon.ids];steps(s,3000,()=>{clearPaths(s);assert.deepEqual(states(s),before);});
-  s.setStatus('director','idle',iso(T));s.step(2900);assert.ok(s.melon);s.step(200);assert.equal(s.melon,null);s.step(15000);for(const id of ids)assert.ok(s.gameActivity(s.actors.find(a=>a.id===id)));
+  s.setStatus('director','idle',iso(T));s.step(2900);assert.ok(s.melon);s.step(200);assert.equal(s.melon,null);s.step(40000);for(const id of ids)assert.ok(s.gameActivity(s.actors.find(a=>a.id===id)));
   const b=create(layout,'busy');b.setStatus('director','waiting',iso(T));b.step(30000);assert.equal(b.melon,null);
  });
  test(`quota ${layout}: rest-room recharge route, status invariant, release by clear/expiry; reception/melon cannot steal`,()=>{

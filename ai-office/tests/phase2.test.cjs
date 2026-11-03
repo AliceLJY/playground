@@ -59,7 +59,7 @@ test('event templates cover every public event, use fixed treat names, ignore un
   assert.equal(C.eventText({kind:'treat',treat:'milktea'},d.roster),'有人送来一杯奶茶');assert.equal(C.eventText({kind:'new-event',text:'not displayed'},d.roster),null);
 });
 
-function idleGroup(n,seed=7){const s=C.create(Array.from({length:11},(_,desk)=>({id:desk?'a'+desk:'cc',desk})),seed);for(const a of s.actors)s.setStatus(a.id,a.i<n?'idle':'busy');s.step(15000);return s;}
+function idleGroup(n,seed=7){const s=C.create(Array.from({length:11},(_,desk)=>({id:desk?'a'+desk:'cc',desk})),seed);for(const a of s.actors)s.setStatus(a.id,a.i<n?'idle':'busy');s.step(40000);return s;}
 test('idle only: game room, then gym, then rest; 1–10 never overlap; Cobbler stays home',()=>{
   const kinds=n=>C.leisureSlots(n).map(slot=>C.leisure('portrait')[slot].kind);
   assert.deepEqual(C.leisureSlots(1),[4]);assert.deepEqual(C.leisureSlots(3),[0,1,4]);assert.deepEqual(C.leisureSlots(5),[0,1,4,20,16]);assert.deepEqual(C.leisureSlots(6),[0,1,4,20,16,17]);
@@ -97,7 +97,7 @@ test('tennis waits for both arrivals; shuffled feed order uses desks, spectators
 });
 
 test('Dots returns to moved desk, dispatch follows it, legacy desk and routes stay old',()=>{
-  const s=idleGroup(10),dots=s.actors.find(a=>a.i===9);s.setStatus(dots.id,'busy');assert.ok(walk(s,15)>0);assert.deepEqual([dots.x,dots.y],[229,296]);
+  const s=idleGroup(10),dots=s.actors.find(a=>a.i===9);s.setStatus(dots.id,'busy');assert.ok(walk(s,40)>0);assert.deepEqual([dots.x,dots.y],[229,296]);
   scene(s,{dispatched:[dots.id]});assert.deepEqual(s.flights[0].to,{x:246,y:273});
   const old=C.create(s.actors.map(a=>({id:a.id,desk:a.i})),7,true);old.setStatus(dots.id,'busy');old.step(15000);const oldDots=old.actors.find(a=>a.i===9);assert.deepEqual([oldDots.x,oldDots.y],[157,296]);
 });
@@ -115,8 +115,8 @@ test('every 1–10 membership change preserves valid places; chess also waits fo
     for(const a of s.actors.filter(a=>a.status==='idle'))if(slots(n-1).includes(before[a.i]))assert.equal(a.gameSlot,before[a.i],`${n}→${n-1}, removal ${removed}: unaffected ${a.id} moved`);
     assert.deepEqual(s.actors.filter(a=>a.status==='idle').map(a=>a.gameSlot).sort((a,b)=>a-b),slots(n-1));
   }
-  const s=idleGroup(8);s.setStatus('a9','idle');let unmatched=0;
-  for(let i=0;i<750;i++){s.step(20);const pair=s.actors.filter(a=>[2,3].includes(a.gameSlot));if(pair.filter(a=>!a.path.length).length===1){unmatched++;assert.ok(pair.every(a=>s.gameActivity(a)===null));}}
+  const s=idleGroup(9);s.setStatus('a9','idle');let unmatched=0;
+  for(let i=0;i<2500;i++){s.step(20);const pair=s.actors.filter(a=>[2,3].includes(a.gameSlot));if(pair.filter(a=>!a.path.length).length===1){unmatched++;assert.ok(pair.every(a=>s.gameActivity(a)===null));}}
   assert.ok(unmatched>0);assert.equal(s.actors.filter(a=>s.gameActivity(a)==='chess').length,2);
 });
 test('all activity routes and left-workstation routes are free at subpixel travel samples',()=>{
@@ -146,7 +146,7 @@ test('old feeds fall back to desk 10; explicit flags override fallback; legacy i
   const old=C.create(fixture.roster);assert.equal(old.actors.find(old.isCourier).i,10);
   const current=C.create(swappedRoster());assert.equal(current.actors.find(current.isCourier).i,8);assert.equal(current.actors.filter(current.isCourier).length,1);
   const legacy=C.create(swappedRoster(),7,true);assert.equal(legacy.actors.find(legacy.isCourier).i,10);assert.equal(C.lookIndex(legacy.actors.find(a=>a.i===8),true),8);
-  const none=C.create(Array.from({length:11},(_,desk)=>({id:'a'+desk,desk,courier:false})));none.step(15000);assert.equal(none.actors.filter(none.isCourier).length,0);assert.equal(none.actors.filter(a=>none.gameActivity(a)).length,11);none.notice({text:'no courier'});none.step(100);assert.equal(none.delivery,null);
+  const none=C.create(Array.from({length:11},(_,desk)=>({id:'a'+desk,desk,courier:false})));none.step(40000);assert.equal(none.actors.filter(none.isCourier).length,0);assert.equal(none.actors.filter(a=>none.gameActivity(a)).length,11);none.notice({text:'no courier'});none.step(100);assert.equal(none.delivery,null);
   assert.equal(C.lookIndex({i:10,look:0}),0);assert.equal(C.lookIndex({i:8}),8);
 });
 test('foot plates disappear at home, appear on real departure and return, and exclude hidden people',()=>{
@@ -160,7 +160,7 @@ test('foot plates disappear at home, appear on real departure and return, and ex
 });
 test('crowded nameplates never overlap: real games, queue, meetings and coincident actors',()=>{
   const measure=t=>Array.from(t).reduce((w,c)=>w+(c.charCodeAt(0)<128?4:6),0);
-  const clear=plates=>{for(const p of plates){assert.ok(p.x>=2&&p.x+p.w<=C.W-2&&p.y+p.h<=C.H-2);for(const q of plates)if(q!==p)assert.ok(p.x+p.w+1<=q.x||q.x+q.w+1<=p.x||p.y+p.h+1<=q.y||q.y+q.h+1<=p.y,'plate text overlaps');}};
+  const clear=plates=>{for(const p of plates){assert.ok(p.x>=2&&p.x+p.w<=C.W-2&&p.y+p.h<=C.layouts.portrait.H-2);for(const q of plates)if(q!==p)assert.ok(p.x+p.w+1<=q.x||q.x+q.w+1<=p.x||p.y+p.h+1<=q.y||q.y+q.h+1<=p.y,'plate text overlaps');}};
   let sampled=0;
   for(const seed of [1,7,31])for(const mode of ['games','meeting','queue']){
     const s=C.create(swappedRoster(),seed);if(mode==='meeting')scene(s,{meeting:{...fixture.scene.meeting,members:s.actors.map(a=>a.id)}});if(mode==='queue')for(const a of s.actors)s.setStatus(a.id,'waiting');
