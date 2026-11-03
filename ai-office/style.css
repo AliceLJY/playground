@@ -137,3 +137,4 @@ body.mv .hotspot,body.mv .arcade,body.wall .hotspot,body.wall .arcade{display:no
 .arcade[hidden]{display:none}
 .arcade-head{position:sticky;top:-8px;background:#fffdf6;padding-top:2px;z-index:1}
 body.mv .scrim,body.wall .scrim{display:none!important}
+.hotspot:hover{outline:2px dashed #c85b4a;outline-offset:-2px}

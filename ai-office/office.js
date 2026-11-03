@@ -120,7 +120,7 @@
     r(g, '#775e45', 26, 173, 72, 29); r(g, '#9b7854', 28, 175, 68, 24);
     for (let j = 0; j < 9; j++) r(g, ['#7c9c84', '#d2b37e', '#ad7058', '#e1d2a6'][j % 4], 30 + j * 7, 178 + j % 3, 5, 17 - j % 3);
     gameFurniture(g);
-    r(g, '#6d735b', 113, 267, 2, 20); r(g, '#ead3a2', 108, 262, 12, 7); r(g, '#7d7c60', 109, 287, 10, 2);
+    if (mv) { r(g, '#6d735b', 113, 267, 2, 20); r(g, '#ead3a2', 108, 262, 12, 7); r(g, '#7d7c60', 109, 287, 10, 2); }
     // Boss desk, mail reception and front door.
     r(g, '#90755c35', 143, 350, 99, 47); r(g, '#82947b', 147, 347, 92, 45); r(g, '#9daa8c', 151, 351, 84, 37);
     r(g, '#775841', 149, 369, 88, 23); r(g, '#bf9568', 147, 365, 91, 15); r(g, '#dcba87', 147, 363, 91, 5); r(g, '#eddfb7', 180, 368, 25, 9); text(g, '小试AI', 192, 375, 7, '#665c44');
@@ -131,7 +131,7 @@
     r(g, '#556b5b', 329, 374, 17, 26); r(g, '#99a288', 330, 376, 16, 22); r(g, '#f5e3af', 333, 386, 2, 3); text(g, 'OUT', 334, 371, 5, '#5b6857');
     plant(g, 329, 94, true); plant(g, 32, 380, true); plant(g, 124, 200); plant(g, 271, 279);
     // A warm lamp pool is strictly decorative: no overlay on text or characters.
-    if (L !== 'day') { g.fillStyle = L === 'night' ? '#323d6220' : '#e79e4120'; g.fillRect(14, 84, 332, 313); r(g, '#f9d98c', 109, 263, 10, 3); }
+    if (L !== 'day') { g.fillStyle = L === 'night' ? '#323d6220' : '#e79e4120'; g.fillRect(14, 84, 332, 313); if (mv) r(g, '#f9d98c', 109, 263, 10, 3); }
     annex(g);
   }
 
@@ -168,7 +168,17 @@
 
   function gameFurniture(g) {
     r(g,'#91a38a',22,260,238,78); r(g,'#dad7b4',24,262,234,74);
-    plaque(g,'游戏室',72,263,34,'#5d7f6e');
+    if (mv) plaque(g,'游戏室',72,263,34,'#5d7f6e');
+    else { r(g,'#4c4d4040',71,263,64,23); r(g,'#5a2420',70,262,64,23); r(g,'#8c3a2e',72,264,60,19); text(g,'游 戏 室',102,272,7,'#f6d68a'); }
+    // Claw machine: glass box of plush toys, a claw on a rail, a coin slot.
+    r(g,'#4c4d4040',187,326,22,4); r(g,'#b5473a',186,300,20,28); r(g,'#d96952',187,301,18,3); r(g,'#cfe3dc',188,305,16,13); r(g,'#e6f1ec',189,306,3,11);
+    for (const [x,y,c] of [[190,314,'#efc66c'],[195,315,'#e58f9a'],[200,314,'#90b8a3'],[193,312,'#b397b8'],[198,312,'#f4ebd8']]) r(g,c,x,y,4,4);
+    r(g,'#8c3a2e',187,319,18,8); r(g,'#efc66c',193,321,6,2); r(g,'#2f3a3c',201,321,2,3); r(g,'#d9a441',189,322,2,2);
+    text(g,'抓娃娃',196,298,5,'#8c3a2e');
+    // Dance machine: screen cabinet behind a 3×3 pad of arrow tiles.
+    r(g,'#4c4d4040',219,313,32,3); r(g,'#3e4b47',218,300,32,14); r(g,'#1b2b30',220,302,28,10); r(g,'#2f3a3c',224,314,20,3);
+    r(g,'#5d6b60',220,317,30,18); for (let j=0;j<3;j++) for (let k=0;k<3;k++) r(g,(j+k)%2?'#7a8a80':'#8fa09a',221+j*10,318+k*6,9,5);
+    text(g,'跳舞机',234,298,5,'#3e4b47');
     for(const x of [24,48,200,224]) {
       r(g,'#35474a',x,260,20,29); r(g,'#739780',x+1,261,18,4);
       r(g,'#213b40',x+3,266,14,10); r(g,'#90b8a3',x+5,268,4,2);
@@ -307,7 +317,21 @@
       if (busy('box')) { const sway=Math.round(Math.sin(t*6)*1.5); r(ctx,'#cbd3c2',66,15,12,16); r(ctx,'#3e4b47',71,4,1,12); r(ctx,'#ba5045',67+sway,16,10,14); r(ctx,'#d96952',68+sway,17,3,12); r(ctx,'#8c3a2e',67+sway,28,10,2); }
     });
     if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
-    if (hotspots()) { const blink=Math.floor(sim.time*1.5)%2; r(ctx,'#fff6dc',72,274,34,9); r(ctx,blink?'#c85b4a':'#d9a56d',72,274,34,1); text(ctx,'▶ 点我玩',89,281,6,'#8a4a3e'); }
+    if (!mv) {
+      // Marquee bulbs chase round the sign; the call to play is the big line.
+      const step = Math.floor(sim.time * 6);
+      for (let k = 0; k < 16; k++) { const top = k < 8, x = 72 + (k % 8) * 8 + 2, y = top ? 263 : 283; r(ctx, (k + step) % 3 ? '#7a3a2a' : '#ffe9a0', x, y, 2, 2); }
+      if (hotspots()) text(ctx, '▶ 点我玩', 102, 281, 8, Math.floor(sim.time * 2) % 2 ? '#ffffff' : '#ffe9a0');
+      else text(ctx, 'GAME', 102, 281, 7, '#ffe9a0');
+      const busy = kind => sim.actors.find(a => sim.gameActivity(a) === kind);
+      // The claw slides while someone plays, drops, lifts.
+      const clawPlayer = busy('claw'), cx = clawPlayer ? 190 + Math.round((Math.sin(sim.time * 1.3) + 1) * 6) : 195, drop = clawPlayer && (sim.time % 4) > 3 ? 5 : 0;
+      r(ctx, '#3e4b47', 188, 305, 16, 1); r(ctx, '#3e4b47', cx + 1, 306, 1, 2 + drop); r(ctx, '#9aa3a0', cx - 1, 308 + drop, 5, 1); r(ctx, '#9aa3a0', cx - 1, 309 + drop, 1, 2); r(ctx, '#9aa3a0', cx + 3, 309 + drop, 1, 2);
+      // Arrows scroll up the screen; the tile under the beat lights.
+      const dancer = busy('dance'), beat = Math.floor(sim.time * 3);
+      for (let j = 0; j < 4; j++) { const ay = 302 + ((j * 3 + (dancer ? beat : 0)) % 9); r(ctx, ['#e58f9a', '#90b8a3', '#efc66c', '#7f91bc'][j], 222 + j * 7, ay, 3, 2); }
+      if (dancer) { const t2 = [[0,1],[1,0],[2,1],[1,2]][beat % 4]; r(ctx, '#ffe9a0', 221 + t2[0] * 10, 318 + t2[1] * 6, 9, 5); }
+    }
   }
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
@@ -574,6 +598,16 @@
       r(ctx,'#e4bb91',x+5,bite?y-15:y-8,3,3); r(ctx,'#5a3b2a',x+7,bite?y-19:y-11,1,7);
       if (bite) r(ctx,'#f4ebd8',x+4,y-17,4,3); else { r(ctx,'#eee4c7',x-10,y-8,4,4); r(ctx,'#c99a64',x-10,y-8,4,1); }
     }
+    if (!greets && game === 'dance') {
+      const b = Math.floor(t * 3 + a.i) % 4, l = b % 2 ? 2 : -1;
+      r(ctx,'#34483e',x-5,y-2,4,3+l); r(ctx,'#34483e',x+2,y-2,4,3-l);
+      r(ctx,color,x-8,y-(b<2?20:12),3,8); r(ctx,color,x+5,y-(b<2?12:20),3,8);
+      r(ctx,'#e4bb91',x-8,y-(b<2?22:6),3,3); r(ctx,'#e4bb91',x+5,y-(b<2?6:22),3,3);
+    }
+    if (!greets && game === 'claw') {
+      const tap = Math.sin(t * 5 + a.i) > 0 ? 1 : 0;
+      r(ctx,color,x-6,y-17,3,6); r(ctx,'#e4bb91',x-6,y-19-tap,3,3); r(ctx,color,x+3,y-17,3,6); r(ctx,'#e4bb91',x+3,y-19,3,3);
+    }
     if (!greets && game === 'run') {
       const l = Math.sin(t * 14 + a.i) > 0 ? 2 : -2;
       r(ctx,'#34483e',x-5,y-2,4,3+l); r(ctx,'#34483e',x+2,y-2,4,3-l);
@@ -776,7 +810,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
