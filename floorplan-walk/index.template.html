@@ -41,6 +41,12 @@
   body.m3d .seg .pill { transform:translateX(80px); }
   body.m2d .seg .btn[data-mode="2d"], body.m3d .seg .btn[data-mode="3d"] { color:#fff; }
   .spacer { flex:1; }
+  #extraTools { display:flex; gap:10px; flex:none; }
+  #moreTools { display:none; }
+  #libpane { display:flex; flex-direction:column; min-height:0; background:var(--panel); }
+  #libwrap { flex:1; min-height:0; }
+  #libnav { display:flex; gap:2px; padding:4px; border-bottom:1px solid var(--line); }
+  #libnav button { flex:1; min-width:44px; min-height:44px; padding:4px; }
   #count2d { color:var(--soft); font-size:12px; flex:none; font-variant-numeric:tabular-nums; }
   #credit { font-size:10.5px; color:var(--soft); text-align:right; line-height:1.45; flex:none; }
   #credit a, #panel a { color:inherit; }
@@ -140,7 +146,17 @@
     #top { padding:6px 10px; gap:6px; }
     .brand span, #credit, #sunmeta, #count2d { display:none; }
     /* the library becomes a strip along the bottom; the side panel gives way to the floating bar */
-    #app2d { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) 112px; }
+    #app2d { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr) 164px; }
+    #libpane { grid-row:2; min-width:0; }
+    body.m2d #top { overflow:visible; }
+    body.m2d #top .brand { display:none; }
+    body.m2d #top .btn { min-height:44px; min-width:44px; padding:6px 8px; }
+    body.m2d #top .seg .btn,body.m2d #top .seg .pill { width:44px; }
+    body.m2d #top .mode-long { display:none; }
+    #moreTools { display:block; margin-left:auto; }
+    body.m2d #extraTools { display:none; position:fixed; top:calc(var(--toph) + 4px); left:8px; right:8px; padding:8px; flex-wrap:wrap; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px #0002; max-height:calc(100dvh - var(--toph) - 12px); overflow-y:auto; }
+    body.m2d #extraTools.open { display:flex; }
+    body.m2d #extraTools .grp { flex-wrap:wrap; max-width:100%; }
     #panelwrap { display:none; }
     #libwrap { grid-row:2; border-right:0; border-top:1px solid var(--line); overflow-x:auto; overflow-y:hidden; }
     #lib { display:flex; align-items:stretch; height:100%; padding:6px 6px; gap:6px; width:max-content; }
@@ -168,12 +184,16 @@
   <div class="brand"><b>走进户型图</b><span id="subtitle"></span></div>
   <div class="grp seg" title="切换 2D / 3D (T)">
     <span class="pill"></span>
-    <button class="btn" data-mode="2d">2D 平面</button>
-    <button class="btn" data-mode="3d">3D 场景</button>
+    <button class="btn" data-mode="2d">2D<span class="mode-long"> 平面</span></button>
+    <button class="btn" data-mode="3d">3D<span class="mode-long"> 场景</span></button>
   </div>
   <div class="grp only2d">
     <button class="btn" data-p2="undo" title="撤销 (Ctrl+Z)">撤销</button>
     <button class="btn" data-p2="redo" title="重做 (Ctrl+Shift+Z)">重做</button>
+  </div>
+  <button class="btn only2d" id="moreTools" aria-expanded="false" aria-controls="extraTools">更多 ▾</button>
+  <div id="extraTools">
+  <div class="grp only2d">
     <button class="btn danger" data-p2="clear" title="清空所有家具（可撤销）">清空布置</button>
     <button class="btn" data-p2="reset" title="恢复成图纸上的布置（可撤销）">恢复原样</button>
   </div>
@@ -189,13 +209,14 @@
     <button class="btn chip on" data-p2="wallSnap" title="拖动家具时贴墙吸附">贴墙吸附</button>
   </div>
   <div class="grp"><button class="btn" data-act="style">换木色 · <span id="styleName">橡木</span><kbd>C</kbd></button></div>
+  </div>
   <span class="spacer"></span>
   <span id="count2d" class="only2d"></span>
   <div id="credit">家具图例与模型移植自 <a href="https://github.com/wy51ai/floorplan-3d" target="_blank" rel="noopener">floorplan-3d</a>（MIT）<br>户型图 Wikimedia Commons · 公有领域</div>
 </div>
 
 <div id="app2d" class="only2d">
-  <aside id="libwrap"><div id="lib"></div></aside>
+  <section id="libpane"><nav id="libnav" aria-label="家具类别"></nav><aside id="libwrap"><div id="lib"></div></aside></section>
   <main id="stage2d">
     <svg id="plan" font-family="-apple-system,'PingFang SC','Microsoft YaHei',sans-serif">
       <defs id="defs"></defs>

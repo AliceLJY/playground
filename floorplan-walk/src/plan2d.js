@@ -211,7 +211,15 @@ export function createPlan2D({ getStyle, onChange }) {
   }
   function buildLib() {
     const style = getStyle();
-    $('#lib').innerHTML = LIBRARY.map((c, ci) => `<h4>${c.cat}</h4><div class="lib-grid">${c.items.map((it, ii) => {
+    $('#libnav').innerHTML = LIBRARY.slice(0,4).map((c,ci)=>`<button class="btn" data-category="${ci}" aria-controls="lib-category-${ci}">${esc(c.cat)}</button>`).join('');
+    $('#libnav').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+      const wrap=$('#libwrap'), heading=$(`#lib-category-${b.dataset.category}`);
+      const r=heading.getBoundingClientRect(), w=wrap.getBoundingClientRect();
+      // Scroll only the library; do not move the plan or the page.
+      if (matchMedia('(max-width:900px)').matches) wrap.scrollLeft+=r.left-w.left;
+      else wrap.scrollTop+=heading.nextElementSibling.getBoundingClientRect().top-w.top-heading.offsetHeight;
+    }));
+    $('#lib').innerHTML = LIBRARY.map((c, ci) => `<h4 id="lib-category-${ci}">${c.cat}</h4><div class="lib-grid">${c.items.map((it, ii) => {
       const pad = Math.max(it.w, it.d) * 0.08;
       return `<div class="item" data-key="${ci}:${ii}" title="点击添加，或拖到平面图里">
         <svg viewBox="${-it.w / 2 - pad} ${-it.d / 2 - pad} ${it.w + 2 * pad} ${it.d + 2 * pad}">${symbol(it.type, it.w, it.d, C.itemColor(it, style))}</svg><b>${esc(it.name)}</b><small>${it.w}×${it.d}</small></div>`;
