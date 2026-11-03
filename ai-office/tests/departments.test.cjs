@@ -154,3 +154,18 @@ test('codex review regressions: patrol survives a layout switch mid-lap; one wak
   assert.equal(C.blocked(62,684,C.layouts.portrait),true,'bunk frame');assert.equal(C.blocked(470,334,C.layouts.landscape),true,'lobby table');
   for(const id of ['portrait','landscape'])for(const b of C.layouts[id].beds)assert.equal(C.blocked(b.x,b.y,C.layouts[id]),false,'berth stays reachable');
 });
+
+test('一起玩: party and song take free colleagues and a guest downstairs, then everyone comes back; cheer and cat are short local shows',()=>{
+  for(const layout of ['portrait','landscape']){
+    const L=C.layouts[layout],s=office(layout);s.step(30000);
+    assert.equal(s.play('party'),true);s.step(40000);
+    const down=s.actors.filter(a=>['sing','cheer','book','water','cat','movie','buy','soda'].includes(s.gameActivity(a)));
+    assert.ok(down.length>=Math.min(8,s.actors.filter(a=>a.status==='idle'&&!s.isCourier(a)).length)-1,`${layout}: ${down.length} downstairs`);
+    const guest=s.visitors.find(v=>v.partyGuest);assert.ok(guest&&C.distance(guest,L.partySpot)<1,'the visitor came down too');
+    const cc=s.actors.find(a=>a.i===0);assert.ok(C.distance(cc,C.home(0,L))<1,'busy director keeps working');
+    s.step(120000);assert.equal(s.visitors.some(v=>v.partyGuest),false,'guest leaves after the party');
+    assert.equal(s.play('song'),true);s.step(40000);assert.ok(s.actors.some(a=>s.gameActivity(a)==='sing'));assert.ok(s.actors.some(a=>s.gameActivity(a)==='cheer'));
+    assert.equal(s.play('cheer'),true);assert.equal(s.hello.kind,'play-cheer');assert.equal(s.play('cat'),true);assert.ok(s.playing('cat'));
+  }
+  const film=C.create(script.roster,7,'film');film.classicLeisure=true;assert.equal(film.play('party'),false,'the published film never plays');
+});

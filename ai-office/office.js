@@ -437,8 +437,9 @@
       });
       placed(ctx,o.garden,()=>{
         // The office cat: purrs beside whoever pets it, otherwise strolls round the lawn.
-        const petter = at('cat'), waterer = at('water');
-        const p = petter ? {x: 66, y: 62} : {x: 40 + Math.round((Math.sin(t * .3) + 1) * 26), y: 40 + Math.round((Math.cos(t * .23) + 1) * 12)};
+        const petter = at('cat'), waterer = at('water'), fed = sim.playing?.('cat');
+        if (fed) { r(ctx,'#b5473a',44,62,10,4); r(ctx,'#e9c9a0',45,61,8,2); for (let j=0;j<3;j++) text(ctx,'♥',54+j*6,46-((t*6+j*4)%10),6,'#e58f9a'); }
+        const p = fed ? {x: 52, y: 62} : petter ? {x: 66, y: 62} : {x: 40 + Math.round((Math.sin(t * .3) + 1) * 26), y: 40 + Math.round((Math.cos(t * .23) + 1) * 12)};
         r(ctx,'#4c4d4030',p.x-1,p.y,12,2); r(ctx,'#e8963a',p.x,p.y-6,10,6); r(ctx,'#e8963a',p.x+8,p.y-9,5,5); r(ctx,'#e8963a',p.x+8,p.y-11,1,2); r(ctx,'#e8963a',p.x+12,p.y-11,1,2);
         r(ctx,'#c8732a',p.x+2,p.y-6,1,6); r(ctx,'#c8732a',p.x+5,p.y-6,1,6); r(ctx,'#2f3a3c',p.x+10,p.y-8,1,1); r(ctx,'#e8963a',p.x-3,p.y-8 + (Math.floor(t * 2) % 2),3,2);
         if (petter) text(ctx,'♥',p.x+6,p.y-14 - (t % 2) * 2,6,'#e58f9a');
@@ -720,7 +721,8 @@
       const hand = Math.round(-4 - 16 * pose.arm), swing = hand > -17 ? 0 : Math.sin(t * 9) > 0 ? 2 : -1;
       if (hand < -10) { r(ctx, '#33443f', x + 5, y - 10, 3, 6); r(ctx, color, x + 5, y + hand + 3, 3, -13 - hand); }
       r(ctx, '#e4bb91', x + 5 + swing, y + hand, 3, 3);
-      const word = hello?.kind === 'pose' ? ['茄子', '耶', '✌', '茄子', '笑一个', '耶', '看这里', '茄子', '比心', '耶', '茄子'][a.i % 11]
+      const playWords = {'play-party':['走！','下楼咯','好耶','冲呀','来啦','走走走','玩去','嘿','好嘞','来了','冲'],'play-song':['唱一个','安可','我先来','好耶','麦给我','来一首','鼓掌','嗨','听歌','好嘞','安可'],'play-cheer':['冲！','收到','加油','干就完了','稳','冲冲冲','好','冲！','yes','加油','冲'],'play-cat':['猫猫','喵','好可爱','咪咪','开饭啦','喵~','撸撸','乖','喵','猫猫','喵']}[hello?.kind];
+      const word = playWords ? playWords[a.i % 11] : hello?.kind === 'pose' ? ['茄子', '耶', '✌', '茄子', '笑一个', '耶', '看这里', '茄子', '比心', '耶', '茄子'][a.i % 11]
         : hello ? ['你好', 'Hi', '欢迎', '嗨', 'Hello', '你好呀', '欢迎光临', '嗨嗨', '哈喽', '来啦', '你好'][a.i % 11]
         : ['谢谢', '好耶', '谢啦', '太好了', '谢谢你', '哇', '开心', '干杯', '谢谢啦', '好香', '谢谢'][a.i % 11];
       const w = word.length * 6 + 6, bx = Math.max(22, Math.min(C.W-22 - w, x - w / 2 + 1));
@@ -954,7 +956,7 @@
     if(reception?.local && reception.phase==='handshake' && sim.time-reception.handshakeAt>=1 && !reception.photoTaken && !mv && !wallMode && !replay) {reception.photoTaken=true;takePhoto({kind:'reception'});}
     const hello = sim.greeting();
     if (hello) greeted = true;
-    if (hello && !sim.reception && !mv && !wallMode && !replay && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
+    if (hello && !String(hello.kind || '').startsWith('play-') && !sim.reception && !mv && !wallMode && !replay && sim.time - hello.at >= 1.3 && photoAt !== hello.at) { photoAt = hello.at; takePhoto(hello); }
     if (!replay && !hello && photoReady && sim.reception?.phase!=='handshake') { photoReady = false; $('#photo').hidden = false; clearTimeout(photoTimer); photoTimer = setTimeout(() => { $('#photo').hidden = true; }, 30_000); }
     if (sim.time - lastUI >= .5 || paused) { updateUI(); lastUI = sim.time; }
     metrics.push(performance.now() - started); if (metrics.length > 300) metrics.shift();
@@ -1202,6 +1204,16 @@
   document.querySelectorAll('#meet-menu button').forEach(b=>b.addEventListener('click',()=>sendMeet(b.dataset.kind)));
   $('#treat-toggle').addEventListener('click', () => { if(replay)return;$('#meet-menu').hidden=true;$('#meet-toggle').setAttribute('aria-expanded',false); const menu = $('#treat-menu'); menu.hidden = !menu.hidden; $('#treat-toggle').setAttribute('aria-expanded', !menu.hidden); });
   document.querySelectorAll('#treat-menu button').forEach(b => b.addEventListener('click', () => sendTreat(b.dataset.kind)));
+  // 一起玩: page-local performances; party/song/cat scroll to the fun floor.
+  const PLAY_NOTES = {party:'大家跟你下楼玩了', song:'K 房开唱了', cheer:'大家喊了声「冲！」', cat:'橘猫开饭了'}, playUsed = {};
+  $('#play-toggle').addEventListener('click',()=>{ if(replay)return; for(const id of ['treat','meet']){$(`#${id}-menu`).hidden=true;$(`#${id}-toggle`).setAttribute('aria-expanded',false);} const menu=$('#play-menu'); menu.hidden=!menu.hidden; $('#play-toggle').setAttribute('aria-expanded',!menu.hidden); });
+  document.querySelectorAll('#play-menu button').forEach(b=>b.addEventListener('click',()=>{
+    const kind=b.dataset.kind, note=$('#treat-note');
+    if(replay || !sim)return; if(playUsed[kind] && sim.time-playUsed[kind]<20){note.textContent='刚玩过，等一会儿';return;}
+    if(!sim.play(kind)){note.textContent='这会儿玩不了';return;}
+    playUsed[kind]=sim.time; note.textContent=PLAY_NOTES[kind]; $('#play-menu').hidden=true; $('#play-toggle').setAttribute('aria-expanded',false);
+    if(kind!=='cheer') setTimeout(()=>$('#room-viewport').scrollTo({top:$('#room-viewport').scrollHeight,behavior:calm.matches?'auto':'smooth'}),1500);
+  }));
   try { visitorTag = sessionStorage.getItem('office-visitor') || ''; } catch { /* storage may be unavailable */ }
   if (!/^[a-f0-9]{16}$/.test(visitorTag)) {
     visitorTag = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
