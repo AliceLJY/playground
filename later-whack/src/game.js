@@ -38,8 +38,7 @@ function paintBackground(){
   R(141,34,7,15,'#d7e3e6');R(142,30,5,6,'#8fc4e0');
   // the pile tray at the bottom
   R(0,218,LW,48,'#b9ab86');R(0,218,LW,2,'#8f8263');
-  b.font='700 6px '+FONT;b.textAlign='left';b.fillStyle='#5a4e35';b.fillText('留给下一个窗口',5,227);
-  b.textAlign='right';b.fillStyle='#7a6c4c';b.fillText('满三条就下班不了',145,227);
+  b.font='700 6px '+FONT;b.textAlign='left';b.fillStyle='#5a4e35';b.fillText('漏掉的',5,227);
   for(let i=0;i<3;i++){const y=232+i*11;b.strokeStyle='#8f8263';b.lineWidth=0.6;b.setLineDash([2,1.5]);b.strokeRect(6.5,y+0.5,137,9);}
   b.setLineDash([]);
 }
@@ -87,6 +86,24 @@ function observerSign(e){
   r(cx-1.5,cy-3.5,3,3,'#1d2b24');
   text(C.OBSERVE,cx,cy+6.4,4.5,'#ffffff');
   return s;
+}
+
+// ---------- picture icons: a check, a cross, a clock (no words needed) ----------
+function icon(kind,cx,cy,rad){
+  const c=kind==='yes'?'#3f9a5a':kind==='no'?COL.red:'#7a8597';
+  g.fillStyle='#ffffff';g.beginPath();g.arc(cx,cy,rad+0.8,0,6.283);g.fill();
+  g.fillStyle=c;g.beginPath();g.arc(cx,cy,rad,0,6.283);g.fill();
+  g.strokeStyle='#ffffff';g.lineWidth=rad*0.32;g.lineCap='round';g.beginPath();
+  const k=rad*0.5;
+  if(kind==='yes'){g.moveTo(cx-k,cy);g.lineTo(cx-k*0.2,cy+k*0.8);g.lineTo(cx+k,cy-k*0.7);}
+  else if(kind==='no'){g.moveTo(cx-k,cy-k);g.lineTo(cx+k,cy+k);g.moveTo(cx+k,cy-k);g.lineTo(cx-k,cy+k);}
+  else{g.moveTo(cx,cy-k*1.2);g.lineTo(cx,cy);g.lineTo(cx+k,cy+k*0.4);}
+  g.stroke();g.lineCap='butt';
+}
+// first blue / first green of a round: a bobbing cross or clock beside the sign
+function hintBadge(e,t){
+  const sr=C.signRect(e,t),bob=Math.round(Math.sin(t*8)*1),x=Math.min(LW-6,sr.x+sr.w+2),y=sr.y+2+bob;
+  icon(e.kind==='wait'?'no':'wait',x,y,4.6);
 }
 
 // ---------- desks ----------
@@ -139,14 +156,15 @@ function drawOffice(s){
       if(e.state==='hit')continue;
       const x=COLS[e.cell%3];
       if(e.kind==='tail'){const sr=C.signRect(e,t);r(sr.x+sr.w/2+5,sr.y+sr.h,1,Math.max(0,yb-22-(sr.y+sr.h)),'#7a5a3c');tailSign(e,t);}
-      else if(e.kind==='wait'){const sr=C.signRect(e);r(x,sr.y+sr.h,1,Math.max(0,yb-(e.holder==='adult'?24:22)-(sr.y+sr.h)),'#7a5a3c');waitSign(e);}
-      else{const sr=C.signRect(e);r(x+15,sr.y+sr.h-6,1,ROWS[Math.floor(e.cell/3)]-(sr.y+sr.h-6),'#7a5a3c');r(x+13,ROWS[Math.floor(e.cell/3)]-1,5,1,'#5a4330');observerSign(e);}
+      else if(e.kind==='wait'){const sr=C.signRect(e);r(x,sr.y+sr.h,1,Math.max(0,yb-(e.holder==='adult'?24:22)-(sr.y+sr.h)),'#7a5a3c');waitSign(e);if(e.hint)hintBadge(e,t);}
+      else{const sr=C.signRect(e);r(x+15,sr.y+sr.h-6,1,ROWS[Math.floor(e.cell/3)]-(sr.y+sr.h-6),'#7a5a3c');r(x+13,ROWS[Math.floor(e.cell/3)]-1,5,1,'#5a4330');observerSign(e);if(e.hint)hintBadge(e,t);}
     }
   }
 }
 
 function drawPile(s){
   const pile=s?s.pile:[];
+  text(pile.length+' / 3',145,228,8,pile.length>=2?COL.red:'#5a4e35','right');
   for(let i=0;i<pile.length;i++){
     const y=232+(2-i)*11,tilt=(i%2?1:-1);
     r(7+tilt,y+1,136,8,'#00000022');r(6,y,136,8,'#f6c08a');r(6,y,3,8,COL.tail);
@@ -199,34 +217,35 @@ function drawFx(){
 
 function card(x,y,w,h){r(x+2,y+2,w,h,'#00000040');r(x,y,w,h,COL.ink);r(x+1,y+1,w-2,h-2,'#2e3e3f');r(x+1,y+1,w-2,1,'#4a5d5e');}
 function legendRow(y,kind,line1,line2){
-  const e={id:0,kind,cell:0,text:'下次顺手',holder:'adult'},cx=36;
+  const e={id:0,kind,cell:0,text:'下次顺手',holder:'adult'},cx=34;
   g.save();
   if(kind==='tail'){g.translate(cx-C.COLS[0],y+45-C.ROWS[0]+0);tailSign(e,0);}
   else if(kind==='wait'){g.translate(cx-C.COLS[0],y+48-C.ROWS[0]-11+6);waitSign(e);}
   else{g.translate(cx-C.COLS[0],y+50-C.ROWS[0]-12+6);observerSign(e);}
   g.restore();
-  text(line1,64,y+5,7,COL.paper,'left');text(line2,64,y+13,5,'#b6c2b8','left',400);
+  icon(kind==='tail'?'yes':kind==='wait'?'no':'wait',73,y+3,5.5);
+  text(line1,83,y+7,9,kind==='tail'?'#7fd18f':kind==='wait'?'#ff8a8d':'#c9d2d8','left');text(line2,83,y+15,4.8,'#93a198','left',400);
 }
 function drawTitle(){
   card(8,30,134,174);
-  text('推到以后',75,52,16,COL.paper);
-  text('像素办公室 · 小尾巴当轮修完',75,63,5.5,'#b6c2b8',undefined,400);
-  legendRow(76,'tail','敲掉','小尾巴：当轮自己修完');
-  legendRow(112,'wait','别敲','等她拍板，敲了扣 50 分');
-  legendRow(148,'observer','不用敲','观察型，敲了拖鞋弹开白等');
-  text('漏掉的小尾巴堆到下面，满三条就结束',75,186,5,COL.paper,undefined,400);
-  text('连敲 4 下翻倍，连敲 10 下补修一条',75,195,5,COL.gold,undefined,400);
+  text('办公室打地鼠',75,51,14,COL.paper);
+  text('推到以后',75,62,6,'#f6ad6f',undefined,400);
+  legendRow(76,'tail','敲！','小尾巴');
+  legendRow(112,'wait','别敲','等她拍板');
+  legendRow(148,'observer','不用管','观察型，会自己走');
+  text('漏掉 3 个就结束',75,186,6.5,COL.paper);
+  text('连续敲中，分数翻倍',75,196,5.5,COL.gold,undefined,400);
 }
 function drawResult(s){
   const res=s.result,win=res.reason==='time';
   card(8,40,134,170);
-  if(win){text('下班！',75,64,15,COL.gold);text('60 秒，当轮修完',75,76,6,COL.paper,undefined,400);}
-  else{text('留给下一个窗口的手尾，',75,62,7.5,COL.paper);text('下一个窗口也不会做',75,73,7.5,COL.red);}
+  if(win){text('下班！',75,64,15,COL.gold);text('撑满 60 秒',75,76,6,COL.paper,undefined,400);}
+  else{text('漏掉 3 个',75,62,13,COL.red);text('留给下一个窗口的手尾，下一个窗口也不会做',75,74,4.6,'#b6c2b8',undefined,400);}
   text(String(res.score),75,98,16,COL.paper);text('分',75,106,5,'#b6c2b8',undefined,400);
-  const rows=[['修完',res.fixed+' 条'],['最高连击',res.bestCombo+''],['误敲等她',res.wrong+' 次'],['白敲观察型',res.bounced+' 次'],['补修',res.cleared+' 条']];
+  const rows=[['敲中',res.fixed+' 个'],['最高连击',res.bestCombo+''],['敲了蓝牌',res.wrong+' 次'],['敲了绿牌',res.bounced+' 次'],['连击抵消漏掉',res.cleared+' 个']];
   rows.forEach(([a,b],i)=>{text(a,30,122+i*9,6,'#b6c2b8','left',400);text(b,120,122+i*9,6,COL.paper,'right');});
   if(!win){text('堆在下面的：',30,174,5,'#b6c2b8','left',400);res.pile.forEach((p,i)=>text('· '+p,30,182+i*7,5,'#f6c08a','left',400));}
-  else text(res.wrong?'下次看清蓝牌再敲':'等她的一块没碰，好',75,180,6,res.wrong?'#b6c2b8':COL.obs);
+  else text(res.wrong?'下次看清蓝牌再敲':'蓝牌一块没碰',75,180,6,res.wrong?'#b6c2b8':COL.obs);
 }
 
 function render(){
@@ -251,13 +270,13 @@ function render(){
 function onEvent(e){
   const s=game.state;
   const signAt=c=>{const {x,y}=C.cellXY(c);return{x,y:y-38};};
-  if(e.type==='hit'){const p=signAt(e.cell);fx.push({type:'stars',x:p.x,y:p.y,at:clock,dur:0.4,seed:e.id});fx.push({type:'text',text:'修完 +'+e.pts,x:p.x,y:p.y-6,color:e.mult>1?COL.gold:COL.paper,size:e.mult>1?7.5:6.5,at:clock,dur:0.7});
+  if(e.type==='hit'){const p=signAt(e.cell);fx.push({type:'stars',x:p.x,y:p.y,at:clock,dur:0.4,seed:e.id});fx.push({type:'text',text:'+'+e.pts,x:p.x,y:p.y-6,color:e.mult>1?COL.gold:COL.paper,size:e.mult>1?7.5:6.5,at:clock,dur:0.7});
     if(e.mult>1&&e.combo%4===0)fx.push({type:'text',text:'×'+e.mult+'！',x:75,y:120,color:COL.gold,size:14,at:clock,dur:0.8});}
-  else if(e.type==='wrong'){const p=signAt(e.cell);fx.push({type:'cross',x:p.x,y:p.y+2,at:clock,dur:0.5});fx.push({type:'text',text:'−50 她还没拍板',x:Math.max(34,Math.min(116,p.x)),y:p.y-10,color:COL.red,size:6.5,at:clock,dur:0.9});fx.push({type:'flash',color:'#e5484d30',at:clock,dur:0.18});shake=2.5;}
+  else if(e.type==='wrong'){const p=signAt(e.cell);fx.push({type:'cross',x:p.x,y:p.y+2,at:clock,dur:0.5});fx.push({type:'text',text:'−50 蓝牌别敲',x:Math.max(34,Math.min(116,p.x)),y:p.y-10,color:COL.red,size:6.5,at:clock,dur:0.9});fx.push({type:'flash',color:'#e5484d30',at:clock,dur:0.18});shake=2.5;}
   else if(e.type==='bounce'){const p=signAt(e.cell);fx.push({type:'text',text:'白敲',x:p.x,y:p.y-10,color:'#dfe6ea',size:7,at:clock,dur:0.8});fx.push({type:'ring',x:p.x,y:p.y+2,color:'#dfe6ea',at:clock,dur:0.4});}
   else if(e.type==='whiff'){fx.push({type:'text',text:'敲空',x:e.x,y:e.y-10,color:'#5a5547',size:5,at:clock,dur:0.4});}
   else if(e.type==='miss'){const p=signAt(e.cell);fx.push({type:'fly',x:p.x,y:p.y,ty:236+(3-e.pile)*11,at:clock,dur:0.45});fx.push({type:'text',text:'推到以后…',x:Math.max(30,Math.min(120,p.x)),y:p.y-6,color:'#5a3b2a',size:6,at:clock,dur:0.7});}
-  else if(e.type==='cleared'){fx.push({type:'text',text:'补修一条！',x:75,y:224,color:'#2f7a4a',size:7,at:clock,dur:1});}
+  else if(e.type==='cleared'){fx.push({type:'text',text:'漏掉的 −1',x:75,y:224,color:'#2f7a4a',size:7,at:clock,dur:1});}
   else if(e.type==='over'){overAt=clock;}
 }
 function drain(){const s=game.state;for(const e of s.events)onEvent(e);s.events.length=0;}
@@ -313,7 +332,7 @@ function probe(){
   return{screen,view,frozen,seed,css:[cssW,cssH],frame:{scale,ox,oy,N},
     state:s?{t:+s.t.toFixed(3),lockUntil:+s.lockUntil.toFixed(3),phase:s.phase,score:s.score,combo:s.combo,pile:s.pile.slice(),live:s.ents.filter(e=>e.state!=='gone').length,
       up:s.ents.filter(e=>e.state==='up').length,
-      ents:s.ents.filter(e=>e.state!=='gone').map(e=>{const {x,y}=C.cellXY(e.cell);return{id:e.id,kind:e.kind,holder:e.holder,cell:e.cell,state:e.state,text:e.text,tapX:ox+x*scale,tapY:oy+(y-20)*scale};}),
+      ents:s.ents.filter(e=>e.state!=='gone').map(e=>{const {x,y}=C.cellXY(e.cell);return{id:e.id,kind:e.kind,hint:!!e.hint,holder:e.holder,cell:e.cell,state:e.state,text:e.text,tapX:ox+x*scale,tapY:oy+(y-20)*scale};}),
       stats:{...s.stats},result:s.result}:null};
 }
 const api={ready:false,probe,start,metrics,

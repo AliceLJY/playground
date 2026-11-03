@@ -43,7 +43,7 @@ function create(opts){
   opts=opts||{};
   const rand=rng(opts.seed==null?1:opts.seed);
   const s={t:0,phase:'play',ents:[],score:0,combo:0,bestCombo:0,pile:[],lockUntil:0,nextSpawn:0.8,nextId:1,
-    stats:{fixed:0,missed:0,wrong:0,bounced:0,whiffs:0,cleared:0,spawned:{tail:0,wait:0,observer:0}},events:[],result:null,peakLive:0,cellFree:new Array(9).fill(0)};
+    stats:{fixed:0,missed:0,wrong:0,bounced:0,whiffs:0,cleared:0,spawned:{tail:0,wait:0,observer:0}},events:[],result:null,peakLive:0,cellFree:new Array(9).fill(0),seen:{}};
   const emit=e=>{s.events.push(e);};
   const p=()=>clamp(s.t/CFG.duration,0,1);
   const live=()=>s.ents.filter(e=>e.state!=='gone').length;
@@ -62,7 +62,9 @@ function create(opts){
     let holder='adult';if(kind==='wait'&&rand()<CFG.kidShare)holder=rand()<0.5?'wuyou':'wulv';
     const born=at,upAt=born+CFG.warn,fullAt=upAt+CFG.rise,leaveAt=fullAt+up;
     const e={id:s.nextId++,kind,cell,born,upAt,fullAt,leaveAt,goneAt:leaveAt+CFG.sink,state:'warn',holder,
-      text:kind==='tail'?TAILS[Math.floor(rand()*TAILS.length)]:kind==='wait'?WAIT:OBSERVE,shirt:SHIRTS[Math.floor(rand()*SHIRTS.length)],hitAt:null,tapped:0};
+      text:kind==='tail'?TAILS[Math.floor(rand()*TAILS.length)]:kind==='wait'?WAIT:OBSERVE,shirt:SHIRTS[Math.floor(rand()*SHIRTS.length)],hitAt:null,tapped:0,
+      hint:kind!=='tail'&&!s.seen[kind]};   // the first blue and the first green of a round carry a picture hint (don't hit / leave it)
+    s.seen[kind]=true;
     s.ents.push(e);s.stats.spawned[kind]++;emit({type:'warn',id:e.id,cell,kind});
   }
   function finish(reason){
