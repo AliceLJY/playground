@@ -22,6 +22,9 @@ button.big:active{transform:translateY(3px);box-shadow:0 1px 0 #7d1015}
 .keys{margin-top:20px;font-size:12px;opacity:.75;line-height:1.9}
 .keys b{display:inline-block;min-width:1.6em;padding:0 .4em;border:1px solid rgba(246,235,211,.5);border-radius:4px;margin:0 2px}
 body.touch .keys{display:none}
+.touch-help{display:none;font-size:14px;line-height:1.7;margin-top:18px}
+body.touch .touch-help{display:block}
+@media(max-height:400px){#title h1{font-size:36px}#title .sub{font-size:13px}#title button.big{margin-top:10px}#title .touch-help{margin-top:10px}}
 #loading .bar{height:6px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden;margin:18px auto 8px;width:220px}
 #load-fill{height:100%;width:0;background:var(--gold);transition:width .2s}
 #load-label{font-size:12px;opacity:.7}
@@ -61,7 +64,7 @@ body.touch #dialog{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 170px)}
 #popups .pop.big{font-size:30px;color:var(--gold)}
 @keyframes pop{to{transform:translate(-50%,-140%);opacity:0}}
 #topbtns{position:fixed;right:max(12px,env(safe-area-inset-right));top:calc(max(14px,env(safe-area-inset-top)) + 22px);display:flex;gap:6px;z-index:13}
-#topbtns button{pointer-events:auto;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;width:36px;height:32px;font-size:15px}
+#topbtns button{pointer-events:auto;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;width:44px;height:44px;font-size:15px}
 #pad,#stick{display:none}
 body.touch #pad{display:grid;position:fixed;right:max(14px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));grid-template-columns:repeat(3,64px);grid-template-rows:repeat(2,64px);gap:10px;z-index:13}
 #pad button{pointer-events:auto;border-radius:50%;border:2px solid rgba(246,235,211,.6);background:rgba(29,26,36,.55);color:var(--paper);font-size:20px;font-weight:800;font-family:inherit}
@@ -87,6 +90,7 @@ body.touch #stick.on{opacity:1}
     <div class="kicker">西关 · 黄昏 · 醒狮擂台</div>
     <h1>骑楼擂台</h1>
     <div class="sub">街坊在骑楼街尽头摆了一台醒狮擂台。<br>你是粤剧武生阿龙，从街口一路打上去。</div>
+    <p class="touch-help">左下方拖动走位，右半屏拖动看方向，锣鼓满了再按锣。</p>
     <button id="start" class="big">开 锣</button>
     <div class="keys"><b>W</b><b>A</b><b>S</b><b>D</b> 移动 · <b>J</b>/左键 拳 · <b>K</b>/右键 脚 · <b>空格</b> 翻滚<br><b>Q</b> 按住格挡 · <b>E</b> 锣鼓满了开二阶段 · 拖动鼠标转镜头 · <b>M</b> 声音</div>
   </div>
@@ -111,7 +115,7 @@ body.touch #stick.on{opacity:1}
 <div id="pad"><button data-act="punch">拳</button><button data-act="kick">脚</button><button data-act="roll">滚</button><button data-act="block">挡</button><button data-act="gong">锣</button></div>
 
 <div id="end" class="screen hidden"><div class="card"><h1 id="end-title" style="font-size:clamp(26px,7vw,44px);letter-spacing:.06em;white-space:nowrap"></h1><div id="end-sub" class="sub"></div><button id="again" class="big">再来</button></div></div>
-<div id="paused" class="screen hidden"><div class="card"><h1 style="font-size:40px">歇一歇</h1><div class="sub">按 Esc 或右上角继续</div></div></div>
+<div id="paused" class="screen hidden"><div class="card"><h1 style="font-size:40px">歇一歇</h1><div class="sub">按 Esc 或点继续</div><button id="resume" class="big" type="button">继续</button></div></div>
 
 <script type="module" src="./main.js"></script>
 </body>

@@ -43,7 +43,8 @@ const PHASE2_LINE = ['醒狮头', '采青！街坊，帮手！'];
 
 let scene, sim, bot, chars = new Map(), have = new Set(), started = false, paused = false, talk = null;
 let winCam = false, camYaw = 0, camDist = 5.2, camPos = new pc.Vec3(0, 3, -4), camLook = new pc.Vec3(0, 1, 2), shake = 0;
-const keys = new Set(), stick = { x: 0, y: 0 }, pressed = {};
+const keys = new Set(), stick = { x: 0, y: 0 }, pressed = {}, held = { block: false };
+let clearInput = () => {};
 window.__qilou = { ready: false };
 
 async function boot() {
@@ -153,7 +154,7 @@ function frame(dt) {
   updateCamera(dt);
   updateHud(dt);
   sfx.setTempo(sim.gongT > 0 ? 1.5 : sim.wave === 3 ? 1.2 : 1);
-  sfx.tick(dt, started && sim.phase === 'fight');
+  sfx.tick(dt, started && !paused && !talk && sim.phase === 'fight');
 }
 function handleEvents() {
   for (const ev of sim.events) {
@@ -202,24 +203,28 @@ function readInput() {
   const f = [Math.sin(camYaw), Math.cos(camYaw)], r = [-Math.cos(camYaw), Math.sin(camYaw)];
   return {
     mx: f[0] * fw + r[0] * rt, mz: f[1] * fw + r[1] * rt, walk: keys.has('ShiftLeft'),
-    punch: pressed.punch, kick: pressed.kick, roll: pressed.roll, gong: pressed.gong, block: keys.has('KeyQ') || pressed.blockHeld
+    punch: pressed.punch, kick: pressed.kick, roll: pressed.roll, gong: pressed.gong, block: keys.has('KeyQ') || held.block
   };
 }
 function bindInput() {
   addEventListener('keydown', (e) => {
-    if (e.repeat) return; keys.add(e.code); sfx.unlock();
+    if (e.repeat) return; sfx.unlock();
+    if (e.code === 'Escape' || e.code === 'KeyP') return togglePause();
+    if (e.code === 'KeyM') { sfx.setMuted(!sfx.muted); $('mute').textContent = sfx.muted ? '🔇' : '🔊'; return; }
+    if (paused) return;
+    keys.add(e.code);
     if (talk && (e.code === 'Space' || e.code === 'Enter')) return nextLine();
     if (e.code === 'KeyJ') pressed.punch = true; if (e.code === 'KeyK') pressed.kick = true;
     if (e.code === 'Space') { pressed.roll = true; e.preventDefault(); } if (e.code === 'KeyE') pressed.gong = true;
-    if (e.code === 'KeyM') { sfx.setMuted(!sfx.muted); $('mute').textContent = sfx.muted ? '🔇' : '🔊'; }
-    if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
   });
   addEventListener('keyup', (e) => keys.delete(e.code));
   const cv = $('game'); let drag = null;
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('pointerdown', (e) => {
-    sfx.unlock(); if (e.pointerType === 'touch') return touchStart(e);
-    drag = { x: e.clientX, moved: 0, btn: e.button }; cv.setPointerCapture(e.pointerId);
+    sfx.unlock(); if (paused || !started) return;
+    cv.setPointerCapture(e.pointerId);
+    if (e.pointerType === 'touch') return touchStart(e);
+    drag = { x: e.clientX, moved: 0, btn: e.button };
   });
   cv.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'touch') return touchMove(e);
@@ -230,6 +235,7 @@ function bindInput() {
     if (drag && drag.moved < 6) { if (talk) nextLine(); else if (drag.btn === 2) pressed.kick = true; else pressed.punch = true; }
     drag = null;
   });
+  for (const type of ['pointercancel', 'lostpointercapture']) cv.addEventListener(type, (e) => { touchEnd(e); drag = null; });
   cv.addEventListener('wheel', (e) => { camDist = Math.max(3.4, Math.min(9, camDist + e.deltaY * .004)); }, { passive: true });
   // 触屏：左下摇杆、右下按钮、其余区域拖动转镜头
   const stickEl = $('stick'), knob = $('knob');
@@ -252,17 +258,31 @@ function bindInput() {
   }
   for (const b of document.querySelectorAll('#pad button')) {
     const act = b.dataset.act;
-    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); sfx.unlock(); if (act === 'block') pressed.blockHeld = true; else pressed[act] = true; b.classList.add('down'); });
-    const up = () => { if (act === 'block') pressed.blockHeld = false; b.classList.remove('down'); };
-    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); sfx.unlock(); if (paused || !started || talk) return; b.setPointerCapture(e.pointerId); if (act === 'block') held.block = true; else pressed[act] = true; b.classList.add('down'); });
+    const up = () => { if (act === 'block') held.block = false; b.classList.remove('down'); };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up); b.addEventListener('lostpointercapture', up);
   }
+  clearInput = () => {
+    keys.clear(); for (const k in pressed) pressed[k] = false; held.block = false;
+    stick.x = stick.y = 0; stickId = camTouch = origin = drag = null;
+    knob.style.transform = ''; stickEl.classList.remove('on');
+    for (const b of document.querySelectorAll('#pad button')) b.classList.remove('down');
+  };
+  const leave = () => { clearInput(); setPause(true); };
+  addEventListener('blur', leave);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) leave(); });
+  $('resume').addEventListener('click', () => setPause(false));
   $('start').addEventListener('click', () => { sfx.unlock(); startGame(); });
   $('again').addEventListener('click', () => again());
   $('mute').addEventListener('click', () => { sfx.setMuted(!sfx.muted); $('mute').textContent = sfx.muted ? '🔇' : '🔊'; });
   $('pause-btn').addEventListener('click', togglePause);
   if (matchMedia('(pointer:coarse)').matches) document.body.classList.add('touch');
 }
-function togglePause() { if (!started || sim.phase !== 'fight') return; paused = !paused; $('paused').classList.toggle('hidden', !paused); }
+function setPause(on) {
+  if (!started || sim.phase !== 'fight') return;
+  clearInput(); acc = 0; paused = on; $('paused').classList.toggle('hidden', !paused);
+}
+function togglePause() { setPause(!paused); }
 
 // ---------- 流程 ----------
 function startGame() {
