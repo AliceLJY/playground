@@ -36,6 +36,7 @@ export function validateConfig(config) {
     // so two colleagues can swap desks without swapping faces.
     if (a.look !== undefined && (!Number.isInteger(a.look) || a.look < 0 || a.look > 11)) throw new Error('Invalid look');
     // What "away" means for this desk, in the drawer: a box asleep in the cloud is not the same as a mirror that only syncs every two hours.
+    if (a.awayPost !== undefined && a.awayPost !== 'kitchen') throw new Error('Invalid away post');
     if (a.awayLabel !== undefined && (typeof a.awayLabel !== 'string' || !a.awayLabel.trim() || Array.from(a.awayLabel).length > 16)) throw new Error('Invalid away label');
     if (a.desk !== undefined && (!Number.isInteger(a.desk) || a.desk < 0 || a.desk > 10 || desks.has(a.desk))) throw new Error('Invalid desk'); if (a.desk !== undefined) desks.add(a.desk);
   }
@@ -132,7 +133,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   function snapshot() {
     return { updatedAt, roster: config.roster.map(a => {
       const m = state.members[a.id] || {};
-      return { id: a.id, ...(a.desk !== undefined ? { desk: a.desk } : {}), ...(a.awayLabel ? { awayLabel: cleanText(a.awayLabel, 16) } : {}), ...(a.look !== undefined ? { look: a.look } : {}), ...(a.source?.type === 'courier' ? { courier: true } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
+      return { id: a.id, ...(a.awayPost !== undefined ? { awayPost: a.awayPost } : {}), ...(a.desk !== undefined ? { desk: a.desk } : {}), ...(a.awayLabel ? { awayLabel: cleanText(a.awayLabel, 16) } : {}), ...(a.look !== undefined ? { look: a.look } : {}), ...(a.source?.type === 'courier' ? { courier: true } : {}), name: cleanText(a.name, 24), role: cleanText(a.role, 32), color: a.color, status: STATUSES.includes(m.status) ? m.status : 'unknown', statusSince: m.statusSince || updatedAt, badge: cleanText(m.badge || '', 16), workedToday: Number.isFinite(m.workedMs) && m.workedDay === beijingDay(clock()) ? Math.round(m.workedMs) : 0 };
     }), quota: Object.fromEntries(Object.entries(state.quota).filter(([,until]) => until > clock()).map(([id,until]) => [id,iso(until)])), notices: state.notices.map(n => ({ ...n })), demo: false, ...(build ? { build } : {}), visitors: visitorCount(clock()), visitorsTotal: state.visitorsTotal || 0, treats: (state.treats || []).slice(-10), treatsToday: treatsToday(), meets: state.meets.slice(-10), meetsToday: meetsToday(), ...sceneSnapshot() };
   }
   function sceneSnapshot() {

@@ -15,7 +15,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'kitchen', 'bbq', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate', 'pool', 'farm', 'cat', 'clinic'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -91,15 +91,17 @@
   function room(g = bg, L = light) {
     if (g === bg) { bg.setTransform(2, 0, 0, 2, 0, 0); bg.clearRect(0, 0, C.W, C.H); }
     const sky = L === 'night' ? '#30465a' : L === 'dusk' ? '#dca879' : '#a5c6bf';
-    r(g, '#a49b8640', 16, 16, 338, 396); r(g, '#6d725e', 10, 10, 340, 398); r(g, '#dedbc3', 14, 14, 332, 68);
+    // The phone tower's ground floor is 70 rows deeper (meeting room and totals board beside the boss desk).
+    const F = C.bands ? 470 : 400;
+    r(g, '#a49b8640', 16, 16, 338, F - 4); r(g, '#6d725e', 10, 10, 340, F - 2); r(g, '#dedbc3', 14, 14, 332, 68);
     r(g, '#f1e7ce', 17, 17, 326, 62); r(g, '#c7c7ac', 14, 73, 332, 10); r(g, '#8c967d', 14, 79, 332, 5);
-    r(g, '#b58c63', 14, 84, 332, 317);
-    for (let y = 84; y < 401; y += 18) for (let x = 14 - ((y / 18 | 0) % 2) * 24; x < 345; x += 48) {
+    r(g, '#b58c63', 14, 84, 332, F - 83);
+    for (let y = 84; y < F + 1; y += 18) for (let x = 14 - ((y / 18 | 0) % 2) * 24; x < 345; x += 48) {
       const left = Math.max(14, x), width = Math.min(345, x + 47) - left;
-      r(g, ((x + y) / 6 | 0) % 3 ? '#c9a27a' : '#d1ad83', left, y, width, 17);
-      r(g, '#bd946c', left + 3, y + 12, Math.max(0, width - 9), 1);
+      r(g, ((x + y) / 6 | 0) % 3 ? '#c9a27a' : '#d1ad83', left, y, width, Math.min(17, F - y));
+      if (y + 12 < F) r(g, '#bd946c', left + 3, y + 12, Math.max(0, width - 9), 1);
     }
-    r(g, '#8a785e', 14, 400, 332, 5); r(g, '#e5c498', 14, 397, 332, 3);
+    r(g, '#8a785e', 14, F, 332, 5); r(g, '#e5c498', 14, F - 3, 332, 3);
     if(C.id==='landscape')wingFloor(g);
     // Windows, curtains and a tiny skyline.
     for (const x of [25, 98]) {
@@ -132,9 +134,9 @@
     r(g, '#865e43', 285, 340, 47, 23); r(g, '#c09a69', 282, 337, 51, 10); r(g, '#e5c595', 282, 337, 51, 2); text(g, mv ? '前 台' : '志愿者', 307, 356, 7, '#f2e6c7'); r(g, '#f0e4c4', 312, 333, 14, 7); r(g, '#9da384', 313, 335, 12, 1);
     });
     r(g, '#556b5b', 329, 374, 17, 26); r(g, '#99a288', 330, 376, 16, 22); r(g, '#f5e3af', 333, 386, 2, 3); text(g, 'OUT', 334, 371, 5, '#5b6857');
-    plant(g, 329, 94, true); plant(g, 32, 380, true); if (mv) plant(g, 124, 200); plant(g, 271, 279);
+    plant(g, 329, 94, true); if (!C.bands) plant(g, 32, 380, true); if (mv) plant(g, 124, 200); plant(g, 271, 279);
     // A warm lamp pool is strictly decorative: no overlay on text or characters.
-    if (L !== 'day') { g.fillStyle = L === 'night' ? '#323d6220' : '#e79e4120'; g.fillRect(14, 84, 332, 313); if (mv) r(g, '#f9d98c', 109, 263, 10, 3); }
+    if (L !== 'day') { g.fillStyle = L === 'night' ? '#323d6220' : '#e79e4120'; g.fillRect(14, 84, 332, F - 87); if (mv) r(g, '#f9d98c', 109, 263, 10, 3); }
     annex(g);
   }
 
@@ -232,8 +234,66 @@
       r(g,'#8a785e',346,400,280,5); r(g,'#e5c498',346,397,280,3);
       if(light!=='day')r(g,light==='night'?'#323d6220':'#e79e4120',346,84,280,313);
   }
+  // Phone tower (11-03): 2F the noisy rooms, 3F the quiet ones; stairs down the right-hand column between floors.
+  function towerShell(g) {
+    const flight=(y,h)=>{ r(g,'#6d725e',308,y,38,h); r(g,'#c9a27a',312,y-2,30,h+4); for (let yy=y+4;yy<y+h;yy+=6) r(g,'#b58c63',313,yy,28,1); };
+    flight(470,22); flight(814,30);
+    r(g,'#6d725e',10,488,340,330); r(g,'#dedbc3',14,492,332,20); r(g,'#c7c7ac',14,510,332,6); r(g,'#c9a27a',14,516,332,298); planks(g,14,516,332,298);
+    r(g,'#c9a27a',312,488,30,28); text(g,'二 楼 · 热 闹 层',150,506,8,'#655b40'); text(g,'↓ 二楼',327,484,6,'#655b40');
+    r(g,'#6d725e',10,842,340,204); r(g,'#dedbc3',14,846,332,16); r(g,'#c7c7ac',14,860,332,6); r(g,'#c9a27a',14,866,332,166); planks(g,14,866,332,166);
+    r(g,'#c9a27a',312,842,30,24); text(g,'三 楼 · 安 静 层',150,858,8,'#655b40'); text(g,'↓ 三楼',327,838,6,'#655b40');
+    plant(g,300,986,true); plant(g,256,986);
+    r(g,'#77563f',258,1012,40,6); r(g,'#a97c52',258,1010,40,3); r(g,'#77563f',260,1018,3,5); r(g,'#77563f',293,1018,3,5);
+    if (light!=='day') { g.fillStyle = light==='night' ? '#323d6220' : '#e79e4120'; g.fillRect(14,516,332,298); g.fillRect(14,866,332,166); }
+  }
+  // Compact meeting room beside the boss desk: screen, four chairs, a table, a lectern, a two-seat bench.
+  function compactMeeting(g) {
+    const {x,y,w,h}=C.meetingRect;
+    r(g,'#9cbab128',x,y,w,h); r(g,'#6c897b',x,y,w,3); r(g,'#6c897b',x,y,3,h); r(g,'#6c897b',x+w-2,y,3,40); r(g,'#6c897b',x+w-2,y+88,3,h-88);
+    r(g,'#9cbab160',x+w-2,y+40,3,48);
+    r(g,'#547064',24,355,88,23); r(g,'#fff4d5',26,357,84,19);
+    for (const p of Core.seats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
+    r(g,'#77563f',26,400,72,14); r(g,'#a97c52',26,400,72,11); r(g,'#dfb987',27,400,70,3); r(g,'#eee4c7',38,404,13,7); r(g,'#8d9a80',41,407,7,1); r(g,'#eee4c7',72,404,13,7);
+    r(g,'#77563f',110,374,8,12); r(g,'#a97c52',109,372,10,3);
+    r(g,'#71583f',26,446,46,10); r(g,'#a3ac8f',26,444,46,5); r(g,'#d2b285',26,452,46,4);
+    text(g,'会议室',98,463,7,'#655b40');
+  }
+  // 菜地 (was the little garden), 220×70: three vegetable beds and a row of flowers; crops grow one stage a day.
+  function farmRoom(g) {
+    r(g,'#8fb07a',0,0,220,70); r(g,'#5f8a4d',0,0,220,1); r(g,'#5f8a4d',0,69,220,1); r(g,'#5f8a4d',0,0,1,70); r(g,'#5f8a4d',219,0,1,70);
+    for (const y of [12,32,52]) { r(g,'#7a5638',8,y,150,10); r(g,'#94693f',8,y,150,2); }
+    r(g,'#6b4430',176,6,30,18); r(g,'#8c3a2e',174,4,34,5); r(g,'#e9d7b0',184,12,8,12); text(g,'工具',191,30,6,'#45534b');
+    for (let j=0;j<9;j++) { r(g,'#52745e',166+j*6,46,1,8); r(g,['#e58f9a','#efc66c','#b397b8','#f4f1e6'][j%4],165+j*6,43,4,4); }
+    plaque(g,'菜地',176,56,32,'#5f8a4d');
+  }
+  // 泳池, 120×78: water, a ladder, a diving board, two deckchairs under an umbrella.
+  function poolRoom(g) {
+    r(g,'#e8eef2',0,0,120,78); for (let y=2;y<78;y+=8) for (let x=2;x<120;x+=8) r(g,'#d5dee4',x,y,7,7);
+    r(g,'#7aa7b8',6,14,80,58); r(g,'#9ccfe0',8,16,76,54); r(g,'#7aa7b8',8,16,76,2);
+    r(g,'#c9a27a',34,6,10,12); r(g,'#e0b786',34,6,10,2); r(g,'#9aa3a0',82,22,2,14); r(g,'#9aa3a0',86,22,2,14); for (const yy of [25,30,35]) r(g,'#9aa3a0',82,yy,6,1);
+    for (const yy of [22,48]) { r(g,'#4c4d4030',93,yy+11,22,2); r(g,'#77563f',92,yy,22,10); r(g,'#efc66c',93,yy+1,20,8); r(g,'#d96952',93,yy+3,20,1); }
+    r(g,'#5a4636',114,8,1,16); r(g,'#d96952',106,4,18,5); r(g,'#efc66c',112,4,6,5);
+    r(g,'#ffffff',60,58,8,8); r(g,'#d96952',61,59,6,6); r(g,'#9ccfe0',63,61,2,2);
+    plaque(g,'泳池',4,66,30,'#3a6a9a');
+  }
+  // Cat tree, 60×70: the office cat's home base (it roams the whole building).
+  function catTree(g) {
+    r(g,'#4c4d4030',20,62,32,3); r(g,'#a97c52',34,8,6,52); r(g,'#d1ad83',24,40,26,6); r(g,'#d1ad83',30,6,18,6); r(g,'#d1ad83',22,54,30,6);
+    r(g,'#e9c9a0',36,46,2,8); r(g,'#e58f9a',26,30,6,6); r(g,'#8c6447',8,58,12,6); r(g,'#b5473a',9,60,10,3);
+    text(g,'猫窝',30,74,6,'#655b40');
+  }
+  // 医务室, 66×100: a red cross, a medicine cabinet, the doctor's desk, an exam bed. Alice (医学出身) is the doctor.
+  function clinicRoom(g) {
+    r(g,'#f4f1e6',0,0,66,100); r(g,'#d9564d',0,0,66,1); r(g,'#d9564d',0,99,66,1); r(g,'#d9564d',0,0,1,100); r(g,'#d9564d',65,0,1,100);
+    r(g,'#ffffff',44,3,12,9); r(g,'#d9564d',48,4,4,7); r(g,'#d9564d',46,6,8,3);
+    r(g,'#9aa7a2',4,14,18,22); r(g,'#e8eef2',5,15,16,20); r(g,'#9aa7a2',5,24,16,1); for (const [xx,yy,c] of [[7,18,'#d96952'],[12,18,'#7ad7ff'],[16,19,'#efc66c'],[8,27,'#9cff8a'],[14,28,'#e58fb0']]) r(g,c,xx,yy,3,4);
+    r(g,'#77563f',34,24,26,10); r(g,'#a97c52',34,24,26,3); r(g,'#3e4b47',40,26,6,1); r(g,'#3e4b47',45,27,1,3); r(g,'#eee4c7',50,26,7,5);
+    r(g,'#9aa7a2',6,70,50,12); r(g,'#ffffff',8,70,46,8); r(g,'#cfe3dc',8,70,12,6); r(g,'#9aa7a2',6,82,3,4); r(g,'#9aa7a2',53,82,3,4);
+    plaque(g,'医务室',14,88,38,'#b5473a');
+  }
   function annex(g) {
-    if (C.id!=='landscape') {
+    if (C.bands) towerShell(g);
+    else if (C.id!=='landscape') {
     // Downstairs: a narrow passage leaves the original room through a new south doorway.
     r(g,'#6d725e',308,400,38,94); r(g,'#c9a27a',312,398,30,98);
     for (let y=406;y<488;y+=12) r(g,'#b58c63',313,y,28,1);
@@ -242,14 +302,14 @@
     for(let y=488;y<724;y+=18) { r(g,'#b58c63',14,y,332,1); for(let x=22+(y%36?24:0);x<344;x+=48) r(g,'#b58c63',x,y,1,Math.min(18,724-y)); }
     r(g,'#c9a27a',312,420,30,72); text(g,'↓ 附楼',327,449,6);
     }
-    placed(g,C.meetingOffset,()=>{
+    if (C.meetingRect) compactMeeting(g); else placed(g,C.meetingOffset,()=>{
     // Compact meeting room (meetings come a few times a week): four seats, podium, one standing row.
     r(g,'#6c897b',20,490,159,3); r(g,'#9cbab160',20,493,3,107);
     r(g,'#6c897b',176,490,3,86); r(g,'#9cbab140',164,493,12,83);
     r(g,'#6c897b',20,600,159,3); r(g,'#9cbab190',20,587,156,13);
     for(const x of [20,60,100,140]) r(g,'#6c897b',x,584,2,19);
     r(g,'#547064',28,496,140,25); r(g,'#fff4d5',30,498,136,21);
-    for(const p of Core.seats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
+    for(const p of Core.classicSeats) { r(g,'#547064',p.x-8,p.y-12,16,14); r(g,'#8ca28a',p.x-7,p.y-12,14,4); r(g,'#547064',p.x-7,p.y+1,3,4); r(g,'#547064',p.x+4,p.y+1,3,4); }
     r(g,'#77563f',36,552,96,20); r(g,'#a97c52',36,552,96,16); r(g,'#dfb987',37,552,94,4);
     r(g,'#eee4c7',56,560,15,8); r(g,'#8d9a80',59,563,9,1); r(g,'#eee4c7',100,560,15,8);
     text(g,'会议室',152,572,7,'#655b40');
@@ -258,6 +318,10 @@
     });
     if(!mv) { placed(g,C.teaOffset,()=>teahouse(g)); placed(g,C.gymOffset,()=>gym(g)); }
     if(!mv && C.restOffset) placed(g,C.restOffset,()=>restRoom(g));
+    if(!mv && C.kitchenOffset) placed(g,C.kitchenOffset,()=>kitchenRoom(g));
+    if(!mv && C.poolOffset) placed(g,C.poolOffset,()=>poolRoom(g));
+    if(!mv && C.catOffset) placed(g,C.catOffset,()=>catTree(g));
+    if(!mv && C.clinicOffset) placed(g,C.clinicOffset,()=>clinicRoom(g));
     if(!mv && C.funOffsets) funFloor(g);
     if(!mv && C.lobby) {
       // Lobby by the entrance: a waiting sofa for guests, a low table, two plants.
@@ -297,7 +361,9 @@
     r(g,'#efc66c',275,660,8,6); r(g,'#d6a845',277,666,4,3); r(g,'#8c6447',275,669,8,2); r(g,'#efc66c',273,661,2,3); r(g,'#efc66c',283,661,2,3);
     r(g,'#6d725e',295,658,30,13); r(g,'#d1ad83',297,660,26,9); r(g,'#35474a',300,661,5,4); r(g,'#35474a',309,661,5,4); r(g,'#35474a',318,661,3,4);
     });
-    placed(g,C.totalsOffset,()=>{r(g,'#77563f',24,426,276,52); r(g,'#a17c52',27,429,270,46);});
+    placed(g,C.totalsOffset,()=>{const T=C.totals||{x:24,y:426,w:276,h:52};
+      if(C.totals){r(g,'#4c4d4040',T.x+2,T.y+T.h,T.w,3);r(g,'#5a3b2a',T.x+10,T.y+T.h-2,3,4);r(g,'#5a3b2a',T.x+T.w-13,T.y+T.h-2,3,4);}
+      r(g,'#77563f',T.x,T.y,T.w,T.h); r(g,'#a17c52',T.x+3,T.y+3,T.w-6,T.h-6);});
   }
   // 茶楼 · 早市, 78×100 local: sign, one round table with four stools, a dim sum cart. Opens on the datai-teahouse game.
   function teahouse(g) {
@@ -314,7 +380,9 @@
   // 娱乐层 downstairs: a new storey under the building with four 110×80 rooms (K 房, 阅读室, 小花园, 放映角).
   function planks(g, x, y, w, h) { for (let yy = y; yy < y + h; yy += 18) { r(g, '#b58c63', x, yy, w, 1); for (let xx = x + 8 + (yy % 36 ? 24 : 0); xx < x + w; xx += 48) r(g, '#b58c63', xx, yy, 1, Math.min(18, y + h - yy)); } }
   function funFloor(g) {
-    if (C.id === 'landscape') {
+    if (C.bands) {
+      // Shell drawn by towerShell; the old garden is a vegetable plot now.
+    } else if (C.id === 'landscape') {
       r(g,'#6d725e',10,408,620,150); r(g,'#dedbc3',14,412,612,28); r(g,'#c7c7ac',14,434,612,6); r(g,'#c9a27a',14,440,612,112); planks(g,14,440,612,112);
       r(g,'#c9a27a',416,394,20,48); for (let y=400;y<440;y+=8) r(g,'#b58c63',417,y,18,1); text(g,'↓ 娱乐层',426,392,6,'#655b40');
       text(g,'娱 乐 层',596,430,8,'#655b40');
@@ -325,7 +393,7 @@
       text(g,'娱 乐 层',150,784,10,'#655b40'); text(g,'唱歌 · 看书 · 浇花撸猫 · 看片',150,798,6,'#7e856e');
     }
     const o = C.funOffsets;
-    placed(g,o.ktv,()=>ktvRoom(g)); placed(g,o.read,()=>readingRoom(g)); placed(g,o.garden,()=>gardenRoom(g)); placed(g,o.cinema,()=>cinemaRoom(g)); if (o.snack) placed(g,o.snack,()=>snackBar(g));
+    placed(g,o.ktv,()=>ktvRoom(g)); placed(g,o.read,()=>readingRoom(g)); placed(g,o.garden,()=>C.bands?farmRoom(g):gardenRoom(g)); placed(g,o.cinema,()=>cinemaRoom(g)); if (o.snack) placed(g,o.snack,()=>snackBar(g)); if (o.bbq) placed(g,o.bbq,()=>bbqRoom(g));
   }
   function frame(g, color) { r(g, color, 0, 0, 110, 1); r(g, color, 0, 79, 110, 1); r(g, color, 0, 0, 1, 80); r(g, color, 109, 0, 1, 80); }
   function ktvRoom(g) {
@@ -363,6 +431,28 @@
     r(g,'#77563f',30,60,34,5); r(g,'#a97c52',30,60,34,2); r(g,'#5a4636',46,65,2,10);
     for (const x of [40,56]) { r(g,'#3e4b47',x-3,70,7,3); r(g,'#3e4b47',x-1,73,2,5); }
     plaque(g,'小卖部',2,66,34,'#a87a2c');
+  }
+  // Compact kitchen: solid appliances above, a two-seat table below; the open floor remains walkable.
+  function kitchenRoom(g) {
+    r(g,'#e9dcc0',0,0,76,80); zone(g,0,0,76,80,'#7d927b');
+    for(let y=2;y<80;y+=10) for(let x=2;x<76;x+=10) r(g,'#fff6dc40',x,y,8,8);
+    plaque(g,'自助厨房',6,-12,56,'#667f68');
+    r(g,'#35474a',6,10,22,16); r(g,'#9aa7a2',7,11,20,3); r(g,'#192e30',9,15,15,3);
+    r(g,'#35474a',10,7,12,7); r(g,'#667879',9,7,14,2); r(g,'#35474a',5,9,5,2); r(g,'#35474a',22,9,5,2); r(g,'#b7c2b0',12,6,8,1);
+    r(g,'#8c6447',36,12,18,14); r(g,'#d1ad83',35,10,20,5); r(g,'#7d927b',39,11,10,2); r(g,'#e8963a',43,11,3,2); r(g,'#d9e2dc',49,8,2,5);
+    r(g,'#8fa7a4',58,6,14,25); r(g,'#e8eef2',59,7,12,23); r(g,'#8fa7a4',59,15,12,1); r(g,'#667879',60,11,1,3); r(g,'#667879',60,18,1,5); r(g,'#efc66c',66,9,3,3);
+    r(g,'#8c6447',28,53,20,14); r(g,'#d1ad83',27,51,22,11); r(g,'#fff6dc',30,53,6,3); r(g,'#7d927b',31,53,4,1); r(g,'#fff6dc',40,56,6,3); r(g,'#e8963a',41,56,3,1);
+    for(const x of [16,60]) {r(g,'#8c6447',x-6,65,12,4);r(g,'#8c6447',x-5,69,2,5);r(g,'#8c6447',x+3,69,2,5);}
+  }
+  function bbqRoom(g) {
+    r(g,'#6d7869',0,0,72,68); zone(g,0,0,72,68,'#efc66c','18');
+    for(let y=12;y<68;y+=12) r(g,'#35474a40',1,y,70,1);
+    r(g,'#35474a',3,3,66,1); for(let x=5;x<70;x+=12){r(g,'#35474a',x,3,1,3);r(g,'#fff6dc',x-1,6,3,3);}
+    r(g,'#35474a',8,14,26,13); r(g,'#192e30',10,15,22,7); r(g,'#9aa7a2',9,16,24,1); r(g,'#9aa7a2',9,20,24,1);
+    for(const x of [13,21,29]) {r(g,'#d1ad83',x,12,1,12);r(g,'#d96952',x-1,14,3,3);r(g,'#e8963a',x-1,19,3,3);}
+    r(g,'#35474a',10,27,3,5); r(g,'#35474a',29,27,3,5);
+    for(const x of [20,54]) {r(g,'#d1ad83',x-6,57,12,3);r(g,'#35474a',x-5,60,2,5);r(g,'#35474a',x+3,60,2,5);}
+    plaque(g,'烧烤',40,19,28,'#8c4f37');
   }
   function cinemaRoom(g) {
     r(g,'#26303a',0,0,110,80); frame(g,'#7a8a9a');
@@ -414,12 +504,25 @@
       r(ctx,feast||sitting?'#efc66c':'#c9a35b',34,89,3,3); text(ctx,feast || (sitting?sitting+'时间':'全天营业'),58,94,6,feast||sitting?'#8c3a2e':'#8c6a44');
       if (busy('tea')) for (let j=0;j<3;j++) { const k=(t*1.3+j/3)%1; r(ctx,'#ffffff90',32+j*6+Math.round(Math.sin(t*3+j)),44-Math.round(k*12),2,2); }
     });
+    if(C.kitchenOffset) placed(ctx,C.kitchenOffset,()=>{
+      if(busy('cook') || sim.actors.some(a=>sim.chefActivity(a)==='cook')) {
+        const f=Math.floor(t*4)%2;
+        for(const x of [10,16,22]) {r(ctx,'#d96952',x,21,3,4);r(ctx,'#efc66c',x+1,20-f,1,4);}
+        for(let j=0;j<2;j++) r(ctx,'#ffffff90',13+j*6+Math.round(Math.sin(t*2+j)),5-Math.floor((t+j)%2*3),2,2);
+      }
+    });
     placed(ctx,C.gymOffset,()=>{
       if (busy('run')) for (let y=18+Math.floor(t*20)%6; y<48; y+=6) r(ctx,'#6d7a74',10,y,8,1);
       if (busy('box')) { const sway=Math.round(Math.sin(t*6)*1.5); r(ctx,'#cbd3c2',66,15,12,16); r(ctx,'#3e4b47',71,4,1,12); r(ctx,'#ba5045',67+sway,16,10,14); r(ctx,'#d96952',68+sway,17,3,12); r(ctx,'#8c3a2e',67+sway,28,10,2); }
     });
     if (C.funOffsets) {
       const o = C.funOffsets, t = sim.time, at = kind => sim.actors.find(a => sim.gameActivity(a) === kind);
+      if(o.bbq) placed(ctx,o.bbq,()=>{
+        const f=Math.floor(t*3)%2;
+        for(const x of [11,17,23,29]) r(ctx,f?'#e8963a':'#d96952',x,24,3,2);
+        for(let j=0;j<3;j++) {const k=(t*.7+j/3)%1;r(ctx,'#e8eef280',16+j*5+Math.round(Math.sin(t+j)*2),12-Math.floor(k*11),2,2);}
+        for(let x=5;x<70;x+=12) r(ctx,(x+f)%3?'#fff6dc':'#efc66c',x-1,6,3,3);
+      });
       placed(ctx,o.ktv,()=>{
         // Lyrics scroll while someone sings; the disco ball always turns.
         const singing = !!at('sing');
@@ -438,7 +541,21 @@
         // A can drops into the drinks machine's tray now and then while someone is buying.
         if (at('buy')) { const k = (t * 1.6) % 3; if (k < 1) r(ctx,'#d96952',12,30 + Math.round(k * 4),3,4); else r(ctx,'#d96952',12,33,3,2); }
       });
-      placed(ctx,o.garden,()=>{
+      if (C.bands) placed(ctx,o.garden,()=>{
+        // Crops grow one stage a Beijing day: seeds, seedlings, ripe (cabbage, tomatoes, carrots); the waterer's can drips.
+        const stage=Math.floor((now()+8*3600000)/86400000)%3, waterer=at('water'), picker=at('pick');
+        [14,34,54].forEach((y,row)=>{ for(let x=14;x<154;x+=12){
+          if(stage===0){r(ctx,'#5a3b2a',x,y+4,2,2);}
+          else if(stage===1){r(ctx,'#7aa36a',x,y+2,2,5);r(ctx,'#9cc48a',x-1,y+1,4,2);}
+          else if(row===0){r(ctx,'#7aa36a',x-2,y,7,7);r(ctx,'#b9d6a0',x,y+2,3,3);}
+          else if(row===1){r(ctx,'#52745e',x,y-1,1,8);r(ctx,'#d96952',x-2,y+2,3,3);r(ctx,'#d96952',x+1,y+5,3,3);}
+          else {r(ctx,'#7aa36a',x,y-1,1,3);r(ctx,'#7aa36a',x+2,y-1,1,3);r(ctx,'#e8963a',x,y+2,3,5);}
+        }});
+        text(ctx,['刚播种','发芽了','可以摘啦'][stage],120,9,6,stage===2?'#b5473a':'#45534b');
+        if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',52 + j * 3,22 + ((t * 20 + j * 5) % 10),1,2);
+        if (picker && stage===2) text(ctx,'丰收',112,40-(t%2|0),6,'#b5473a');
+      });
+      if (!C.bands) placed(ctx,o.garden,()=>{
         // The office cat: purrs beside whoever pets it, otherwise strolls round the lawn.
         const petter = at('cat'), waterer = at('water'), fed = sim.playing?.('cat');
         if (fed) { r(ctx,'#b5473a',44,62,10,4); r(ctx,'#e9c9a0',45,61,8,2); for (let j=0;j<3;j++) text(ctx,'♥',54+j*6,46-((t*6+j*4)%10),6,'#e58f9a'); }
@@ -467,25 +584,64 @@
       if (dancer) { const t2 = [[0,1],[1,0],[2,1],[1,2]][beat % 4]; r(ctx, '#ffe9a0', 221 + t2[0] * 10, 318 + t2[1] * 6, 9, 5); }
     }
   }
+  // The office cat roams the whole tower (Alice: 「猫咪在办公室里面跑……不用锁在花园了」). Page-only state: it walks the
+  // same BFS grid as everyone, naps on the cat tree at night, comes to whoever pets or feeds it, and purrs at passers-by.
+  let cat=null;
+  function catTick() {
+    if (!C.catSpot || mv) return null;
+    const L=C.id,home={x:C.catSpot.x+14,y:C.catSpot.y};
+    if (!cat || cat.layout!==L || cat.sim!==sim) cat={x:home.x,y:home.y,path:[],wait:3,last:sim.time,layout:L,sim,goal:null};
+    const dt=Math.min(.5,Math.max(0,sim.time-cat.last)); cat.last=sim.time;
+    const petter=sim.actors.find(a=>sim.gameActivity(a)==='cat'), fed=sim.playing?.('cat'), sleepy=sim.night && !fed;
+    const want=fed||petter||sleepy?home:null;
+    const go=p=>{ if(cat.goal&&Core.distance(cat.goal,p)<1)return; cat.goal=p; cat.path=Core.route(cat,p,L); };
+    if (want) go(want);
+    else if (!cat.path.length) {
+      cat.wait-=dt;
+      if (cat.wait<=0) {
+        cat.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870},home].filter(p=>p&&!Core.blocked(p.x,p.y,L));
+        cat.goal=null; go(cat.spots[Math.floor(Math.random()*cat.spots.length)]); cat.wait=4+Math.random()*6;
+      }
+    }
+    let step=dt*24;
+    while (step>0 && cat.path.length) { const q=cat.path[0],d=Core.distance(cat,q); if(d<=step){cat.x=q.x;cat.y=q.y;cat.path.shift();step-=d;} else {cat.x+=(q.x-cat.x)/d*step;cat.y+=(q.y-cat.y)/d*step;step=0;} }
+    const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
+    return {x:Math.round(cat.x),y:Math.round(cat.y),moving:cat.path.length>0,fed,petted:!!petter||!cat.path.length&&people.some(p=>Core.distance(p,cat)<14),asleep:sleepy&&!cat.path.length};
+  }
+  function drawCat() {
+    const c=catTick(); if(!c)return; const t=sim.time,p=c;
+    if (c.fed) { r(ctx,'#b5473a',home0().x-6,home0().y-2,10,4); r(ctx,'#e9c9a0',home0().x-5,home0().y-3,8,2); }
+    const leg=c.moving&&Math.floor(t*8)%2;
+    r(ctx,'#4c4d4030',p.x-6,p.y,12,2);
+    if (c.asleep) { r(ctx,'#e8963a',p.x-6,p.y-5,12,5); r(ctx,'#c8732a',p.x-3,p.y-5,1,5); r(ctx,'#c8732a',p.x+1,p.y-5,1,5); r(ctx,'#e8963a',p.x+4,p.y-7,4,3); text(ctx,'z',p.x+9,p.y-10-(t%3|0),6,'#45534b'); return; }
+    r(ctx,'#e8963a',p.x-5,p.y-6,10,5); r(ctx,'#e8963a',p.x+3,p.y-9,5,5); r(ctx,'#e8963a',p.x+3,p.y-11,1,2); r(ctx,'#e8963a',p.x+7,p.y-11,1,2);
+    r(ctx,'#c8732a',p.x-3,p.y-6,1,5); r(ctx,'#c8732a',p.x,p.y-6,1,5); r(ctx,'#2f3a3c',p.x+5,p.y-8,1,1);
+    r(ctx,'#c8732a',p.x-4+leg,p.y-1,1,2); r(ctx,'#c8732a',p.x+2-leg,p.y-1,1,2); r(ctx,'#e8963a',p.x-8,p.y-8+(Math.floor(t*2)%2),3,2);
+    if (c.petted||c.fed) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
+  }
+  const home0=()=>({x:C.catSpot.x+6,y:C.catSpot.y+2});
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
-    gamesUnder(); leisureUnder();
+    gamesUnder(); leisureUnder(); drawCat();
     if(!mv)drawGate(false);
     placed(ctx,C.totalsOffset,()=>{
-    text(ctx,`办公室累计${demo?' · 演示':''}`,162,440,8,'#fff4d5');
-    const lines=boardLines(); lines.forEach((line,i)=>{ const size=i===2?7.5:8; ctx.font=`${size}px \"PingFang SC\",system-ui,sans-serif`; text(ctx,line,162,(mv?450+i*10:448+i*8),mv?size:Math.min(size,size*260/ctx.measureText(line).width),'#fff4d5'); });
+    const T=C.totals||{x:24,y:426,w:276,h:52},cx=T.x+T.w/2;
+    text(ctx,`办公室累计${demo?' · 演示':''}`,cx,T.y+14,8,'#fff4d5');
+    const lines=boardLines(); lines.forEach((line,i)=>{ const size=i===2?7.5:8; ctx.font=`${size}px \"PingFang SC\",system-ui,sans-serif`; text(ctx,line,cx,(mv?450+i*10:T.y+22+i*8),mv?size:Math.min(size,size*(T.w-16)/ctx.measureText(line).width),'#fff4d5'); });
     });
+    // The tower's screen is narrower and sits 142 rows higher; text shrinks to fit it.
+    const M=C.meetingRect,mx=M?68:98,my=M?-142:0,big=M?7:8,small=M?5.5:7;
     placed(ctx,C.meetingOffset,()=>{
     if (m) {
-      text(ctx,m.kind==='review'?`互审 · 第 ${m.round ?? '—'} 轮`:`碰头会 · ${m.members.length} 人`,98,508,8);
-      if (m.kind==='review' && m.slide) text(ctx,`采纳 ${m.slide.adopted} · 反驳 ${m.slide.rejected} · 待议 ${m.slide.open}`,98,517,7);
-      text(ctx,`${Math.max(0,Math.floor((now()-Date.parse(m.since))/60000))} 分钟`,160,488,6);
+      text(ctx,m.kind==='review'?`互审 · 第 ${m.round ?? '—'} 轮`:`碰头会 · ${m.members.length} 人`,mx,508+my,big);
+      if (m.kind==='review' && m.slide) text(ctx,`采纳 ${m.slide.adopted} · 反驳 ${m.slide.rejected} · 待议 ${m.slide.open}`,mx,517+my,small);
+      text(ctx,`${Math.max(0,Math.floor((now()-Date.parse(m.since))/60000))} 分钟`,M?104:160,M?349:488,6);
     } else if(sim.reception?.venue==='meeting' && sim.reception.phase!=='leaving') {
-      text(ctx,'来谈事 · '+C.MEET_NAMES[sim.reception.kind],98,511,8);
+      text(ctx,'来谈事 · '+C.MEET_NAMES[sim.reception.kind],mx,511+my,big);
     } else {
       const last=[...events].filter(e=>e.kind==='meeting').sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))[0];
       const label=mv?(last?`上次开会 ${formatClock(Date.parse(last.at))}`:'今天还没开会'):C.meetingBoardText(stats,events);
-      text(ctx,label,98,512,label.length>16?6.5:7.5);
+      text(ctx,label,mx,512+my,M?(label.length>12?5.5:6.5):(label.length>16?6.5:7.5));
     }
     });
     if(mv)placed(ctx,C.storageOffset,()=>{
@@ -694,7 +850,7 @@
       return;
     }
     const feastSeat = !boss && !a.visitor && sim.feastEating?.(a) && sim.layout.tea?.some(p=>C.distance(p,a)<1), napAtDesk = !boss && !a.visitor && sim.napping?.(a) && C.distance(a,C.home(a.i))<1;
-    const seated = (feastSeat || napAtDesk || ['tea','book','cheer','movie'].includes(sim.gameActivity(a)) || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
+    const seated = (feastSeat || napAtDesk || ['tea','book','cheer','movie','eat'].includes(sim.gameActivity(a)) || a.activity==='handoff-receive' || a.activity === 'meeting' && !sim.meetingStanding(a.id) || a.listening || (!mv || mv.performances) && ['souvenir','radar','gate'].includes(a.activity) && sim[a.activity]?.phase==='sitting' || a.activity==='reception' && sim.reception?.venue==='meeting' && sim.reception.phase==='talking') && !a.path.length;
     const working = a.status === 'busy' && !a.activity;
     const moving = a.path.length > 0, t = sim.time, doneAge = a.doneArrived == null ? Infinity : t - a.doneArrived;
     // A visitor just walked in (or a treat just landed): everyone in the room looks up and waves for three seconds.
@@ -737,7 +893,18 @@
       const v=sim.reception.visitor, host=sim.actors.find(b=>b.id===sim.reception.hosts[0]);
       if(a===v || a===host) { const dx=a===v?-1:1, bob=Math.sin(t*9)>0?1:0; r(ctx,color,x+(dx<0?-12:5),y-12+bob,8,3); r(ctx,'#e4bb91',x+(dx<0?-14:11),y-12+bob,4,3); }
     }
-    const game = sim.gameActivity(a) || (!boss && !a.visitor && sim.feastEating?.(a) ? 'tea' : null);
+    const game = sim.chefActivity(a) || sim.gameActivity(a) || (!boss && !a.visitor && sim.feastEating?.(a) ? 'tea' : null);
+    if(!greets && ['cook','chop','grill'].includes(game)) {
+      const lift=Math.floor(t*(game==='chop'?5:3))%2;
+      r(ctx,color,x+5,y-16-lift*2,4,7); r(ctx,'#e4bb91',x+6,y-18-lift*2,3,3);
+      r(ctx,'#8c6447',x+8,y-24-lift*2,1,8);
+      r(ctx,game==='chop'?'#d9e2dc':game==='grill'?'#d96952':'#35474a',x+6,y-25-lift*2,game==='chop'?5:4,3);
+    }
+    if(!greets && game==='eat') {
+      const bite=Math.sin(t*2+a.i)>.4; r(ctx,'#fff6dc',x-8,y-9,8,4);
+      r(ctx,'#e4bb91',x+5,y-(bite?16:10),3,3); r(ctx,'#8c6447',x+7,y-(bite?21:15),1,8);
+      r(ctx,'#e8963a',x+6,y-(bite?20:14),3,3);
+    }
     if (!greets && game === 'arcade') {
       const shift=Math.sin(t*8)>0?1:0;
       r(ctx,color,x-8,y-16,3,8); r(ctx,'#e4bb91',x-9+shift,y-18,3,3);
@@ -767,7 +934,10 @@
       r(ctx,color,x+5,y-14,3,6); r(ctx,'#e4bb91',x+4,y-16,3,3); r(ctx,'#2f3a3c',x+2,y-18,3,4); r(ctx,'#2f3a3c',x+3,y-14,1,4);
       const k = (t * 1.5) % 2; text(ctx, k < 1 ? '♪' : '♫', x + 10 + Math.round(k * 3), y - 26 - Math.round(k * 6), 8, '#e58fb0');
     }
-    if (!greets && game === 'cheer') {
+    if(!greets && game==='cheer' && a.gameSlot===36 && C.funOffsets?.bbq) {
+      const up=Math.floor(t*2)%2; r(ctx,color,x-9,y-16-up*3,4,8);r(ctx,'#e4bb91',x-10,y-18-up*3,4,3);
+      r(ctx,'#fff6dc',x-10,y-22-up*3,5,5);r(ctx,'#e8963a',x-9,y-20-up*3,3,3);
+    } else if (!greets && game === 'cheer') {
       const up = Math.floor(t * 3 + a.i) % 2; r(ctx,color,x-8,y-(up?20:14),3,8); r(ctx,color,x+5,y-(up?14:20),3,8);
       r(ctx,'#ffe066',x-8,y-(up?26:20),2,6); r(ctx,'#7ad7ff',x+6,y-(up?20:26),2,6);
     }
@@ -820,6 +990,12 @@
     }
     if (!greets && game === 'nap') { r(ctx,'#e3b58d',x-4,y-14,8,4); r(ctx,'#544c3a',x-3,y-13,3,2); text(ctx,'z',x+7,y-25-(t%3)*2,8,'#45534b'); }
     if (!greets && game === 'read') { r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7); }
+    // Pool: the swimmer is in up to the chest, arms taking turns; a deckchair regular wears shades and holds a drink.
+    if (!greets && game === 'swim') { const k=Math.floor(t*2+a.i)%2; r(ctx,'#9ccfe0',x-10,y-9,20,10); r(ctx,'#c4e6f0',x-10,y-9,20,1); r(ctx,'#e4bb91',x+(k?6:-9),y-13,3,3); r(ctx,'#ffffffb0',x-12+((t*6)%4|0),y-9,3,1); r(ctx,'#ffffffb0',x+8-((t*6)%4|0),y-7,3,1); }
+    if (!greets && game === 'lounge') { r(ctx,'#2f3a3c',x-5,y-15,10,2); r(ctx,'#efc66c',x+6,y-12,3,5); r(ctx,'#d96952',x+6,y-13,3,1); }
+    if (!greets && game === 'pick') { const up=Math.floor(t*1.5+a.i)%2; r(ctx,'#a97c52',x+5,y-9,8,5); r(ctx,'#52745e',x+6,y-11,3,2); r(ctx,'#d96952',x+9,y-11,3,2); r(ctx,'#e4bb91',x-7,y-(up?12:5),3,3); }
+    if (!greets && game === 'checkup') { r(ctx,'#f4f1e6',x-9,y-14,4,6); r(ctx,'#d9564d',x-8,y-12,2,2); text(ctx,'+',x+8,y-24-(t%2|0),7,'#d9564d'); }
+    if (boss && C.clinicDoctor && Core.distance(a,C.clinicDoctor)<1) { r(ctx,'#f4f1e6',x-6,y-12,12,9); r(ctx,'#3e4b47',x-3,y-12,1,6); r(ctx,'#3e4b47',x-3,y-6,4,1); r(ctx,'#9aa3a0',x,y-7,2,2); }
     if(!mv || mv.performances)eventPose(a,x,y,moving);
     // Eleven accessories: glasses, headset, twin pins, beret, bow, visor, film, scarf, antenna, mail cap.
     const i = boss ? 11 : C.lookIndex(a);
@@ -833,6 +1009,7 @@
     if (i === 8) { r(ctx, '#ebd7a7', x - 5, y - 10, 10, 2); r(ctx, '#ebd7a7', x + 3, y - 9, 3, 6); }
     if (i === 9) { r(ctx, '#66715d', x, y - 26, 1, 5); r(ctx, color, x - 1, y - 28, 3, 3); }
     if (i === 10) { r(ctx, color, x - 6, y - 23, 12, 5); r(ctx, '#eddca8', x - 8, y - 19, 16, 2); r(ctx, '#e6d2a7', x + 6, y - 5, 7, 5); }
+    if(!mv && a.activity==='chef') {r(ctx,'#fff6dc',x-7,y-28,14,7);r(ctx,'#fff6dc',x-5,y-31,4,4);r(ctx,'#fff6dc',x+1,y-31,4,4);r(ctx,'#c9d4cf',x-6,y-22,12,2);}
     if (boss) { r(ctx, '#dcb159', x + 2, y - 22, 4, 3); r(ctx, '#5a4839', x - 7, y - 18, 3, 10); }
     // A visitor: a lanyard badge on the chest, a little camera in hand, and a sun hat on every other one.
     if (a.visitor && a.carry) item(a.carry, x + 7, y - 12);
@@ -994,7 +1171,7 @@
     }
     if(b.extra)text(ctx,`+${b.extra}`,323,36,6,'#fff3cf','right');
   }
-  const leisureLabel = kind => ({buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:'浇花',cat:'撸猫',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
+  const leisureLabel = kind => ({cook:'做饭',chop:'切菜',eat:'吃饭 · 撸串',grill:'烤串',buy:'小卖部',soda:'喝汽水',massage:'按摩中',sing:'K 歌中',cheer:'K 房捧场',book:'阅读室',water:C.bands?'浇菜':'浇花',cat:'撸猫',swim:'游泳',lounge:'池边晒太阳',pick:'摘菜',checkup:'医务室 · 体检',movie:'看电影',dance:'跳舞机',claw:'抓娃娃',tea:'饮茶',run:'健身中',lift:'健身中',box:'健身中',yoga:'健身中',arcade:'游戏室',pingpong:'打乒乓',chess:'下棋中',nap:'打盹',read:'看书'})[kind] || '';
   // Today's total at work, shown once it reaches a minute: "今日 1h 05m".
   function workedLabel(ms) {
     const minutes = Math.floor((Number(ms) || 0) / 60000);
@@ -1047,7 +1224,7 @@
     if (list.dataset.order !== order.join()) { list.dataset.order = order.join(); const byId = new Map([...list.children].map(li => [li.dataset.id, li])); for (const id of order) { const li = byId.get(id); if (li) list.append(li); } }
     for (const li of list.children) {
       const a = sim.actors.find(a => a.id === li.dataset.id);
-      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : '额度用完 · 回休息室充电') : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv ? '打盹中 · 随叫随到' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
+      li.querySelector('.status').textContent = a.activity === 'gate' ? '安检中' : a.activity === 'handoff-walk' ? '递活中' : a.activity === 'quota' ? (mv ? '额度用完 · 罚站中' : '额度用完 · 回休息室充电') : a.activity === 'argue' ? '互审争论中' : a.activity === 'souvenir' ? '出差归来 · 分特产' : a.activity === 'radar' ? '雷达归来 · 贴选题' : a.activity === 'snack' ? '交活请客中' : a.activity === 'melon' ? '吃瓜中' : a.activity === 'reception' ? '接待中' : a.activity === 'call' ? '通话中' : a.activity === 'meeting' ? '开会中' : a.badge === '等派活' && a.status === 'idle' ? '等派活' : sim.feastSpot?.(a) ? (sim.feast?.night ? '吃夜宵' : '吃早茶') : a.status === 'off' && !mv && a.awayPost!=='kitchen' ? '打盹中 · 随叫随到' : a.status==='idle' && a.gameSlot===36 && sim.gameActivity(a)==='cheer' ? '烧烤 · 碰杯' : a.status === 'idle' && leisureLabel(sim.gameActivity(a)) ? leisureLabel(sim.gameActivity(a)) : a.activity==='chef' ? (sim.chefActivity(a)==='grill'?'后勤主厨 · 烤串':'后勤主厨 · 做饭') : a.status === 'away' && a.awayLabel ? a.awayLabel : labels[a.status];
       li.querySelector('.status').className = `status status-${a.status}`;
       li.querySelector('.duration').textContent = duration(a);
       li.querySelector('small').textContent = a.i === 0 && a.badge ? `${a.badge} 会话` : '';
@@ -1089,14 +1266,15 @@
   function resetDemo() {
     historyAvailable=false;
     demo = true; elapsed = 0; cursor = 0; cycle = 0; visitorsTotal = null;
-    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : ['nap','feast'].includes(view) ? '2026-11-01T15:30:00Z' : '2026-11-01T02:00:00Z');
+    wallBase = Date.parse(params.get('night') === '1' || view === 'night-guard' ? '2026-11-01T15:00:00Z' : view === 'kitchen' ? '2026-11-01T04:00:00Z' : view === 'bbq' ? '2026-11-01T12:30:00Z' : view === 'breakfast' ? '2026-11-01T00:30:00Z' : ['nap','feast'].includes(view) ? '2026-11-01T15:30:00Z' : '2026-11-01T02:00:00Z');
     currentRoster = script.roster; sim = C.create(currentRoster, seed, C.id); sim.eventsEnabled=!mv || mv.performances;
     stats = mv ? mv.stats : structuredClone(script.stats || null); events = []; treatsToday = {}; noticesToday=undefined;
     if (!mv) sim.setScene(demoScene(script.scene),now());
     if (mv) mv.start(sim);
     else for (const a of script.roster) { sim.setStatus(a.id, a.status, new Date(wallBase).toISOString()); sim.actors.find(x => x.id === a.id).badge = a.badge || ''; }
     // ?view=breakfast / leisure: everyone but the director off duty, so the teahouse and gym fill up (script events skipped this lap).
-    if (!mv && ['breakfast','leisure','fun'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; sim.funFirst = view === 'fun'; }
+    if (!mv && ['breakfast','leisure','fun','kitchen','bbq'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; sim.funFirst = view === 'fun'; }
+    if(!mv && ['kitchen','bbq'].includes(view)) for(const a of sim.actors) if(a.awayPost==='kitchen') sim.setStatus(a.id,'away');
     // ?view=nap / feast: 23:30, everyone but CC asleep in the office; feast sends dim sum right away.
     if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
@@ -1151,7 +1329,7 @@
     if(data.meets!==undefined && !(Array.isArray(data.meets) && data.meets.length<=10 && data.meets.every(m=>m && Object.hasOwn(C.MEET_NAMES,m.kind) && typeof m.at==='string' && Number.isFinite(Date.parse(m.at))))) throw new Error('Invalid state');
     // Shapes, character sets, lengths and date ranges all checked here, so nothing downstream has to trust the feed.
     const ids = new Set(), slots = new Set(), sane = t => { const v = Date.parse(t); return Number.isFinite(v) && v > 946684800000 && v < 4102444800000; };
-    data.roster.forEach((a, i) => { if (!a || typeof a !== 'object') throw new Error('Invalid role'); const slot = a.desk ?? i; if (typeof a.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || ids.has(a.id) || typeof a.name !== 'string' || !a.name.length || a.name.length > 40 || !/^#[0-9a-f]{6}$/i.test(a.color) || !Object.hasOwn(labels,a.status) || !sane(a.statusSince) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.courier !== undefined && typeof a.courier !== 'boolean') || (a.look !== undefined && !(Number.isInteger(a.look) && a.look >= 0 && a.look <= 11)) || (a.badge !== undefined && (typeof a.badge !== 'string' || a.badge.length > 16)) || (a.awayLabel !== undefined && (typeof a.awayLabel !== 'string' || a.awayLabel.length > 16)) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
+    data.roster.forEach((a, i) => { if (!a || typeof a !== 'object') throw new Error('Invalid role'); const slot = a.desk ?? i; if (typeof a.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || ids.has(a.id) || typeof a.name !== 'string' || !a.name.length || a.name.length > 40 || !/^#[0-9a-f]{6}$/i.test(a.color) || !Object.hasOwn(labels,a.status) || !sane(a.statusSince) || !Number.isInteger(slot) || slot < 0 || slot > 10 || slots.has(slot) || (a.courier !== undefined && typeof a.courier !== 'boolean') || (a.look !== undefined && !(Number.isInteger(a.look) && a.look >= 0 && a.look <= 11)) || (a.badge !== undefined && (typeof a.badge !== 'string' || a.badge.length > 16)) || (a.awayPost !== undefined && a.awayPost !== 'kitchen') || (a.awayLabel !== undefined && (typeof a.awayLabel !== 'string' || a.awayLabel.length > 16)) || (a.workedToday !== undefined && !(Number.isFinite(a.workedToday) && a.workedToday >= 0 && a.workedToday <= 86400000))) throw new Error('Invalid role'); ids.add(a.id); slots.add(slot); });
     if (data.roster.filter(a=>a.courier===true).length>1) throw new Error('Invalid role');
     if (data.notices.some(n => !n || typeof n.text !== 'string' || n.text.length > 500 || !sane(n.at))) throw new Error('Invalid notice');
     return C.validateSceneFields(data);
@@ -1241,7 +1419,7 @@
   // One missed poll (the office restarting, a phone network blip) must not throw the page into the demo, where the
   // scripted team is doing something else; three misses in a row (30 s) mean the office is really gone.
   let misses = 0;
-  const rosterIdentity = roster => JSON.stringify(roster.map((a,i)=>[a.id,a.desk??i,a.look,a.courier,a.name,a.color]));
+  const rosterIdentity = roster => JSON.stringify(roster.map((a,i)=>[a.id,a.desk??i,a.look,a.courier,a.name,a.color,a.awayPost]));
   async function loadLive() {
     try {
       const data = await fetchState();
@@ -1360,8 +1538,9 @@
     const wide=C.id==='landscape'; document.body.classList.toggle('landscape',wide);
     if(wide)$('#drawer').insertBefore($('#treat'),$('.tabs')); else if(!mvMode && !wallMode) $('.room-section').insertBefore($('#treat'),$('#room-viewport')); else $('#canvas-wrap').append($('#treat'));
     $('#canvas-wrap').style.width=''; $('#room-viewport').scrollTop=0;
-    $('#room-viewport').setAttribute('aria-label',wide?'办公室全景：上两层同屏，往下滚是娱乐层':'办公室、附楼和娱乐层，可上下滚动');
-    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏室、茶楼、健身房和会议室之间活动，楼下娱乐层有 K 房、阅读室、小花园、放映角和小卖部。详细状态可在手记中阅读。':'AI 伙伴在工位、游戏室和老板桌之间活动。下方附楼有会议室、茶楼、休息室和健身房，再往下是娱乐层，可上下滚动。');
+    if(funHint) funHint.textContent=C.bands?'↓ 二楼 · 三楼':'↓ 娱乐层';
+    $('#room-viewport').setAttribute('aria-label',wide?'办公室全景：上两层同屏，往下滚是娱乐层':C.bands?'办公室三层楼，可上下滚动':'办公室、附楼和娱乐层，可上下滚动');
+    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏室、茶楼、健身房和会议室之间活动，楼下娱乐层有 K 房、阅读室、小花园、放映角和小卖部。详细状态可在手记中阅读。':C.bands?'一楼是工位、游戏室、老板桌旁的会议室和累计木牌；二楼是热闹的 K 房、放映角、小卖部、茶楼、自助厨房、烧烤、电话亭、健身房、泳池和猫窝；三楼安静，有阅读室、休息室、医务室和菜地。橘猫满楼跑。可上下滚动。':'AI 伙伴在工位、游戏室和老板桌之间活动。下方附楼有会议室、茶楼、休息室和健身房，再往下是娱乐层，可上下滚动。');
     for (const [id,rect] of [['#hot-show',{x:C.storageOffset[0]+258,y:C.storageOffset[1]+594,w:80,h:88}],['#hot-games',C.gameRect],['#hot-tea',C.teaOffset && {x:C.teaOffset[0],y:C.teaOffset[1],w:78,h:100}]]) {
       const el=$(id); el.hidden=!hotspots() || !rect; if(!rect)continue;
       Object.assign(el.style,{left:`${rect.x/C.W*100}%`,top:`${rect.y/C.H*100}%`,width:`${rect.w/C.W*100}%`,height:`${rect.h/C.H*100}%`});
@@ -1379,13 +1558,13 @@
   new ResizeObserver(fitRoom).observe($('#room-viewport'));
   // "↓ 娱乐层": shown until the fun floor scrolls into view; one tap takes you there.
   const funHint=$('#to-fun'), viewport=$('#room-viewport');
-  function syncFunHint(){ if(!funHint)return; const ratio=canvas.getBoundingClientRect().height/C.H, top=(C.id==='landscape'?410:744)*ratio; funHint.hidden=mvMode||wallMode||!C.funOffsets||viewport.scrollTop+viewport.clientHeight>top+40; }
+  function syncFunHint(){ if(!funHint)return; const ratio=canvas.getBoundingClientRect().height/C.H, top=(C.funTop ?? (C.id==='landscape'?410:744))*ratio; funHint.hidden=mvMode||wallMode||!C.funOffsets||viewport.scrollTop+viewport.clientHeight>top+40; }
   funHint?.addEventListener('click',()=>{ viewport.scrollTo({top:viewport.scrollHeight,behavior:calm.matches?'auto':'smooth'}); });
   viewport.addEventListener('scroll',syncFunHint,{passive:true}); new ResizeObserver(syncFunHint).observe(viewport); setTimeout(syncFunHint,500);
   layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
-    return { ready, demo, gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a), standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0, hop: hopOf(a, false) })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, greetPose: sim && (sim.greeting() || sim.thanksNow()) ? Core.greetPose(sim.time - (sim.greeting() || sim.thanksNow()).at, calm.matches) : null, calm: calm.matches, sheetSway: sim ? sheetBorn.map(at => at === undefined ? 0 : Core.swayAt(sim.time - at, calm.matches)) : [], thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
+    return { ready, demo, gate:sim?.gate,replay:replay && {day:replay.day,clock:replay.clock,speed:replay.speed,skips:replay.skips,noTimeline:replay.noTimeline,ended:replay.ended}, handoffWalk:sim?.handoffWalk,handoffSpeech:sim?.handoffSpeech(),meetingBoard:C.meetingBoardText(stats,events),souvenir:sim?.souvenir,radar:sim?.radar,radarCard:sim?.radarCardNow(),argue:sim?.argue,snack:sim?.snack,melon:sim?.melon,quota:sim?.quotaEvent,supper:sim?.supper,food:sim?.foodNow(),eventSpeech:sim?.eventSpeech(),eventQueues:sim?.eventQueues,reception:sim?.reception && {...sim.reception,speech:sim.receptionSpeech()}, meetQueue:sim?.meetQueue, layout:C.id, logicalSize:[C.W,C.H], wallBoard:sim && wallBoard(), nameplates, speechBoxes, courierId:sim?.actors.find(sim.isCourier)?.id, requestedView: view, actualView: ['kitchen','bbq'].includes(view) && sim?.actors.some(a=>sim.chefActivity(a)===(view==='kitchen'?'cook':'grill')) && sim?.actors.some(a=>a.status==='idle' && (view==='kitchen'?[37,38,39,40]:[34,35,36]).includes(a.gameSlot) && sim.gameActivity(a)) ? view : view==='gate' && sim.gate?.phase==='signal' ? 'gate' : view==='handoff-walk' && ['pat','reply'].includes(sim.handoffWalk?.phase) ? 'handoff-walk' : view==='souvenir' && sim.souvenir?.phase==='delivering' ? 'souvenir' : view==='radar' && sim.radarCardNow() && sim.radar?.phase==='showing' ? 'radar' : view==='argue' && sim.argue?.phase==='smoke' ? 'argue' : view==='snack' && sim.snack ? 'snack' : view==='melon' && sim.melon && sim.melon.ids.every(id=>!sim.actors.find(a=>a.id===id).path.length) ? 'melon' : view==='quota' && sim.actors.some(a=>a.activity==='quota'&&!a.path.length) ? 'quota' : view==='supper' && sim.supper ? 'supper' : view==='reception' && sim.reception?.phase==='talking' ? 'reception' : view === 'games' && sim.actors.filter(a=>sim.gameActivity(a)).length>=6 ? 'games' : view === 'board' && stats ? 'board' : sim?.scene.meeting && sim.actors.filter(a=>a.activity==='meeting').every(a=>!a.path.length) && sim.actors.some(a=>a.activity==='meeting') ? 'meeting' : sim?.actors.some(a=>a.activity==='call' && !a.path.length) ? 'booth' : sim?.flights.length ? 'handoff' : view === 'night-guard' && sim?.guard ? 'night-guard' : sim?.delivery?.phase === 'holding' ? 'notice' : sim?.actors.some(a => a.status === 'waiting' && !a.path.length) ? 'queue' : 'hero', elapsed, seed, light, meetingSign:C.id!=='landscape' && !!sim?.scene.meeting, meetingLamp:C.id==='landscape' && !!sim?.scene.meeting, scene:sim?.scene, stats, events, flights:sim?.flightPoints(), pingPongBall:sim?.pingPongBall(), diskLayers:C.diskLayers(sim?.scene.disk), guard:sim?.guard && {x:sim.guard.x,y:sim.guard.y,lap:sim.guard.lap,moving:!!sim.guard.path.length}, dpr: devicePixelRatio, canvasScale: 2, actors: sim?.actors.map(a => ({ id: a.id, desk:a.i, look:C.lookIndex(a), courier:sim.isCourier(a), status: a.status, activity:a.activity, gameSlot:a.gameSlot, game:sim.gameActivity(a),chef:sim.chefActivity(a),awayPost:a.awayPost, standing:sim.meetingStanding(a.id), x: a.x, y: a.y, moving: a.path.length > 0, hop: hopOf(a, false) })), visitors: sim?.visitors.map(v => ({ id: v.id, phase: v.phase, listening:v.listening, x: v.x, y: v.y })), greeting: sim?.greeting() ? { ...sim.greeting() } : null, greetPose: sim && (sim.greeting() || sim.thanksNow()) ? Core.greetPose(sim.time - (sim.greeting() || sim.thanksNow()).at, calm.matches) : null, calm: calm.matches, sheetSway: sim ? sheetBorn.map(at => at === undefined ? 0 : Core.swayAt(sim.time - at, calm.matches)) : [], thanks: sim?.thanksNow() ? { ...sim.thanksNow() } : null, deskTreat: sim?.deskTreatNow() ? { ...sim.deskTreatNow() } : null, boss: sim && { x: sim.boss.x, y: sim.boss.y }, delivery: sim?.delivery && { phase: sim.delivery.phase, arrived: sim.delivery.arrived, text: sim.delivery.text }, notices: sim?.notices.length, delivered: sim?.delivered, renderP95Ms: sorted[Math.floor(sorted.length * .95)] || 0, mv: mv && { seconds: mv.seconds, clock: formatClock(now()), camera: mv.camera(elapsed), light: mv.light(elapsed), subtitle: mv.subtitle(elapsed), darkness: mv.darkness(elapsed), log: mv.log.length } };
   }
   window.__PLAYTEST__ = { get ready() { return ready; }, snapshot, mvLog: () => mv ? mv.log.slice() : null, setSeed(n) { seed = n >>> 0; if (demo) { resetDemo(); paused = true; draw(); } }, step(ms) { if (!Number.isFinite(ms) || ms < 0 || ms > 120000) throw new Error('Step must be 0–120000 ms'); paused = true; advance(ms); draw(); return snapshot(); } };
   async function start() {
@@ -1398,9 +1577,10 @@
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
     // breakfast / leisure keep playing after the walk over (they show a routine, not one frozen moment).
-    const routine = view && demo && ['breakfast','leisure','fun','nap','feast'].includes(view);
-    if (routine) advance(view === 'feast' ? 45000 : view === 'fun' ? 40000 : 20000);
+    const routine = view && demo && ['breakfast','leisure','fun','nap','feast','kitchen','bbq'].includes(view);
+    if (routine) advance(view === 'feast' ? 45000 : ['fun','kitchen','bbq'].includes(view) ? 40000 : 20000);
     else if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
+    if(['kitchen','bbq'].includes(view)) requestAnimationFrame(()=>{const origin=view==='kitchen'?C.kitchenOffset:C.funOffsets?.bbq;if(origin)viewport.scrollTop=Math.max(0,(origin[1]-(C.id==='landscape'?120:80))*canvas.getBoundingClientRect().width/C.W);});
     if (view === 'fun') requestAnimationFrame(() => { $('#room-viewport').scrollTop = $('#room-viewport').scrollHeight; });
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
@@ -1408,7 +1588,11 @@
     if (view === 'board') $('#today-tab').click();
     if(C.id==='portrait' && !wallMode && ['snack','melon','supper'].includes(view)) {const a=view==='supper'?sim.guard:sim.actors.find(a=>a.id===(view==='snack'?sim.snack?.id:view==='souvenir'?sim.souvenir?.id:sim.melon?.ids[0]));if(a)$('#room-viewport').scrollTop=Math.max(0,(a.y-130)*canvas.getBoundingClientRect().width/C.W);}
     if(view==='games' && C.id==='portrait') $('#room-viewport').scrollTop=Math.max(0,356*canvas.getBoundingClientRect().width/C.W-$('#room-viewport').clientHeight);
-    if (C.id!=='landscape' && ['meeting','booth','board','night-guard','reception','argue'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
+    if (C.bands && ['meeting','booth','board','night-guard','reception','argue','pool','farm','cat','clinic'].includes(view)) {
+      // Tower: the meeting room and totals board are on the ground floor now; the rest sit a floor or two down.
+      const y={meeting:250,reception:250,argue:250,board:250,booth:C.boothOffset[1]+400,'night-guard':420,pool:C.poolOffset[1]-120,farm:C.funOffsets.garden[1]-160,cat:C.catOffset[1]-120,clinic:C.clinicOffset[1]-120}[view];
+      $('#room-viewport').scrollTop=Math.max(0,y)*canvas.getBoundingClientRect().width/C.W;
+    } else if (C.id!=='landscape' && ['meeting','booth','board','night-guard','reception','argue'].includes(view)) $('#room-viewport').scrollTop=420*canvas.getBoundingClientRect().width/C.W;
     setInterval(() => { if (!forced && (!paused || replay)) loadLive(); }, 10000);
     function frame(ts) {
       // One bad frame must not end the render loop: the next frame is always scheduled.

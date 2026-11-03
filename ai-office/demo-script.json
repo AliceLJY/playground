@@ -73,11 +73,12 @@
       "name": "豆包",
       "role": "志愿者 · 选题雷达",
       "color": "#C6A160",
-      "status": "busy",
+      "status": "away",
       "badge": "",
       "desk": 10,
       "look": 8,
-      "awayLabel": "外勤"
+      "awayLabel": "后勤主厨",
+      "awayPost": "kitchen"
     },
     {
       "id": "helper",

@@ -69,10 +69,10 @@ for(const layout of ['portrait','landscape']) {
   assert.deepEqual([...phases],['entering','papers','delivering','returning','sitting','leaving']);assert.equal(s.souvenir,null);assert.equal(maxClouds,roster.length-3);assert.ok(['欢迎回来','这是哪儿的特产','好软','云上带的','刚醒'].every(w=>words.has(w)));assert.ok(C.distance(s.actors.find(a=>a.id==='grok'),s.layout.door)<1);
   const cloud=s.foodNow().find(f=>f.kind==='cloud'),paper=s.foodNow().find(f=>f.kind==='papers');assert.equal(cloud.until-cloudAt,300);assert.equal(paper.until-papersAt,600);s.step((cloud.until-s.time+.01)*1000);assert.ok(!s.foodNow().includes(cloud));assert.ok(s.foodNow().includes(paper));s.step(600000);assert.equal(s.foodNow().length,0);
  });
- test(`radar ${layout}: board/host look/sit/exit, card until midnight, statuses untouched`,()=>{
+ test(`radar ${layout}: board/host look/sit/return to post, card until midnight, statuses untouched`,()=>{
   const s=create(layout),before=states(s),phases=new Set(),words=new Set();s.setScene({...C.emptyScene(),radar:{at:iso(T+s.time*1000),n:13,added:7}});
   walk(s,110000,()=>{assert.deepEqual(states(s),before);if(s.radar)phases.add(s.radar.phase);for(const b of s.eventSpeech())words.add(b.text);});
-  assert.deepEqual([...phases],['entering','pinning','showing','returning','sitting','leaving']);assert.equal(s.radar,null);assert.equal(s.radarCardNow().n,13);assert.ok(words.has('有意思'));assert.ok(words.has('今天有啥题'));assert.ok(words.has('这个能写'));assert.ok(C.distance(s.actors.find(a=>a.id==='doubao'),s.layout.door)<1);
+  assert.deepEqual([...phases],['entering','pinning','showing','returning','sitting','leaving']);assert.equal(s.radar,null);assert.equal(s.radarCardNow().n,13);assert.ok(words.has('有意思'));assert.ok(words.has('今天有啥题'));assert.ok(words.has('这个能写'));const chef=s.actors.find(a=>a.id==='doubao');assert.ok(C.distance(chef,s.chefTarget(chef)||s.layout.door)<1);
   s.clockBase=Date.parse('2026-11-02T16:00:00Z')-s.time*1000;s.step(20);assert.equal(s.radarCardNow(),null);
  });
 }

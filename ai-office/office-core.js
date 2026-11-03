@@ -25,16 +25,19 @@
   // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
   // The teahouse is open all day (two seats in the ordinary rotation); at 早茶/下午茶/夜茶 it fills first.
   // 20 = dance machine, 21 = claw machine (bottom-right of the game room).
-  const LEISURE_ORDER = [0,1,4,20,16,17,12,22,2,3,21,25,28,5,13,29,23,10,26,27,18,14,24,30,11,19,15,31,32,33,6,7,8,9],
+  // 41–43 = pool (two swimmers, one deckchair), 44 = the cat tree, 45 = the clinic bed (tower only; other layouts skip missing slots).
+  const LEISURE_ORDER = [0,1,4,20,16,17,12,22,2,3,21,41,25,44,28,5,13,29,43,23,10,26,27,18,14,24,30,42,11,19,15,31,32,33,6,7,8,9,37,34,45],
   // 楼下时间: twenty minutes of every hour, idle colleagues head downstairs first so the fun floor is lived in too.
-  FUN_ORDER = [22,25,32,28,23,24,29,30,26,27,33,31,0,1,4,20,12,2,3,21,5,13,10,14,11,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
+  FUN_ORDER = [22,25,32,41,28,44,23,24,29,30,26,27,33,31,42,0,1,4,20,12,2,3,21,5,13,10,14,11,15,6,7,8,9], BREAKFAST_ORDER = [16,17,18,19,...LEISURE_ORDER.filter(i=>i<16||i>19)];
+  const KITCHEN_ORDER = [37,38,39,40,...LEISURE_ORDER.filter(i=>i<37)], BBQ_ORDER = [34,35,36,...BREAKFAST_ORDER.filter(i=>i<34||i>36)];
+  const kitchenLocal = [[16,40,'cook'],[46,40,'chop'],[16,70,'eat'],[60,70,'eat']], kitchenLocalObstacles = [{x:6,y:10,w:22,h:16},{x:36,y:12,w:18,h:14},{x:58,y:6,w:14,h:25},{x:28,y:53,w:20,h:14}];
   const machineSpots = [{x:234,y:332,kind:'dance'},{x:196,y:336,kind:'claw'}];
   // Fun floor downstairs: four 110×80 rooms. Leisure slots 22–31.
-  const funLocal = {ktv:[[26,50,'sing'],[60,68,'cheer'],[86,68,'cheer']], read:[[30,64,'book'],[80,64,'book']], garden:[[28,44,'water'],[78,62,'cat']], cinema:[[32,70,'movie'],[56,70,'movie'],[80,70,'movie']], snack:[[16,50,'buy'],[48,72,'soda']]};
-  const funLocalObstacles = {ktv:[{x:34,y:4,w:46,h:18}], read:[{x:4,y:2,w:102,h:24}], garden:[{x:4,y:4,w:50,h:14},{x:84,y:8,w:14,h:14}], cinema:[{x:8,y:2,w:94,h:32}], snack:[{x:4,y:2,w:48,h:36}]};
+  const funLocal = {ktv:[[26,50,'sing'],[60,68,'cheer'],[86,68,'cheer']], read:[[30,64,'book'],[80,64,'book']], garden:[[28,44,'water'],[78,62,'cat']], cinema:[[32,70,'movie'],[56,70,'movie'],[80,70,'movie']], snack:[[16,50,'buy'],[48,72,'soda']], bbq:[[20,40,'grill'],[20,62,'eat'],[54,62,'cheer']]};
+  const funLocalObstacles = {ktv:[{x:34,y:4,w:46,h:18}], read:[{x:4,y:2,w:102,h:24}], garden:[{x:4,y:4,w:50,h:14},{x:84,y:8,w:14,h:14}], cinema:[{x:8,y:2,w:94,h:32}], snack:[{x:4,y:2,w:48,h:36}], bbq:[{x:8,y:14,w:26,h:13}]};
   const FUN_ROOMS = ['ktv','read','garden','cinema','snack'];
-  const funSpots = offsets => FUN_ROOMS.flatMap(k=>atOrigin(funLocal[k],offsets[k]));
-  const funObstacles = offsets => FUN_ROOMS.flatMap(k=>obstaclesAt(funLocalObstacles[k],offsets[k]));
+  const funSpots = (offsets,local=funLocal) => [...FUN_ROOMS,...(offsets.bbq?['bbq']:[])].flatMap(k=>atOrigin(local[k],offsets[k]));
+  const funObstacles = (offsets,local=funLocalObstacles) => [...FUN_ROOMS,...(offsets.bbq && local.bbq?['bbq']:[])].flatMap(k=>obstaclesAt(local[k]||[],offsets[k]));
   const PAIRS = {0:1,2:3};
   // After the first three units (table tennis, an arcade, the dance machine) the rest rotate every twenty minutes on
   // clock-aware pages, so the gym, massage chairs, garden and snack bar all get their turn; pairs stay together.
@@ -43,10 +46,11 @@
     const head=units.slice(0,3), tail=units.slice(3), k=tail.length ? ((turn % tail.length) + tail.length) % tail.length : 0;
     return [...head,...tail.slice(k),...tail.slice(0,k)].flat();
   }
-  function leisureSlots(count, breakfast=false, turn=0) {
-    const order=Array.isArray(breakfast)?breakfast:breakfast==='fun'?FUN_ORDER:breakfast?BREAKFAST_ORDER:turn?rotate(LEISURE_ORDER,turn):LEISURE_ORDER, picked=[];
+  function leisureSlots(count, breakfast=false, turn=0, reserved=[], has=()=>true) {
+    const order=Array.isArray(breakfast)?breakfast:breakfast==='fun'?FUN_ORDER:breakfast?BREAKFAST_ORDER:turn?rotate(LEISURE_ORDER,rotationIndex(turn)):LEISURE_ORDER, picked=[];
     for(const slot of order) {
       if(picked.length>=count) break;
+      if(reserved.includes(slot) || !has(slot)) continue;
       if(Object.values(PAIRS).includes(slot)) continue;
       if(PAIRS[slot]!==undefined) { if(count-picked.length>=2) picked.push(slot,PAIRS[slot]); continue; }
       picked.push(slot);
@@ -54,8 +58,14 @@
     return picked;
   }
   const teaTime = time => { const h = new Date(time + 8 * 3600000).getUTCHours(); return h >= 8 && h < 10 ? '早茶' : h >= 15 && h < 17 ? '下午茶' : h >= 20 && h < 23 ? '夜茶' : null; };
+  const mealTime = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); return m>=690 && m<780 ? '午餐' : m>=1050 && m<1140 ? '晚餐' : null; };
+  const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
   const isBreakfast = time => !!teaTime(time);
   const isFunTime = time => Math.floor(time / 1200000) % 3 === 2;
+  // The rotation only advances on ordinary windows (not the downstairs hour, not tea time): counting every window let the
+  // tail alias with the every-third downstairs hour once it grew to a multiple of three, and some units never came round.
+  const ROTATING=[]; for(let w=0;w<72;w++){const t=Date.UTC(2026,0,1,16)+w*1200000;if(!isFunTime(t)&&!isBreakfast(t))ROTATING.push(w);}
+  const rotationIndex = turn => { const w=((turn-48)%72+72)%72, day=Math.floor((turn-48)/72), before=ROTATING.filter(x=>x<w).length; return day*ROTATING.length+before; };
   const door = { x: 340, y: 388 }, bossDesk = { x: 195, y: 352 }, handoff = { x: 221, y: 352 }, pantry = { x: 198, y: 247 };
   const deskObstacles = layout => layout.map(([x, y], i) => ({ x: x - (i === 10 ? 23 : 27), y: y - 9, w: i === 10 ? 46 : 54, h: 29 }));
   const NOWHERE = {x:-100,y:-100,w:0,h:0}, SHOWCASE = {x:24,y:172,w:72,h:68};
@@ -127,14 +137,15 @@
   const tour = [{x:125,y:169},pantry,{x:273,y:300},{x:104,y:390},gameWatch];
   const FUN_P = {ktv:[24,816],read:[150,816],garden:[24,924],cinema:[150,924],snack:[272,880]}, FUN_L = {ktv:[20,448],read:[136,448],cinema:[252,448],garden:[442,448],snack:[556,448]};
   obstacles.push(...funObstacles(FUN_P));
-  const portrait = {id:'portrait',W,H:1040,funOffsets:FUN_P,fun:funSpots(FUN_P),desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
+  // The two-storey-plus-fun-floor plan (11-01 to 11-03). Film, legacy and landscape still build on it.
+  const classic = {id:'portrait',W,H:1040,funOffsets:FUN_P,fun:funSpots(FUN_P),desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
     partySpot:{x:FUN_P.ktv[0]+44,y:FUN_P.ktv[1]+56},beds:atOrigin(bedLocal,restOrigin),restOffset:restOrigin,gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
     gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[-238,-438],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
   // Landscape wing, two columns. Left (by the entrance): meeting room with its audience bench, then the front desk
   // beside the door and the gym. Right, one aligned stack: teahouse, showcase, phone booth. An aisle runs between.
   const W_MEET=[334,-398], W_TEA=[536,92], W_BOOTH=[182,-282], W_GYM=[526,206], W_REST=[520,316];
-  const landscape = {...portrait,id:'landscape',W:640,H:560,funOffsets:FUN_L,fun:funSpots(FUN_L),partySpot:{x:FUN_L.ktv[0]+44,y:FUN_L.ktv[1]+56},desks:desks.map((p,i)=>i===10?[384,350]:p),
+  const landscape = {...classic,id:'landscape',W:640,H:560,funOffsets:FUN_L,fun:funSpots(FUN_L),partySpot:{x:FUN_L.ktv[0]+44,y:FUN_L.ktv[1]+56},desks:desks.map((p,i)=>i===10?[384,350]:p),
     podium:shift(podium,...W_MEET),seats:seats.map(p=>shift(p,...W_MEET)),standing:standing.map(p=>shift(p,...W_MEET)),audience:audience.map(p=>shift(p,...W_MEET)),
     beds:atOrigin(bedLocal,W_REST),restOffset:W_REST,gym:atOrigin(gymLocal,W_GYM),tea:atOrigin(teaLocal,W_TEA),feastStand:atOrigin(feastLocal,W_TEA),feastDrop:atOrigin([[39,82,'drop']],W_TEA)[0],gymOffset:W_GYM,teaOffset:W_TEA,
     booth:shift(booth,...W_BOOTH),meetingOffset:W_MEET,boothOffset:W_BOOTH,totalsOffset:[328,-403],lobby:{x:440,y:304,w:60,h:14},
@@ -146,13 +157,53 @@
   landscape.patrol=[door,{x:352,y:392},{x:512,y:392},{x:512,y:296},{x:616,y:296},{x:616,y:196},{x:524,y:196},{x:524,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
   // The published MV films (v5–v7) keep desk 7 as a workstation; ordinary pages seat etwin-cc beside the boss.
   const filmPatrol=[door,{x:244,y:708},{x:28,y:708},{x:244,y:620},{x:180,y:620},{x:248,y:604},{x:340,y:492},door,{x:198,y:247},{x:125,y:169},door];
-  const film={...portrait,id:'film',H,funOffsets:null,fun:null,patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...portrait.obstacles.filter(o=>!bedObstacles.includes(o)).map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
-  const layouts={portrait,landscape,film,legacy:{...portrait,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
+  const film={...classic,id:'film',H,funOffsets:null,fun:null,patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...classic.obstacles.filter(o=>!bedObstacles.includes(o)).map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
+  // 11-03 three-floor tower for the phone page. Alice: 「会议室挪到一楼，就在我的桌子旁边」「休息室要放到三楼……比较吵的就放上来」
+  // 「公告栏那么多字……放到第一层，人家一进来就能先看到」「猫咪在办公室里面跑……花园改成菜地」「游泳池也行」.
+  // 1F: office + compact meeting room beside the boss desk + the totals board. 2F: everything noisy. 3F: reading, rest, farm, cat tree.
+  // Stairs stay in the right-hand column (x 312–342) between floors.
+  const T_BANDS=[[88,466],[516,808],[868,1030]];
+  const T_FUN={ktv:[16,526],cinema:[128,526],snack:[240,526],bbq:[178,632],read:[16,876],garden:[16,962]};
+  const T_TEA=[16,616],T_KITCHEN=[98,632],T_GYM=[16,724],T_POOL=[116,726],T_REST=[134,888],T_CAT=[244,724],T_CLINIC=[242,878],T_BOOTH=[-6,136];
+  const towerLocal={...funLocal,garden:[[60,32,'water'],[112,52,'pick']]}, towerLocalObstacles={...funLocalObstacles,garden:[{x:176,y:6,w:30,h:18}]};
+  const poolLocal=[[28,40,'swim'],[60,52,'swim'],[104,62,'lounge']], poolLocalObstacles=[{x:92,y:20,w:22,h:12}];
+  // 医务室 (Alice: 「缺了一个医务室，我给你们看病刚好合适」): a colleague sits by the bed for a check-up; the boss drops in as the doctor.
+  const clinicLocal=[[28,62,'checkup']], clinicLocalObstacles=[{x:4,y:14,w:18,h:22},{x:34,y:24,w:26,h:10},{x:6,y:70,w:50,h:12}], clinicDoctorLocal=[48,50];
+  const catTreeLocal=[[18,62,'cat']], catTreeLocalObstacles=[{x:24,y:6,w:24,h:42}];
+  // Compact meeting room, absolute coordinates: x 16–120, y 350–468; the door is a gap in its right wall.
+  const T_MEET={x:16,y:350,w:104,h:118};
+  const towerMeetingObstacles=[{x:16,y:350,w:104,h:3},{x:118,y:350,w:3,h:40},{x:118,y:438,w:3,h:30},{x:26,y:400,w:72,h:14},{x:26,y:446,w:46,h:6}];
+  const T_TOTALS={x:142,y:410,w:164,h:54};
+  const towerObstacles=[...mainObstacles.filter(o=>!(o.x===27&&o.y===378)),...towerMeetingObstacles,{...T_TOTALS},
+    ...boothObstacles.map(o=>({...o,x:o.x+T_BOOTH[0],y:o.y+T_BOOTH[1]})),...obstaclesAt(gymLocalObstacles,T_GYM),...obstaclesAt(teaLocalObstacles,T_TEA),
+    ...obstaclesAt(bedLocalObstacles,T_REST),...obstaclesAt(kitchenLocalObstacles,T_KITCHEN),...obstaclesAt(poolLocalObstacles,T_POOL),...obstaclesAt(catTreeLocalObstacles,T_CAT),...obstaclesAt(clinicLocalObstacles,T_CLINIC),
+    ...funObstacles(T_FUN,towerLocalObstacles)];
+  const towerGameWatch={x:172,y:350};
+  const tower={...classic,id:'portrait',H:1050,bands:T_BANDS,funOffsets:T_FUN,funLocal:towerLocal,fun:funSpots(T_FUN,towerLocal),partySpot:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+56},
+    gameWatch:towerGameWatch,tour:[tour[0],pantry,tour[2],{x:132,y:420},towerGameWatch],
+    meetingRect:T_MEET,meetingOffset:[0,0],podium:{x:104,y:386},seats:[32,50,68,86].map(x=>({x,y:390})),standing:[...[28,48,68,88,108].map(x=>({x,y:432})),{x:100,y:456}],audience:[{x:36,y:458},{x:60,y:458}],
+    booth:shift(booth,...T_BOOTH),boothOffset:T_BOOTH,totals:T_TOTALS,totalsOffset:[0,0],
+    beds:atOrigin(bedLocal,T_REST),restOffset:T_REST,gym:atOrigin(gymLocal,T_GYM),gymOffset:T_GYM,tea:atOrigin(teaLocal,T_TEA),teaOffset:T_TEA,
+    feastStand:atOrigin(feastLocal,T_TEA),feastDrop:atOrigin([[39,82,'drop']],T_TEA)[0],
+    kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},
+    funTop:488,obstacles:towerObstacles,
+    patrol:[door,{x:326,y:488},{x:326,y:612},{x:40,y:612},{x:40,y:716},{x:230,y:716},{x:326,y:716},{x:326,y:488},door,pantry,{x:125,y:169},door]};
+  const layouts={portrait:tower,landscape,film,legacy:{...classic,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
+  // Extend only office layouts after film/legacy have captured their original arrays and offsets.
+  const W_KITCHEN = [356,256];
+  for (const [L,kitchenOffset,bbq] of [[landscape,W_KITCHEN,[366,448]]]) {
+    L.kitchenOffset=kitchenOffset; L.kitchen=atOrigin(kitchenLocal,kitchenOffset);
+    L.funOffsets={...L.funOffsets,bbq}; L.fun=funSpots(L.funOffsets);
+    L.obstacles=[...L.obstacles,...obstaclesAt(kitchenLocalObstacles,kitchenOffset),...obstaclesAt(funLocalObstacles.bbq,bbq)];
+  }
   const getLayout = value => value && typeof value==='object' ? value : layouts[value===true?'legacy':value || 'portrait'];
   const blocked = (x,y,selection=false) => {
     const L=getLayout(selection), deep=!!L.funOffsets;
     if (x<18 || x>L.W-18 || y<88) return true;
-    if (L.id==='landscape') { if (y>392 && !(deep && (y>=440 && y<=544 || x>=416 && x<=436 && y<440))) return true; }
+    if (L.bands) {
+      const last=L.bands[L.bands.length-1];
+      if (y>last[1] || !L.bands.some(([a,b])=>y>=a && y<=b) && !(x>=312 && x<=342)) return true;
+    } else if (L.id==='landscape') { if (y>392 && !(deep && (y>=440 && y<=544 || x>=416 && x<=436 && y<440))) return true; }
     else {
       if (y>(deep?1022:720) || y>398 && y<490 && x<312) return true;
       // Stairs from the annex's bottom-right down to the fun floor.
@@ -200,7 +251,7 @@
     const L=getLayout(selection),legacy=L.id==='legacy';
     const {desks:layout,door,bossDesk,handoff,pantry,games:gameSpots,gameWatch,podium,booth,seats,standing,audience,patrol,queuePoint,tour}=L;
     // One list of leisure places: game room 0–11, gym 12–15, teahouse 16–19 (see LEISURE_ORDER).
-    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[])];
+    const games = legacy ? gameSpots.slice(0,10) : [...gameSpots,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];
     const home = i => ({x:layout[i][0],y:layout[i][1]+27});
     let randomState = seed >>> 0;
     const random = () => { randomState = (1664525 * randomState + 1013904223) >>> 0; return randomState / 4294967296; };
@@ -219,7 +270,10 @@
     function handoffPoint(a) {
       if(handoffPoints.has(a.id))return handoffPoints.get(a.id);
       const p=home(a.i);
-      const point=[-20,20].map(dx=>({x:p.x+dx,y:p.y})).filter(p=>!blocked(p.x,p.y,L)).sort((a,b)=>pathLength(home(director().i),a)-pathLength(home(director().i),b))[0];
+      let options=[-20,20].map(dx=>({x:p.x+dx,y:p.y})).filter(p=>!blocked(p.x,p.y,L));
+      // etwin's stool in the tower sits between the meeting-room wall and the boss desk: hand over from below instead.
+      if(!options.length)options=[20,-20].map(dy=>({x:p.x,y:p.y+dy})).filter(p=>!blocked(p.x,p.y,L));
+      const point=options.sort((a,b)=>pathLength(home(director().i),a)-pathLength(home(director().i),b))[0];
       handoffPoints.set(a.id,point);return point;
     }
     const boothCall = () => !!sim.scene.call && (sim.scene.call.kind!=='dispatch' || (!sim.scene.meeting && sim.dispatchCall?.mode==='phone'));
@@ -458,7 +512,7 @@
       return winner?.kind==='work'?null:winner || null;
     }
     // Beside the colleague, on whichever side is floor (etwin's stool has the boss desk on its right).
-    const foodTarget = id => {const p=home(actor(id).i);return [20,-20].map(dx=>({x:p.x+dx,y:p.y})).find(q=>!blocked(q.x,q.y,L)) || {x:p.x+20,y:p.y};};
+    const foodTarget = id => {const p=home(actor(id).i);return [[20,0],[-20,0],[0,20],[0,-20]].map(([dx,dy])=>({x:p.x+dx,y:p.y+dy})).find(q=>!blocked(q.x,q.y,L)) || {x:p.x+20,y:p.y};};
     const occupied = () => sim.actors.filter(a=>!['away','off'].includes(a.status)).sort((a,b)=>a.i-b.i).map(a=>a.id);
     function food(kind,id) {
       sim.deskFood[kind+':'+id]={id,kind,until:sim.time+(['biscuit','cloud'].includes(kind)?300:600)};
@@ -642,19 +696,29 @@
       if(e?.phase==='talking') {const lines=e.rejected>=3?['这条不对','你再看看第三行','证据呢','我不同意','再核一遍']:['这条不对','你再看看第三行','证据呢','我不同意'];const n=Math.min(lines.length-1,Math.floor((sim.time-e.phaseAt)*lines.length/4));result.push({id:e.ids[n%2],text:lines[n]});}
       if(e?.phase==='huff')for(const id of e.ids)result.push({id,text:'哼'});
       if(sim.melon){const n=Math.floor(sim.time/1.5),id=sim.melon.ids[n%sim.melon.ids.length];result.push({id,text:n%3===2?'':n%3?'咋了咋了':'啧啧',icon:n%3===2?'melon':null});}
+      if(L.kitchen && sim.clockKnown && mealTime(signalNow()) && sim.time%12<3 && sim.actors.some(a=>a.status==='idle' && [37,38,39,40].includes(a.gameSlot) && gameActivity(a))) {
+        for(const a of sim.actors) if(chefActivity(a)==='cook') result.push({id:a.id,text:['开饭啦','加个菜？','小心烫'][Math.floor(sim.time/12)%3]});
+      }
       return result;
     }
+    const kitchenStaff = a => !!L.kitchen && !sim.classicLeisure && a.awayPost==='kitchen';
+    const chefTarget = a => kitchenStaff(a) && a.status==='away' ? (sim.clockKnown && isBBQTime(signalNow()) ? games[34] : games[37]) : null;
+    const chefActivity = a => { const p=chefTarget(a); return p && a.activity==='chef' && !a.path.length && distance(a,p)<1 ? p.kind : null; };
+    // Layouts without the pool or cat tree simply skip those slots, so they never eat a colleague's turn.
+    const pickSlots=(n,order,turn=0,res=[])=>leisureSlots(n,order,turn,res,slot=>!!games[slot]);
     let gameMembers = '';
     function assignGames() {
       if (legacy) return;
       const idle=sim.actors.filter(a=>a.status==='idle' && !handoffActor(a) && !isCourier(a) && !cosmeticClaim(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && boothCall()) && !(!legacy && feastSpot(a))).sort((a,b)=>a.i-b.i);
       // Only a page that told us the real clock (live feed, demo, replay) has breakfast; bare simulations never do.
       const breakfast=typeof sim.forceBreakfast==='boolean' ? sim.forceBreakfast : !!sim.clockKnown && (isBreakfast(signalNow()) || (isFunTime(signalNow()) ? 'fun' : false));
+      const meal=!!L.kitchen && !sim.classicLeisure && sim.clockKnown ? (mealTime(signalNow()) ? 'kitchen' : isBBQTime(signalNow()) ? 'bbq' : '') : '';
+      const reserved=sim.actors.map(chefTarget).filter(Boolean).map(p=>games.indexOf(p));
       const feast=!!feasting();
       const rotation=!legacy && !sim.classicLeisure && sim.clockKnown ? Math.floor(signalNow()/1200000) : 0;
       const party=playing('party') ? 'party' : playing('song') ? 'song' : '';
-      const key=breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? leisureSlots(idle.length,LEISURE_ORDER.filter(slot=>slot<16||slot>19)).filter(slot=>games[slot]) : party==='song' ? leisureSlots(idle.length,[22,23,24,29,30,31,32,33,25,26,27,28,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.funFirst || party ? leisureSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : leisureSlots(idle.length,breakfast,rotation).filter(slot=>games[slot]);
+      const key=meal+'|'+reserved.join(',')+'|'+breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? pickSlots(idle.length,LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&!reserved.includes(slot))).filter(slot=>games[slot]) : party==='song' ? pickSlots(idle.length,[22,23,24,29,30,31,32,33,25,26,27,28,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.funFirst || party ? pickSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : pickSlots(idle.length,meal==='kitchen'?KITCHEN_ORDER:meal==='bbq'?(isBreakfast(signalNow())?BBQ_ORDER:[34,35,36,...LEISURE_ORDER.filter(i=>i<34||i>36)]):breakfast,rotation,reserved).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -708,7 +772,7 @@
     }
     // Night: nobody goes home (7×24). Colleagues with no work nap in the office: two beanbags and the yoga mat first,
     // everyone else head-down at their own desk; a real signal wakes them straight back to work. Away still leaves.
-    const napper = b => b.status==='off' && !legacy && !sim.classicLeisure && !feastSpot(b) && !quotaClaim(b);
+    const napper = b => b.status==='off' && !kitchenStaff(b) && !legacy && !sim.classicLeisure && !feastSpot(b) && !quotaClaim(b);
     // Each napper keeps the spot it got until it wakes; a free spot goes to the next one (lowest desk first).
     sim.napSeats = {};
     function napSpot(a) {
@@ -729,8 +793,8 @@
     // Dim sum from the boss (or a visitor): for two minutes everyone free — idle or napping — eats at the teahouse.
     const feasting = () => sim.feast && sim.time < sim.feast.until && !legacy && !sim.classicLeisure && L.tea;
     function feastSpot(a) {
-      if(!feasting() || !['idle','off'].includes(a.status) || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a) || (isCourier(a) && sim.delivery)) return null;
-      const order=sim.actors.filter(b=>['idle','off'].includes(b.status) && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b) && !(isCourier(b) && sim.delivery)).sort((x,y)=>x.i-y.i);
+      if(!feasting() || a.status==='off' && kitchenStaff(a) || !['idle','off'].includes(a.status) || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a) || (isCourier(a) && sim.delivery)) return null;
+      const order=sim.actors.filter(b=>!(b.status==='off' && kitchenStaff(b)) && ['idle','off'].includes(b.status) && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b) && !(isCourier(b) && sim.delivery)).sort((x,y)=>x.i-y.i);
       return [...L.tea,...(L.feastStand||[])][order.indexOf(a)] || null;
     }
     const feastEating = a => { const p=feastSpot(a); return !!p && !a.path.length && distance(a,p)<1; };
@@ -756,8 +820,9 @@
         else if (isCourier(a) && sim.delivery) target = sim.delivery.phase === 'returning' ? home(a.i) : handoff;
         else if (a.status === 'busy' || a.status === 'unknown' || a.status === 'done' && (!legacy || a.doneArrived == null || sim.time - a.doneArrived < 2)) target = home(a.i);
         else if (a.status === 'waiting') target = queuePoint(Math.max(0, waiting.indexOf(a)));
+        else if (chefTarget(a)) {a.activity='chef'; target=chefTarget(a);}
         else if (feastSpot(a)) target = feastSpot(a);
-        else if (a.status === 'away' || a.status === 'off' && (legacy || sim.classicLeisure)) target = door;
+        else if (a.status === 'away' || a.status === 'off' && (legacy || sim.classicLeisure || kitchenStaff(a))) target = door;
         else if (a.status === 'off') target = napSpot(a);
         else if (a.status === 'idle' && (isCourier(a) || legacy && [4, 5, 9].includes(a.i))) target = home(a.i);
         else target = legacy ? { x: mvRest[a.i][0], y: mvRest[a.i][1] } : games[a.gameSlot] || home(a.i);
@@ -774,6 +839,8 @@
       if (sim.bossTarget) moveTo(sim.boss, sim.bossTarget);
       else if (waiting.length || sim.delivery) moveTo(sim.boss, bossDesk);
       else if (sim.eventsEnabled && sim.radar?.phase==='showing') moveTo(sim.boss,bossRadarPoint);
+      // Someone is in for a check-up: the boss goes up to the clinic as the doctor (she trained in medicine).
+      else if (L.clinicDoctor && sim.actors.some(a => gameActivity(a) === 'checkup')) moveTo(sim.boss, L.clinicDoctor);
       else if (sim.time >= sim.nextWander) {
         moveTo(sim.boss, [tour[0],pantry,bossDesk,tour[3]][Math.floor(random() * 4)]);
         sim.nextWander = sim.time + 7 + random() * 5;
@@ -885,7 +952,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { chefTarget,chefActivity,play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
@@ -1061,7 +1128,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, LEISURE_ORDER, BREAKFAST_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[])];}, gameWatch, standing, podium, seats, booth, audience, patrol, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
