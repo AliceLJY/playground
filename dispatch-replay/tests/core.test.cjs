@@ -226,3 +226,14 @@ test('formatting used in captions and labels', () => {
   assert.strictEqual(C.fmtInt(8674), '8,674');
   assert.strictEqual(C.fmtClock(4110), '68:30');
 });
+
+// Measured header height, including 44px controls, must bound the actual stage.
+for (const {slug,data} of SETS) test(`${slug}: small screens respect measured controls and keep labels on canvas`,()=>{
+  const model=C.prepare(data);
+  for(const [W,H,headerHeight] of [[320,480,170],[320,568,170],[390,664,170],[844,340,80]]){
+    const L=C.layout(model,W,H,{picker:true,headerHeight});
+    assert.ok(L.stage.y>=headerHeight,`${W}x${H}: stage starts at ${L.stage.y}, inside ${headerHeight}px header`);
+    for(const c of L.cells) assert.ok(c.x>=0&&c.x+c.w<=W&&c.y>=L.stage.y&&c.y+c.h<=L.stage.y+L.stage.h-L.captionH,`${W}x${H}: node or label is clipped`);
+    if(L.listOnly) assert.ok(L.cells.length===model.agents.length,'small-space fallback must retain all selectable tasks');
+  }
+});

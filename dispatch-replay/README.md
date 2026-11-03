@@ -16,6 +16,8 @@ It is drawn as a starfield: the star in the middle is the dispatcher, the small 
 - Each caption slows the replay down long enough to read it; the clock in the top right then carries a slow-motion marker. The clock itself always shows real time.
 - Fixed views: `?view=hero` (the most executors running at once), `?view=wide`, `?view=end`, `?t=<real seconds>`; `?d=yingge-1021` picks a dataset, the first one by default.
 
+The first screen explains that stars open details and the bottom line can be scrubbed. Selecting a task pauses playback and shows its full name and current state. The task-list button also works on cramped screens; the end summary keeps a task-list entry so final statistics can be inspected without restarting.
+
 ## Where the numbers come from
 
 `tools/extract.py` pulls the data out of the author's local Claude Code session transcript. It keeps only task labels, model names, tool groups (web / file / write / shell / external tool / other), times, token counts and character counts — no prompts, no report text, no file paths. The task line and the captions are written by hand.

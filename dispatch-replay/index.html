@@ -64,12 +64,34 @@ body.compact #counters{font-size:11px;gap:10px}
 body.compact #summary p{font-size:12px;margin:1px 0}
 @media (max-width:560px){#clock{display:none}.controls button,.controls select{padding:5px 8px;font-size:12px}}
 noscript{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center}
+/* Controls size the stage through their measured height, including wrapped rows. */
+header,body.portrait header,body.tall header,body.compact header{height:auto;min-height:60px;padding:8px 12px;gap:6px 10px;flex-wrap:wrap}
+button,select{min-height:44px;min-width:44px}
+#hint{margin:3px 0 0;font-size:12px;line-height:1.5;color:var(--text)}
+#detail,body.portrait #detail{top:auto;bottom:84px;max-height:calc(100dvh - var(--header-height,60px) - 96px);overflow:auto;cursor:default}
+#detail{z-index:3}
+#detail-close{margin-top:6px}
+#summary button{pointer-events:auto;margin-bottom:4px}
+dialog{width:min(480px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:12px;color:var(--text);background:var(--panel);border:1px solid var(--hud)}
+dialog::backdrop{background:#0009}
+dialog h2{font-size:18px;margin:0 0 8px}
+#tasks-close{margin-bottom:8px}
+#task-list{display:grid;gap:6px}
+#task-list button{white-space:normal;text-align:left;line-height:1.5}
+@media(max-width:560px){
+  header .titles,body.tall header .titles{flex:1 1 100%}
+  header .controls,body.tall header .controls{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,auto);gap:4px;width:100%;flex:1 1 100%}
+  #dataset{grid-column:1/-1;width:100%;min-width:0}
+  #speed{min-width:0;width:100%}
+  #subtitle,#legend{display:none}
+  #detail{left:10px;right:10px;max-width:none}
+}
 </style>
 </head>
 <body>
 <canvas id="stage" aria-label="派活过程动画"></canvas>
 <header>
-  <div class="titles"><h1 id="title">派活回放</h1><p id="subtitle"></p></div>
+  <div class="titles"><h1 id="title">派活回放</h1><p id="subtitle"></p><p id="hint">点星星 / 任务看详情 · 拖底线回看</p></div>
   <div id="legend"></div>
   <div class="controls">
     <span id="clock"></span>
@@ -77,6 +99,7 @@ noscript{position:fixed;inset:0;display:grid;place-items:center;padding:24px;tex
     <select id="speed" aria-label="播放时长"><option value="90" selected>1.5 分钟看完</option><option value="180">3 分钟看完</option></select>
     <button id="play" aria-pressed="false">播放</button>
     <button id="restart" aria-label="从头播放">重来</button>
+    <button id="tasks" aria-label="查看任务列表">任务</button>
   </div>
 </header>
 <div id="caption" role="status" aria-live="polite"></div>
@@ -89,8 +112,10 @@ noscript{position:fixed;inset:0;display:grid;place-items:center;padding:24px;tex
   <span>已交回报告<b id="c-report">0</b> 字</span>
   <span class="wide-only">工具调用<b id="c-tools">0</b> 次</span>
 </div>
-<div id="detail" hidden></div>
+<section id="detail" hidden aria-label="当前任务"><div id="detail-content"></div><button id="detail-close">关闭详情</button></section>
+<dialog id="task-dialog" aria-labelledby="task-title"><h2 id="task-title">本次任务</h2><button id="tasks-close">关闭列表</button><div id="task-list"></div></dialog>
 <div id="summary" hidden>
+  <button id="end-tasks">查看本次任务</button>
   <p id="s-line1"></p>
   <p class="note">数字取自 Claude Code 本地会话记录。token 是各子 agent 自己上下文的峰值，报告按字数计，两者单位不同。</p>
 </div>
