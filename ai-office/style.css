@@ -82,7 +82,7 @@ body.wall #office{height:100%;width:100%}
 
 /* Foot plates extend below the game corner; keep mobile controls beneath their last row. */
 @media(max-width:700px){body:not(.mv):not(.wall) .treat{bottom:45%}}
-body.wall.wall-room #canvas-wrap{aspect-ratio:6/7}
+body.wall.wall-room #canvas-wrap{aspect-ratio:var(--wr,6/7)}
 /* Desktop keeps the complete horizontal floor beside the notebook. Its width is fitted to the room viewport. */
 @media(min-width:1000px) and (min-aspect-ratio:5/4){
   body:not(.mv):not(.wall) .office-app{width:min(1600px,100%);grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:auto auto minmax(0,1fr) 22px;gap:10px 24px;padding:18px 24px 12px}
