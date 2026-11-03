@@ -1,6 +1,6 @@
 # Late-Night Grocery
 
-A street-corner miniature on a rainy night, where one old grocery is the only shop still lit. Turn the model around from outside, then pinch out (or scroll forward) and you get pulled into it, standing on the street at human eye height. Go in and work a night shift. There is a note taped to the counter with the shift rules.
+A street-corner miniature on a rainy night, where one old grocery is the only shop still lit. Tap “点一下开始” on the opening card first. Turn the model around from outside, then pinch out (or scroll forward) and you get pulled into it, standing on the street at human eye height. Go in and work a night shift. There is a note taped to the counter with the shift rules.
 
 **[Play it](https://aliceljy.github.io/playground/diorama-walk/)** · If you would rather not be scared, open the [calm version](https://aliceljy.github.io/playground/diorama-walk/?calm=1), which has nothing frightening in it.
 

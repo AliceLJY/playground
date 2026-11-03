@@ -57,8 +57,8 @@ const joyHintEl = document.body.appendChild(Object.assign(document.createElement
 document.body.appendChild(hintEl);
 // round 9: the opening card (normal entry only; fixed views skip it), the note's hint and the note itself
 const cardEl = VIEW ? null : document.body.appendChild(Object.assign(document.createElement('div'), { id: 'card', innerHTML: CALM
-  ? '<div class="box"><h1>深夜杂货店</h1><p>安心版：不会有吓人的东西</p><p class="go">放大，走进去</p><a href="?">回到正常版</a></div>'
-  : '<div class="box"><h1>深夜杂货店</h1><p>建议戴耳机、关灯玩</p><p class="go">放大，走进去</p><a href="?calm=1">不敢玩？安心版</a></div>' }));
+  ? '<div class="box"><h1>深夜杂货店</h1><p>安心版：不会有吓人的东西</p><p class="go">点一下开始</p><a href="?">回到正常版</a></div>'
+  : '<div class="box"><h1>深夜杂货店</h1><p>建议戴耳机、关灯玩</p><p class="go">点一下开始</p><a href="?calm=1">不敢玩？安心版</a></div>' }));
 const noteHintEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'noteHint', textContent: COARSE ? '收银台上有张纸条 · 点它看看' : '收银台上有张纸条 · 点它或按 F 看看' }));
 const noteEl = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'note' }));
 noteEl.innerHTML = '<div class="paper">' + (CALM ? C.NOTE_CALM.map((l) => `<p>${l}</p>`).join('') : `<h2>${C.NOTE_TEXT[0]}</h2>` + C.NOTE_TEXT.slice(1).map((l) => `<p>${l}</p>`).join('')) + '</div>';
