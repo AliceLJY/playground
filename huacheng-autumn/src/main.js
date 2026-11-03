@@ -9,7 +9,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { SEED, BASE, BRIDGE, PAGODA, CANTON, TRAM, COLORS, makeLayout, cantonStructure, tramAt, carAt, boatAt, trafficAt, CAR_SPECS, BOAT_SPECS, mulberry32, clamp, VIEWS, pathAt, createRig, fovFor, shiftFor, skyAt } from './core.js';
+import { SEED, BASE, BRIDGE, PAGODA, CANTON, TRAM, COLORS, makeLayout, cantonStructure, tramAt, carAt, boatAt, trafficAt, CAR_SPECS, BOAT_SPECS, mulberry32, clamp, VIEWS, pathAt, createRig, fovFor, shiftFor, skyAt, createJournal, journalStep, journalPlace, journalWindow, journalPrompt, JOURNAL_PLACES } from './core.js';
 const $=id=>document.getElementById(id),canvas=$('scene'),params=new URLSearchParams(location.search);
 const recording=params.get('record')==='1';
 let recordLens=null,recordLamps=null;
@@ -627,6 +627,26 @@ const fxaa=new ShaderPass(FXAAShader);composer.addPass(fxaa);
 const requested=params.get('view'),validView=Object.hasOwn(VIEWS,requested),fixedTime=validView?Math.max(0,number('t',13)):null;
 let view=validView?requested:'auto',frozen=validView,hour=clamp(number('h',0),0,1),t=fixedTime??0;
 const rig=createRig({u:validView?VIEWS[requested]:0,auto:!matchMedia('(prefers-reduced-motion: reduce)').matches});
+let journal=createJournal(),journalUI='';
+const journalScene=()=>({time:t,hour,frozen,mode:rig.mode,auto:rig.auto,destination:rig.destination,pos:rig.pos,look:rig.look});
+function updateJournal(intent='tick'){
+ const sceneState=journalScene();journal=journalStep(journal,intent,sceneState);
+ const active=journal.phase!=='idle',done=journal.phase==='done';
+ const capture=active&&!done&&!journal.moment&&journal.stamps.includes('bridge');
+ const available=capture&&journalPlace(sceneState)==='bridge'&&!!journalWindow(t);
+ const prompt=done?'电车一刻：'+(journal.moment.direction===1?'向赤岗塔站':'向广州塔站')+'经过花瀑。':active?journalPrompt(journal,sceneState):'';
+ const key=JSON.stringify([journal,available,prompt]);if(key===journalUI)return;journalUI=key;
+ document.body.classList.toggle('journal-active',active);$('journal').hidden=!active;$('journal-start').hidden=active;
+ $('journal-start').setAttribute('aria-expanded',String(active));
+ $('journal-title').textContent=done?'我的秋岸游记':'等一班花电车';
+ $('journal-stamps').textContent=journal.stamps.length?journal.stamps.map(p=>'✓ '+JOURNAL_PLACES[p].name).join(' → ')+(done?'':' · '+JOURNAL_PLACES[journal.stamps.at(-1)].note):'花桥 / 塔下 · 两处秋花';
+ $('journal-goal').textContent=prompt;
+ const memory=$('journal-memory');memory.hidden=!done;
+ memory.textContent=done?'夜景：花窗里的广州塔亮起了。':'';
+ const button=document.querySelector('[data-journal=capture]');button.hidden=!capture;button.disabled=!available;
+ // Do not move focus on a timer. Completion is caused by the player's hour input.
+ if(done&&intent==='hour')document.querySelector('[data-journal=exit]').focus({preventScroll:true});
+}
 let W=1,H=1,aspect=1,copyTop=1,scaleIdx=0,pixelRatio=1,frames=0,shadowRefreshes=0,calls=0,tris=0,fps=60,meanFrameTime=1/60,slow=0,fast=0;
 const scales=[1,.9,.8,.75];
 document.body.classList.toggle('detail',validView&&['station','bridge','arch','pagoda'].includes(requested));
@@ -637,7 +657,7 @@ const tramLamps=group('tram').children.find(m=>m.name==='tram-lamp').material;
 const tramWindows=group('tram').children.find(m=>m.name==='tram-window').material;
 let appliedHour=NaN,appliedHover=null,appliedLamps=null;
 function applyHour(){const h=skyAt(hour);if(recordLamps!=null)h.lights=recordLamps;towerU.time.value=t;beacon.material.color.setRGB(3,.015,.006).multiplyScalar(h.lights*(Math.sin(t*3.6-1)>.4?1:.05));if(appliedHour===hour&&appliedHover===hoverId&&appliedLamps===recordLamps)return;if(appliedHour!==hour)renderer.shadowMap.needsUpdate=true;appliedHour=hour;appliedHover=hoverId;appliedLamps=recordLamps;renderer.toneMappingExposure=1+.30*Math.sin(Math.PI*hour);bloom.enabled=hour>.4;bloom.strength=.16;document.body.classList.toggle('night',hour>.72);document.querySelector('.tele').textContent='珠江南岸 · '+(hour<.28?'白天':hour<.77?'黄昏':'入夜')+' · 建筑意象，非测绘';for(const k of ['low','mid','top'])skyU[k].value.setRGB(...h[k]);waterU.low.value.setRGB(...h.low);waterU.mid.value.setRGB(...h.mid);waterU.top.value.setRGB(...h.top);waterU.lights.value=h.lights;waterU.sunset.value=Math.sin(Math.PI*hour)*(1-THREE.MathUtils.smoothstep(hour,.66,.94));pagodaHour.value=hour;pagodaWindowMat.emissiveIntensity=1.4*h.lights*(hoverId==='pagoda'?1.18:1);glazingU.top.value.setRGB(...h.mid).multiplyScalar(1.7).lerp(new THREE.Color(.3,.4,.48),.26*(1-hour));glazingU.bottom.value.setRGB(.012,.025,.034).multiplyScalar(1-.65*hour);scene.fog.color.setRGB(...h.mid);cityU.haze.value.copy(scene.fog.color);cityU.low.value.setRGB(...h.low);cityU.top.value.setRGB(...h.top);cityU.level.value=Math.max(0,(h.lights-.3)*.75);towerU.level.value=Math.pow(h.lights,2)*.9;towerU.time.value=t;beacon.material.color.setRGB(3,.015,.006).multiplyScalar(h.lights*(Math.sin(t*3.6-1)>.4?1:.05));sun.color.setRGB(...h.key);sun.intensity=h.keyInt;scene.environmentIntensity=.35*(1-.8*hour);sun.position.set(-42,80*h.sunY,64);hemi.intensity=h.hemi;carHeads.material.color.setRGB(1,.75,.45).multiplyScalar(.04+2.8*h.lights);carTails.material.color.setRGB(1,.014,.004).multiplyScalar(.12+1.7*h.lights);mats.lamp.color.copy(warm).multiplyScalar(0.12+4.6*h.lights);mats.window.emissiveIntensity=1.4*h.lights*(hoverId==='pagoda'?1.18:1);tramWindows.emissiveIntensity=1.35*h.lights;tramLamps.color.copy(warm).multiplyScalar(.15+3*h.lights);mats.tower.emissiveIntensity=h.lights*1.15;for(const l of lampLights){l.intensity=30*h.lights;l.visible=h.lights>.001;}bridgeLight.visible=h.lights>.001;bridgeLight.intensity=26*h.lights*(hoverId==='bridge'?1.25:1);}
-$('hour').value=String(hour*1000);$('hour').addEventListener('input',()=>hour=Number($('hour').value)/1000);
+$('hour').value=String(hour*1000);$('hour').addEventListener('input',()=>{hour=Number($('hour').value)/1000;updateJournal('hour');});
 document.querySelector('.hour').addEventListener('click',e=>{const b=e.target.closest('[data-hour]');if(b){$('hour').value=b.dataset.hour;$('hour').dispatchEvent(new Event('input'));}});
 const syncAuto=()=>{
  const b=document.querySelector('[data-act=auto]');b.setAttribute('aria-pressed',String(rig.auto));
@@ -645,9 +665,15 @@ const syncAuto=()=>{
  b.title=rig.auto?'留在这里':'继续自动游览';b.setAttribute('aria-label',b.title);
  for(const place of document.querySelectorAll('[data-place]'))place.setAttribute('aria-pressed',String(rig.destination===place.dataset.place));
 };syncAuto();
+$('journal-start').addEventListener('click',()=>{frozen=false;rig.setAuto(false);syncAuto();updateJournal('start');document.querySelector('[data-place=bridge]').focus({preventScroll:true});});
+$('journal').addEventListener('click',e=>{
+ const b=e.target.closest('[data-journal]');if(!b)return;
+ if(b.dataset.journal==='exit'){updateJournal('exit');frozen=false;rig.setAuto(true);syncAuto();$('journal-start').focus({preventScroll:true});}
+ else updateJournal('capture');
+});
 const touchRig=()=>{frozen=false;view='manual';rig.grab();syncAuto();};
 $('places').addEventListener('click',e=>{const b=e.target.closest('[data-place]');if(!b)return;frozen=false;rig.goTo(b.dataset.place);syncAuto();});
-$('tools').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;touchRig();if(b.dataset.act==='in')rig.zoom(0.87);if(b.dataset.act==='out')rig.zoom(1/0.87);if(b.dataset.act==='reset'){rig.reset();view='auto';}if(b.dataset.act==='auto')rig.setAuto(!rig.auto);syncAuto();});
+$('tools').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;touchRig();if(b.dataset.act==='in')rig.zoom(0.87);if(b.dataset.act==='out')rig.zoom(1/0.87);if(b.dataset.act==='reset'){rig.reset();view='auto';updateJournal('exit');}if(b.dataset.act==='auto')rig.setAuto(!rig.auto);syncAuto();});
 const pointers=new Map();let pinch=0;
 canvas.addEventListener('pointerdown',e=>{touchRig();rig.held=true;canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);pinch=0;});
 const ray=new THREE.Raycaster(),mouse=new THREE.Vector2(),hit=new THREE.Vector3();
@@ -671,7 +697,7 @@ function moveVehicles(t){
  for(const mesh of [carBodies,carCabins,carWheels,carRoof,carHeads,carTails,carGrilles,carContacts])mesh.instanceMatrix.needsUpdate=true;
  boatSpecs.forEach((b,i)=>{const a=boatAt(t,i);boatHulls.setMatrixAt(i,compose(M,[a.x,a.y,a.z]));boatCabins.setMatrixAt(i,compose(M,[a.x,a.y+.6,a.z]));});boatHulls.instanceMatrix.needsUpdate=true;boatCabins.instanceMatrix.needsUpdate=true;
 }
-function animate(dt,render=true){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos,target:rig.look}:rig.update(dt,t);camera.position.fromArray(pose.pos);
+function animate(dt,render=true){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos,target:rig.look}:rig.update(dt,t);if(journal.phase!=='idle')updateJournal();camera.position.fromArray(pose.pos);
  // Hold the current lens during manual zoom; otherwise widening FOV cancels the dolly.
  const fov=recordLens?.fov??(frozen||rig.mode==='auto'||rig.mode==='travel'?fovFor(aspect,pose.pos):rig.mode==='return'?THREE.MathUtils.lerp(camera.fov,fovFor(aspect,pathAt(rig.u).pos),Math.min(1,dt*5)):camera.fov);
  if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();const sh=shiftFor(aspect,rig.pos);camera.projectionMatrix.elements[8]=-sh[0];camera.projectionMatrix.elements[9]=-sh[1];camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();}
@@ -695,7 +721,7 @@ function trafficGeometryAt(seconds){
  for(let i=0;i<boatSpecs.length;i++)addInstances('boat-'+i,i,[[boatHulls,[i]],[boatCabins,[i]]]);
  moveVehicles(t);scene.updateMatrixWorld(true);return items;
 }
-window.__huacheng={get ready(){return frames>3;},state:()=>({view,requestedView:requested,mode:rig.mode,destination:rig.destination,auto:rig.auto,cam:camera.position.toArray(),target:rig.look.slice(),u:rig.u,t,hour,hover:hoverId,held:rig.held,tram:tramAt(t),frozen}),
+window.__huacheng={get ready(){return frames>3;},state:()=>({view,requestedView:requested,mode:rig.mode,destination:rig.destination,auto:rig.auto,cam:camera.position.toArray(),target:rig.look.slice(),u:rig.u,t,hour,hover:hoverId,held:rig.held,tram:tramAt(t),frozen,journal:structuredClone(journal)}),
 info:()=>({calls,tris,fps,shadowRefreshes,renderer:rendererName,shadowMap:sun.shadow.mapSize.x,exposure:renderer.toneMappingExposure,sunElevation:Math.atan2(sun.position.y,Math.hypot(sun.position.x,sun.position.z))*180/Math.PI,msaa:sceneTarget.samples,antialiasing:'FXAA',aoResolution:[gtao.width,gtao.height],activePointLights:lampLights.filter(l=>l.visible).length+Number(bridgeLight.visible),ao:gtao.enabled,bloom:bloom.enabled,w:W,h:H,dpr:devicePixelRatio,pixelRatio,scaleIdx,density:mobile?'mobile':'desktop',instances:instances.reduce((s,m)=>s+m.count,0),inventory:instances.map(m=>({name:m.name,count:m.count,type:m.type,isInstancedMesh:m.isInstancedMesh})),lightLevel:skyAt(hour).lights,pagodaLitByFloor:layout.levels.map(l=>l.windows.filter(w=>hour>=w.onAt).length),lighting:{lamps:lampLights[0].intensity,tramWindows:tramWindows.emissiveIntensity,towerWindows:pagodaWindowMat.emissiveIntensity}}),
 setCamera:(pos,target)=>{if(params.has('record')&&[...pos,...target].length===6&&[...pos,...target].every(Number.isFinite)){rig.pos=pos.slice();rig.look=target.slice();frozen=true;view='record';document.body.classList.add('detail');animate(0);}},
 setTime:seconds=>{if(Number.isFinite(seconds)){t=seconds;animate(0);}},
@@ -708,7 +734,7 @@ tramGeometryBounds:()=>{const b=new THREE.Box3().setFromObject(group('tram'));re
 subjectBoxes:()=>{const tr=tramAt(t);return{...Object.fromEntries(Object.entries(staticBoxes).map(([k,b])=>[k,projected(b)])),tram:projected(new THREE.Box3(new THREE.Vector3(...tr.raw.min),new THREE.Vector3(...tr.raw.max))),base:projected(new THREE.Box3(new THREE.Vector3(-BASE.width/2,-1.6,-BASE.depth/2),new THREE.Vector3(BASE.width/2,0,BASE.depth/2))) };},
 uiBoxes:()=>Object.fromEntries(['.brand','.badge','.copy','.tele','.credit','.tools','.places','.hour'].filter(s=>getComputedStyle(document.querySelector(s)).display!=='none'&&getComputedStyle(document.querySelector(s)).visibility!=='hidden').map(s=>[s,rectOf(document.querySelector(s))])),
 };
-window.__PLAYTEST__={get ready(){return window.__huacheng.ready;},snapshot:()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}),reset:()=>{rig.reset();t=0;frozen=false;view='auto';syncAuto();}};
+window.__PLAYTEST__={get ready(){return window.__huacheng.ready;},snapshot:()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}),reset:()=>{rig.reset();t=0;frozen=false;view='auto';updateJournal('exit');syncAuto();}};
 // Recording-only camera score and geometric audit. Normal entry has neither API.
 if(recording){
  const overlay=document.createElement('img');overlay.id='record-dissolve';
