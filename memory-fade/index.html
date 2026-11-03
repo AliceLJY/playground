@@ -84,6 +84,40 @@
     .interaction .row { margin: 4px 0; }
   }
   @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+  .experiment-menu { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+  .experiment-menu span { color: var(--mute); font-size: 13px; }
+  .experiment-menu button { flex: none; padding: 0 18px; }
+  #experiment { width: min(920px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0 16px 16px;
+    border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--bg); overscroll-behavior: contain; }
+  #experiment::backdrop { background: rgb(43 38 32 / .55); }
+  .experiment-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 8px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .experiment-head h2 { margin: 0; font-size: 20px; }
+  .experiment-head button { flex: none; padding: 0 12px; }
+  #experiment p { margin: 8px 0; }
+  .experiment-note { font-size: 13px; color: #625849; }
+  #experiment-sample { border-left: 3px solid var(--keep); padding-left: 10px; }
+  #experiment-day, #experiment-budget { font-variant-numeric: tabular-nums; }
+  .experiment-tokens { display: flex; gap: 6px; margin: 10px 0; }
+  .experiment-tokens button { min-width: 0; font-size: 13px; padding: 4px; }
+  #experiment-add, #experiment-reveal, #experiment-retry { width: 100%; }
+  #experiment-message { min-height: 2.8em; font-size: 14px; color: var(--keep); }
+  #experiment-result h3 { font-size: 18px; margin: 8px 0; }
+  .experiment-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .experiment-cards article { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .experiment-cards h4 { font-size: 14px; margin: 0; }
+  .experiment-cards strong { display: block; font-size: 28px; font-variant-numeric: tabular-nums; }
+  #experiment-yours { color: var(--accent); }
+  #experiment-plain { color: var(--floor); }
+  .experiment-cards small { display: block; font-size: 12px; }
+  #experiment-plot { margin-top: 10px; }
+  #experiment-plot text { font-size: 11px; fill: #625849; }
+  #experiment-planned-curve { stroke: var(--accent); stroke-width: 2.4; fill: none; }
+  #experiment-plain-curve { stroke: var(--floor); stroke-width: 2; stroke-dasharray: 5 4; fill: none; }
+  #experiment-explanation { font-size: 14px; }
+  @media (min-width: 700px) {
+    .experiment-columns { display: grid; grid-template-columns: 1fr 1.3fr; gap: 28px; align-items: start; }
+  }
 </style>
 </head>
 <body>
@@ -148,6 +182,10 @@
   </section>
   </div>
 
+  <nav class="experiment-menu" aria-label="可选小实验">
+    <span>可选小实验</span><button id="open-experiment">三次想起 →</button>
+  </nav>
+
   <details>
     <summary>这条曲线是怎么算的</summary>
     <p>倍率 = 地板 + (1 − 地板) × e<sup>−λt<sup>β</sup></sup>，λ = ln2 ÷ 半衰期<sup>β</sup>。三层记忆的形状和地板不同：边缘层 β 1.3、地板 0.45，起步就掉得快；工作层 β 1、地板 0.65；核心层 β 0.8、地板 0.85，掉得慢。</p>
@@ -161,9 +199,50 @@
 
   <footer>我的AI小木屋 · <a href="../">playground</a> · <a href="https://github.com/AliceLJY/recallnest">RecallNest</a></footer>
 </main>
+<dialog id="experiment" aria-labelledby="experiment-title" aria-describedby="experiment-disclaimer">
+  <header class="experiment-head"><h2 id="experiment-title">三次想起</h2><button id="close-experiment">返回原推演</button></header>
+  <div class="experiment-columns">
+    <div>
+      <p>只给三次想起机会，把它留到第 180 天。</p>
+      <p id="experiment-disclaimer" class="experiment-note">RecallNest 衰减规则的小实验，不是人类记忆训练法。</p>
+      <p class="experiment-note">从今天算第 0 天，目标：第 180 天仍保持 ×1.00。约一分钟，可随时重试。</p>
+      <p id="experiment-sample" class="experiment-note"></p>
+    </div>
+    <section id="experiment-plan" aria-label="安排三次想起">
+      <label for="experiment-scrub">选中第 <b id="experiment-day">0</b> 天 · 剩 <b id="experiment-budget">3</b> 枚</label>
+      <input id="experiment-scrub" type="range" min="0" max="179" step="1" value="0" aria-label="安排想起的日子">
+      <button id="experiment-add">在这一天放一枚</button>
+      <div class="experiment-tokens" aria-label="已安排的日期，点击可撤回">
+        <button id="experiment-token-0" disabled>① 未安排</button>
+        <button id="experiment-token-1" disabled>② 未安排</button>
+        <button id="experiment-token-2" disabled>③ 未安排</button>
+      </div>
+      <p id="experiment-message" role="status" aria-live="polite"></p>
+      <button id="experiment-reveal" class="primary" disabled>看看半年后</button>
+    </section>
+    <section id="experiment-result" aria-label="第 180 天的对照结果" hidden>
+      <h3 id="experiment-outcome" tabindex="-1"></h3>
+      <div class="experiment-cards">
+        <article><h4>你的安排</h4><strong id="experiment-yours"></strong><small id="experiment-dates"></small><small id="experiment-yours-tier"></small></article>
+        <article><h4>不干预</h4><strong id="experiment-plain"></strong><small>不新增想起</small><small id="experiment-plain-tier"></small></article>
+      </div>
+      <svg id="experiment-plot" viewBox="0 0 360 180" role="img" aria-label="从今天到第 180 天：橙色实线是你的安排，灰褐虚线是不干预">
+        <path class="grid" d="M34 16H346 M34 84H346 M34 140H346"/>
+        <text x="2" y="20">1.00</text><text x="2" y="88">0.70</text><text x="2" y="144">0.45</text>
+        <path id="experiment-plain-curve"/><path id="experiment-planned-curve"/>
+        <g id="experiment-marks"></g>
+        <text x="34" y="174">今天</text><text x="190" y="174" text-anchor="middle">第 90 天</text><text x="346" y="174" text-anchor="end">第 180 天</text>
+      </svg>
+      <p class="experiment-note">橙色实线：你的安排 · 灰褐虚线：不干预</p>
+      <div id="experiment-explanation"><p id="experiment-timing"></p><p id="experiment-tier"></p></div>
+      <button id="experiment-retry">重新安排三次</button>
+    </section>
+  </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="src/core.js"></script>
 <script src="src/library.js"></script>
+<script src="src/experiment.js"></script>
 <script src="src/game.js"></script>
 </body>
 </html>

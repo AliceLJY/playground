@@ -325,9 +325,87 @@
     drawPlot(); setDay(Math.min(F.DAYS, mem.age + (+q.get('ahead') || 0)));
     card.x = yOf(F.stateAt(mem, day).factor); card.v = 0; ledge.x = ledge.target;
   }
+  // ---------- 可选实验：不修改 mem / library，关闭后丢弃全部计划 ----------
+  const E = window.FADE_EXPERIMENT;
+  const experimentDialog = $('experiment');
+  let experiment = null;
+  function renderExperiment() {
+    const s = experiment;
+    if (!s) return;
+    $('experiment-plan').hidden = s.phase !== 'plan';
+    $('experiment-result').hidden = s.phase !== 'result';
+    $('experiment-sample').textContent = `${CAT[s.memory.category] || CAT.other} · 已写入 ${s.memory.age} 天。重要性固定 ${s.memory.importance.toFixed(2)}，本实验不钉住。`;
+    $('experiment-day').textContent = s.day;
+    $('experiment-budget').textContent = E.BUDGET - s.days.length;
+    $('experiment-scrub').value = s.day;
+    $('experiment-add').textContent = `第 ${s.day} 天放一枚`;
+    $('experiment-add').disabled = s.days.length === E.BUDGET;
+    $('experiment-reveal').disabled = s.days.length !== E.BUDGET;
+    $('experiment-message').textContent = s.message;
+    for (let i = 0; i < E.BUDGET; i++) {
+      const button = $('experiment-token-' + i), d = s.days[i];
+      button.disabled = d === undefined;
+      button.textContent = d === undefined ? `${['①', '②', '③'][i]} 未安排` : `第 ${d} 天 ×`;
+      button.setAttribute('aria-label', d === undefined ? `第 ${i + 1} 枚未安排` : `撤回第 ${d} 天的标记`);
+    }
+    const r = E.compare(s);
+    if (!r) return;
+    $('experiment-outcome').textContent = r.success ? '目标达成 · 第 180 天 ×1.00' : '第 180 天，未保持满倍率';
+    $('experiment-yours').textContent = '×' + r.yours.factor.toFixed(2);
+    $('experiment-plain').textContent = '×' + r.plain.factor.toFixed(2);
+    $('experiment-dates').textContent = `第 ${s.days.join('、')} 天想起`;
+    for (const [id, value] of [['yours', r.yours], ['plain', r.plain]])
+      $('experiment-' + id + '-tier').textContent = `${F.TIERS[value.tier].zh} · 累计 ${value.count} 次`;
+    const x = (d) => 34 + d / E.END * 312;
+    const y = (f) => 140 - (f - 0.45) / 0.55 * 124;
+    for (const [id, key] of [['planned', 'yours'], ['plain', 'plain']])
+      $('experiment-' + id + '-curve').setAttribute('d', r.curves.map((p, i) => `${i ? 'L' : 'M'}${x(p.day).toFixed(2)},${y(p[key]).toFixed(2)}`).join(' '));
+    const marks = $('experiment-marks'); marks.textContent = '';
+    for (const d of s.days) {
+      const mark = document.createElementNS(NS, 'path');
+      mark.setAttribute('d', `M${x(d)},143 l-3,6 h6 z`); mark.setAttribute('class', 'tick');
+      marks.appendChild(mark);
+    }
+    $('experiment-timing').textContent = `最后一次在第 ${r.lastDay} 天，距终点 ${r.gap} 天。` + (r.gap < F.RECENT_DAYS
+      ? `第 180 天还在七天豁免内，暂不掉分；第 ${r.lastDay + F.RECENT_DAYS} 天起恢复衰减。`
+      : '最后一次太早，七天豁免已结束；距上次越久，半衰期加成也越淡。');
+    $('experiment-tier').textContent = `累计想起 ${r.plain.count} → ${r.yours.count} 次，` + (r.plain.tier !== r.yours.tier
+      ? `从${F.TIERS[r.plain.tier].zh}升到${F.TIERS[r.yours.tier].zh}，地板 ${r.plain.floor} → ${r.yours.floor}。升层后仍可能褪色。`
+      : `仍是${F.TIERS[r.yours.tier].zh}，本次没有跨过升层门槛，地板仍为 ${r.yours.floor}。`);
+  }
+  function experimentIntent(intent) {
+    experiment = E.act(experiment, intent);
+    renderExperiment();
+    if (intent.type === 'reveal' && experiment?.phase === 'result') {
+      experimentDialog.scrollTop = 0;
+      $('experiment-outcome').focus({ preventScroll: true });
+    } else if (intent.type === 'retry') {
+      experimentDialog.scrollTop = 0;
+      $('experiment-scrub').focus({ preventScroll: true });
+    }
+  }
+  $('open-experiment').addEventListener('click', () => {
+    // 每次从每日原始数字重建候选，默认玩法里修改过的样本不会带入实验。
+    experiment = E.create(E.choose(LIB.rows.map(fromRow)));
+    if (!experiment) { toast('今天的样本没有适合的小实验记忆。'); return; }
+    stopPlay(); cancelGestures(); clearTimeout(toastTimer); $('toast').classList.remove('on');
+    renderExperiment(); experimentDialog.showModal(); experimentDialog.scrollTop = 0;
+    $('experiment-scrub').focus({ preventScroll: true });
+  });
+  $('close-experiment').addEventListener('click', () => experimentDialog.close());
+  experimentDialog.addEventListener('close', () => { experiment = E.act(experiment, { type: 'exit' }); });
+  $('experiment-scrub').addEventListener('input', (e) => experimentIntent({ type: 'day', day: +e.target.value }));
+  $('experiment-add').addEventListener('click', () => experimentIntent({ type: 'add' }));
+  $('experiment-reveal').addEventListener('click', () => experimentIntent({ type: 'reveal' }));
+  $('experiment-retry').addEventListener('click', () => experimentIntent({ type: 'retry' }));
+  for (let i = 0; i < E.BUDGET; i++) $('experiment-token-' + i).addEventListener('click', () => experimentIntent({ type: 'remove', day: experiment.days[i] }));
+
   window.__fade = { get mem() { return mem; }, get day() { return day; }, library, card, ledge, yOf, select, firstIndex: first.index };
   window.__PLAYTEST__ = {
     ready: true,
-    snapshot: () => ({ index: mem.index, ...F.stateAt(mem, day), pinned: mem.pinned, playing, recalls: mem.recalls.slice(), cardY: card.x }),
+    snapshot: () => ({ index: mem.index, ...F.stateAt(mem, day), pinned: mem.pinned, playing, recalls: mem.recalls.slice(), cardY: card.x,
+      experiment: experiment ? { phase: experiment.phase, index: experiment.memory.index, age: experiment.memory.age,
+        importance: experiment.memory.importance, pinned: experiment.memory.pinned, day: experiment.day,
+        days: [...experiment.days], remaining: E.BUDGET - experiment.days.length, result: E.compare(experiment) } : null }),
   };
 })();
