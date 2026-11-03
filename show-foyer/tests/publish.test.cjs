@@ -68,7 +68,7 @@ test('验收 10 剧目信息只用公开事实，并在节目单里写明来源�
   for (const f of [...PAGE_FILES, 'README.md', 'README_CN.md']) {
     if (!fs.existsSync(path.join(root, f))) continue;
     const text = read(f);
-    assert.ok(!/(场次|票房|营收|投资额|万元)/.test(text), `${f} 不该出现内部经营数字类字样`);
+    assert.ok(!/(场次|票价|票房|营收|投资额|万元)/.test(text), `${f} 不该出现内部经营数字类字样`);
   }
 });
 
