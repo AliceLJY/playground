@@ -33,6 +33,10 @@ python3 -m http.server 8765    # from the repository root
 
 Open `http://127.0.0.1:8765/pixel-match/`. Tests: `node --test tests/*.test.cjs` in this folder. Browser check: `NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/pixel-match/ <out-dir>`.
 
+## Demo film
+
+The portrait demo is recorded frame by frame with `tools/record.cjs` (the wrapper `tools/demo-stage.html` puts a caption band above the real game; every tap is a real touch), and `tools/demo-music.py` synthesises a soundtrack timed to the recorded events. Usage is at the top of each file.
+
 ## Verification
 
 Node tests cover the rules, solvable boards, dead-end reshuffles, the people matching the office, the look-alike readout and the timing of three autopilots. The browser check covers the camera states, real taps, layout on several phone viewports, a pixel-by-pixel match between the real canvas and the software rasteriser, draw time and the first seconds of play frame by frame. Feel, whether the time limits are fair and whether it is fun still need real people to play it.

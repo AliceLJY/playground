@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<!-- 演示片录制用的外框（tools/record.cjs 打开它）：上面一条字幕带，下面 iframe 里是真实游戏。不发布。 -->
+<style>
+html,body{margin:0;height:100%;background:#dedbc3;overflow:hidden;font-family:"PingFang SC","Hiragino Sans GB",system-ui,sans-serif}
+#band{position:fixed;left:0;right:0;top:0;height:var(--band);background:#45534b;color:#fff6dc;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-sizing:border-box;padding:0 14px}
+#band .t{font-size:13px;letter-spacing:3px;color:#efc66c;margin-bottom:6px}
+#band .c{font-size:21px;font-weight:700;line-height:1.35}
+#game{position:fixed;left:0;right:0;top:var(--band);bottom:0;width:100%;height:calc(100% - var(--band));border:0;display:block}
+.fx{position:fixed;pointer-events:none;display:none;z-index:9}
+#tap{border-radius:50%;transform:translate(-50%,-50%);border:3px solid rgba(232,150,58,.95)}
+#speed{right:10px;top:calc(var(--band) + 58px);padding:3px 8px;background:#45534be0;color:#efc66c;font:900 13px ui-monospace,monospace;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="band"><div class="t">像素连连看</div><div class="c" id="cap"></div></div>
+<iframe id="game" title="像素连连看"></iframe>
+<div id="tap" class="fx"></div>
+<div id="speed" class="fx"></div>
+<script>
+const q = new URLSearchParams(location.search);
+document.documentElement.style.setProperty('--band', (q.get('band') || 110) + 'px');
+document.getElementById('game').src = '../index.html' + (q.get('game') ? '?' + q.get('game') : '');
+window.__stage = (o) => {
+  if ('cap' in o) document.getElementById('cap').textContent = o.cap || '';
+  const tap = document.getElementById('tap');
+  if (o.tap) { tap.style.display = 'block'; tap.style.left = o.tap.x + 'px'; tap.style.top = o.tap.y + 'px'; tap.style.width = tap.style.height = o.tap.s + 'px'; tap.style.opacity = o.tap.a; } else if ('tap' in o) tap.style.display = 'none';
+  const sp = document.getElementById('speed');
+  if (o.speed) { sp.style.display = 'block'; sp.textContent = o.speed; } else if ('speed' in o) sp.style.display = 'none';
+};
+</script>
+</body>
+</html>
