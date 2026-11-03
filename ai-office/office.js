@@ -587,11 +587,11 @@
       if (dancer) { const t2 = [[0,1],[1,0],[2,1],[1,2]][beat % 4]; r(ctx, '#ffe9a0', 221 + t2[0] * 10, 318 + t2[1] * 6, 9, 5); }
     }
   }
-  // Two office cats roam the whole tower, like the two at Alice's home (11-03 photos): 小橘, an orange tabby, and 山花, a calico.
+  // Two office cats roam the whole tower, like the two at Alice's home (11-03 photos): 小橘, an orange tabby, and 三花, a calico.
   // Page-only state: they walk the same BFS grid as everyone, nap on the cat tree at night, come to whoever pets or feeds them,
   // purr at passers-by, and every so often one chases the other into a little play-fight.
   const CAT_LOOKS = [{name:'小橘',fur:'#e8963a',stripe:'#c8732a',belly:'#f2b46a',head:'#e8963a',muzzle:'#f2b46a'},
-                     {name:'山花',fur:'#f4f1e6',stripe:'#5a4636',belly:'#f4f1e6',head:'#8a6a4a',muzzle:'#f4f1e6',patch:'#e8963a'}];
+                     {name:'三花',fur:'#f4f1e6',stripe:'#5a4636',belly:'#f4f1e6',head:'#8a6a4a',muzzle:'#f4f1e6',patch:'#e8963a'}];
   let cats=null, catPlay=null;
   function catTick() {
     if (!C.catSpot || mv) return null;
