@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""煤球突围演示片配乐：numpy 离线合成的芯片乐，时间只读 tools/demo.cjs 写的 events.json。
+"""煤球突围演示片配乐：numpy 离线合成的芯片乐，时间只读 tools/demo.cjs 写的 events.json / events-short.json。
 
 用法（需要 numpy，例如 ~/.venv-kokoro/bin/python3）：
     python3 tools/demo-music.py <events.json> <输出.wav> [种子]
 
-游戏自己的芯片乐在无头浏览器里录不到，所以按事件重新合成一段同风格的：
-- 标题页：三角波低音 + 慢琶音（A 小调），等「出发」。
-- 出发：上行四音，进入主律动 150 BPM（方波旋律、三角波低音、噪声鼓）。
-- 选卡：上行亮琶音 + 镲；卡停期间鼓退下、只留铺底，点卡后回来。
-- 自动升级：两声短促高音。
-- 首领登场：低音重击 + 下行半音，律动换成更重的 D 小调段。
-- 击败首领：大调号角琶音，结算页上是轻的和弦。
-- 第 3 关：换关时一声扫频，律动重新起；红条预警是交替警报音；停火时鼓全停、只剩心跳和低持续音；爆发时镲 + 双倍鼓 + 高八度旋律。
-- 署名尾页：收在 A 小调主和弦，轻琶音垫底，两次落印各一声「嗒」，最后 2.5 秒淡出到零。
-母带：tanh 轻驱动，采样峰值 -3 dBFS；最终响度在 ffmpeg 合成时用 loudnorm 定。
+游戏自己的芯片乐在无头浏览器里录不到，所以按事件重新合成一段同风格的。段落取 events 里的 sections
+（demo.cjs 在每个剪辑点和每个改变段落的事件处写一条），重音取 marks：
+- off（停火）：鼓全停，只剩心跳和下行低持续音；burst（爆发）：镲 + 双倍鼓 + 高八度旋律；warning：交替警报音。
+- title：三角波低音 + 慢琶音；groove：150 BPM 主律动（方波旋律、三角波低音、噪声鼓），选卡时只留铺底；boss：D 小调重段。
+- result：击败首领的号角之后是轻和弦；outro：署名尾页上收在 A 小调，琶音一直垫到最后一秒，两次落印各一声，最后 1 秒淡出。
+- 每个剪辑点（换关、跳过开局、精简版的「快进到首领」）一声扫频。
+母带：tanh 轻驱动，采样峰值 -3 dBFS。响度在合成前用 ffmpeg loudnorm 单独做成 wav 再混流——
+别在混流那一步带 loudnorm 加 -shortest：那样音轨会比画面短几秒（第一版就这样丢了结尾 3 秒）。
 """
 import json
 import sys
@@ -33,11 +31,12 @@ for m in ev["marks"]:
     M.setdefault(m["name"], []).append(m["t"])
 first = lambda k, d=None: M[k][0] if k in M else d
 
-START, BOSS, WON, RESULT = first("start"), first("boss"), first("won"), first("result")
-TITLE3, START3, WARN, OFF, BURST, BURST_END, END = first("title3"), first("start3"), first("warning"), first("off"), first("burst"), first("burstEnd"), first("endcard", T)
-LEVELUP = M.get("levelup", []) + M.get("levelupQuick", [])
-PICKED = M.get("picked", [])
-AUTO = first("auto")
+ALL = lambda k: M.get(k, [])
+LEVELUP, PICKED = ALL("levelup"), ALL("picked")
+END = first("endcard", T)
+# sections come from the film's own timeline (demo.cjs writes them at every cut and every section-changing event)
+SEC = sorted((x["t"], x["kind"]) for x in ev["sections"])
+sections = [(t0, SEC[k + 1][0] if k + 1 < len(SEC) else T, kind) for k, (t0, kind) in enumerate(SEC)]
 BPM = 150
 BEAT = 60 / BPM
 NAMES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
@@ -136,20 +135,6 @@ def arp(t0, notes, step, g, duty=0.25, pan=0.0, dur=None):
         put(t0 + k * step, pulse(hz(nn), dur or step * 1.6, duty, decay=0.25), g, pan)
 
 
-# ---------------------------------------------------------------- section map
-# (start, end, kind) – kind decides which patterns play; bars are on a grid that restarts at each section start
-sections = []
-sections.append((0, START, "title"))
-sections.append((START, BOSS, "groove"))
-sections.append((BOSS, WON, "boss"))
-sections.append((WON, TITLE3, "result"))
-sections.append((TITLE3, START3, "title"))
-sections.append((START3, WARN, "groove"))
-sections.append((WARN, OFF, "warning"))
-sections.append((OFF, BURST, "off"))
-sections.append((BURST, END, "burst"))
-sections.append((END, T, "outro"))
-
 # card pauses: groove thins to pad between a level-up and its pick
 pauses = []
 for lu in sorted(LEVELUP):
@@ -227,75 +212,73 @@ for (s0, s1, kind) in sections:
             elif kind == "outro":
                 pass
 
-# ---------------------------------------------------------------- warning siren (alternating, every quarter second)
-if WARN is not None and OFF is not None:
-    t = WARN
-    k = 0
-    while t < OFF - 0.05:
-        put(t, pulse(hz("E6") if k % 2 == 0 else hz("A#5"), 0.2, 0.5, decay=0.12), 0.09, 0.25 if k % 2 else -0.25)
-        t += 0.25
-        k += 1
-# ---------------------------------------------------------------- cease-fire drone, falling, quiet
-if OFF is not None and BURST is not None:
-    n = int((BURST - OFF) * SR)
-    tt = np.arange(n) / SR
-    f = hz("A2") * 2 ** (-tt / (BURST - OFF) / 12 * 2)
-    dr = np.where((np.cumsum(f) / SR % 1) < 0.5, 1.0, -1.0)
-    dr = np.convolve(dr, np.ones(40) / 40, "same") * np.minimum(1, tt / 0.3) * (0.6 + 0.4 * np.sin(2 * np.pi * 2 * tt))
-    put(OFF, dr, 0.12)
-    put(OFF, noise(0.6, 0.3, hp=True), 0.12)      # the guns cutting out
+# ---------------------------------------------------------------- warning siren (alternating, every quarter second) and cease-fire drone
+for (s0, s1, kind) in sections:
+    if kind == "warning":
+        t, k = s0, 0
+        while t < s1 - 0.05:
+            put(t, pulse(hz("E6") if k % 2 == 0 else hz("A#5"), 0.2, 0.5, decay=0.12), 0.09, 0.25 if k % 2 else -0.25)
+            t += 0.25
+            k += 1
+    if kind == "off":
+        n = int((s1 - s0) * SR)
+        tt = np.arange(n) / SR
+        f = hz("A2") * 2 ** (-tt / max(1, s1 - s0) / 12 * 2)
+        dr = np.where((np.cumsum(f) / SR % 1) < 0.5, 1.0, -1.0)
+        dr = np.convolve(dr, np.ones(40) / 40, "same") * np.minimum(1, tt / 0.15) * (0.6 + 0.4 * np.sin(2 * np.pi * 2 * tt))
+        put(s0, dr, 0.12)
+for t in ALL("off"):
+    put(t, noise(0.6, 0.3, hp=True), 0.12)      # the guns cutting out
 
 # ---------------------------------------------------------------- accents
-if START is not None:
-    arp(START, ["A4", "C5", "E5", "A5"], 0.07, 0.15)
-    crash(START + 0.3, 0.12)
-for lu in M.get("levelup", []):
+for t in ALL("start"):
+    arp(t, ["A4", "C5", "E5", "A5"], 0.07, 0.15)
+    crash(t + 0.3, 0.12)
+for lu in LEVELUP:
     arp(lu, ["C5", "E5", "G5", "C6", "E6"], 0.055, 0.15, 0.125)
     crash(lu, 0.16)
-for lu in M.get("levelupQuick", []):
-    arp(lu, ["C6", "G6"], 0.05, 0.10, 0.125)
 for p in PICKED:
     put(p, pulse(hz("G6"), 0.12, 0.25, decay=0.05), 0.12)
-if AUTO is not None:
-    arp(AUTO, ["E6", "A6"], 0.08, 0.14, 0.125)
-for a in M.get("autoQuiet", []):
-    put(a, pulse(hz("A6"), 0.08, 0.125, decay=0.04), 0.06)
-if BOSS is not None:
-    kick(BOSS, 0.9)
-    put(BOSS, tri(hz("D2"), 1.8, 0.7), 0.5)
+for a in ALL("auto") + ALL("autoMore"):
+    arp(a, ["E6", "A6"], 0.08, 0.14, 0.125)
+for t in ALL("boss"):
+    kick(t, 0.9)
+    put(t, tri(hz("D2"), 1.8, 0.7), 0.5)
     for k, nn in enumerate(("A4", "G#4", "G4", "F#4")):
-        put(BOSS + 0.1 + 0.18 * k, pulse(hz(nn), 0.3, 0.5, decay=0.2), 0.12)
-    crash(BOSS, 0.2)
-if WON is not None:
-    arp(WON, ["C5", "E5", "G5", "C6", "G5", "C6", "E6"], 0.09, 0.15, 0.25, dur=0.3)
-    put(WON + 0.63, pulse(hz("C6"), 1.2, 0.25, decay=0.6, vib=1), 0.13)
-    crash(WON, 0.2)
-if TITLE3 is not None:
-    sweep(TITLE3 - 0.05, 1600, 200, 0.45, 0.05)
-if START3 is not None:
-    arp(START3, ["A4", "C5", "E5", "A5"], 0.07, 0.15)
-if WARN is not None:
-    crash(WARN, 0.1)
-if BURST is not None:
-    crash(BURST, 0.28)
-    kick(BURST, 0.9)
-    arp(BURST, ["A5", "C6", "E6", "A6"], 0.05, 0.13, 0.25)
-# ---------------------------------------------------------------- outro over the endcard
-if END is not None and END < T:
+        put(t + 0.1 + 0.18 * k, pulse(hz(nn), 0.3, 0.5, decay=0.2), 0.12)
+    crash(t, 0.2)
+for t in ALL("won"):
+    arp(t, ["C5", "E5", "G5", "C6", "G5", "C6", "E6"], 0.09, 0.15, 0.25, dur=0.3)
+    put(t + 0.63, pulse(hz("C6"), 1.2, 0.25, decay=0.6, vib=1), 0.13)
+    crash(t, 0.2)
+for t in ALL("title3") + ALL("cut") + ALL("skipped"):
+    sweep(t - 0.05, 1600, 200, 0.45, 0.06)           # a whoosh at every edit
+for t in ALL("warning"):
+    crash(t, 0.1)
+for t in ALL("burst") + ALL("hookBurst"):
+    crash(t, 0.28)
+    kick(t, 0.9)
+    arp(t, ["A5", "C6", "E6", "A6"], 0.05, 0.13, 0.25)
+for t in ALL("bridge"):
+    arp(t, ["E5", "A5", "C6", "E6"], 0.07, 0.14, 0.25, dur=0.5)
+    crash(t, 0.14)
+# ---------------------------------------------------------------- outro over the endcard: keeps going until the last second, then a 1 s fade
+if END < T:
     for k, nn in enumerate(("A3", "C4", "E4", "A4")):
-        put(END + k * 0.05, pulse(hz(nn), T - END, 0.125, decay=2.2), 0.045, -0.3 + 0.2 * k)
-    put(END, tri(hz("A2"), T - END, 2.5), 0.22)
+        put(END + k * 0.05, pulse(hz(nn), T - END, 0.125, decay=8), 0.04, -0.3 + 0.2 * k)
+    put(END, tri(hz("A2"), T - END, 8), 0.2)
     crash(END, 0.14)
-    t = END + 0.5
-    k = 0
+    t, k = END + 0.4, 0
     seq = ["E5", "A5", "C6", "E6", "C6", "A5"]
-    while t < T - 0.3:
-        put(t, pulse(hz(seq[k % 6]), 0.3, 0.125, decay=0.15), 0.04 * max(0.2, 1 - (t - END) / (T - END)), 0.35 if k % 2 else -0.35)
+    while t < T - 0.2:
+        put(t, pulse(hz(seq[k % 6]), 0.3, 0.125, decay=0.15), 0.05, 0.35 if k % 2 else -0.35)
+        if k % 4 == 0:
+            put(t, tri(hz(["A2", "F2", "C3", "G2"][(k // 4) % 4]), BEAT * 1.8, 0.8), 0.14)
         t += BEAT / 2
         k += 1
-    for s in (1.8, 2.8):                          # the two stamps landing
-        kick(END + s, 0.35)
-        put(END + s, noise(0.05, 0.01), 0.18)
+    for st in (1.8, 2.8):                          # the two stamps landing
+        kick(END + st, 0.35)
+        put(END + st, noise(0.05, 0.01), 0.18)
 
 # ---------------------------------------------------------------- small room, then master and final fade
 L = int(0.9 * SR)
@@ -307,7 +290,7 @@ FM = 1 << int(np.ceil(np.log2(N + L)))
 wet = np.stack([np.fft.irfft(np.fft.rfft(mix[:, ch], FM) * np.fft.rfft(ir[:, ch], FM), FM)[:N] for ch in (0, 1)], axis=1)
 out = mix + wet * 0.18
 t = np.arange(N) / SR
-fade = np.clip((T - t) / 2.5, 0, 1) ** 1.5 * np.clip(t / 0.05, 0, 1)
+fade = np.clip((T - t) / 1.0, 0, 1) * np.clip(t / 0.03, 0, 1)   # music under the endcard until the last second
 out *= fade[:, None]
 out = np.tanh(1.4 * out / np.abs(out).max()) / np.tanh(1.4)
 out = out / np.abs(out).max() * 10 ** (-3 / 20)
@@ -316,4 +299,4 @@ with wave.open(OUT, "wb") as w:
     w.setsampwidth(2)
     w.setframerate(SR)
     w.writeframes((np.clip(out, -1, 1) * 32767).astype("<i2").tobytes())
-print(f"{OUT}: {T:.2f} s; start {START} levelups {len(LEVELUP)} auto {AUTO} boss {BOSS} won {WON} warn {WARN} off {OFF} burst {BURST} end {END}")
+print(f"{OUT}: {T:.2f} s; sections {[(round(a, 2), k) for a, _, k in sections]}; levelups {len(LEVELUP)} end {END:.2f}")
