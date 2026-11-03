@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // NODE_PATH="$(npm root -g)" node tools/hunt-check.cjs <out-dir> <base-url>
 // Real DOM inputs only; no state-setting hooks. Run browsers serially with the existing checks.
 const { chromium } = require('playwright');
@@ -40,7 +41,7 @@ async function highlightedPixels(p) {
       const p = await context.newPage();
       p.on('pageerror', e => errors.push(e.message));
       p.on('console', m => { if (m.type()==='error') errors.push(m.text()); });
-      await p.goto(base); await p.waitForFunction(() => window.__xiguan?.ready, null, { polling:50 });
+      await p.goto(skipIntro(base)); await p.waitForFunction(() => window.__xiguan?.ready, null, { polling:50 });
       const started = Date.now(); // Record at least 30 seconds after the page is ready, excluding startup.
       environments.push(await p.evaluate(() => ({width:innerWidth,height:innerHeight,dpr:devicePixelRatio,canvas:'2d',reduced:matchMedia('(prefers-reduced-motion: reduce)').matches})));
       await shot(p, `${width}-default`);
@@ -95,7 +96,7 @@ async function highlightedPixels(p) {
       await context.close();
     }
     const p = await browser.newPage({viewport:{width:390,height:664},deviceScaleFactor:2,reducedMotion:'reduce'});
-    await p.goto(base); await p.waitForFunction(() => window.__xiguan?.ready,null,{polling:50});
+    await p.goto(skipIntro(base)); await p.waitForFunction(() => window.__xiguan?.ready,null,{polling:50});
     await p.locator('#toggle').click(); await waitOpen(p);
     await p.locator('#hunt-start').click();
     for(const id of ['jiaomen','tanglong','damen']) await p.locator(`[data-gate="${id}"]`).click();

@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // NODE_PATH="$(npm root -g)" node tools/b3-check.cjs <out-dir> <base-url>
 const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:path');
 const out=process.argv[2],base=process.argv[3];fs.mkdirSync(out,{recursive:true});
@@ -5,7 +6,7 @@ const checks=[],check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail}
 (async()=>{const b=await chromium.launch({channel:'chrome'});
  for(const [width,height] of [[390,664],[1365,900],[320,568],[844,340]]){
   const p=await b.newPage({viewport:{width,height},deviceScaleFactor:1}),errors=[];p.on('pageerror',e=>errors.push(e.message));
-  await p.goto(base);await p.waitForFunction(()=>window.__xiguan?.ready,null,{polling:50});
+  await p.goto(skipIntro(base));await p.waitForFunction(()=>window.__xiguan?.ready,null,{polling:50});
   await p.locator('#toggle').click();await p.waitForTimeout(350);
   const pause=await p.locator('#inspect-pause').count();check(`${width}: mid-motion inspection control exists`,pause);
   if(pause){

@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // 浏览器验收：多视口布局 + 推开合上一来一回 + 控制台。
 //   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <page-url>
 // 判据：①任何时刻模型外框都在可视区内、不压到底部按钮栏 ②按钮整块在可视区内、中心点点到的是它
@@ -11,7 +12,7 @@ const { chromium } = require('playwright');
   for (const [tag, w, h] of VPS) {
     const p = await (await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, hasTouch: w < 900 })).newPage();
     const errors = []; p.on('pageerror', (e) => errors.push(e.message)); p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-    await p.goto(url); await p.waitForFunction(() => window.__xiguan && window.__xiguan.ready, null, { polling: 100 });
+    await p.goto(skipIntro(url)); await p.waitForFunction(() => window.__xiguan && window.__xiguan.ready, null, { polling: 100 });
     const r = await p.evaluate(async () => {
       const X = window.__xiguan, bar = document.querySelector('.bar').getBoundingClientRect(), btn = document.getElementById('toggle').getBoundingClientRect();
       const probe = [0, 0, 0], at0 = X.project(probe);
