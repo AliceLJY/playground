@@ -1,6 +1,6 @@
 # Which Pillar Are You?
 
-A Cantonese opera troupe is held up by six leading performers, like six pillars, so the system is called the six pillars: the civil-and-military male lead, the second male lead, the leading dan, the second dan, the clown and the senior male role. Answer eight everyday questions to find out which pillar you are; the result page tells you what that pillar is in Cantonese opera and which role you would play in the classic *The Flower Princess*. Long-press the share image to send it to a friend.
+A Cantonese opera troupe is held up by six leading performers, like six pillars, so the system is called the six pillars: the civil-and-military male lead, the second male lead, the leading dan, the second dan, the clown and the senior male role. Answer eight everyday questions to find out which pillar you are; the result page tells you what that pillar is in Cantonese opera and which role you would play in the classic *The Flower Princess*. Long-press the share image to send it to a friend. Going back to a question highlights your saved choice so you can change it.
 
 **[Take the quiz](https://aliceljy.github.io/playground/yueju-pillars/)** (the interface is in Chinese)
 
@@ -21,6 +21,18 @@ Every line under "this pillar in Cantonese opera" carries a source: Hong Kong Me
 cd yueju-pillars && python3 -m http.server 8957
 node --test tests/*.test.cjs
 ```
+
+## Verification
+
+B2, 2026-11-03: saved choices now reuse the option’s red border and pale red background, with a visible “上次选了这一项” note and `aria-pressed`. Questions, scoring and results are unchanged. Node: 10/10 tests pass.
+
+`tools/browser-check.cjs` adds 16 checks across 390×664, 320×568, 844×340 and 1365×900 (DPR 2/2/2/1): select C, go back, change to A, go back, finish and restart. Eight checks failed before the fix; all new and existing result/share-card checks pass after it, with zero page errors in Chrome 156.0.8078.80 / Playwright. The option targets are at least 44px. There is no build step. Screenshots: task output `yueju-pillars/after/back-*.png`.
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/yueju-check http://127.0.0.1:8942/yueju-pillars/index.html
+```
+
+Real phones, WeChat, Safari and screen readers remain untested. This quiz has no audio.
 
 ## Who it's for, AI assets
 
