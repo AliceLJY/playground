@@ -126,7 +126,7 @@ const nightEntry=document.getElementById('night-entry'),nightMenu=document.getEl
 const nightResultControls=document.getElementById('night-result-controls'),nightRetry=document.getElementById('night-retry');
 function syncControls(){
   pauseButton.hidden=screen!=='play';pausePanel.hidden=!paused;muteButton.textContent=muted?'声音：关':'声音：开';
-  nightEntry.hidden=screen!=='title';nightMenu.hidden=screen!=='nightMenu';
+  document.getElementById('mode-choices').hidden=screen!=='title';nightEntry.hidden=screen!=='title';nightMenu.hidden=screen!=='nightMenu';
   const s=game&&game.state;
   nightResultControls.hidden=screen!=='result'||!s?.night||fx.resultT<=0.7;
   nightHud.hidden=screen!=='play'||!s?.night;
@@ -137,6 +137,7 @@ function returnTitle(){
   fx.splats.length=fx.bits.length=fx.pops.length=fx.trail.length=0;fx.shake=fx.flash=fx.banner=0;fx.down=fx.combo=null;hand.seen=false;
   resize();syncControls();canvas.focus();
 }
+document.getElementById('casual-entry').addEventListener('click',()=>{audio();if(ac&&ac.state==='suspended')ac.resume();start();});
 nightEntry.addEventListener('click',()=>{screen='nightMenu';up();syncControls();nightStart.focus();});
 nightStart.addEventListener('click',()=>{audio();if(ac&&ac.state==='suspended')ac.resume();start(null,'night');});
 nightBack.addEventListener('click',returnTitle);nightReturn.addEventListener('click',returnTitle);
@@ -272,15 +273,15 @@ function polaroid(cx,cy,w,reason,tilt,night){
 }
 function drawTitle(t){
   const W=view.W;
-  sprite(img.front,W/2,H*0.50+Math.sin(t*1.6)*12,Math.min(H*0.46,W*0.95),Math.sin(t*0.9)*0.05);
+  sprite(img.front,W/2,H*0.37+Math.sin(t*1.6)*12,Math.min(H*0.24,W*0.65),Math.sin(t*0.9)*0.05);
   slipper(W/2+Math.min(W*0.3,230),H*0.33+Math.sin(t*2.3)*16,0.6+Math.sin(t*2.3)*0.12,Math.min(190,W*0.34));
   text('凉拖拍蟑螂',W/2,H*0.14,Math.min(110,W*0.17),COLOR.amber);
   text('广州雨夜，小巷拍虫',W/2,H*0.14+Math.min(110,W*0.17)*0.78,Math.min(30,W*0.052),COLOR.cream,'center',700);
-  const fs=Math.min(30,W*0.052),y0=H*0.76;
+  const fs=Math.min(30,W*0.052),y0=H*0.51;
   text('按住划过蟑螂，一拖鞋拍扁',W/2,y0,fs,COLOR.cream,'center',700);
   text('漏掉断连拍，误拍奶茶扣命',W/2,y0+fs*1.5,fs,COLOR.cream,'center',700);
   text('三杯洒完收工；45 秒后首领登场',W/2,y0+fs*3,fs,COLOR.cream,'center',700);
-  ctx.save();ctx.globalAlpha=0.6+0.4*Math.sin(t*4);text('点一下开始',W/2,H*0.925,Math.min(44,W*0.075),COLOR.gold);ctx.restore();
+
 }
 function drawResult(s,t){
   const W=s.W,r=s.result,k=Math.min(1,fx.resultT*3),e=1-(1-k)*(1-k);

@@ -6,9 +6,11 @@ A rainy night in an old Guangzhou alley, and the cockroaches keep leaping up. Ho
 
 A round takes about a minute. It plays on phones in either orientation and on desktop.
 
-The optional “奶茶摊守夜” (Milk Tea Night Watch) button at the top right of the title adds a challenge: every three missed bugs steal a cup, while hitting tea still costs one; beat the boss with tea left, then retry or return to the original casual mode (the miss threshold awaits playtesting).
+The optional “奶茶摊守夜” (Milk Tea Night Watch) main button on the title screen adds a challenge: every three missed bugs steal a cup, while hitting tea still costs one; beat the boss with tea left, then retry or return to the original casual mode (the miss threshold awaits playtesting).
 
 ## Controls
+
+The title offers equally sized “轻松拍” (Casual) and “奶茶摊守夜” (Night Watch) buttons with one-line descriptions: side by side on wide screens, stacked on narrow screens. Casual starts immediately; Night Watch opens its existing rules. Returning or reloading keeps both choices; canvas taps, Space and Enter still default to Casual.
 
 - Phone: hold and swipe across a cockroach; a tap also counts.
 - Desktop: hold the mouse button and drag. Space or Enter starts a round.

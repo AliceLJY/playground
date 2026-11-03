@@ -17,7 +17,11 @@ button{min-width:48px;min-height:48px;border:1px solid #ffb23e;border-radius:10p
 #pause-panel{position:fixed;inset:0;display:grid;place-items:center;background:#0b0d12cc;color:#f3ead8;font:18px sans-serif;text-align:center}
 #pause-panel .card{padding:24px;max-width:calc(100vw - 48px)}
 #pause-panel button{display:block;width:200px;max-width:100%;margin:12px auto}
-#night-entry{position:fixed;right:12px;top:8px;min-height:44px;padding:0 12px;font-size:14px}
+#mode-choices{position:fixed;left:50%;bottom:12%;transform:translateX(-50%);width:min(660px,calc(100vw - 32px));display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#mode-choices button{min-height:76px;padding:12px 8px;background:#17151bf2;color:#ffb23e;font-size:20px;cursor:pointer}
+#mode-choices small{display:block;margin-top:8px;color:#f3ead8;font-size:13px;font-weight:400;white-space:nowrap}
+@media(max-width:480px){#mode-choices{grid-template-columns:1fr;gap:10px}#mode-choices button{min-height:70px;padding:8px}}
+@media(max-height:400px){#mode-choices{bottom:14%;gap:12px}#mode-choices button{min-height:66px;padding:8px}}
 #night-menu{position:fixed;inset:0;display:grid;place-items:center;background:#0b0d12eb;color:#f3ead8;font:16px/1.5 sans-serif;text-align:center;overflow:auto}
 #night-menu .card{width:320px;max-width:calc(100vw - 32px);padding:12px 0}
 #night-menu h2{color:#ffb23e;margin:0 0 8px}
@@ -31,7 +35,7 @@ button{min-width:48px;min-height:48px;border:1px solid #ffb23e;border-radius:10p
 </head>
 <body>
 <canvas id="stage" tabindex="-1" aria-label="凉拖拍蟑螂：按住并划过蟑螂把它拍扁，别碰奶茶"></canvas>
-<button id="night-entry" type="button">奶茶摊守夜</button>
+<div id="mode-choices" aria-label="选择玩法"><button id="casual-entry" type="button">轻松拍<small>划过拍虫，漏虫只断连拍。</small></button><button id="night-entry" type="button">奶茶摊守夜<small>护住奶茶，每漏三只扣一杯。</small></button></div>
 <div id="night-menu" role="dialog" aria-modal="true" aria-labelledby="night-title" hidden><div class="card">
 <h2 id="night-title">奶茶摊守夜</h2>
 <p>护住三杯奶茶<br>每漏 3 只虫，被偷喝 1 杯<br>误拍奶茶也扣 1 杯，没杯就收工<br>45 秒后首领登场，25 秒内拍服它<br>带着剩余奶茶完成守夜</p>
