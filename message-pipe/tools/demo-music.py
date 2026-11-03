@@ -8,11 +8,11 @@ numpy 离线合成，时间只读 tools/record.cjs 写的 events.json。
 刻意和本仓其他演示片拉开距离（像素连连看是方波芯片乐，打地鼠是尤克里里口哨马林巴，凸透镜是木琴五声琶音，
 像素办公室是电钢八音盒）：这里一个方波、三角波琶音、木琴都不用。
 - 乐器：手风琴（两组略微失谐的锯齿波 + 低通 + 风箱颤音，即 musette 味道）唱一条原创 G 大调旋律；
-  拨弦低音提琴（Karplus-Strong）走第一拍；手风琴左手和弦在第二、三拍「嘭–恰–恰」；关卡段加鼓刷（滤波噪声）。
-- 156 BPM 的 3/4 拍，八小节一句：G G D7 D7 G C D7 G。标题段只有长和弦和一声车铃；失败提示期间旋律停。
+  圆润的正弦低音轻轻落在第一拍（第一版是拨弦低音提琴，Alice 嫌「嘭」太吵），手风琴左手和弦在第二、三拍；关卡段加鼓刷（滤波噪声）。
+- 156 BPM 的 3/4 拍，八小节一句：G G D7 D7 G C D7 G。标题段只有长和弦；失败提示期间旋律照走，底下再垫一层轻的长和弦（第一版整段停掉，第 3 关空箱子后听着像断了一下）。
 - 事件：点按一声木块轻响，发车两声自行车铃「叮铃」，送到车铃 + 一个手风琴大三和弦，
-  卡在半路（漏站 / 空箱子）一声刹车吱声加两个往下的低音。按钮一声轻嗒。
-- 署名页：收在 G 和弦长音，1.8 s、2.8 s 各一声闷鼓落定音（盖印章、按指纹），最后 1 秒淡出。
+  卡在半路（漏站 / 空箱子）一声刹车吱声加两个往下的轻铃音。按钮一声轻嗒。
+- 署名页：收在 G 和弦长音，1.8 s、2.8 s 各一声轻铃落定（盖印章、按指纹），最后 1 秒淡出。
 母带：tanh 轻驱动，峰值 -3 dBFS；响度另用 ffmpeg loudnorm 单独做成 wav 再混流（别在混流时带 -shortest）。
 """
 import json, sys, wave
@@ -75,6 +75,15 @@ def pluck(midi, dur, damp=0.996):  # Karplus-Strong double-bass pizzicato
         buf[i % p] = damp * 0.5 * (buf[i % p] + buf[(i + 1) % p])
     return out * adsr(n, 0.002, 0.05)
 
+def softbass(midi, dur):  # round sine bass with a slow attack: no thump
+    n = int(dur * SR); t = np.arange(n) / SR; f = hz(midi)
+    x = np.sin(2 * np.pi * f * t) + 0.25 * np.sin(4 * np.pi * f * t)
+    return x * np.minimum(1, t / 0.06) * np.exp(-t / (dur * 0.6))
+
+def chime(midi, dur, gain_hi=0.3):
+    n = int(dur * SR); t = np.arange(n) / SR; f = hz(midi)
+    return (np.sin(2 * np.pi * f * t) + gain_hi * np.sin(2 * np.pi * 2 * f * t)) * np.minimum(1, t / 0.004) * np.exp(-t / (dur * 0.45))
+
 def brush(dur, level):
     n = int(dur * SR); src = rng.normal(0, 1, n); x = lowpass(src, 3200) - lowpass(src, 600)
     return x * np.exp(-np.arange(n) / SR / (dur * 0.5)) * level
@@ -105,9 +114,9 @@ while t < T:
     root, chord = CH[name]
     if t < FIRST_LEVEL or t >= END:  # title and end card: one long held chord per bar, no rhythm
         add(accordion(chord + [root + 24], bar * 1.02, 1400), t, 0.10)
-        if t >= END: add(pluck(root, bar), t, 0.22)
+        if t >= END: add(softbass(root + 12, bar), t, 0.10)
     else:
-        add(pluck(root if b % 2 == 0 else root + 7, beat * 1.6), t, 0.26, pan=-0.1)       # oom
+        add(softbass((root if b % 2 == 0 else root + 7) + 12, beat * 1.8), t, 0.085, pan=-0.1)  # soft round bass on beat 1
         for j in (1, 2):                                                                   # pah pah
             add(accordion(chord, beat * 0.55, 1600), t + j * beat, 0.075, pan=-0.25)
         if in_level(t):
@@ -116,11 +125,16 @@ while t < T:
         for j, m in enumerate(MEL[b % 8]):
             if m is None: continue
             tt = t + j * beat
-            if ducked(tt) or tt >= END: continue
+            if tt >= END: continue
             ln = 1
             while j + ln < 3 and MEL[b % 8][j + ln] is None: ln += 1
             add(accordion([m, m + 12] if b % 16 >= 8 else [m], beat * ln * 0.95, 2400), tt, 0.10, pan=0.15)
     t += bar; b += 1
+
+# under each failure note: a soft held chord, so the music never thins out while the player reads it
+for a0, a1 in fail_spans:
+    bi = int(a0 // bar); name = PROG[bi % 8]
+    add(accordion(CH[name][1] + [CH[name][0] + 24], a1 - a0, 1300), a0, 0.07, pan=-0.1)
 
 for m in marks:
     nm, tt = m["name"], m["t"]
@@ -139,11 +153,10 @@ for m in marks:
         f = 3300 - 700 * x / 0.45
         sq = np.sin(2 * np.pi * np.cumsum(f) / SR) * (1 + 0.5 * np.sin(2 * np.pi * 30 * x)) * adsr(n, 0.01, 0.15)
         add(sq, tt, 0.05, pan=0.3)
-        add(pluck(43, 0.5), tt + 0.15, 0.3); add(pluck(42, 0.7), tt + 0.42, 0.3)
+        add(chime(71, 0.5), tt + 0.15, 0.07); add(chime(67, 0.7), tt + 0.42, 0.07)  # two soft falling notes
 
-for d in (1.8, 2.8):  # end card: stamp and fingerprint settle
-    n = int(0.3 * SR); x = np.arange(n) / SR
-    add(np.sin(2 * np.pi * (70 * x + 150 * (1 - np.exp(-x * 40)) / 40)) * np.exp(-x * 14), END + d, 0.4)
+for d, m in ((1.8, 79), (2.8, 86)):  # end card: stamp and fingerprint settle on two soft chimes, no drum
+    add(chime(m, 1.4), END + d, 0.07, pan=0.1)
 
 f = int(1.0 * SR); mix[-f:] *= np.linspace(1, 0, f)[:, None]
 mix = np.tanh(mix * 1.3)
