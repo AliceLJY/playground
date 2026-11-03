@@ -107,6 +107,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Secret Sweeper
+        working-directory: secret-sweeper
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Herb Match
         working-directory: herb-match
         run: |
@@ -262,6 +269,13 @@ jobs:
           mkdir -p _site/slipper-smash
           cp slipper-smash/index.html _site/slipper-smash/index.html
           cp -R slipper-smash/src slipper-smash/assets _site/slipper-smash/
+
+      - name: Assemble Secret Sweeper
+        run: |
+          # 凭证扫雷：二维画布的扫雷换皮，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/secret-sweeper
+          cp secret-sweeper/index.html _site/secret-sweeper/index.html
+          cp -R secret-sweeper/src _site/secret-sweeper/
 
       - name: Assemble Shared Table
         run: |
