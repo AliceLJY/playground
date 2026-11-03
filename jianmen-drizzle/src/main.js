@@ -245,10 +245,12 @@ function onEvents(evs) {
 
 function showOutro() {
   if (outroShown) return; outroShown = true;
+  $('painting').classList.add('hidden');
   const o = $('outro'); o.classList.remove('hidden');
   requestAnimationFrame(() => requestAnimationFrame(() => o.classList.remove('fade')));
 }
-$('stay').addEventListener('click', () => { $('outro').classList.add('fade'); endingTurn = false; rainLevel = 1.2; setRain(1); setTimeout(() => $('outro').classList.add('hidden'), 1600); });
+$('stay').addEventListener('click', () => { $('outro').classList.add('fade'); endingTurn = false; rainLevel = 1.2; setRain(1); setTimeout(() => { $('outro').classList.add('hidden'); outroShown = false; $('painting').classList.remove('hidden'); }, 1600); });
+$('painting').addEventListener('click', showOutro);
 $('again').addEventListener('click', () => location.reload());
 $('sound').addEventListener('click', () => { setMuted(!isMuted()); $('sound').classList.toggle('off', isMuted()); });
 
