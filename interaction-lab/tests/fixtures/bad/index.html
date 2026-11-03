@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>坏样本</title>
+<style>body{margin:0;height:100vh;display:grid;place-items:center;background:#eee}
+#b{width:30px;height:30px;background:#c2502e;border-radius:6px;transition:transform .3s ease}</style>
+<div id="b" data-lab-target="btn"></div>
+<script type="application/json" id="lab-params">{"name":"坏样本","kind":"press-button","easing":"ease"}</script>
+<script>
+// 故意违约：CSS transition、30px 点击区、按下 200ms 后才动、没有 springStep
+const b = document.getElementById('b');
+b.addEventListener('pointerdown', () => setTimeout(() => { b.style.transform = 'scale(1.6)'; }, 200));
+window.__LAB__ = { ready: true, demo: [{ t: 0.5, type: 'tap', target: 'btn' }] };
+</script>

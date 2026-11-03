@@ -1,0 +1,19 @@
+{
+  "_note": "候选种类池。weight 越大越常被抽到；以后按「留下的条目有没有被真作品用过」调。",
+  "kinds": [
+    { "kind": "press-button", "hint": "按下去会压扁、松手回弹的按钮，带一次计数", "weight": 1 },
+    { "kind": "toggle-switch", "hint": "开关，滑块带惯性冲过头再落定", "weight": 1 },
+    { "kind": "card-flip", "hint": "点一下翻面的卡片，翻到一半有挤压", "weight": 1 },
+    { "kind": "drag-snap", "hint": "拖着走、松手吸附到最近的格子", "weight": 1 },
+    { "kind": "pull-release", "hint": "往下拽、松手弹回的东西（橡皮筋、门帘、抽屉拉环）", "weight": 1 },
+    { "kind": "accordion", "hint": "点标题展开收起的面板，内容跟着弹出", "weight": 1 },
+    { "kind": "counter-tick", "hint": "数字跳动的计数器，每次加一数字从下往上弹进来", "weight": 1 },
+    { "kind": "loader", "hint": "加载中的小动画，点一下变成「完成」", "weight": 1 },
+    { "kind": "like-burst", "hint": "点赞，图标挤压、周围小点散开", "weight": 1 },
+    { "kind": "stack-swipe", "hint": "一叠卡片，左右甩掉最上面一张", "weight": 1 },
+    { "kind": "drop-bounce", "hint": "点一下从上面掉下来、落地挤压再弹几下的字或图形", "weight": 1 },
+    { "kind": "slider-knob", "hint": "滑杆，拖动时旋钮被拉长、松手回圆", "weight": 1 },
+    { "kind": "menu-fan", "hint": "点一下扇形展开的小菜单", "weight": 1 },
+    { "kind": "tab-indicator", "hint": "切换标签，下划线带弹性追过去", "weight": 1 }
+  ]
+}
