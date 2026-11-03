@@ -20,7 +20,9 @@ Choose 1–3 laps and one of three difficulty levels. Hold acceleration after th
 
 Touch buttons are available on small screens; landscape is recommended. Optional automatic pedalling is off by default and can be enabled in the touch menu or pause panel; braking takes priority. The pause panel also offers recovery followed by resume. Short landscape viewports move the full standings into pause and keep compact speed, map, position, lap and nitro readouts. The menu includes a character close-up and a lower-cost graphics setting.
 
-The menu also offers an optional Shamian Three-Turn Drift Licence: a 45-second solo exam that awards paw stamps for real mini boosts and clean exits, retries only the current turn after a rail hit, supports automatic pedalling and returns to the regular cup.
+On your first visit, Start opens the 45-second Shamian Three-Turn Drift Licence: earn paw stamps with real mini boosts and clean exits, retry only the current bend after a rail hit, and keep the optional automatic pedalling setting. Use “跳过，直接比赛” to skip straight to the cup. Passing or skipping is remembered locally; later Start presses enter the regular cup. The licence remains in the menu. If storage is unavailable, each visit offers the lesson again.
+
+Automation can use `?intro=skip` to keep Start on the original game without writing visit history. The existing `window.__race` state/metrics hook is unchanged; mobile checks and touch recordings include this parameter.
 
 ## Run, check and package
 
@@ -45,9 +47,9 @@ The generated file, `小橘飞车.html`, can be opened directly in a browser. It
 
 ## Scope
 
-This is a stylized arcade game, with a fictional circuit rather than real road coordinates. It has six independently simulated racers, drifting, nitro, boost pads, guardrails, soft rider contacts and timed results. The character is an original procedural model, not a photographic reconstruction. There is no multiplayer server or persistent save.
+This is a stylized arcade game, with a fictional circuit rather than real road coordinates. It has six independently simulated racers, drifting, nitro, boost pads, guardrails, soft rider contacts and timed results. The character is an original procedural model, not a photographic reconstruction. There is no multiplayer server or race-progress save; only the first-visit licence choice is remembered.
 
-Twenty-two core tests cover complete races, losing against bots, countdown, pause, recovery, drift, nitro, jumping, reverse travel, lap integrity and close finishes. Browser checks cover loading, keyboard movement, restart and desktop/mobile-size layouts. Complete races were verified in simulation; physical phones and Safari have not been tested.
+Twenty-nine core tests cover the drift licence and complete races, losing against bots, countdown, pause, recovery, drift, nitro, jumping, reverse travel, lap integrity and close finishes. Browser checks cover loading, keyboard movement, restart and desktop/mobile-size layouts. Complete races were verified in simulation; physical phones and Safari have not been tested.
 
 The B4 touch regression checks and reproduction commands are in [VERIFICATION.md](VERIFICATION.md). Real two-thumb comfort and handling still need a human playtest.
 

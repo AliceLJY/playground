@@ -22,7 +22,7 @@ fs.mkdirSync(out,{recursive:true});
   // Menu may scroll on short landscape; entry must be reachable without offscreen clicks.
   await p.locator('#license-open').scrollIntoViewIfNeeded();await fits('exam menu button reachable',['#license-open']);await shot('menu');
   if(touch)await p.locator('#auto-pedal').check();
-  await click('#license-open');await fits('intro actions reachable',['#license-start','#license-back']);await shot('intro');
+  await click('#license-open');await fits('intro actions reachable',['#license-start','#license-back','#license-intro [data-license-skip]']);await shot('intro');
   await click('#license-start');await p.clock.runFor(3100);
   check('solo exam entered',await p.evaluate(()=>__race.state.phase==='racing'&&__race.state.riders.length===1&&!!__race.state.license));
   await fits('exam controls reachable',['.race-buttons button',...(touch?['#touch button']:[])]);
@@ -49,7 +49,9 @@ fs.mkdirSync(out,{recursive:true});
   const end=await p.evaluate(()=>({state:__race.state,events:examEvents}));
   check('real controls complete exam',end.state.phase==='result'&&end.state.license.outcome==='pass'&&end.state.license.stamps===3,end.state.license);
   check('samples contain minis, rail hit and three stamps',sawDrift&&sawRetry&&end.events.filter(e=>e.type==='mini').length>=3&&end.events.some(e=>e.type==='hit')&&end.events.filter(e=>e.type==='license-stamp').length===3);
-  await fits('result actions reachable',['#license-restart','#license-menu']);await shot('pass');
+  await fits('result actions reachable',['#license-race','#license-restart','#license-menu']);await shot('pass');
+  check('actual pass is remembered',await p.evaluate(()=>localStorage.getItem('xiaoju-license-seen')==='1'));
+
   await click('#license-restart');await p.clock.runFor(3100);
   check('retest clears stamps and retry count',await p.evaluate(()=>__race.state.license.stamps===0&&__race.state.license.retries===0));
   await click('#pause');const paused=await p.evaluate(()=>__race.state.time);await p.clock.runFor(1500);check('pause preserves exam time',await p.evaluate(()=>__race.state.time)===paused);
@@ -65,7 +67,10 @@ fs.mkdirSync(out,{recursive:true});
   const normal=await p.evaluate(()=>({state:__race.state,input:lastInput,licenseHud:!document.querySelector('#license-hud').hidden,metrics:__race.metrics}));
   check('return starts original race without exam or held-input residue',normal.state.riders.length===6&&!normal.state.license&&normal.state.laps===2&&normal.state.difficulty==='normal'&&!normal.licenseHud&&!normal.input.forward&&!normal.input.drift&&!normal.input.left&&!normal.input.right&&!normal.input.autoPedal,normal.input);
   check('solo rendering does not exceed the cup draw calls',maxCalls<=normal.metrics.drawCalls,{exam:maxCalls,cup:normal.metrics.drawCalls});
-  await shot('normal-race');check('zero page errors',errors.length===0,errors);
+  await shot('normal-race');
+  await p.reload();await p.waitForFunction(()=>window.__race?.ready,null,{polling:100});await click('#start');
+  check('reload after pass enters cup',await p.evaluate(()=>!__race.state.license&&__race.state.riders.length===6));
+  check('zero page errors',errors.length===0,errors);
   reports.push({w,h,meta,checks,shots,events:end.events,finishTime:end.state.time,video:p.video()?await p.video().path():null});fs.writeFileSync(`${out}/report.json`,JSON.stringify(reports,null,2));console.log(`PASS ${w}x${h}: ${checks.length} checks, ${end.state.time.toFixed(2)} s, ${meta.renderer}`);await ctx.close();
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

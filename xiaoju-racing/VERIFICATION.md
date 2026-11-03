@@ -53,3 +53,26 @@ NODE_PATH="$(npm root -g)" node xiaoju-racing/tools/license-check.cjs http://127
 ```
 
 The tool writes its own report, actual state with every screenshot, and a 390×664 browser recording. Tests are already included by the existing CI `node --test tests/*.test.cjs` glob. The standalone HTML is ignored and rebuilt by CI, so it is rebuilt locally but not committed. Only this project is changed; no push, deployment or online recheck is part of P3. **Human handling/comfort, a physical phone, Safari and sound were not verified.**
+
+## 2026-11-03 · D2 first-visit entry
+
+Start now opens the drift licence on a first visit. The visible “跳过，直接比赛” button is at least 44 CSS pixels high; it is available during the lesson, in pause and in the manual-entry instructions. Passing or skipping records `xiaoju-license-seen`; subsequent Start presses go to the cup, while the menu licence entry remains. An unfinished attempt does not count. Storage reads and writes each use try/catch; denied reads or failed writes reoffer the licence on the next visit without preventing a skip.
+
+This reuses the original licence/cup constructors and native buttons, with no core rules, handling values, dependencies or assets changed. Starting the cup also resets its camera heading after leaving the licence. The short-landscape licence result and pause layouts were tightened to keep every action in view. `?intro=skip` bypasses only the first-visit route and does not store a completion; the original mobile and touch scripts use it. Layout assertions ignore the new lesson-only pause action when hidden, while still checking every visible action.
+
+Reproduce from the repository root with `BASE` pointing to the source entry or rebuilt standalone and `OUT` pointing outside the checkout:
+
+```sh
+python3 xiaoju-racing/build.py
+(cd xiaoju-racing && node --test tests/*.test.cjs)
+NODE_PATH="$(npm root -g)" node xiaoju-racing/tools/entry-check.cjs "$BASE" "$OUT/entry"
+NODE_PATH="$(npm root -g)" node xiaoju-racing/tools/license-check.cjs "$BASE" "$OUT/licence"
+NODE_PATH="$(npm root -g)" node xiaoju-racing/tools/mobile-check.cjs "$BASE" "$OUT/mobile"
+NODE_PATH="$(npm root -g)" node xiaoju-racing/tools/touch-smoke.cjs "$BASE" "$OUT/touch"
+```
+
+本轮 Node **29/29** 通过。新入口检查在源码和重建单文件各 **64/64** 通过，覆盖四档视口的首次、跳过、刷新、保留菜单入口及存储读／写失败；桌面另用空格激活跳过按钮。原 mobile-check 在两种入口各 **53/53** 通过，touch-smoke 完成 30 秒实控：蓄气增加 13.19，刹车到 0，零页面错误；保留录屏并按 5 秒间隔抽帧检查。
+
+Chrome 156 / Playwright，ANGLE Metal / Apple M4，默认高画质、原抗锯齿；手机模拟 DPR 2、渲染比例 1.6，桌面 DPR／比例 1。未测真实手机、Safari、听感或真人操控舒适度；没有用本轮检查推断真机帧率。单文件已本地重建但本仓忽略它，由 CI 重建，不纳入提交；未 push、未部署，因此不做线上复验。
+
+原 licence 浏览器检查在源码和重建单文件各 **84/84** 通过，包含真实按键完成三弯、完成后刷新直进比赛、暂停／重试／超时及全部按钮可见性。四档视口均为 390×664、320×568、844×340、1365×900，零页面／控制台错误；两份入口截图各 16 张、驾照截图各 36 张、mobile 截图各 10 张及触控截图均已逐张查看。844×340 的初次回归曾暴露结算页底部按钮出框，改成紧凑双列动作区后原断言通过。
