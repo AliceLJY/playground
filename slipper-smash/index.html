@@ -17,10 +17,28 @@ button{min-width:48px;min-height:48px;border:1px solid #ffb23e;border-radius:10p
 #pause-panel{position:fixed;inset:0;display:grid;place-items:center;background:#0b0d12cc;color:#f3ead8;font:18px sans-serif;text-align:center}
 #pause-panel .card{padding:24px;max-width:calc(100vw - 48px)}
 #pause-panel button{display:block;width:200px;max-width:100%;margin:12px auto}
+#night-entry{position:fixed;right:12px;top:8px;min-height:44px;padding:0 12px;font-size:14px}
+#night-menu{position:fixed;inset:0;display:grid;place-items:center;background:#0b0d12eb;color:#f3ead8;font:16px/1.5 sans-serif;text-align:center;overflow:auto}
+#night-menu .card{width:320px;max-width:calc(100vw - 32px);padding:12px 0}
+#night-menu h2{color:#ffb23e;margin:0 0 8px}
+#night-menu p{margin:8px 0 16px}
+.night-actions{display:flex;justify-content:center;gap:10px}
+.night-actions button{padding:0 12px}
+#night-result-controls{position:fixed;right:12px;bottom:12px}
+#night-result-controls button{min-height:44px;font-size:14px}
+#night-hud{position:fixed;top:calc(17vh + 8px);left:12px;max-width:calc(100vw - 100px);padding:6px 8px;border-left:3px solid #ffb23e;border-radius:4px;background:#0b0d12d9;color:#f3ead8;font:700 13px/1.5 sans-serif;font-variant-numeric:tabular-nums;white-space:pre-line;pointer-events:none}
 </style>
 </head>
 <body>
-<canvas id="stage" aria-label="凉拖拍蟑螂：按住并划过蟑螂把它拍扁，别碰奶茶"></canvas>
+<canvas id="stage" tabindex="-1" aria-label="凉拖拍蟑螂：按住并划过蟑螂把它拍扁，别碰奶茶"></canvas>
+<button id="night-entry" type="button">奶茶摊守夜</button>
+<div id="night-menu" role="dialog" aria-modal="true" aria-labelledby="night-title" hidden><div class="card">
+<h2 id="night-title">奶茶摊守夜</h2>
+<p>护住三杯奶茶<br>每漏 3 只虫，被偷喝 1 杯<br>误拍奶茶也扣 1 杯，没杯就收工<br>45 秒后首领登场，25 秒内拍服它<br>带着剩余奶茶完成守夜</p>
+<div class="night-actions"><button id="night-start" type="button">开始守夜</button><button id="night-back" type="button">返回轻松模式</button></div>
+</div></div>
+<div id="night-hud" hidden></div>
+<div id="night-result-controls" class="night-actions" hidden><button id="night-retry" type="button">再守一夜</button><button id="night-return" type="button">返回标题</button></div>
 <button id="pause-btn" type="button" aria-label="暂停" hidden>暂停</button>
 <div id="pause-panel" role="dialog" aria-modal="true" aria-label="已暂停" hidden><div class="card"><h2>歇一歇</h2><button id="resume" type="button">继续</button><button id="pause-mute" type="button">声音：开</button></div></div>
 <noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>
