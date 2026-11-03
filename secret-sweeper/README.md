@@ -7,6 +7,7 @@ Classic minesweeper with a new skin. The cells are log lines, config snippets an
 - Three sizes: easy 7×9, normal 8×11, hard 9×13. A game takes one to five minutes.
 - Hitting a key brings up a short card about a real kind of credential leak, with tool and service names removed. Clearing the board ends with "look at the clues before you act".
 - A pixel clerk, drawn in the same style as the Pixel Office, reacts when you flag, when you hit a key and when you win.
+- Classic minesweeper sounds (open, cascade, flag, explosion, win), synthesised in the browser. The 🔊 button in the bottom bar mutes them.
 
 Every "key" on screen is fake and deliberately incomplete (such as `sk-…4f2a`), so secret scanners do not mistake it for a real credential.
 
@@ -30,4 +31,4 @@ The spec and acceptance list are in [SPEC.md](SPEC.md) (in Chinese).
 
 ## Who might open this, and AI assets
 
-For anyone who has played minesweeper and fancies a few rounds in a different skin, with a glimpse of how keys actually leak. The code, rules, pixel clerk and all text were made through AI collaboration. No AI-generated images, sounds or models are used.
+For anyone who has played minesweeper and fancies a few rounds in a different skin, with a glimpse of how keys actually leak. The code, rules, pixel clerk and all text were made through AI collaboration. The sounds are synthesised in code. No AI-generated images, sounds or models are used.
