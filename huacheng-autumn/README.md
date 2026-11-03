@@ -10,6 +10,7 @@ No imported images or models. Geometry, foliage, water, brick variations, vehicl
 
 - **Look around.** The camera follows a roughly 60-second tour, passing the footbridge, pagoda and a wide view of the model. Drag at any time to take over.
 - **Change the hour.** The scene opens in soft afternoon daylight. The bottom slider moves from **Day → Dusk → Night**; daytime uses neutral warm-grey haze, unlit silver steelwork and dark windows. Sun glints give way to soft reflections of distant lights; windows and street lamps turn on.
+- **Choose a place and stay.** Select 花桥 (flower bridge), 花窗 (flower arch) or 塔下 (pagoda). The camera travels smoothly along the existing route, then stays while traffic continues. Select 留在这里 · 继续 to resume the tour.
 - **Look closer.** Zoom toward the tram's curved windscreen and route sign, hanging flowers, brickwork and individual leaves.
 
 ## Controls
@@ -19,10 +20,11 @@ No imported images or models. Geometry, foliage, water, brick variations, vehicl
 | Turn the scene | Drag | One-finger drag |
 | Zoom | Wheel or the + / − buttons | Pinch or the buttons |
 | Return to the opening | Reset button | Same |
-| Toggle the camera tour | Eye button | Same |
-| Change the hour | Drag the bottom slider | Same |
+| Visit a landmark and stay | 花桥 / 花窗 / 塔下 buttons | Same |
+| Toggle the camera tour | 自动游览 / 留在这里 · 继续 button | Same |
+| Change the hour | Slider or Day / Dusk / Night labels | Same (44 px hit height) |
 
-When the tour is enabled, 4.5 seconds without input starts a smooth 3-second return to it. Hovering over the footbridge or pagoda slightly brightens its lights. With the system's reduced-motion setting, the tour starts disabled. The interface text is Chinese.
+While the tour is enabled, 4.5 seconds after an ordinary drag starts a smooth 3-second return to it. Choosing a landmark holds the camera until you select Continue, which starts that return immediately. Buttons also accept Enter/Space, and the range accepts arrow keys. Hovering over the footbridge or pagoda slightly brightens its lights. With the system's reduced-motion setting, the tour starts disabled. The interface text is Chinese.
 
 ## Real-world references
 
@@ -85,11 +87,13 @@ NODE_PATH="$(npm root -g)" node tools/r6-check.cjs shots/r6/baseline/browser "fi
 
 ## Measured results and limits
 
+The F4 interaction checks for destination travel, camera hold, time controls and viewport layout are in [VERIFICATION.md](VERIFICATION.md#f4-交互修复2026-11-03).
+
 Round-six measurements, screenshots and remaining coverage limits are in [VERIFICATION_R6.md](VERIFICATION_R6.md). Historical reports do not certify this revision. Bridge structure coverage must reach 10%, close-view flower colour 25%, overall flower colour 6–14%, and mean saturation .10–.28. Contact shadows, glare, calm water, resolution and frame rate are checked separately. Rendering retains cached PCF shadows, half-resolution GTAO and FXAA, with a minimum actual pixel ratio of 1.5 on DPR2 displays.
 
 The bridge has an open 3.8 m concrete deck, exposed handrails and piers, and 3.4 m stairs with flowers hanging outside the rails. The blue-grey river separates the foreground from the clearer far bank. Four cars measure about 4.57 × 1.86 × 1.45 m. The road has two 3.5 m lanes, the tram is about 2.65 m wide and 3.6 m tall, and the walks include benches, bicycles, bins and a small café. The overall arrangement and landmark heights remain compressed; this is an architectural illustration, not a survey.
 
-Real phones, Safari and a deployed URL were not tested. Desktop-emulated frame rates do not predict phone performance; adaptive resolution remains enabled above its quality floor. Moving vehicles have independent soft contact shadows; the sunlight shadow map updates on the first frame and hour changes.  Procedural glass and water approximate reflections. No additional depth-of-field blur is applied, so the close views remain readable. This round does not publish or commit the page.
+Real phones, Safari and a deployed URL were not tested. Desktop-emulated frame rates do not predict phone performance; adaptive resolution remains enabled above its quality floor. Moving vehicles have independent soft contact shadows; the sunlight shadow map updates on the first frame and hour changes.  Procedural glass and water approximate reflections. No additional depth-of-field blur is applied, so the close views remain readable. Round six was not committed or published during that pass. F4 commits only to the repair branch for maintainer review and release.
 
 ## Licence
 
