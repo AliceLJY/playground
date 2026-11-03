@@ -87,3 +87,38 @@ test('game room and teahouse links point at games that exist in this repo',()=>{
   assert.ok(links.includes('datai-teahouse'));assert.ok(links.includes('memory-fade'),'showcase lists the AI backstage row');
   assert.ok(html.includes('https://github.com/AliceLJY')&&html.includes('我的AI小木屋'),'showcase carries the public accounts');
 });
+
+test('night 7×24: no one goes home; nappers take beanbags and the yoga mat, the rest sleep at their desks; work wakes them',()=>{
+  for(const layout of ['portrait','landscape']){
+    const s=C.create(script.roster,7,layout),L=C.layouts[layout];
+    for(const a of s.actors)s.setStatus(a.id,a.name==='Grok Bot'?'away':'off');s.step(40000);
+    const grok=s.actors.find(a=>a.name==='Grok Bot');assert.ok(C.distance(grok,L.door)<1,'away still leaves');
+    const off=s.actors.filter(a=>a.status==='off').sort((a,b)=>a.i-b.i);
+    for(const a of off){assert.ok(C.distance(a,L.door)>3,`${layout}: ${a.name} stayed in`);assert.ok(s.napping(a),`${layout}: ${a.name} asleep`);}
+    const spots=[6,7,15].map(i=>C.leisure(L)[i]);
+    off.slice(0,3).forEach((a,k)=>assert.ok(C.distance(a,spots[k])<1));
+    off.slice(3).forEach(a=>assert.ok(C.distance(a,C.home(a.i,L))<1));
+    const codex=s.actors.find(a=>a.name==='Codex');s.setStatus(codex.id,'busy');s.step(20000);
+    assert.ok(C.distance(codex,C.home(codex.i,L))<1);assert.equal(s.napping(codex),false);
+  }
+  const film=C.create(script.roster,7,'film');film.classicLeisure=true;for(const a of film.actors)film.setStatus(a.id,'off');film.step(40000);
+  assert.ok(film.actors.every(a=>C.distance(a,C.layouts.film.door)<1),'the published film still sends everyone home');
+});
+
+test('dim sum treat: carried to the teahouse, everyone free (idle or napping) eats for two minutes, then back',()=>{
+  for(const layout of ['portrait','landscape']){
+    const L=C.layouts[layout],s=C.create(script.roster,7,layout);s.setScene(C.emptyScene(),Date.parse('2026-11-01T15:30:00Z'));
+    for(const a of s.actors)s.setStatus(a.id,a.i===0?'busy':a.i<4?'off':'idle');s.step(20000);
+    for(const p of [L.feastDrop,...L.feastStand])assert.equal(C.blocked(p.x,p.y,L),false);
+    s.treat('dimsum','2026-11-01T15:30:20Z');let started=null;
+    for(let i=0;i<4000&&!started;i++){s.step(20);if(s.feast)started=s.time;}
+    assert.ok(started,`${layout}: the treat reached the teahouse`);assert.equal(s.feast.night,true);
+    s.step(25000);
+    const eaters=s.actors.filter(a=>s.feastEating(a));
+    assert.equal(eaters.length,Math.min(6,s.actors.filter(a=>['idle','off'].includes(a.status)).length),`${layout}: ${eaters.length} at the table`);
+    assert.ok(eaters.some(a=>a.status==='off'),'nappers are woken for it');
+    const cc=s.actors.find(a=>a.i===0);assert.ok(C.distance(cc,C.home(0,L))<1,'busy director keeps working');
+    const others=s.actors.filter(a=>a.status==='idle'&&!s.feastSpot(a));for(const a of others)assert.ok(![16,17,18,19].includes(a.gameSlot),'leftovers do not share the feast table');
+    s.step(130000);assert.equal(s.actors.filter(a=>s.feastEating(a)).length,0);assert.ok(s.actors.filter(a=>a.status==='off').every(a=>s.napping(a)));
+  }
+});
