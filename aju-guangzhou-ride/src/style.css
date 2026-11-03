@@ -31,6 +31,12 @@ button.map-card{padding:8px;border:0;cursor:pointer;color:#516c59;font-family:in
 
 /* Short touch landscape: a map launcher, a single readout row and free driving corners. */
 @media(pointer:coarse) and (orientation:landscape) and (max-height:440px){
+ /* Fit the introduction between the masthead and footer; only its prose may shrink and scroll. */
+ .intro-panel{top:60px;bottom:44px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+ .intro-panel h1{flex:none;font-size:36px;line-height:1.05;margin:0}
+ .intro-panel p{min-height:0;overflow-y:auto;font-size:12px;line-height:1.5;margin:0}
+ .intro-panel .primary{flex:none;min-height:44px;padding:8px 20px}
+ .intro-panel .intro-controls,.intro-panel .edition{display:none}
  .masthead{top:10px;left:14px;right:14px}.brand-icon{width:34px;height:34px}.brand small{display:none}
  .top-actions button{min-height:44px;padding:8px 12px}.place{display:none}
  button.map-card{top:70px;right:14px;width:74px;height:44px;padding:0}.map-card canvas,.map-card>span{display:none}.map-card:after{content:'路线图';font-size:12px}
