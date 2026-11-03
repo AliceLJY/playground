@@ -6,7 +6,9 @@ A real half hour is compressed to a five-minute sitting. It is the same mechanis
 
 **[Play online](https://aliceljy.github.io/playground/show-foyer/)**
 
-Optional “A cup of tea in return”: enter from the programme cover, sit for 25 seconds, then offer tea to the explicitly labelled simulated usher to receive a stamped paper keepsake that appears in your group photo; return to the unchanged normal foyer at any time (see [SPEC.md](SPEC.md)).
+With no saved visits, “A cup of tea in return” is part of normal waiting: sit for 25 seconds and a neighbour labelled “领位人 · 非真人” (usher · simulated) arrives. Offer tea for a stamped paper keepsake in your group photo. The visible “直接候场” button skips the invitation while keeping your seat and countdown. Leaving or curtain-up saves this ordinary visit, including tea actions; neither the usher nor the ticket is stored as history. Existing history disables the automatic invitation. Reloading before any visit is saved, or with unavailable storage, still uses this entry. The programme cover keeps the separate replay, which does not save history (see [SPEC.md](SPEC.md)).
+
+Automation can use `?intro=skip`; fixed `?view=` states also retain the original foyer.
 
 ## About the show
 

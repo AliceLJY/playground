@@ -36,12 +36,13 @@ test('验收 7 所有文件（含文档、测试、工具）都不含本机路�
 
 test('验收 7 页面文件没有任何外部地址、没有网络请求 API、不引外部样式、不用音频文件', () => {
   for (const f of PAGE_FILES) {
-    const text = read(f);
+    // Only the empty inline favicon is exempt; external links remain forbidden.
+    const text = read(f).replace('<link rel="icon" href="data:,">', '');
     assert.ok(!/https?:\/\//i.test(text), `${f} 含 http(s) 地址`);
     assert.ok(!/\b(fetch|XMLHttpRequest|WebSocket|sendBeacon|EventSource)\b/.test(text), `${f} 用了网络请求 API（第一版不接任何后端）`);
     assert.ok(!/@import|<link[^>]+href=/i.test(text), `${f} 引了外部样式或链接`);
   }
-  const html = read('index.html');
+  const html = read('index.html').replace('<link rel="icon" href="data:,">', '');
   for (const m of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)) assert.ok(/^(\.\/|src\/|#)/.test(m[1]), `index.html 里的 ${m[0]} 不是本目录相对路径`);
   assert.ok(!/<audio|\.(mp3|wav|ogg|m4a)\b/i.test(html + read('src/game.js')), '不用音频文件，声音全部合成');
 });

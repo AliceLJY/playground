@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // 开局 30 秒 · 真实输入走一遍（AGENTS.md §3）：390×664，不带固定机位参数，用真实点击：
 // 落座 → 点灯 → 鼓掌 → 点戏台拍照 → 翻节目单 → 离席 → 再落座，看「你 · 刚才」有没有坐进来 → 给它递茶 → 试听锣 → 合影
 // → 快进到一铃、二铃（场灯暗）、三铃开演（幕布拉开、覆盖层）→ 等下一场。
@@ -16,7 +17,7 @@ const fs = require('node:fs'), path = require('node:path');
   const snap = () => p.evaluate(() => window.__foyer.snapshot());
   const shot = async (name) => { await p.screenshot({ path: path.join(out, name + '.png') }); const s = await snap(); report.push({ step: name, ...s }); return s; };
   const tap = (code) => p.click(`#bar button[data-act="${code}"]`);
-  await p.goto(url + (url.includes('?') ? '&' : '?') + 'mute=1');
+  await p.goto(skipIntro(url) + '&mute=1');
   await p.evaluate(() => localStorage.removeItem('show-foyer-visits'));
   await p.reload();
   await p.waitForFunction(() => window.__foyer && window.__foyer.ready, null, { polling: 100 });
