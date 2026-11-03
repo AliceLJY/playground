@@ -100,9 +100,10 @@ test('night 7×24: ordinary colleagues stay; kitchen staff go home; nappers fill
     const duty=a=>a.i===7||s.isCourier(a);for(const a of s.actors.filter(a=>a.status==='off'&&duty(a)))assert.ok(!s.napping(a)&&C.distance(a,C.home(a.i,L))<1,`${layout}: ${a.name} stays up`);
     const off=s.actors.filter(a=>a.status==='off'&&a.awayPost!=='kitchen'&&!duty(a)).sort((a,b)=>a.i-b.i);
     for(const a of off){assert.ok(C.distance(a,L.door)>3,`${layout}: ${a.name} stayed in`);assert.ok(s.napping(a),`${layout}: ${a.name} asleep`);}
-    const spots=[...L.beds,...[6,7,15].map(i=>C.leisure(L)[i])];
+    // 11-03: the tower keeps its third bunk (kidBeds) for 无忧 and 无虑; colleagues nap in the other berths first.
+    const spots=[...L.beds.filter((_,i)=>!(L.kidBeds||[]).includes(i)),...[6,7,15].map(i=>C.leisure(L)[i])];
     off.forEach((a,k)=>assert.ok(C.distance(a,spots[k]||C.home(a.i,L))<1,`${layout}: ${a.name} in spot ${k}`));
-    assert.equal(off.filter(a=>s.inBed(a)).length,Math.min(6,off.length),'the rest room beds fill first');
+    assert.equal(off.filter(a=>s.inBed(a)).length,Math.min(6-(L.kidBeds||[]).length,off.length),'the rest room beds fill first');
     const codex=s.actors.find(a=>a.name==='Codex');s.setStatus(codex.id,'busy');s.step(20000);
     assert.ok(C.distance(codex,C.home(codex.i,L))<1);assert.equal(s.napping(codex),false);
   }

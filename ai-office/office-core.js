@@ -67,7 +67,7 @@
   const mealTime = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); return m>=690 && m<780 ? '午餐' : m>=1050 && m<1140 ? '晚餐' : null; };
   // The boss's own day in the tower (Alice 11-03: 「给我安排点事儿……老板在唱歌、游泳、撸猫」). Beijing minutes → what she does when
   // nothing needs her (no queue, no note, no guest). Spots are local to a room offset (see BOSS_SPOTS); 'desk' and 'stroll' wander.
-  const BOSS_DAY = [[30,'home','回家睡觉'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
+  const BOSS_DAY = [[30,'sleep','在医务室睡觉'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
     [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
     [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1290,'bbq','撸串涮火锅'],[1350,'sing','唱K'],[1380,'dance','跳舞'],[1410,'read','看书']];
   // A show runs two hours (Alice: 「看剧一般是两个小时的」): 19:30–21:30, then BBQ, then K 房.
@@ -186,7 +186,8 @@
   // the pool widens into the cat tree's old place. CC takes calls at her own desk (booth point = her desk).
   const POOL_W=184, poolLocal=[[34,40,'swim'],[88,50,'swim'],[POOL_W-16,62,'lounge']], poolLocalObstacles=[{x:POOL_W-28,y:20,w:22,h:12}];
   // 医务室 (Alice: 「缺了一个医务室，我给你们看病刚好合适」): a colleague sits by the bed for a check-up; the boss drops in as the doctor.
-  const clinicLocal=[[28,62,'checkup']], clinicLocalObstacles=[{x:4,y:14,w:18,h:22},{x:34,y:24,w:26,h:10},{x:6,y:70,w:50,h:12}], clinicDoctorLocal=[48,50];
+  const clinicLocal=[[28,62,'checkup']], clinicLocalObstacles=[{x:4,y:14,w:18,h:22},{x:34,y:24,w:26,h:10},{x:6,y:72,w:50,h:4}], clinicDoctorLocal=[48,50], clinicBedLocal=[32,82];
+  // The boss sleeps on the clinic's exam bed instead of going home (Alice 11-03: 「我不想回家，我就在医务室睡吧」).
   // 充电房 (Alice: 「你们应该是用那个……充额度的充电房」): a colleague out of quota lies in the pod till the window resets;
   // (the boss's washing machine went again the same night: 「我其实不太需要」).
   const chargeLocal=[24,34], chargeLocalObstacles=[{x:4,y:12,w:38,h:8}];
@@ -211,7 +212,7 @@
     booth:{x:65,y:139},boothOffset:T_BOOTH,noBooth:true,poolW:POOL_W,totals:T_TOTALS,totalsOffset:[0,0],
     beds:atOrigin(bedLocal,T_REST),restOffset:T_REST,gym:atOrigin(gymLocal,T_GYM),gymOffset:T_GYM,tea:atOrigin(teaLocal,T_TEA),teaOffset:T_TEA,
     feastStand:atOrigin(feastLocal,T_TEA),feastDrop:atOrigin([[39,82,'drop']],T_TEA)[0],
-    kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,chargeOffset:T_CHARGE,kidsOffset:T_KIDS,chargePod:{x:T_CHARGE[0]+chargeLocal[0],y:T_CHARGE[1]+chargeLocal[1]},clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},
+    kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,chargeOffset:T_CHARGE,kidsOffset:T_KIDS,chargePod:{x:T_CHARGE[0]+chargeLocal[0],y:T_CHARGE[1]+chargeLocal[1]},clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},clinicBed:{x:T_CLINIC[0]+clinicBedLocal[0],y:T_CLINIC[1]+clinicBedLocal[1]},kidBeds:[4,5],
     funTop:488,obstacles:towerObstacles,bossSpots:BOSS_SPOTS,
     patrol:[door,{x:326,y:488},{x:326,y:612},{x:40,y:612},{x:40,y:716},{x:230,y:716},{x:326,y:716},{x:326,y:488},door,pantry,{x:125,y:169},door]};
   const layouts={portrait:tower,landscape,film,legacy:{...classic,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
@@ -817,7 +818,8 @@
     // Each napper keeps the spot it got until it wakes; a free spot goes to the next one (lowest desk first).
     sim.napSeats = {};
     function napSpot(a) {
-      const spots=[...(L.beds||[]),games[6],games[7],games[15]], charge=sim.quotaEvent && chargeBed() ? (L.beds||[]).indexOf(chargeBed()) : -1;
+      // 无忧 and 无虑 sleep in the third bunk at night (kidBeds), so colleagues nap in the other four berths first.
+      const spots=[...(L.beds||[]).map((b,i)=>(L.kidBeds||[]).includes(i)?null:b),games[6],games[7],games[15]], charge=sim.quotaEvent && chargeBed() ? (L.beds||[]).indexOf(chargeBed()) : -1;
       for (const id of Object.keys(sim.napSeats)) { const b=actor(id); if (!b || !napper(b) || sim.napSeats[id]===charge) delete sim.napSeats[id]; }
       if (!napper(a)) return home(a.i);
       if (sim.napSeats[a.id] === undefined) {
@@ -889,6 +891,7 @@
         // Her own day: go where the plan says; at the desk or strolling with the cat she still wanders between a few points.
         const plan = bossPlan(signalNow()); sim.bossPlan = plan; sim.bossAway = plan.kind === 'home';
         if (plan.kind === 'home') moveTo(sim.boss, door);
+        else if (plan.kind === 'sleep' && L.clinicBed) moveTo(sim.boss, L.clinicBed);
         else if (L.bossSpots[plan.kind]) moveTo(sim.boss, L.bossSpots[plan.kind]);
         else if (plan.kind === 'desk') moveTo(sim.boss, bossDesk);
         else if (sim.time >= sim.nextWander) { moveTo(sim.boss, [tour[0],pantry,tour[2],tour[3],gameWatch][Math.floor(random() * 5)]); sim.nextWander = sim.time + 7 + random() * 5; }
@@ -1010,14 +1013,16 @@
       const p=sim.bossPlan; if(!p) return null; if(p.kind==='stroll' && !sim.actors.some(a=>a.status==='waiting') && !sim.delivery) return 'stroll'; if(sim.boss.path.length) return null;
       if(p.kind==='desk') return distance(sim.boss,bossDesk)<1 ? 'desk' : null;
       if(p.kind==='stroll') return 'stroll';
-      const spot=L.bossSpots?.[p.kind]; return spot && distance(sim.boss,spot)<1 ? p.kind : null;
+      const spot=p.kind==='sleep' ? L.clinicBed : L.bossSpots?.[p.kind]; return spot && distance(sim.boss,spot)<1 ? p.kind : null;
     }
     function bossLabel() {
       if(sim.actors.some(a=>a.status==='waiting')) return '在老板桌等着拍板';
+      if(sim.delivery) return '在老板桌收纸条';
       if(sim.reception?.mode==='closed') return '在门口接待客人';
       if(L.clinicDoctor && distance(sim.boss,L.clinicDoctor)<1) return '在医务室坐诊';
       const p=sim.bossPlan; if(!p) return '在办公室转转';
       if(sim.boss.path.length && p.kind!=='stroll') return p.kind==='home'?'下班回家':'正要去'+p.label.replace(/^在/,'');
+      if(!bossActivity() && p.kind!=='home') return '在办公室转转';
       return p.label;
     }
     return Object.assign(sim, { bossActivity,bossLabel,chefTarget,chefActivity,play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });

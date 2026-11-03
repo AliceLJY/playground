@@ -101,9 +101,10 @@ test('awayPost validation and projection: private/guest HTTP preserve the field,
 // 11-03 Alice: 「给我安排点事儿……老板在唱歌、游泳、撸猫」— the boss's own day in the tower.
 test('boss day: the plan follows Beijing time, every spot is walkable, and a busy office still pulls her back to the desk',()=>{
   const at=hm=>Date.parse(`2026-11-01T${hm}:00+08:00`);
-  for(const [hm,kind] of [['00:10','read'],['03:00','home'],['08:30','tea'],['10:40','stroll'],['12:00','kitchen'],['15:10','swim'],['16:40','gym'],['19:40','theatre'],['21:20','theatre'],['21:40','bbq'],['22:40','sing'],['23:10','dance'],['23:40','read']])
+  for(const [hm,kind] of [['00:10','read'],['03:00','sleep'],['08:30','tea'],['10:40','stroll'],['12:00','kitchen'],['15:10','swim'],['16:40','gym'],['19:40','theatre'],['21:20','theatre'],['21:40','bbq'],['22:40','sing'],['23:10','dance'],['23:40','read']])
     assert.equal(C.bossPlan(at(hm)).kind,kind,hm);
   const L=C.layouts.portrait;
+  assert.ok(C.route(L.bossDesk,L.clinicBed,L).length,'clinic bed');
   for(const [k,p] of Object.entries(L.bossSpots)){assert.equal(C.blocked(p.x,p.y,L),false,k);assert.ok(C.route(L.bossDesk,p,L).length,k);}
   const s=C.create(require('../demo-script.json').roster,7,'portrait');s.setScene(C.emptyScene(),at('15:10'));for(const a of s.actors)s.setStatus(a.id,'busy');
   s.step(30000);assert.equal(s.bossActivity(),'swim');assert.equal(s.bossLabel(),'游泳');
