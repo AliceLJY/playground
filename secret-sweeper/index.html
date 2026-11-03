@@ -11,9 +11,11 @@
 html,body{margin:0;height:100%;background:#11161c;overflow:hidden;overscroll-behavior:none;font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 [hidden]{display:none!important}
-button{min-width:44px;min-height:44px;border:2px solid #3b4a5a;border-radius:10px;background:#1d2733;color:#f3ead8;font:700 16px inherit;font-family:inherit;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button{min-width:44px;min-height:44px;padding:0 4px;border:2px solid #3b4a5a;border-radius:10px;background:#1d2733;color:#f3ead8;font:700 16px inherit;font-family:inherit;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent}
 button:active{transform:translateY(1px)}
 .bar{position:fixed;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 6px;box-sizing:border-box;white-space:nowrap}
+#mode{font-size:15px}
+#sound[aria-pressed="false"]{opacity:.65}
 #mode[aria-pressed="true"]{background:#5a1f1f;border-color:#ff4d4d}
 #title{position:fixed;left:50%;top:30%;transform:translateX(-50%);width:min(420px,calc(100vw - 32px));text-align:center;color:#f3ead8}
 #title h1{margin:0 0 6px;font-size:30px;color:#ffb23e;letter-spacing:2px}
@@ -53,6 +55,7 @@ noscript{color:#f3ead8;position:fixed;inset:0;display:grid;place-items:center}
   <button type="button" id="mode" aria-pressed="false">👆 点：翻开</button>
   <button type="button" id="restart" aria-label="重来">↻ 重来</button>
   <button type="button" id="menu" aria-label="换难度">☰ 难度</button>
+  <button type="button" id="sound" aria-label="声音：开" aria-pressed="true">🔊</button>
 </div>
 <div id="card" role="dialog" aria-live="polite" hidden>
   <button type="button" id="close" aria-label="收起，看盘面">✕</button>

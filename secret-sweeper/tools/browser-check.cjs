@@ -43,7 +43,7 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
       const p=await probe(page);await page.screenshot({path:path.join(out,v+'-'+name+'.png')});report.runs.push({v,name,probe:{...p,state:p.state&&{...p.state,open:undefined,flag:undefined,mine:undefined,n:undefined}}});
       check(`${v} ${name}: hook reports the requested state`,p.state&&p.state.status===w.status&&p.level===w.level&&p.seed===w.seed&&(!w.card||p.card),{status:p.state&&p.state.status,level:p.level,seed:p.seed,card:p.card});
       check(`${v} ${name}: no errors, nothing fetched off-site`,!errors.length&&!external.length,{errors,external});
-      for(const b of ['#mode','#restart','#menu']){const u=await usable(page,b);check(`${v} ${name}: ${b} usable`,u.ok,u);}
+      for(const b of ['#mode','#restart','#menu','#sound']){const u=await usable(page,b);check(`${v} ${name}: ${b} usable`,u.ok,u);}
       if(w.card){for(const b of ['#again','#levels-btn','#close']){const u=await usable(page,b);check(`${v} ${name}: card ${b} usable`,u.ok||b==='#close'&&u.r&&u.r[2]>=40,u);}
         if(name==='boom'){const t=p.cardText;check(`${v} boom: card tells a story and the never-back line`,/真事一则/.test(t)&&/写进记录就收不回来了/.test(t),t);}
         if(name==='win')check(`${v} win: card says look before acting`,/先看线索再动手/.test(p.cardText),p.cardText);}
@@ -56,10 +56,12 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     await page.locator('[data-level=normal]').tap();
     let p=await probe(page);check('phone: level button starts a game',p.screen==='play'&&p.state.status==='ready',p.screen);
     const mid=5*8+4;const c=await center(page,mid);await page.screenshot({path:path.join(out,'first-00-ready.png')});
+    const heard=async(name)=>{const q=await probe(page);const hit=q.sounds.filter(x=>x.name===name);return{ok:hit.length>0&&hit[hit.length-1].played&&q.audio==='running',last:hit[hit.length-1],audio:q.audio,muted:q.muted};};
     const t0=Date.now();await page.touchscreen.tap(c.x,c.y);
     await page.waitForFunction(()=>window.__sweeper.probe().state.opened>0,null,{polling:16,timeout:2000});const lag=Date.now()-t0;
     p=await probe(page);check('phone: a real tap opens the first cell and an area around it',p.state.status==='play'&&p.state.opened>=4,p.state.opened);
     check('phone: tap-to-open shows within 250 ms (incl. driver overhead)',lag<=250,lag);
+    {const h=await heard('flood');check('sound: the first tap opens an area with the flood blips, audio running',h.ok,h);}
     await page.screenshot({path:path.join(out,'first-01-opened.png')});
     // long press on a cell the solver knows is a leak
     const flagTarget=await page.evaluate(()=>{const g=window.__sweeper.probe().state;for(let i=0;i<g.N;i++)if(!g.open[i]&&g.mine[i])return i;return -1;});
@@ -69,6 +71,7 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     await page.waitForTimeout(450);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(80);
     p=await probe(page);check('phone: a real long press flags the cell (and does not open it)',p.state.flag[flagTarget]===1&&!p.state.open[flagTarget]&&p.state.status==='play',{flag:p.state.flag[flagTarget],pose:p.pose});
     check('phone: the clerk reacts to the flag',p.pose==='flag',p.pose);
+    {const h=await heard('flag');check('sound: flagging plays the flag tock',h.ok,h);}
     await page.screenshot({path:path.join(out,'first-03-flagged.png')});
     // a short tap must not flag; a drag must not open
     const safe=await page.evaluate(()=>{const g=window.__sweeper.probe().state;for(let i=0;i<g.N;i++)if(!g.open[i]&&!g.mine[i]&&!g.flag[i])return i;return -1;});
@@ -79,12 +82,14 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     await page.locator('#mode').tap();p=await probe(page);check('phone: flag-mode button switches mode',p.flagMode===true,p.flagMode);
     await page.touchscreen.tap(sc.x,sc.y);await page.waitForTimeout(60);p=await probe(page);check('phone: in flag mode a tap flags',p.state.flag[safe]===1&&!p.state.open[safe],p.state.flag[safe]);
     await page.touchscreen.tap(sc.x,sc.y);await page.waitForTimeout(60);p=await probe(page);check('phone: tapping again removes the flag',p.state.flag[safe]===0,p.state.flag[safe]);
+    {const h=await heard('unflag');check('sound: removing a flag plays its own lower tock',h.ok,h);}
     await page.locator('#mode').tap();
     // lose for real: tap a leak
     const leak=await page.evaluate(()=>{const g=window.__sweeper.probe().state;for(let i=0;i<g.N;i++)if(!g.open[i]&&g.mine[i]&&!g.flag[i])return i;return -1;});
     const lc=await center(page,leak);await page.touchscreen.tap(lc.x,lc.y);await page.waitForTimeout(250);
     p=await probe(page);check('phone: tapping a leak loses and the clerk jumps',p.state.status==='lost'&&p.pose==='boom',{s:p.state.status,pose:p.pose});
     await page.screenshot({path:path.join(out,'first-04-boom.png')});
+    {const h=await heard('boom');check('sound: hitting a key plays the explosion',h.ok,h);}
     const bar=await usable(page,'#restart');check('phone: restart stays reachable right after losing',bar.ok,bar);
     await page.waitForTimeout(1100);await page.screenshot({path:path.join(out,'first-05-card.png')});
     p=await probe(page);check('phone: the story card shows after the reaction',p.card,p.card);
@@ -107,6 +112,15 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});i
     p=await probe(page);check('phone: a whole game played with real taps and long presses is won',p.state.status==='won',{s:p.state.status,o:p.state.opened,f:p.state.flags});
     await page.waitForTimeout(1200);await page.screenshot({path:path.join(out,'first-06-won.png')});
     p=await probe(page);check('phone: win card and cheering clerk',p.card&&p.pose==='win',{card:p.card,pose:p.pose});
+    {const h=await heard('win');check('sound: winning plays the jingle',h.ok,h);}
+    // mute: the button silences the next move, and the choice survives a reload
+    await page.locator('#again').tap();await page.locator('#sound').tap();p=await probe(page);
+    check('sound: the speaker button mutes',p.muted===true&&(await page.locator('#sound').textContent())==='🔇',p.muted);
+    {const c2=await center(page,Math.floor(p.state.N/2));const before=p.sounds.length;await page.touchscreen.tap(c2.x,c2.y);await page.waitForTimeout(80);
+      const q=await probe(page),fresh=q.sounds.slice(-1)[0];check('sound: muted moves make no sound',q.state.opened>0&&fresh&&fresh.played===false,fresh);}
+    await page.reload();await page.waitForFunction(()=>window.__sweeper&&window.__sweeper.ready,null,{polling:100});
+    p=await probe(page);check('sound: mute is remembered after reload',p.muted===true,p.muted);
+    await page.locator('[data-level=easy]').tap();await page.locator('#sound').tap();p=await probe(page);check('sound: and can be switched back on',p.muted===false,p.muted);
     check('phone: draw cost avg <= 4 ms, max <= 16 ms',p.metrics.avgDrawMs<=4&&p.metrics.maxDrawMs<=16,p.metrics);
     check('phone: no page errors during real play',!errors.length,errors);
     report.runs.push({v:'phone',name:'real-play',metrics:p.metrics});
