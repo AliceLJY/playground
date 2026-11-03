@@ -116,6 +116,10 @@ Open `http://127.0.0.1:8793/`. Tests: `node --test tests/*.test.cjs`. Browser ch
 - `tools/browser-check.cjs`, `tools/walkthrough.cjs`: four-viewport browser check (plus the cart and the closing bill) and the opening walkthrough with real input.
 - `tools/demo.cjs`, `tools/demo-music.py`: the portrait demo film (real clicks through one morning, game time stepped per frame, signature card at the end) and its synthesised score cued from the game's sound log; usage at the top of each file.
 
+## Copyright
+
+Like the rest of the repository, all rights reserved (see [`LICENSE`](../LICENSE)), © 我的AI小木屋 (My AI Cabin) · 小试AI. Borrow the ideas freely (silent co-presence at a shared teahouse table; nobody has to be online, the trace is the other person), but the code, drawings, text and sounds here may not be copied or put into another app or product without my written permission.
+
 ## Who opens it, AI assets
 
 - Who opens it: people who grew up on morning tea and know what the finger tap and the lifted lid mean; and people curious how a web page can have other people in it without anyone speaking.

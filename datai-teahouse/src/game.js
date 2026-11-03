@@ -467,7 +467,7 @@
     // 红章
     g.save(); g.translate(Wc - 230, Hc - 230); g.rotate(-0.18); g.strokeStyle = 'rgba(199,83,47,.85)'; g.lineWidth = 8; g.strokeRect(-80, -80, 160, 160);
     g.fillStyle = 'rgba(199,83,47,.85)'; g.font = '600 64px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('多謝', 0, -2); g.restore();
-    g.fillStyle = 'rgba(42,33,24,.5)'; g.font = '28px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('playground · 小试AI', Wc / 2, Hc - 100);
+    g.fillStyle = 'rgba(42,33,24,.5)'; g.font = '28px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('© 我的AI小木屋 · 小试AI', Wc / 2, Hc - 100);
     billImg.src = c.toDataURL('image/png');
     cartEl.classList.remove('show'); billEl.classList.add('show'); updateBars();
     againBtn.textContent = S.closed ? '明早再来' : '再开一市';
