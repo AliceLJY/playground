@@ -273,7 +273,11 @@ function snapshot(){
 function api(){
   return {ready:true,view:viewInfo,snapshot,probe(){const g=geo,b=canvas.getBoundingClientRect(),go=$('go').getBoundingClientRect();return {hint:S&&S.phase==='play'&&S.steps===0&&!S.ride?S.hint:null,ready:$('go').classList.contains('ready'),snap:snapshot(),geo:{ts:g.ts,ox:g.ox,oy:g.oy,canvas:[b.left,b.top,b.width,b.height]},go:[go.left,go.top,go.width,go.height],viewport:[innerWidth,innerHeight],dpr:devicePixelRatio,
       drawMean:drawMs.length?drawMs.reduce((a,b)=>a+b,0)/drawMs.length:0,drawMax:drawMs.length?Math.max(...drawMs):0};},
-    cellCenter,solution(){return C.solve(S.def,S.cells).taps;},bypass(){const seq=S.def.stations.map((s,k)=>k).filter(k=>!S.def.stations[k].verify);const r=C.solve(S.def,S.cells,seq);return r?r.taps:null;},
+    cellCenter,solution(){return C.solve(S.def,S.cells).taps;},trap(){ // cheapest taps that build the level's first built-in shortcut (it skips a station); for the demo film
+      const d=S.def;if(!d.traps.length)return null;let c=d.start.c,r=d.start.r;const seq=[];
+      for(const ch of d.traps[0]){const k='NESW'.indexOf(ch);c+=C.DC[k];r+=C.DR[k];const i=d.stations.findIndex(x=>x.c===c&&x.r===r);if(i>=0)seq.push(i);}
+      const t=C.solve(d,S.cells,seq);return t?t.taps:null;},
+    bypass(){const seq=S.def.stations.map((s,k)=>k).filter(k=>!S.def.stations[k].verify);const r=C.solve(S.def,S.cells,seq);return r?r.taps:null;},
     start(level,sd){start(level,sd);hideCard();},advance,freeze(f){frozen=f!==false;},
     autopilot(mode,sd){pilotRef=mode?C.pilot(mode,sd||1):null;}};
 }

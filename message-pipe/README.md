@@ -36,7 +36,7 @@ Each level ends on one line about what that step protects you from in real work.
 cd message-pipe && python3 -m http.server 8942
 ```
 
-Open `http://127.0.0.1:8942/`. Tests: `node --test tests/*.test.cjs`. Browser acceptance (needs Playwright and Chrome already installed): `NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <out-dir> [page-url]`. Publishing copies `index.html` and `src/` as they are.
+Open `http://127.0.0.1:8942/`. Demo film (portrait 1080×1920, title to all-clear plus a signature card, needs ffmpeg): `NODE_PATH="$(npm root -g)" node tools/record.cjs <video.mp4> <events.json> --endcard <endcard dir>`; soundtrack `python3 tools/demo-music.py <events.json> <music.wav>` (needs numpy). Tests: `node --test tests/*.test.cjs`. Browser acceptance (needs Playwright and Chrome already installed): `NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <out-dir> [page-url]`. Publishing copies `index.html` and `src/` as they are.
 
 ## Verification
 
