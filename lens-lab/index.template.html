@@ -45,9 +45,13 @@
   .tools button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
   .tools button[aria-pressed="true"] { background: var(--amber); border-color: var(--amber); color: #fff; }
   .tools button:disabled { opacity: .35; cursor: default; }
-  .sl { display: grid; grid-template-columns: 2.6em 36px 1fr 36px 4.4em; align-items: center; gap: 6px; font-size: 13.5px; }
-  button.nudge { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); font-size: 13px; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-  .sl output { text-align: right; font-variant-numeric: tabular-nums; }
+  .fine { display: flex; flex-direction: column; gap: 8px; }
+  .stage > .tools { position: absolute; top: 8px; left: 8px; right: 8px; }
+  .stage > .tools button { padding: 6px 4px; font-size: 12px; white-space: nowrap; }
+  .stage:has(> .tools) .tag { display: none; }
+  .sl { display: grid; grid-template-columns: 2.6em 44px minmax(0, 1fr) 44px 4.4em; align-items: center; gap: 6px; font-size: 13.5px; }
+  button.nudge { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); font-size: 13px; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  .sl output { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .sl input { width: 100%; height: 30px; accent-color: var(--ink); touch-action: pan-y; }
   .meter { display: grid; gap: 6px; font-size: 14px; align-content: start; }
   .zoomrow { display: contents; }
@@ -70,23 +74,36 @@
   .stamp { position: absolute; right: 10px; top: -16px; transform: rotate(-12deg); border: 2.5px solid var(--red); color: var(--red); font-family: var(--serif); font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--paper); font-size: 14px; }
   footer { padding-bottom: 18px; font-size: 12.5px; color: var(--dim); line-height: 1.6; margin-top: auto; }
   @media (max-aspect-ratio: 1/1), (max-width: 760px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 38%) minmax(0, 1fr); }
+    #app { grid-template-columns: 1fr; grid-template-rows: auto max(200px, 30%) minmax(0, 1fr) auto; }
     header { flex-direction: column; gap: 3px; padding: max(10px, env(safe-area-inset-top)) 14px 8px; }
     header h1 { font-size: 18px; }
     header p { font-size: 12.5px; }
-    aside { border-left: 0; border-top: 1px solid var(--line); padding: 10px 12px max(12px, env(safe-area-inset-bottom)); gap: 10px; }
+    aside { border-left: 0; border-top: 1px solid var(--line); padding: 10px 12px max(12px, env(safe-area-inset-bottom)); gap: 8px; }
+    #app > .fine { padding: 6px 12px max(8px, env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--line); }
     .tag { font-size: 11px; padding: 4px 8px; left: 8px; top: 8px; }
     .card h2 { font-size: 17px; }
+    .card .goal { font-size: 14px; line-height: 1.45; }
     .toast { top: auto; bottom: 10px; font-size: 13px; padding: 8px 12px; }
     .card { padding: 9px 12px; }
     .card h2 { margin: 1px 0 4px; }
     .zoomrow { display: grid; grid-template-columns: 44% 1fr; gap: 12px; align-items: start; }
     .zoomrow .inset { position: static; width: auto; padding: 3px; }
+    .zoomrow .inset canvas { height: 100px; object-fit: contain; }
     .zoomrow .inset .it { font-size: 12px; }
     .meter { gap: 4px; font-size: 13.5px; }
     .meter .row { flex-direction: column; gap: 0; }
     .meter .row span:last-child { text-align: left; }
     .viewbtn { left: auto; right: 10px; bottom: 10px; padding: 5px 11px; font-size: 12px; }
+  }
+  @media (max-width: 350px) { #app { grid-template-rows: auto 140px minmax(0, 1fr) auto; } .meter { font-size: 12px; line-height: 1.3; } .meter .row span:first-child { font-size: 11px; } .card .goal { font-size: 13px; } .zoomrow .inset canvas { height: 72px; } }
+  @media (min-aspect-ratio: 1/1) and (min-width: 761px) and (max-height: 500px) {
+    #app { grid-template-rows: auto minmax(0, 1fr) auto; }
+    #app > .fine { grid-column: 2; padding: 6px 16px 8px; background: var(--paper); border-top: 1px solid var(--line); }
+    .stage { grid-row: 2 / 4; }
+    .inset { top: 60px; width: 140px; }
+    aside { gap: 6px; padding-top: 8px; }
+    .card { padding: 6px 10px; } .card .goal { font-size: 14px; line-height: 1.45; }
+    .meter .row { display: none; } .meter { gap: 3px; }
   }
 </style>
 </head>
@@ -125,8 +142,10 @@
       <div id="status"></div>
     </div>
     </div>
+    <div class="fine">
     <div class="sl"><span>蜡烛</span><button class="nudge" data-k="candle" data-d="-1" aria-label="蜡烛往左 0.5 厘米">◀</button><input id="candle" type="range" step="0.1" aria-label="蜡烛位置"><button class="nudge" data-k="candle" data-d="1" aria-label="蜡烛往右 0.5 厘米">▶</button><output id="candleOut"></output></div>
     <div class="sl"><span>光屏</span><button class="nudge" data-k="screen" data-d="-1" aria-label="光屏往左 0.5 厘米">◀</button><input id="screen" type="range" step="0.1" aria-label="光屏位置"><button class="nudge" data-k="screen" data-d="1" aria-label="光屏往右 0.5 厘米">▶</button><output id="screenOut"></output></div>
+    </div>
     <table>
       <thead><tr><th>物距</th><th>像</th><th>像距</th><th>用在</th></tr></thead>
       <tbody id="table"></tbody>
