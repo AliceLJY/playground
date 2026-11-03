@@ -128,13 +128,13 @@
   const FUN_P = {ktv:[24,816],read:[150,816],garden:[24,924],cinema:[150,924],snack:[272,880]}, FUN_L = {ktv:[20,448],read:[136,448],cinema:[252,448],garden:[442,448],snack:[556,448]};
   obstacles.push(...funObstacles(FUN_P));
   const portrait = {id:'portrait',W,H:1040,funOffsets:FUN_P,fun:funSpots(FUN_P),desks,door,bossDesk,handoff,pantry,games,gameWatch,podium,booth,seats,standing,audience,patrol,tour,queuePoint,obstacles,
-    beds:atOrigin(bedLocal,restOrigin),restOffset:restOrigin,gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
+    partySpot:{x:FUN_P.ktv[0]+44,y:FUN_P.ktv[1]+56},beds:atOrigin(bedLocal,restOrigin),restOffset:restOrigin,gym:atOrigin(gymLocal,gymOrigin),tea:atOrigin(teaLocal,teaOrigin),feastStand:atOrigin(feastLocal,teaOrigin),feastDrop:atOrigin([[39,82,'drop']],teaOrigin)[0],gymOffset:gymOrigin,teaOffset:teaOrigin,gameRect:{x:22,y:258,w:238,h:82},
     gatePoint:{x:124,y:164},meetingOffset:[0,0],boothOffset:[0,0],storageOffset:[-238,-438],totalsOffset:[0,0],noticeRect:{x:226,y:23,w:103,h:49}};
   const shift = (p,dx,dy) => ({...p,x:p.x+dx,y:p.y+dy});
   // Landscape wing, two columns. Left (by the entrance): meeting room with its audience bench, then the front desk
   // beside the door and the gym. Right, one aligned stack: teahouse, showcase, phone booth. An aisle runs between.
   const W_MEET=[334,-398], W_TEA=[536,92], W_BOOTH=[182,-282], W_GYM=[526,206], W_REST=[520,316];
-  const landscape = {...portrait,id:'landscape',W:640,H:560,funOffsets:FUN_L,fun:funSpots(FUN_L),desks:desks.map((p,i)=>i===10?[384,350]:p),
+  const landscape = {...portrait,id:'landscape',W:640,H:560,funOffsets:FUN_L,fun:funSpots(FUN_L),partySpot:{x:FUN_L.ktv[0]+44,y:FUN_L.ktv[1]+56},desks:desks.map((p,i)=>i===10?[384,350]:p),
     podium:shift(podium,...W_MEET),seats:seats.map(p=>shift(p,...W_MEET)),standing:standing.map(p=>shift(p,...W_MEET)),audience:audience.map(p=>shift(p,...W_MEET)),
     beds:atOrigin(bedLocal,W_REST),restOffset:W_REST,gym:atOrigin(gymLocal,W_GYM),tea:atOrigin(teaLocal,W_TEA),feastStand:atOrigin(feastLocal,W_TEA),feastDrop:atOrigin([[39,82,'drop']],W_TEA)[0],gymOffset:W_GYM,teaOffset:W_TEA,
     booth:shift(booth,...W_BOOTH),meetingOffset:W_MEET,boothOffset:W_BOOTH,totalsOffset:[328,-403],lobby:{x:440,y:304,w:60,h:14},
@@ -652,8 +652,9 @@
       const breakfast=typeof sim.forceBreakfast==='boolean' ? sim.forceBreakfast : !!sim.clockKnown && (isBreakfast(signalNow()) || (isFunTime(signalNow()) ? 'fun' : false));
       const feast=!!feasting();
       const rotation=!legacy && !sim.classicLeisure && sim.clockKnown ? Math.floor(signalNow()/1200000) : 0;
-      const key=breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? leisureSlots(idle.length,LEISURE_ORDER.filter(slot=>slot<16||slot>19)).filter(slot=>games[slot]) : sim.funFirst ? leisureSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : leisureSlots(idle.length,breakfast,rotation).filter(slot=>games[slot]);
+      const party=playing('party') ? 'party' : playing('song') ? 'song' : '';
+      const key=breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? leisureSlots(idle.length,LEISURE_ORDER.filter(slot=>slot<16||slot>19)).filter(slot=>games[slot]) : party==='song' ? leisureSlots(idle.length,[22,23,24,29,30,31,32,33,25,26,27,28,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.funFirst || party ? leisureSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : leisureSlots(idle.length,breakfast,rotation).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -785,6 +786,20 @@
     // Treats: a visitor picks something from the menu; a visitor figure carries it to the pantry spot, everyone at
     // work says thanks for a few seconds, and a cup sits on every occupied desk for a while.
     const TREATS = ['milktea', 'coffee', 'cake', 'melon', 'dimsum'];
+    sim.playState = null;
+    const PLAY_SECONDS = {party:120, song:90, cheer:4, cat:60};
+    const playing = kind => !!sim.playState && sim.playState.kind === kind && sim.time < sim.playState.until;
+    // A visitor taps 一起玩: only that page performs it (no server write). Party/song bring a guest downstairs.
+    function play(kind) {
+      if (legacy || sim.classicLeisure || !L.fun || !PLAY_SECONDS[kind]) return false;
+      sim.playState = {kind, at:sim.time, until:sim.time + PLAY_SECONDS[kind]};
+      sim.hello = {at:sim.time, visitor:null, kind:'play-' + kind, x:door.x, y:door.y};
+      if ((kind === 'party' || kind === 'song') && !sim.visitors.some(v => v.partyGuest)) {
+        const seq = ++sim.visitorSeq;
+        sim.visitors.push({id:`guest-${seq}`, visitor:true, runner:true, partyGuest:true, i:20 + seq % 4, color:'#5fa8d3', ...door, path:[], dest:null, phase:'touring', until:null, status:'visiting'});
+      }
+      return true;
+    }
     sim.treats = []; sim.thanks = null; sim.deskTreat = null; sim.carrier = null; sim.feast = null; sim.clockKnown = !!sim.clockKnown;
     const dropFor = kind => kind==='dimsum' && L.feastDrop && !legacy ? L.feastDrop : pantry;
     function treat(kind, at) { if (TREATS.includes(kind)) sim.treats.push({ kind, at }); }
@@ -834,6 +849,7 @@
         if (wasListening && !v.listening) { v.dest = null; v.until = null; }
         if (v.listening) { moveTo(v,audience[seat]); travel(v,dt*.7); continue; }
         if (v.phase === 'leaving') { moveTo(v, door); travel(v, dt * 0.8); continue; }
+        if (v.partyGuest) { if ((playing('party') || playing('song')) && L.partySpot) moveTo(v, L.partySpot); else { v.phase = 'leaving'; moveTo(v, door); } travel(v, dt * 0.9); continue; }
         if (v.carry) { moveTo(v, dropFor(v.carry)); travel(v, dt * 0.8); continue; }
         if (!v.dest) { moveTo(v, tour[Math.floor(random() * tour.length)]); v.until = null; }
         else if (!v.path.length) {
@@ -847,7 +863,7 @@
     function step(ms) { for (let left = ms; left > 0; left -= 20) { const dt = Math.min(left, 20) / 1000; tick(dt); tickReception(dt); tickTreats(dt); tickVisitors(dt); } }
     function relayout(selection) {
       const next=create(sim.actors.map(a=>({...a,desk:a.i})),seed,selection);
-      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','gate','gateFolder','gateHistoryCounts','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','feast','clockKnown','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
+      for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','gate','gateFolder','gateHistoryCounts','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','feast','playState','clockKnown','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
       if(next.reception) Object.assign(next.reception.visitor,next.layout.door,{path:[],dest:null});
       next.replaying=sim.replaying;next.replayVisitorsUntil=sim.replayVisitorsUntil;next.funFirst=sim.funFirst;next.forceBreakfast=sim.forceBreakfast;next.classicLeisure=sim.classicLeisure;next.napSeats={...sim.napSeats};
       next.scene=JSON.parse(JSON.stringify(sim.scene));next.dispatchCall=sim.dispatchCall && {...sim.dispatchCall};next.handoffWalk=sim.handoffWalk && {...sim.handoffWalk};next.flights=[];
@@ -869,7 +885,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
