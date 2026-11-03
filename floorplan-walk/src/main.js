@@ -259,6 +259,13 @@ function setMode2D(on, { instant = false } = {}) {
   }
 }
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode2D(b.dataset.mode === '2d')));
+const closeMoreTools = () => { $('extraTools').classList.remove('open'); $('moreTools').setAttribute('aria-expanded','false'); };
+$('moreTools').addEventListener('click',()=>{
+  const open=$('extraTools').classList.toggle('open');
+  $('moreTools').setAttribute('aria-expanded',String(open));
+});
+document.addEventListener('click',e=>{if(!e.target.closest('#extraTools,#moreTools'))closeMoreTools();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('extraTools').classList.contains('open')){closeMoreTools();$('moreTools').focus();}});
 new ResizeObserver(() => document.documentElement.style.setProperty('--toph', $('top').offsetHeight + 'px')).observe($('top'));
 $('subtitle').textContent = `首层 · ${C.house.rooms.length} 个房间 · ${C.house.rooms.reduce((a, r) => a + r.area_m2, 0).toFixed(1)} m² · 尺寸单位 mm`;
 

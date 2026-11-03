@@ -274,7 +274,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (name === 'unfolded -> folded') {
         await page.screenshot({ path: shot('resize-folded-plan') });
         // a view the reader has zoomed is not thrown away: what was in the middle stays in the middle
-        await page.tap('[data-p2="fit"]'); await page.evaluate(() => { const t = document.querySelector('#top'); t.scrollLeft = 0; });
+        await page.tap('#moreTools');
+        await page.tap('[data-p2="fit"]');
+        await page.tap('#moreTools');
         await page.evaluate(() => { document.querySelector('[data-p2="zoomIn"]').click(); document.querySelector('[data-p2="zoomIn"]').click(); });
         const mid = () => page.evaluate(() => { const v = window.__house.plan.view(), svg = document.querySelector('#plan'); return { s: v.s, cx: v.x0 + svg.clientWidth / 2 / v.s, cy: v.y0 + svg.clientHeight / 2 / v.s, user: !!v.user }; });
         const z0 = await mid();
@@ -282,7 +284,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         const z1 = await mid();
         zoomed = { z0, z1, drift: Math.hypot(z1.cx - z0.cx, z1.cy - z0.cy) };
         await page.setViewportSize({ width: b[0], height: b[1] }); await page.waitForTimeout(300);
+        await page.tap('#moreTools');
         await page.tap('[data-p2="fit"]');
+        await page.tap('#moreTools');
       }
       await page.setViewportSize({ width: a[0], height: a[1] }); await page.waitForTimeout(300);
       await page.evaluate(() => document.querySelector('[data-mode="3d"]').click());

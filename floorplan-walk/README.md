@@ -34,6 +34,8 @@ The layout is kept in the browser and survives a reload. Dimensions on the plan 
 
 Going to 3D grows the house out of the plan you just left, with your layout. "Walk in" takes you from outside the front door to the living room by itself, and doors open as you approach; press a direction key or drag to take over.
 
+On narrow screens, the 2D toolbar keeps the mode switch, undo and redo visible; “更多” opens the other existing tools. The bedroom, living-room, kitchen/dining and bathroom buttons above the library jump to their groups on phone and desktop. Other categories remain available by scrolling the library.
+
 ## How it is made
 
 - **House**: walls, openings, rooms and the default furniture positions come from one data file (`data/house.js`), read from the image for an earlier floor-plan video. Walls are drawn and extruded as polygons, so the two 45-degree kitchen walls and their windows are there. Door leaves hang on hinges, open within 1.9 m and close beyond 2.6 m.
@@ -103,6 +105,8 @@ Draw calls include the shadow pass.
 **One thing from a real device**: Alice opened the page on her phone and said it looks right at first, then becomes very large once everything has loaded. A headless browser at seven phone and foldable sizes did not show it. What does reproduce reliably is a related fault, the page not adapting when the screen size changes after loading; that is fixed and is acceptance item 12. After the fix was deployed she opened the page again on her phone and confirmed it looks right. Her exact symptom was never reproduced here, so all that can be said is that it no longer appears after the fix.
 
 **Not verified**: touch feel on a real phone, above all dragging a card up from the bottom strip (the phone run only taps a card); pinch zoom; auto-orbit and replay were checked to move and to finish, not watched frame by frame; the night scene has one ceiling lamp per room, so the large living room stays dim.
+
+The 2026-11-03 mobile-tool fixes and regression results are in [VERIFICATION.md](VERIFICATION.md).
 
 ## Who it's for, AI assets
 
