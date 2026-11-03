@@ -16,7 +16,9 @@ Each level ends on one line about what that step protects you from in real work.
 
 ## Controls
 
-- Tap a tile to turn its pipe 90°. Pipes already connected to the start light up.
+- No jargon needed: stations are numbered 1, 2, 3; connect them in number order. The names are just decoration.
+- Tap a tile to turn its pipe 90°. Pipes already connected to the start light up; the send button pulses once the pipe reaches the end.
+- Stuck? The ↻ next to the send button reshuffles and starts over.
 - When it looks connected, press "发车" (or Enter on a keyboard). A failed ride costs time: the clock keeps running while the cat rides and while the note is up.
 - Leaving the page or pressing Esc pauses; press "继续" to resume.
 - Every retry reshuffles the pipes; the station order stays. Clearing a level unlocks the next one.

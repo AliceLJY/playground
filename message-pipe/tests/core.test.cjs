@@ -69,6 +69,7 @@ test('skipping the inspection station brings back an empty box, then the level c
     by.taps.forEach(i=>s.tap(i));s.dispatch();rideOut(s);
     assert.strictEqual(s.fail&&s.fail.kind,'emptybox','spec 4: a route that skips 验货 must fail with the empty box');
     assert.strictEqual(s.fail.station,k,'spec 4: the inspection station is the one that lights up');
+    assert.ok(s.fail.text.includes(C.NUM[k]),'spec 4: the empty-box note points at the station by number');
     const last=s.ride.pts[s.ride.pts.length-1];
     assert.deepStrictEqual([last[0],last[1]],[d.end.c+0.5,d.end.r+0.5],'spec 4: the cat gets all the way to the end before the box is found empty');
     assert.strictEqual(s.phase,'play','after a failed ride the player can keep turning pipes');
@@ -96,7 +97,7 @@ test('out-of-order and missing stations stop the cat and light the station it sk
         r.taps.forEach(i=>s.tap(i));s.dispatch();rideOut(s);
         assert.strictEqual(s.fail&&s.fail.kind,'order',`spec 4: level ${L+1} seed ${seed} takes the shortcut`);
         assert.strictEqual(s.fail.station,skipped,'spec 4: the station it skipped is the one that lights up');
-        assert.ok(s.fail.text.includes(d.stations[skipped].name)&&s.fail.text.includes(d.stations[seq[skipped]].name),'spec 4: the note names both stations');
+        assert.ok(s.fail.text.includes(C.NUM[skipped])&&s.fail.text.includes(C.NUM[seq[skipped]]),'spec 4: the note points at both stations by number, no need to know what they mean');
         const lp=s.ride.pts[s.ride.pts.length-1];
         assert.ok(!(Math.abs(lp[0]-d.end.c-0.5)<1e-9&&Math.abs(lp[1]-d.end.r-0.5)<1e-9),'spec 4: the cat stops half way, before reaching the end');
         order++;
@@ -118,7 +119,7 @@ test('reaching the end with a station still missing is turned back at the gate',
   cells[1].rot=1;cells[2].rot=1;  // straight pieces turned east-west
   const tr=C.trace(d,cells);
   assert.strictEqual(tr.outcome.kind,'missing');assert.strictEqual(tr.outcome.station,1);
-  assert.ok(C.failText(d,tr.outcome).includes('乙'));
+  assert.ok(C.failText(d,tr.outcome).includes(C.NUM[1]),'spec 4: the missing station is named by its number');
 });
 
 test('the same seed gives the same board and the same game',()=>{
@@ -166,4 +167,21 @@ test('after a timeout a retry starts clean and can be won',()=>{
   assert.deepStrictEqual([again.phase,again.steps,again.rides,again.timeLeft,again.fail],['play',0,0,LEVELS[4].time,null]);
   const p=C.pilot('precise',4);for(let n=0;n<60*60&&again.phase!=='cleared';n++){p.drive(again,CFG.step);again.step(CFG.step);}
   assert.strictEqual(again.phase,'cleared','spec 5: the retry is playable to the end');
+});
+
+test('plain-player rule: every note leads with numbers, every station has one, names never carry the rule',()=>{
+  // spec 1: someone who knows nothing about AI plays by the numbers 1, 2, 3 alone
+  LEVELS.forEach((d,L)=>{
+    d.stations.forEach((st,k)=>assert.ok(C.NUM[k],'station '+st.name+' has a number'));
+    for(const o of [{kind:'break',station:0},{kind:'order',station:0,at:d.stations.length-1},{kind:'missing',station:d.stations.length-1},{kind:'emptybox',station:d.stations.length-1}]){
+      const t=C.failText(d,o),pos=t.indexOf(C.NUM[o.station]);
+      assert.ok(pos>=0,`level ${L+1} ${o.kind}: the note "${t}" must show the number ${C.NUM[o.station]}`);
+      assert.ok(pos<=t.indexOf(d.stations[o.station].name),`level ${L+1} ${o.kind}: the number comes before the name`);
+      assert.ok(!/[A-Za-z]{3,}/.test(t.replace(/AI/g,'')),`level ${L+1} ${o.kind}: no English jargon in "${t}"`);
+    }
+    const s=C.create({level:L,seed:1});
+    assert.strictEqual(C.reaches(d,s.cells),false,'a fresh board does not already reach the end');
+    C.solve(d,s.cells).taps.forEach(i=>s.tap(i));
+    assert.strictEqual(C.reaches(d,s.cells),true,'once solved the pipe reaches the end, which lights the send button');
+  });
 });
