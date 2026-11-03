@@ -48,7 +48,7 @@ body[data-version=repaired] #readout b.hot{color:var(--good)}
 #info b{color:var(--gold)}
 #info .close{position:sticky;bottom:0;display:block;margin:10px 0 0 auto;background:#1b212b;box-shadow:0 0 0 6px rgba(14,17,23,.97)}
 
-body.compact #sub{display:none}
+body.compact #sub{display:block}
 body.compact #top h1{font-size:16px}
 body.compact #readout{font-size:12px}
 body.narrow #top{flex-wrap:wrap;gap:4px 10px;padding-top:max(6px,env(safe-area-inset-top))}
@@ -79,7 +79,7 @@ body.short button{min-height:34px}
 <header id="top">
   <div class="titles">
     <h1>齿轮返修</h1>
-    <p id="sub">dsh 一次写出的齿轮页，和它自己返修后的版本</p>
+    <p id="sub">先看红点，再点返修后</p>
   </div>
   <div id="chip" aria-live="polite"><span><i></i><em id="chip-text">检测中…</em></span></div>
   <div class="seg" id="ver" role="group" aria-label="版本">

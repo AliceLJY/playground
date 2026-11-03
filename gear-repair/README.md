@@ -10,6 +10,8 @@ This page puts the two versions side by side. One button switches between the or
 
 ## Controls
 
+The opening subtitle asks visitors to look at the red marks, then switch to the repaired version. It stays visible on phones and in landscape.
+
 - Top right: the original / repaired switch (the buttons are labelled in Chinese on the page). The badge in the middle shows the result of a 60-frame check over one tooth period for the version on screen: 60 of 60 frames overlap for the original, 0 of 60 for the repaired one.
 - Bottom: the live count of overlap points for A–B and C–D, three camera buttons (whole train, A–B close-up, C–D close-up), pause, slow motion (0.2x), a switch for the red markers, and a short explanation sheet (also in Chinese).
 - Drag to orbit, scroll or pinch to zoom, right-drag or two fingers to pan. Space pauses.
