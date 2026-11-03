@@ -11,10 +11,36 @@
 html,body{margin:0;height:100%;background:#F3E7CF;overflow:hidden;overscroll-behavior:none}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 noscript{color:#3B2A1E;font:16px sans-serif;position:fixed;inset:0;display:grid;place-items:center;text-align:center;padding:24px}
+#result{position:fixed;inset:0;z-index:1;background:#F3E7CF;color:#3B2A1E;font:700 16px/1.5 "PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column;align-items:center;padding:12px 16px;box-sizing:border-box}
+#result[hidden]{display:none}
+#result header{text-align:center;flex:none;width:100%;max-width:720px;position:relative}
+#result-score{font-size:36px;font-weight:900;color:#B8322A}
+#result-stats{font-size:14px}
+#result h1{font-size:clamp(32px,8vw,60px);line-height:1.2;color:#B8322A;margin:8px 0}
+#result .key-line{background:#4FAE6A;color:white;border-radius:14px;padding:8px 12px;box-shadow:3px 4px #2F7A45;margin:0 auto 12px;max-width:540px}
+#review{width:100%;max-width:720px;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px;box-sizing:border-box}
+#review h2{font-size:16px;text-align:center;color:#7A6650;margin:4px 0 8px}
+#review-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+#review-list details{background:#FFF9EC;border:1px solid #b8a58a;border-radius:12px;overflow:hidden}
+#review-list summary{cursor:pointer;min-height:48px;padding:10px;box-sizing:border-box;list-style-position:inside}
+.review-name{font-size:18px}.review-icon{position:static;display:inline-block;width:32px;height:36px;vertical-align:middle;touch-action:auto;margin-right:4px}.review-nature{border-radius:50%;color:white;display:inline-block;text-align:center;min-width:25px;margin-left:4px}.review-taste{font-size:16px;color:#7A6650;display:block;margin-top:4px;overflow-wrap:anywhere}
+.review-note{margin:0;padding:8px 12px;border-top:1px solid #d9c29c;font-weight:700;font-size:16px}
+.review-chosen{font-size:14px;padding:0 12px 12px;margin:0;color:#B8322A}
+#result button{font:inherit;min-height:44px;min-width:44px;border-radius:12px;cursor:pointer;border:1px solid #B8322A}
+#restart{background:#B8322A;color:#FFF9EC;padding:8px 28px;margin:10px 0 6px}
+#result-mute{position:absolute;right:0;top:0;font-size:13px;background:#FFF9EC;color:#3B2A1E;padding:4px 8px}
+#result footer{flex:none;text-align:center;font-size:12px;color:#7A6650}
+@media(max-width:360px){#result{padding:10px}#review-list{gap:6px}#review-list summary{padding:8px}.review-name{font-size:17px}#result-score{font-size:30px}#result-mute{right:0;font-size:12px}}
+@media(max-height:420px){#result{padding:6px 16px}#result header{display:grid;grid-template-columns:1fr 2fr;gap:0 16px;padding-right:80px;box-sizing:border-box}#result-score{font-size:24px}#result-stats{font-size:12px}#result h1{font-size:26px;grid-column:2;grid-row:1}#result .key-line{font-size:14px;grid-column:2;grid-row:2;margin:0 0 6px;padding:3px 8px}#review-list{grid-template-columns:repeat(4,minmax(0,1fr))}#restart{margin:6px 0 2px}}
 </style>
 </head>
 <body>
 <canvas id="stage" aria-label="药性配对：药材从上方落下，点下面的寒、凉、温、热药篓把它分进去，也可以把药材拖进篓里。小游戏只为认识四气，不是医疗建议。"></canvas>
+<section id="result" hidden aria-label="本局结果与错题回看">
+<header><div id="result-score"></div><div id="result-stats"></div><h1>寒热温凉</h1><p class="key-line">四气是药物作用于人体后的反应，<br>不是药材本身的温度</p><button id="result-mute" type="button">声音</button></header>
+<div id="review"><h2 id="review-title">这几味没分对 · 点开看药签</h2><div id="review-list"></div></div>
+<footer><button id="restart" type="button">再来一局</button><div>小游戏只为认识四气，不是医疗建议；用药请遵医嘱</div></footer>
+</section>
 <noscript>这个小游戏需要打开 JavaScript 才能玩。<br>小游戏只为认识四气，不是医疗建议；用药请遵医嘱。</noscript>
 <script src="src/core.js"></script>
 <script src="src/herbs.js"></script>

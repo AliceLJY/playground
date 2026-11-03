@@ -65,7 +65,8 @@ function basketAt(L,x,y){
 
 function create(opts){
   opts=opts||{};
-  const aspect=clamp(opts.aspect||0.5625,0.45,1.9),W=H*aspect,rand=rng(opts.seed==null?1:opts.seed),L=layout(W);
+  const aspect=clamp(opts.aspect||0.5625,0.45,1.9),rand=rng(opts.seed==null?1:opts.seed);
+  let W=H*aspect,L=layout(W);
   const s={W,H,aspect,L,t:0,phase:'play',herbs:[],nextSpawn:0.6,deck:[],last:-1,nextId:1,
     score:0,combo:0,bestCombo:0,filed:0,correct:0,wrong:0,missed:0,quick:0,
     perNature:NATURES.map(()=>({seen:0,ok:0})),slips:[],seen:HERBS.map(()=>0),
@@ -102,11 +103,15 @@ function create(opts){
   // ----- explanation cards (药签): never placed over a herb, nor in the path a falling herb will take while the card is up -----
   // narrow screens shrink the card so one herb in the middle of the lane can never block both sides at once
   // wide screens have room beside the lane, so the card grows there (up to 1.6x) and stays readable on a landscape phone
-  const side=(W-L.span)/2-2*CFG.margin,cardK=side>=CFG.card.w?Math.min(1.6,side/CFG.card.w):1;
-  const cardW=cardK>1?Math.floor(CFG.card.w*cardK):Math.min(CFG.card.w,Math.floor((W-2*CFG.margin)/2-CFG.box.half-CFG.card.pad-4));
+  let cardK,cardW,cardH,cardYs;
+  function sizeCards(){
+  const side=(W-L.span)/2-2*CFG.margin;cardK=side>=CFG.card.w?Math.min(1.6,side/CFG.card.w):1;
+  cardW=cardK>1?Math.floor(CFG.card.w*cardK):Math.min(CFG.card.w,Math.floor((W-2*CFG.margin)/2-CFG.box.half-CFG.card.pad-4));
   // a narrow card cannot get wider without blocking both sides at once, so it gets taller to keep its text readable
-  const tall=cardK===1&&cardW<200,cardH=tall?CFG.card.tallH:Math.round(CFG.card.h*cardK);
-  const cardYs=cardK>1?[Math.round(CFG.hudBottom+10+(CFG.basketTop-60-CFG.hudBottom-10-cardH)/2)]:tall?CFG.card.tallYs:CFG.card.ys;s.cardW=cardW;s.cardH=cardH;s.cardK=cardK;
+  const tall=cardK===1&&cardW<200;cardH=tall?CFG.card.tallH:Math.round(CFG.card.h*cardK);
+  cardYs=cardK>1?[Math.round(CFG.hudBottom+10+(CFG.basketTop-60-CFG.hudBottom-10-cardH)/2)]:tall?CFG.card.tallYs:CFG.card.ys;s.cardW=cardW;s.cardH=cardH;s.cardK=cardK;
+  }
+  sizeCards();
   function sideRect(side,y){const x=side<0?CFG.margin:W-CFG.margin-cardW;return{x,y:y==null?cardYs[0]:y,w:cardW,h:cardH};}
   function clearOf(rect){
     const B=CFG.box,c=CFG.card;
@@ -125,10 +130,12 @@ function create(opts){
   }
   function placeCards(){
     for(let i=0;i<s.cardQueue.length;i++){
-      const q=s.cardQueue[i];let placed=null;
+      const q=s.cardQueue[i];
+      if(q.card&&s.t-q.card.born>=CFG.card.life){s.cardQueue.splice(i--,1);continue;}
+      let placed=null;
       for(const side of[q.side,-q.side]){for(const y of cardYs){const rc=sideRect(side,y);if(clearOf(rc)){placed=rc;break;}}if(placed)break;}
-      if(placed){s.cardQueue.splice(i--,1);const card=Object.assign({k:q.k,chosen:q.chosen,born:s.t,id:q.id},placed);s.cards.push(card);s.cardsShown++;emit({type:'card',card});}
-      else if(s.t-q.at>CFG.card.maxWait){s.cardQueue.splice(i--,1);s.cardsDropped++;}
+      if(placed){s.cardQueue.splice(i--,1);const card=Object.assign(q.card||{k:q.k,chosen:q.chosen,born:s.t,id:q.id},placed);s.cards.push(card);if(!q.card){s.cardsShown++;emit({type:'card',card});}}
+      else if(s.t-q.at>CFG.card.maxWait){s.cardQueue.splice(i--,1);if(!q.card)s.cardsDropped++;}
     }
   }
 
@@ -188,7 +195,26 @@ function create(opts){
     // let go somewhere else: it goes back to its own column and keeps falling, no higher than where it was picked up
     h.x=h.gx;h.y=Math.max(h.gy,Math.min(h.y,CFG.missY-1));return null;
   }
-  return{state:s,step,tapBasket,tapAt,grab,carry,release,finish};
+  function resize(aspect){
+    const next=H*clamp(aspect,0.45,1.9);if(next===W)return;
+    const old=L;W=next;L=layout(W);s.W=W;s.aspect=W/H;s.L=L;sizeCards();
+    // At most four live herbs. Use the nearest free column/height when a narrow
+    // viewport cannot fit their old columns; no herb is discarded or re-dealt.
+    const count=Math.min(CFG.maxLive,Math.floor(L.span/(2*CFG.box.half+10))),placed=[];
+    for(const h of s.herbs.slice().sort((a,b)=>b.y-a.y)){
+      if(h.grabbed){h.x=h.gx;h.y=h.gy;h.grabbed=false;}
+      const target=L.laneMin+(h.x-old.laneMin)/(old.laneMax-old.laneMin)*(L.laneMax-L.laneMin);
+      const ys=[h.y,CFG.spawnY,CFG.missY-1,h.y-174,h.y+174].filter(y=>y>=CFG.spawnY&&y<CFG.missY);
+      const slots=[];
+      for(let i=0;i<count;i++)for(const y of ys){const x=lerp(L.laneMin,L.laneMax,i/(count-1));
+        if(placed.every(o=>Math.abs(o.x-x)>=2*CFG.box.half+1||Math.abs(o.y-y)>=CFG.box.top+CFG.box.bottom+1))slots.push({x,y,cost:Math.abs(x-target)+4*Math.abs(y-h.y)});}
+      slots.sort((a,b)=>a.cost-b.cost);h.x=slots[0].x;h.y=slots[0].y;placed.push(h);
+    }
+    // Re-place the same cards with their original expiry, using the usual avoidance.
+    for(const c of s.cards)s.cardQueue.push({k:c.k,chosen:c.chosen,id:c.id,side:c.x<old.x0+old.span/2?-1:1,at:s.t,card:c});
+    s.cards.length=0;placeCards();
+  }
+  return{state:s,step,tapBasket,tapAt,grab,carry,release,finish,resize};
 }
 
 // Autopilots for tests, fixed views and the recording.
