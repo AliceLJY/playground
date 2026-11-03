@@ -14,13 +14,15 @@ A round lasts at most two minutes (one "session"). It is built for phones held u
 - The conversation itself grows the context: one extra segment every 7 seconds, so dodging without eating still gets longer.
 - Fresh material sits next to the head; the oldest sits at the tail.
 
-Two skills:
+Two skills (the buttons themselves show when to press):
 
-- **Compress**: needs at least 5 segments. Cuts the oldest stretch off the tail and leaves a single "summary" segment; the score is untouched; 10 second cooldown.
+- **Compress**: needs at least 5 segments. Cuts the oldest stretch off the tail and leaves a single "summary" segment; the score is untouched; 10 second cooldown. Once turns start to lag, the compress button glows pink.
 - **Dispatch a sub-agent**: needs at least 7 segments. Four tail segments break off as a small coal ball with a cyan antenna, roam the board eating for 9 seconds, then come back with a 205–588 character report: points, but no length. It grows while it is out, with its "tokens" shown beside it (for show only).
-- With 3 sub-agents already out, dispatching a fourth sends all four into **429** together: they vanish, no reports arrive, and dispatching is locked for 8 seconds.
+- With 3 sub-agents already out, dispatching a fourth sends all four into **429** together: they vanish, no reports arrive, and dispatching is locked for 8 seconds. The three dots on the button are the three slots; when all three are lit the button turns red.
 
 How slow the turns get: up to 15 segments a turn lands on the next cell; 16–23 segments it lands one cell late, 24–31 two cells late, 32 and up three cells late. A dashed pink ring on the board marks where a turn pressed right now would land, queued turns show as pink arrows, and the top bar says how many cells late turns currently land.
+
+You do not need to know anything about AI: the words are only names, the game is plain Snake, and every choice is cued by colour, numbers or arrows.
 
 The result screen picks one real event that matches your round and tells it in a line, such as sub-agents that read well over a hundred thousand tokens and handed back a few hundred characters, or eight heavy sub-agents dispatched at once that all hit 429.
 

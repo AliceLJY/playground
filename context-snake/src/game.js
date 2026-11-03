@@ -72,7 +72,7 @@ const fx={pops:[],puffs:[],bursts:[],flash:0,shake:0,banner:null,overT:0,lastTur
 function start(seed){
   seedUsed=seed==null?(Math.random()*1e9)|0:seed;
   game=Core.create({seed:seedUsed});pilot=null;screen='play';paused=false;
-  fx.pops.length=fx.puffs.length=fx.bursts.length=0;fx.flash=fx.shake=0;fx.banner={text:'会话开始',color:COLOR.cream,t:0};fx.overT=0;
+  fx.pops.length=fx.puffs.length=fx.bursts.length=0;fx.flash=fx.shake=0;fx.banner={text:L&&L.land?'方向键转弯 · 吃东西 · 别撞自己':'滑动或按方向键 · 吃东西 · 别撞自己',color:COLOR.cream,t:0,life:3.2};fx.overT=0;
   swipe=null;syncUi();canvas.focus&&canvas.focus();
 }
 function toTitle(){screen='title';game=null;pilot=null;paused=false;syncUi();}
@@ -137,11 +137,17 @@ function syncUi(){
     const s=game.state,t=s.t,len=s.body.length;
     const cr=t<s.compressReady?1-(s.compressReady-t)/CFG.compressCd:1,canC=Core.compressCut(len)>0;
     const bc=$('btn-compress');bc.style.setProperty('--ready',cr.toFixed(3));bc.classList.toggle('off',cr<1||!canC);
-    $('cd-compress').textContent=cr<1?Math.ceil(s.compressReady-t)+' 秒':canC?'砍 '+Core.compressCut(len)+' 段':'太短';
+    $('cd-compress').textContent=cr<1?Math.ceil(s.compressReady-t)+' 秒':canC?'−'+Core.compressCut(len)+' 段':'太短';
+    // pink pulse = now is a good time: turns have started to lag and compression is ready
+    bc.classList.toggle('hint',cr>=1&&canC&&Core.turnDelay(len)>=1);
     const locked=t<s.lockUntil,dr=locked?1-(s.lockUntil-t)/CFG.lockout429:t<s.dispatchReady?1-(s.dispatchReady-t)/CFG.dispatchCd:1;
     const canD=len>=CFG.dispatchMinLen;
     const bd=$('btn-dispatch');bd.style.setProperty('--ready',dr.toFixed(3));bd.classList.toggle('off',dr<1||!canD);
-    $('cd-dispatch').textContent=locked?'429 限流 '+Math.ceil(s.lockUntil-t)+' 秒':s.subs.length+'/'+CFG.subMax+' 在外'+(canD?'':' · 太短');
+    // three dots on the button are the three slots; all three lit turns the button red: one more press loses them all
+    const full=!locked&&s.subs.length>=CFG.subMax;
+    bd.classList.toggle('warn',full||locked);
+    document.querySelectorAll('#slots i').forEach((d,i)=>d.classList.toggle('on',i<s.subs.length));
+    $('cd-dispatch').textContent=locked?'429 '+Math.ceil(s.lockUntil-t)+' 秒':full?'⚠ 再按全没':canD?'−4 段':'要 7 段';
   }
 }
 
@@ -152,7 +158,7 @@ function tick(dt){
   for(const p of fx.puffs)p.t+=dt;fx.puffs=fx.puffs.filter(p=>p.t<0.6);
   for(const p of fx.bursts)p.t+=dt;fx.bursts=fx.bursts.filter(p=>p.t<1.4);
   fx.flash=Math.max(0,fx.flash-dt*2.5);fx.shake=Math.max(0,fx.shake-dt*3);
-  if(fx.banner){fx.banner.t+=dt;if(fx.banner.t>1.6)fx.banner=null;}
+  if(fx.banner){fx.banner.t+=dt;if(fx.banner.t>(fx.banner.life||1.6))fx.banner=null;}
   if(screen==='result')fx.overT+=dt;
   if(screen!=='play'||paused||!game)return;
   const s=game.state;
@@ -317,7 +323,7 @@ function drawHud(s){
   ctx.fillStyle=remain<20?COLOR.alert:COLOR.cream;rrect(bx,by,bw*remain/CFG.roundTime,bh,bh/2);ctx.fill();
   text(label,bx-8,by+bh/2,fs*0.85,COLOR.dim,'right',700);
   // second row: context length and turn lag on the left, sub-agent slots on the right; the label goes first when it is tight
-  const y2=top+h*0.8,len=s.body.length,d=game.delay,lenStr='上下文 '+len+' 段',lagStr=d?'转弯慢 '+d+' 格':'转弯灵活';
+  const y2=top+h*0.8,len=s.body.length,d=game.delay,lenStr='长度 '+len,lagStr=d?'转弯慢 '+d+' 格':'转弯灵活';
   text(lenStr,left,y2,fs,COLOR.cream,'left',700);
   const lx=left+width(lenStr,fs)+10,lagEnd=lx+width(lagStr,fs);
   text(lagStr,lx,y2,fs,d>=2?COLOR.alert:d?COLOR.pink:COLOR.web,'left',700);
@@ -327,7 +333,7 @@ function drawHud(s){
   const sl='子 agent';if(slotsLeft-6-width(sl,fs*0.85)>lagEnd+8)text(sl,slotsLeft-6,y2,fs*0.85,COLOR.dim,'right',700);
 }
 function drawBanner(){
-  if(!fx.banner)return;const b=fx.banner,a=Math.min(1,b.t*6,Math.max(0,(1.6-b.t)*3)),f=L.field;
+  if(!fx.banner)return;const b=fx.banner,a=Math.min(1,b.t*6,Math.max(0,((b.life||1.6)-b.t)*3)),f=L.field;
   ctx.globalAlpha=a;const fs=Math.max(14,Math.min(22,L.cell*0.7));ctx.font='700 '+fs+'px '+FONT;
   const w=Math.min(f.w-16,ctx.measureText(b.text).width+28),x=f.x+f.w/2,y=f.y+fs*1.4;
   ctx.fillStyle='rgba(16,18,24,0.85)';rrect(x-w/2,y-fs*0.95,w,fs*1.9,fs*0.5);ctx.fill();
@@ -342,12 +348,12 @@ function drawTitle(t){
   const fs=Math.max(13,Math.min(17,W*0.041)),lh=fs*1.65,x0=Math.max(16,W/2-Math.min(W,440)/2+16),maxW=Math.min(W,440)-32;
   let y=yb+r*2.05+Math.min(52,W*0.12)*0.95+fs*2.2;
   const rows=[
-    [['file','web','log'],'吃文件、网页、日志，身子变长'],
-    [null,'越长越难拐弯：按了方向，要先走几格才拐'],
-    [null,'撞到自己 = 上下文污染，这局结束'],
-    ['summary','压缩：砍掉最老的一截，分数不扣'],
-    ['sub','派子 agent：甩一截出去自己吃，只交回一句短汇报'],
-    ['alert','同时在外超过 3 个，全撞 429 一起消失']
+    [['file','web','log'],'吃东西，身子变长'],
+    [null,'越长拐弯越慢，粉色圈就是会拐的那一格'],
+    [null,'撞到自己就输（上下文污染）'],
+    ['summary','✂ 压缩：尾巴剪掉一截，分数不扣'],
+    ['sub','派子 agent：甩出一截自己去吃，回来加分'],
+    ['alert','按钮上 3 个点亮满了还按，全部消失']
   ];
   for(const [k,str] of rows){
     let tx=x0;
