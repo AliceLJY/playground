@@ -182,12 +182,16 @@ async function cancelInput(page, target, kind) {
             const selector = '#' + target;
             if (target === 'plot') await page.locator(selector).scrollIntoViewIfNeeded();
             const r = await page.locator(selector).boundingBox(), before = await state(page);
-            const y0 = await page.evaluate(() => scrollY);
+            const { y0, remaining } = await page.evaluate(() => ({ y0: scrollY, remaining: document.documentElement.scrollHeight - innerHeight - scrollY }));
             const x = target === 'stage' ? r.x + 12 : r.x + r.width * 0.6;
-            const y = Math.min(height - 20, r.y + r.height * 0.8);
-            await swipe(cdp, page, x, y, 4, -Math.min(180, y - 25));
+            // 曲线靠近页尾时改向下划，仍验证实际滚动，不能把到底当成手势失效。
+            const direction = remaining >= 180 ? -1 : 1;
+            const y = direction < 0 ? Math.min(height - 20, r.y + r.height * 0.8) : Math.max(25, r.y + r.height * 0.2);
+            const distance = Math.min(180, direction < 0 ? y - 25 : height - 25 - y);
+            assert.ok(distance > 80 && (direction < 0 ? remaining : y0) > 80, '采样位置必须留有足够的纵划与滚动空间');
+            await swipe(cdp, page, x, y, 4, direction * distance);
             const y1 = await page.evaluate(() => scrollY), after = await state(page);
-            assert.ok(y1 > y0 + 60, `纵划应滚动 >60px，实际 ${y0}→${y1}`);
+            assert.ok((y1 - y0) * -direction > 60, `纵划应沿预期方向滚动 >60px，实际 ${y0}→${y1}`);
             assert.deepEqual(after, before, '纵划误触选日/选点/召回');
             return { scrollBefore: y0, scrollAfter: y1, before, after };
           });

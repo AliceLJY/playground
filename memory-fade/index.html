@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>记忆褪色 · 一条记忆是怎么被忘掉的</title>
+<link rel="icon" href="data:,">
 <meta name="description" content="把 AI 记忆系统的衰减公式做成一根能拽的弹簧：拖时间轴看它往下沉，点一下就是想起它一次。">
 <style>
   :root {
@@ -84,9 +85,10 @@
     .interaction .row { margin: 4px 0; }
   }
   @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
-  .experiment-menu { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
-  .experiment-menu span { color: var(--mute); font-size: 13px; }
-  .experiment-menu button { flex: none; padding: 0 18px; }
+  .experiment-menu { margin: 8px 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  .experiment-menu p { margin: 0 0 8px; font-weight: 600; }
+  .experiment-menu .row { margin: 0; }
+  .experiment-menu button { padding: 0 8px; }
   #experiment { width: min(920px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0 16px 16px;
     border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--bg); overscroll-behavior: contain; }
   #experiment::backdrop { background: rgb(43 38 32 / .55); }
@@ -126,6 +128,7 @@
   <p class="sub">AI 记忆的检索分会随时间降低。拖时间轴、点卡片或钉住它试试。</p>
 
   <div class="workspace">
+  <div class="interaction-column">
   <section class="interaction" aria-label="记忆推演">
   <svg id="stage" viewBox="0 0 360 302" aria-label="挂在弹簧上的记忆卡片，越往下沉，检索时越不容易被想起">
     <rect class="ceiling" x="96" y="8" width="168" height="10" rx="3"/>
@@ -161,6 +164,12 @@
   <p id="why"></p>
   </section>
 
+  <nav class="experiment-menu" aria-label="下一步：三次想起">
+    <p>下一步：只给三次机会，把它留到第 180 天</p>
+    <div class="row"><button id="open-experiment" class="primary">三次想起 →</button><button id="skip-experiment">继续原推演</button></div>
+  </nav>
+  </div>
+
   <section class="context" aria-label="曲线与入库样本">
   <svg id="plot" viewBox="0 0 360 178" aria-label="检索分倍率随天数变化的曲线，可横向拖动选择日子">
     <g id="axes"></g>
@@ -181,10 +190,6 @@
   </label>
   </section>
   </div>
-
-  <nav class="experiment-menu" aria-label="可选小实验">
-    <span>可选小实验</span><button id="open-experiment">三次想起 →</button>
-  </nav>
 
   <details>
     <summary>这条曲线是怎么算的</summary>

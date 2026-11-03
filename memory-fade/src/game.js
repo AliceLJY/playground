@@ -384,6 +384,9 @@
       $('experiment-scrub').focus({ preventScroll: true });
     }
   }
+  $('skip-experiment').addEventListener('click', () => {
+    $('scrub').scrollIntoView({ block: 'center' }); $('scrub').focus({ preventScroll: true });
+  });
   $('open-experiment').addEventListener('click', () => {
     // 每次从每日原始数字重建候选，默认玩法里修改过的样本不会带入实验。
     experiment = E.create(E.choose(LIB.rows.map(fromRow)));
