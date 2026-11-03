@@ -61,6 +61,7 @@
         }
         button {
             flex: 1;
+            min-height: 44px;
             padding: 6px 10px;
             border: 1px solid #b5924c;
             background: #fdfaf2;
@@ -75,6 +76,23 @@
             background: #f3b530;
             color: #fff;
             border-color: #f3b530;
+        }
+        button:disabled { opacity: .5; cursor: default; }
+        .touch-hint { display: none; }
+        .button-label-short { display: none; }
+        @media (pointer: coarse) {
+            .mouse-hint { display: none; }
+            .touch-hint { display: block; }
+        }
+        @media (max-width: 600px), (max-height: 400px) {
+            #ui-panel { top: 10px; left: 10px; right: 10px; padding: 12px; max-height: calc(100dvh - 44px); overflow-y: auto; }
+            .control-row { gap: 8px; }
+            input[type="range"] { min-width: 0; flex: 1; }
+            .button-rows { display: flex; gap: 6px; }
+            .btn-group { flex: 1; min-width: 0; gap: 6px; }
+            .btn-group button { padding: 5px 3px; font-size: 11px; }
+            .button-label-long { display: none; }
+            .button-label-short { display: inline; }
         }
         /* 图上对应的 3D 浮动标签 */
         .gear-label {
@@ -121,15 +139,20 @@
 
 <div id="ui-panel">
     <h2>⚙️ 机械钟三级齿轮传动机构</h2>
-    <p>🖱️ 左键拖动：旋转视角 | 右键：平移 | 滚轮：缩放</p>
+    <p class="mouse-hint">🖱️ 左键拖动：旋转视角 | 右键：平移 | 滚轮：缩放</p>
+    <p class="touch-hint">单指拖动：旋转 · 双指捏合：缩放 · 双指拖动：平移</p>
     <div class="control-row">
         <span>演示时间倍率: <strong id="speed-val">60x</strong></span>
         <input type="range" id="speed-slider" min="1" max="600" value="60">
     </div>
-    <div class="btn-group">
-        <button id="toggle-labels">隐藏/显示标注</button>
-        <button id="reset-cam">复位视角</button>
+    <div class="button-rows"><div class="btn-group">
+        <button id="pause" aria-pressed="false">暂停</button>
+        <button id="step" disabled>一步<br class="button-label-short"> · 0.25 秒</button>
     </div>
+    <div class="btn-group">
+        <button id="toggle-labels" aria-label="隐藏或显示标注"><span class="button-label-long">隐藏/显示</span>标注</button>
+        <button id="reset-cam">复位视角</button>
+    </div></div>
 </div>
 
 <!-- 还原图上的三级传动标注 -->
@@ -678,6 +701,18 @@ alignMeshingPhase(gearHour32, 32, angleMW + Math.PI, true);
 let timeScale = 60; // 默认 60x 速度：中心轮每分钟转1圈，擒纵轮每秒转1圈，方便直观观察
 const slider = document.getElementById('speed-slider');
 const speedVal = document.getElementById('speed-val');
+let paused = false;
+let pendingStep = 0;
+const pauseButton = document.getElementById('pause');
+const stepButton = document.getElementById('step');
+pauseButton.addEventListener('click', () => {
+    paused = !paused;
+    clock.getDelta(); // Discard time since the last frame; resuming never catches up.
+    pauseButton.textContent = paused ? '继续' : '暂停';
+    pauseButton.setAttribute('aria-pressed', String(paused));
+    stepButton.disabled = !paused;
+});
+stepButton.addEventListener('click', () => { if (paused) pendingStep += 0.25; });
 
 slider.addEventListener('input', (e) => {
     timeScale = parseFloat(e.target.value);
@@ -716,14 +751,17 @@ function updateLabels() {
 // ==================== 9. 严格按齿数比的动画主循环 ====================
 const clock = new THREE.Clock();
 let centerWheelAngle = 0; // 中心轮累计旋转角 (弧度)
+let balancePhase = 0;
 
 function animate() {
     requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
+    const simulationDelta = paused ? pendingStep : delta * timeScale + pendingStep;
+    pendingStep = 0;
     // 真实机械钟：中心轮每小时 (3600秒) 顺时针旋转 1 圈 (-2π 弧度)
     const centerOmega = -(Math.PI * 2) / 3600;
-    centerWheelAngle += centerOmega * delta * timeScale;
+    centerWheelAngle += centerOmega * simulationDelta;
 
     // 1. 中心轮轴系：1 圈/小时 (顺时针: -1)
     shaftCenter.rotation.z = centerWheelAngle;
@@ -742,9 +780,9 @@ function animate() {
     shaftHour.rotation.z = centerWheelAngle * (10 / 30) * (8 / 32);
 
     // 6. 顶部白色摆轮简谐往复摆动
-    const elapsed = clock.getElapsedTime();
     const oscFreq = Math.min(28, 3.5 * Math.sqrt(timeScale));
-    shaftBalance.rotation.z = Math.sin(elapsed * oscFreq) * 0.45;
+    balancePhase += simulationDelta / timeScale * oscFreq;
+    shaftBalance.rotation.z = Math.sin(balancePhase) * 0.45;
 
     controls.update();
     updateLabels();
@@ -752,6 +790,13 @@ function animate() {
 }
 
 animate();
+
+// Read-only acceptance probe, absent from the normal visitor entry.
+if (new URLSearchParams(location.search).has('debug')) window.__clockwork = {
+    snapshot: () => ({ paused, speed: timeScale, camera: camera.position.toArray(),
+        angles: { center: shaftCenter.rotation.z, great: shaftGreat.rotation.z, third: shaftThird.rotation.z,
+            escape: shaftEscape.rotation.z, minute: shaftMinuteWork.rotation.z, hour: shaftHour.rotation.z, balance: shaftBalance.rotation.z } })
+};
 
 // 窗口尺寸自适应
 window.addEventListener('resize', () => {
