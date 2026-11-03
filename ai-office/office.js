@@ -1359,7 +1359,7 @@
     if(!mv && ['kitchen','bbq'].includes(view)) for(const a of sim.actors) if(a.awayPost==='kitchen') sim.setStatus(a.id,'away');
     // Scene previews for the tower (also the recruitment film): put idle colleagues where the shot needs them first.
     const FIRST={clinic:[45,41,42,43],pool:[41,42,43,44],cat:[44,41],farm:[27,28,25,26],orders:[]};
-    if(!mv && C.bands && FIRST[view]) { for (const a of sim.actors) if (!sim.isCourier(a)) sim.setStatus(a.id, a.awayPost==='kitchen'?'away':view==='orders'&&a.i!==0?'busy':'idle'); cursor = Infinity; sim.leisureFirst=FIRST[view]; if (view==='clinic') sim.bossTarget=C.clinicDoctor; }
+    if(!mv && C.bands && FIRST[view]) { for (const a of sim.actors) if (!sim.isCourier(a)) sim.setStatus(a.id, a.awayPost==='kitchen'?'away':view==='orders'&&a.i!==0?'busy':'idle'); cursor = Infinity; sim.leisureFirst=FIRST[view]; if (view==='clinic') { sim.bossTarget=C.clinicDoctor; const g=sim.actors.find(a=>/grok|scout/.test(a.id)); if (g && C.chargePod) sim.setQuota({[g.id]:new Date(now()+40*60000).toISOString()},now()); } }
     // ?view=nap / feast: 23:30, everyone but CC asleep in the office; feast sends dim sum right away.
     if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
     lastUI = -10; light = ''; buildRoster(); modeBanner();
