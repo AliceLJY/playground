@@ -36,7 +36,7 @@ test('real movement samples stay inside floor and outside furniture; completion 
   s.setStatus(s.actors.find(a=>a.i===1).id,'done');
   for(let i=0;i<1200;i++){
     s.step(20);
-    for(const a of s.actors){assert.ok(a.x>=18&&a.x<=342&&a.y>=88&&a.y<=398);if(a.path.length){moved++;assert.equal(C.blocked(a.x,a.y),false,`${a.id} walks through furniture at ${a.x},${a.y}`);}}
+    for(const a of s.actors){assert.ok(a.x>=18&&a.x<=342&&a.y>=88&&a.y<=(a.awayPost==='kitchen'?720:398));if(a.path.length){moved++;assert.equal(C.blocked(a.x,a.y),false,`${a.id} walks through furniture at ${a.x},${a.y}`);}}
   }
   assert.ok(moved>100,'movement must actually occur');assert.ok(C.distance(s.actors.find(a=>a.i===1),C.home(1))<1);
 });

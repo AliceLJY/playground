@@ -72,7 +72,7 @@ test('idle only: game room, then gym, then rest; 1–10 never overlap; Cobbler s
 });
 test('idle allocation is stable, sorted initially, and each 5 to 4 removal moves only the vacancy replacement',()=>{
   for(let removed=0;removed<5;removed++){const s=idleGroup(5),before=s.actors.map(a=>a.gameSlot);assert.deepEqual(before.slice(0,5),[0,1,4,20,16]);
-    s.step(8000);assert.deepEqual(s.actors.map(a=>a.gameSlot),before);const gone=s.actors[removed];s.setStatus(gone.id,'busy');s.step(15000);
+    s.step(8000);assert.deepEqual(s.actors.map(a=>a.gameSlot),before);const gone=s.actors[removed];s.setStatus(gone.id,'busy');s.step(30000); // 11-03: the teahouse is a floor down now, a longer walk home
     const changed=s.actors.filter(a=>a.i!==removed&&a.gameSlot!==before[a.i]);assert.ok(changed.length<=1,`5→4 removal ${removed} moved ${changed.map(a=>a.i)}`);assert.ok(C.distance(gone,C.home(gone.i))<1);assert.equal(s.actors.filter(a=>a.gameSlot!=null&&a.gameSlot<2).length,2);
   }
   const s=idleGroup(1);assert.equal(s.actors[0].gameSlot,4);s.setStatus('a1','idle');s.step(15000);assert.deepEqual(s.actors.slice(0,2).map(a=>a.gameSlot),[0,1]);s.setStatus('a1','busy');s.step(15000);assert.equal(s.actors[0].gameSlot,4);assert.equal(s.gameActivity(s.actors[0]),'arcade');
@@ -93,7 +93,7 @@ test('tennis waits for both arrivals; shuffled feed order uses desks, spectators
   const sorted=idleGroup(10),reverse=C.create([...sorted.actors].reverse().map(({id,i})=>({id,desk:i})));reverse.step(15000);for(const a of reverse.actors)assert.equal(a.gameSlot,sorted.actors.find(b=>b.id===a.id).gameSlot);
   sorted.setVisitors(1);let watched=false;for(let i=0;i<3000;i++){sorted.step(20);if(sorted.visitors.some(v=>!v.path.length&&C.distance(v,C.gameWatch)<1))watched=true;}
   assert.ok(watched,'visitor really used the observation point');for(const a of sorted.actors.filter(a=>a.gameSlot!=null))assert.ok(C.distance(a,C.gameWatch)>=24);
-  sorted.setStatus('a4','done');walk(sorted,15);const done=sorted.actors.find(a=>a.i===4);assert.ok(C.distance(done,C.home(4))<1);assert.equal(sorted.gameActivity(done),null);
+  sorted.setStatus('a4','done');walk(sorted,30);const done=sorted.actors.find(a=>a.i===4);assert.ok(C.distance(done,C.home(4))<1);assert.equal(sorted.gameActivity(done),null);
 });
 
 test('Dots returns to moved desk, dispatch follows it, legacy desk and routes stay old',()=>{
@@ -121,7 +121,7 @@ test('every 1–10 membership change preserves valid places; chess also waits fo
 });
 test('all activity routes and left-workstation routes are free at subpixel travel samples',()=>{
   function clearRoute(from,to){const path=C.route(from,to);assert.ok(path.length,JSON.stringify({from,to}));let previous=from;for(const p of path){const n=Math.max(1,Math.ceil(C.distance(previous,p)));for(let i=0;i<=n;i++){const x=previous.x+(p.x-previous.x)*i/n,y=previous.y+(p.y-previous.y)*i/n;assert.equal(C.blocked(x,y),false,JSON.stringify({from,to,x,y}));}previous=p;}}
-  for(const start of [...C.desks.map((_,i)=>C.home(i)),C.door,C.bossDesk])for(const p of [...C.leisure('portrait'),C.gameWatch,{x:124,y:372}])clearRoute(start,p);
+  for(const start of [...C.desks.map((_,i)=>C.home(i)),C.door,C.bossDesk])for(const p of [...C.leisure('portrait'),C.gameWatch,C.layouts.portrait.tour[3]])clearRoute(start,p);
   for(const start of [C.home(5),{x:60,y:250}])for(const end of [C.bossDesk,C.door,C.pantry])clearRoute(start,end);
 });
 

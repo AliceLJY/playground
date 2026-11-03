@@ -82,7 +82,9 @@
         "type": "push"
       },
       "desk": 10,
-      "look": 8
+      "look": 8,
+      "awayPost": "kitchen",
+      "awayLabel": "后勤主厨"
     },
     {
       "id": "helper",

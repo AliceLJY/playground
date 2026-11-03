@@ -72,7 +72,8 @@ test('every leisure spot, meeting place and patrol point is reachable on sampled
 test('compact meeting room keeps every seat, standing place and the podium distinct and inside its walls',()=>{
   const points=[C.podium,...C.seats,...C.standing];
   for(let i=0;i<points.length;i++)for(const q of points.slice(i+1))assert.ok(Math.abs(points[i].x-q.x)>=18||Math.abs(points[i].y-q.y)>=24);
-  for(const p of points){assert.ok(p.x>23&&p.x<176&&p.y>490&&p.y<600,JSON.stringify(p));}
+  // 11-03: the meeting room moved upstairs beside the boss desk (layouts.portrait.meetingRect).
+  const R=C.layouts.portrait.meetingRect;for(const p of points){assert.ok(p.x>R.x+3&&p.x<R.x+R.w-3&&p.y>R.y+8&&p.y<R.y+R.h,JSON.stringify(p));}
 });
 
 test('game room and teahouse links point at games that exist in this repo',()=>{
@@ -89,12 +90,13 @@ test('game room and teahouse links point at games that exist in this repo',()=>{
   assert.ok(html.includes('https://github.com/AliceLJY')&&html.includes('我的AI小木屋'),'showcase carries the public accounts');
 });
 
-test('night 7×24: no one goes home; nappers fill the rest room bunks, then beanbags and the yoga mat; work wakes them',()=>{
+test('night 7×24: ordinary colleagues stay; kitchen staff go home; nappers fill the rest room bunks, then beanbags and the yoga mat; work wakes them',()=>{
   for(const layout of ['portrait','landscape']){
     const s=C.create(script.roster,7,layout),L=C.layouts[layout];
     for(const a of s.actors)s.setStatus(a.id,a.name==='Grok Bot'?'away':'off');s.step(40000);
     const grok=s.actors.find(a=>a.name==='Grok Bot');assert.ok(C.distance(grok,L.door)<1,'away still leaves');
-    const off=s.actors.filter(a=>a.status==='off').sort((a,b)=>a.i-b.i);
+    for(const a of s.actors.filter(a=>a.status==='off'&&a.awayPost==='kitchen'))assert.ok(C.distance(a,L.door)<1,'off-duty chef goes home');
+    const off=s.actors.filter(a=>a.status==='off'&&a.awayPost!=='kitchen').sort((a,b)=>a.i-b.i);
     for(const a of off){assert.ok(C.distance(a,L.door)>3,`${layout}: ${a.name} stayed in`);assert.ok(s.napping(a),`${layout}: ${a.name} asleep`);}
     const spots=[...L.beds,...[6,7,15].map(i=>C.leisure(L)[i])];
     off.forEach((a,k)=>assert.ok(C.distance(a,spots[k]||C.home(a.i,L))<1,`${layout}: ${a.name} in spot ${k}`));
@@ -137,7 +139,7 @@ test('over one day every leisure activity actually gets used by the real roster 
   const L=C.layouts.landscape,kinds=new Set(),day=Date.parse('2026-11-01T16:00:00Z');
   for(let w=0;w<72;w++){
     const time=day+w*1200000,mode=C.isBreakfast(time)||(C.isFunTime(time)?'fun':false);
-    for(const n of [5,6,7,8])for(const slot of C.leisureSlots(n,mode,Math.floor(time/1200000))){const k=C.leisure(L)[slot].kind;kinds.add(['nap','read'].includes(k)?'massage':k);}
+    for(const n of [5,6,7,8])for(const slot of C.leisureSlots(n,mode,Math.floor(time/1200000),[],slot=>!!C.leisure(L)[slot])){const k=C.leisure(L)[slot].kind;kinds.add(['nap','read'].includes(k)?'massage':k);}
   }
   for(const kind of ['pingpong','chess','arcade','dance','claw','run','lift','box','yoga','tea','massage','sing','cheer','book','water','cat','movie','buy','soda'])assert.ok(kinds.has(kind),`${kind} never comes up in a day`);
 });

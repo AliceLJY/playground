@@ -187,3 +187,20 @@ Acceptance: server HTTP/auth/persistence/expiry and exact time-boundary tests; b
 Acceptance: full Node suite plus HTTP validation/CORS/cooldown/reload/privacy tests; real-step host selection, status invariance, all-off/busy branches, room reservation, return/exit timing, deterministic selection and FIFO tests; browser screenshots in tools/shots/reception*.png, menu/error/polling/photo/wall checks, default opening and MV pixel regression against the task baseline. Actual phone/Safari performance and public funnel remain owner checks.
 
 Reception budget amendment: one dedicated reception guest increases the maximum simultaneous people from 18 to 19. The normal mobile toolbar uses one 44-pixel row outside the artwork; fixed games view scrolls just enough to keep all six active game nameplates in its first visible viewport. Wallpaper temporarily reveals the annex while reception is active. Daily per-kind counts persist independently of the 50-event history cap.
+## Self-service kitchen and barbecue (2026-11-03)
+
+Visitors on a muted phone or desktop watch colleagues cook, eat and share skewers during a short visit. Sensory warmth and immersion remain the goals; this is an ambient loop, with no new controls or win condition. Reuse the leisure allocator, BFS, local room origins and event bubbles; no dependency, build step or service change.
+
+Kitchen: 76×80 logical pixels at portrait (132,640), landscape (356,256). Barbecue: 72×68 at portrait (268,808), landscape (366,448), leaving the existing stairs and neighbouring rooms intact. Stove/fridge/prep counter occupy the kitchen's upper third, table and two seats the lower half; barbecue has a grill above two stools, smoke and string lights. Existing orthographic camera and 2× Canvas2D buffer stay unchanged. Palette (sRGB): cream #e9dcc0 floor, sage #7d927b trim, charcoal #35474a appliances, orange #e8963a fire, warm white #fff6dc lamps and chef hat. Furniture is solid; plaques and floor outlines are decorative.
+
+Acceptance (Node tests unless noted):
+
+1. Beijing 11:30–13:00 and 17:30–19:00 idle colleagues take kitchen slots before normal leisure; exact start included/end excluded. Outside meals, kitchen remains in the ordinary low-priority rotation.
+2. Beijing 19:00–23:00 barbecue slots precede night tea; tea retains 20:00–23:00 and all other existing clock windows. Explicit parties and delivered dim sum retain their existing priority.
+3. Optional roster `awayPost` accepts only `"kitchen"`; private/guest snapshots preserve it and page validation rejects other values.
+4. Any ID with that post and status `away` walks to the stove, or the grill at 19:00–23:00, reserving that leisure slot. `off` goes to the door; busy/done/waiting follow their existing work rules. Other colleagues retain existing night naps.
+5. A stationed chef wears a white hat. During meals, with an idle colleague actually in the kitchen, brief fixed phrases appear periodically through existing event bubbles. Visual check: cook/chop/eat/grill/cup poses, two-frame fire, smoke, no overlap with neighbouring rooms.
+6. Every new spot is unblocked and BFS-reachable from all occupied desks and the door in both layouts; actual simulation reaches each target. Existing routes stay green.
+7. `film`/`legacy` layout snapshots and deterministic MV pixels remain unchanged; neither layout gains a kitchen or barbecue.
+8. `?demo=1&view=kitchen` (12:00) and `?demo=1&view=bbq` (20:30), seed 7, advance real simulation 40 s before displaying the relevant floor. Verify requested/actual view agreement, chef and diners present, zero page errors at 390×664 and 1440×1000. Keep default rendering. Canvas2D budget remains 30 fps / draw p95 <12 ms; report measurements separately from human taste.
+
