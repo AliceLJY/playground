@@ -59,7 +59,7 @@ function kid(x,yb,girl){
   r(x-4,yb-9,8,8,shirt);r(x-4,yb-16,8,7,'#e4bb91');r(x-4,yb-17,8,3,COL.hair);
   r(x-2,yb-13,2,2,'#2f3a3c');r(x+1,yb-13,2,2,'#2f3a3c');
   if(girl){r(x-6,yb-16,2,5,COL.hair);r(x+4,yb-16,2,5,COL.hair);r(x-6,yb-17,2,1,'#e58fb0');r(x+4,yb-17,2,1,'#e58fb0');}
-  r(x-6,yb-20,2,11,shirt);r(x+4,yb-20,2,11,shirt);r(x-6,yb-22,2,2,'#e4bb91');r(x+4,yb-22,2,2,'#e4bb91');
+  r(x-8,yb-20,2,11,shirt);r(x+6,yb-20,2,11,shirt);r(x-8,yb-22,2,2,'#e4bb91');r(x+6,yb-22,2,2,'#e4bb91');   // arms outside the pigtails so 无虑's two show
 }
 
 // ---------- signs (shapes carry the meaning, text is extra) ----------

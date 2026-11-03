@@ -37,3 +37,10 @@
 - 真机（iOS Safari、安卓 Chrome）没测，只用了桌面浏览器的手机视口模拟。
 - 手感、难度曲线和「这个能不能敲」的犹豫感，自动驾驶只能给区间，要真人试玩。手抖档的输局都集中在最后 10 秒，前 50 秒可能偏松。
 - 线上复验记在下一节。
+
+### 线上复验（2026-11-04）
+
+- 首版提交 `c8b73ce` 的 CI 通过（「Check Later Whack」「Assemble Later Whack」两步成功），首页「小游戏」一排出现卡片。
+- 线上 `index.html`、`src/core.js`、`src/game.js` 与本地逐字节相同。
+- 对 `https://aliceljy.github.io/playground/later-whack/index.html` 跑同一份 `tools/browser-check.cjs`：68 项全部通过，绘制开销 iPhone 视口平均 0.97 ms、最大 8.1 ms，桌面平均 0.28 ms、最大 4.3 ms。
+- 读线上 hero 截图时发现：无虑举「等她」牌时，两只手臂正好画在双马尾的位置，辫子被盖住。把小孩举牌的手臂往外挪 2 格，辫子和粉色发绳露出来了，随后的提交再验一遍线上。
