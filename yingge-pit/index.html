@@ -11,10 +11,18 @@
 html,body{margin:0;height:100%;background:#120a06;overflow:hidden;overscroll-behavior:none}
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 noscript{color:#f6ecd8;font:16px sans-serif;position:fixed;inset:0;display:grid;place-items:center}
+[hidden]{display:none!important}
+button{min-width:48px;min-height:48px;border:1px solid #ffc94a;border-radius:10px;background:#24150ded;color:#f6ecd8;font:700 16px sans-serif;touch-action:manipulation}
+#pause-btn{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top))}
+#pause-panel{position:fixed;inset:0;display:grid;place-items:center;background:#120a06cc;color:#f6ecd8;font:18px sans-serif;text-align:center}
+#pause-panel .card{padding:24px;max-width:calc(100vw - 48px)}
+#pause-panel button{display:block;width:200px;max-width:100%;margin:12px auto}
 </style>
 </head>
 <body>
 <canvas id="stage" aria-label="打回乐池：白衣木偶从乐池往上爬，铁枝一亮就点那一道，让那一道的英歌纸偶出槌把它打回去"></canvas>
+<button id="pause-btn" type="button" aria-label="暂停" hidden>暂停</button>
+<div id="pause-panel" role="dialog" aria-modal="true" aria-label="已暂停" hidden><div class="card"><h2>歇一歇</h2><button id="resume" type="button" aria-live="polite">三拍后继续</button><button id="pause-mute" type="button">声音：开</button></div></div>
 <noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>
 <script src="src/core.js"></script>
 <script src="src/game.js"></script>

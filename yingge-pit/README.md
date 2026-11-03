@@ -11,7 +11,8 @@ About a minute per round. Made for portrait phones; landscape and desktop work t
 - Phone: tap the pads at the bottom, or the lane on the stage itself. In landscape the pads sit at the sides: left thumb for left and middle, right thumb for middle and right. When the drum meter is full, tap the gong at the stage front.
 - Desktop (one player): ← ↓ → or A S D for left, middle, right; ↑, W or Space for the gong.
 - Desktop (two players): Dad uses A (left), S (middle), W (gong); Xinyuan uses ↓ (middle), → (right), ↑ (gong).
-- Pick one or two players on the title screen; sound can be switched off top right on the title and result screens.
+- Pick one or two players on the title screen. The result prompt returns to that screen, where you can select a mode and start again.
+- Tap 暂停 at the upper right during play (Esc on desktop). The pause screen offers sound and a three-beat countdown before continuing the same round. Losing focus or hiding the page pauses; return explicitly to continue. Sound is also available at the top right of the title and result screens.
 
 ## Three waves
 
