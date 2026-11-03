@@ -33,6 +33,10 @@ python3 -m http.server 8765    # 在仓库根目录
 
 打开 `http://127.0.0.1:8765/pixel-match/`。测试：在本目录 `node --test tests/*.test.cjs`。浏览器验收：`NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/pixel-match/ <输出目录>`。
 
+## 演示片
+
+竖屏演示片用 `tools/record.cjs` 逐帧录（外框 `tools/demo-stage.html` 上面是字幕带、下面是真实游戏，点按都是真实触摸），`tools/demo-music.py` 按录下的事件时间合成卡点配乐，用法写在两个文件开头。
+
 ## 验证
 
 Node 测试管规则、有解、死局洗牌、小人与办公室一致、像不像的读数、三档自动驾驶的时长；浏览器检查管机位、真实点击、多种手机视口的版式、真画布和软光栅逐像素一致、绘制耗时和开局逐帧。手感、各关时限松不松、好不好玩，要真人试玩。
