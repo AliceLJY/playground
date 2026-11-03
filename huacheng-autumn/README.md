@@ -4,10 +4,11 @@ A small Guangzhou riverside scene to turn in your hands: bougainvillea spills ov
 
 By **我的AI小木屋**
 
-No imported images or models. Geometry, foliage, water, brick variations, vehicle markings and lights are all generated in code. The page is silent and has no score or ending.
+No imported images or models. Geometry, foliage, water, brick variations, vehicle markings and lights are all generated in code. The page is silent; the default wandering mode has no score or ending.
 
 ## What you can do
 
+- **Optional riverside journal.** Select 秋岸游记, visit the bridge and pagoda, catch a passing tram, then use the flower arch view and change the time to night for an on-screen text keepsake; missing a tram simply means waiting for the next one, and you can return to wandering at any time.
 - **Look around.** The camera follows a roughly 60-second tour, passing the footbridge, pagoda and a wide view of the model. Drag at any time to take over.
 - **Change the hour.** The scene opens in soft afternoon daylight. The bottom slider moves from **Day → Dusk → Night**; daytime uses neutral warm-grey haze, unlit silver steelwork and dark windows. Sun glints give way to soft reflections of distant lights; windows and street lamps turn on.
 - **Choose a place and stay.** Select 花桥 (flower bridge), 花窗 (flower arch) or 塔下 (pagoda). The camera travels smoothly along the existing route, then stays while traffic continues. Select 留在这里 · 继续 to resume the tour.
@@ -86,6 +87,8 @@ NODE_PATH="$(npm root -g)" node tools/r6-check.cjs shots/r6/baseline/browser "fi
 ```
 
 ## Measured results and limits
+
+Optional journal completion, missed-tram retry, cleanup and contrast regressions are recorded in [VERIFICATION.md](VERIFICATION.md#ng4-可选秋岸游记2026-11-03).
 
 The F4 interaction checks for destination travel, camera hold, time controls and viewport layout are in [VERIFICATION.md](VERIFICATION.md#f4-交互修复2026-11-03).
 

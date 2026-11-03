@@ -241,6 +241,59 @@ export function createRig({u=0,auto=true}={}) {
     return {pos:r.pos.slice(),target:r.look.slice()};
   };return r;
 }
+
+// Optional journal. Observations come from the same live rig and tram clock as
+// the scene; this reducer never changes cameras, lighting or traffic timing.
+export const JOURNAL_PLACES={
+ bridge:{name:'花桥',note:'簕杜鹃垂在天桥边'},
+ pagoda:{name:'塔下',note:'异木棉开在塔下'}
+};
+export const createJournal=()=>({phase:'idle',stamps:[],moment:null,missed:0,windowId:null});
+const tramCrossings=[16,46].map(start=>{
+ let lo=start,hi=start+14;const dir=tramAt(start).dir;
+ for(let i=0;i<48;i++){const mid=(lo+hi)/2;if((tramAt(mid).x-BRIDGE.x)*dir<0)lo=mid;else hi=mid;}
+ return (lo+hi)/2;
+});
+export function journalWindow(time){
+ if(!Number.isFinite(time)||time<0)return null;
+ const cycle=Math.floor(time/TRAM_PERIOD),q=time-cycle*TRAM_PERIOD;
+ const leg=tramCrossings.findIndex(cross=>Math.abs(q-cross)<=2);
+ return leg<0?null:{id:cycle+':'+leg,direction:tramAt(time).dir};
+}
+export function journalPlace(scene){
+ if(scene.frozen||scene.auto||scene.mode!=='manual'||!Object.hasOwn(VIEWS,scene.destination))return null;
+ const pose=pathAt(VIEWS[scene.destination]);
+ return dist(scene.pos,pose.pos)<1e-5&&dist(scene.look,pose.target)<1e-5?scene.destination:null;
+}
+export function journalStep(state,intent,scene){
+ if(intent==='exit')return createJournal();
+ if(intent==='start')return {...createJournal(),phase:'visiting'};
+ if(state.phase==='idle'||state.phase==='done')return state;
+ const place=journalPlace(scene),window=journalWindow(scene.time);
+ let next=state;
+ const change=patch=>{next={...next,...patch};};
+ if(Object.hasOwn(JOURNAL_PLACES,place)&&!state.stamps.includes(place))change({stamps:[...state.stamps,place]});
+ // Keep an opened window until that actual train has passed, including when
+ // the player moves away. One missed train yields one reminder, never a loss.
+ if(!next.moment&&next.windowId&&next.windowId!==window?.id)change({missed:next.missed+1,windowId:null});
+ if(!next.moment&&place==='bridge'&&window&&next.windowId!==window.id)change({windowId:window.id});
+ if(intent==='capture'&&place==='bridge'&&window&&!next.moment)change({moment:{time:scene.time,direction:window.direction},windowId:null});
+ if(next.stamps.length===2&&next.moment&&next.phase!=='night')change({phase:'night'});
+ // A previous night setting or a hook changing the sky cannot finish a visit.
+ if(state.phase==='night'&&intent==='hour'&&place==='arch'&&scene.hour>=.95)change({phase:'done'});
+ return next;
+}
+export function journalPrompt(state,scene){
+ const place=journalPlace(scene);
+ if(!state.stamps.length)return '先点上方「花桥」或「塔下」，选一处出发。';
+ if(!state.moment){
+  if(place!=='bridge')return '点上方「花桥」，在花瀑边等一班电车。';
+  if(journalWindow(scene.time))return '电车正经过花瀑，留住这一刻。';
+  return state.missed?'错过这班，下一班再留。印章还在。':'留在这里等电车，经过时有 4 秒留影。';
+ }
+ if(state.stamps.length<2)return '电车一刻已留住。点上方「塔下」，看异木棉。';
+ return place==='arch'?'亲手把天色拖到入夜，也可点「入夜」。':'点上方「花窗」，到窗前再把天色调至入夜。';
+}
 // Linear RGB light/sky values; material HEX colours are converted by Three.js.
 const HOURS=[
  {low:[.80,.75,.68],mid:[.76,.71,.65],top:[.73,.72,.70],key:[1,.94,.84],keyInt:3.1,hemi:1.35,lights:0,sunY:.8},

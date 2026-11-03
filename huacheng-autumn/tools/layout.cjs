@@ -3,7 +3,7 @@
 const fs=require('node:fs'),path=require('node:path');
 async function inspectLayout(page){
  return page.evaluate(()=>{
-  const selectors=['.brand','.badge','.copy h1','.copy p','.credit','.tele','.tools button','[data-place]','.hour span','[data-hour]','#hour'];
+  const selectors=['.brand','.badge','.copy h1','.copy p','.credit','.tele','.tools button','[data-place]','.hour span','[data-hour]','#hour','#journal-start','#journal-title','#journal-stamps','#journal-goal','#journal-memory','.journal button'];
   const boxes=selectors.flatMap(s=>Array.from(document.querySelectorAll(s)).filter(el=>el.checkVisibility({checkVisibilityCSS:true})).map((el,i)=>{
    const r=el.getBoundingClientRect(),clickable=el.matches('button,input'),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
    return{id:s+'['+i+']',x:r.x,y:r.y,w:r.width,h:r.height,inside:r.x>=0&&r.y>=0&&r.right<=innerWidth&&r.bottom<=innerHeight,hit:!clickable||hit===el||el.contains(hit),clickable};

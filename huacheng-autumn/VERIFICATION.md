@@ -122,3 +122,52 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$CHECK_OUT/legacy-sourc
 最终单文件 `dist/index.html` 为 726813 bytes，SHA-256 `32e08d808b61417a53442eab3e35a0925f46093c9172bfe31844b627880f2506`。产物与 node_modules 均按既有规则忽略，不提交。另通过 JavaScript 语法检查与 `git diff --check`。
 
 仍未覆盖：iPhone/Android 真机、Safari、真人对导航节奏与单手触控手感的判断、部署后的线上复验。失焦与切后台清理通过事件派发检查，不能替代真机切后台。本页始终无声，未增加声音。体检第 3 条及所有「可以加的玩法」按本批要求不做。
+
+## NG4 可选秋岸游记（2026-11-03）
+
+在 F4 修复后的版本上追加，未改 `createRig`、路线、`tramAt`、几何、材质、光照或默认天色，依赖仍是 Three.js 0.186.1 / esbuild 0.28.2。仅本目录提交，未推送、未发布。`pages.yml` 原有步骤已包含 Node 测试和单文件构建；`dist/` 与 `node_modules/` 都未跟踪，不提交产物。
+
+菜单旁的「秋岸游记」是可选入口。玩家以任意顺序抵达花桥、塔下，花桥等原有电车并点「留住这一刻」，最后从已有花窗机位主动调至入夜，得到包含两处到访顺序、电车方向及夜景的屏内文字卡。先去花桥可以先拍再去塔下，避免多余折返；花窗用来让末段广州塔可见，不另加相机或第三枚章。错过只提示等下一班，保留印章。完成、中途「继续闲逛」和原复位都清空游记；退出平滑恢复自动路线，保留玩家所选天色。无照片导出、持久化、分享、账号或排行榜，也没有实现报告第 2 条取景作业。
+
+### 本轮检查与证据
+
+- Node **26/26**，其中原有 21 项、新增 `tests/journal.test.cjs` 5 项。以实际 `goTo()` 和 60 Hz 更新推进：4 个起始时刻 × 2 种首站选择均完成；实际取得 16 次到访、8 次留影，并包含两个行驶方向。120 秒采样真实发生 4 次过桥及 4 个四秒窗口；另 3 组确实错过并抓住下一班。错误位置、未抵达、冻结、转开镜头、提前调夜、退出/复位/再次进入均有断言。理想操作的 8 组时长约 49.1–74.1 秒，不含读文案、迟疑或漏车，不能当真人时长。
+- `tools/journal-check.cjs` 在源码和单文件各 **96/96**、零页面错误。正常入口在 **390×664、320×568、844×340、1365×900** 走完两种首站流程；手机用真实触控（包括拖动 range），电脑用 Enter / Space 和 range 的 End；只读取钩子，不写完成态、不用 `setView()` / `setTime()`。页面时钟推进真实动画帧，仅用于操作与画面复现，不据此报帧率。实际渲染电车包围盒发生位移，镜头留驻、场景时间继续增长。
+- 时间文字回归 `tests/hour-contrast.cjs` 读取浏览器实际 computed style，把文字/底色分别合成到黑、白场景底后计算对比度。阈值 4.5:1，修改前四机位 × 三时段 **12/12 失败**（`before-contrast`），加淡底后 **12/12 通过**，最低 **6.03:1**。逐张对照同机位图；12 对截图在排除这三块底色和新增入口区域后，场景像素变化均为 **0**（`scene-comparison.json`）。
+- 中间版检查确实发现 320×568 的入口与竖排署名重叠、844×340 结尾卡与原放大/缩小按钮重叠（`build-journal`：93 通过、3 失败）。调整小屏入口位置、压短结尾卡后，同一检查全部通过，未改重叠判据。时间条、地名及可用按钮完整、中心命中，点击区均至少 44×44 CSS px。沿用桥体与花帘的原有遮挡，不承诺整个留影窗口都能看清全车。
+
+浏览器为 Chrome 156.0.8078.80，硬件渲染器 `ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)`；设备 DPR2，正常密度、自适应分辨率、FXAA、GTAO 均保留。新玩法截图在 `final-build-journal` 与 `final-source-journal`，每组 42 张；已逐张读图，包括默认、选择、首章、错过、留影窗口、夜景目标、结尾卡和返回原流程，以及四机位三时段。读图页按文件名保留对应关系。卡片短文案保证短横屏按钮不与底部工具相撞，竖屏夜景仍能看见花窗和广州塔；电车保留原场景的桥体遮挡与近景裁切。
+
+F4 交互检查在源码与单文件各 **53/53**。本轮还修正了检查的采样点：原检查在 Playwright 点击前取样，点击自动等待期间默认镜头继续移动，166.6 ms 的普通移动被误算成点击瞬移（`controls-before-event-sampling`）。现在在同一次原生 click 的捕获阶段记录起点，并取处理后的第一帧，仍用原来的位移上限，未放宽阈值、未改相机实现。每组 11 张截图已读图。
+
+原 `tools/browser-check.cjs` 保持不变，最终单文件与源码各 **28/28**、零页面错误及额外资源请求（`final-legacy-build` / `final-legacy-source`，各 15 张图）。已核对全部画面；复测的固定状态图片与已读图的首轮逐文件 SHA-256 相同，两个默认游览截图另打开读图。默认入口 180 帧短采样分别为 **58.38 / 59.67 fps**，p95 都为 16.8 ms，沿用 55 fps 门槛与默认自适应像素比，未降低画质。
+
+帧率存在明显环境波动，不能只引用最后的通过值：单文件首轮 **54.55 fps**，源码前两轮 **53.20 / 39.56 fps**，均仅 B4-default 失败，日志保留在 `legacy-build`、`legacy-source`、`legacy-source-second`。从本仓 HEAD 重建上午原版做顺序对照：构建产物原版两次 **36.49 / 33.33**、新版 **36.99 / 33.13 fps**；随后源码原版 **58.38 / 60.00**、新版 **60.00 / 60.00 fps**（`perf-pair.json` / `perf-source-pair.json`）。对照未显示本次改动引起降速；没有据此断言系统波动的具体来源，也不承诺真机或持续全路线性能。本轮 GPU 检查顺序运行。
+
+默认入口另用原 `tools/opening-check.cjs` 录制 30 秒（1440×900、DPR1，普通配置）：10 秒拖动，20 秒滚轮缩放，末段恢复自动游览，零页面错误。已读 7 张时间点截图及全部 782 个编码帧的 10 张联系表，未见非操作引起的镜头突跳或输入卡死；录屏不作为帧率依据。另在 844×340 沿真实时间等到返程电车，以 450 ms 间隔查看 8 帧：前段受桥体遮挡，随后车头和车身从花帘下驶出（`window-sequence`），保持原构图。
+
+单文件 `dist/index.html` 为 733229 bytes，SHA-256 `6d794d5d15e257d69be7636d932b18987b6ffbae7f8b6868ced034b7bd30dcdd`。JavaScript 语法检查与 `git diff --check` 通过。未改几何的更早轮次专项脚本未全量重跑，本轮重跑入口为上述新玩法、F4 交互和通用画面检查。
+
+### 复现
+
+在本目录运行，所有 WebGL 检查顺序执行。`CHECK_OUT` 指向仓外的验收目录：
+
+```sh
+node --test tests/*.test.cjs
+node tools/build.mjs
+node tools/serve.cjs . 18974
+# 另一个终端：
+NODE_PATH="$(npm root -g)" node tools/journal-check.cjs "$CHECK_OUT/build-journal" http://127.0.0.1:18974/dist/index.html
+NODE_PATH="$(npm root -g)" node tools/journal-check.cjs "$CHECK_OUT/source-journal" http://127.0.0.1:18974/dev.html
+# 只做时间文字对比度检查可在命令末尾加 --contrast-only。
+NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/build-controls" http://127.0.0.1:18974/dist/index.html
+NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/source-controls" http://127.0.0.1:18974/dev.html
+node tools/flower-audit.mjs . "$CHECK_OUT/audit.html"
+node tools/serve.cjs "$CHECK_OUT" 18975
+# 再一个终端：
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$CHECK_OUT/legacy-build" http://127.0.0.1:18974/dist/index.html http://127.0.0.1:18975/audit.html
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$CHECK_OUT/legacy-source" http://127.0.0.1:18974/dev.html http://127.0.0.1:18975/audit.html
+NODE_PATH="$(npm root -g)" node tools/opening-check.cjs "$CHECK_OUT/opening" http://127.0.0.1:18974/dist/index.html
+```
+
+待试玩校准：约 1–2 分钟体验时长、4 秒留影窗口、入夜阈值 h≥.95。未验真人手感、陌生人第一次游玩的理解与复述、真手机、Safari、声音或线上部署；页面保持无声。本轮只做屏内文字游记，未将自动化完成等同于「好玩」。

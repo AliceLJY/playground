@@ -43,7 +43,17 @@ const distance=(a,b)=>Math.hypot(...a.map((x,i)=>x-b[i]));
    }
    if(hasPlaces&&(width===390||width===1365)){
     for(const name of ['bridge','arch','pagoda']){
-     const before=await state();await tap(`[data-place=${name}]`);const selected=await state();
+     // Measure either side of the same native click. A Playwright click can
+     // wait several frames before dispatch while the normal tour keeps moving.
+     await page.evaluate(()=>{
+      const places=document.querySelector('#places');let before;window.__f4Navigation=null;
+      places.addEventListener('click',()=>{before=window.__huacheng.state();},{capture:true,once:true});
+      // Observe the first rendered pose as well, so an instant camera jump
+      // cannot hide between the click handler and the next animation frame.
+      places.addEventListener('click',()=>{requestAnimationFrame(()=>{window.__f4Navigation={before,selected:window.__huacheng.state()};});},{once:true});
+     });
+     await tap(`[data-place=${name}]`);await page.waitForFunction(()=>window.__f4Navigation!==null,null,{polling:20});
+     const {before,selected}=await page.evaluate(()=>window.__f4Navigation);
      await page.waitForTimeout(250);const moving=await state();
      await page.waitForFunction(()=>window.__huacheng.state().mode==='manual',null,{polling:100,timeout:60000});
      const arrived=await state();await page.waitForTimeout(8000);const held=await state();
