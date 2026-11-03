@@ -8,7 +8,7 @@ No models and no image files: every shape, the wood grain, the clouds, the snow 
 
 ## What you can do
 
-- **Light the lamps.** The seven smaller summits start dark. Tap one: the camera flies there, its lamps and windows come on, and a line about who lives there appears (in Chinese). When all seven are lit, lights come on along the flag lines and shooting stars cross the sky.
+- **Light the lamps.** The seven smaller summits start dark. Tap one: its story appears immediately (in Chinese), and the counter explains that the camera is on its way. The lamps and windows light up and the count increases only on arrival. When all seven are lit, lights come on along the flag lines and shooting stars cross the sky.
 - **Change the hour.** The slider at the bottom runs from dusk through deep night to dawn; the sky, the key light and the lit windows follow.
 - **Step inside.** The door button at the lower left takes you into the ground floor of the main house. Drag to look around; tap a ring on the floor to stand by the fire, at the window or at the table. The window spot faces the moon.
 - **Orbit.** Left alone, the camera circles by itself.
