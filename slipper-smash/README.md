@@ -1,6 +1,6 @@
 # Slipper Smash
 
-A rainy night in an old Guangzhou alley, and the cockroaches keep leaping up. Hold and swipe across them to flatten each one with a flip-flop; chained hits multiply the score. Leave the milk tea cups with the red ring alone, because the round ends once three are spilled. Last 45 seconds and the muscle-bound boss walks in: wear it down within 25 seconds and you get a photo together.
+A rainy night in an old Guangzhou alley, and the cockroaches keep leaping up. Hold and swipe across them to flatten each one with a flip-flop; chained hits multiply the score. Missing an ordinary bug breaks the combo and records a miss, but costs no tea and does not prevent the boss from appearing. Leave the milk tea cups with the red ring alone, because the round ends once three are spilled. Last 45 seconds and the muscle-bound boss walks in: wear it down within 25 seconds and you get a photo together.
 
 **[Play online](https://aliceljy.github.io/playground/slipper-smash/)**
 
@@ -10,7 +10,8 @@ A round takes about a minute. It plays on phones in either orientation and on de
 
 - Phone: hold and swipe across a cockroach; a tap also counts.
 - Desktop: hold the mouse button and drag. Space or Enter starts a round.
-- Sound can be switched off at the bottom left of the title and result screens.
+- Tap 暂停 at the upper right during play (Esc on desktop). The pause screen has sound and continue controls. Leaving the window or hiding the page cancels the swipe and pauses; resume explicitly when you return.
+- Sound can also be switched off at the bottom left of the title and result screens.
 
 ## How it is built
 
