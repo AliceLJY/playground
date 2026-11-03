@@ -17,7 +17,7 @@ const distance=(a,b)=>Math.hypot(...a.map((x,i)=>x-b[i]));
    const page=await ctx.newPage();
    page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
    page.on('response',r=>{if(r.status()>=400)report.errors.push(`${r.status()} ${new URL(r.url()).pathname}`);});
-   await page.goto(base);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
+   await page.goto(base+'?intro=skip');await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
    const state=()=>page.evaluate(()=>window.__huacheng.state());
    const tap=async selector=>{if(phone)await page.locator(selector).tap();else await page.locator(selector).click();};
    const layout=await inspectLayout(page);

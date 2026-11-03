@@ -4,12 +4,12 @@ A small Guangzhou riverside scene to turn in your hands: bougainvillea spills ov
 
 By **我的AI小木屋**
 
-No imported images or models. Geometry, foliage, water, brick variations, vehicle markings and lights are all generated in code. The page is silent; the default wandering mode has no score or ending.
+No imported images or models. Geometry, foliage, water, brick variations, vehicle markings and lights are all generated in code. The page is silent. Your first visit opens a skippable riverside journal; free wandering has no score or ending.
 
 ## What you can do
 
-- **Optional riverside journal.** Select 秋岸游记, visit the bridge and pagoda, catch a passing tram, then use the flower arch view and change the time to night for an on-screen text keepsake; missing a tram simply means waiting for the next one, and you can return to wandering at any time.
-- **Look around.** The camera follows a roughly 60-second tour, passing the footbridge, pagoda and a wide view of the model. Drag at any time to take over.
+- **Riverside journal on your first visit.** Once the scene is ready, select 花桥 (flower bridge) or 塔下 (pagoda) to begin. Visit both places, catch a passing tram, then use the flower arch view and change the time to night for an on-screen text keepsake; missing a tram simply means waiting for the next one, and you can select 随便逛逛 (Just wander) at any time to resume the camera tour. Finishing or skipping remembers this visit locally, so later visits open in the original automatic tour. The 秋岸游记 button beside the landmark menu still starts a new journal. If storage is unavailable, each visit opens the journal again.
+- **Look around.** After skipping the journal or on a return visit, the camera follows a roughly 60-second tour, passing the footbridge, pagoda and a wide view of the model. Drag at any time to take over.
 - **Change the hour.** The scene opens in soft afternoon daylight. The bottom slider moves from **Day → Dusk → Night**; daytime uses neutral warm-grey haze, unlit silver steelwork and dark windows. Sun glints give way to soft reflections of distant lights; windows and street lamps turn on.
 - **Choose a place and stay.** Select 花桥 (flower bridge), 花窗 (flower arch) or 塔下 (pagoda). The camera travels smoothly along the existing route, then stays while traffic continues. Select 留在这里 · 继续 to resume the tour.
 - **Look closer.** Zoom toward the tram's curved windscreen and route sign, hanging flowers, brickwork and individual leaves.
@@ -77,7 +77,7 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs shots/r6/source http://1
 
 Source: `http://127.0.0.1:18954/dev.html`. Build: `http://127.0.0.1:18954/dist/index.html`. Run GPU checks sequentially. The flower audit is an isolated diagnostic build; it is not the release file.
 
-Fixed views are `?view=hero`, `?view=station`, `?view=bridge`, `?view=arch`, `?view=pagoda` and `?view=wide`. Add `&h=0`, `&h=0.55` or `&h=1` for daylight (the default), dusk or night, and `&t=13` for a reproducible simulation time. All views use the normal rendering path. The page exposes `window.__huacheng` and `window.__PLAYTEST__` for inspection; normal interaction does not depend on them.
+Fixed views are `?view=hero`, `?view=station`, `?view=bridge`, `?view=arch`, `?view=pagoda` and `?view=wide`. Add `&h=0`, `&h=0.55` or `&h=1` for daylight (the default), dusk or night, and `&t=13` for a reproducible simulation time. All views use the normal rendering path. The page exposes `window.__huacheng` and `window.__PLAYTEST__` for inspection; normal interaction does not depend on them. `?view=`, `?record=1` and `?intro=skip` bypass the first-visit journal without marking a visit. `__PLAYTEST__.reset()` and `__huacheng.setView()` also cancel the introduction. Existing checks and recordings retain their original entry states.
 
 The previous HEAD `303e8cf` source and release artifact are preserved in `shots/r6/baseline/`. The same zero-tolerance boundary check fails on that version at simulation time zero:
 
@@ -88,7 +88,9 @@ NODE_PATH="$(npm root -g)" node tools/r6-check.cjs shots/r6/baseline/browser "fi
 
 ## Measured results and limits
 
-Optional journal completion, missed-tram retry, cleanup and contrast regressions are recorded in [VERIFICATION.md](VERIFICATION.md#ng4-可选秋岸游记2026-11-03).
+First-visit, skip, completion/revisit and unavailable-storage checks are recorded in [VERIFICATION.md](VERIFICATION.md#d3-首访入口2026-11-03).
+
+Journal completion, missed-tram retry, cleanup and contrast regressions are recorded in [VERIFICATION.md](VERIFICATION.md#ng4-可选秋岸游记2026-11-03).
 
 The F4 interaction checks for destination travel, camera hold, time controls and viewport layout are in [VERIFICATION.md](VERIFICATION.md#f4-交互修复2026-11-03).
 

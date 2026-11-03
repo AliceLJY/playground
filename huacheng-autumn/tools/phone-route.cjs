@@ -8,7 +8,7 @@ const fs=require('node:fs'),path=require('node:path'),{chromium}=require('playwr
  try{for(const [w,h] of [[390,664],[412,700]]){
   const ctx=await browser.newContext({viewport:{width:w,height:h},deviceScaleFactor:2,isMobile:true,hasTouch:true}),page=await ctx.newPage();
   page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
-  await page.clock.install();await page.goto(base);await page.clock.runFor(120);
+  await page.clock.install();await page.goto(base+'?intro=skip');await page.clock.runFor(120);
   await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
   await page.evaluate(()=>{
    window.__phoneTour={samples:0,visible:0,hidden:0,clashes:[],minGap:Infinity};

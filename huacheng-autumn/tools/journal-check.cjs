@@ -24,7 +24,7 @@ const out=path.resolve(process.argv[2]),base=process.argv[3];
    const ctx=await browser.newContext({viewport:{width,height},deviceScaleFactor:2,isMobile:phone,hasTouch:phone});
    const page=await ctx.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
    page.on('response',r=>{if(r.status()>=400)report.errors.push(`${r.status()} ${new URL(r.url()).pathname}`);});
-   await page.clock.install();await page.goto(base);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
+   await page.clock.install();await page.goto(base+'?intro=skip');await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
    await page.clock.pauseAt(new Date(Date.now()+100));
    // Advance the actual animation loop, never setView / setTime / journal state.
    const state=()=>page.evaluate(()=>window.__huacheng.state());
@@ -68,6 +68,7 @@ const out=path.resolve(process.argv[2]),base=process.argv[3];
    }else {await page.locator('#hour').focus();await page.keyboard.press('End');}
    await page.clock.runFor(100);const done=await state();
    check(`complete-with-real-time-input-${label}`,done.journal.phase==='done'&&done.hour>=.95,done);
+   check(`completion-remembers-visit-${label}`,await page.evaluate(()=>localStorage.getItem('huacheng-autumn:visited')==='1'),null);
    const text=await page.locator('#journal').textContent();check(`card-${label}`,['花桥','塔下','电车一刻','花窗里的广州塔'].every(s=>text.includes(s)),text);
    await shot('card');await press('[data-journal=exit]');await page.clock.runFor(3400);
    const resumed=await state();check(`clean-return-${label}`,resumed.auto&&resumed.mode==='auto'&&resumed.destination===null&&resumed.journal.phase==='idle'&&resumed.journal.stamps.length===0&&!resumed.journal.moment&&!resumed.journal.missed&&resumed.hour===done.hour,resumed);
@@ -77,6 +78,14 @@ const out=path.resolve(process.argv[2]),base=process.argv[3];
    check(`reset-clears-${label}`,reset.journal.phase==='idle'&&reset.journal.stamps.length===0&&reset.auto,reset);
    await press('#journal-start');await press('[data-journal=exit]');await page.clock.runFor(3400);
    check(`cancel-${label}`,(await state()).journal.phase==='idle'&&(await state()).mode==='auto',await state());
+   // Finish once more and reload directly from the card: completion itself must
+   // persist, independently of the skip/exit button.
+   await page.evaluate(()=>localStorage.clear());await press('#journal-start');
+   await visit('bridge');await until(()=>page.locator('[data-journal=capture]').isEnabled());
+   await press('[data-journal=capture]');await visit('pagoda');await visit('arch');await press('[data-hour="1000"]');
+   check(`complete-before-reload-${label}`,(await state()).journal.phase==='done',await state());
+   await page.clock.resume();await page.goto(base);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
+   const revisited=await state();check(`completed-revisit-${label}`,revisited.journal.phase==='idle'&&revisited.auto&&revisited.hour===0,revisited);
    await ctx.close();
   }
   check('page-errors',report.errors.length===0,report.errors);
