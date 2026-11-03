@@ -9,16 +9,17 @@ An isometric line drawing of a Xiguan house, the traditional courtyard townhouse
 ## Controls
 
 - Click the house, click the button, or press Space or Enter. Touch works the same way.
-- Opening takes about 3.4 seconds, then the house stays open until you close it. Presses during the motion are ignored.
+- Opening takes about 3.4 seconds, then the house stays open until you close it. Repeated open/close requests during motion are ignored. The stop/resume button pauses either direction and continues from the same pose.
+- Once open, the entrance hall, courtyard and main hall labels open a magnified overhead detail with a short explanation based on `facts.md`. Escape or the return button closes it; the house stays open.
 - With reduced motion turned on in the system, it jumps straight to the result.
 - Fixed views: `?view=open` shows it opened; `?view=mid&t=1.9` stops the timeline at 1.9 s (0 to 3.4).
 
 ## Spec
 
-- **In one sentence**: one click shows how a Xiguan house comes apart, so the three-layer entrance and the halls along the central axis can be seen; the only action is open and close.
+- **In one sentence**: one click shows how a Xiguan house comes apart, so the three-layer entrance and the halls along the central axis can be seen; open and close it, pause the motion, or inspect the three labelled spaces.
 - **Aesthetic**: discovery first, the feel of the mechanism second. Visitors are on a phone or a computer, usually with sound off, for a minute or two; the page has no sound.
 - **Palette** (sRGB hex): paper `#efe9dc`, ink `#2c3833`; grey brick `#b7beb9`, granite `#dcd8cc`, roof tiles `#a3a89f`, wood `#8d5f40`, main doors `#6f4630`. Accent colours are kept for the coloured glass (blue `#3f74a8`, red `#c2493a`, amber `#e2b23e`, green `#4f8c5d`) and the red lacquer of the shrine `#9e3b2b`.
-- **Composition**: isometric orthographic view, azimuth 40°, elevation 37°, light from the front left above. The framing is set from the full range of the motion, so the camera and scale never change while the house opens or closes; they only refit when the window size changes. A button bar is kept clear at the bottom and one line of notes at the top.
+- **Composition**: isometric orthographic view, azimuth 40°, elevation 37°, light from the front left above. The framing is set from the full range of the motion, so the camera and scale never change while the house opens or closes; they only refit when the window size changes. The separate detail view uses a 65-degree overhead angle so the screen doors do not hide the courtyard. A button bar is kept clear at the bottom and one line of notes at the top.
 - **Performance budget**: Canvas 2D, about 470 faces sorted once per frame, aiming at 60 fps; nothing is redrawn while it is still.
 
 ## Acceptance
@@ -35,6 +36,8 @@ An isometric line drawing of a Xiguan house, the traditional courtyard townhouse
 | Repeat presses during the motion are ignored; no errors | Same file | Passes |
 
 `tools/shots.cjs` takes screenshots at chosen times and `tools/perf.cjs` measures frame rate. In headless Chromium (software rendering, no GPU) the 390-wide phone view runs at about 60 fps and the 1920×1080 desktop view at about 36 fps; it has not been tried on a real device. Whether it looks right and whether the motion feels right can only be judged by a person.
+
+See [VERIFICATION.md](VERIFICATION.md) for the B3 regression checks and results.
 
 ## How it was made
 
