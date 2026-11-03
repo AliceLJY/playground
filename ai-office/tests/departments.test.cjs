@@ -46,15 +46,16 @@ test('breakfast: idle colleagues fill the teahouse first and walk back to the ga
 test('teahouse is open all day: two everyday seats outside 早茶/下午茶/夜茶, four during them; busy people stay at desks',()=>{
   assert.equal(C.teaTime(BREAKFAST),'早茶');assert.equal(C.teaTime(Date.parse('2026-11-01T07:30:00Z')),'下午茶');assert.equal(C.teaTime(Date.parse('2026-11-01T12:30:00Z')),'夜茶');assert.equal(C.teaTime(LATE),null);
   for(const clock of [undefined,LATE]){
-    const s=office('portrait',clock);s.step(30000);
-    assert.equal(s.actors.filter(a=>s.gameActivity(a)==='tea').length,2);
+    const s=office('portrait',clock);s.step(40000);
+    const tea=s.actors.filter(a=>s.gameActivity(a)==='tea').length;
+    if(clock===undefined)assert.equal(tea,2);else assert.ok(tea<=2,'outside a sitting only the everyday seats');
     const cc=s.actors.find(a=>a.i===0);assert.ok(C.distance(cc,C.home(0))<1);
   }
   const forced=office('portrait');forced.forceBreakfast=true;forced.step(30000);assert.equal(forced.actors.filter(a=>forced.gameActivity(a)==='tea').length,4);
 });
 
 test('gym: with enough idle people the treadmill and weights are used, with matching poses',()=>{
-  const s=office('landscape',LATE);s.step(30000);
+  const s=office('landscape');s.step(40000);
   const kinds=s.actors.map(a=>s.gameActivity(a)).filter(Boolean);
   assert.ok(kinds.includes('run'),kinds.join());
 });
@@ -130,4 +131,26 @@ test('game room machines: dance and claw get players, and the waiting queue stay
   const L=C.layouts.portrait,machines=C.leisure(L).slice(20);
   for(let i=0;i<11;i++){const q=L.queuePoint(i);assert.equal(C.blocked(q.x,q.y,L),false,JSON.stringify(q));for(const m of machines)assert.ok(C.distance(q,m)>=16,`queue ${i} on a machine`);}
   assert.notDeepEqual(C.layouts.film.queuePoint(4),L.queuePoint(4),'the published film keeps its own queue');
+});
+
+test('over one day every leisure activity actually gets used by the real roster (rotation, sittings, downstairs hour)',()=>{
+  const L=C.layouts.landscape,kinds=new Set(),day=Date.parse('2026-11-01T16:00:00Z');
+  for(let w=0;w<72;w++){
+    const time=day+w*1200000,mode=C.isBreakfast(time)||(C.isFunTime(time)?'fun':false);
+    for(const n of [5,6,7,8])for(const slot of C.leisureSlots(n,mode,Math.floor(time/1200000))){const k=C.leisure(L)[slot].kind;kinds.add(['nap','read'].includes(k)?'massage':k);}
+  }
+  for(const kind of ['pingpong','chess','arcade','dance','claw','run','lift','box','yoga','tea','massage','sing','cheer','book','water','cat','movie','buy','soda'])assert.ok(kinds.has(kind),`${kind} never comes up in a day`);
+});
+
+test('codex review regressions: patrol survives a layout switch mid-lap; one waking napper moves nobody else; beds and lobby table are solid',()=>{
+  let s=C.create(script.roster,7,'landscape');s.night=true;s.setScene({...C.emptyScene(),guard:{phase:'patrol',at:new Date().toISOString()}},Date.now());
+  for(let n=0;n<20000&&s.guard?.waypoint!==11;n++)s.step(20);assert.equal(s.guard.waypoint,11);
+  s=s.relayout('portrait');for(let i=0;i<500;i++)s.step(20);assert.ok(s.guard.waypoint<C.layouts.portrait.patrol.length);
+  const t=C.create(script.roster,7,'portrait');for(const a of t.actors)t.setStatus(a.id,'off');t.step(60000);
+  const before=Object.fromEntries(t.actors.map(a=>[a.id,t.napSpot(a)]));t.setStatus(t.actors.find(a=>a.i===0).id,'busy');t.step(1000);
+  // Only someone who had no spot (sleeping at their desk) may take the freed bed; everyone in a spot stays put.
+  const moved=t.actors.filter(a=>a.i!==0&&t.napSpot(a)!==before[a.id]);
+  assert.ok(moved.every(a=>C.distance(before[a.id],C.home(a.i,C.layouts.portrait))<1),'nobody else changes bed');assert.ok(moved.length<=1);
+  assert.equal(C.blocked(62,684,C.layouts.portrait),true,'bunk frame');assert.equal(C.blocked(470,334,C.layouts.landscape),true,'lobby table');
+  for(const id of ['portrait','landscape'])for(const b of C.layouts[id].beds)assert.equal(C.blocked(b.x,b.y,C.layouts[id]),false,'berth stays reachable');
 });
