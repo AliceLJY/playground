@@ -59,7 +59,9 @@ const url=q=>base.replace(/[?#].*$/,'')+q;
     check(`${size} default: the start button starts a round`,(await probe(page)).screen==='play');
     // opening seconds, recorded as stills while playing for real
     const shots=[];
-    const tapKind=async kind=>{const until=Date.now()+40000;while(Date.now()<until){const p=await probe(page);const e=p.state.ents.find(q=>q.kind===kind&&q.state==='up');
+    const firstSeen=new Map();   // tap only things that came up recently, so they cannot start leaving between the probe and the tap
+    const tapKind=async kind=>{const until=Date.now()+40000;while(Date.now()<until){const p=await probe(page);for(const q of p.state.ents)if(q.state==='up'&&!firstSeen.has(q.id))firstSeen.set(q.id,p.state.t);
+      const e=p.state.ents.find(q=>q.kind===kind&&q.state==='up'&&p.state.t-firstSeen.get(q.id)<(kind==='tail'?0.4:1.2));
       if(p.screen!=='play'){report.runs.push({size,name:'round-ended-while-looking-for-'+kind,state:{t:p.state.t,pile:p.state.pile}});return null;}
       if(e&&p.state.t<p.state.lockUntil){await page.waitForTimeout(40);continue;}
       if(e){const before=p.state;await tapAt(e.tapX,e.tapY);await page.waitForTimeout(30);return{before,after:(await probe(page)).state,e};}
@@ -73,7 +75,7 @@ const url=q=>base.replace(/[?#].*$/,'')+q;
     const tw=await tapKind('wait');
     if(tw)check(`${size} default: a real tap on 等她 costs points and the combo`,tw.after.stats.wrong===tw.before.stats.wrong+1&&tw.after.combo===0,{before:tw.before.score,after:tw.after.score});
     const to=await tapKind('observer');
-    if(to){await page.screenshot({path:path.join(out,size+'-bounce.png')});check(`${size} default: a real tap on an observer bounces, score unchanged`,to.after.stats.bounced===to.before.stats.bounced+1&&to.after.score===to.before.score,{before:to.before.score,after:to.after.score});}
+    if(to){await page.screenshot({path:path.join(out,size+'-bounce.png')});check(`${size} default: a real tap on an observer bounces, score unchanged`,to.after.stats.bounced===to.before.stats.bounced+1&&to.after.score===to.before.score,{before:to.before.score,after:to.after.score,stats:to.after.stats,lockUntil:to.before.lockUntil,t:to.before.t});}
     report.runs.push({size,name:'real-taps',sawWait:!!tw,sawObserver:!!to,shots});
     check(`${size} default: 等她 or an observer showed up within the round to be tapped`,!!(tw||to),{tw:!!tw,to:!!to});
     await page.evaluate(()=>{window.__later.start(11);window.__later.autopilot('human');});
