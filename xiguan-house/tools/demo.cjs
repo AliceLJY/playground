@@ -1,3 +1,4 @@
+const skipIntro = url => { const u = new URL(url); u.searchParams.set('intro', 'skip'); return u.href; };
 // 竖屏演示录屏（1080×1920）：上方标题、下方逐段讲解；光标点屋子真速推开、合上各一次，再慢放一遍逐段讲，最后落款页。
 //   NODE_PATH="$(npm root -g)" node tools/demo.cjs <page-url> <out-dir>
 // 做法同 nanchan-temple/tools/demo.cjs：接管页面时钟，每帧推进 1/30 s 再截图；逐帧记下事件时间写 events.json，
@@ -12,7 +13,7 @@ const fs = require('node:fs'), path = require('node:path'), { execFileSync } = r
   const page = await (await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: dpr })).newPage();
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.install({ time: 0 });
-  await page.goto(url);
+  await page.goto(skipIntro(url));
   await page.clock.runFor(800);
   await page.waitForFunction(() => window.__xiguan && window.__xiguan.ready, null, { polling: 100 });
   await page.evaluate(() => document.fonts && document.fonts.ready);

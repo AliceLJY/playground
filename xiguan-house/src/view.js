@@ -289,7 +289,19 @@
   // The optional close-up reuses closed geometry; only its camera and found-part colour differ.
   const huntDialog = document.getElementById('hunt-dialog'), huntStart = document.getElementById('hunt-start');
   const welcome = document.getElementById('welcome');
-  let hunt = XG.newHunt(), huntTick = 0, welcomeTimer = null;
+  let hunt = XG.newHunt(), huntTick = 0, welcomeTimer = null, firstHunt = false;
+  const visitKey = 'xiguan-house-visited';
+  function markVisited() { try { localStorage.setItem(visitKey, '1'); } catch (_) {} }
+  function needsIntro() {
+    if (view || params.get('intro') === 'skip') return false;
+    try { return localStorage.getItem(visitKey) !== '1'; } catch (_) { return true; }
+  }
+  function hintHunt() {
+    if (firstHunt) document.getElementById('hunt-feedback').textContent = '先找三件头，或点直接打开';
+  }
+  huntDialog.addEventListener('click', e => {
+    if (e.target === huntDialog || e.target.id === 'hunt-canvas') hintHunt();
+  });
   const gateButtons = XG.GATES.map((g, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'gate-pin'; b.dataset.gate = g.id;
@@ -348,23 +360,32 @@
     } finally { ctx = saved.ctx; K = saved.K; OX = saved.OX; OY = saved.OY; VIEW = saved.VIEW; RIGHT = saved.RIGHT; UP = saved.UP; }
   }
   function exitHunt() {
-    hunt = XG.huntAction(hunt, { type: 'exit' }); huntTick = 0;
+    hunt = XG.huntAction(hunt, { type: 'exit' }); huntTick = 0; firstHunt = false;
     gateButtons.forEach((b) => { b.dataset.found = 'false'; b.setAttribute('aria-pressed', 'false'); });
     if (huntDialog.open) huntDialog.close();
   }
-  huntStart.addEventListener('click', () => {
+  function startHunt(first = false) {
     if (anim) return;
     hideWelcome(); hunt = XG.huntAction(hunt, { type: 'start' });
+    firstHunt = first;
+    document.getElementById('hunt-exit').textContent = first ? '直接打开' : '回到全屋';
     huntDialog.showModal(); updateHunt(); gateButtons[0].focus();
-  });
-  document.getElementById('hunt-exit').addEventListener('click', exitHunt);
-  huntDialog.addEventListener('cancel', (e) => { e.preventDefault(); exitHunt(); });
+  }
+  huntStart.addEventListener('click', () => startHunt());
+  function leaveHunt() {
+    const open = firstHunt;
+    if (open) markVisited();
+    exitHunt();
+    if (open) { s = target = 0; stopped = false; trigger(); }
+  }
+  document.getElementById('hunt-exit').addEventListener('click', leaveHunt);
+  huntDialog.addEventListener('cancel', (e) => { e.preventDefault(); leaveHunt(); });
   huntDialog.addEventListener('close', () => { if (!huntDialog.open) exitHunt(); });
   function advanceHunt(now) {
     if (hunt.phase !== 'reading') return;
     hunt = XG.huntAction(hunt, { type: 'elapse', ms: Math.max(0, now - huntTick) }); huntTick = now;
     if (hunt.phase !== 'opening') return;
-    exitHunt();
+    markVisited(); exitHunt();
     // Finish in the existing overview, using its normal timeline and reduced-motion setting.
     s = target = 0; stopped = false; trigger();
     welcome.hidden = false; welcomeTimer = setTimeout(hideWelcome, 6000);
@@ -381,7 +402,8 @@
   else if (view === 'mid') s = target = +(params.get('t') || 1.9);
   function label() { btn.textContent = target >= T ? '合上' : '推开'; btn.setAttribute('aria-pressed', target >= T ? 'true' : 'false'); pauseBtn.disabled = !anim && !stopped; pauseBtn.textContent = stopped ? '继续开合' : '停在这儿'; huntStart.disabled = !!anim; }
   function trigger() {
-    if (anim || huntDialog.open) return false;
+    if (huntDialog.open) { hintHunt(); return false; }
+    if (anim) return false;
     hideWelcome();
     const to = target >= T ? 0 : T;
     target = to; stopped = false;
@@ -432,5 +454,6 @@
   });
   window.addEventListener('resize', () => { layout(); if (dialog.open && detailState) drawDetail(detailState.index); if (huntDialog.open) drawHunt(); });
   layout(); label();
+  if (needsIntro()) startHunt(true);
   requestAnimationFrame((t) => { frame(t); api.ready = true; });
 })();
