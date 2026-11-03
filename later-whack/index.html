@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1c2526">
+<link rel="icon" href="data:,">
+<title>推到以后</title>
+<meta name="description" content="像素办公室里的打地鼠：小尾巴当轮敲掉，等她拍板的别敲，观察型等它自己走。">
+<style>
+html,body{margin:0;height:100%;background:#1c2526;overflow:hidden;overscroll-behavior:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:pointer}
+noscript{color:#fff6dc;font:16px sans-serif;position:fixed;inset:0;display:grid;place-items:center}
+[hidden]{display:none!important}
+.go{position:fixed;left:50%;transform:translateX(-50%);bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px));min-width:200px;min-height:52px;padding:0 20px;border:2px solid #253334;border-radius:10px;background:#f08a3c;color:#253334;font:700 19px "PingFang SC",system-ui,sans-serif;box-shadow:0 4px 0 #253334;touch-action:manipulation;cursor:pointer}
+.go:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #253334}
+</style>
+</head>
+<body>
+<canvas id="stage" tabindex="-1" aria-label="推到以后：点工位敲掉举橙色方牌的小尾巴；蓝色圆牌等她拍板，别敲；绿色菱牌是观察型，不用敲"></canvas>
+<button id="start" class="go" type="button" hidden>开始上班</button>
+<button id="retry" class="go" type="button" hidden>再来一局</button>
+<noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
