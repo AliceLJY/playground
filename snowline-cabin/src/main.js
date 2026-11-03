@@ -624,16 +624,16 @@ document.getElementById('tools').addEventListener('click', (e) => {
   syncAuto();
 });
 const chip = $('chip'), story = $('story'), hint = $('hint');
-function syncChip() { chip.textContent = game.done ? '七座都亮了' : `点灯 ${game.count} / ${SATELLITES.length}`; chip.classList.toggle('done', game.done); if (game.count > 0) hint.style.opacity = '0'; }
+function syncChip() { chip.textContent = game.done ? '七座都亮了' : `点灯 ${game.count} / ${SATELLITES.length}`; if (pendingLight && !game.lit.has(pendingLight)) chip.textContent += '\n正在前往，抵达后点亮'; chip.classList.toggle('done', game.done); if (game.count > 0) hint.style.opacity = '0'; }
 function showStory(name, line, withBack) { $('storyName').textContent = name; $('storyLine').textContent = line; $('back').style.display = withBack ? '' : 'none'; story.classList.add('on'); document.body.classList.add('focus'); }
 function hideStory() { story.classList.remove('on'); document.body.classList.remove('focus'); }
 // Fly to a summit; its lamps come on when the camera arrives.
 function focus(id) {
   if (inside || finaleT >= 0 || !STORIES[id]) return;
-  focusId = id; pendingLight = id; rig.flyTo(focusPose(id));
+  focusId = id; pendingLight = id; rig.flyTo(focusPose(id)); syncChip();
   showStory(STORIES[id].name, STORIES[id].line, true);
 }
-function unfocus(release = true) { focusId = null; pendingLight = null; if (finaleT < 0) hideStory(); if (release) { if (rig.auto) rig.release(); else rig.flyTo(homePose(), false); } }
+function unfocus(release = true) { focusId = null; pendingLight = null; syncChip(); if (finaleT < 0) hideStory(); if (release) { if (rig.auto) rig.release(); else rig.flyTo(homePose(), false); } }
 function lightNow(id) {
   const r = game.light(id); syncChip();
   if (r.finale) finaleDue = 3.2;        // let the seventh summit glow for a moment, then the finale
@@ -652,7 +652,7 @@ const fadeEl = $('fade');
 function setInside(on) {
   inside = on; room.visible = on; document.body.classList.toggle('inside', on);
   fireLight.intensity = on ? 7 : 0; tableLight.intensity = on ? 6 : 0;
-  if (on) { visit.go(0); syncSpot(); hideStory(); focusId = null; pendingLight = null; }
+  if (on) { visit.go(0); syncSpot(); hideStory(); focusId = null; pendingLight = null; syncChip(); }
   applyProjection();
 }
 function syncSpot() { $('spotName').textContent = SPOTS[visit.spot].name; spotRings.forEach((r, i) => { r.visible = i !== visit.spot; }); }
