@@ -10,6 +10,12 @@ const soundEl = root.querySelector("[data-sound]");
 const readout = root.querySelector("[data-readout]");
 const stepButtons = [...root.querySelectorAll(".nc-step")];
 const modeButtons = [...root.querySelectorAll("[data-mode]")];
+const nextButton = root.querySelector('[data-next-step]');
+const reviewButtons = [...root.querySelectorAll('[data-review]')];
+const currentEl = root.querySelector('[data-current]');
+let review = null;
+const compact = matchMedia('(max-width:900px)');
+for (const details of root.querySelectorAll('.nc-directory,.nc-cutaway')) details.open = !compact.matches;
 
 // 白天 / 黑夜：只切 body 的 data-theme，两套配色都在同一份 CSS 里
 const themeButtons = [...root.querySelectorAll("[data-theme-set]")];
@@ -160,6 +166,12 @@ function refreshButtons() {
     b.toggleAttribute("data-run", busy && i === done);
   });
   stage.dataset.done = String(done);
+  nextButton.disabled = busy || done === STEPS.length;
+  nextButton.hidden = done === STEPS.length;
+  nextButton.textContent = busy ? `正在${STEPS[done].name}…` : `下一步：${STEPS[done]?.name || '完成'}`;
+  root.querySelector('.nc-reviews').hidden = done !== STEPS.length;
+  reviewButtons.forEach(b => { b.disabled = busy || done !== STEPS.length; b.setAttribute('aria-pressed',String(b.dataset.review === review)); });
+  currentEl.textContent = review ? `回看：${STEPS.find(s=>s.id===review).name}` : busy ? `正在：${STEPS[done].name}` : done === STEPS.length ? '当前：搭建完成 · 可选部位回看' : `当前：${done ? STEPS[done-1].name : '空地'}`;
 }
 
 function setTip(text) { if (tipEl.textContent !== text) tipEl.textContent = text; }
@@ -211,7 +223,7 @@ function finishStep() {
   speedEl.hidden = true;
   const next = STEPS[done];
   if (next) setTip(`下一步：按「${done + 1} ${next.name}」。`);
-  else setTip("搭好了。按「从头来」再看一遍。");
+  else setTip("搭好了。可直接回看斗栱、梁架或拆开，也可从头来。");
   refreshButtons();
   if (mode === "auto") scheduleAuto();
 }
@@ -221,6 +233,7 @@ function reset() {
   busy = false;
   thump = null;
   done = 0;
+  review = null;
   stage.removeAttribute("data-apart");
   grow = null;
   for (const node of nodes) if (node.step === "wall") node.el.style.opacity = "";
@@ -236,6 +249,24 @@ function reset() {
   speedEl.hidden = true;
   refreshButtons();
   if (mode === "auto") scheduleAuto();
+}
+
+// Revisit an already learned resting pose; the first guided build stays sequential.
+function revisit(id) {
+  if (busy || done !== STEPS.length || !['bracket','beam','apart','again'].includes(id)) return;
+  setMode('manual');
+  review = id;
+  const cutoff = STEPS.findIndex(s=>s.id===id);
+  for (let i=0;i<STEPS.length;i++) showStep(STEPS[i].id, i<=cutoff);
+  for (const [key,p] of Object.entries(piece)) { p.x = p.target = id==='apart' && key!=='stand' ? 1 : 0; p.v=0; p.pending=null; }
+  stage.toggleAttribute('data-apart',id==='apart');
+  place();
+  chip('part').textContent = STEPS[cutoff].part || (id==='apart' ? '木构 7 层 + 台基' : '全部装回');
+  setTip(STEPS[cutoff].hint);
+  say(sayFor(id));
+  stage.setAttribute('aria-valuetext',`回看：${STEPS[cutoff].name}`);
+  if (id==='bracket') window.__ncInset?.start();
+  refreshButtons();
 }
 
 function scheduleAuto() {
@@ -269,12 +300,14 @@ function setFen(value) {
   chip("column").textContent = `${Math.round(c.column)} 分 = ${(cmOf(c.column) / 100).toFixed(2)} m`;
   chip("eave").textContent = `${Math.round(c.eave)} 分 = ${(cmOf(c.eave) / 100).toFixed(2)} m · 示意`;
   chip("ju").textContent = `${c.ju} 分 = ${(cmOf(c.ju) / 100).toFixed(2)} m · 1:${c.ratio.toFixed(2)}`;
-  const step = STEPS[Math.max(0, done - 1)];
+  const step = review ? STEPS.find(s=>s.id===review) : STEPS[Math.max(0, done - 1)];
   if (done > 0) say(sayFor(step.id));
 }
 fenInput.addEventListener("input", () => setFen(fenInput.value));
 
 stepButtons.forEach((b, i) => b.addEventListener("click", () => { if (mode === "auto") setMode("manual"); press(i); }));
+nextButton.addEventListener('click',()=>{setMode('manual');press(done);});
+reviewButtons.forEach(b=>b.addEventListener('click',()=>revisit(b.dataset.review)));
 modeButtons.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 resetLink.addEventListener("click", (event) => { event.preventDefault(); reset(); });
 stage.addEventListener("keydown", (event) => {
@@ -283,7 +316,7 @@ stage.addEventListener("keydown", (event) => {
 });
 new IntersectionObserver((entries) => { visible = entries[entries.length - 1].isIntersecting; if (visible) run(); }, { rootMargin: "120px 0px" }).observe(stage);
 let manualNow = 0;
-window.__nc = { debug: () => JSON.stringify({ reorders, x: Object.fromEntries(Object.entries(piece).map(([k, v]) => [k, +v.x.toFixed(6)])) }), zooms: () => { const r = svg.getBoundingClientRect(); const k = r.width / D.W; return Object.fromEntries(Object.entries(D.zooms).map(([n, p]) => [n, [p[0] * k, p[1] * k]])); }, press: (i) => press(i ?? done), reset, state: () => ({ done, busy, mode, fen }), setFen,
+window.__nc = { debug: () => JSON.stringify({ reorders, x: Object.fromEntries(Object.entries(piece).map(([k, v]) => [k, +v.x.toFixed(6)])) }), zooms: () => { const r = svg.getBoundingClientRect(); const k = r.width / D.W; return Object.fromEntries(Object.entries(D.zooms).map(([n, p]) => [n, [p[0] * k, p[1] * k]])); }, press: (i) => press(i ?? done), reset, state: () => ({ done, busy, mode, fen, review }), setFen,
   advance(sec) { if (!manual) { manual = true; root.setAttribute("data-manual", ""); cancelAnimationFrame(frame); frame = 0; manualNow = 1000; last = manualNow; } const n = Math.max(1, Math.round(sec * 60)); if (sec === 0) { tick(manualNow); return busy; } for (let i = 0; i < n; i++) { manualNow += (sec * 1000) / n; tick(manualNow); } return busy; } };
 
 reset();

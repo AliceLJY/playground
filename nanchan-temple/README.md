@@ -1,6 +1,6 @@
 # Nanchan Temple · Build It Up
 
-The Great Hall of Nanchan Temple in Wutai, Shanxi, rebuilt in 782 under the Tang, is the oldest surviving timber building in China. This page turns it into a machine you can press: eleven buttons on the left, only the next one is live, and each press raises one more layer of the hall. The interface text is Chinese.
+The Great Hall of Nanchan Temple in Wutai, Shanxi, rebuilt in 782 under the Tang, is the oldest surviving timber building in China. This page turns it into a machine you can press: eleven guided steps, each press raising one more layer of the hall; after completion, individual parts can be revisited. The interface text is Chinese.
 
 **[View it live](https://aliceljy.github.io/playground/nanchan-temple/)**
 
@@ -9,7 +9,8 @@ The Great Hall of Nanchan Temple in Wutai, Shanxi, rebuilt in 782 under the Tang
 - Steps: rammed-earth platform, columns, tie-beams, bracket sets, beam frame, roof purlins, rafters, tiles and ridge ornaments, walls and doors, take it apart, put it back.
 - Manual or auto: manual waits for each press, auto builds it on a loop. Space, Enter or → also press the next step; "从头来" starts over.
 - Day or night colours. Both choices are remembered in the browser.
-- The cut-away at bottom left enlarges one column-top bracket set and lights up, layer by layer, how the roof's weight runs from the tiles down into the column.
+- On phones the model comes first, with a fixed next-step button and expandable step list and cut-away. Landscape places the model beside its explanation. Completion unlocks bracket, beam frame, exploded and assembled views with an explicit current-state label; starting over restores the guided order.
+- The cut-away enlarges one column-top bracket set and lights up, layer by layer, how the roof's weight runs from the tiles down into the column.
 - A slider sets how many millimetres one *fen* (the module unit) is worth; the whole hall rescales and every reading is recomputed. 16.5 mm is the surveyed value, the rest are hypothetical.
 
 The line under the figure: the whole hall can be measured with one ruler, the *cai* module. Measuring a Tang building with the module system of the Song *Yingzao Fashi* (1103) is a modern method of analysis, not a Tang drawing.
@@ -26,7 +27,7 @@ The line under the figure: the whole hall can be measured with one ruler, the *c
 - The roof planes are flat: no concave curve, no upturned corners, no rising of the corner columns.
 - Corner bracket sets lack the diagonal arm; corner rafters are drawn parallel.
 - Eave overhang (2.34 m) is a restoration estimate; the overall width differs between sources (11.55–11.75 m); platform, steps and door studs are schematic.
-- Once built, the camera sits above the eaves, so most bracket sets hide under the overhang; see step 4 or the cut-away.
+- Once built, the camera sits above the eaves, so most bracket sets hide under the overhang; see step 4, the cut-away, or the bracket review after completion.
 
 ## Verification
 
@@ -35,6 +36,8 @@ The line under the figure: the whole hall can be measured with one ruler, the *c
 - Frame-jump check: every step scanned at 0.1 s, no frame changes more than 3× its neighbours.
 - Day/night switch checked in Playwright: background goes from `rgb(241,232,211)` to `rgb(29,25,21)`, the choice survives a reload, no console errors.
 - Screenshots at 1280 and 390 px wide were read; not tried on a real phone. Fonts load from Google Fonts and fall back to system Kai/Song faces.
+
+The 2026-11-03 fixes and red/green regression results are in [VERIFICATION.md](VERIFICATION.md).
 
 ## Files
 
