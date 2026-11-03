@@ -127,3 +127,15 @@ test('SPEC 7: 固定机位落在剧本对应的状态上', async () => {
     }
   }
 });
+
+test('F3-5: 二足字幕把 1.25 m/s 标为展品设定，不归为实测阈值', async () => {
+  const [, T] = await load();
+  const caption = T.tourAt(T.SHOTS.biped).caption;
+  assert.match(caption, /这里设在\s*1\.25\s*m\/s\s*换档/);
+  assert.doesNotMatch(caption, /实测/);
+});
+
+test('F3-5: 中足说明也明确 1.25 m/s 是展品换档点', async () => {
+  const [M] = await load();
+  assert.match(M.SUBSYSTEMS.find((s) => s.id === 'legs1').note, /这里设在\s*1\.25\s*m\/s\s*换档/);
+});

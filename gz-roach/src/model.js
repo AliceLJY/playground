@@ -205,7 +205,7 @@ export const SUBSYSTEMS = [
   { id: 'head', name: '头与触角', en: 'head & antennae', note: '复眼约 2000 个小眼；触角与体长相当，是它的鼻子和尺子' },
   { id: 'pronotum', name: '前胸背板', en: 'pronotum', note: '把头盖住的那块盾，边上一圈淡黄——认美洲大蠊就认它' },
   { id: 'legs0', name: '前足', en: 'forelegs', note: '最短的一对，高速时第一个抬离地面' },
-  { id: 'legs1', name: '中足', en: 'midlegs', note: '1.25 m/s 以上也抬起，只剩后足在跑' },
+  { id: 'legs1', name: '中足', en: 'midlegs', note: '高速时中足也抬起，只剩后足；这里设在 1.25 m/s 换档' },
   { id: 'legs2', name: '后足', en: 'hindlegs', note: '最长最壮，胫节带刺；二足奔跑全靠这一对' },
   { id: 'wings', name: '翅', en: 'wings', note: '革质前翅像风衣，膜质后翅折扇一样收在下面' },
   { id: 'abdomen', name: '腹节与尾须', en: 'abdomen & cerci', note: '尾须测气流，被风吹到约 50 ms 内起跑' },

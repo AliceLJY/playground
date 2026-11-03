@@ -4,17 +4,17 @@ A Guangzhou cockroach (the American cockroach, *Periplaneta americana*) scaled u
 
 **[Open it](https://aliceljy.github.io/playground/gz-roach/)**
 
-Drag the speed slider from a walk up to 1.5 m/s. At first the six legs touch down in two alternating tripods; above 1 m/s the front legs lift and it runs on four; faster still the middle legs lift too and it runs on its two hind legs. That is real: it is how the American cockroach runs at top speed (Full & Tu, 1991). The gait diagram, the force under each foot and the readouts all come from the same speed.
+Drag the speed slider from a walk up to 1.5 m/s. At first the six legs touch down in two alternating tripods; above 1 m/s the front legs lift and it runs on four; faster still the middle legs lift too and it runs on its two hind legs. High-speed four- and two-legged running is based on Full & Tu (1991); the exact 1.0 and 1.25 m/s switch points are choices made for this exhibit. The gait diagram, the force under each foot and the readouts all come from the same speed.
 
 Then press 最靓的仔 ("the flashiest guy").
 
 ## What you can do
 
-- **Speed**: 0 to 1.5 m/s. A readout scales it to human body length: about 260 km/h at the top.
+- **Speed**: 0 to 1.5 m/s. Raising the speed with either the slider or arrow keys leaves the sunglasses pose and resumes the gait. A readout scales it to human body length: about 260 km/h at the top.
 - **Look at one part**: head and antennae, pronotum, fore, middle or hind legs, wings, abdomen and cerci. The rest turns see-through and a line of text explains the part (in Chinese).
 - **X-ray, take apart, spread the wings.**
 - **最靓的仔**: it stands up on its hind legs with the abdomen as a third leg, raises its middle legs to flex, sweeps its antennae back like two ponytails, and a pair of sunglasses drops onto its face.
-- **Tour**: left alone, a cursor clicks through the buttons by itself in 36 seconds. Touch anything and it is yours; after 25 quiet seconds the tour comes back.
+- **Tour**: left alone, a cursor clicks through the buttons by itself in 36 seconds. Touch the scene or a control and it is yours. Holding a drag keeps manual control; the 25-second idle countdown starts on release. Press 继续导览 (resume tour) to return immediately.
 
 ## Controls
 
@@ -23,6 +23,7 @@ Then press 最靓的仔 ("the flashiest guy").
 | Orbit | drag | one finger |
 | Zoom | scroll | pinch |
 | Speed | the slider, or the up and down arrow keys | the slider |
+| Resume tour | 继续导览 button | 继续导览 button |
 | Camera views | the 机位 buttons | swipe the button row |
 | Keys | X-ray X, take apart E, wings W, flashiest S, hide panels H | none |
 
@@ -37,11 +38,14 @@ The method is borrowed from Elvar's teardown, a Claude Code skill that turns mac
 ```bash
 npm ci
 node tools/build.mjs            # one file: dist/index.html
-node --test tests/*.test.cjs    # bone lengths, no foot slip, weight balance, nothing under the floor, gaits, tour
-NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check   # browser acceptance; needs Playwright and Chrome already installed
+node --test tests/*.test.cjs    # model, tour and switch-point wording
+# First serve the repository root: python3 -m http.server 8763 --bind 127.0.0.1
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/roach-check http://127.0.0.1:8763/gz-roach/dist/index.html   # browser acceptance; needs Playwright and Chrome already installed
 ```
 
-The spec, number sources and acceptance items are in [SPEC.md](SPEC.md) (Chinese).
+On phones, the 1/25 slow-motion note and control status stay visible, with targets at least 44 CSS pixels high and wide. Tour captions and part notes share one slot. Short landscape screens hide the force and speed-band charts; narrow screens hide the secondary body-length conversion row.
+
+The spec and number sources are in [SPEC.md](SPEC.md); regression results and limits are in [VERIFICATION.md](VERIFICATION.md) (Chinese).
 
 ## Record a demo video
 
