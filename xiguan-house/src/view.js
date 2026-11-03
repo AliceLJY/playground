@@ -7,9 +7,9 @@
 
   // ---------- 机位：等距正交，方位 40°、仰角 33°，全程不动 ----------
   const AZ = (40 * Math.PI) / 180, EL = (37 * Math.PI) / 180;
-  const VIEW = norm([-Math.sin(AZ) * Math.cos(EL), -Math.cos(AZ) * Math.cos(EL), Math.sin(EL)]); // 指向观者
-  const RIGHT = norm(cross([0, 0, 1], VIEW));
-  const UP = norm(cross(VIEW, RIGHT));
+  let VIEW = norm([-Math.sin(AZ) * Math.cos(EL), -Math.cos(AZ) * Math.cos(EL), Math.sin(EL)]); // 指向观者
+  let RIGHT = norm(cross([0, 0, 1], VIEW));
+  let UP = norm(cross(VIEW, RIGHT));
   const LIGHT = norm([-0.45, -0.8, 1.25]);
   const proj0 = (p) => [dot(p, RIGHT), -dot(p, UP)];
 
@@ -56,7 +56,7 @@
 
   // ---------- 画布 ----------
   const canvas = document.getElementById('scene');
-  const ctx = canvas.getContext('2d');
+  let ctx = canvas.getContext('2d');
   const bg = document.createElement('canvas');
   const bctx = bg.getContext('2d');
   let W = 0, H = 0, DPR = 1, K = 1, OX = 0, OY = 0;
@@ -225,48 +225,114 @@
     const order = sortFaces(buildFaces(s));
     for (const F of order) drawFace(F);
     api.faces = order.length;
+    drawLandmarks();
   }
 
+  // Labels refer to the rooms already documented in facts.md (S3/S4), not additional rooms.
+  const details = [
+    { title:'门官厅', at:[0,160,60], dx:-104, dy:22, text:'进门后的第一进，前接脚门、趟栊、大门，后经挡中通向天井。' },
+    { title:'天井', at:[0,410,10], dx:32, dy:6, text:'露天的院落。地面的金钱形去水孔用来排水，两侧隔墙上有满洲窗。' },
+    { title:'正厅', at:[0,850,190], dx:40, dy:-64, text:'花罩将正厅与天井分开；后墙高处的神楼用于供奉祖先。' },
+  ];
+  const dialog = document.getElementById('detail-dialog');
+  let detailState = null;
+  details.forEach((d, i) => {
+    const b = document.createElement('button'); b.className = 'landmark'; b.type = 'button'; b.hidden = true;
+    b.textContent = d.title; b.setAttribute('aria-controls', 'detail-dialog'); d.button = b;
+    b.addEventListener('click', (e) => { e.stopPropagation(); openDetail(i); });
+    document.getElementById('landmarks').appendChild(b);
+  });
+  function drawLandmarks() {
+    const show = !anim && s >= T;
+    const top = document.querySelector('.note').getBoundingClientRect().bottom + 8;
+    const bottom = document.querySelector('.bar').getBoundingClientRect().top - 8;
+    details.forEach((d) => {
+      const b = d.button; b.hidden = !show; if (!show) return;
+      const [x,y] = P(d.at);
+      const left = Math.max(12, Math.min(W-b.offsetWidth-12,x+d.dx));
+      const bt = Math.max(top, Math.min(bottom-b.offsetHeight,y+d.dy));
+      b.style.left = left+'px'; b.style.top = bt+'px';
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x,y);
+      ctx.lineTo(Math.max(left,Math.min(left+b.offsetWidth,x)),Math.max(bt,Math.min(bt+b.offsetHeight,y)));ctx.stroke();
+      ctx.fillStyle = PAL.ink; ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+    });
+  }
+  function openDetail(i) {
+    if (s < T || anim) return;
+    const d = details[i];
+    document.getElementById('detail-title').textContent = d.title + ' · 局部俯视';
+    document.getElementById('detail-text').textContent = d.text;
+    dialog.showModal(); drawDetail(i);
+  }
+  function drawDetail(i) {
+    const c = document.getElementById('detail-canvas'), r = c.getBoundingClientRect(), d = details[i];
+    c.width = Math.round(r.width*DPR); c.height = Math.round(r.height*DPR);
+    const saved = {ctx,K,OX,OY,VIEW,RIGHT,UP};
+    // Reuse the same faces and materials at a closer scale; main camera stays unchanged.
+    try {
+      ctx = c.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0);
+      ctx.fillStyle = PAL.paper; ctx.fillRect(0,0,r.width,r.height);
+      // A higher local angle reveals the courtyard behind the screen; the overview is unchanged.
+      const el = 65*Math.PI/180;
+      VIEW = norm([-Math.sin(AZ)*Math.cos(el),-Math.cos(AZ)*Math.cos(el),Math.sin(el)]);
+      RIGHT = norm(cross([0,0,1],VIEW)); UP = norm(cross(VIEW,RIGHT));
+      K = Math.max(saved.K*1.4, Math.min(r.width/660,r.height/460));
+      const [x,y] = proj0(d.at); OX = r.width/2-K*x; OY = r.height/2-K*y;
+      for (const f of sortFaces(buildFaces(T))) drawFace(f);
+      detailState = {index:i,title:d.title,zoom:K/saved.K};
+    } finally { ctx=saved.ctx; K=saved.K; OX=saved.OX; OY=saved.OY; VIEW=saved.VIEW; RIGHT=saved.RIGHT; UP=saved.UP; }
+  }
+  document.getElementById('detail-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => { detailState = null; });
+
   // ---------- 交互：点屋子、按钮、空格或回车；动画期间不接新指令 ----------
-  const btn = document.getElementById('toggle');
+  const btn = document.getElementById('toggle'), pauseBtn = document.getElementById('inspect-pause');
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let s = 0, target = 0, anim = null, dirty = true;
+  let s = 0, target = 0, anim = null, stopped = false, dirty = true;
   const params = new URLSearchParams(location.search);
   const view = params.get('view');
   if (view === 'open') s = target = T;
   else if (view === 'mid') s = target = +(params.get('t') || 1.9);
-  function label() { btn.textContent = target >= T ? '合上' : '推开'; btn.setAttribute('aria-pressed', target >= T ? 'true' : 'false'); }
+  function label() { btn.textContent = target >= T ? '合上' : '推开'; btn.setAttribute('aria-pressed', target >= T ? 'true' : 'false'); pauseBtn.disabled = !anim && !stopped; pauseBtn.textContent = stopped ? '继续开合' : '停在这儿'; }
   function trigger() {
     if (anim) return false;
     const to = target >= T ? 0 : T;
-    target = to;
-    label();
-    if (reduced) { s = to; dirty = true; return true; }
-    anim = { from: s, to, t0: performance.now() };
+    target = to; stopped = false;
+    if (reduced) { s = to; dirty = true; label(); return true; }
+    anim = { from: s, to, t0: performance.now() }; label();
     return true;
   }
   btn.addEventListener('click', (e) => { e.stopPropagation(); trigger(); });
   canvas.addEventListener('click', trigger);
+  pauseBtn.addEventListener('click', () => {
+    if (anim) { advance(performance.now()); if (anim) { anim = null; stopped = true; } }
+    else if (stopped) { anim = {from:s,to:target,t0:performance.now()}; stopped = false; }
+    label(); dirty = true;
+  });
   window.addEventListener('keydown', (e) => {
+    if (e.target.closest('button,dialog,input') || dialog.open) return;
     if (e.code === 'Space' || e.key === 'Enter') {
       if (document.activeElement === btn && e.key === 'Enter') return; // 按钮自己会响应
       e.preventDefault(); trigger();
     }
   });
-  function frame(now) {
+  function advance(now) {
     if (anim) {
       const dt = (now - anim.t0) / 1000;
       const dir = anim.to > anim.from ? 1 : -1;
       s = anim.from + dir * Math.min(dt, Math.abs(anim.to - anim.from));
-      if (dt >= Math.abs(anim.to - anim.from)) { s = anim.to; anim = null; }
+      if (dt >= Math.abs(anim.to - anim.from)) { s = anim.to; anim = null; label(); }
       dirty = true;
     }
+  }
+  function frame(now) {
+    advance(now);
     if (dirty) { render(s); dirty = false; api.frames++; }
     requestAnimationFrame(frame);
   }
   const api = (window.__xiguan = {
-    get s() { return s; }, get busy() { return !!anim; }, get target() { return target; }, T, cycles: 0, frames: 0, faces: 0, ready: false,
-    set(t) { anim = null; s = target = t; label(); dirty = true; },
+    get detail() { return detailState; }, get s() { return s; }, get busy() { return !!anim; }, get target() { return target; }, T, cycles: 0, frames: 0, faces: 0, ready: false,
+    set(t) { anim = null; stopped = false; s = target = t; label(); dirty = true; },
     trigger, range: RANGE, view: VIEW,
     screenBox() { // 当前姿势下整个模型的屏幕外框（CSS 像素）
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -275,7 +341,7 @@
     },
     project: (p) => P(p),
   });
-  window.addEventListener('resize', layout);
+  window.addEventListener('resize', () => { layout(); if (dialog.open && detailState) drawDetail(detailState.index); });
   layout(); label();
   requestAnimationFrame((t) => { frame(t); api.ready = true; });
 })();

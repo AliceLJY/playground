@@ -28,6 +28,18 @@
     .hint { width: 100%; text-align: center; order: 3; }
     .note { top: 12px; left: 16px; right: 16px; font-size: 11px; }
   }
+  #inspect-pause{pointer-events:auto;min-height:44px;padding:8px 14px;font:inherit;color:var(--ink);background:rgba(255,255,255,.35);border:1px solid var(--ink);border-radius:2px;cursor:pointer}
+  #inspect-pause:disabled{opacity:.45;cursor:default}
+  .actions{display:flex;gap:8px;pointer-events:auto}
+  .landmark{position:fixed;min-width:72px;min-height:44px;padding:6px 10px;font:inherit;font-size:13px;color:var(--ink);background:rgba(250,247,239,.96);border:1px solid var(--ink);border-radius:2px;cursor:pointer}
+  .landmark[hidden]{display:none}
+  #detail-dialog{width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:16px;color:var(--ink);background:var(--paper);border:1px solid var(--ink)}
+  #detail-dialog::backdrop{background:rgba(44,56,51,.3)}
+  #detail-dialog h2{font-size:18px;margin:0 0 8px}
+  #detail-dialog p{font-size:14px;line-height:1.7;margin:8px 0}
+  #detail-canvas{display:block;width:100%;height:min(280px,40dvh)}
+  #detail-close{font:inherit;min-height:44px;padding:8px 18px;color:var(--ink);background:rgba(255,255,255,.5);border:1px solid var(--ink);cursor:pointer}
+  @media(max-height:400px){#detail-dialog{padding:10px}#detail-canvas{height:120px}#detail-dialog p{margin:5px 0;line-height:1.4}}
 </style>
 </head>
 <body>
@@ -35,9 +47,13 @@
 <p class="note">三件头：脚门、趟栊、大门。趟栊 13 根圆木，取单数；楼梯也是 13 级。</p>
 <div class="bar">
   <div class="title"><b>西关大屋</b><span>门官厅 · 天井 · 正厅</span></div>
-  <button id="toggle" type="button" aria-pressed="false">推开</button>
+  <div class="actions"><button id="toggle" type="button" aria-pressed="false">推开</button><button id="inspect-pause" type="button" disabled>停在这儿</button></div>
   <div class="hint">点屋子，或按空格 / 回车</div>
 </div>
+<div id="landmarks" aria-label="展开后的细节"></div>
+<dialog id="detail-dialog" aria-labelledby="detail-title">
+  <h2 id="detail-title"></h2><canvas id="detail-canvas" aria-label="构件局部放大"></canvas><p id="detail-text"></p><button id="detail-close" type="button">回到全屋</button>
+</dialog>
 <script src="src/model.js"></script>
 <script src="src/view.js"></script>
 </body>
