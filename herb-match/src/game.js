@@ -59,12 +59,14 @@ const sfx={
 
 // ---------- game state ----------
 let game=null,pilot=null,screen='title',frozen=false,best=0,clock=0,endT=0,resultT=0,lastTick=-1;
+let practice=null;
 try{best=+localStorage.getItem('herb-match-best')||0;}catch(e){}
 const fx={fly:[],pops:[],ripples:[],baskets:[0,0,0,0],shown:[[],[],[],[]],combo:null,flash:0,cardFlip:new Map()};
 // what the autopilot holds: the same taps, but a ripple shows where its finger landed
 const pilotHands={get state(){return game.state;},tapAt(x,y){fx.ripples.push({x,y,t:0});return game.tapAt(x,y);}};
 function start(seed){
   document.getElementById('result').hidden=true;
+  document.getElementById('practice').hidden=true;practice=Core.reviewIntent(practice,{type:'exit'});
   game=Core.create({seed:seed==null?(Math.random()*1e9)|0:seed,aspect:cw/ch});pilot=null;screen='play';endT=0;resultT=0;lastTick=-1;
   fx.fly.length=fx.pops.length=fx.ripples.length=0;fx.baskets=[0,0,0,0];fx.shown=[[],[],[],[]];fx.combo=null;fx.flash=0;fx.cardFlip.clear();drag=null;resize();
 }
@@ -138,6 +140,11 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelDrag(
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 const KEYS={'1':0,'2':1,'3':2,'4':3,a:0,s:1,d:2,f:3,ArrowLeft:0,ArrowDown:1,ArrowUp:2,ArrowRight:3};
 addEventListener('keydown',e=>{
+  if(screen==='practice'){
+    if(e.repeat){e.preventDefault();return;}
+    if(e.key in KEYS){e.preventDefault();practiceIntent({type:'answer',basket:KEYS[e.key]});}
+    return;
+  }
   if(frozen)return;
   if(e.key===' '||e.key==='Enter'){if(screen==='title'){audio();start();sfx.start();}return;}
   if(screen==='play'&&game&&!pilot&&e.key in KEYS){const b=KEYS[e.key],B=game.state.L.baskets[b];fx.ripples.push({x:B.cx,y:B.cy,t:0});game.tapBasket(b);}
@@ -298,11 +305,54 @@ function showResult(){
     detail.append(summary,note,chosen);list.append(detail);
   }
   document.getElementById('review-title').textContent=seen.size?'这 '+seen.size+' 味没分对 · 点开看药签':'一味都没分错！';
+  document.getElementById('practice-start').hidden=seen.size===0;
   document.getElementById('result-mute').textContent=muted?'声音：关':'声音：开';
   panel.hidden=false;document.getElementById('review').scrollTop=0;
 }
 document.getElementById('restart').addEventListener('click',()=>{audio();start();sfx.start();});
 document.getElementById('result-mute').addEventListener('click',e=>{muted=!muted;e.currentTarget.textContent=muted?'声音：关':'声音：开';try{localStorage.setItem('herb-match-muted',muted?'1':'0');}catch(e){}});
+
+// Optional review reuses the existing art and knowledge. The completed normal
+// round and its expanded/scrolling result list stay in place behind this panel.
+const practiceEl=id=>document.getElementById('practice-'+id);
+NATURES.forEach((n,b)=>{
+  const button=document.createElement('button'),label=document.createElement('span');button.type='button';
+  button.setAttribute('aria-label',n.label+'篓');label.textContent=n.label;label.style.background=NAT[b];button.append(label);
+  button.addEventListener('click',()=>practiceIntent({type:'answer',basket:b}));practiceEl('choices').append(button);
+});
+function renderPractice(){
+  const done=practice.phase==='done',feedback=practice.phase==='feedback',learned=practice.items.filter(x=>x.streak===2).length;
+  practiceEl('progress').textContent='已出师 '+learned+' / '+practice.items.length+' 味';
+  practiceEl('question').hidden=done;practiceEl('answer').hidden=done||feedback;
+  practiceEl('feedback').hidden=!feedback;practiceEl('done').hidden=!done;practiceEl('restart').hidden=!done;
+  if(done){practiceEl('summary').textContent='今天认熟了 '+learned+' 味';practiceEl('back').focus({preventScroll:true});return;}
+  const item=practice.items[practice.index],h=HERBS[item.k];
+  practiceEl('name').textContent=h.name;practiceEl('streak').textContent='这味连对 '+item.streak+' / 2';
+  const icon=practiceEl('herb'),ic=icon.getContext('2d');ic.clearRect(0,0,icon.width,icon.height);ic.save();ic.translate(110,110);ic.scale(1.5,1.5);Art.drawHerb(ic,h.id,0,{mood:feedback?(practice.feedback.ok?'happy':'oops'):'calm'});ic.restore();
+  if(feedback){
+    const f=practice.feedback;
+    practiceEl('verdict').textContent=f.ok?(item.streak===2?'认对了 · 这味出师了':'认对了 · 再认对一次就出师'):'刚才选了「'+NATURES[f.chosen].label+'」 · 这味连对归零';
+    practiceEl('taste').textContent=h.taste+' · 归「'+NATURES[h.nature].label+'」篓';practiceEl('note').textContent=h.note;
+    practiceEl('next').textContent=learned===practice.items.length?'查看结果':'继续';practiceEl('next').focus({preventScroll:true});
+  }else practiceEl('name').focus({preventScroll:true});
+}
+function practiceIntent(intent){
+  if(screen!=='practice')return;
+  const next=Core.reviewIntent(practice,intent);if(next===practice)return;
+  practice=next;renderPractice();
+}
+practiceEl('start').addEventListener('click',()=>{
+  if(screen!=='result')return;
+  const next=Core.createReview(game.state.result.slips);if(!next.items.length)return;
+  cancelDrag();practice=next;screen='practice';document.getElementById('result').hidden=true;
+  document.getElementById('practice').hidden=false;document.getElementById('practice').scrollTop=0;renderPractice();
+});
+practiceEl('next').addEventListener('click',()=>practiceIntent({type:'continue'}));
+practiceEl('back').addEventListener('click',()=>{
+  practice=Core.reviewIntent(practice,{type:'exit'});screen='result';document.getElementById('practice').hidden=true;
+  document.getElementById('result').hidden=false;practiceEl('start').focus({preventScroll:true});
+});
+practiceEl('restart').addEventListener('click',()=>{audio();start();sfx.start();});
 function drawSheet(){
   const W=view.W,cols=W<900?4:8,rows=16/cols,cw2=W/cols,rh=(H-90)/rows,k=Math.min(0.75,cw2/170,rh/230);
   text('药材一览',W/2,40,36,C.ink);
@@ -371,7 +421,7 @@ const hook=window.__herb={ready:false,metrics,
   cardFit(noShrink){const out=[],sz=[0.45,0.5625,0.75,1.78].map(a=>{const st=Core.create({aspect:a}).state;return[st.cardW/st.cardK,st.cardH/st.cardK];});for(const [w,ch] of sz)for(const h of HERBS){const L=cardBack(h,w,ch,noShrink);out.push({name:h.name,w,lastLine:+Math.min(lastLineSize({chosen:-1},w),lastLineSize({chosen:0},w)).toFixed(1),bottom:+L.bottom.toFixed(1),divider:L.divider,noteSize:L.noteSize});}return out;},
   freeze(on){frozen=on!==false;return hook;},
   probe(){const s=game&&game.state,B=CFG.box;
-    return{screen,frozen,dpr,canvas:[cw,ch],css:[innerWidth,innerHeight],view:{scale:view.scale,ox:view.ox,oy:view.oy,W:view.W},
+    return{screen,frozen,dpr,practice,canvas:[cw,ch],css:[innerWidth,innerHeight],view:{scale:view.scale,ox:view.ox,oy:view.oy,W:view.W},
       baskets:layoutNow().baskets.map(b=>rectCss(b.x,b.y,b.w,b.h)),
       state:s?{t:+s.t.toFixed(3),phase:s.phase,score:s.score,combo:s.combo,filed:s.filed,correct:s.correct,wrong:s.wrong,missed:s.missed,live:s.herbs.length,result:s.result,
         herbs:s.herbs.map(h=>Object.assign({name:HERBS[h.k].name,grabbed:h.grabbed,age:+(s.t-h.born).toFixed(3),cx:css(h.x,h.y).x,cy:css(h.x,h.y).y},rectCss(h.x-B.half,h.y-B.top,2*B.half,B.top+B.bottom))),

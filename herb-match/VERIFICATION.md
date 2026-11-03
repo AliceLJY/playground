@@ -96,3 +96,24 @@ node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/regression-check.cjs /tmp/herb-regression http://127.0.0.1:8942/herb-match/
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/herb-full http://127.0.0.1:8942/herb-match/index.html
 ```
+
+## 2026-11-03 · 可选错题复习（P2，本地，未发布）
+
+- 结算页增加「这几味再认一次」，没有错题时隐藏。独立纯函数只取本局去重后的 slips，轮流出题、无计时；每味连续认对 2 次出师。错答只清零这一味，药签与正确反馈都等主动继续。结束显示认熟数量，返回保留原成绩、错题展开与滚动位置，再来一局清空复习。原局 75 秒、抽牌、得分、下落难度、题库与上午的旋屏修复未改。
+- `tests/practice.test.cjs` 新增 4 条，未实现时 4 条失败，实现后通过；合计 **17/17**，包括原有 13 条。12 种子真实对局取得错题，检查重复错题去重、真实答题／继续意图完成、先对再错清零、药签等待与重复输入不推进、退出和重新开始无残留；断言样本确实有错误、重复错题及出师。语法检查与 `git diff --check` 通过。
+- 新增 `tools/practice-check.cjs`：正常入口真实按键完成原局，再以真实触控／鼠标及三组键盘操作走完复习，包含先对再错、等待 90 秒、重复按键、旋屏、完成后返回、放弃重进、完成后重开并继续分药、零错题隐藏入口。**390×664、320×568、844×340、1365×900 全部走通**；DPR 2/2/2/1，默认 Canvas 2D 路径，没有测试专用画质。按钮宽高至少 44 CSS px，药签正文至少 16 CSS px，中心命中、文本可见及面板无多余滚动检查通过，零页面错误。
+- 小屏与横屏另由真实漏接局收集全部 16 味，逐一答错，核对药签文字逐字来自现有题库。该检查曾暴露 320×568 的黄连长文案让面板出现多余滚动，缩小复习插画和间距后通过，未缩字号或删文字。旋屏后即时截图曾出现浏览器合成拼块，截图脚本等 150ms 后重拍正常。
+- 原有 `tools/regression-check.cjs` **101/101**，`tools/browser-check.cjs` **194/194**。Google Chrome **156.0.8078.80** / Playwright，Mac mini。本目录没有构建步骤；按 `pages.yml` 拷贝 `index.html` 与 `src/` 作为发布产物，逐文件字节一致，源码入口及发布副本分别跑新玩法检查，均为 **307/307**（条目数随真实随机局的错题数变化）。发布副本的 29 张新玩法截图已逐张读图，原有固定机位及回归截图也已查看。
+- 正常入口另录 390×664 的开局 30 秒，18 次真实触控／拖动／按键操作，零页面错误；已逐秒查看全段、按 100ms 间隔查看开局 5 秒，未逐帧人工审阅整段，不能代替真人手感验收。
+- 每味连对 **2 次**、每味约 **10–20 秒**、常见一轮约 **1–3 分钟**仍待真人试玩校准；后两项是体验估计，不是计时或自动实测时长。真人手感、真手机、Safari、声音未验；未联网重审知识资料。按任务只做第 1 条，不做对照配对，不 push，不做线上复验。
+
+复跑：在 `herb-match/` 起静态服务；第二参数可换成按发布流程拷贝后的页面地址，截图与报告留在仓外。下列 `check-out/` 已忽略，不提交。
+
+```bash
+node --test tests/*.test.cjs
+python3 -m http.server 8941 --bind 127.0.0.1
+# 另一个终端，在 herb-match/：
+NODE_PATH="$(npm root -g)" node tools/practice-check.cjs check-out/practice http://127.0.0.1:8941/
+NODE_PATH="$(npm root -g)" node tools/regression-check.cjs check-out/regression http://127.0.0.1:8941/
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs check-out/full http://127.0.0.1:8941/index.html
+```

@@ -217,6 +217,34 @@ function create(opts){
   return{state:s,step,tapBasket,tapAt,grab,carry,release,finish,resize};
 }
 
+// Optional, untimed review. Copy only the herb keys so review can never edit a round's result.
+function createReview(slips){
+  const keys=new Set();
+  for(const slip of Array.isArray(slips)?slips:[]){
+    if(!slip||!Number.isInteger(slip.k)||!HERBS[slip.k])continue;
+    if(Number.isInteger(slip.chosen)&&slip.chosen>=-1&&slip.chosen<4&&slip.chosen!==HERBS[slip.k].nature)keys.add(slip.k);
+  }
+  return{phase:keys.size?'question':'done',items:[...keys].map(k=>({k,streak:0})),index:keys.size?0:-1,feedback:null};
+}
+// Touch and keyboard send these same intents. No time step: feedback cannot expire.
+function reviewIntent(s,intent){
+  if(intent.type==='exit')return null;
+  if(!s)return s;
+  if(intent.type==='answer'&&s.phase==='question'){
+    const b=intent.basket;if(!Number.isInteger(b)||b<0||b>=4)return s;
+    const item=s.items[s.index],ok=HERBS[item.k].nature===b;
+    return{...s,phase:'feedback',items:s.items.map((x,i)=>i===s.index?{...x,streak:ok?x.streak+1:0}:x),feedback:{ok,chosen:b}};
+  }
+  if(intent.type==='continue'&&s.phase==='feedback'){
+    for(let offset=1;offset<=s.items.length;offset++){
+      const index=(s.index+offset)%s.items.length;
+      if(s.items[index].streak<2)return{...s,phase:'question',index,feedback:null};
+    }
+    return{...s,phase:'done',index:-1,feedback:null};
+  }
+  return s;
+}
+
 // Autopilots for tests, fixed views and the recording.
 //  precise: reacts quickly, always knows, taps the middle of the basket.
 //  human:   reacts like a first-time player, knows about 3 in 4, taps a little off centre.
@@ -250,5 +278,5 @@ function pilot(level,seed){
     next=s.t+Math.max(0.15,P.gap[0]+P.gap[1]*gauss());
   };
 }
-return{H,CFG,NATURES,HERBS,PILOTS,create,pilot,rng,layout,basketAt,multiplier};
+return{H,CFG,NATURES,HERBS,PILOTS,create,pilot,rng,layout,basketAt,multiplier,createReview,reviewIntent};
 });

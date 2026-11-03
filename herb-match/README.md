@@ -12,6 +12,7 @@ It plays on phones in either orientation and on desktop. This is a small game fo
 - Desktop: click a basket or drag a herb; keys 1–4, A S D F or the arrow keys ← ↓ ↑ → map to cold, cool, warm and hot. Space or Enter starts the first round; only the result screen’s “再来一局” button restarts.
 - Sound can be switched off at the top right of the title and result screens.
 - Scroll through every missed herb in the result screen and tap one to expand its original explanation. Property lines and explanations keep a readable size.
+- Choose “这几味再认一次” on the result screen for untimed practice of this round’s missed herbs: identify each correctly twice in a row, keep wrong-answer labels open until you continue, then return to the result or start a normal round.
 - Rotating during a round relays the herbs, labels and baskets while keeping the timer, score and mistakes.
 
 ## Herbs and sources
