@@ -274,6 +274,22 @@
   ::-webkit-scrollbar{height:7px;width:7px}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
   ::-webkit-scrollbar-track{background:transparent}
+  #btn-menu,.hint-mobile{display:none}
+  #title,#score{white-space:nowrap;flex:none}
+  #hint{width:max-content;max-width:calc(100% - 32px)}
+  @media(max-width:900px){
+    #topbar{gap:10px;padding:0 12px;z-index:85}
+    #topbar>.seal,#rank,#crumb{display:none}
+    #btn-menu{display:block;margin-left:auto;min-height:44px;min-width:60px}
+    #tools{display:none;position:absolute;right:12px;top:48px;margin:0;padding:8px;background:var(--paper);border:1px solid var(--line);box-shadow:0 6px 20px rgba(60,45,25,.12)}
+    #topbar.menu-open #tools{display:flex;flex-direction:column}
+    #tools .tbtn{min-height:44px;white-space:nowrap}
+    #hint{width:340px;padding:10px 12px;line-height:1.6}
+    .hint-mobile{display:inline}.hint-desktop{display:none}
+    #scene-tools{top:8px;right:8px;gap:5px}
+    .sbtn{min-height:44px;min-width:44px;padding:4px 8px}
+    #scene-hint{top:60px;left:12px}
+  }
 </style>
 </head>
 <body>
@@ -284,13 +300,14 @@
   <div id="score">0 分</div>
   <div id="rank">初览山河</div>
   <div id="crumb"></div>
+  <button class="tbtn" id="btn-menu" aria-expanded="false" aria-controls="tools">菜单</button>
   <div id="tools">
     <button class="tbtn" id="btn-tour">▶ 直接看场景</button>
     <button class="tbtn" id="btn-reset">重新开卷</button>
   </div>
 </div>
 
-<div id="hint"><span class="d"></span>点时间轴上的红点展开史料，再点 <b>走入场景</b> 环视四周　·　或直接按右上角 <b>▶ 直接看场景</b></div>
+<div id="hint"><span class="d"></span><span class="hint-mobile">点红点看史料，左右滑换年代</span><span class="hint-desktop">点时间轴上的红点展开史料，再点 <b>走入场景</b> 环视四周　·　或直接按右上角 <b>▶ 直接看场景</b></span></div>
 <div id="scroll"><div id="rail"></div></div>
 
 <div id="card">
@@ -354,6 +371,7 @@ const FLAT = CHAPTERS.flatMap(c => c.nodes.map(n => ({ ...n, chapter: c })));
 let score = 0;
 let cur = null;               // 当前节点
 const visited = new Set();
+const answers = new Map(); // First answer per node, cleared only by a new scroll.
 
 const $ = id => document.getElementById(id);
 const CN = ['一','二','三','四','五','六','七','八','九','十'];
@@ -606,27 +624,32 @@ function buildQuiz(node){
   const box = $('opts');
   box.innerHTML = '';
 
+  function showAnswer(key){
+    [...box.children].forEach((el, i) => {
+      el.disabled = true;
+      const k = q.options[i].key;
+      if (k === q.answer) el.classList.add('right');
+      else if (k === key) el.classList.add('wrong');
+    });
+    $('verdict-text').textContent = q.verdict;
+    $('verdict-hint').textContent = key === q.answer ? '' : (q.hint || '');
+    $('verdict').classList.add('show');
+    $('scene-next').classList.add('show');
+  }
   q.options.forEach(o => {
     const b = document.createElement('button');
     b.className = 'opt';
     b.innerHTML = `<span class="k">${o.key}</span><span>${o.text}</span>`;
     b.onclick = () => {
-      const right = o.key === q.answer;
-      score += right ? node.score.correct : node.score.wrong;
+      if (answers.has(node.id)) return;
+      answers.set(node.id, o.key);
+      score += o.key === q.answer ? node.score.correct : node.score.wrong;
       refreshScore();
-      [...box.children].forEach((el, i) => {
-        el.disabled = true;
-        const k = q.options[i].key;
-        if (k === q.answer) el.classList.add('right');
-        else if (k === o.key) el.classList.add('wrong');
-      });
-      $('verdict-text').textContent = q.verdict;
-      $('verdict-hint').textContent = right ? '' : (q.hint || '');
-      $('verdict').classList.add('show');
-      $('scene-next').classList.add('show');
+      showAnswer(o.key);
     };
     box.appendChild(b);
   });
+  if (answers.has(node.id)) showAnswer(answers.get(node.id));
 }
 $('scene-next').onclick = () => exitScene();
 
@@ -668,7 +691,7 @@ function showFinale(){
   $('finale').classList.add('show');
 }
 function reset(){
-  score = 0; visited.clear(); cur = null;
+  score = 0; visited.clear(); answers.clear(); cur = null;
   refreshScore();
   $('crumb').textContent = '';
   $('finale').classList.remove('show');
@@ -691,6 +714,14 @@ $('btn-tour').onclick = () => {
   enterScene(real);
 };
 
+function closeMenu(){
+  $('topbar').classList.remove('menu-open');$('btn-menu').setAttribute('aria-expanded','false');
+}
+$('btn-menu').onclick = () => {
+  const open=$('topbar').classList.toggle('menu-open');$('btn-menu').setAttribute('aria-expanded',String(open));
+};
+$('tools').addEventListener('click',closeMenu);
+addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
 $('btn-reset').onclick = reset;
 $('fin-again').onclick = reset;
 
