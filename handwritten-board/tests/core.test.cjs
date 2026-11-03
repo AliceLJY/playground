@@ -111,3 +111,10 @@ test('the boxes the five test screens leave for the board get the expected shape
     assert.ok(pick.bodyPx >= 15 && pick.titlePx >= 20, `spec #5: ${name} writing is ${pick.bodyPx.toFixed(1)}px body / ${pick.titlePx.toFixed(1)}px title on screen, minimum 15 / 20`);
   }
 });
+
+test('timing explanation distinguishes this character-timed board from optional narration', () => {
+  const text=PAGES.flatMap(p=>p.lines.map(l=>l.text)).join('\n');
+  assert.ok(/按字数定时/.test(text), 'the board must describe the character-based timing it actually uses');
+  assert.ok(/也能接旁白/.test(text), 'narration is an extension, not an implemented audio timeline');
+  assert.ok(!/TTS 旁白定每行时长/.test(text), 'do not claim the current page is TTS-timed');
+});
