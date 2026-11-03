@@ -4,9 +4,9 @@
 
 Each round generates a batch of small spring-driven interactions (buttons, switches, card flips, drags…), records and checks them automatically, then lets a different AI filter them using things the author has already said as the only criteria. Two or three are kept, plus one "surprise" pick so the selection does not narrow into a single style. Inspired by Emil Kowalski's interaction lab, where he generates new interactions daily and keeps the ones he likes; here the author's past remarks stand in for daily picking.
 
-This is tooling, not a published page: candidates and recordings live outside the repo. Spec and the candidate contract are in [SPEC.md](SPEC.md).
+This is tooling, not a published page: candidates and recordings live outside the repo; this folder holds the generator, recorder, judge and ingest scripts. Spec and the candidate contract are in [SPEC.md](SPEC.md).
 
-## The three stages
+## The four stages
 
 Run from this directory. `<round>` is the staging directory for one round; `<media>` receives mp4 and gif files.
 
@@ -31,6 +31,18 @@ Run from this directory. `<round>` is the staging directory for one round; `<med
    ```
 
    Builds `judge-brief.md` (only the verbatim-remark columns of both ledgers; inferred columns are withheld), asks Kimi to view the images, read the source and score, then `tools/validate-scores.cjs` checks that every point cites a verbatim remark or a check id, failed checks are penalised, 2–3 kept candidates pass all checks, exactly one surprise of a different kind is chosen, and the judge is not the generator.
+
+4. **Ingest** (writes the library folder only, no git)
+
+   ```bash
+   node tools/ingest.cjs <round> <media> <library-group-dir> [round-name]
+   ```
+
+   One folder per kept interaction kind (single-file page, preview gif, parameters and the quoted remarks); an existing kind is replaced only by a higher score; surprise picks are only recorded in `history.json` for the next judge; the group README table is rewritten.
+
+If Kimi fails or its scores fail validation, `judge.sh` falls back to `tools/judge-grok.sh`: materials are copied into an isolated directory with relative paths (it refuses to call Grok if any absolute local path remains), Grok gets read-only tools and prints JSON, which the script saves and validates.
+
+On the author's Mac mini the four stages run weekly (Thursday 03:17); the launcher and failure alerts live outside this repo.
 
 ## Tests
 

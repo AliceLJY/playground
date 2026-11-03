@@ -2,7 +2,7 @@
 // 按候选自己写的 __LAB__.demo 发 CDP 真实触摸，逐帧截图 → 3 秒 mp4、预览 gif、6 格联系表、首帧截图，
 // 再用 ffmpeg 逐帧求差算 C8 响应 / C9 落定 / C10 动过，连同源码静态检查写进 checks.json（检查表见 SPEC.md）。
 // 用法：NODE_PATH="$(npm root -g)" node tools/record.cjs <candidates 目录> <媒体输出目录> [slug ...]
-//   截图、联系表、checks.json 写回各候选目录；mp4、gif 写进媒体目录；逐帧图用完挪进废纸篓。
+//   截图、联系表、checks.json 写回各候选目录；mp4、gif 写进媒体目录；逐帧图建在媒体目录同一个卷上，用完挪进那个卷的废纸篓（外接盘是 /Volumes/<盘>/.Trashes/<uid>，跨卷 mv 等于复制、会把内置盘填回去）。
 const fs = require('fs'), path = require('path'), os = require('os');
 const { execFileSync } = require('child_process');
 
@@ -11,6 +11,11 @@ const FPS = 30, DUR = 3, SUB = 2, W = 390, H = 664, DPR = 2;
 // 不用 ffmpeg signalstats：它对 RGB 输入的差图给出过「均值大于最大值」的读数（2026-11-03 好样本静止帧报 YAVG 9.6、YMAX 3）。
 const CHANGED = (d) => d.px >= 40;
 const STILL = (d) => d.px < 20;
+
+function trashFor(dir) {
+  const m = path.resolve(dir).match(/^\/Volumes\/[^/]+/);
+  return m ? path.join(m[0], '.Trashes', String(process.getuid())) : path.join(os.homedir(), '.Trash');
+}
 
 function staticChecks(src) {
   const out = {};
@@ -107,7 +112,8 @@ async function recordOne(browser, dir, mediaDir) {
   const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p) => ({ x: p.x, y: p.y, id: 0, radiusX: 11, radiusY: 11, force: 1 })) });
   const center = Object.fromEntries(targets.map((t) => [t.n, t]));
   const gs = demo.map((g) => ({ ...g, dur: g.type === 'drag' ? (g.dur || 0.4) : 0.1, state: 0 }));
-  const frames = fs.mkdtempSync(path.join(os.tmpdir(), `lab-${slug}-`));
+  fs.mkdirSync(mediaDir, { recursive: true });
+  const frames = fs.mkdtempSync(path.join(mediaDir, `.frames-${slug}-`));
   const downs = [];
   const N = DUR * FPS;
   for (let f = 0; f < N; f++) {
@@ -134,14 +140,14 @@ async function recordOne(browser, dir, mediaDir) {
   checks['C2-offline'] = { pass: external.length === 0, detail: external.length ? external.slice(0, 3).join(' ') : '无' };
   await ctx.close();
 
-  fs.mkdirSync(mediaDir, { recursive: true });
   const inp = ['-v', 'error', '-y', '-framerate', String(FPS), '-i', path.join(frames, '%04d.png')];
   const mp4 = path.join(mediaDir, `${slug}.mp4`), gif = path.join(mediaDir, `${slug}.gif`);
   execFileSync('ffmpeg', [...inp, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-movflags', '+faststart', mp4]);
   execFileSync('ffmpeg', [...inp, '-vf', 'fps=15,scale=260:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse', gif]);
   execFileSync('ffmpeg', [...inp, '-vf', `select='not(mod(n\\,8))',scale=200:-1,tile=6x2:padding=4:color=white`, '-frames:v', '1', path.join(dir, 'contact.png')]);
   fs.copyFileSync(path.join(frames, '0000.png'), path.join(dir, 'shot.png'));
-  fs.renameSync(frames, path.join(os.homedir(), '.Trash', `${path.basename(frames)}-${Date.now()}`));
+  const trash = trashFor(mediaDir); fs.mkdirSync(trash, { recursive: true });
+  fs.renameSync(frames, path.join(trash, `lab${path.basename(frames)}-${Date.now()}`));
 
   const ids = Object.keys(checks).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
   const ordered = Object.fromEntries(ids.map((k) => [k, checks[k]]));
@@ -150,7 +156,7 @@ async function recordOne(browser, dir, mediaDir) {
   return result;
 }
 
-module.exports = { staticChecks, judgeMotion, diffRaw, CHANGED, STILL };
+module.exports = { staticChecks, judgeMotion, diffRaw, trashFor, CHANGED, STILL };
 
 if (require.main === module) (async () => {
   const [candArg, mediaArg, ...only] = process.argv.slice(2);
