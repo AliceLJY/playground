@@ -85,3 +85,8 @@ test('验收 8 README.md 是纯英文（没有汉字），README_CN.md 有汉字
   assert.ok(!/^## /m.test(tail(en, "Who it's for, AI assets").replace(/^## .*\n/, '')), 'README.md 里「谁会点开」不是最后一节');
   assert.ok(!/^## /m.test(tail(cn, '谁会点开、AI 素材').replace(/^## .*\n/, '')), 'README_CN.md 里「谁会点开」不是最后一节');
 });
+
+test('the opening subtitle tells visitors to inspect red marks before switching versions', () => {
+  assert.ok(/<p id="sub">先看红点，再点返修后<\/p>/.test(read('index.html')),
+    'the first screen needs the short red-marks then repaired-version instruction');
+});
