@@ -28,7 +28,7 @@
 
   // ---------- 舞台：天花板 — 弹簧 — 记忆卡片 — 地板 ----------
   const STAGE = { top: 18, cardW: 236, cardH: 74, cx: 180 };
-  const yOf = (factor) => 136 + (1 - factor) * 260;          // 倍率 1 在上，0.45 在下
+  const yOf = (factor) => 110 + (1 - factor) * 230;          // 倍率 1 在上，0.45 在下
   const card = F.spring(170, (reduced ? 2 : 0.55) * 2 * Math.sqrt(170));   // 阻尼比：卡片要弹，减弱动效时不过冲
   const ledge = F.spring(120, (reduced ? 2 : 0.8) * 2 * Math.sqrt(120));
   card.x = card.target = yOf(1);
@@ -154,7 +154,8 @@
     $('imp').textContent = mem.importance.toFixed(2);
     $('pin').textContent = mem.pinned ? '取消钉住' : '钉住它';
     $('pin').setAttribute('aria-pressed', mem.pinned);
-    $('recall').disabled = mem.recalls.includes(day) || (mem.history && mem.history.last === day);
+    $('recall').disabled = !F.canRecall(mem, day);
+    cardG.setAttribute('aria-disabled', !F.canRecall(mem, day));
     $('count').textContent = s.count;
     $('memo').textContent = `${CAT[mem.category] || CAT.other}，写入 ${mem.age} 天了`;
     $('memometa').textContent = `重要性 ${mem.orig.importance.toFixed(2)} · 被想起过 ${mem.history ? mem.history.count : 0} 次${mem.orig.pinned ? ' · 已钉住' : ''}`;
@@ -173,7 +174,7 @@
   }
 
   function recall() {
-    if (mem.recalls.includes(day)) return;
+    if (!F.canRecall(mem, day)) return;
     mem.recalls.push(day); mem.recalls.sort((a, b) => a - b);
     card.v -= reduced ? 0 : 520;            // 被想起时往上一蹿，弹簧再把它拉回落点
     drawPlot(); update(true);
@@ -202,7 +203,8 @@
     // 往下拽越拽越沉：超过 40 像素后阻力变大，像拉一根真弹簧
     const pull = Math.sign(dy) * (Math.abs(dy) < 40 ? Math.abs(dy) : 40 + (Math.abs(dy) - 40) * 0.45);
     const now = performance.now();
-    const nx = Math.max(100, Math.min(310, dragging.cy0 + pull));
+    // 紧凑舞台仍为卡片的旋转边缘留 14 个单位，拖拽时也不裁掉卡片。
+    const nx = Math.max(100, Math.min(stage.viewBox.baseVal.height - STAGE.cardH / 2 - 14, dragging.cy0 + pull));
     card.v = (nx - card.x) / Math.max(0.008, (now - (dragging.tl || dragging.t0)) / 1000);
     card.x = nx; dragging.tl = now;
   });
@@ -215,7 +217,7 @@
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) cardG.addEventListener(ev, release);
   cardG.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); recall(); } });
 
-  // 曲线：按下就拖时间；没拖动、又正好点在某个点旁边，就换成那条记忆
+  // 曲线：横拖选日、纵划交给浏览器滚页；没拖动且点在散点旁边才换记忆。
   let press = null;
   const scrubTo = (e) => {
     const d = Math.round(((svgX(plot, e) - PLOT.x0) / (PLOT.x1 - PLOT.x0)) * F.DAYS);
@@ -223,16 +225,17 @@
   };
   plot.addEventListener('pointerdown', (e) => {
     plot.setPointerCapture(e.pointerId); stopPlay();
-    press = { id: e.pointerId, x: svgX(plot, e), y: svgY(plot, e), moved: false };
+    press = { id: e.pointerId, x: svgX(plot, e), y: svgY(plot, e), clientX: e.clientX, clientY: e.clientY, axis: null };
   });
   plot.addEventListener('pointermove', (e) => {
     if (!press || press.id !== e.pointerId) return;
-    if (!press.moved && Math.hypot(svgX(plot, e) - press.x, svgY(plot, e) - press.y) > 4) press.moved = true;
-    if (press.moved) scrubTo(e);
+    const dx = Math.abs(e.clientX - press.clientX), dy = Math.abs(e.clientY - press.clientY);
+    if (!press.axis && Math.max(dx, dy) > 6) press.axis = dx > dy ? 'x' : 'y';
+    if (press.axis === 'x') scrubTo(e);
   });
   plot.addEventListener('pointerup', (e) => {
     if (!press || press.id !== e.pointerId) return;
-    if (!press.moved) {
+    if (!press.axis) {
       let best = null, bd = 9;
       for (const p of dotPos) { const d = Math.hypot(p.x - press.x, p.y - press.y); if (d < bd) { bd = d; best = p; } }
       if (best && best.m !== mem) select(best.m, true); else scrubTo(e);
@@ -240,6 +243,16 @@
     press = null;
   });
   for (const ev of ['pointercancel', 'lostpointercapture']) plot.addEventListener(ev, () => { press = null; });
+
+  function cancelGestures() {
+    const cardId = dragging && dragging.id, plotId = press && press.id;
+    dragging = null; press = null;
+    if (cardId !== null && cardG.hasPointerCapture(cardId)) cardG.releasePointerCapture(cardId);
+    if (plotId !== null && plot.hasPointerCapture(plotId)) plot.releasePointerCapture(plotId);
+    update(false);
+  }
+  window.addEventListener('blur', cancelGestures);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cancelGestures(); });
 
   function setDay(d) { day = d; update(false); }
 
@@ -313,4 +326,8 @@
     card.x = yOf(F.stateAt(mem, day).factor); card.v = 0; ledge.x = ledge.target;
   }
   window.__fade = { get mem() { return mem; }, get day() { return day; }, library, card, ledge, yOf, select, firstIndex: first.index };
+  window.__PLAYTEST__ = {
+    ready: true,
+    snapshot: () => ({ index: mem.index, ...F.stateAt(mem, day), pinned: mem.pinned, playing, recalls: mem.recalls.slice(), cardY: card.x }),
+  };
 })();
