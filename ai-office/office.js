@@ -605,12 +605,13 @@
     if (C.kidsOffset) placed(ctx,C.kidsOffset,()=>{
       // The boss's two kids, 无忧 and 无虑 (Alice 11-03), 08:00–21:00 Beijing: 无忧 slides on a loop, 无虑 stacks blocks till they topple.
       const h=new Date(now()+8*3600000).getUTCHours(); if (h<8 || h>=21) return;
-      const t=sim.time, k=(t/4)%1, tag=(x,y,name,c)=>{ ctx.font='5px "PingFang SC",system-ui,sans-serif'; const w=Math.ceil(ctx.measureText(name).width)+6; r(ctx,'#fff6dc',x-w/2,y,w,7); r(ctx,c,x-w/2,y,2,7); text(ctx,name,x+1,y+6,5,'#253334'); }, kid=(x,y,shirt)=>{ r(ctx,'#4c4d4030',x-4,y,8,2); r(ctx,shirt,x-3,y-7,6,6); r(ctx,'#e4bb91',x-3,y-12,6,5); r(ctx,'#4b4639',x-3,y-13,6,2); r(ctx,'#2f3a3c',x-2,y-1,2,2); r(ctx,'#2f3a3c',x+1,y-1,2,2); };
+      const t=sim.time, k=(t/4)%1, tag=(x,y,name,c)=>{ ctx.font='5px "PingFang SC",system-ui,sans-serif'; const w=Math.ceil(ctx.measureText(name).width)+6; r(ctx,'#fff6dc',x-w/2,y,w,7); r(ctx,c,x-w/2,y,2,7); text(ctx,name,x+1,y+6,5,'#253334'); }, kid=(x,y,shirt,girl)=>{ r(ctx,'#4c4d4030',x-4,y,8,2); r(ctx,shirt,x-3,y-7,6,6); r(ctx,'#e4bb91',x-3,y-12,6,5); r(ctx,'#4b4639',x-3,y-13,6,2); if(girl){ r(ctx,'#4b4639',x-5,y-12,2,4); r(ctx,'#4b4639',x+3,y-12,2,4); r(ctx,'#e58fb0',x-5,y-13,2,1); r(ctx,'#e58fb0',x+3,y-13,2,1); } r(ctx,'#2f3a3c',x-2,y-1,2,2); r(ctx,'#2f3a3c',x+1,y-1,2,2); };
       const sx = k<.35 ? 8 : k<.75 ? 10+(k-.35)/.4*24 : 34+(k-.75)/.25*6, sy = k<.35 ? 24-(k/.35)*14 : k<.75 ? 10+(k-.35)/.4*12 : 22;
-      kid(Math.round(sx),Math.round(sy)+6,'#e58fb0'); tag(Math.round(sx),Math.round(sy)-15,'无忧','#e58fb0'); if (k>.4 && k<.75) text(ctx,'呜～',Math.round(sx)+14,Math.round(sy)-2,5,'#b5473a');
+      // 无忧 is the boy (orange), 无虑 the girl (purple, two little pigtails) — Alice 11-03.
+      kid(Math.round(sx),Math.round(sy)+6,'#e8963a'); tag(Math.round(sx),Math.round(sy)-15,'无忧','#e8963a'); if (k>.4 && k<.75) text(ctx,'呜～',Math.round(sx)+14,Math.round(sy)-2,5,'#b5473a');
       const n=Math.floor((t%14)/1.6); for (let j=0;j<Math.min(n,7);j++) r(ctx,['#d96952','#efc66c','#7ad7ff','#9cff8a'][j%4],47+(j%2),42-j*4,6,4);
       if (n>=8) { for (let j=0;j<5;j++) r(ctx,['#d96952','#efc66c','#7ad7ff','#9cff8a'][j%4],40+j*5,54,5,4); text(ctx,'哗啦',50,36,5,'#b5473a'); }
-      kid(54,62,'#7aa36a'); tag(54,64,'无虑','#7aa36a');
+      kid(54,62,'#9a6fc4',true); tag(54,64,'无虑','#9a6fc4');
     });
     if (hotspots() && C.teaOffset) placed(ctx,C.teaOffset,()=>{ r(ctx,'#fff6dc',20,15,38,8); text(ctx,'▶ 点我饮茶',39,21,5,'#8a4a3e'); });
     if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
@@ -701,7 +702,7 @@
   function drawKidsAsleep() {
     if (mv || !C.kidBeds || !C.beds) return; const h=new Date(now()+8*3600000).getUTCHours(); if (h>=8 && h<21) return;
     const t=sim.time;
-    [['无忧','#e58fb0'],['无虑','#7aa36a']].forEach(([name,c],j)=>{ const b=C.beds[C.kidBeds[j]]; if(!b)return; const x=Math.round(b.x), y=Math.round(b.y), k=(t+j)%3;
+    [['无忧','#e8963a'],['无虑','#9a6fc4']].forEach(([name,c],j)=>{ const b=C.beds[C.kidBeds[j]]; if(!b)return; const x=Math.round(b.x), y=Math.round(b.y), k=(t+j)%3;
       r(ctx,'#4b4639',x-10,y-9,5,2); r(ctx,'#e3b58d',x-9,y-8,5,4); r(ctx,c,x-3,y-8,11,6); r(ctx,'#ffffff40',x-3,y-8,11,1);
       text(ctx,'z',x+7,y-11-k*2,5,'#45534b');
       ctx.font='5px "PingFang SC",system-ui,sans-serif'; const w=Math.ceil(ctx.measureText(name).width)+6, ty=j%2?y+8:y-31; r(ctx,'#fff6dc',x-w/2,ty,w,7); r(ctx,c,x-w/2,ty,2,7); text(ctx,name,x+1,ty+6,5,'#253334'); });
