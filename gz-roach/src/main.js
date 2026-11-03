@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as M from './model.js';
 import { buildRoach } from './roach.js';
-import { tourAt, TOUR_S, SHOTS } from './tour.js';
+import { tourAt, advanceTour, TOUR_S, SHOTS } from './tour.js';
+import { newDiscovery, discoveryOpen, discoveryIntent, observeDiscovery, discoveryText, HOLD_S } from './discovery.js';
 
 const ACCENT = '#12a58f';
 const q = new URLSearchParams(location.search);
@@ -57,6 +58,7 @@ controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistan
 const live = { v: 0.25, swag: 0, wings: 0, explode: 0, xray: false, focus: null, cycle: 0, ground: 0, view: 'hero' };
 const target = { v: 0.25, swag: 0, wings: 0, explode: 0 };
 let mode = CAPTURE || q.has('at') || q.has('view') ? 'frozen' : 'tour';
+let discovery = newDiscovery(mode === 'frozen' || q.get('discovery') === 'off' ? 'closed' : 'waiting');
 let tourClock = 0, idle = 0, appliedMode = '', displayedView = 'hero', backTimer;
 const heldPointers = new Set();
 const compact = () => matchMedia('(max-aspect-ratio: 1/1), (max-width: 640px), (max-height: 480px)').matches;
@@ -132,7 +134,7 @@ const anchorOf = (sys) => {
 function drawCallout(st) {
   const c = panels.callout, line = panels.leader;
   const sys = M.SUBSYSTEMS.find((s) => s.id === st.focus);
-  if (!sys || st.explode > 0.2 || document.body.classList.contains('bare') || compact() && panels.caption.classList.contains('on')) { c.classList.remove('on'); line.setAttribute('d', ''); $('#dot').setAttribute('cx', -10); return; }
+  if (!sys || st.explode > 0.2 || discoveryOpen(discovery) || document.body.classList.contains('bare') || compact() && panels.caption.classList.contains('on')) { c.classList.remove('on'); line.setAttribute('d', ''); $('#dot').setAttribute('cx', -10); return; }
   const p = anchorOf(sys.id).project(camera), ax = (p.x * 0.5 + 0.5) * innerWidth, ay = (-p.y * 0.5 + 0.5) * innerHeight;
   c.querySelector('b').textContent = sys.name; c.querySelector('span').textContent = sys.note;
   c.classList.add('on');
@@ -198,7 +200,9 @@ function stateAt(src) {
   const st = M.pose(src.v, src.t, { swag: src.swag, wings: src.wings, cycle: src.cycle });
   return Object.assign(st, { explode: src.explode, xray: src.xray, focus: src.focus, wings: src.wings, view: src.viewName || (src.view && src.view.to) });
 }
+let renderedPose;
 function applyState(st, ground) {
+  renderedPose = st;
   roach.update(st, st.explode);
   const mkey = st.focus + '|' + st.xray;
   if (mkey !== appliedMode) { roach.setMode({ focus: st.focus, xray: st.xray, accent: 0x12a58f }); appliedMode = mkey; }
@@ -223,7 +227,10 @@ let lastNow = performance.now(), simTime = 0;
 function tick(now) {
   const dt = Math.min(0.05, (now - lastNow) / 1000); lastNow = now; frame++;
   fpsMeter(dt);
-  if (mode === 'tour') { tourClock = (tourClock + dt) % TOUR_S; renderTour(tourClock); }
+  if (mode === 'tour') {
+    const next = advanceTour(tourClock, dt); tourClock = next.time; renderTour(tourClock);
+    if (next.ended && discovery.status === 'waiting') { takeOver(); discovery = discoveryIntent(discovery, 'invite'); updateDiscovery(); }
+  }
   else if (mode === 'live') {
     simTime += dt; idle = heldPointers.size ? 0 : idle + dt;
     const k = 1 - Math.exp(-dt * 3.2);
@@ -231,13 +238,15 @@ function tick(now) {
     live.cycle += M.strideFrequency(live.v) * (1 - live.swag) * M.SLOW * dt;
     live.ground += live.v * 1000 * (1 - live.swag) * M.SLOW * dt;
     const st = stateAt({ ...live, t: simTime, viewName: live.view });
+    discovery = observeDiscovery(discovery, st, document.hidden ? 0 : dt, live.focus);
+    if (discoveryOpen(discovery)) updateDiscovery();
     applyState(st, live.ground);
     if (camAnim) { camAnim.k = Math.min(1, camAnim.k + dt / 1.2); const e = camAnim.k * camAnim.k * (3 - 2 * camAnim.k); camera.position.lerpVectors(camAnim.p0, camAnim.p1, e); controls.target.lerpVectors(camAnim.t0, camAnim.t1, e); if (camAnim.k >= 1) camAnim = null; }
     controls.update();
     displayedView = camAnim ? '→' + live.view : live.view;
     updatePanels(st, frame);
     renderer.render(scene, camera);
-    if (idle > IDLE_BACK) backToTour();
+    if (!discoveryOpen(discovery) && idle > IDLE_BACK) backToTour();
   }
   requestAnimationFrame(tick);
 }
@@ -262,6 +271,7 @@ function takeOver() {
 }
 function backToTour() {
   if (mode !== 'live') return;
+  if (discoveryOpen(discovery)) closeDiscovery();
   const f = $('#fade'); f.style.opacity = 1;
   backTimer = setTimeout(() => { mode = 'tour'; tourClock = 0; controls.enabled = false; camAnim = null; panels.badge.textContent = '自动导览 · 点画面接管'; $('#resumeTour').hidden = true; f.style.opacity = 0; }, 380);
   mode = 'fading';
@@ -295,6 +305,34 @@ const acts = {
   swag: () => { if (target.swag > 0.5) { target.swag = 0; target.v = 0.25; } else { target.swag = 1; target.v = 0; target.wings = 0.55; target.explode = 0; live.focus = null; flyTo('pose'); } },
   panels: () => document.body.classList.toggle('bare'),
 };
+// The native buttons use the same click intent for touch, Enter and Space.
+function updateDiscovery() {
+  const open = discoveryOpen(discovery), active = discovery.status === 'active';
+  document.body.classList.toggle('discovering', open);
+  $('#discoveryProgress').hidden = !open;
+  $('#discoveryProgress').textContent = active ? `${discovery.step + 1}/3 · ${Math.floor(discovery.held / HOLD_S * 100)}%` : discovery.status === 'reward' ? '3/3' : '三次观察';
+  const action = $('#discoveryAction');
+  action.hidden = !open || active && discovery.step < 2;
+  action.textContent = discovery.status === 'invited' ? '我来找' : discovery.status === 'reward' ? '继续看' : '确认后足';
+  $('#discoverySkip').hidden = !open || discovery.status === 'reward';
+  if (open) { panels.caption.textContent = discoveryText(discovery); panels.caption.classList.add('on'); }
+}
+function closeDiscovery() {
+  discovery = discoveryIntent(discovery, 'close'); idle = 0;
+  panels.caption.textContent = ''; panels.caption.classList.remove('on'); updateDiscovery();
+}
+$('#discoveryAction').addEventListener('click', () => {
+  if (discovery.status === 'reward') { closeDiscovery(); return; }
+  // Revalidate the current rendered model before accepting a confirmation.
+  discovery = observeDiscovery(discovery, stateAt({ ...live, t: simTime }), 0, live.focus);
+  discovery = discoveryIntent(discovery, discovery.status === 'invited' ? 'start' : 'confirm');
+  if (discovery.status === 'reward') { if (target.swag <= 0.5) acts.swag(); }
+  updateDiscovery();
+});
+$('#discoverySkip').addEventListener('click', () => {
+  const invited = discovery.status === 'invited'; closeDiscovery();
+  if (invited) backToTour();
+});
 document.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => { takeOver(); acts[b.dataset.act](); }));
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
@@ -324,8 +362,9 @@ else requestAnimationFrame((n) => { lastNow = n; tick(n); });
 
 window.__roach = {
   ready: true,
-  render: (t) => { mode = 'frozen'; renderTour(t); return true; },
-  state: () => ({ mode, tourClock, idle, view: displayedView, camera: { position: camera.position.toArray(), target: controls.target.toArray() }, live: { ...live }, target: { ...target }, lowTier, fps }),
+  render: (t) => { clearTimeout(backTimer); $('#fade').style.opacity = 0; if (discoveryOpen(discovery)) closeDiscovery(); mode = 'frozen'; renderTour(t); return true; },
+  state: () => ({ mode, tourClock, idle, view: displayedView, camera: { position: camera.position.toArray(), target: controls.target.toArray() }, live: { ...live }, target: { ...target }, discovery: { ...discovery }, lowTier, fps }),
+  observation: () => renderedPose,
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pixelRatio: renderer.getPixelRatio(), meshes: roach.parts.length, renderer: (() => { const g = renderer.getContext(), e = g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; })() }),
   pose: (t) => { const s = tourAt(t); return stateAt({ ...s, t: s.t }); },
   screen: (sys) => { const p = anchorOf(sys); if (!p) return null; p.project(camera); return { x: p.x * 0.5 + 0.5, y: -p.y * 0.5 + 0.5, z: p.z }; },

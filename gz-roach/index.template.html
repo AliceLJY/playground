@@ -39,6 +39,11 @@
   .tourbar { right: 20px; bottom: 112px; display: flex; align-items: center; gap: 8px; pointer-events: auto; }
   .tourbar button { min-height: 44px; min-width: 44px; }
   .tourbar button[hidden] { display: none; }
+  .tourbar [hidden] { display: none; }
+  #discoveryProgress { font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  body.discovering #badge, body.discovering #resumeTour { display: none; }
+  body.discovering .caption { font-family: inherit; font-size: 14px; letter-spacing: 0; font-weight: 400; line-height: 1.5; }
+  body.discovering .tourbar { gap: 6px; }
   #slowNote { font-size: 11px; color: var(--dim); }
   .explanation { display: contents; }
   .badge { font-size: 11px; letter-spacing: .1em; color: var(--dim); padding: 5px 11px; border-radius: 999px; }
@@ -122,6 +127,7 @@
   @media (max-width: 360px) {
     .sub { display: none; }
     .explanation { top: 86px; }
+    body.discovering.swag .caption { font-size: 16px; letter-spacing: 0; }
   }
   @media (max-height: 480px) and (min-aspect-ratio: 1/1) {
     .title { left: 12px; top: 8px; width: 188px; }
@@ -177,7 +183,7 @@
     <div class="chart glass bandc"><h3>速度档 <em>0 – 1.5 m/s</em></h3><canvas id="band"></canvas></div>
   </div>
   <div class="credit">动作按 Full &amp; Tu 1991 实测速度、步频与步态改编，骨长为估值<br>1/25 慢放 · 我的AI小木屋 · 代码搭出，无模型文件</div>
-  <div class="tourbar"><span id="slowNote">1/25 慢放</span><span class="badge glass" id="badge">自动导览 · 点画面接管</span><button id="resumeTour" title="25 秒不动自动返回，也可立即继续" hidden>继续导览</button></div>
+  <div class="tourbar"><span id="slowNote">1/25 慢放</span><span class="badge glass" id="badge">自动导览 · 点画面接管</span><button id="resumeTour" title="25 秒不动自动返回，也可立即继续" hidden>继续导览</button><span id="discoveryProgress" hidden></span><button id="discoveryAction" hidden>我来找</button><button id="discoverySkip" hidden>不了，继续看</button></div>
   <div class="explanation"><div class="caption glass" id="caption"></div>
   <div id="callout" class="glass"><b></b><span></span></div></div>
   <div id="cursor"><svg viewBox="0 0 24 24"><path d="M3 2l7.5 19 2.6-7.6L21 11z" fill="#fff" stroke="#2b211b" stroke-width="1.6" stroke-linejoin="round"/></svg></div>

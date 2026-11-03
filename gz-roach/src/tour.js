@@ -2,6 +2,8 @@
 import { strideFrequency, SLOW, SPEED_MAX } from './model.js';
 
 export const TOUR_S = 36;
+// End invitation is outside tourAt(): all original tour frames stay identical.
+export const advanceTour = (t, dt) => ({ time: (t + dt) % TOUR_S, ended: t + dt >= TOUR_S });
 const tracks = {
   // [时刻 s, 值]：两个关键帧之间用缓动过渡，过渡时长写在第三项（缺省 1.2 s，在下一个关键帧之前完成）
   v: [[0, 0.25], [3.6, 0.25], [6.4, 0.9, 2.6], [10.6, 0.9], [12.2, 1.2, 1.5], [14.2, 1.2], [15.6, 1.5, 1.3], [20.4, 1.5], [22.0, 0.3, 1.6], [27.4, 0.3], [29.2, 0, 1.6], [34.0, 0], [35.4, 0.25, 1.3]],
