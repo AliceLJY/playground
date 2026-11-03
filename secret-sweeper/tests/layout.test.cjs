@@ -18,7 +18,9 @@ test('spec 3: board, clerk, counters, readout and buttons fit and stay apart',()
       assert.ok(inside(b,w,h),`spec 3: button ${k} off screen on ${tag}`);
       assert.ok(!overlap(b,l.board),`spec 3: button ${k} covers the board on ${tag}`);
     }
-    assert.ok(!overlap(l.btn.mode,l.btn.restart)&&!overlap(l.btn.restart,l.btn.menu),'spec 3: buttons overlap '+tag);
+    const bs=Object.entries(l.btn);assert.deepStrictEqual(bs.map(b=>b[0]).sort(),['menu','mode','restart','sound'],'spec 3: the four bar buttons');
+    for(let a=0;a<bs.length;a++)for(let b=a+1;b<bs.length;b++)assert.ok(!overlap(bs[a][1],bs[b][1]),`spec 3: buttons ${bs[a][0]} and ${bs[b][0]} overlap on ${tag}`);
+    assert.ok(l.btn.mode.w>=100,`spec 3: mode button ${l.btn.mode.w}px too narrow for its label on ${tag}`);
     for(const [k,r] of [['clerk',l.guyBox],['counter',l.counterBox],['readout',l.readout],['bubble',l.bubble]]){
       assert.ok(inside(r,w,h),`spec 3: ${k} off screen on ${tag} ${JSON.stringify(r)}`);
       assert.ok(!overlap(r,l.board),`spec 3: ${k} covers the board on ${tag}`);

@@ -201,8 +201,8 @@ function layout(w,h,levelId){
   if(!land){
     const hudH=clamp(Math.round(h*0.155),80,120),barH=64,S=clamp(Math.floor((hudH-4)/GUY_TOP),2,4);
     hud={x:0,y:0,w,h:hudH};area={x:pad,y:hudH+6,w:w-2*pad,h:h-hudH-barH-10};
-    const by=h-barH+8,bh=48,gap=8,small=Math.min(96,Math.floor((w-2*pad-2*gap)*0.25)),big=w-2*pad-2*gap-2*small;
-    btn={mode:{x:pad,y:by,w:big,h:bh},restart:{x:pad+big+gap,y:by,w:small,h:bh},menu:{x:pad+big+2*gap+small,y:by,w:small,h:bh}};
+    const by=h-barH+8,bh=48,gap=8,snd=48,small=Math.min(92,Math.floor((w-2*pad-3*gap-snd)*0.27)),big=w-2*pad-3*gap-2*small-snd;
+    btn={mode:{x:pad,y:by,w:big,h:bh},restart:{x:pad+big+gap,y:by,w:small,h:bh},menu:{x:pad+big+2*gap+small,y:by,w:small,h:bh},sound:{x:w-pad-snd,y:by,w:snd,h:bh}};
     guy={x:pad+GUY_HALF*S,y:hudH-4,s:S};
     const fs=w<360?17:20;
     counter={x:w-pad,y:10,size:fs,align:'right',w:fs*7.6,h:fs+4};
@@ -213,7 +213,8 @@ function layout(w,h,levelId){
     const side=clamp(Math.round(w*0.28),170,280),S=clamp(Math.floor(Math.min(side/44,(h*0.32)/GUY_TOP)),2,4);
     hud={x:0,y:0,w:side,h};area={x:side+pad,y:pad,w:w-side-2*pad,h:h-2*pad};
     const bw=side-2*pad,bh=48,gap=8,half=Math.floor((bw-gap)/2),by=h-pad-bh*2-gap;
-    btn={mode:{x:pad,y:by,w:bw,h:bh},restart:{x:pad,y:by+bh+gap,w:half,h:bh},menu:{x:pad+half+gap,y:by+bh+gap,w:half,h:bh}};
+    const snd=48,modeW=bw-snd-gap;
+    btn={mode:{x:pad,y:by,w:modeW,h:bh},sound:{x:pad+modeW+gap,y:by,w:snd,h:bh},restart:{x:pad,y:by+bh+gap,w:half,h:bh},menu:{x:pad+half+gap,y:by+bh+gap,w:half,h:bh}};
     guy={x:pad+GUY_HALF*S+4,y:pad+GUY_TOP*S+2,s:S};
     const gx=guy.x+GUY_HALF*S+6;
     bubble={x:gx,y:Math.max(4,guy.y-S*19-12),w:side-pad-gx,h:24};
