@@ -33,7 +33,7 @@ The result screen picks one real event that matches your round and tells it in a
 - A one-page spec is in [SPEC.md](SPEC.md) (Chinese): rule values, palette, layout, performance budget and twelve acceptance checks.
 - Rules live in `src/core.js` with no DOM and run in Node; page, input and sound live in `src/game.js`. A 2D canvas, no build step, no three.js and no images: the coal ball, icons and effects are drawn in code, and sounds are synthesised with WebAudio.
 - Tests: `tests/core.test.cjs` measures turn lag, compression, reports, 429, spawn positions, and the length and survival of rounds across four autopilot levels on real simulated games; `tests/input.test.cjs` fires real key, button and swipe events at the page script.
-- Browser check: `tools/browser-check.cjs`, five viewports.
+- Browser check: `tools/browser-check.cjs`, five viewports. Demo film: `tools/record.cjs` records portrait frames, `tools/demo-sound.py` builds the sound from the on-screen events.
 - Fixed views: `?view=hero`, `?view=long`, `?view=burst`, `?view=end`; hooks `window.__snake` and `window.__PLAYTEST__`.
 
 ## Run locally

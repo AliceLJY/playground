@@ -33,7 +33,7 @@
 - 一页规格在 [SPEC.md](SPEC.md)：规则数值、配色、构图、性能预算和十二条验收。
 - 规则在 `src/core.js`，不碰画面，能在 node 里跑；页面、输入、声音在 `src/game.js`。二维画布，没有构建步骤，不用 three，不用图片：煤球、图标、特效全是代码画的，声音用 WebAudio 现场合成。
 - 测试：`tests/core.test.cjs` 用真实对局量转弯延迟、压缩、汇报、429、刷新位置和四档自动驾驶的时长与存活率；`tests/input.test.cjs` 在页面脚本上发真实的键盘、按钮和滑动事件。
-- 浏览器检查：`tools/browser-check.cjs`，五种视口。
+- 浏览器检查：`tools/browser-check.cjs`，五种视口。演示片：`tools/record.cjs` 逐帧录竖屏画面，`tools/demo-sound.py` 按画面事件合成声音。
 - 固定机位：`?view=hero`、`?view=long`、`?view=burst`、`?view=end`；钩子 `window.__snake` 和 `window.__PLAYTEST__`。
 
 ## 本地运行
