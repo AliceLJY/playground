@@ -10,7 +10,7 @@ Switch on parallel light and drag the screen to the smallest, brightest spot: th
 
 - Thin-lens equation computed live; the picture blurs the further the screen is from the image distance. The three principal rays and the virtual image's backward extensions redraw as you drag.
 - The candle clicks onto f and 2f; when the image falls past the end of the bench the page says so.
-- Works on a phone in portrait and on a desktop; one offline HTML file.
+- Works on a phone in portrait and on a desktop; one offline HTML file. On phones and short windows, fine controls stay at the bottom below the task and image feedback; nudge buttons are 44×44 px.
 
 ## Run locally
 
@@ -19,7 +19,7 @@ npm ci && node tools/build.mjs     # writes dist/index.html; open it directly
 node --test tests/*.test.cjs       # optics and lesson logic
 ```
 
-Spec and acceptance checks: [SPEC.md](SPEC.md) (Chinese).
+Spec and acceptance checks: [SPEC.md](SPEC.md); regression results: [VERIFICATION.md](VERIFICATION.md) (Chinese).
 
 ## Demo video
 

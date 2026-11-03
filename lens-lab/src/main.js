@@ -204,11 +204,13 @@ for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener
 // fine steps: a tap moves 0.5 cm, holding keeps going 0.2 cm at a time
 const nudge = (k, d) => { if (k === 'candle') st.candle = C.nudgeCandle(st.candle, d); else st.screen = C.clampScreen(st.screen + d); };
 let nudgeTimer = 0, nudgeHeld = false;
+const stopNudge = () => { clearInterval(nudgeTimer); clearTimeout(nudgeTimer); nudgeHeld = false; };
+for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, stopNudge);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { stopNudge(); slHeld = null; } });
 for (const b of document.querySelectorAll('button.nudge')) {
   const k = b.dataset.k, dir = +b.dataset.d;
-  const stop = () => { clearInterval(nudgeTimer); clearTimeout(nudgeTimer); nudgeHeld = false; };
-  b.addEventListener('pointerdown', (e) => { e.preventDefault(); nudge(k, 0.5 * dir); nudgeHeld = true; nudgeTimer = setTimeout(() => { nudgeTimer = setInterval(() => nudge(k, 0.2 * dir), 70); }, 380); });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); stopNudge(); nudge(k, 0.5 * dir); nudgeHeld = true; nudgeTimer = setTimeout(() => { nudgeTimer = setInterval(() => nudge(k, 0.2 * dir), 70); }, 380); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, stopNudge);
   b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(k, 0.5 * dir); } });
 }
 const tog = (id, key) => { $(id).onclick = () => { if ($(id).disabled) return; st[key] = !st[key]; if (key === 'sun' && st.sun) st.eye = false; if (key === 'eye' && st.eye) st.sun = false; }; };
@@ -378,10 +380,17 @@ function resize() {
 new ResizeObserver(resize).observe(canvas.parentElement);
 $('home').onclick = () => { camera.position.copy(TARGET).addScaledVector(DIR, fitDistance()); controls.target.copy(TARGET); controls.update(); };
 $('restart').onclick = () => location.reload();
-// portrait: the close-up of the screen moves into the panel next to the readings, where it can be large
+// Compact screens keep tuning below the scrollable lesson and switches above the bench.
+// Reuse the existing inset relocation on viewport changes.
 const narrow = matchMedia('(max-aspect-ratio: 1/1), (max-width: 760px)');
-const placeInset = () => { const host = narrow.matches ? $('zoomrow') : document.querySelector('.stage'); if ($('inset').parentElement !== host) host.prepend($('inset')); };
-narrow.addEventListener('change', placeInset); placeInset();
+const fine = document.querySelector('.fine'), fineHome = fine.parentElement, fineNext = fine.nextElementSibling;
+const switches = document.querySelector('.tools'), switchesHome = switches.parentElement, switchesNext = switches.nextElementSibling;
+const short = matchMedia('(max-height: 500px)');
+const placeInset = () => {
+  if (narrow.matches || short.matches) { $('app').append(fine); document.querySelector('.stage').append(switches); }
+  else { fineHome.insertBefore(fine, fineNext); switchesHome.insertBefore(switches, switchesNext); }
+  const host = narrow.matches ? $('zoomrow') : document.querySelector('.stage'); if ($('inset').parentElement !== host) host.prepend($('inset')); };
+narrow.addEventListener('change', placeInset); short.addEventListener('change', placeInset); placeInset();
 
 // ---------------- dragging the candle and the screen ----------------
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hitP = new THREE.Vector3();
