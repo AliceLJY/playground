@@ -21,11 +21,11 @@
     ],
     cards: [
       { name: '子 agent', tag: '环绕火力', desc: '增加一个自动索敌的小助手，围着你一起开火。', icon: '++' },
-      { name: 'lint 规则', tag: '直线清场', desc: '每 2 秒打出穿透光束。升级增加伤害和光束宽度。', icon: '/' },
-      { name: '并行调用', tag: '扇形弹幕', desc: '每个助手每轮多射一发，覆盖两侧的敌人。', icon: '≋' },
+      { name: 'lint 规则', tag: '直线清场', desc: '每 2 秒打出穿透光束。升级增加伤害和光束宽度。', icon: '/', workflow: 'clear' },
+      { name: '并行调用', tag: '扇形弹幕', desc: '每个助手每轮多射一发，覆盖两侧的敌人。', icon: '≋', workflow: 'clear' },
       { name: '重试三次', tag: '更快出手', desc: '助手的开火间隔缩短 18%，近身压力更小。', icon: '»' },
-      { name: '上下文压缩', tag: '远处拾取', desc: '拾取半径增加 24；不必走进敌群也能升级。', icon: '↧' },
-      { name: 'checkpoint 存档', tag: '多一次机会', desc: '增加一次免死：原地回满生命，推开周围敌人。', icon: '♥' },
+      { name: '上下文压缩', tag: '远处拾取', desc: '拾取半径增加 24；不必走进敌群也能升级。', icon: '↧', workflow: 'sustain' },
+      { name: 'checkpoint 存档', tag: '多一次机会', desc: '增加一次免死：原地回满生命，推开周围敌人。', icon: '♥', workflow: 'sustain' },
       { name: '缓存命中', tag: '高速走位', desc: '移动速度提高 15%，更快穿过包围与预警区。', icon: '↗' },
       { name: '温度调低', tag: '精准重击', desc: '暴击率增加 22%；暴击造成三倍伤害。', icon: '✦' }
     ]

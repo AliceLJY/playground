@@ -2,10 +2,11 @@
   'use strict';
   const data = typeof module !== 'undefined' ? require('./data.js') : root.CoalData;
   const hot = typeof module !== 'undefined' ? require('./sim.hot.js') : root.CoalHot;
-  function create(seed = 1, level = 0, stress = false) {
+  function create(seed = 1, level = 0, stress = false, workflow = '') {
     level = Math.max(0, Math.min(data.levels.length - 1, Math.floor(Number(level) || 0)));
     const s = {
       data, stage: data.levels[level], stageIndex: level, seed: (Number(seed) >>> 0) || 1, rng: (Number(seed) >>> 0) || 1,
+      workflow: workflow === 'clear' || workflow === 'sustain' ? workflow : '',
       phase: 0, tick: 0, x: 180, y: 260, vx: 0, vy: 0, hp: 6, maxHP: 6, invuln: 0,
       xp: 0, prevXP: 0, autoCard: -1, autoUntil: 0, nextXP: 10, level: 1, revives: 0, revivals: 0, kills: 0, shots: 0, collected: 0,
       nextSpawn: 60, fire: 0, beam: 0, boss: -1, live: 0, peak: 0, spawned: 0, wall: 0, gCursor: 0,
@@ -26,7 +27,7 @@
       level: s.stageIndex + 1, x: s.x, y: s.y, hp: s.hp, xp: s.xp, rank: s.level, kills: s.kills, enemies: s.live,
       cards: Array.from(s.cards), offers: Array.from(s.offer), warning: s.warning, off: s.off, burst: s.burst, wall: s.wall,
       bossHP: s.boss < 0 ? null : s.eHP[s.boss], hits: s.hits, resets: s.resets, compressions: s.compressions,
-      fakeReveals: s.fakeReveals, shots: s.shots, zones: s.zones, revivals: s.revivals };
+      fakeReveals: s.fakeReveals, shots: s.shots, zones: s.zones, revivals: s.revivals, workflow: s.workflow };
   }
   function unlocked(value) { const n = Number(value); return Number.isInteger(n) && n >= 1 && n <= data.levels.length ? n : 1; }
   const api = { data, create, step: hot, snapshot, unlocked };

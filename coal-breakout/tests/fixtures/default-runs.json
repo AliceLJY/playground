@@ -1,0 +1,41 @@
+{
+  "source": "5de0485: pre-workflow default simulation, precise driver, per-frame snapshots + RNG + auto notice",
+  "runs": [
+    {
+      "stage": 0,
+      "seed": 1,
+      "frames": 6701,
+      "digest": "296aca14847bae25e17ac29477695fb58f412c2505cc5174c5fac91b18e5ee7b"
+    },
+    {
+      "stage": 0,
+      "seed": 7,
+      "frames": 6925,
+      "digest": "6a42229602c8881d121f7357ebe60270d3877f47f09e4a8c39fa2e0c82eea0f9"
+    },
+    {
+      "stage": 1,
+      "seed": 1,
+      "frames": 8056,
+      "digest": "662d6eefe5f1882ec541504997c3acf42153637700503fb7520872f0ee0290cc"
+    },
+    {
+      "stage": 1,
+      "seed": 7,
+      "frames": 8261,
+      "digest": "87ec86fc44f4550eed85b0b8664f1be93e3a94234cd2f965007d17f188049464"
+    },
+    {
+      "stage": 2,
+      "seed": 1,
+      "frames": 9910,
+      "digest": "b1811994fd5d846d145cee3fb5e3fdcaaab4956afd8104ee991e70b99418a445"
+    },
+    {
+      "stage": 2,
+      "seed": 7,
+      "frames": 9039,
+      "digest": "61e33aeb39e34c5e72d2198d793c39307cb6db9da0a530f006e3ef4f377c144f"
+    }
+  ]
+}

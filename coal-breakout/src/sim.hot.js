@@ -64,6 +64,16 @@ function bullet(s, x, y, angle, beam) {
     return;
   }
 }
+// Pure selection: reuse offer order and never advance the seeded RNG.
+function autoChoice(s) {
+  if (s.workflow === 'clear' || s.workflow === 'sustain') {
+    for (let i = 0; i < 3; i++) {
+      const c = s.offer[i];
+      if (c >= 0 && c < s.cards.length && s.cards[c] < 3 && s.data.cards[c].workflow === s.workflow) return i;
+    }
+  }
+  return 0;
+}
 function offer(s) {
   s.phase = 1;
   for (let j = 0; j < 3; j++) {
@@ -71,7 +81,7 @@ function offer(s) {
     while (tries++ < 24 && (s.cards[c] >= 3 || c === s.offer[0] && j > 0 || c === s.offer[1] && j > 1)) c = (c + 1) % 8;
     s.offer[j] = tries > 24 ? -1 : c;
   }
-  if (s.level % 2 === 0) { s.autoCard = s.offer[0]; s.autoUntil = s.tick + 150; choose(s, 0); s.event = 12; }
+  if (s.level % 2 === 0) { const choice = autoChoice(s); s.autoCard = s.offer[choice]; s.autoUntil = s.tick + 150; choose(s, choice); s.event = 12; }
 }
 function choose(s, choice) {
   if (s.phase !== 1 || choice < -1 || choice > 2 || choice !== Math.floor(choice)) return;
@@ -226,5 +236,6 @@ function step(s, ix, iy, card) {
 }
 step.random = random; step.enemy = enemy; step.gem = gem; step.hurt = hurt;
 step.hit = hit; step.choose = choose; step.zone = zone;
+step.autoChoice = autoChoice;
 if (typeof module !== 'undefined') module.exports = step;
 else globalThis.CoalHot = step;
