@@ -189,7 +189,7 @@
  let primaryAction,secondaryAction;
  function modal(kind,title,content,primary,fn,secondary='',fn2=null){input={};$('dialog-kicker').textContent=kind;$('dialog-title').textContent=title;$('dialog-content').replaceChildren();if(typeof content==='string')$('dialog-content').innerHTML=content;else $('dialog-content').append(content);$('dialog-action').textContent=primary;$('dialog-action').disabled=false;primaryAction=fn;$('dialog-secondary').textContent=secondary;$('dialog-secondary').hidden=!secondary;secondaryAction=fn2;$('modal').hidden=false;$('dialog-action').focus();}
  function hide(){input={};$('modal').hidden=true;$('toast').classList.remove('show');}
- function closeModal(){if(state.phase==='challenge')C.decline(state);else if(state.phase==='dialog')C.close(state);else state.phase='ride';hide();}
+ function closeModal(){if(state.phase==='intro'){hide();$('start').focus();return;}if(state.phase==='challenge')C.decline(state);else if(state.phase==='dialog')C.close(state);else state.phase='ride';hide();}
  function showChallenge(){const portrait=document.createElement('div');portrait.innerHTML='<div class="cat-badge"><i></i><b></b><span>三花</span></div><p>“到江边，睇下边个快？”<br>沿金色路标骑过五个检查点。<br>按住 ↑ 加速，Shift 短暂冲刺；三花可不会等你。</p><p class="fine">应战会从骑楼起跑线出发 · 约一分钟<br>可以随时退出挑战，继续兜风。</p>';modal('街坊挑战 · 三花拦路','喂，阿橘！比一段？',portrait,'来，比一段！',()=>{C.accept(state);hide();snapCamera();tone(660,.2);},'今天只想兜风',()=>{C.decline(state);hide();toast('三花挪到路边：“下次见到，再比！”');});}
  function showResult(){const won=state.race.winner==='orange';tone(won?1046:523,.4);modal('江风挑战 · '+(won?'阿橘先到':'三花先到'),won?'阿橘，骑得可以喔！':'三花：下次再来！',`<div class="race-medal">${won?'风驰橘猫':'自在骑士'}</div><p>${won?'三花甩了甩尾巴：“下回我可认真了。”':'三花在江边等你：“风景太靓，睇入迷了？”'}<br>本次 ${state.race.time.toFixed(1)} 秒 · 通过 ${state.race.gate} / 5 个路标</p>`,'继续逛广州',()=>{state.phase='ride';hide();},'再和三花比一次',()=>{C.accept(state);hide();snapCamera();});}
  function visit(){if(!C.interact(state))return;const p=C.STOPS.find(p=>p.id===state.dialog);modal('沿途小憩',p.title,`<div class="stamp" style="color:${p.color}">${p.stamp}</div><p>${p.text}</p>`,'再骑一会儿',()=>{C.close(state);hide();});}
@@ -200,7 +200,9 @@
  function recover(){if(state.phase!=='ride')return;const n=C.nearest(state.x,state.z),p=C.at(n.road,n.at);state.x=p.x;state.z=p.z;state.y=p.y;state.speed=0;state.manual=0;toast('扶好车，继续出发。');}
  function doPause(){C.pause(state);input={};updateView();}
  function updateView(){const intro=state.phase==='intro';$('intro').hidden=!intro;$('intro-footer').hidden=!intro;$('ride-ui').hidden=intro;$('pause').hidden=intro;$('challenge').hidden=intro;$('journal').hidden=intro;$('pause-panel').hidden=state.phase!=='paused';$('pause').textContent=state.phase==='paused'?'继续':'暂停';}
- $('start').onclick=()=>{C.start(state);snapCamera();updateView();toast('自动导航默认关闭：松开方向就直行。↑ 加速 · Shift 冲刺');};
+ const touchStart=()=>matchMedia('(pointer: coarse)').matches||innerWidth<=700;
+ function depart(){C.start(state);hide();snapCamera();updateView();toast(touchStart()?'车会自己前行，不会自己转弯；左下转弯，自动导航可沿路骑。':'自动导航默认关闭：松开方向就直行。↑ 加速 · Shift 冲刺');}
+ $('start').onclick=()=>{if(touchStart())modal('出发前，看一眼','车会自己前行', '<p>车会自己前行，不会自己转弯。<br>左下转弯，右下刹车、加速、冲刺。<br>想沿路骑，打开「自动导航」。</p>','知道了，出发',depart);else depart();};
  $('brand').onclick=e=>{e.preventDefault();if(state.phase==='ride'||state.phase==='paused')doPause();};$('pause').onclick=doPause;$('resume').onclick=doPause;$('restart-pause').onclick=restart;
  $('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent='声音 · '+(soundOn?'开':'关');$('sound').setAttribute('aria-pressed',String(soundOn));tone(880,.2);};
  $('challenge').onclick=()=>{if(!state.crash&&(state.phase==='ride'||state.phase==='paused')){C.challenge(state);showChallenge();updateView();}};

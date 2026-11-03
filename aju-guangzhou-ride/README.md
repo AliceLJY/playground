@@ -8,6 +8,8 @@ A small browser game made through AI collaboration: ride an orange cat’s bicyc
 
 Use arrow keys or WASD to accelerate, brake and steer. Hold Shift or B to boost. The touch layout has equivalent buttons. Automatic pedalling is on by default; automatic navigation is off. Release steering to keep your current heading.
 
+On touch screens, confirm the departure note before the bicycle starts: it pedals by itself but does not steer by itself. In short landscape viewports, the map becomes a small “路线图” button, with speed and boost on one row above the driving controls. Opening the map pauses the ride.
+
 Click the small map to open the neighbourhood guide. Choose the tea house, court or riverside stop and explicitly start navigation. The bicycle follows connected streets and garden paths, then parks at the destination. You can cancel navigation at any time.
 
 Explore the garden paths and court, ring the bell with Space, visit nearby stops with E, pause with P or Escape, and recover to a road with R. Faster obstacle impacts trigger a fall and automatic remount. Ride into the river and the cat returns to shore. Save a 2880 × 2080 PNG postcard with the photo button.
@@ -32,6 +34,8 @@ python3 build.py
 ```
 
 The generated file is `阿橘的广州慢游.html`. GitHub Actions runs these checks, packages the game, and publishes the generated page after pushes to `main`. The public URL stays the same across updates; existing tabs need a refresh.
+
+See [VERIFICATION.md](VERIFICATION.md) for the mobile regression checks, reproduction commands and remaining limits.
 
 ## Demo scope
 

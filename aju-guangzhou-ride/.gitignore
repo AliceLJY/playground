@@ -12,6 +12,9 @@
 !/build.py
 !/README.md
 !/README_CN.md
+!/VERIFICATION.md
+!/tools/
+!/tools/mobile-check.cjs
 !/THIRD_PARTY_NOTICES.md
 !/tests/
 !/tests/core.test.cjs
