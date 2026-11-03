@@ -407,6 +407,7 @@
     const cloudPoint = () => ({x:podium.x-34,y:podium.y});
     const melonPoint = index => ({x:[88,116,64][index],y:368});
     const work = a => handoffActor(a) || (a===director() && boothCall()) || meetingTarget(a.id) || ['busy','waiting'].includes(a.status) || (isCourier(a)&&sim.delivery);
+    const chargeBed = () => !legacy && !sim.classicLeisure && L.beds ? L.beds[L.beds.length-1] : null;
     function quotaClaim(a) {return sim.eventsEnabled && sim.quotaEvent?.id===a.id && sim.quota[a.id]>signalNow() && !work(a);}
     function cosmeticClaim(a) {
       if(!sim.eventsEnabled)return null;
@@ -414,7 +415,8 @@
       // The review owns these colleagues already, even if the underlying CLI is busy.
       const claims=[];
       if(work(a) && !argument)claims.push({kind:'work',target:null});
-      if(quotaClaim(a))claims.push({kind:'quota',target:wallPoint(a)});
+      // Out of quota: no standing in the corner — back to the rest room's last berth to recharge.
+      if(quotaClaim(a))claims.push({kind:'quota',target:chargeBed() || wallPoint(a)});
       if(receptionist(a))claims.push({kind:'reception',target:receptionTarget(a)});
       if(argument) {
         const e=sim.argue,i=e.ids.indexOf(a.id);
@@ -677,7 +679,7 @@
     // everyone else head-down at their own desk; a real signal wakes them straight back to work. Away still leaves.
     const napper = b => b.status==='off' && !legacy && !sim.classicLeisure && !feastSpot(b);
     function napSpot(a) {
-      const spots=[...(L.beds||[]),games[6],games[7],games[15]].filter(Boolean), order=sim.actors.filter(napper).sort((x,y)=>x.i-y.i);
+      const spots=[...(L.beds||[]).filter(b=>!(sim.quotaEvent && b===chargeBed())),games[6],games[7],games[15]].filter(Boolean), order=sim.actors.filter(napper).sort((x,y)=>x.i-y.i);
       return spots[order.indexOf(a)] || home(a.i);
     }
     const napping = a => napper(a) && !a.path.length && distance(a,napSpot(a))<1;
@@ -826,7 +828,7 @@
       // The host waits at the new desk; delivery phases and their eight-second timer survive rotation.
       Object.assign(sim.boss,bossDesk,{path:[],dest:null});
     }
-    return Object.assign(sim, { inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
+    return Object.assign(sim, { chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
   function createReplay(history,roster,seed=7,selection=false) {
     const data=validateHistory(history,roster),start=Date.parse(data.day+'T00:00:00+08:00');
@@ -942,7 +944,7 @@
       case 'radar': return `豆包雷达回来了，带回 ${e.added} 个选题`;
       case 'snack': return `${names[0]} 交了大活，请大家吃点心`;
       case 'supper': return `保安给 ${names.join('、')} 送了夜宵`;
-      case 'quota': return `${names[0]} ${e.clear?'额度恢复，回座位':'撞额度，罚站中'}`;
+      case 'quota': return `${names[0]} ${e.clear?'额度恢复，回座位':'撞额度，回休息室充电'}`;
       case 'argue': return `会议室吵起来了（第 ${e.round} 轮，反驳 ${e.rejected} 条）`;
       case 'reception': return '接待了一拨来谈事的客人';
       case 'guard': return `夜班保安巡完一圈，备份${e.ok?' ✓':'没过'}`;

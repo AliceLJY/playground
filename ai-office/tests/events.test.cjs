@@ -25,8 +25,8 @@ for(const layout of ['portrait','landscape']) {
   s.setStatus('director','idle',iso(T));s.step(2900);assert.ok(s.melon);s.step(200);assert.equal(s.melon,null);s.step(15000);for(const id of ids)assert.ok(s.gameActivity(s.actors.find(a=>a.id===id)));
   const b=create(layout,'busy');b.setStatus('director','waiting',iso(T));b.step(30000);assert.equal(b.melon,null);
  });
- test(`quota ${layout}: wall route, status invariant, release by clear/expiry; reception/melon cannot steal`,()=>{
-  const s=create(layout);s.setQuota({artist:iso(T+60000)},T);s.step(10000);const a=s.actors.find(a=>a.id==='artist'),before=states(s);assert.equal(a.activity,'quota');assert.equal(a.path.length,0);
+ test(`quota ${layout}: rest-room recharge route, status invariant, release by clear/expiry; reception/melon cannot steal`,()=>{
+  const s=create(layout);s.setQuota({artist:iso(T+120000)},T);s.step(40000);const a=s.actors.find(a=>a.id==='artist'),before=states(s);assert.equal(a.activity,'quota');assert.equal(a.path.length,0);assert.ok(C.distance(a,s.chargeBed())<1,'recharging in the last berth, not standing in a corner');
   s.meet('pitch',iso(T+10000));s.setStatus('director','waiting',iso(T));const expected=states(s);steps(s,30000,()=>{clearPaths(s);assert.equal(a.activity,'quota');assert.deepEqual(states(s),expected);assert.ok(!s.reception?.hosts.includes('artist'));assert.ok(!s.melon?.ids.includes('artist'));});
   s.setQuota({});s.step(20000);assert.notEqual(a.activity,'quota');assert.equal(a.statusSince,before.find(x=>x[0]==='artist')[2]);
   s.setQuota({artist:iso(T+s.time*1000+2000)});s.step(2100);assert.equal(s.quotaEvent,null);
