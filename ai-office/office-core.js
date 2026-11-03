@@ -18,6 +18,8 @@
   const feastLocal = [[8,54,'stand'],[70,54,'stand']];
   // Rest room, 104×66 local: three bunk beds, upper and lower berth each.
   const bedLocal = [[17,32,'bed'],[17,56,'bed'],[51,32,'bed'],[51,56,'bed'],[85,32,'bed'],[85,56,'bed']];
+  // Bunk posts are solid (one climbs in from the open side); the berths themselves stay reachable.
+  const bedLocalObstacles = [4,38,72].flatMap(bx=>[{x:bx,y:8,w:3,h:56},{x:bx+25,y:8,w:3,h:56}]);
   const atOrigin = (list,[ox,oy]) => list.map(([x,y,kind])=>({x:x+ox,y:y+oy,kind}));
   const obstaclesAt = (list,[ox,oy]) => list.map(o=>({...o,x:o.x+ox,y:o.y+oy}));
   // Idle colleagues fill leisure spots in this order (pairs only when both partners exist); breakfast puts the teahouse first.
@@ -34,8 +36,15 @@
   const funSpots = offsets => FUN_ROOMS.flatMap(k=>atOrigin(funLocal[k],offsets[k]));
   const funObstacles = offsets => FUN_ROOMS.flatMap(k=>obstaclesAt(funLocalObstacles[k],offsets[k]));
   const PAIRS = {0:1,2:3};
-  function leisureSlots(count, breakfast=false) {
-    const order=breakfast==='fun'?FUN_ORDER:breakfast?BREAKFAST_ORDER:LEISURE_ORDER, picked=[];
+  // After the first three units (table tennis, an arcade, the dance machine) the rest rotate every twenty minutes on
+  // clock-aware pages, so the gym, massage chairs, garden and snack bar all get their turn; pairs stay together.
+  function rotate(order, turn) {
+    const units=[]; for (const slot of order) { if (Object.values(PAIRS).includes(slot)) continue; units.push(PAIRS[slot]!==undefined?[slot,PAIRS[slot]]:[slot]); }
+    const head=units.slice(0,3), tail=units.slice(3), k=tail.length ? ((turn % tail.length) + tail.length) % tail.length : 0;
+    return [...head,...tail.slice(k),...tail.slice(0,k)].flat();
+  }
+  function leisureSlots(count, breakfast=false, turn=0) {
+    const order=Array.isArray(breakfast)?breakfast:breakfast==='fun'?FUN_ORDER:breakfast?BREAKFAST_ORDER:turn?rotate(LEISURE_ORDER,turn):LEISURE_ORDER, picked=[];
     for(const slot of order) {
       if(picked.length>=count) break;
       if(Object.values(PAIRS).includes(slot)) continue;
@@ -68,6 +77,7 @@
   // A one-person phone booth (CC alone ever uses it).
   const boothObstacles=[{x:268,y:494,w:3,h:46}, {x:299,y:494,w:3,h:46}, {x:290,y:504,w:10,h:20}],storageObstacle={x:266,y:616,w:64,h:60};
   const gymOrigin=[212,630], teaOrigin=[186,494], restOrigin=[24,652];
+  const bedObstacles = obstaclesAt(bedLocalObstacles,restOrigin); obstacles.push(...bedObstacles);
   obstacles.push(...meetingObstacles,...boothObstacles,...obstaclesAt(gymLocalObstacles,gymOrigin),...obstaclesAt(teaLocalObstacles,teaOrigin));
   const emptyScene = () => ({meeting:null, dispatched:[], call:null, disk:null, guard:null});
   const diskLayers = disk => disk ? Math.ceil(disk.usedPct / 12.5) : 0;
@@ -130,13 +140,13 @@
     booth:shift(booth,...W_BOOTH),meetingOffset:W_MEET,boothOffset:W_BOOTH,totalsOffset:[328,-403],lobby:{x:440,y:304,w:60,h:14},
     queuePoint:i=>({x:[248,276,304,248,276,304,376,404,432,460,488][i%11],y:i<3?344:388})};
   landscape.obstacles=[...mainObstacles.filter((_,i)=>i!==10),...deskObstacles(landscape.desks).slice(10),
-    ...meetingObstacles.map(p=>shift(p,...W_MEET)),...boothObstacles.map(p=>shift(p,...W_BOOTH)),landscape.lobby,
+    ...meetingObstacles.map(p=>shift(p,...W_MEET)),...boothObstacles.map(p=>shift(p,...W_BOOTH)),landscape.lobby,{x:456,y:330,w:28,h:8},...obstaclesAt(bedLocalObstacles,W_REST),
     ...obstaclesAt(gymLocalObstacles,W_GYM),...obstaclesAt(teaLocalObstacles,W_TEA),...funObstacles(FUN_L)];
-  landscape.tour=[...tour,{x:470,y:332},{x:512,y:240}];
+  landscape.tour=[...tour,{x:470,y:350},{x:512,y:240}];
   landscape.patrol=[door,{x:352,y:392},{x:512,y:392},{x:512,y:296},{x:616,y:296},{x:616,y:196},{x:524,y:196},{x:524,y:88},{x:360,y:88},pantry,{x:125,y:169},door];
   // The published MV films (v5–v7) keep desk 7 as a workstation; ordinary pages seat etwin-cc beside the boss.
   const filmPatrol=[door,{x:244,y:708},{x:28,y:708},{x:244,y:620},{x:180,y:620},{x:248,y:604},{x:340,y:492},door,{x:198,y:247},{x:125,y:169},door];
-  const film={...portrait,id:'film',H,funOffsets:null,fun:null,patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...portrait.obstacles.map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
+  const film={...portrait,id:'film',H,funOffsets:null,fun:null,patrol:filmPatrol,booth:{x:296,y:560},storageOffset:[0,0],desks:desks.map((p,i)=>[5,7].includes(i)?mvDesks[i]:p),obstacles:[...portrait.obstacles.filter(o=>!bedObstacles.includes(o)).map((o,i)=>[5,7].includes(i)?deskObstacles(mvDesks)[i]:i===12?{x:26,y:173,w:72,h:29}:i===14?{x:119,y:198,w:12,h:13}:o),storageObstacle],tour:tour.map((p,i)=>i===3?{x:124,y:372}:p),queuePoint:filmQueuePoint};
   const layouts={portrait,landscape,film,legacy:{...portrait,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   const getLayout = value => value && typeof value==='object' ? value : layouts[value===true?'legacy':value || 'portrait'];
   const blocked = (x,y,selection=false) => {
@@ -637,12 +647,13 @@
     let gameMembers = '';
     function assignGames() {
       if (legacy) return;
-      const idle=sim.actors.filter(a=>a.status==='idle' && !handoffActor(a) && !isCourier(a) && !cosmeticClaim(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && boothCall())).sort((a,b)=>a.i-b.i);
+      const idle=sim.actors.filter(a=>a.status==='idle' && !handoffActor(a) && !isCourier(a) && !cosmeticClaim(a) && !receptionist(a) && !meetingTarget(a.id) && !(a===director() && boothCall()) && !(!legacy && feastSpot(a))).sort((a,b)=>a.i-b.i);
       // Only a page that told us the real clock (live feed, demo, replay) has breakfast; bare simulations never do.
       const breakfast=typeof sim.forceBreakfast==='boolean' ? sim.forceBreakfast : !!sim.clockKnown && (isBreakfast(signalNow()) || (isFunTime(signalNow()) ? 'fun' : false));
       const feast=!!feasting();
-      const key=breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
-      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&games[slot]).slice(0,idle.length) : sim.funFirst ? [22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)].filter(slot=>games[slot]).slice(0,idle.length) : leisureSlots(idle.length,breakfast).filter(slot=>games[slot]);
+      const rotation=!legacy && !sim.classicLeisure && sim.clockKnown ? Math.floor(signalNow()/1200000) : 0;
+      const key=breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? leisureSlots(idle.length,LEISURE_ORDER.filter(slot=>slot<16||slot>19)).filter(slot=>games[slot]) : sim.funFirst ? leisureSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : leisureSlots(idle.length,breakfast,rotation).filter(slot=>games[slot]);
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -696,18 +707,29 @@
     }
     // Night: nobody goes home (7×24). Colleagues with no work nap in the office: two beanbags and the yoga mat first,
     // everyone else head-down at their own desk; a real signal wakes them straight back to work. Away still leaves.
-    const napper = b => b.status==='off' && !legacy && !sim.classicLeisure && !feastSpot(b);
+    const napper = b => b.status==='off' && !legacy && !sim.classicLeisure && !feastSpot(b) && !quotaClaim(b);
+    // Each napper keeps the spot it got until it wakes; a free spot goes to the next one (lowest desk first).
+    sim.napSeats = {};
     function napSpot(a) {
-      const spots=[...(L.beds||[]).filter(b=>!(sim.quotaEvent && b===chargeBed())),games[6],games[7],games[15]].filter(Boolean), order=sim.actors.filter(napper).sort((x,y)=>x.i-y.i);
-      return spots[order.indexOf(a)] || home(a.i);
+      const spots=[...(L.beds||[]),games[6],games[7],games[15]], charge=sim.quotaEvent && chargeBed() ? (L.beds||[]).indexOf(chargeBed()) : -1;
+      for (const id of Object.keys(sim.napSeats)) { const b=actor(id); if (!b || !napper(b) || sim.napSeats[id]===charge) delete sim.napSeats[id]; }
+      if (!napper(a)) return home(a.i);
+      if (sim.napSeats[a.id] === undefined) {
+        for (const b of sim.actors.filter(b=>napper(b) && sim.napSeats[b.id]===undefined).sort((x,y)=>x.i-y.i)) {
+          const taken=new Set(Object.values(sim.napSeats));
+          const free=spots.findIndex((p,i)=>p && i!==charge && !taken.has(i));
+          sim.napSeats[b.id]=free;
+        }
+      }
+      return spots[sim.napSeats[a.id]] || home(a.i);
     }
     const napping = a => napper(a) && !a.path.length && distance(a,napSpot(a))<1;
     const inBed = a => napping(a) && napSpot(a).kind==='bed';
     // Dim sum from the boss (or a visitor): for two minutes everyone free — idle or napping — eats at the teahouse.
     const feasting = () => sim.feast && sim.time < sim.feast.until && !legacy && !sim.classicLeisure && L.tea;
     function feastSpot(a) {
-      if(!feasting() || !['idle','off'].includes(a.status) || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a)) return null;
-      const order=sim.actors.filter(b=>['idle','off'].includes(b.status) && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b)).sort((x,y)=>x.i-y.i);
+      if(!feasting() || !['idle','off'].includes(a.status) || meetingTarget(a.id) || handoffActor(a) || (a===director()&&boothCall()) || receptionist(a) || cosmeticClaim(a) || (isCourier(a) && sim.delivery)) return null;
+      const order=sim.actors.filter(b=>['idle','off'].includes(b.status) && !meetingTarget(b.id) && !handoffActor(b) && !(b===director()&&boothCall()) && !receptionist(b) && !cosmeticClaim(b) && !(isCourier(b) && sim.delivery)).sort((x,y)=>x.i-y.i);
       return [...L.tea,...(L.feastStand||[])][order.indexOf(a)] || null;
     }
     const feastEating = a => { const p=feastSpot(a); return !!p && !a.path.length && distance(a,p)<1; };
@@ -827,12 +849,12 @@
       const next=create(sim.actors.map(a=>({...a,desk:a.i})),seed,selection);
       for(const key of ['time','night','eventsEnabled','clockBase','quota','eventQueues','seenEvents','quotaEvent','gate','gateFolder','gateHistoryCounts','argue','snack','souvenir','radar','radarCard','supper','melon','melonKey','deskFood','eventBubbles','notices','deliveries','delivery','delivered','treats','thanks','deskTreat','feast','clockKnown','hello','visitorTarget','visitorSeq','carrier','reception','meetQueue','seenMeets']) next[key]=JSON.parse(JSON.stringify(sim[key]));
       if(next.reception) Object.assign(next.reception.visitor,next.layout.door,{path:[],dest:null});
-      next.replaying=sim.replaying;next.replayVisitorsUntil=sim.replayVisitorsUntil;
+      next.replaying=sim.replaying;next.replayVisitorsUntil=sim.replayVisitorsUntil;next.funFirst=sim.funFirst;next.forceBreakfast=sim.forceBreakfast;next.classicLeisure=sim.classicLeisure;next.napSeats={...sim.napSeats};
       next.scene=JSON.parse(JSON.stringify(sim.scene));next.dispatchCall=sim.dispatchCall && {...sim.dispatchCall};next.handoffWalk=sim.handoffWalk && {...sim.handoffWalk};next.flights=[];
       for(const a of sim.actors) Object.assign(next.actors.find(b=>b.id===a.id),{status:a.status,statusSince:a.statusSince,changed:a.changed,doneArrived:a.doneArrived,gameSlot:a.gameSlot});
       next.visitors=sim.visitors.map(v=>({...v,...next.layout.door,path:[],dest:null,until:null}));
       next.place();
-      if(sim.guard && next.guard && !next.supper) Object.assign(next.guard,sim.guard.lap || sim.scene.guard?.phase==='done'?next.layout.door:next.layout.patrol[sim.guard.waypoint],{lap:sim.guard.lap,waypoint:sim.guard.waypoint,path:[],dest:null});
+      if(sim.guard && next.guard && !next.supper) {const waypoint=Math.min(sim.guard.waypoint,next.layout.patrol.length-1);Object.assign(next.guard,sim.guard.lap || sim.scene.guard?.phase==='done'?next.layout.door:next.layout.patrol[waypoint],{lap:sim.guard.lap,waypoint,path:[],dest:null});}
       next.flights=sim.flights.map(f=>{
         const desk=id=>{const a=next.actors.find(a=>a.id===id),p=next.layout.desks[a.i];return {x:p[0]+17,y:p[1]+4};};
         const cc=next.actors.find(a=>a.id===director()?.id);

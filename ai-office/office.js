@@ -445,6 +445,7 @@
         if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',22 + j * 3,30 + ((t * 20 + j * 5) % 10),1,2);
       });
     }
+    if (hotspots() && C.teaOffset) placed(ctx,C.teaOffset,()=>{ r(ctx,'#fff6dc',20,15,38,8); text(ctx,'▶ 点我饮茶',39,21,5,'#8a4a3e'); });
     if (hotspots()) placed(ctx,C.storageOffset,()=>{ r(ctx,'#fff6dc',280,682,36,9); text(ctx,'▶ 点开看',298,689,6,'#8a4a3e'); });
     if (!mv) {
       // Marquee bulbs chase round the sign; the call to play is the big line.
@@ -660,6 +661,12 @@
       else blit(0, sy, w, 1, 0, dy);
     }
   }
+  // A sleeper's name sits on the bunk: above the upper berth, below the lower one (berths are only 24 px apart).
+  function bedTag(a, x, y) {
+    const beds = sim.layout.beds || [], i = beds.findIndex(b => C.distance(b, a) < 1); if (i < 0) return;
+    const name = C.plateName(a.name); ctx.font = '5px "PingFang SC",system-ui,sans-serif'; const w = Math.ceil(ctx.measureText(name).width) + 6, ty = i % 2 ? y + 8 : y - 31;
+    r(ctx, '#fff6dc', x - w / 2, ty, w, 7); r(ctx, a.color, x - w / 2, ty, 2, 7); text(ctx, name, x + 1, ty + 6, 5, '#253334');
+  }
   function drawPerson(a, boss, hop) {
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
@@ -675,9 +682,11 @@
         const left = Math.max(0, (sim.quota[a.id] || 0) - now()), level = Math.max(1, Math.min(9, Math.round(9 * (1 - left / 3600000))));
         r(ctx, '#3e4b47', x - 2, y - 22, 13, 7); r(ctx, '#3e4b47', x + 11, y - 20, 2, 3); r(ctx, '#e8eef2', x - 1, y - 21, 11, 5); r(ctx, level > 6 ? '#67b779' : level > 3 ? '#efc66c' : '#d96952', x, y - 20, level, 3);
         if (Math.floor(sim.time * 2) % 2) text(ctx, '⚡', x + 4, y - 24, 6, '#d9a441');
+        bedTag(a, x, y);
         return;
       }
       text(ctx, 'z', x + 8, y - 12 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 12, y - 18 - k * 2, 8, '#45534b');
+      bedTag(a, x, y);
       return;
     }
     const feastSeat = !boss && !a.visitor && sim.feastEating?.(a) && sim.layout.tea?.some(p=>C.distance(p,a)<1), napAtDesk = !boss && !a.visitor && sim.napping?.(a) && C.distance(a,C.home(a.i))<1;
@@ -911,7 +920,7 @@
       drawReceptionSpeech();
       if(!mv || mv.performances)drawEvents();
       ctx.font = '7px "PingFang SC",system-ui,sans-serif';
-      nameplates = C.nameplates([...sim.actors.filter(a=>(mv && !mv.performances) || !(sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))),...sim.visitors,...(sim.reception ? [sim.reception.visitor] : []),...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}], value=>ctx.measureText(value).width, mv ? speechBoxes : [...speechBoxes,{x:70,y:262,w:64,h:23}]);
+      nameplates = C.nameplates([...sim.actors.filter(a=>(mv && !mv.performances) || !(sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))),...sim.visitors,...(sim.reception ? [sim.reception.visitor] : []),...(sim.guard ? [sim.guard] : []),{...sim.boss,boss:true}].filter(a=>!(sim.inBed?.(a) || (!mv && a.activity==='quota' && sim.chargeBed?.() && C.distance(a,sim.chargeBed())<1))), value=>ctx.measureText(value).width, mv ? speechBoxes : [...speechBoxes,{x:70,y:262,w:64,h:23},{x:33,y:333,w:30,h:8}]);
       // Leaders first, then opaque labels: a later leader must never cross another name.
       for(const p of nameplates) {
         const center=Math.round(p.x+p.w/2);
@@ -1322,9 +1331,8 @@
   new MutationObserver(syncScrim).observe(showcase,{attributes:true,attributeFilter:['hidden']});
   $('#hot-show').addEventListener('click',()=>{ arcade.hidden=true; showcase.hidden=!showcase.hidden; $('#hot-show').setAttribute('aria-expanded',String(!showcase.hidden)); if(!showcase.hidden)showcase.querySelector('a').focus(); });
   $('#showcase-close').addEventListener('click',()=>{ showcase.hidden=true; $('#hot-show').setAttribute('aria-expanded','false'); $('#hot-show').focus(); });
-  showcase.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#showcase-close').click(); });
   $('#arcade-close').addEventListener('click',()=>{ arcade.hidden=true; $('#hot-games').setAttribute('aria-expanded','false'); $('#hot-games').focus(); });
-  arcade.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#arcade-close').click(); });
+  document.addEventListener('keydown',e=>{ if(e.key!=='Escape')return; if(!arcade.hidden) $('#arcade-close').click(); if(!$('#showcase').hidden) $('#showcase-close').click(); });
   $('#wall-board').addEventListener('click',()=>{
     boardRequested=true; $(`#${guest && !demo?'today':'board'}-tab`).click(); $('#drawer-body').scrollTop=0; updateUI();
   });
@@ -1337,8 +1345,8 @@
     const wide=C.id==='landscape'; document.body.classList.toggle('landscape',wide);
     if(wide)$('#drawer').insertBefore($('#treat'),$('.tabs')); else if(!mvMode && !wallMode) $('.room-section').insertBefore($('#treat'),$('#room-viewport')); else $('#canvas-wrap').append($('#treat'));
     $('#canvas-wrap').style.width=''; $('#room-viewport').scrollTop=0;
-    $('#room-viewport').setAttribute('aria-label',wide?'办公室全景，整栋楼同屏':'办公室与附楼，可上下滚动');
-    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏角、会议室和电话亭之间活动。整栋楼同屏，详细状态可在手记中阅读。':'AI 伙伴在工位、游戏角和老板桌之间活动。下方附楼有会议室、电话亭和累计看板，可上下滚动。');
+    $('#room-viewport').setAttribute('aria-label',wide?'办公室全景：上两层同屏，往下滚是娱乐层':'办公室、附楼和娱乐层，可上下滚动');
+    canvas.setAttribute('aria-label',wide?'AI 伙伴在工位、游戏室、茶楼、健身房和会议室之间活动，楼下娱乐层有 K 房、阅读室、小花园、放映角和小卖部。详细状态可在手记中阅读。':'AI 伙伴在工位、游戏室和老板桌之间活动。下方附楼有会议室、茶楼、休息室和健身房，再往下是娱乐层，可上下滚动。');
     for (const [id,rect] of [['#hot-show',{x:C.storageOffset[0]+258,y:C.storageOffset[1]+594,w:80,h:88}],['#hot-games',C.gameRect],['#hot-tea',C.teaOffset && {x:C.teaOffset[0],y:C.teaOffset[1],w:78,h:100}]]) {
       const el=$(id); el.hidden=!hotspots() || !rect; if(!rect)continue;
       Object.assign(el.style,{left:`${rect.x/C.W*100}%`,top:`${rect.y/C.H*100}%`,width:`${rect.w/C.W*100}%`,height:`${rect.h/C.H*100}%`});
@@ -1354,6 +1362,11 @@
     light=''; lastUI=-10; layoutUI(); if(sim)draw();
   });
   new ResizeObserver(fitRoom).observe($('#room-viewport'));
+  // "↓ 娱乐层": shown until the fun floor scrolls into view; one tap takes you there.
+  const funHint=$('#to-fun'), viewport=$('#room-viewport');
+  function syncFunHint(){ if(!funHint)return; const ratio=canvas.getBoundingClientRect().height/C.H, top=(C.id==='landscape'?410:744)*ratio; funHint.hidden=mvMode||wallMode||!C.funOffsets||viewport.scrollTop+viewport.clientHeight>top+40; }
+  funHint?.addEventListener('click',()=>{ viewport.scrollTo({top:viewport.scrollHeight,behavior:calm.matches?'auto':'smooth'}); });
+  viewport.addEventListener('scroll',syncFunHint,{passive:true}); new ResizeObserver(syncFunHint).observe(viewport); setTimeout(syncFunHint,500);
   layoutUI();
   function snapshot() {
     const sorted = [...metrics].sort((a, b) => a - b);
@@ -1370,9 +1383,10 @@
     if (forced) resetDemo(); else await loadLive();
     if (mv && mvFrom) advance(mvFrom * 1000);
     // breakfast / leisure keep playing after the walk over (they show a routine, not one frozen moment).
-    if (view && demo && ['breakfast','leisure','fun','nap','feast'].includes(view)) advance(view === 'feast' ? 45000 : view === 'fun' ? 40000 : 20000);
-    if (view === 'fun') $('#room-viewport').scrollTop = $('#room-viewport').scrollHeight;
+    const routine = view && demo && ['breakfast','leisure','fun','nap','feast'].includes(view);
+    if (routine) advance(view === 'feast' ? 45000 : view === 'fun' ? 40000 : 20000);
     else if (view && demo) { advance({ hero: 4000, queue: 20000, notice: 35000, meeting:73000, booth:112500, handoff:96500, 'handoff-walk':303400, board:73000, 'night-guard':8000, games:138000, reception:49000, argue:84500, snack:112500, melon:18000, quota:93000, supper:154000, gate:347000, souvenir:200000, radar:C.id==='landscape'?263000:266000 }[view]); paused = true; }
+    if (view === 'fun') requestAnimationFrame(() => { $('#room-viewport').scrollTop = $('#room-viewport').scrollHeight; });
     // Live hero uses real data; allow actors to reach their real target before the first shot.
     if (view === 'hero' && !demo) advance(7000);
     ready = true; draw();
