@@ -28,3 +28,18 @@ h1{white-space:nowrap}
 
 button.map-card{padding:8px;border:0;cursor:pointer;color:#516c59;font-family:inherit;}button.map-card:focus-visible{outline:3px solid #b98a4b;outline-offset:3px;}
 .route-planner{display:grid;grid-template-columns:1fr;gap:12px;}#route-overview{width:100%;max-height:42vh;object-fit:contain;border-radius:14px;background:#e4ecd8;}.route-choices{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}.route-choices button{padding:10px 14px;border-radius:20px;background:#e3e7d5;color:#385a48;border:1px solid #aeb89f;}.route-choices button[aria-pressed=true]{background:#3d6857;color:#fff7df;}#route-summary{font-size:14px;margin:0;}#navigation-hud{position:fixed;bottom:116px;left:50%;transform:translateX(-50%);background:#f8eddaed;border-radius:22px;padding:8px 13px;display:flex;gap:14px;align-items:center;white-space:nowrap;font-size:13px;}#navigation-hud[hidden]{display:none;}#stop-navigation{border:0;border-radius:18px;padding:7px;background:#e0e4cf;color:#496953;}@media(max-width:700px){#navigation-hud{bottom:180px;font-size:11px;gap:7px;max-width:95%;}#route-overview{max-height:32vh;}.route-choices button{font-size:12px;padding:8px 10px;}}
+
+/* Short touch landscape: a map launcher, a single readout row and free driving corners. */
+@media(pointer:coarse) and (orientation:landscape) and (max-height:440px){
+ .masthead{top:10px;left:14px;right:14px}.brand-icon{width:34px;height:34px}.brand small{display:none}
+ .top-actions button{min-height:44px;padding:8px 12px}.place{display:none}
+ button.map-card{top:70px;right:14px;width:74px;height:44px;padding:0}.map-card canvas,.map-card>span{display:none}.map-card:after{content:'路线图';font-size:12px}
+ .speed-readout{top:72px;bottom:auto;right:100px;width:80px;height:32px;gap:5px}.speed-readout>span{font-size:27px}.speed-readout small{font-size:8px}
+ .boost-meter{top:72px;bottom:auto;right:194px;width:110px}.boost-meter small{display:none}
+ .bottom-bar{top:66px;bottom:auto;left:14px;transform:none;padding:4px;gap:4px;min-height:44px}.bottom-bar>button{min-height:44px;padding:5px 8px;font-size:10px}.bottom-bar kbd{display:none}
+ .touch-controls{bottom:12px;left:18px;right:18px}.touch-controls button{width:52px;height:52px}
+ #navigation-hud{bottom:76px}#race-hud{top:124px;padding:6px 12px;min-width:220px}#toast{top:120px;max-width:90%;white-space:normal;text-align:center}
+ .paper-dialog{padding:16px 24px;max-height:94dvh}.paper-dialog h2{font-size:22px;margin:8px 0}.paper-dialog p{margin:8px 0;font-size:12px;line-height:1.7}.paper-dialog .primary{margin-top:8px}
+ .close{width:44px;height:44px;right:3px;top:3px}#route-overview{max-height:30vh}
+}
+@media(pointer:coarse){.close{width:44px;height:44px;right:8px;top:5px}}
