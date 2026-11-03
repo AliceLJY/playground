@@ -63,3 +63,5 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <页面地址>
 原 `shots.cjs` 十张固定姿势截图零错误并逐张读图。旧 `perf.cjs` 用 window 派发合成按键，原页面的 DOM 目标检查因此抛错但脚本仍返回成功；本轮改用 Playwright 真实空格输入，并增加错误/开合结果失败退出。两档重跑均展开到 3.4、合回 0，零页面错误；不把该脚本输出的帧率作为设备性能结论。
 
 按发布流程原样复制文件并核对字节一致，发布副本四档入口与跳过开合 **4/4**，零错误，8 张截图已读。此次仅入口调整，未重新导出完整演示片，录片入口的 bypass 已随原自动化流程验证。
+
+- 2026-11-03 CC review fix: pin letters now follow the pins top to bottom on screen instead of the clue order (the answer was always A, B, C in turn), and opening the hunt focuses the dialog title instead of pin A (the focus ring sat on the first answer). `tests/` 13/13, `tools/hunt-check.cjs` and `tools/entry-check.cjs` (44/44) rerun.
