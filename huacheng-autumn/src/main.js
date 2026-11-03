@@ -628,17 +628,23 @@ const requested=params.get('view'),validView=Object.hasOwn(VIEWS,requested),fixe
 let view=validView?requested:'auto',frozen=validView,hour=clamp(number('h',0),0,1),t=fixedTime??0;
 const rig=createRig({u:validView?VIEWS[requested]:0,auto:!matchMedia('(prefers-reduced-motion: reduce)').matches});
 let journal=createJournal(),journalUI='';
+const visitKey='huacheng-autumn:visited';
+let firstVisitPending=!params.has('view')&&!recording&&params.get('intro')!=='skip';
+if(firstVisitPending){try{firstVisitPending=localStorage.getItem(visitKey)!=='1';}catch{/* Unavailable storage remains a first visit. */}}
+function rememberVisit(){try{localStorage.setItem(visitKey,'1');}catch{/* The next visit will show the journal again. */}}
 const journalScene=()=>({time:t,hour,frozen,mode:rig.mode,auto:rig.auto,destination:rig.destination,pos:rig.pos,look:rig.look});
 function updateJournal(intent='tick'){
- const sceneState=journalScene();journal=journalStep(journal,intent,sceneState);
+ const previous=journal.phase,sceneState=journalScene();journal=journalStep(journal,intent,sceneState);
  const active=journal.phase!=='idle',done=journal.phase==='done';
+ if(done&&previous!=='done')rememberVisit();
  const capture=active&&!done&&!journal.moment&&journal.stamps.includes('bridge');
  const available=capture&&journalPlace(sceneState)==='bridge'&&!!journalWindow(t);
  const prompt=done?'电车一刻：'+(journal.moment.direction===1?'向赤岗塔站':'向广州塔站')+'经过花瀑。':active?journalPrompt(journal,sceneState):'';
  const key=JSON.stringify([journal,available,prompt]);if(key===journalUI)return;journalUI=key;
  document.body.classList.toggle('journal-active',active);$('journal').hidden=!active;$('journal-start').hidden=active;
  $('journal-start').setAttribute('aria-expanded',String(active));
- $('journal-title').textContent=done?'我的秋岸游记':'等一班花电车';
+ $('journal-title').textContent=done?'我的秋岸游记':journal.stamps.length?'等一班花电车':'秋岸游记';
+ $('journal-stamps').hidden=!journal.stamps.length;
  $('journal-stamps').textContent=journal.stamps.length?journal.stamps.map(p=>'✓ '+JOURNAL_PLACES[p].name).join(' → ')+(done?'':' · '+JOURNAL_PLACES[journal.stamps.at(-1)].note):'花桥 / 塔下 · 两处秋花';
  $('journal-goal').textContent=prompt;
  const memory=$('journal-memory');memory.hidden=!done;
@@ -665,10 +671,11 @@ const syncAuto=()=>{
  b.title=rig.auto?'留在这里':'继续自动游览';b.setAttribute('aria-label',b.title);
  for(const place of document.querySelectorAll('[data-place]'))place.setAttribute('aria-pressed',String(rig.destination===place.dataset.place));
 };syncAuto();
-$('journal-start').addEventListener('click',()=>{frozen=false;rig.setAuto(false);syncAuto();updateJournal('start');document.querySelector('[data-place=bridge]').focus({preventScroll:true});});
+function startJournal(){firstVisitPending=false;frozen=false;rig.setAuto(false);syncAuto();updateJournal('start');}
+$('journal-start').addEventListener('click',()=>{startJournal();document.querySelector('[data-place=bridge]').focus({preventScroll:true});});
 $('journal').addEventListener('click',e=>{
  const b=e.target.closest('[data-journal]');if(!b)return;
- if(b.dataset.journal==='exit'){updateJournal('exit');frozen=false;rig.setAuto(true);syncAuto();$('journal-start').focus({preventScroll:true});}
+ if(b.dataset.journal==='exit'){rememberVisit();updateJournal('exit');frozen=false;rig.setAuto(true);syncAuto();$('journal-start').focus({preventScroll:true});}
  else updateJournal('capture');
 });
 const touchRig=()=>{frozen=false;view='manual';rig.grab();syncAuto();};
@@ -706,7 +713,7 @@ function animate(dt,render=true){if(!frozen)t+=dt;const pose=frozen?{pos:rig.pos
  // Keep local light evaluation bounded: the closest pools matter at this miniature scale.
  if(hour>0){const nearest=lampLights.slice().sort((a,b)=>a.position.distanceToSquared(camera.position)-b.position.distanceToSquared(camera.position));const active=new Set(nearest.slice(0,mobile?3:4));for(const l of lampLights)l.visible=active.has(l);}
  if(render){renderer.info.reset();if(renderer.shadowMap.needsUpdate)shadowRefreshes++;composer.render();calls=renderer.info.render.calls;tris=renderer.info.render.triangles;frames++;}}
-let last=performance.now();function frame(now){const raw=(now-last)/1000;last=now;if(raw>0){meanFrameTime+=(raw-meanFrameTime)*.05;fps=1/meanFrameTime;if(fps<56){slow+=raw;fast=0;}else if(fps>59.5){fast+=raw;slow=0;}else{fast=slow=0;}}if(slow>1&&scaleIdx<3){scaleIdx++;slow=0;resize();}if(fast>60&&scaleIdx>0){scaleIdx--;fast=0;resize();}animate(Math.min(raw,0.1));requestAnimationFrame(frame);}requestAnimationFrame(frame);
+let last=performance.now();function frame(now){const raw=(now-last)/1000;last=now;if(raw>0){meanFrameTime+=(raw-meanFrameTime)*.05;fps=1/meanFrameTime;if(fps<56){slow+=raw;fast=0;}else if(fps>59.5){fast+=raw;slow=0;}else{fast=slow=0;}}if(slow>1&&scaleIdx<3){scaleIdx++;slow=0;resize();}if(fast>60&&scaleIdx>0){scaleIdx--;fast=0;resize();}animate(Math.min(raw,0.1));if(firstVisitPending&&frames>3)startJournal();requestAnimationFrame(frame);}requestAnimationFrame(frame);
 const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info'),rendererName=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
 const rectOf=el=>{const r=el.getBoundingClientRect();return{x0:r.left/W,x1:r.right/W,y0:r.top/H,y1:r.bottom/H};};
 // Project actual rendered geometry bounds with the actual Three camera, including its view shift.
@@ -725,7 +732,7 @@ window.__huacheng={get ready(){return frames>3;},state:()=>({view,requestedView:
 info:()=>({calls,tris,fps,shadowRefreshes,renderer:rendererName,shadowMap:sun.shadow.mapSize.x,exposure:renderer.toneMappingExposure,sunElevation:Math.atan2(sun.position.y,Math.hypot(sun.position.x,sun.position.z))*180/Math.PI,msaa:sceneTarget.samples,antialiasing:'FXAA',aoResolution:[gtao.width,gtao.height],activePointLights:lampLights.filter(l=>l.visible).length+Number(bridgeLight.visible),ao:gtao.enabled,bloom:bloom.enabled,w:W,h:H,dpr:devicePixelRatio,pixelRatio,scaleIdx,density:mobile?'mobile':'desktop',instances:instances.reduce((s,m)=>s+m.count,0),inventory:instances.map(m=>({name:m.name,count:m.count,type:m.type,isInstancedMesh:m.isInstancedMesh})),lightLevel:skyAt(hour).lights,pagodaLitByFloor:layout.levels.map(l=>l.windows.filter(w=>hour>=w.onAt).length),lighting:{lamps:lampLights[0].intensity,tramWindows:tramWindows.emissiveIntensity,towerWindows:pagodaWindowMat.emissiveIntensity}}),
 setCamera:(pos,target)=>{if(params.has('record')&&[...pos,...target].length===6&&[...pos,...target].every(Number.isFinite)){rig.pos=pos.slice();rig.look=target.slice();frozen=true;view='record';document.body.classList.add('detail');animate(0);}},
 setTime:seconds=>{if(Number.isFinite(seconds)){t=seconds;animate(0);}},
-setView:name=>{if(Object.hasOwn(VIEWS,name)){rig.u=VIEWS[name];rig.pos=pathAt(rig.u).pos;rig.look=pathAt(rig.u).target;rig.mode='auto';frozen=true;view=name;document.body.classList.toggle('detail',!['hero','wide'].includes(name));animate(0);}},
+setView:name=>{if(Object.hasOwn(VIEWS,name)){firstVisitPending=false;updateJournal('exit');rig.u=VIEWS[name];rig.pos=pathAt(rig.u).pos;rig.look=pathAt(rig.u).target;rig.mode='auto';frozen=true;view=name;document.body.classList.toggle('detail',!['hero','wide'].includes(name));animate(0);}},
 traffic:(seconds=t)=>trafficAt(seconds),
 worldSubjects:()=>Object.fromEntries(Object.entries(staticBoxes).map(([k,b])=>[k,{min:b.min.toArray(),max:b.max.toArray()}])),
 trafficGeometryAt,
@@ -734,7 +741,7 @@ tramGeometryBounds:()=>{const b=new THREE.Box3().setFromObject(group('tram'));re
 subjectBoxes:()=>{const tr=tramAt(t);return{...Object.fromEntries(Object.entries(staticBoxes).map(([k,b])=>[k,projected(b)])),tram:projected(new THREE.Box3(new THREE.Vector3(...tr.raw.min),new THREE.Vector3(...tr.raw.max))),base:projected(new THREE.Box3(new THREE.Vector3(-BASE.width/2,-1.6,-BASE.depth/2),new THREE.Vector3(BASE.width/2,0,BASE.depth/2))) };},
 uiBoxes:()=>Object.fromEntries(['.brand','.badge','.copy','.tele','.credit','.tools','.places','.hour'].filter(s=>getComputedStyle(document.querySelector(s)).display!=='none'&&getComputedStyle(document.querySelector(s)).visibility!=='hidden').map(s=>[s,rectOf(document.querySelector(s))])),
 };
-window.__PLAYTEST__={get ready(){return window.__huacheng.ready;},snapshot:()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}),reset:()=>{rig.reset();t=0;frozen=false;view='auto';updateJournal('exit');syncAuto();}};
+window.__PLAYTEST__={get ready(){return window.__huacheng.ready;},snapshot:()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}),reset:()=>{firstVisitPending=false;rig.reset();t=0;frozen=false;view='auto';updateJournal('exit');syncAuto();}};
 // Recording-only camera score and geometric audit. Normal entry has neither API.
 if(recording){
  const overlay=document.createElement('img');overlay.id='record-dissolve';

@@ -8,15 +8,19 @@ const {checkTowers}=require('./refinement-check.cjs');
  try{
   const page=await browser.newPage({viewport:{width:1440,height:900},deviceScaleFactor:1}),shots=[];
   page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
-  const open=async q=>{await page.goto(base+q);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});};
+  const open=async q=>{await page.goto(base+(q||'?intro=skip'));await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});};
   for(const [t,h] of [[13,.55],[16.3,.55],[13,1]]){await open(`?view=hero&t=${t}&h=${h}`);await page.waitForTimeout(300);shots.push((await page.screenshot({path:path.join(out,`water-${t}-${h}.png`)})).toString('base64'));}
-  const water=await page.evaluate(async shots=>{
-   const imgs=await Promise.all(shots.map(async b64=>{const im=new Image();im.src='data:image/png;base64,'+b64;await im.decode();const c=document.createElement('canvas');c.width=1440;c.height=900;const g=c.getContext('2d');g.drawImage(im,0,0);return g.getImageData(920,800,85,90).data;}));
+  // The current hero framing puts the sun path farther left/up than the R3 frame.
+  // Keep the original 85x90 area and thresholds, on visible water above the controls.
+  const roi={x:820,y:680,w:85,h:90};
+  const water=await page.evaluate(async({shots,roi})=>{
+   const imgs=await Promise.all(shots.map(async b64=>{const im=new Image();im.src='data:image/png;base64,'+b64;await im.decode();const c=document.createElement('canvas');c.width=1440;c.height=900;const g=c.getContext('2d');g.drawImage(im,0,0);return g.getImageData(roi.x,roi.y,roi.w,roi.h).data;}));
    let changed=0;const bright=[0,0,0];for(let i=0;i<imgs[0].length;i+=4){if(Math.max(...[0,1,2].map(k=>Math.abs(imgs[0][i+k]-imgs[1][i+k])))>20)changed++;imgs.forEach((d,j)=>{if(d[i]>150&&d[i]-d[i+2]>50)bright[j]++;});}
-   return{roi:{x:920,y:800,w:85,h:90},changed,bright};
-  },shots);
+   const uiOverlap=Object.entries(window.__huacheng.uiBoxes()).filter(([,b])=>roi.x<b.x1*1440&&roi.x+roi.w>b.x0*1440&&roi.y<b.y1*900&&roi.y+roi.h>b.y0*900).map(([name])=>name);
+   return{roi,changed,bright,uiOverlap};
+  },{shots,roi});
   // A sparse near-water patch may fade out between samples; require visible glints in the sampled pair, actual pixel changes, and none at night.
-  report.water=water;report.checks.push({id:'sun-glints-twinkle-and-disappear-at-night',pass:water.changed>20&&Math.max(water.bright[0],water.bright[1])>20&&water.bright[2]===0});
+  report.water=water;report.checks.push({id:'sun-glints-twinkle-and-disappear-at-night',pass:water.uiOverlap.length===0&&water.changed>20&&Math.max(water.bright[0],water.bright[1])>20&&water.bright[2]===0});
   await open('?view=pagoda');const centre=await page.evaluate(()=>window.__huacheng.state().u);
   await open('');
   await page.evaluate(centre=>{

@@ -26,7 +26,7 @@ if(require.main===module)(async()=>{
   const ctx=await browser.newContext({viewport:{width:w,height:h},deviceScaleFactor:2,isMobile:true,hasTouch:true}),page=await ctx.newPage();
   page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
   for(const query of ['?view=hero','']){
-   await page.goto(base+query);await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
+   await page.goto(base+(query||'?intro=skip'));await page.waitForFunction(()=>window.__huacheng?.ready,null,{polling:100});
    const layout=await inspectLayout(page),performanceSample=await sampleFrames(page),endLayout=await inspectLayout(page);
    const data=await page.evaluate(()=>({state:window.__huacheng.state(),info:window.__huacheng.info()}));
    const name=(query?'phone-':'default-')+w+'x'+h;await page.screenshot({path:path.join(out,name+'.png')});

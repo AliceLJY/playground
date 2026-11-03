@@ -171,3 +171,36 @@ NODE_PATH="$(npm root -g)" node tools/opening-check.cjs "$CHECK_OUT/opening" htt
 ```
 
 待试玩校准：约 1–2 分钟体验时长、4 秒留影窗口、入夜阈值 h≥.95。未验真人手感、陌生人第一次游玩的理解与复述、真手机、Safari、声音或线上部署；页面保持无声。本轮只做屏内文字游记，未将自动化完成等同于「好玩」。
+
+## D3 首访入口（2026-11-03）
+
+只调整入口与首次体验。复用现有游记状态机，首访在四帧场景渲染后开始选花桥或塔下，自动打开不移动键盘焦点。初始提示省去尚未获得的印章行，仍放在现有文字区；没有修改 CSS、相机路线、几何、配色、光照、玩法时刻或数值。
+
+「随便逛逛」沿用原生按钮和至少 44×44 CSS px 命中区。完成游记当刻或点击跳过都会记住来访；未完成未跳过就刷新仍走首访。只保存 localStorage 的 `huacheng-autumn:visited=1`，读写各有 try/catch；读失败、写失败、访问 localStorage 本身失败都实测每次重访继续首访，且跳过可用。菜单旁原入口保留。
+
+`?view=`、`?record=1` 自动绕过首访；普通自动化用 `?intro=skip`，不写来访标记。`__PLAYTEST__.reset()` 与 `__huacheng.setView()` 可清除待触发或已打开的引导，正常操作不依赖钩子。旧检查为普通观景入口补上绕过参数，阈值未放宽；水面旧采样框另作下述修正。
+
+首访检查先在未修改构建上跑，四档均正确报首访失败，页面错误为零。原 Node 26/26。源码和单文件各通过：首访 113/113、完整游记 108/108、操控 53/53、原画面检查 28/28。完整游记检查包含四档完成卡直接刷新后的自动观景、完成当刻已写来访记录、原有错过与重试、清理和时间文字对比度。
+
+其余原检查顺序通过：布局 4/4、R5 9/9、建筑 6/6、R6 3/3、夜景 3/3、细节 3/3、连续运动 3/3、手机整圈 2/2、眩光 4/4；录片相机检查 17/17（1561 几何帧、157 组 GPU 覆盖采样），旧自动观景 30 秒录屏零页面错误。全部浏览器报告零页面错误。首访与完整游记的四档均指 390×664、320×568、844×340、1365×900；首访与游记检查 DPR 2，手机视口模拟触摸，桌面走键盘。
+
+性能使用无头 Chrome 156.0.8078.80、Apple M4 / ANGLE Metal，未使用 SwiftShader。1440×900、DPR 2、玩家默认自适应画质，每档预热 10 秒再采 3600 个真实 rAF：白天 59.74 FPS / 最多 92 calls / 像素比 1.6–1.8，黄昏 59.89 FPS、夜间 59.97 FPS / 最多 105 calls / 像素比 1.5，均满足原 55 FPS、160 calls、像素比≥1.5 门槛；未发生失败重跑或放宽门槛。
+
+唯一额外修正是旧 `refinement-motion.cjs` 的水面采样位置。旧框 `(920,800,85,90)` 在本轮改动前的 `bad4e14` 构建也读到全零；三张固定水面图与本轮图 SHA256 完全相同，证明不是入口造成画面回归。把同面积采样框移到当前 hero 机位的可见水面 `(820,680,85,90)`，增加“不碰 UI”断言，保留原亮度、色差、变化像素和夜间为零的门槛。新框实际变化 219 像素、两帧暖亮点 2/23、夜间 0；原失败报告与旧版对照均保留在仓外证据中。
+
+四档首访/跳过/重访/菜单重开图在 `final-build-first/` 与 `source-first/`；流程、固定机位、旧交互图按报告目录命名。读图页保留原图文件名映射。首访正常入口另录 390×664 / DPR 1 的 30 秒实际点击、拖动、跳过和菜单重开：7 张关键原图及 780 帧均已按顺序读图；场景先出现、提示不盖住主体，操作未被引导阻断。录像只作运动验收，不作 FPS 测量。截图和录像为仓外验收附件，不进仓。
+
+复现（在本目录执行，`CHECK_OUT` 为自选证据目录，所有 GPU 检查顺序运行）：
+
+```sh
+node --test tests/*.test.cjs
+node tools/build.mjs
+node tools/serve.cjs . 19034
+# 另一个终端；源码将 URL 换成 /dev.html：
+NODE_PATH="$(npm root -g)" node tools/first-visit-check.cjs "$CHECK_OUT/first" http://127.0.0.1:19034/dist/index.html
+NODE_PATH="$(npm root -g)" node tools/journal-check.cjs "$CHECK_OUT/journal" http://127.0.0.1:19034/dist/index.html
+NODE_PATH="$(npm root -g)" node tools/controls-check.cjs "$CHECK_OUT/controls" http://127.0.0.1:19034/dist/index.html
+NODE_PATH="$(npm root -g)" node tools/opening-check.cjs "$CHECK_OUT/opening-first" http://127.0.0.1:19034/dist/index.html --first-visit
+```
+
+简化记账：仅复用现有游记、按钮与原生 localStorage；没有新增依赖或通用首访框架。`dist/` 与 `node_modules/` 仍忽略，重建了单文件但不提交（733611 bytes，SHA256 `b61a699224c4a1431ebd3911bb6ca8c700e7d8f2ba161ec6e29efb731d58740f`）。未测真实手机、Safari、真人首次理解与手感，未推送或部署线上；本轮不改玩法参数，因此自动完成不代表真人体验已验。
