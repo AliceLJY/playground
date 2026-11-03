@@ -1,7 +1,8 @@
-// 浏览器验收：SPEC.md 的 B1–B9。手动运行，需要全局 Playwright 和 Google Chrome。
+// 浏览器验收：SPEC.md 的 B1–B17。手动运行，需要全局 Playwright 和 Google Chrome。
 //   node tools/build.mjs
 //   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <输出目录> [页面地址]
 // 不给地址就打开本地 dist/index.html。把 report.json 和截图写进输出目录。
+// 地址后可加 --regressions-only（仅 F3），或 --layout-only（仅 F3 布局）。
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const out = process.argv[2] || 'browser-check';
@@ -28,6 +29,7 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
   const rect = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return cs.display === 'none' || +cs.opacity === 0 ? null : { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom }; }, sel);
   const overlap = (a, b) => a && b && a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
+  if (!process.argv.includes('--regressions-only') && !process.argv.includes('--layout-only')) {
   // B2 固定机位取景：桌面 1440×900 与手机 390×664（iPhone 减去 Safari 地址栏和底栏）
   const views = ['hero', 'tripod', 'hind', 'four', 'biped', 'xray', 'explode', 'wings', 'swag'];
   const frame = {};
@@ -46,9 +48,9 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
       frame[`${tag}-${v}`] = { box, visH: +visH.toFixed(2) };
       if (!ok) bad.push(`${v}: 中心 ${cx.toFixed(2)},${cy.toFixed(2)} 露出 ${(visH * 100).toFixed(0)}%`);
       if (v === 'hind') {
-        const c = await rect(page, '#callout');
-        const hit = [['标题', title], ['底栏', dock], ['图表', await rect(page, '.charts')], ['字幕', await rect(page, '#caption')]].filter(([, r]) => overlap(c, r)).map(([n]) => n);
-        check(`B3-${tag}`, `${tag} 后足标注不压标题、底栏、图表`, c && hit.filter((n) => n !== '字幕').length === 0, c ? `压到：${hit.join('、') || '无'}` : '标注没出现');
+        const callout = await rect(page, '#callout'), c = callout || await rect(page, '#caption');
+        const hit = [['标题', title], ['底栏', dock], ['图表', await rect(page, '.charts')], ['字幕', callout && await rect(page, '#caption')]].filter(([, r]) => overlap(c, r)).map(([n]) => n);
+        check(`B3-${tag}`, `${tag} 后足说明位不压标题、底栏、图表、字幕`, c && hit.length === 0, c ? `压到：${hit.join('、') || '无'}` : '标注没出现');
       }
       await ctx.close();
     }
@@ -123,7 +125,7 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
     await ctx.close(); }
 
   // B11 录片只取决于时间：?capture 下从 33.9 秒跳到 34.0 秒立刻截图，和等 1 秒再截，画面要一样（2026-11-01 CSS 过渡跟真实时间走，录出空字幕框残影）
-  { const shot = async (page) => page.screenshot({ clip: { x: 0, y: 450, width: 540, height: 400 } });
+  { const shot = async (page) => page.screenshot(); // Include the shared caption slot near the top too.
     const { ctx, page } = await open('?capture', 540, 960, 1);
     await page.evaluate(() => window.__roach.render(33.9)); await page.waitForTimeout(800);
     await page.evaluate(() => window.__roach.render(34.0)); const a = await shot(page);
@@ -132,6 +134,10 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
       const p = await load(x), q = await load(y); let n = 0; for (let i = 0; i < p.length; i += 4) if (Math.abs(p[i] - q[i]) + Math.abs(p[i + 1] - q[i + 1]) + Math.abs(p[i + 2] - q[i + 2]) > 24) n++; return n / (p.length / 4); }, [a.toString('base64'), b.toString('base64')]);
     check('B11', '录片模式下画面只取决于时间，不受截图快慢影响', diff < 0.0005, `立刻截与等 1 秒再截，差异像素 ${(diff * 100).toFixed(2)}%`);
     await ctx.close(); }
+
+  } // 既有检查
+
+  await require('./interaction-check.cjs')({ open, check, rect, out });
 
   if (base.startsWith('file:')) { const kb = fs.statSync(pageUrl.replace('file://', '')).size / 1024; check('B9', '单文件小于 1 MB（链接预览卡要求）', kb < 1024, `${kb.toFixed(0)} KB`); }
   check('B1', '页面无报错、不向外部请求任何东西', errors.length === 0 && external.length === 0, `报错 ${errors.length} 条${errors.length ? '：' + errors.slice(0, 3).join(' | ') : ''}；外部请求 ${external.length} 个${external.length ? '：' + external.slice(0, 3).join(' ') : ''}`);

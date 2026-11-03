@@ -57,7 +57,9 @@ controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistan
 const live = { v: 0.25, swag: 0, wings: 0, explode: 0, xray: false, focus: null, cycle: 0, ground: 0, view: 'hero' };
 const target = { v: 0.25, swag: 0, wings: 0, explode: 0 };
 let mode = CAPTURE || q.has('at') || q.has('view') ? 'frozen' : 'tour';
-let tourClock = 0, idle = 0, appliedMode = '';
+let tourClock = 0, idle = 0, appliedMode = '', displayedView = 'hero', backTimer;
+const heldPointers = new Set();
+const compact = () => matchMedia('(max-aspect-ratio: 1/1), (max-width: 640px), (max-height: 480px)').matches;
 const IDLE_BACK = q.has('idle') ? Math.max(1, +q.get('idle')) : 25; // ?idle=秒 只给验收脚本缩短等待
 
 function camFromView(name) { const v = M.VIEWS[name] || M.VIEWS.hero; return { pos: new THREE.Vector3(...v.pos), tgt: new THREE.Vector3(...v.target) }; }
@@ -68,6 +70,7 @@ function applyCam(from, to, k) {
   const tgt = A.tgt.clone().lerp(B.tgt, k);
   const pos = A.pos.clone().lerp(B.pos, k).sub(tgt).multiplyScalar(s).add(tgt);
   camera.position.copy(pos); camera.lookAt(tgt); controls.target.copy(tgt);
+  displayedView = k < 1 ? from + '→' + to : to;
 }
 let camAnim = null;
 function flyTo(name) { const s = fitScale(), V = camFromView(name); camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1: V.pos.clone().sub(V.tgt).multiplyScalar(s).add(V.tgt), t1: V.tgt, k: 0 }; live.view = name; }
@@ -129,10 +132,11 @@ const anchorOf = (sys) => {
 function drawCallout(st) {
   const c = panels.callout, line = panels.leader;
   const sys = M.SUBSYSTEMS.find((s) => s.id === st.focus);
-  if (!sys || st.explode > 0.2 || document.body.classList.contains('bare')) { c.classList.remove('on'); line.setAttribute('d', ''); $('#dot').setAttribute('cx', -10); return; }
+  if (!sys || st.explode > 0.2 || document.body.classList.contains('bare') || compact() && panels.caption.classList.contains('on')) { c.classList.remove('on'); line.setAttribute('d', ''); $('#dot').setAttribute('cx', -10); return; }
   const p = anchorOf(sys.id).project(camera), ax = (p.x * 0.5 + 0.5) * innerWidth, ay = (-p.y * 0.5 + 0.5) * innerHeight;
   c.querySelector('b').textContent = sys.name; c.querySelector('span').textContent = sys.note;
   c.classList.add('on');
+  if (compact()) { c.style.transform = ''; line.setAttribute('d', ''); $('#dot').setAttribute('cx', -10); return; }
   // 标签放在锚点斜上方；右边被图表占着就放左边；上下夹在标题与底栏之间
   const W = innerWidth, H = innerHeight, narrow = W < 640 || W < H;
   const cw = c.offsetWidth, ch = c.offsetHeight, rightLimit = narrow ? W - 12 : W - 340, leftLimit = narrow ? 12 : 250;
@@ -207,8 +211,8 @@ function renderTour(t) {
   const st = stateAt({ ...s, t: s.t });
   applyState(st, s.ground);
   applyCam(s.view.from, s.view.to, s.view.k);
-  updatePanels(st, frame);
   panels.caption.textContent = s.caption; panels.caption.classList.toggle('on', !!s.caption);
+  updatePanels(st, frame);
   // 录片：CSS 过渡跟着真实时间走、不跟逐帧时钟，这里改用导览时间算字幕淡入（2026-11-01 录出过空字幕框残影）
   if (CAPTURE) panels.caption.style.opacity = s.caption ? Math.min(1, (s.t - s.captionAt) / 0.3).toFixed(3) : '0';
   moveCursor(s.cursor);
@@ -221,7 +225,7 @@ function tick(now) {
   fpsMeter(dt);
   if (mode === 'tour') { tourClock = (tourClock + dt) % TOUR_S; renderTour(tourClock); }
   else if (mode === 'live') {
-    simTime += dt; idle += dt;
+    simTime += dt; idle = heldPointers.size ? 0 : idle + dt;
     const k = 1 - Math.exp(-dt * 3.2);
     for (const n of ['v', 'swag', 'wings', 'explode']) live[n] += (target[n] - live[n]) * k;
     live.cycle += M.strideFrequency(live.v) * (1 - live.swag) * M.SLOW * dt;
@@ -230,6 +234,7 @@ function tick(now) {
     applyState(st, live.ground);
     if (camAnim) { camAnim.k = Math.min(1, camAnim.k + dt / 1.2); const e = camAnim.k * camAnim.k * (3 - 2 * camAnim.k); camera.position.lerpVectors(camAnim.p0, camAnim.p1, e); controls.target.lerpVectors(camAnim.t0, camAnim.t1, e); if (camAnim.k >= 1) camAnim = null; }
     controls.update();
+    displayedView = camAnim ? '→' + live.view : live.view;
     updatePanels(st, frame);
     renderer.render(scene, camera);
     if (idle > IDLE_BACK) backToTour();
@@ -247,21 +252,40 @@ function setLowTier() { lowTier = true; renderer.setPixelRatio(1); renderer.shad
 
 // ---------------- 接管与交还 ----------------
 function takeOver() {
-  if (mode === 'live' || mode === 'frozen') { idle = 0; return; }
+  if (mode === 'frozen') return;
+  if (mode === 'live' || mode === 'fading') { clearTimeout(backTimer); mode = 'live'; $('#fade').style.opacity = 0; idle = 0; return; }
   const s = tourAt(tourClock);
   Object.assign(live, { v: s.v, swag: s.swag, wings: s.wings, explode: s.explode, xray: s.xray, focus: s.focus, cycle: s.cycle, ground: s.ground, view: s.view.to });
   Object.assign(target, { v: s.v, swag: s.swag > 0.5 ? 1 : 0, wings: s.wings > 0.5 ? 1 : 0, explode: s.explode > 0.5 ? 1 : 0 });
   simTime = s.t; mode = 'live'; idle = 0; controls.enabled = true; panels.cursor.style.opacity = 0;
-  panels.caption.classList.remove('on'); panels.badge.textContent = '你在操作 · 25 秒不动回到导览';
+  panels.caption.classList.remove('on'); panels.badge.textContent = '你在操作'; $('#resumeTour').hidden = false;
 }
 function backToTour() {
+  if (mode !== 'live') return;
   const f = $('#fade'); f.style.opacity = 1;
-  setTimeout(() => { mode = 'tour'; tourClock = 0; controls.enabled = false; camAnim = null; panels.badge.textContent = '自动导览 · 点任何地方接管'; f.style.opacity = 0; }, 380);
+  backTimer = setTimeout(() => { mode = 'tour'; tourClock = 0; controls.enabled = false; camAnim = null; panels.badge.textContent = '自动导览 · 点画面接管'; $('#resumeTour').hidden = true; f.style.opacity = 0; }, 380);
   mode = 'fading';
 }
+// Count held pointers rather than OrbitControls change events: damping and scripted camera
+// moves also emit change. Releasing/cancelling starts a fresh idle interval.
+addEventListener('pointerdown', (e) => heldPointers.add(e.pointerId), { capture: true, passive: true });
+function releasePointer(e) { if (heldPointers.delete(e.pointerId)) idle = 0; }
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, releasePointer, { capture: true, passive: true });
+function releaseInputs() {
+  for (const id of heldPointers) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+  heldPointers.clear(); idle = 0;
+  // Public reconnect API also clears OrbitControls' pointer bookkeeping after a lost gesture.
+  controls.disconnect(); controls.connect(canvas);
+}
+addEventListener('lostpointercapture', (e) => { if (heldPointers.has(e.pointerId)) { if (e.target === canvas) releaseInputs(); else releasePointer(e); } }, { capture: true });
+addEventListener('blur', releaseInputs);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInputs(); });
+controls.addEventListener('start', () => { if (mode === 'live') { camAnim = null; live.view = 'orbit'; } });
+$('#resumeTour').addEventListener('click', backToTour);
 for (const ev of ['pointerdown', 'wheel', 'keydown']) addEventListener(ev, (e) => { if (e.target.closest && e.target.closest('#fade')) return; takeOver(); }, { capture: true, passive: true });
 
-panels.speed.addEventListener('input', () => { takeOver(); target.v = +panels.speed.value; if (target.v > 0.02) target.swag = 0; });
+function setSpeed(v) { takeOver(); target.v = M.clamp(v, 0, M.SPEED_MAX); if (target.v > 0.02) target.swag = 0; }
+panels.speed.addEventListener('input', () => setSpeed(+panels.speed.value));
 document.querySelectorAll('[data-sys]').forEach((b) => b.addEventListener('click', () => { takeOver(); live.focus = live.focus === b.dataset.sys ? null : b.dataset.sys; if (live.focus) target.explode = 0; }));
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => { takeOver(); flyTo(b.dataset.view); }));
 const acts = {
@@ -276,7 +300,7 @@ addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
   if (k === 'h') acts.panels(); else if (k === 'x') acts.xray(); else if (k === 'e') acts.explode(); else if (k === 'w') acts.wings(); else if (k === 's') acts.swag();
-  else if (k === 'arrowup') target.v = Math.min(M.SPEED_MAX, target.v + 0.1); else if (k === 'arrowdown') target.v = Math.max(0, target.v - 0.1);
+  else if (k === 'arrowup' || k === 'arrowdown') { e.preventDefault(); setSpeed(target.v + (k === 'arrowup' ? 0.1 : -0.1)); }
 });
 
 // ---------------- 尺寸、就绪、钩子 ----------------
@@ -301,7 +325,7 @@ else requestAnimationFrame((n) => { lastNow = n; tick(n); });
 window.__roach = {
   ready: true,
   render: (t) => { mode = 'frozen'; renderTour(t); return true; },
-  state: () => ({ mode, tourClock, idle, live: { ...live }, target: { ...target }, lowTier, fps }),
+  state: () => ({ mode, tourClock, idle, view: displayedView, camera: { position: camera.position.toArray(), target: controls.target.toArray() }, live: { ...live }, target: { ...target }, lowTier, fps }),
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pixelRatio: renderer.getPixelRatio(), meshes: roach.parts.length, renderer: (() => { const g = renderer.getContext(), e = g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'unknown'; })() }),
   pose: (t) => { const s = tourAt(t); return stateAt({ ...s, t: s.t }); },
   screen: (sys) => { const p = anchorOf(sys); if (!p) return null; p.project(camera); return { x: p.x * 0.5 + 0.5, y: -p.y * 0.5 + 0.5, z: p.z }; },
