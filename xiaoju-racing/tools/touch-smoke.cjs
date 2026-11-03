@@ -5,7 +5,7 @@ const [base,out]=process.argv.slice(2);fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const b=await chromium.launch({channel:'chrome',headless:true,args:['--enable-gpu','--ignore-gpu-blocklist','--use-angle=metal']});
  const ctx=await b.newContext({viewport:{width:390,height:664},hasTouch:true,isMobile:true,deviceScaleFactor:2,recordVideo:{dir:out,size:{width:390,height:664}}}),p=await ctx.newPage(),errors=[];
- p.on('pageerror',e=>errors.push(String(e)));await p.goto(base);await p.waitForFunction(()=>window.__race?.ready,null,{polling:100});
+ p.on('pageerror',e=>errors.push(String(e)));const url=new URL(base);url.searchParams.set('intro','skip');await p.goto(url.href);await p.waitForFunction(()=>window.__race?.ready,null,{polling:100});
  const started=Date.now();await p.locator('#auto-pedal').check();await p.tap('#start');await p.waitForFunction(()=>__race.state.phase==='racing',null,{polling:100});await p.waitForTimeout(1800);
  const cdp=await ctx.newCDPSession(p),points=async selectors=>Promise.all(selectors.map(async(s,id)=>{const r=await p.locator(s).boundingBox();return {id,x:r.x+r.width/2,y:r.y+r.height/2};}));
  const before=await p.evaluate(()=>__race.state.riders[0]);

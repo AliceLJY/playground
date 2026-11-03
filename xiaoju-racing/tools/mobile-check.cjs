@@ -10,7 +10,7 @@ fs.mkdirSync(out,{recursive:true});
   const ctx=await browser.newContext({viewport:{width:w,height:h},hasTouch:w<1000,isMobile:w<1000,deviceScaleFactor:w<1000?2:1});
   const p=await ctx.newPage(),errors=[],checks=[];p.on('pageerror',e=>errors.push(String(e)));
   const check=(name,ok,data)=>{checks.push({name,ok:!!ok,data});if(!ok)failed++;console.log(`${ok?'PASS':'FAIL'} ${w}x${h} ${name}`);};
-  await p.goto(base);await p.waitForFunction(()=>window.__race?.ready,null,{polling:100});
+  const url=new URL(base);url.searchParams.set('intro','skip');await p.goto(url.href);await p.waitForFunction(()=>window.__race?.ready,null,{polling:100});
   const meta=await p.evaluate(()=>{const c=document.querySelector('#world canvas'),g=c.getContext('webgl2'),e=g.getExtension('WEBGL_debug_renderer_info');return {renderer:g.getParameter(e.UNMASKED_RENDERER_WEBGL),dpr:devicePixelRatio,renderRatio:c.width/innerWidth,three:THREE.REVISION};});
   await p.evaluate(()=>{window.lastInput={};const step=RaceCore.step;RaceCore.step=(s,i,dt)=>{lastInput={...i};return step(s,i,dt);};});
   await p.locator('#start').click();await p.waitForFunction(()=>__race.state.phase==='racing',null,{polling:100});
@@ -29,7 +29,7 @@ fs.mkdirSync(out,{recursive:true});
   if(w<1000){check('optional auto pedal is off initially',hasAuto&&!(await auto.isChecked()));}
   const recover=p.locator('#recover-resume'),hasRecover=await recover.count();check('pause offers recover and continue',hasRecover&&await recover.isVisible());
   if(h<=340)check('pause contains all six standings',await p.locator('#pause-leaderboard .leader-row').count()===6);
-  check('pause actions fit and can be hit',await p.locator('#pause-overlay button').evaluateAll(els=>els.every(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})));
+  check('pause actions fit and can be hit',await p.locator('#pause-overlay button').evaluateAll(els=>els.filter(e=>e.getClientRects().length).every(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})));
   await p.screenshot({path:`${out}/${w}x${h}-pause.png`});
   if(w===390&&hasAuto&&hasRecover){
    await auto.check();await p.locator('#resume').click();await p.waitForTimeout(1600);

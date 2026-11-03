@@ -48,3 +48,23 @@
 }
 .license-mode #exit{min-height:44px;min-width:88px}
 .license-mode .race-buttons button{min-width:44px;min-height:44px}
+
+/* First visit: keep the direct race exit beside the lesson instructions. */
+#license-skip{pointer-events:auto;min-height:44px;width:100%;margin-top:8px;background:#f1b56d;color:#142d35;border-radius:3px;font-size:14px;font-weight:700}
+#license-pause-skip{display:none}.license-mode #license-pause-skip{display:block}
+#license-race{margin-bottom:12px}
+@media(max-width:480px){.license-mode .race-buttons{top:205px}}
+@media(max-height:440px) and (min-width:600px){
+ .license-mode #pause-overlay .panel{width:620px;grid-template-columns:1fr 1fr}
+ .license-mode #pause-overlay h2{grid-column:1 / -1}
+ .license-mode #pause-overlay button,.license-mode #pause-overlay .auto-pedal{grid-column:auto}
+}
+
+.license-mode #pause-overlay .panel{padding:16px}
+.license-mode #pause-overlay h2{font-size:24px;margin:8px 0}
+.license-mode #pause-overlay p{font-size:13px;margin:8px 0}
+@media(max-height:440px) and (min-width:600px){
+ .license-result-panel{width:620px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+ .license-result-panel .eyebrow,.license-result-panel h2,#license-awards,.license-result-panel p,#license-race{grid-column:1 / -1}
+ .license-result-panel h2,.license-result-panel p,#license-awards,.license-result-panel button{margin:0}
+}
