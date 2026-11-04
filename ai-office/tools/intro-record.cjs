@@ -11,14 +11,15 @@ const [jobsFile, outDir] = process.argv.slice(2);
 if (!jobsFile || !outDir) { console.error('usage: intro-record.cjs <jobs.json> <out-dir>'); process.exit(2); }
 // ready(snapshot) = 房间里的人到位了才开始录（最多预热 60 秒）。
 const settled = s => s.actors.every(a => !a.moving);
+// r = 房间矩形 [x0,y0,x1,y1]（逻辑像素，量自整栋楼截图）；镜头只框这一间，外面模糊压暗（11-05 Alice：「镜头里只出现这个房间，剩下的模糊掉，标一下这个房间」）。
 const ROOMS = {
-  游戏室: { cx: 140, cy: 300, w: 250, view: 'games', line: '大家在玩游戏', ready: s => s.actualView === 'games' },
-  会议室: { cx: 68, cy: 410, w: 150, view: 'meeting', line: 'AI 们在开会', ready: s => s.actualView === 'meeting' },
-  阅读室: { cx: 70, cy: 916, w: 150, view: 'read', line: '在阅读室看书', ready: s => s.actors.filter(a => [25, 26].includes(a.gameSlot) && !a.moving).length >= 2 },
-  制片室: { cx: 270, cy: 206, w: 170, view: 'orders', line: 'Grok 和 Muse 在出片', ready: settled },
-  总监室: { cx: 66, cy: 126, w: 150, view: 'orders', line: 'CC 在派活', ready: settled },
-  陈列室: { cx: 58, cy: 206, w: 150, view: 'orders', line: '作品都摆在这', ready: settled },
-  办公室: { cx: 180, cy: 270, w: 340, view: 'orders', line: '大家都在忙', ready: settled },
+  游戏室: { r: [22, 259, 260, 338], view: 'arcade', line: '大家在玩游戏', ready: s => s.actors.filter(a => (a.gameSlot < 12 || [20, 21].includes(a.gameSlot)) && a.game && !a.moving).length >= 5 },
+  会议室: { r: [16, 350, 121, 468], view: 'meeting', line: 'AI 们在开会互审', ready: s => s.actualView === 'meeting' },
+  阅读室: { r: [16, 876, 126, 956], view: 'read', line: '在阅读室看书学习', ready: s => s.actors.filter(a => [25, 26].includes(a.gameSlot) && !a.moving).length >= 2 },
+  制片室: { r: [198, 161, 344, 250], view: 'orders', line: 'Grok 和 Muse 在出片', ready: settled },
+  总监室: { r: [20, 88, 111, 157], view: 'orders', line: 'CC 在派活', ready: settled },
+  陈列室: { r: [18, 161, 98, 253], view: 'orders', line: '作品都摆在这里', ready: settled },
+  办公室: { r: [14, 10, 346, 470], fill: 0.72, view: 'orders', line: '大家都在忙', ready: settled },
 };
 const fps = 30, total = 108, HEAD_END = 1.0, ZOOM_END = 2.2, SIGN_AT = 2.25;
 const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -42,12 +43,15 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
     const shot = (await page.screenshot({ fullPage: true })).toString('base64');
     await page.evaluate(b64 => new Promise(ok => { const im = new Image(); im.onload = () => { window.__introPage = im; ok(); }; im.src = 'data:image/png;base64,' + b64; }), shot);
     const geo = await page.evaluate(() => { const c = document.querySelector('#office').getBoundingClientRect(), v = document.querySelector('#room-viewport').getBoundingClientRect(); return { cx: c.x + scrollX, cy: c.y + scrollY, cw: c.width, ch: c.height, vh: v.height }; });
-    const f = geo.cw / 360, a = { x: 0, y: 4, w: 236 }, bw = R.w * f, b = { x: geo.cx + (R.cx - R.w / 2) * f, y: geo.cy + R.cy * f - bw * 16 / 9 / 2, w: bw };
+    const f = geo.cw / 360, a = { x: 0, y: 4, w: 236 }, [x0, y0, x1, y1] = R.r;
+    // Frame the room alone: width = room + margin (taller rooms widen so the room's height fits in the middle 45 % of the frame).
+    const rect = { x: geo.cx + x0 * f, y: geo.cy + y0 * f, w: (x1 - x0) * f, h: (y1 - y0) * f };
+    const bw = Math.max(rect.w * 1.1, rect.h / (R.fill || 0.45) * 9 / 16), b = { x: rect.x + rect.w / 2 - bw / 2, y: rect.y + rect.h / 2 - bw * 16 / 9 / 2 - bw * 0.04, w: bw };
     for (let i = 0; i < total; i++) {
       await page.evaluate(ms => window.__PLAYTEST__.step(ms), 1000 / fps);
       const t = i / fps, k = ease(Math.min(1, Math.max(0, (t - HEAD_END) / (ZOOM_END - HEAD_END))));
       const cam = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, w: a.w + (b.w - a.w) * k };
-      const data = await page.evaluate(({ cam, t, k, geo, room, line, title, SIGN_AT }) => {
+      const data = await page.evaluate(({ cam, t, k, geo, rect, room, line, title, SIGN_AT }) => {
         const src = document.querySelector('#office'), im = window.__introPage, o = document.createElement('canvas'); o.width = 1080; o.height = 1920;
         const g = o.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#efe7d4'; g.fillRect(0, 0, 1080, 1920);
         const s = 1080 / cam.w, X = x => (x - cam.x) * s, Y = y => (y - cam.y) * s;
@@ -56,17 +60,28 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
         const clipH = geo.vh + (geo.ch - geo.vh) * k;
         g.save(); g.beginPath(); g.rect(X(geo.cx), Y(geo.cy), geo.cw * s, clipH * s); g.clip();
         g.drawImage(src, X(geo.cx), Y(geo.cy), geo.cw * s, geo.ch * s); g.restore();
+        // Spotlight: from 1.6 s everything outside the room blurs and dims; the room stays sharp with a gold rim.
+        const sp = Math.min(1, Math.max(0, (t - 1.6) / 0.5)), rx = X(rect.x), ry = Y(rect.y), rw = rect.w * s, rh = rect.h * s;
+        if (sp > 0) {
+          const o2 = document.createElement('canvas'); o2.width = 1080; o2.height = 1920; const g2 = o2.getContext('2d');
+          g2.filter = `blur(${12 * sp}px) brightness(${1 - 0.55 * sp}) saturate(${1 - 0.7 * sp})`; g2.drawImage(o, 0, 0); g2.filter = 'none';
+          g2.drawImage(o, rx, ry, rw, rh, rx, ry, rw, rh);
+          g2.save(); g2.shadowColor = `rgba(255,214,120,${0.9 * sp})`; g2.shadowBlur = 40 * sp; g2.strokeStyle = `rgba(232,188,92,${sp})`; g2.lineWidth = 10;
+          g2.strokeRect(rx - 5, ry - 5, rw + 10, rh + 10); g2.restore();
+          g.drawImage(o2, 0, 0);
+        }
         g.textAlign = 'center';
         const p = Math.min(1, Math.max(0, (t - SIGN_AT) / 0.18));
         if (p > 0) {
-          const sc = 0.6 + 0.4 * p + 0.12 * Math.sin(Math.PI * p);
-          g.save(); g.translate(540, 1440); g.scale(sc, sc);
-          g.font = '700 80px "PingFang SC",system-ui'; const rw = g.measureText(room).width + 110;
-          g.fillStyle = '#5a3b22'; g.beginPath(); g.roundRect(-rw / 2, -74, rw, 120, 16); g.fill();
-          g.strokeStyle = '#d9b25a'; g.lineWidth = 8; g.stroke(); g.fillStyle = '#fff1c9'; g.fillText(room, 0, 16);
-          g.font = '600 40px "PingFang SC",system-ui'; const lw = g.measureText(line).width + 50;
-          g.fillStyle = '#253334cc'; g.beginPath(); g.roundRect(-lw / 2, 62, lw, 62, 31); g.fill(); g.fillStyle = '#fff6dc'; g.fillText(line, 0, 106);
+          // Room sign hangs on the room's top edge; what they're doing sits under the room.
+          const sc = 0.6 + 0.4 * p + 0.12 * Math.sin(Math.PI * p), sy = Math.max(150, ry - 30);
+          g.save(); g.translate(540, sy); g.scale(sc, sc);
+          g.font = '700 88px "PingFang SC",system-ui'; const tw = g.measureText(room).width + 120;
+          g.fillStyle = '#5a3b22'; g.beginPath(); g.roundRect(-tw / 2, -84, tw, 132, 16); g.fill();
+          g.strokeStyle = '#e8bc5c'; g.lineWidth = 8; g.stroke(); g.fillStyle = '#fff1c9'; g.fillText(room, 0, 16);
           g.restore();
+          g.globalAlpha = p; g.font = '600 44px "PingFang SC",system-ui'; const lw = g.measureText(line).width + 60, ly = Math.min(1500, ry + rh + 40);
+          g.fillStyle = '#253334e0'; g.beginPath(); g.roundRect(540 - lw / 2, ly, lw, 72, 36); g.fill(); g.fillStyle = '#fff6dc'; g.fillText(line, 540, ly + 51); g.globalAlpha = 1;
           if (title) {
             g.globalAlpha = Math.min(1, Math.max(0, (t - SIGN_AT - 0.15) / 0.2)); g.font = '600 54px "PingFang SC",system-ui';
             const lines = []; let cur = ''; for (const ch of title) { if (g.measureText(cur + ch).width > 920) { lines.push(cur); cur = ''; } cur += ch; } lines.push(cur);
@@ -77,7 +92,7 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
         }
         if (t < 0.15) { g.fillStyle = `rgba(0,0,0,${1 - t / 0.15})`; g.fillRect(0, 0, 1080, 1920); }
         return o.toDataURL('image/jpeg', .93);
-      }, { cam, t, k, geo, room: job.room, line: R.line, title: job.title, SIGN_AT });
+      }, { cam, t, k, geo, rect, room: job.room, line: R.line, title: job.title, SIGN_AT });
       fs.writeFileSync(path.join(frames, String(i).padStart(5, '0') + '.jpg'), Buffer.from(data.split(',')[1], 'base64'));
     }
     await page.close();
