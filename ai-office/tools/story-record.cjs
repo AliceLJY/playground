@@ -3,6 +3,7 @@
 //   NODE_PATH="$(npm root -g)" node tools/story-record.cjs <shots.json> <out-dir>
 // shots.json: [{at:"HH:MM", view?, seconds, speed?, warm?, settle?:"kids"|"boss", cam, caption}]
 //   cam: [{x,y,w},{x,y,w}]（逻辑像素，塔楼宽 360，镜头从前一个推到后一个）| {follow:"kids"|"boss", w}
+//   t: 从演示剧本第 t 秒开拍（吵架、吃瓜、请客这些都按剧本时间发生；at 只管钟点）。follow 也可写 "actor:<id>"。
 //   settle: 预热到孩子/老板停下脚步再开录（最多 warm 毫秒，默认 60 秒）。night: true 压夜色（演示页不画昼夜）。
 // 每帧都加暗角（11-05 Alice 嫌画面花、看不出重点：中间亮、四周压暗）。
 const { chromium } = require('playwright');
@@ -15,6 +16,7 @@ fs.rmSync(frames, { recursive: true, force: true }); fs.mkdirSync(frames, { recu
 const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const centre = (snap, who) => {
   if (who === 'boss' && snap.boss) return snap.boss;
+  if (who.startsWith('actor:')) { const a = snap.actors.find(q => q.id === who.slice(6)); if (a) return a; }
   const k = (snap.kids?.list || []).filter(c => c.x != null); if (!k.length) return snap.boss;
   const m = { x: k.reduce((s, c) => s + c.x, 0) / k.length, y: k.reduce((s, c) => s + c.y, 0) / k.length };
   // 一起看剧: the boss and both kids in one frame (11-05 Alice: 「只有孩子们两个形象，没看到我」).
@@ -36,6 +38,7 @@ const still = (snap, who) => who === 'boss' ? true : (snap.kids?.list || []).eve
     await page.goto(`http://127.0.0.1:3194/?demo=1&at=${shot.at}${shot.view ? '&view=' + shot.view : ''}`);
     await page.waitForFunction(() => window.__PLAYTEST__?.ready, null, { polling: 100 });
     let snap = await page.evaluate(() => window.__PLAYTEST__.step(500));
+    if (shot.t) for (let w = 500; w < shot.t * 1000; w += 500) snap = await page.evaluate(() => window.__PLAYTEST__.step(500));
     if (shot.settle) { for (let w = 0; w < (shot.warm || 60000); w += 500) { snap = await page.evaluate(() => window.__PLAYTEST__.step(500)); if (w > 1500 && still(snap, shot.settle)) break; } }
     // Kids and cats move page-side per step, so warm up in half-second steps (one 23 s step moves them only once).
     else if (shot.warm) for (let w = 0; w < shot.warm; w += 500) snap = await page.evaluate(() => window.__PLAYTEST__.step(500));
