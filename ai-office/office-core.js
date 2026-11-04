@@ -73,6 +73,17 @@
   // A show runs two hours (Alice: 「看剧一般是两个小时的」): 19:30–21:30, then BBQ, then K 房.
   // 11-03: K 房 is one stretch after the BBQ (唱K then 跳舞), not two visits split by it (Alice: 「这么奇怪的」).
   const bossPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); let p=BOSS_DAY[BOSS_DAY.length-1]; for(const e of BOSS_DAY) if(e[0]<=m) p=e; return {kind:p[1],label:p[2]}; };
+  // 无忧 and 无虑's own day (Alice 11-04: 「无忧无虑是不是不止局限在游乐室……玩游戏、去花园，和猫咪追逐……吃东西的时候带上他们」).
+  // Awake 08:00–21:00 Beijing. Whenever the boss's plan is a meal (早茶 / 午饭 / 下午茶 / 晚饭) they go with her and eat beside her;
+  // otherwise KIDS_DAY says where: playroom, game room, the farm, or chasing a cat round the building.
+  // 11-04 later: 「阅读室吧，他们可以自学啊，ai们能不能去阅读室教他们或者不忙的时候在办公桌教他们ai」→ 'study': a colleague reading in the
+  // reading room, or idle at its own desk, teaches them AI; with nobody free they read on their own in the reading room.
+  const KIDS_DAY = [[480,'play','在游乐室玩'],[570,'games','在游戏室看大人打游戏'],[630,'study','上 AI 课'],[750,'chase','追小猫'],[810,'garden','在菜地里跑'],
+    [870,'study','上 AI 课'],[930,'play','在游乐室玩'],[990,'garden','在菜地里跑'],[1170,'chase','追小猫'],[1200,'games','在游戏室看大人打游戏'],[1230,'play','在游乐室玩']];
+  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'};
+  const kidsPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); if (m<480 || m>=1260) return {kind:'sleep',label:'睡觉'};
+    const b=bossPlan(time); if (KID_MEALS[b.kind]) return {kind:'meal',meal:b.kind,label:KID_MEALS[b.kind]};
+    let p=KIDS_DAY[0]; for (const e of KIDS_DAY) if (e[0]<=m) p=e; return {kind:p[1],label:p[2]}; };
   const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
   const isBreakfast = time => !!teaTime(time);
   const isFunTime = time => Math.floor(time / 1200000) % 3 === 2;
@@ -206,6 +217,11 @@
     swim:{x:T_POOL[0]+60,y:T_POOL[1]+30}, gym:{x:T_GYM[0]+70,y:T_GYM[1]+66}, farm:{x:T_FUN.garden[0]+30,y:T_FUN.garden[1]+52},
     theatre:{x:T_FUN.cinema[0]+100,y:T_FUN.cinema[1]+66}, sing:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+52}, dance:{x:T_FUN.ktv[0]+70,y:T_FUN.ktv[1]+52},
     bbq:{x:T_FUN.bbq[0]+40,y:T_FUN.bbq[1]+64}, read:{x:T_FUN.read[0]+55,y:T_FUN.read[1]+70}};
+  // Where 无忧 (index 0) and 无虑 (index 1) stand for each item of their day; garden lists the points they run between. Checked by kids.test.
+  const KID_SPOTS = {play:[{x:T_KIDS[0]+8,y:T_KIDS[1]+30},{x:T_KIDS[0]+54,y:T_KIDS[1]+62}], games:[{x:160,y:356},{x:184,y:356}],
+    tea:[{x:98,y:672},{x:98,y:684}], kitchen:[{x:138,y:712},{x:158,y:712}],
+    read:[{x:62,y:952},{x:82,y:952}],
+    garden:[{x:70,y:1000},{x:100,y:1020},{x:120,y:1004},{x:60,y:1024}]};
   const tower={...classic,id:'portrait',H:1050,bands:T_BANDS,funOffsets:T_FUN,funLocal:towerLocal,fun:funSpots(T_FUN,towerLocal),partySpot:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+56},
     gameWatch:towerGameWatch,tour:[tour[0],pantry,tour[2],{x:132,y:420},towerGameWatch],
     meetingRect:T_MEET,meetingOffset:[0,0],podium:{x:104,y:386},seats:[32,50,68,86].map(x=>({x,y:390})),standing:[...[28,48,68,88,108].map(x=>({x,y:432})),{x:100,y:456}],audience:[{x:36,y:458},{x:60,y:458}],
@@ -213,7 +229,7 @@
     beds:atOrigin(bedLocal,T_REST),restOffset:T_REST,gym:atOrigin(gymLocal,T_GYM),gymOffset:T_GYM,tea:atOrigin(teaLocal,T_TEA),teaOffset:T_TEA,
     feastStand:atOrigin(feastLocal,T_TEA),feastDrop:atOrigin([[39,82,'drop']],T_TEA)[0],
     kitchenOffset:T_KITCHEN,kitchen:atOrigin(kitchenLocal,T_KITCHEN),poolOffset:T_POOL,pool:atOrigin(poolLocal,T_POOL),catOffset:T_CAT,catSpot:atOrigin(catTreeLocal,T_CAT)[0],clinicOffset:T_CLINIC,chargeOffset:T_CHARGE,kidsOffset:T_KIDS,chargePod:{x:T_CHARGE[0]+chargeLocal[0],y:T_CHARGE[1]+chargeLocal[1]},clinic:atOrigin(clinicLocal,T_CLINIC),clinicDoctor:{x:T_CLINIC[0]+clinicDoctorLocal[0],y:T_CLINIC[1]+clinicDoctorLocal[1]},clinicBed:{x:T_CLINIC[0]+clinicBedLocal[0],y:T_CLINIC[1]+clinicBedLocal[1]},kidBeds:[4,5],
-    funTop:488,obstacles:towerObstacles,bossSpots:BOSS_SPOTS,
+    funTop:488,obstacles:towerObstacles,bossSpots:BOSS_SPOTS,kidSpots:KID_SPOTS,
     patrol:[door,{x:326,y:488},{x:326,y:612},{x:40,y:612},{x:40,y:716},{x:230,y:716},{x:326,y:716},{x:326,y:488},door,pantry,{x:125,y:169},door]};
   const layouts={portrait:tower,landscape,film,legacy:{...classic,id:'legacy',queuePoint:filmQueuePoint,desks:mvDesks,obstacles:mvObstacles,tour:tour.slice(0,4).map((p,i)=>i===3?{x:115,y:351}:p)}};
   // Extend only office layouts after film/legacy have captured their original arrays and offsets.
@@ -759,8 +775,12 @@
       const feast=!!feasting();
       const rotation=!legacy && !sim.classicLeisure && sim.clockKnown ? Math.floor(signalNow()/1200000) : 0;
       const party=playing('party') ? 'party' : playing('song') ? 'song' : '';
-      const key=(sim.leisureFirst||'')+'|'+meal+'|'+reserved.join(',')+'|'+breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
+      const bookSlot=games.findIndex(p=>p?.kind==='book'), study=!!L.kidSpots && bookSlot>=0 && !!sim.clockKnown && !sim.classicLeisure && !feast && !party && !sim.funFirst && !sim.leisureFirst && kidsPlan(signalNow()).kind==='study';
+      const key=study+'|'+(sim.leisureFirst||'')+'|'+meal+'|'+reserved.join(',')+'|'+breakfast+'|'+feast+'|'+!!sim.funFirst+'|'+party+'|'+rotation+'|'+idle.map(a=>a.id).join(','); if(key===gameMembers) return; gameMembers=key;
       const slots=sim.classicLeisure ? (idle.length===1 ? [4] : idle.length===3 ? [0,1,4] : games.slice(0,Math.min(10,idle.length)).map((_,i)=>i)) : feast ? pickSlots(idle.length,LEISURE_ORDER.filter(slot=>(slot<16||slot>19)&&!reserved.includes(slot))).filter(slot=>games[slot]) : party==='song' ? pickSlots(idle.length,[22,23,24,29,30,31,32,33,25,26,27,28,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.funFirst || party ? pickSlots(idle.length,[22,23,24,25,26,27,28,29,30,31,32,33,...LEISURE_ORDER.filter(i=>i<22)]).filter(slot=>games[slot]) : sim.leisureFirst ? pickSlots(idle.length,[...sim.leisureFirst,...LEISURE_ORDER.filter(i=>!sim.leisureFirst.includes(i))]) : pickSlots(idle.length,meal==='kitchen'?KITCHEN_ORDER:meal==='bbq'?(isBreakfast(signalNow())?BBQ_ORDER:[34,35,36,...LEISURE_ORDER.filter(i=>i<34||i>36)]):breakfast,rotation,reserved).filter(slot=>games[slot]);
+      // AI lessons (Alice 11-04: 「ai们能不能去阅读室教他们」): while 无忧无虑 are on 'study', the first free colleague takes a
+      // reading-room seat so they have a teacher; the slot it displaces is one that isn't half of a ping-pong or chess pair.
+      if (study && slots.length && !slots.includes(bookSlot)) { const drop=slots.map((s,i)=>[s,i]).reverse().find(([s])=>!['pingpong','chess'].includes(games[s]?.kind)); if (drop) slots.splice(drop[1],1); slots.unshift(bookSlot); }
       for(const a of sim.actors) if(!idle.includes(a) || !slots.includes(a.gameSlot)) a.gameSlot=null;
       const pending=idle.filter(a=>a.gameSlot==null);
       for(const slot of slots) if(!idle.some(a=>a.gameSlot===slot) && pending.length) pending.shift().gameSlot=slot;
@@ -1023,7 +1043,7 @@
       const p=sim.bossPlan; if(!p) return '在办公室转转';
       if(sim.boss.path.length && p.kind!=='stroll') return p.kind==='home'?'下班回家':'正要去'+p.label.replace(/^在/,'');
       if(!bossActivity() && p.kind!=='home') return '在办公室转转';
-      return p.label;
+      return L.kidSpots && kidsPlan(signalNow()).kind==='meal' ? '带着无忧无虑'+p.label : p.label;
     }
     return Object.assign(sim, { bossActivity,bossLabel,chefTarget,chefActivity,play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
@@ -1201,7 +1221,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, bossPlan, BOSS_DAY, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, bossPlan, BOSS_DAY, kidsPlan, KIDS_DAY, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);
