@@ -43,7 +43,10 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
     const shot = (await page.screenshot({ fullPage: true })).toString('base64');
     await page.evaluate(b64 => new Promise(ok => { const im = new Image(); im.onload = () => { window.__introPage = im; ok(); }; im.src = 'data:image/png;base64,' + b64; }), shot);
     const geo = await page.evaluate(() => { const c = document.querySelector('#office').getBoundingClientRect(), v = document.querySelector('#room-viewport').getBoundingClientRect(); return { cx: c.x + scrollX, cy: c.y + scrollY, cw: c.width, ch: c.height, vh: v.height }; });
-    const f = geo.cw / 360, a = { x: 0, y: 4, w: 236 }, [x0, y0, x1, y1] = R.r;
+    // Page head = 「AI 幕后 / OFFICE 01」 + 「像素办公室.」; the opening frames it alone (11-05 Alice: 「像素办公室不够大，周围保留太多」).
+    const head = await page.evaluate(() => { const r = [document.querySelector('.eyebrow'), document.querySelector('h1')].map(e => e.getBoundingClientRect()); const x = Math.min(...r.map(q => q.x)), y = Math.min(...r.map(q => q.y)) + scrollY; return { x, y, w: Math.max(...r.map(q => q.right)) - x, h: Math.max(...r.map(q => q.bottom)) + scrollY - y }; });
+    const aw = head.w * 1.14, a = { x: head.x + head.w / 2 - aw / 2, y: head.y + head.h / 2 - aw * 16 / 9 * 0.42, w: aw };
+    const f = geo.cw / 360, [x0, y0, x1, y1] = R.r;
     // Frame the room alone: width = room + margin (taller rooms widen so the room's height fits in the middle 45 % of the frame).
     const rect = { x: geo.cx + x0 * f, y: geo.cy + y0 * f, w: (x1 - x0) * f, h: (y1 - y0) * f };
     const bw = Math.max(rect.w * 1.1, rect.h / (R.fill || 0.45) * 9 / 16), b = { x: rect.x + rect.w / 2 - bw / 2, y: rect.y + rect.h / 2 - bw * 16 / 9 / 2 - bw * 0.04, w: bw };
@@ -51,7 +54,7 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
       await page.evaluate(ms => window.__PLAYTEST__.step(ms), 1000 / fps);
       const t = i / fps, k = ease(Math.min(1, Math.max(0, (t - HEAD_END) / (ZOOM_END - HEAD_END))));
       const cam = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, w: a.w + (b.w - a.w) * k };
-      const data = await page.evaluate(({ cam, t, k, geo, rect, room, line, title, SIGN_AT }) => {
+      const data = await page.evaluate(({ cam, t, k, geo, rect, head, room, line, title, SIGN_AT }) => {
         const src = document.querySelector('#office'), im = window.__introPage, o = document.createElement('canvas'); o.width = 1080; o.height = 1920;
         const g = o.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#efe7d4'; g.fillRect(0, 0, 1080, 1920);
         const s = 1080 / cam.w, X = x => (x - cam.x) * s, Y = y => (y - cam.y) * s;
@@ -60,16 +63,20 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
         const clipH = geo.vh + (geo.ch - geo.vh) * k;
         g.save(); g.beginPath(); g.rect(X(geo.cx), Y(geo.cy), geo.cw * s, clipH * s); g.clip();
         g.drawImage(src, X(geo.cx), Y(geo.cy), geo.cw * s, geo.ch * s); g.restore();
-        // Spotlight: from 1.6 s everything outside the room blurs and dims; the room stays sharp with a gold rim.
-        const sp = Math.min(1, Math.max(0, (t - 1.6) / 0.5)), rx = X(rect.x), ry = Y(rect.y), rw = rect.w * s, rh = rect.h * s;
-        if (sp > 0) {
+        // Spotlight: blur, dim and grey everything outside one rectangle. Head first (fades off as the camera leaves it),
+        // then from 1.6 s the room, which keeps a gold rim.
+        const spot = (r, sp, rim) => {
+          const rx = X(r.x), ry = Y(r.y), rw = r.w * s, rh = r.h * s;
           const o2 = document.createElement('canvas'); o2.width = 1080; o2.height = 1920; const g2 = o2.getContext('2d');
-          g2.filter = `blur(${12 * sp}px) brightness(${1 - 0.55 * sp}) saturate(${1 - 0.7 * sp})`; g2.drawImage(o, 0, 0); g2.filter = 'none';
+          g2.filter = `blur(${14 * sp}px) brightness(${1 - 0.55 * sp}) saturate(${1 - 0.7 * sp})`; g2.drawImage(o, 0, 0); g2.filter = 'none';
           g2.drawImage(o, rx, ry, rw, rh, rx, ry, rw, rh);
-          g2.save(); g2.shadowColor = `rgba(255,214,120,${0.9 * sp})`; g2.shadowBlur = 40 * sp; g2.strokeStyle = `rgba(232,188,92,${sp})`; g2.lineWidth = 10;
-          g2.strokeRect(rx - 5, ry - 5, rw + 10, rh + 10); g2.restore();
-          g.drawImage(o2, 0, 0);
-        }
+          if (rim) { g2.save(); g2.shadowColor = `rgba(255,214,120,${0.9 * sp})`; g2.shadowBlur = 40 * sp; g2.strokeStyle = `rgba(232,188,92,${sp})`; g2.lineWidth = 10; g2.strokeRect(rx - 5, ry - 5, rw + 10, rh + 10); g2.restore(); }
+          g.clearRect(0, 0, 1080, 1920); g.drawImage(o2, 0, 0);
+        };
+        const hs = 1 - Math.min(1, Math.max(0, (t - 0.95) / 0.35)), pad = 8;
+        if (hs > 0) spot({ x: head.x - pad, y: head.y - pad, w: head.w + pad * 2, h: head.h + pad * 2 }, hs, false);
+        const sp = Math.min(1, Math.max(0, (t - 1.6) / 0.5)), ry = Y(rect.y), rh = rect.h * s;
+        if (sp > 0) spot(rect, sp, true);
         g.textAlign = 'center';
         const p = Math.min(1, Math.max(0, (t - SIGN_AT) / 0.18));
         if (p > 0) {
@@ -92,7 +99,7 @@ for (const j of jobs) if (!ROOMS[j.room]) { console.error(`unknown room ${j.room
         }
         if (t < 0.15) { g.fillStyle = `rgba(0,0,0,${1 - t / 0.15})`; g.fillRect(0, 0, 1080, 1920); }
         return o.toDataURL('image/jpeg', .93);
-      }, { cam, t, k, geo, rect, room: job.room, line: R.line, title: job.title, SIGN_AT });
+      }, { cam, t, k, geo, rect, head, room: job.room, line: R.line, title: job.title, SIGN_AT });
       fs.writeFileSync(path.join(frames, String(i).padStart(5, '0') + '.jpg'), Buffer.from(data.split(',')[1], 'base64'));
     }
     await page.close();
