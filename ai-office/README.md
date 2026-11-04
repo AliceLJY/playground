@@ -223,6 +223,10 @@ Only how things move changed; no state, signal, server or config change. Springs
 
 `node --test tests/*.test.cjs` includes `tests/spring.test.cjs` (30/120 fps agreement, reduced motion never overshoots, whole pixels, NaN and bad input). `NODE_PATH="$(npm root -g)" node tools/spring-check.cjs http://127.0.0.1:3191/ [out]` stops the demo on a real landing, wave and swinging sheet on desktop, iPhone 390×664 at DPR 3, landscape and reduced motion, plus the guest feed, and requires every logical pixel there to be a solid 2×2 block.
 
+## 无忧 and 无虑 leave the playroom (2026-11-04)
+
+From 08:00 to 21:00 the two kids follow their own day: playroom, game room (cheering), the farm, chasing the calico cat round the building (it bolts when they get close), and AI lessons. At the boss's meals (morning tea, lunch, afternoon tea, dinner) they walk over and eat beside her, and her drawer line says she brought them. During a lesson the first free colleague takes a reading-room seat and teaches; failing that, a colleague idle at its own desk; with everyone busy they read alone. Schedule `KIDS_DAY` / `kidsPlan` and spots `kidSpots` in `office-core.js`; movement and drawing `kidsTick` / `drawKids` in `office.js`; tests `tests/kids.test.cjs`. Preview `?demo=1&at=10:45` (lesson), `at=12:05` (lunch), `at=12:40` (cat chase).
+
 ## Who might open this; AI materials
 
 For someone who enjoys seeing a tiny team turn ideas into work, or wants a quiet glance at local AI activity.
