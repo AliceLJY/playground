@@ -728,12 +728,13 @@
     } else kids.teach=null;
     for (const c of kids) {
       if (plan.kind==='meal') go(c,S[plan.meal][c.k]);
+      else if (plan.kind==='boss') go(c,S[plan.with][c.k]);
       else if (plan.kind==='study') go(c,kids.teach ? kids.teach.spots[c.k] : S.read[c.k]);
       else if (plan.kind==='play' || plan.kind==='games') go(c,S[plan.kind][c.k]);
       else if (plan.kind==='garden') { const inGarden=c.goal && S.garden.some(p=>Core.distance(p,c.goal)<4); if (!inGarden) go(c,S.garden[c.k]); else if (!c.path.length && (c.wait-=dt)<=0) { c.goal=null; go(c,S.garden[Math.floor(Math.random()*S.garden.length)]); c.wait=2+Math.random()*3; } }
       else if (cat) { if (sim.time-c.aim>.8) { c.aim=sim.time; c.goal=null; const t={x:Math.round(cat.x/4)*4+(c.k?8:-8),y:Math.round(cat.y/4)*4}; c.path=Core.route(c,t,L); if(!c.path.length) c.path=Core.route(c,cat,L); c.goal=t; } }
       else go(c,S.play[c.k]);
-      let step=dt*(cat?38:28);
+      let step=dt*(cat?38:plan.kind==='boss'||plan.kind==='meal'?50:28); // they run to keep up with the boss
       while (step>0 && c.path.length) { const q=c.path[0],d=Core.distance(c,q); if(d<=step){c.x=q.x;c.y=q.y;c.path.shift();step-=d;} else {c.x+=(q.x-c.x)/d*step;c.y+=(q.y-c.y)/d*step;step=0;} }
     }
     // The cat lets them get close, then bolts for another corner of the building; they never quite catch it.
@@ -755,7 +756,13 @@
       r(ctx,'#2f3a3c',x-2,y-1-(leg?1:0),2,2); r(ctx,'#2f3a3c',x+1,y-1-(leg?0:1),2,2);
       const eating = plan.kind==='meal' && !moving, cheering = plan.kind==='games' && !moving;
       if (eating) { r(ctx,'#ffffff',x-3,y-6,6,3); r(ctx,plan.meal==='tea'?'#efc66c':'#e9c9a0',x-2,y-7,4,1); if (Math.floor(t/3+c.k)%4===0) text(ctx,'好吃',x+9,y-15,5,'#b5473a'); }
-      if (cheering) { r(ctx,shirt,x-5,y-11-(Math.floor(t*3+c.k)%2),2,4); if (Math.floor(t/2+c.k)%3===0) text(ctx,'加油',x+9,y-15,5,'#b5473a'); }
+      const withBoss = plan.kind==='boss' && !moving ? plan.with : null;
+      if (withBoss==='desk') { r(ctx,'#f4f1e6',x-3,y-7,6,4); r(ctx,'#7f91bc',x,y-7,1,4); if (Math.floor(t/4+c.k)%5===0) text(ctx,'写作业',x+10,y-15,5,'#45534b'); }
+      if (withBoss==='pet' && Math.floor(t/2+c.k)%3===0) text(ctx,'♥',x+6,y-15,6,'#e58f9a');
+      if (withBoss==='swim') { r(ctx,'#7ad7ffc0',x-5,y-4,10,5); r(ctx,c.k?'#e58fb0':'#efc66c',x-5,y-6,10,2); }
+      if (withBoss==='gym') { const up=Math.floor(t*2+c.k)%2; r(ctx,shirt,x-5,y-11-up*2,2,4); r(ctx,shirt,x+3,y-11-up*2,2,4); }
+      if (withBoss==='farm') for (let j=0;j<2;j++) r(ctx,'#7ad7ff',x+5+j*2,y-4+((t*20+j*5)%6),1,2);
+      if (cheering || withBoss==='games') { r(ctx,shirt,x-5,y-11-(Math.floor(t*3+c.k)%2),2,4); if (Math.floor(t/2+c.k)%3===0) text(ctx,'加油',x+9,y-15,5,'#b5473a'); }
       if (plan.kind==='study' && !moving) { r(ctx,'#f4f1e6',x-3,y-7,6,4); r(ctx,'#7f91bc',x,y-7,1,4); const b=Math.floor(t/4+c.k)%4; if (!list.teach && b===0) text(ctx,c.k?'自学中':'这字念啥',x+10,y-15,5,'#45534b'); else if (list.teach && b===1) text(ctx,['哦～','懂啦','为什么呀'][Math.floor(t/12+c.k)%3],x+10,y-15,5,'#45534b'); }
       if (list.cat && c.k===0 && Math.floor(t/2)%3!==2) text(ctx,'别跑～',x+10,y-15,5,'#b5473a');
       const w=Math.ceil(ctx.measureText(name).width)+6; r(ctx,'#fff6dc',x-w/2,y+3,w,7); r(ctx,shirt,x-w/2,y+3,2,7); text(ctx,name,x+1,y+9,5,'#253334');

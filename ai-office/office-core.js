@@ -67,7 +67,7 @@
   const mealTime = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); return m>=690 && m<780 ? '午餐' : m>=1050 && m<1140 ? '晚餐' : null; };
   // The boss's own day in the tower (Alice 11-03: 「给我安排点事儿……老板在唱歌、游泳、撸猫」). Beijing minutes → what she does when
   // nothing needs her (no queue, no note, no guest). Spots are local to a room offset (see BOSS_SPOTS); 'desk' and 'stroll' wander.
-  const BOSS_DAY = [[30,'sleep','在医务室睡觉'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
+  const BOSS_DAY = [[30,'sleep','在医务室睡觉'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[570,'games','玩游戏'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
     [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
     [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1290,'bbq','撸串涮火锅'],[1350,'sing','唱K'],[1380,'dance','跳舞'],[1410,'read','看书']];
   // A show runs two hours (Alice: 「看剧一般是两个小时的」): 19:30–21:30, then BBQ, then K 房.
@@ -78,12 +78,18 @@
   // otherwise KIDS_DAY says where: playroom, game room, the farm, or chasing a cat round the building.
   // 11-04 later: 「阅读室吧，他们可以自学啊，ai们能不能去阅读室教他们或者不忙的时候在办公桌教他们ai」→ 'study': a colleague reading in the
   // reading room, or idle at its own desk, teaches them AI; with nobody free they read on their own in the reading room.
-  const KIDS_DAY = [[480,'play','在游乐室玩'],[570,'games','在游戏室看大人打游戏'],[630,'study','上 AI 课'],[750,'chase','追小猫'],[810,'garden','在菜地里跑'],
-    [870,'study','上 AI 课'],[930,'play','在游乐室玩'],[990,'garden','在菜地里跑'],[1170,'chase','追小猫'],[1200,'games','在游戏室看大人打游戏'],[1230,'play','在游乐室玩']];
-  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'};
+  // 11-04 again: 「我的状态，可以写带娃办公，带娃吃饭，带娃游戏，带娃运动」→ 'boss' items: they go wherever her plan says and stay
+  // beside her, and her drawer line becomes 带娃…. The rest of their day is their own.
+  const KIDS_DAY = [[480,'boss','跟着老板'],[630,'study','上 AI 课'],[690,'boss','跟着老板'],[810,'chase','追小猫'],[870,'study','上 AI 课'],
+    [900,'boss','跟着老板'],[1170,'play','在游乐室玩'],[1230,'games','在游戏室看大人打游戏']];
+  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'}, KID_WITH = ['desk','games','pet','swim','gym','farm'];
   const kidsPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); if (m<480 || m>=1260) return {kind:'sleep',label:'睡觉'};
     const b=bossPlan(time); if (KID_MEALS[b.kind]) return {kind:'meal',meal:b.kind,label:KID_MEALS[b.kind]};
-    let p=KIDS_DAY[0]; for (const e of KIDS_DAY) if (e[0]<=m) p=e; return {kind:p[1],label:p[2]}; };
+    let p=KIDS_DAY[0]; for (const e of KIDS_DAY) if (e[0]<=m) p=e;
+    if (p[1]==='boss') return KID_WITH.includes(b.kind) ? {kind:'boss',with:b.kind,label:'跟着老板'} : {kind:'play',label:'在游乐室玩'};
+    return {kind:p[1],label:p[2]}; };
+  // Her drawer line while the kids are with her (only once she is actually at that activity).
+  const KID_BOSS_LABEL = {desk:'带娃办公',games:'带娃玩游戏',pet:'带娃撸猫',swim:'带娃游泳',gym:'带娃运动',farm:'带娃浇菜',kitchen:'带娃吃饭',tea:'带娃吃茶点'};
   const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
   const isBreakfast = time => !!teaTime(time);
   const isFunTime = time => Math.floor(time / 1200000) % 3 === 2;
@@ -216,9 +222,10 @@
   const BOSS_SPOTS = {tea:{x:T_TEA[0]+70,y:T_TEA[1]+54}, kitchen:{x:T_KITCHEN[0]+38,y:T_KITCHEN[1]+76}, pet:{x:T_CAT[0]+46,y:T_CAT[1]+66},
     swim:{x:T_POOL[0]+60,y:T_POOL[1]+30}, gym:{x:T_GYM[0]+70,y:T_GYM[1]+66}, farm:{x:T_FUN.garden[0]+30,y:T_FUN.garden[1]+52},
     theatre:{x:T_FUN.cinema[0]+100,y:T_FUN.cinema[1]+66}, sing:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+52}, dance:{x:T_FUN.ktv[0]+70,y:T_FUN.ktv[1]+52},
-    bbq:{x:T_FUN.bbq[0]+40,y:T_FUN.bbq[1]+64}, read:{x:T_FUN.read[0]+55,y:T_FUN.read[1]+70}};
+    bbq:{x:T_FUN.bbq[0]+40,y:T_FUN.bbq[1]+64}, games:{x:208,y:356}, read:{x:T_FUN.read[0]+55,y:T_FUN.read[1]+70}};
   // Where 无忧 (index 0) and 无虑 (index 1) stand for each item of their day; garden lists the points they run between. Checked by kids.test.
   const KID_SPOTS = {play:[{x:T_KIDS[0]+8,y:T_KIDS[1]+30},{x:T_KIDS[0]+54,y:T_KIDS[1]+62}], games:[{x:160,y:356},{x:184,y:356}],
+    desk:[{x:183,y:352},{x:209,y:352}], pet:[{x:284,y:700},{x:308,y:700}], swim:[{x:156,y:760},{x:196,y:760}], gym:[{x:74,y:796},{x:98,y:796}], farm:[{x:66,y:1010},{x:70,y:1022}],
     tea:[{x:98,y:672},{x:98,y:684}], kitchen:[{x:138,y:712},{x:158,y:712}],
     read:[{x:62,y:952},{x:82,y:952}],
     garden:[{x:70,y:1000},{x:100,y:1020},{x:120,y:1004},{x:60,y:1024}]};
@@ -1043,7 +1050,8 @@
       const p=sim.bossPlan; if(!p) return '在办公室转转';
       if(sim.boss.path.length && p.kind!=='stroll') return p.kind==='home'?'下班回家':'正要去'+p.label.replace(/^在/,'');
       if(!bossActivity() && p.kind!=='home') return '在办公室转转';
-      return L.kidSpots && kidsPlan(signalNow()).kind==='meal' ? '带着无忧无虑'+p.label : p.label;
+      const kp=L.kidSpots && kidsPlan(signalNow()), act=bossActivity();
+      return kp && (kp.kind==='meal' || kp.kind==='boss') && act===p.kind && KID_BOSS_LABEL[act] ? KID_BOSS_LABEL[act] : p.label;
     }
     return Object.assign(sim, { bossActivity,bossLabel,chefTarget,chefActivity,play,playing,chargeBed,inBed,feastSpot,feastEating,napping,napSpot,leisure:games,layout:L,relayout,place,isCourier,handoffSpeech,boothCall,replayEvent,receiveGate,receiveEventHistory,setQuota,eventSpeech,foodNow,radarCardNow,cosmeticClaim,quotaClaim,pruneEvents, meet,receptionSpeech,receptionTarget, setScene, meetingTarget, meetingStanding, gameActivity, pingPongBall, flightPoints, step, setStatus, notice, setVisitors, greeting, wave, GREET_SECONDS, treat, thanksNow, deskTreatNow, TREATS, pantry });
   }
