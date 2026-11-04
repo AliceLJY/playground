@@ -15,7 +15,7 @@
   const backdrop = document.createElement('canvas'); backdrop.width = C.W * 2; backdrop.height = C.H * 2; canvas.width = C.W * 2; canvas.height = C.H * 2;
   const bg = backdrop.getContext('2d');
   $('.room-section').append($('#photo'));
-  const view = ['hero', 'kitchen', 'bbq', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate', 'orders', 'pool', 'farm', 'cat', 'clinic'].includes(params.get('view')) ? params.get('view') : null;
+  const view = ['hero', 'kitchen', 'bbq', 'breakfast', 'leisure', 'fun', 'nap', 'feast', 'queue', 'notice', 'meeting', 'booth', 'handoff', 'handoff-walk', 'board', 'night-guard', 'games', 'reception', 'argue', 'snack', 'melon', 'quota', 'supper', 'souvenir', 'radar', 'gate', 'orders', 'pool', 'farm', 'cat', 'clinic', 'read'].includes(params.get('view')) ? params.get('view') : null;
   // ?mv=1 plays mv-script.json for the short film (mv.js), ?mv=1&from=<s> starts partway; never live data.
   const forced = params.get('demo') === '1' || (view && view !== 'hero') || mvMode;
   // ?wall=1 is the desktop wallpaper (Plash): the room alone, parked in the empty part of the desktop, no photo
@@ -1490,7 +1490,8 @@
     if (!mv && ['breakfast','leisure','fun','kitchen','bbq'].includes(view)) { for (const a of sim.actors) if (a.i !== 0 && !sim.isCourier(a)) sim.setStatus(a.id, 'idle'); cursor = Infinity; sim.funFirst = view === 'fun'; }
     if(!mv && ['kitchen','bbq'].includes(view)) for(const a of sim.actors) if(a.awayPost==='kitchen') sim.setStatus(a.id,'away');
     // Scene previews for the tower (also the recruitment film): put idle colleagues where the shot needs them first.
-    const FIRST={clinic:[45,41,42,43],pool:[41,42,43,44],cat:[44,41],farm:[27,28,25,26],orders:[]};
+    // read: the two book seats in the 3F reading room (brand intro shot).
+    const FIRST={read:[25,26],clinic:[45,41,42,43],pool:[41,42,43,44],cat:[44,41],farm:[27,28,25,26],orders:[]};
     if(!mv && C.bands && FIRST[view]) { for (const a of sim.actors) if (!sim.isCourier(a)) sim.setStatus(a.id, a.awayPost==='kitchen'?'away':view==='orders'&&a.i!==0?'busy':'idle'); cursor = Infinity; sim.leisureFirst=FIRST[view]; if (view==='clinic') { sim.bossTarget=C.clinicDoctor; const g=sim.actors.find(a=>/grok|scout/.test(a.id)); if (g && C.chargePod) sim.setQuota({[g.id]:new Date(now()+40*60000).toISOString()},now()); } }
     // ?view=nap / feast: 23:30, everyone but CC asleep in the office; feast sends dim sum right away.
     if (!mv && ['nap','feast'].includes(view)) { for (const a of sim.actors) if (a.i !== 0) sim.setStatus(a.id, a.awayLabel ? 'away' : 'off'); cursor = Infinity; sim.night = true; if (view === 'feast') sim.treat('dimsum', new Date(wallBase).toISOString()); }
