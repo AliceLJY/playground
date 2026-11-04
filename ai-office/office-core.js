@@ -80,16 +80,17 @@
   // reading room, or idle at its own desk, teaches them AI; with nobody free they read on their own in the reading room.
   // 11-04 again: 「我的状态，可以写带娃办公，带娃吃饭，带娃游戏，带娃运动」→ 'boss' items: they go wherever her plan says and stay
   // beside her, and her drawer line becomes 带娃…. The rest of their day is their own.
-  const KIDS_DAY = [[480,'boss','跟着老板'],[630,'study','上 AI 课'],[690,'boss','跟着老板'],[810,'chase','追小猫'],[870,'study','上 AI 课'],
-    [900,'boss','跟着老板'],[1170,'play','在游乐室玩'],[1230,'games','在游戏室看大人打游戏']];
-  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'}, KID_WITH = ['desk','games','pet','swim','gym','farm'];
+  // 「带娃看剧哈哈哈哈，自己看剧其实是不是也可以」: the evening show is with her; 14:00–14:30 they watch one by themselves.
+  const KIDS_DAY = [[480,'boss','跟着老板'],[630,'study','上 AI 课'],[690,'boss','跟着老板'],[810,'chase','追小猫'],[840,'show','自己看剧'],[870,'play','在游乐室玩'],
+    [900,'boss','跟着老板']];
+  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'}, KID_WITH = ['desk','games','pet','swim','gym','farm','theatre'];
   const kidsPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); if (m<480 || m>=1260) return {kind:'sleep',label:'睡觉'};
     const b=bossPlan(time); if (KID_MEALS[b.kind]) return {kind:'meal',meal:b.kind,label:KID_MEALS[b.kind]};
     let p=KIDS_DAY[0]; for (const e of KIDS_DAY) if (e[0]<=m) p=e;
     if (p[1]==='boss') return KID_WITH.includes(b.kind) ? {kind:'boss',with:b.kind,label:'跟着老板'} : {kind:'play',label:'在游乐室玩'};
     return {kind:p[1],label:p[2]}; };
   // Her drawer line while the kids are with her (only once she is actually at that activity).
-  const KID_BOSS_LABEL = {desk:'带娃办公',games:'带娃玩游戏',pet:'带娃撸猫',swim:'带娃游泳',gym:'带娃运动',farm:'带娃浇菜',kitchen:'带娃吃饭',tea:'带娃吃茶点'};
+  const KID_BOSS_LABEL = {desk:'带娃办公',games:'带娃玩游戏',pet:'带娃撸猫',swim:'带娃游泳',gym:'带娃运动',farm:'带娃浇菜',theatre:'带娃看剧',kitchen:'带娃吃饭',tea:'带娃吃茶点'};
   const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
   const isBreakfast = time => !!teaTime(time);
   const isFunTime = time => Math.floor(time / 1200000) % 3 === 2;
@@ -225,7 +226,7 @@
     bbq:{x:T_FUN.bbq[0]+40,y:T_FUN.bbq[1]+64}, games:{x:208,y:356}, read:{x:T_FUN.read[0]+55,y:T_FUN.read[1]+70}};
   // Where 无忧 (index 0) and 无虑 (index 1) stand for each item of their day; garden lists the points they run between. Checked by kids.test.
   const KID_SPOTS = {play:[{x:T_KIDS[0]+8,y:T_KIDS[1]+30},{x:T_KIDS[0]+54,y:T_KIDS[1]+62}], games:[{x:160,y:356},{x:184,y:356}],
-    desk:[{x:183,y:352},{x:209,y:352}], pet:[{x:284,y:700},{x:308,y:700}], swim:[{x:156,y:760},{x:196,y:760}], gym:[{x:74,y:796},{x:98,y:796}], farm:[{x:66,y:1010},{x:70,y:1022}],
+    desk:[{x:183,y:352},{x:209,y:352}], pet:[{x:284,y:700},{x:308,y:700}], swim:[{x:156,y:760},{x:196,y:760}], gym:[{x:74,y:796},{x:98,y:796}], farm:[{x:66,y:1010},{x:70,y:1022}], theatre:[{x:204,y:598},{x:216,y:598}], show:[{x:204,y:598},{x:216,y:598}],
     tea:[{x:98,y:672},{x:98,y:684}], kitchen:[{x:138,y:712},{x:158,y:712}],
     read:[{x:62,y:952},{x:82,y:952}],
     garden:[{x:70,y:1000},{x:100,y:1020},{x:120,y:1004},{x:60,y:1024}]};
