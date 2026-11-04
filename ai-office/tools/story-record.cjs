@@ -17,12 +17,15 @@ const centre = (snap, who) => {
   if (who === 'boss' && snap.boss) return snap.boss;
   const k = (snap.kids?.list || []).filter(c => c.x != null); if (!k.length) return snap.boss;
   const m = { x: k.reduce((s, c) => s + c.x, 0) / k.length, y: k.reduce((s, c) => s + c.y, 0) / k.length };
+  // 一起看剧: the boss and both kids in one frame (11-05 Alice: 「只有孩子们两个形象，没看到我」).
+  if (who === 'kidsboss' && snap.boss) return { x: (m.x * 2 + snap.boss.x) / 3, y: (m.y * 2 + snap.boss.y) / 3 };
   if (who !== 'kidscat' || !snap.cats?.length) return m;
   // 追猫: aim between the kids and the cat nearest to them, so both are in frame.
   const cat = snap.cats.reduce((b, c) => Math.hypot(c.x - m.x, c.y - m.y) < Math.hypot(b.x - m.x, b.y - m.y) ? c : b);
   return { x: (m.x + cat.x) / 2, y: (m.y + cat.y) / 2 };
 };
-const still = (snap, who) => who === 'boss' ? true : (snap.kids?.list || []).every(c => !c.moving);
+// settle "teach": wait until a colleague is teaching the kids (11-05 Alice: 「空闲的 AI 要给孩子们讲课」).
+const still = (snap, who) => who === 'boss' ? true : (snap.kids?.list || []).every(c => !c.moving) && (who !== 'teach' || !!snap.kids?.teach);
 (async () => {
   const server = createPreview(); await new Promise(ok => server.listen(3194, '127.0.0.1', ok));
   const browser = await chromium.launch();
