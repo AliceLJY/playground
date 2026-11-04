@@ -6,7 +6,7 @@ intro="$1"; main="$2"; out="$3"
 read W H FR < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$main" | tr ',' ' ')
 has_audio=$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$main" | head -1)
 if [ -n "$has_audio" ]; then ma="[1:a]aresample=48000,aformat=channel_layouts=stereo[ma]"; else ma="anullsrc=r=48000:cl=stereo,atrim=duration=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$main")[ma]"; fi
-ffmpeg -y -loglevel error -i "$intro" -i "$main" -filter_complex "\
+ffmpeg -nostdin -y -loglevel error -i "$intro" -i "$main" -filter_complex "\
 [0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=0xefe7d4,fps=${FR},setsar=1,format=yuv420p[iv];\
 [1:v]fps=${FR},setsar=1,format=yuv420p[mv];\
 [0:a]aresample=48000,aformat=channel_layouts=stereo[ia];$ma;\
