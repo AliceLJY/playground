@@ -107,6 +107,6 @@ test('boss day: the plan follows Beijing time, every spot is walkable, and a bus
   assert.ok(C.route(L.bossDesk,L.clinicBed,L).length,'clinic bed');
   for(const [k,p] of Object.entries(L.bossSpots)){assert.equal(C.blocked(p.x,p.y,L),false,k);assert.ok(C.route(L.bossDesk,p,L).length,k);}
   const s=C.create(require('../demo-script.json').roster,7,'portrait');s.setScene(C.emptyScene(),at('15:10'));for(const a of s.actors)s.setStatus(a.id,'busy');
-  s.step(30000);assert.equal(s.bossActivity(),'swim');assert.equal(s.bossLabel(),'游泳');
+  s.step(30000);assert.equal(s.bossActivity(),'swim');assert.equal(s.bossLabel(),'带娃游泳');
   s.setStatus(s.actors[1].id,'waiting');s.step(30000);assert.ok(C.distance(s.boss,L.bossDesk)<1,'a waiting colleague brings her back');assert.equal(s.bossLabel(),'在老板桌等着拍板');
 });
