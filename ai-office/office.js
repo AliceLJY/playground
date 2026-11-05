@@ -298,6 +298,8 @@
     r(g,'#9aa7a2',4,14,18,22); r(g,'#e8eef2',5,15,16,20); r(g,'#9aa7a2',5,24,16,1); for (const [xx,yy,c] of [[7,18,'#d96952'],[12,18,'#7ad7ff'],[16,19,'#efc66c'],[8,27,'#9cff8a'],[14,28,'#e58fb0']]) r(g,c,xx,yy,3,4);
     r(g,'#77563f',34,24,26,10); r(g,'#a97c52',34,24,26,3); r(g,'#3e4b47',40,26,6,1); r(g,'#3e4b47',45,27,1,3); r(g,'#eee4c7',50,26,7,5);
     r(g,'#9aa7a2',6,70,50,12); r(g,'#ffffff',8,70,46,8); r(g,'#cfe3dc',8,70,12,6); r(g,'#9aa7a2',6,82,3,4); r(g,'#9aa7a2',53,82,3,4);
+    // 11-05: a washbasin for her morning wash (Core BOSS_DAY 'wash').
+    r(g,'#9aa7a2',2,40,10,2); r(g,'#e8eef2',3,42,8,4); r(g,'#7ad7ff',4,43,6,2); r(g,'#9aa7a2',6,38,1,2);
     plaque(g,'医务室',14,88,38,'#b5473a');
   }
   // 充电房, 66×48: a charging pod (the battery over the sleeper is drawn with the person) and a wall charger.
@@ -643,13 +645,16 @@
     const L=C.id, homeOf=k=>({x:C.catSpot.x+14+k*12,y:C.catSpot.y-k*2});
     if (!cats || cats.layout!==L || cats.sim!==sim) { cats=CAT_LOOKS.map((look,k)=>({...homeOf(k),k,look,path:[],wait:3+k*4,goal:null})); cats.layout=L; cats.sim=sim; cats.last=sim.time; catPlay=null; }
     const dt=Math.min(.5,Math.max(0,sim.time-cats.last)); cats.last=sim.time;
-    const petter=sim.actors.find(a=>sim.gameActivity(a)==='cat') || (sim.bossActivity?.()==='pet' ? sim.boss : null), fed=sim.playing?.('cat'), sleepy=sim.night && !fed;
+    // 11-05 her mornings: they are kept out of her room overnight, come in at 07:30 to wake her, follow her round meowing while she
+    // washes, and are fed just before she leaves at 07:45 (Core BOSS_DAY wake / wash / feed).
+    const morning=['wake','wash','feed'].includes(sim.bossPlan?.kind) ? sim.bossPlan.kind : null, feeding=morning==='feed' && sim.bossActivity?.()==='feed';
+    const petter=sim.actors.find(a=>sim.gameActivity(a)==='cat') || (sim.bossActivity?.()==='pet' ? sim.boss : null), fed=sim.playing?.('cat') || feeding, sleepy=sim.night && !fed && !morning;
     cats.calm=!!(fed||petter||sleepy);
     cats.spots ||= [C.pantry,...C.tour,C.gameWatch,{x:326,y:600},{x:200,y:716},{x:60,y:612},{x:150,y:612},{x:60,y:1000},{x:190,y:966},{x:280,y:1020},{x:230,y:870}].filter(p=>p&&!Core.blocked(p.x,p.y,L));
     const go=(c,p)=>{ if(c.goal&&Core.distance(c.goal,p)<4)return; c.goal=p; c.path=Core.route(c,p,L); };
     // A chase starts now and then (never at night or while someone is petting/feeding): the chaser keeps re-aiming at the runner.
     if (!catPlay && !sleepy && !fed && !petter && !cats.some(c=>c.task) && (Math.random()<dt/35 || view==='cat' && !cats.chased && sim.time>2 && (cats.chased=true))) { const runner=cats[Math.random()<.5?0:1]; catPlay={phase:'chase',runner,chaser:cats[1-runner.k],until:sim.time+9,aim:0}; runner.goal=null; go(runner,cats.spots[Math.floor(Math.random()*cats.spots.length)]); }
-    if (catPlay && (sleepy||fed||petter)) catPlay=null;
+    if (catPlay && (sleepy||fed||petter||morning)) catPlay=null;
     if (catPlay?.phase==='chase') {
       const {runner,chaser}=catPlay;
       if (sim.time>catPlay.aim) { catPlay.aim=sim.time+.8; chaser.goal=null; go(chaser,{x:Math.round(runner.x/4)*4,y:Math.round(runner.y/4)*4}); }
@@ -668,17 +673,21 @@
         continue;
       }
       const playing=!!catPlay;
-      if (!playing) {
+      if (morning && !fed) {
+        // Sticking to her: a step either side of her feet (her bed at 07:30, the basin, then the walk to the bowl), re-aimed as she moves.
+        const b=sim.boss, side=[{x:b.x+(c.k?-10:10),y:b.y+4},{x:b.x+(c.k?-12:12),y:b.y},{x:b.x,y:b.y+(c.k?-8:8)}].find(p=>!Core.blocked(Math.round(p.x),Math.round(p.y),L));
+        if (side && sim.time-(c.follow||0)>.6) { c.follow=sim.time; c.goal=null; go(c,{x:Math.round(side.x/2)*2,y:Math.round(side.y/2)*2}); }
+      } else if (!playing) {
         const want=fed||petter||sleepy?homeOf(c.k):null;
         if (want) go(c,want);
         else if (!c.path.length) { c.wait-=dt; if (c.wait<=0) { c.goal=null; go(c,cats.spots[Math.floor(Math.random()*cats.spots.length)]); c.wait=4+Math.random()*7; } }
       }
-      let step=dt*(catPlay?.phase==='chase' || c.fleeUntil>sim.time ? 46 : 22);
+      let step=dt*(catPlay?.phase==='chase' || c.fleeUntil>sim.time ? 46 : morning ? 34 : 22);
       while (step>0 && c.path.length) { const q=c.path[0],d=Core.distance(c,q); if(d<=step){c.x=q.x;c.y=q.y;c.path.shift();step-=d;} else {c.x+=(q.x-c.x)/d*step;c.y+=(q.y-c.y)/d*step;step=0;} }
     }
     const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
     return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,carrying:!!c.task&&!c.task.arrived,fed,running:catPlay?.phase==='chase',
-      tussle:catPlay?.phase==='tussle',petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
+      tussle:catPlay?.phase==='tussle',meow:!!morning&&!fed,petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
   }
   function drawCats() {
     const list=catTick(); if(!list)return; const t=sim.time;
@@ -696,7 +705,8 @@
       r(ctx,L.stripe,p.x-4+leg,p.y-1,1,2); r(ctx,L.stripe,p.x+2-leg,p.y-1,1,2); r(ctx,L.patch?L.stripe:L.fur,p.x-8,p.y-8+(Math.floor(t*(c.running?8:2))%2),3,2);
       if (c.tussle && Math.floor(t*6+c.k)%2) r(ctx,'#f4f1e6',p.x+(c.k?-6:8),p.y-10,3,2);
       if (c.carrying) { r(ctx,'#fffaf0',p.x+7,p.y-7,5,4); r(ctx,'#c1b597',p.x+8,p.y-5,3,1); }
-      if ((c.petted||c.fed) && !c.carrying) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
+      if (c.meow) { const say=['喵～','喵喵！','喵——','咪呜'][Math.floor(t/1.3+c.k*2)%4]; if (Math.floor(t*1.5+c.k)%3) text(ctx,say,p.x+4,p.y-14-(Math.floor(t*4)%2),6,'#b5473a'); }
+      else if ((c.petted||c.fed) && !c.carrying) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
     }
     if (list[0].tussle) { const mx=(list[0].x+list[1].x)/2,my=Math.min(list[0].y,list[1].y)-16; text(ctx,'喵！',mx,my-(t*4%2|0),6,'#b5473a'); for(let j=0;j<3;j++) r(ctx,'#ffffffc0',mx-8+j*7,my+4+((t*9+j*3)%5|0),2,2); }
   }
@@ -1016,12 +1026,13 @@
     if((!mv || mv.performances) && sim.argue?.phase==='smoke' && sim.argue.ids.includes(a.id))return;
     if (!boss && !a.activity && ['away', 'off'].includes(a.status) && C.distance(a, C.door) < 3) return;
     if (boss && sim.bossAway && C.distance(a, C.door) < 3) return;
-    if (boss && !mv && sim.bossActivity?.() === 'sleep') {
-      // 00:30–08:00 the boss sleeps on the clinic's exam bed (she would rather not go home).
-      const t = sim.time, x = Math.round(a.x), y = Math.round(a.y) - 2, k = t % 3, rise = Math.sin(t * 1.2) > 0 ? 0 : 1;
+    if (boss && !mv && ['sleep','wake'].includes(sim.bossActivity?.())) {
+      // 00:30–07:30 the boss sleeps on the clinic's exam bed (she would rather not go home); 07:30 the cats come in and wake her.
+      const t = sim.time, x = Math.round(a.x), y = Math.round(a.y) - 2, k = t % 3, rise = Math.sin(t * 1.2) > 0 ? 0 : 1, waking = sim.bossActivity() === 'wake';
       r(ctx, '#4b4639', x - 11, y - 10, 7, 3); r(ctx, '#e3b58d', x - 10, y - 8, 6, 5); r(ctx, '#273a34', x - 9, y - 6, 3, 1); r(ctx, '#dcb159', x - 7, y - 11, 3, 2);
       r(ctx, '#e58fb0', x - 3, y - 9 + rise, 14, 7 - rise); r(ctx, '#ffffff40', x - 3, y - 9 + rise, 14, 1);
-      text(ctx, 'z', x + 8, y - 12 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 12, y - 18 - k * 2, 8, '#45534b');
+      if (waking) { const line = t % 6 < 3 ? '唔…再睡五分钟' : '好啦好啦起来了'; ctx.font='5px "PingFang SC",system-ui,sans-serif'; const bw=Math.ceil(ctx.measureText(line).width)+6; r(ctx,'#fffaf0',x-bw/2,y-22,bw,8); text(ctx,line,x+1,y-16,5,'#45534b'); }
+      else { text(ctx, 'z', x + 8, y - 12 - k * 3, 6, '#45534b'); if (k > 1) text(ctx, 'Z', x + 12, y - 18 - k * 2, 8, '#45534b'); }
       ctx.font='5px "PingFang SC",system-ui,sans-serif'; const w=Math.ceil(ctx.measureText('老板 · 小试AI').width)+6; r(ctx,'#efc66c',x-w/2,y+4,w,7); r(ctx,'#8c3a2e',x-w/2,y+4,2,7); text(ctx,'老板 · 小试AI',x+1,y+10,5,'#5a3b2a');
       return;
     }
@@ -1088,7 +1099,7 @@
       if(a===v || a===host) { const dx=a===v?-1:1, bob=Math.sin(t*9)>0?1:0; r(ctx,color,x+(dx<0?-12:5),y-12+bob,8,3); r(ctx,'#e4bb91',x+(dx<0?-14:11),y-12+bob,4,3); }
     }
     // The boss's own day (Core BOSS_DAY): her plan item maps onto the colleagues' poses; dancing and carrying the cat are hers alone.
-    const BOSS_POSE = {tea:'tea',kitchen:'eat',bbq:'eat',pet:'cat',swim:'swim',gym:'lift',farm:'water',theatre:'movie',sing:'sing',dance:'bossdance',read:'book',stroll:'stroll'};
+    const BOSS_POSE = {wash:'brush',feed:'catfood',tea:'tea',kitchen:'eat',bbq:'eat',pet:'cat',swim:'swim',gym:'lift',farm:'water',theatre:'movie',sing:'sing',dance:'bossdance',read:'book',stroll:'stroll'};
     const game = boss ? (mv ? null : BOSS_POSE[sim.bossActivity?.()] || null) : sim.chefActivity(a) || sim.gameActivity(a) || (!a.visitor && sim.feastEating?.(a) ? 'tea' : null);
     if(!greets && ['cook','chop','grill'].includes(game)) {
       const lift=Math.floor(t*(game==='chop'?5:3))%2;
@@ -1137,6 +1148,9 @@
       const up = Math.floor(t * 3 + a.i) % 2; r(ctx,color,x-8,y-(up?20:14),3,8); r(ctx,color,x+5,y-(up?14:20),3,8);
       r(ctx,'#ffe066',x-8,y-(up?26:20),2,6); r(ctx,'#7ad7ff',x+6,y-(up?20:26),2,6);
     }
+    // 11-05 her morning: brushing her teeth at the clinic basin, then shaking cat food into the bowl before she leaves.
+    if (!greets && game === 'brush') { const scrub = Math.floor(t * 8) % 2; r(ctx, '#7ad7ff', x + 4 + scrub, y - 15, 5, 1); r(ctx, '#ffffff', x + 3 + scrub, y - 16, 2, 2); if (Math.floor(t * 3) % 2) r(ctx, '#ffffffd0', x + 8, y - 19, 2, 2); }
+    if (!greets && game === 'catfood') { const tip = Math.floor(t * 2) % 2; r(ctx, '#d9564d', x + 4, y - 16 + tip, 5, 7); r(ctx, '#efc66c', x + 5, y - 14 + tip, 3, 2); for (let j = 0; j < 3; j++) r(ctx, '#8c6447', x + 8 + (j % 2), y - 8 + ((t * 12 + j * 3) % 6 | 0), 1, 1); }
     if (!greets && game === 'book') {
       r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7);
       if ((t + a.i * 3) % 9 < 1.2) text(ctx,'💡',x+9,y-26,8,'#efc66c');
