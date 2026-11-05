@@ -17,3 +17,11 @@ test('she stays in bed while being woken, then walks to the basin and the cat bo
     for(let i=0;i<4;i++)s.step(15000);assert.equal(s.bossActivity(),act,hm);assert.equal(s.bossLabel(),label,hm);
   }
 });
+// 11-05 Alice: 「可以加给猫咪洗澡啊」— only 小橘 gets bathed; the kids come along (无忧 picked it up as a kitten).
+test('13:00 she bathes 小橘 by the cat tree, kids in tow',()=>{
+  assert.equal(C.bossPlan(at('12:59')).kind,'pet'); assert.equal(C.bossPlan(at('13:00')).kind,'bath'); assert.equal(C.bossPlan(at('13:30')).kind,'desk');
+  assert.equal(C.kidsPlan(at('13:10')).with,'bath');
+  const L=C.layouts.portrait,p=L.bossSpots.bath; assert.equal(C.blocked(p.x,p.y,L),false); for(const q of L.kidSpots.bath) assert.equal(C.blocked(q.x,q.y,L),false);
+  const s=C.create(require('../demo-script.json').roster,7,'portrait');s.setScene(C.emptyScene(),at('13:05'));for(const a of s.actors)s.setStatus(a.id,'busy');
+  for(let i=0;i<4;i++)s.step(15000);assert.equal(s.bossActivity(),'bath');assert.equal(s.bossLabel(),'带娃给小橘洗澡');
+});

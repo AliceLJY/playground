@@ -635,6 +635,10 @@
     }
   }
   // Two office cats roam the whole tower, like the two at Alice's home (11-03 photos): 小橘, an orange tabby, and 三花, a calico.
+  // 11-05 their characters (Alice): 小橘 was abandoned before weaning, 无忧 picked it up, so it is lively and lets anyone hold, pet and
+  // bathe it — the kids chase it, she carries it, it gets the baths. 三花 is 14, adopted three months ago, fierce (「昨天还抓伤我家人的
+  // 鼻子」), won't be held: it hisses at grown-ups who come close, slinks off to the kids' bunk when she pets or bathes 小橘, and sleeps
+  // on the kids' bed rather than the cat tree (「他们就几乎没睡过猫窝」).
   // Page-only state: they walk the same BFS grid as everyone, nap on the cat tree at night, come to whoever pets or feeds them,
   // purr at passers-by, and every so often one chases the other into a little play-fight.
   const CAT_LOOKS = [{name:'小橘',fur:'#e8963a',stripe:'#c8732a',belly:'#f2b46a',head:'#e8963a',muzzle:'#f2b46a'},
@@ -642,8 +646,10 @@
   let cats=null, catPlay=null;
   function catTick() {
     if (!C.catSpot || mv) return null;
-    const L=C.id, homeOf=k=>({x:C.catSpot.x+14+k*12,y:C.catSpot.y-k*2});
-    if (!cats || cats.layout!==L || cats.sim!==sim) { cats=CAT_LOOKS.map((look,k)=>({...homeOf(k),k,look,path:[],wait:3+k*4,goal:null})); cats.layout=L; cats.sim=sim; cats.last=sim.time; catPlay=null; }
+    const L=C.id, bowlOf=k=>({x:C.catSpot.x+14+k*12,y:C.catSpot.y-k*2}), kb=C.beds && C.kidBeds && C.beds[C.kidBeds[1]],
+      kidBed=kb && (cats?.kidBed?.layout===L ? cats.kidBed : Object.assign([{x:kb.x+4,y:kb.y},kb].find(p=>!Core.blocked(p.x,p.y,L) && Core.route(C.catSpot,p,L).length)||{},{layout:L})), homeOf=k=>k===1 && kidBed?.x!=null ? kidBed : bowlOf(k);
+    if (!cats || cats.layout!==L || cats.sim!==sim) { cats=CAT_LOOKS.map((look,k)=>({...bowlOf(k),k,look,path:[],wait:3+k*4,goal:null})); cats.layout=L; cats.sim=sim; cats.last=sim.time; catPlay=null; }
+    if (kidBed) cats.kidBed=kidBed;
     const dt=Math.min(.5,Math.max(0,sim.time-cats.last)); cats.last=sim.time;
     // 11-05 her mornings: they are kept out of her room overnight, come in at 07:30 to wake her, follow her round meowing while she
     // washes, and are fed just before she leaves at 07:45 (Core BOSS_DAY wake / wash / feed).
@@ -660,10 +666,12 @@
       if (sim.time>catPlay.aim) { catPlay.aim=sim.time+.8; chaser.goal=null; go(chaser,{x:Math.round(runner.x/4)*4,y:Math.round(runner.y/4)*4}); }
       if (Core.distance(runner,chaser)<10 || sim.time>catPlay.until) { catPlay={phase:'tussle',a:runner,b:chaser,until:sim.time+2.5}; runner.path=[]; chaser.path=[]; }
     } else if (catPlay?.phase==='tussle' && sim.time>catPlay.until) { catPlay=null; for(const c of cats){c.goal=null;c.wait=2+Math.random()*4;} }
-    const carried = sim.bossPlan?.kind==='stroll';
+    const carried = sim.bossPlan?.kind==='stroll', bathing = sim.bossActivity?.()==='bath';
     if (carried) { Object.assign(cats[0],{x:sim.boss.x,y:sim.boss.y,path:[],goal:null,task:null}); }
+    if (bathing) { Object.assign(cats[0],{x:sim.boss.x-12,y:sim.boss.y+2,path:[],goal:null,task:null}); }
+    const shy = sim.bossPlan?.kind==='bath' || !!petter; // 三花 keeps out of the way of petting and baths
     for (const c of cats) {
-      if (carried && c.k===0) continue;
+      if ((carried || bathing) && c.k===0) continue;
       // Courier duty (Alice: 「也可以让猫咪替我送信」): runs from the boss to the colleague with the note, then is free again.
       if (c.task) {
         const o=c.task,a=sim.actors.find(a=>a.id===o.id);
@@ -678,7 +686,7 @@
         const b=sim.boss, side=[{x:b.x+(c.k?-10:10),y:b.y+4},{x:b.x+(c.k?-12:12),y:b.y},{x:b.x,y:b.y+(c.k?-8:8)}].find(p=>!Core.blocked(Math.round(p.x),Math.round(p.y),L));
         if (side && sim.time-(c.follow||0)>.6) { c.follow=sim.time; c.goal=null; go(c,{x:Math.round(side.x/2)*2,y:Math.round(side.y/2)*2}); }
       } else if (!playing) {
-        const want=fed||petter||sleepy?homeOf(c.k):null;
+        const want=fed?bowlOf(c.k):(petter||sleepy||shy&&c.k===1)?homeOf(c.k):null;
         if (want) go(c,want);
         else if (!c.path.length) { c.wait-=dt; if (c.wait<=0) { c.goal=null; go(c,cats.spots[Math.floor(Math.random()*cats.spots.length)]); c.wait=4+Math.random()*7; } }
       }
@@ -687,7 +695,7 @@
     }
     const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
     return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,carrying:!!c.task&&!c.task.arrived,fed,running:catPlay?.phase==='chase',
-      tussle:catPlay?.phase==='tussle',meow:!!morning&&!fed,petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
+      tussle:catPlay?.phase==='tussle',meow:!!morning&&!fed,bath:bathing&&c.k===0,hiss:c.k===1&&!fed&&!morning&&!c.path.length&&[...sim.actors,...sim.visitors,sim.boss].filter(Boolean).some(p=>Core.distance(p,c)<14),petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
   }
   function drawCats() {
     const list=catTick(); if(!list)return; const t=sim.time;
@@ -695,6 +703,15 @@
     const carried = sim.bossActivity?.()==='stroll' || (sim.bossPlan?.kind==='stroll');
     for (const c of list) {
       if (carried && c.k===0) continue; // 小橘 is in the boss's arms
+      if (c.bath) {
+        // 小橘 in a tub of suds beside her: head and ears above the foam, bubbles drifting up, a contented 喵.
+        const L=c.look, x=c.x, y=c.y, b=Math.floor(t*2)%2;
+        r(ctx,'#4c4d4030',x-9,y+1,18,2); r(ctx,'#7f91bc',x-9,y-6,18,7); r(ctx,'#a9b8d8',x-8,y-6,16,1); r(ctx,'#ffffff',x-8,y-8,16,3); r(ctx,'#ffffff',x-6,y-10,4,2); r(ctx,'#ffffff',x+3,y-10,3,2);
+        r(ctx,L.head,x-2,y-14+b,5,5); r(ctx,L.head,x-2,y-16+b,1,2); r(ctx,L.head,x+2,y-16+b,1,2); r(ctx,L.muzzle,x,y-11+b,3,2); r(ctx,'#2f3a3c',x,y-13+b,1,1); r(ctx,'#ffffff',x-3,y-15+b,3,2);
+        for (let j=0;j<3;j++) { const by=(t*8+j*5)%14; r(ctx,'#e8f6ff',x-6+j*6,y-12-by,2,2); }
+        if (Math.floor(t/2)%3===0) text(ctx,'喵～',x+6,y-18,6,'#b5473a');
+        continue;
+      }
       const L=c.look,bob=c.tussle?(Math.floor(t*10+c.k)%2)*2:0,p={x:c.x+(c.tussle?(c.k?3:-3):0),y:c.y-bob},leg=c.moving&&Math.floor(t*(c.running?14:8))%2;
       r(ctx,'#4c4d4030',c.x-6,c.y,12,2);
       if (c.asleep) { r(ctx,L.fur,p.x-6,p.y-5,12,5); r(ctx,L.stripe,p.x-3,p.y-5,1,5); if(L.patch)r(ctx,L.patch,p.x-1,p.y-5,3,3); r(ctx,L.head,p.x+4,p.y-7,4,3); text(ctx,'z',p.x+9,p.y-10-(t%3|0),6,'#45534b'); continue; }
@@ -705,7 +722,8 @@
       r(ctx,L.stripe,p.x-4+leg,p.y-1,1,2); r(ctx,L.stripe,p.x+2-leg,p.y-1,1,2); r(ctx,L.patch?L.stripe:L.fur,p.x-8,p.y-8+(Math.floor(t*(c.running?8:2))%2),3,2);
       if (c.tussle && Math.floor(t*6+c.k)%2) r(ctx,'#f4f1e6',p.x+(c.k?-6:8),p.y-10,3,2);
       if (c.carrying) { r(ctx,'#fffaf0',p.x+7,p.y-7,5,4); r(ctx,'#c1b597',p.x+8,p.y-5,3,1); }
-      if (c.meow) { const say=['喵～','喵喵！','喵——','咪呜'][Math.floor(t/1.3+c.k*2)%4]; if (Math.floor(t*1.5+c.k)%3) text(ctx,say,p.x+4,p.y-14-(Math.floor(t*4)%2),6,'#b5473a'); }
+      if (c.hiss) { if (Math.floor(t*1.2)%3===0) { text(ctx,'哈！',p.x+4,p.y-14,6,'#b5473a'); r(ctx,L.head,p.x+8,p.y-8-(Math.floor(t*6)%2),2,2); } }
+      else if (c.meow) { const say=['喵～','喵喵！','喵——','咪呜'][Math.floor(t/1.3+c.k*2)%4]; if (Math.floor(t*1.5+c.k)%3) text(ctx,say,p.x+4,p.y-14-(Math.floor(t*4)%2),6,'#b5473a'); }
       else if ((c.petted||c.fed) && !c.carrying) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
     }
     if (list[0].tussle) { const mx=(list[0].x+list[1].x)/2,my=Math.min(list[0].y,list[1].y)-16; text(ctx,'喵！',mx,my-(t*4%2|0),6,'#b5473a'); for(let j=0;j<3;j++) r(ctx,'#ffffffc0',mx-8+j*7,my+4+((t*9+j*3)%5|0),2,2); }
@@ -721,7 +739,8 @@
     if (!kids || kids.sim!==sim || kids.layout!==L) { kids=[0,1].map(k=>({k,...S.play[k],path:[],goal:null,wait:0,aim:0})); kids.sim=sim; kids.layout=L; kids.last=sim.time; }
     const dt=Math.min(.5,Math.max(0,sim.time-kids.last)); kids.last=sim.time; kids.plan=plan;
     const go=(c,p)=>{ if(c.goal&&Core.distance(c.goal,p)<4)return; c.goal={...p}; c.path=Core.route(c,p,L); };
-    const cat = plan.kind==='chase' && cats && !cats.calm ? (cats.find(c=>c.k===1&&!c.task) || cats.find(c=>c.k===0&&!c.task&&sim.bossPlan?.kind!=='stroll')) : null;
+    // 11-05: the kids chase 小橘 (lively, 无忧's own find); 三花 is old and fierce, only a fallback while 小橘 is busy.
+    const cat = plan.kind==='chase' && cats && !cats.calm ? (cats.find(c=>c.k===0&&!c.task&&!['stroll','bath'].includes(sim.bossPlan?.kind)) || cats.find(c=>c.k===1&&!c.task)) : null;
     // Study: keep the same teacher while it stays free; a colleague reading in the reading room first, then one idle at its own desk.
     if (plan.kind==='study') {
       const free=a=>a && a.status==='idle' && !a.path.length, atDesk=a=>Core.distance(a,Core.home(a.i,L))<1;
@@ -787,6 +806,10 @@
       r(ctx,'#4b4639',x-10,y-9,5,2); r(ctx,'#e3b58d',x-9,y-8,5,4); r(ctx,c,x-3,y-8,11,6); r(ctx,'#ffffff40',x-3,y-8,11,1);
       text(ctx,'z',x+7,y-11-k*2,5,'#45534b');
       ctx.font='5px "PingFang SC",system-ui,sans-serif'; const w=Math.ceil(ctx.measureText(name).width)+6, ty=j%2?y+8:y-31; r(ctx,'#fff6dc',x-w/2,ty,w,7); r(ctx,c,x-w/2,ty,2,7); text(ctx,name,x+1,ty+6,5,'#253334'); });
+    // 三花 curls up on 无虑's blanket (Alice: 「喜欢睡孩子们的床」), drawn over the kids so it shows.
+    const s3=cats?.[1], kb=C.beds[C.kidBeds[1]];
+    if (s3 && kb && !s3.path.length && Core.distance(s3,kb)<6) { const L=s3.look, x=Math.round(kb.x)+4, y=Math.round(kb.y)-5;
+      r(ctx,L.fur,x,y-4,8,4); r(ctx,L.stripe,x+3,y-4,2,3); r(ctx,L.patch,x+1,y-4,2,2); r(ctx,L.head,x+6,y-6,3,3); r(ctx,L.head,x+6,y-7,1,1); r(ctx,L.head,x+8,y-7,1,1); }
   }
   function sceneUnder() {
     const s=sim.scene, m=s.meeting;
@@ -1099,7 +1122,7 @@
       if(a===v || a===host) { const dx=a===v?-1:1, bob=Math.sin(t*9)>0?1:0; r(ctx,color,x+(dx<0?-12:5),y-12+bob,8,3); r(ctx,'#e4bb91',x+(dx<0?-14:11),y-12+bob,4,3); }
     }
     // The boss's own day (Core BOSS_DAY): her plan item maps onto the colleagues' poses; dancing and carrying the cat are hers alone.
-    const BOSS_POSE = {wash:'brush',feed:'catfood',tea:'tea',kitchen:'eat',bbq:'eat',pet:'cat',swim:'swim',gym:'lift',farm:'water',theatre:'movie',sing:'sing',dance:'bossdance',read:'book',stroll:'stroll'};
+    const BOSS_POSE = {bath:'catbath',wash:'brush',feed:'catfood',tea:'tea',kitchen:'eat',bbq:'eat',pet:'cat',swim:'swim',gym:'lift',farm:'water',theatre:'movie',sing:'sing',dance:'bossdance',read:'book',stroll:'stroll'};
     const game = boss ? (mv ? null : BOSS_POSE[sim.bossActivity?.()] || null) : sim.chefActivity(a) || sim.gameActivity(a) || (!a.visitor && sim.feastEating?.(a) ? 'tea' : null);
     if(!greets && ['cook','chop','grill'].includes(game)) {
       const lift=Math.floor(t*(game==='chop'?5:3))%2;
@@ -1150,6 +1173,7 @@
     }
     // 11-05 her morning: brushing her teeth at the clinic basin, then shaking cat food into the bowl before she leaves.
     if (!greets && game === 'brush') { const scrub = Math.floor(t * 8) % 2; r(ctx, '#7ad7ff', x + 4 + scrub, y - 15, 5, 1); r(ctx, '#ffffff', x + 3 + scrub, y - 16, 2, 2); if (Math.floor(t * 3) % 2) r(ctx, '#ffffffd0', x + 8, y - 19, 2, 2); }
+    if (!greets && game === 'catbath') { const rub = Math.floor(t * 6) % 2; r(ctx, '#e4bb91', x - 9 + rub * 2, y - 11, 3, 3); r(ctx, '#ffffff', x - 10 + rub * 2, y - 13, 2, 2); }
     if (!greets && game === 'catfood') { const tip = Math.floor(t * 2) % 2; r(ctx, '#d9564d', x + 4, y - 16 + tip, 5, 7); r(ctx, '#efc66c', x + 5, y - 14 + tip, 3, 2); for (let j = 0; j < 3; j++) r(ctx, '#8c6447', x + 8 + (j % 2), y - 8 + ((t * 12 + j * 3) % 6 | 0), 1, 1); }
     if (!greets && game === 'book') {
       r(ctx,'#77563f',x-7,y-11,14,9); r(ctx,'#fff4d5',x-6,y-10,12,6); r(ctx,'#b58c63',x,y-10,2,7);
