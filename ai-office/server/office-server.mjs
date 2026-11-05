@@ -43,12 +43,32 @@ export function validateConfig(config) {
   return config;
 }
 
+// Where guests came from, by Beijing day: { '2026-11-05': { xhs: 12, x: 3 } }. Private: never in either snapshot,
+// the page shows nothing about it. Kept for 90 days; an unknown label is counted as 'other'.
+const SOURCES = new Set(['xhs', 'wechat', 'x', 'youtube', 'weibo', 'douyin', 'bilibili', 'github', 'search', 'qq', 'direct', 'other']);
+function cleanSources(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const day of Object.keys(raw).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().slice(-90)) {
+    const row = raw[day]; if (!row || typeof row !== 'object') continue;
+    out[day] = Object.fromEntries(Object.entries(row).filter(([k, v]) => SOURCES.has(k) && Number.isInteger(v) && v >= 0 && v <= 1e9));
+  }
+  return out;
+}
+function noteSource(state, label, now) {
+  const src = SOURCES.has(label) ? label : 'other', day = beijingDay(now);
+  state.sources = state.sources || {}; const row = state.sources[day] = state.sources[day] || {};
+  row[src] = (row[src] || 0) + 1;
+  const days = Object.keys(state.sources).sort(); while (days.length > 90) delete state.sources[days.shift()];
+}
+
 async function loadState(file, now = Date.now()) {
   try {
     const data = JSON.parse(await readFile(file, 'utf8'));
     if (data.version !== 1 || !data.members || !Array.isArray(data.notices)) throw new Error();
     data.notices = data.notices.filter(n => typeof n.text === 'string' && Number.isFinite(Date.parse(n.at))).slice(-20).map(n => ({ at: n.at, text: cleanNotice(n.text) }));
     data.visitorsTotal = Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 ? data.visitorsTotal : 0;
+    data.sources = cleanSources(data.sources);
     data.treats = (Array.isArray(data.treats) ? data.treats : []).filter(t => TREAT_KINDS.includes(t?.kind) && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
     data.meets = (Array.isArray(data.meets) ? data.meets : []).filter(t => MEET_KINDS.includes(t?.kind) && typeof t.at === 'string' && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
     const day = beijingDay(now);
@@ -59,7 +79,7 @@ async function loadState(file, now = Date.now()) {
     data.scene = migrateScene(data, now);
     return data;
   } catch (e) {
-    if (e.code === 'ENOENT') { const data = { version: 1, members: {}, notices: [], visitorsTotal: 0, treats: [], meets: [], meetDay: beijingDay(now), meetCounts: {} }; data.scene = migrateScene(data, now); return data; }
+    if (e.code === 'ENOENT') { const data = { version: 1, members: {}, notices: [], visitorsTotal: 0, sources: {}, treats: [], meets: [], meetDay: beijingDay(now), meetCounts: {} }; data.scene = migrateScene(data, now); return data; }
     throw new Error('Private state is unreadable or invalid; preserve it and repair before restart');
   }
 }
@@ -295,7 +315,7 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         visitorCount(now);
         // A tag heard for the first time is one more guest in the book, kept across restarts; a tab that goes quiet
         // for 45 s and comes back counts again (it is a new visit), which is how a guest book works anyway.
-        if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; noteVisitor(state.scene, now); await persist(); }
+        if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; noteVisitor(state.scene, now); noteSource(state, url.searchParams.get('s') || 'direct', now); await persist(); }
         else if (visitors.has(tag)) visitors.set(tag, now);
         return reply(res, 200, { ok: true, visitors: visitors.size, visitorsTotal: state.visitorsTotal || 0 }, cors);
       }

@@ -370,6 +370,10 @@ test('guest visits: a tagged hello counts for 45 s, bad tags 400, CORS only for 
   time+=3000; await hello('0123456789abcdef'); assert.equal((await (await fetch(base+'/api/state')).json()).visitorsTotal,3,'the same open tab is not counted twice');
   const again=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
   await again.poll(); assert.equal(again.snapshot().visitorsTotal,3,'the guest book survives a restart'); assert.equal(again.snapshot().visitors,0);
+  time+=60000; await fetch(`${base}/guest/visit?v=aaaaaaaaaaaaaaaa&s=xhs`); time+=3000; await fetch(`${base}/guest/visit?v=bbbbbbbbbbbbbbbb&s=<script>`); time+=3000; await fetch(`${base}/guest/visit?v=aaaaaaaaaaaaaaaa&s=xhs`);
+  const saved=JSON.parse(await fs.readFile(path.join(dir,'state.json'),'utf8')),tally=Object.values(saved.sources).reduce((m,row)=>{for(const[k,v]of Object.entries(row))m[k]=(m[k]||0)+v;return m;},{});
+  assert.equal(tally.xhs,1,'a source is counted once per new visit');assert.equal(tally.other,1,'an unknown label is other');assert.equal(tally.direct,3,'no label means direct');
+  const pub=JSON.stringify(await (await fetch(base+'/guest/api/state')).json())+JSON.stringify(await (await fetch(base+'/api/state')).json());assert.ok(!pub.includes('sources')&&!pub.includes('xhs'),'sources never leave the state file');
 });
 
 test('guest feed rounds times to the minute; the /guest/ tree has a per-address budget with Retry-After',async t=>{
