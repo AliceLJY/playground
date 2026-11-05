@@ -81,6 +81,14 @@ jobs:
           for f in src/*.js; do node --check "$f"; done
           node --test tests/*.test.cjs
 
+      - name: Check Daomadan Sprite
+        working-directory: daomadan-sprite
+        run: |
+          node --check src/clips.js
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Memory Fade
         working-directory: memory-fade
         run: |
@@ -277,6 +285,13 @@ jobs:
           mkdir -p _site/coal-breakout
           cp coal-breakout/index.html _site/coal-breakout/index.html
           cp -R coal-breakout/src _site/coal-breakout/
+
+      - name: Assemble Daomadan Sprite
+        run: |
+          # 刀马旦精灵：Canvas 讲解页加试玩舞台，没有构建步骤，页面、源码与图集原样发布
+          mkdir -p _site/daomadan-sprite
+          cp daomadan-sprite/index.html _site/daomadan-sprite/index.html
+          cp -R daomadan-sprite/src daomadan-sprite/assets _site/daomadan-sprite/
 
       - name: Assemble Memory Fade
         run: |

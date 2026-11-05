@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>刀马旦精灵</title>
+<meta name="description" content="一张粤剧刀马旦原画，由 AI 变出待机、走、出枪、跳、受击五个游戏动作，最后放到舞台上试玩。">
+<style>
+:root{--bg:#f7f1ec;--panel:#fffaf6;--fg:#2a2224;--muted:#7a6a6c;--line:#e6d7cf;--accent:#c2416b;--accent-soft:#f6d3df;--stage-top:#f8dccb;--stage-mid:#eab8a3;--floor:#7a4a3a;--floor-deep:#5a3428;--btn:#efe2da;--btn-fg:#2a2224}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1b1a20;--panel:#24232b;--fg:#efe9ea;--muted:#a99da0;--line:#3a3641;--accent:#f07ea3;--accent-soft:#4a2635;--stage-top:#3b2c3a;--stage-mid:#5a3a44;--floor:#3a2620;--floor-deep:#2a1a16;--btn:#34323d;--btn-fg:#efe9ea}}
+:root[data-theme="dark"]{--bg:#1b1a20;--panel:#24232b;--fg:#efe9ea;--muted:#a99da0;--line:#3a3641;--accent:#f07ea3;--accent-soft:#4a2635;--stage-top:#3b2c3a;--stage-mid:#5a3a44;--floor:#3a2620;--floor-deep:#2a1a16;--btn:#34323d;--btn-fg:#efe9ea}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 -apple-system,"PingFang SC","Noto Sans SC",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 48px}
+a{color:var(--accent)}
+.back{font-size:14px;color:var(--muted);text-decoration:none}
+h1{font-size:28px;line-height:1.3;margin:10px 0 6px}
+.lede{color:var(--muted);margin:0 0 28px}
+h2{font-size:20px;margin:36px 0 6px}
+h2 .n{display:inline-block;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;text-align:center;line-height:28px;font-size:15px;margin-right:8px;vertical-align:2px}
+.sub{color:var(--muted);margin:0 0 14px}
+.stills{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.still{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;margin:0}
+.still img{width:100%;height:auto;display:block;border-radius:8px;background:#00ff00}
+.still figcaption{font-size:14px;margin-top:8px;line-height:1.5}
+.still figcaption b{display:block;font-size:15px}
+.still.pick{border:2px solid var(--accent)}
+.tag{display:inline-block;font-size:12px;padding:0 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-left:4px;vertical-align:1px}
+.acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.act{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px}
+.act canvas{width:100%;height:auto;display:block;border-radius:8px;background:repeating-conic-gradient(var(--line) 0 25%,transparent 0 50%) 0 0/16px 16px}
+.act b{display:block;margin-top:8px}
+.act p{margin:2px 0 0;font-size:14px;color:var(--muted);line-height:1.5}
+.act.miss{display:flex;flex-direction:column;justify-content:center;border-style:dashed}
+.stage-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+#stage{display:block;width:100%;height:auto;touch-action:none}
+.pad{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:12px}
+.pad button{background:var(--btn);color:var(--btn-fg);border:0;border-radius:12px;padding:12px 18px;font-size:16px;min-width:64px;font-family:inherit;user-select:none;-webkit-user-select:none}
+.pad button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.keys{font-size:14px;color:var(--muted);text-align:center;margin:0 12px 12px}
+.how{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 18px;margin-top:36px;font-size:15px}
+.how li{margin:6px 0}
+footer{margin-top:28px;font-size:13px;color:var(--muted)}
+@media (max-width:640px){.stills,.acts{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">← playground</a>
+  <h1>刀马旦精灵：一张原画，变出整套动作</h1>
+  <p class="lede">做 2D 游戏，最难的常常是美术：同一个角色要画几十帧，每帧衣服、武器都得对得上。这里试的是另一条路——只认真定一张原画，每个动作让视频模型从这张画出发演一段，再由程序抠图、对位、切成帧。</p>
+
+  <h2 id="stills"><span class="n">1</span>先定一张原画</h2>
+  <p class="sub">第一版颜色不对。查了戏服资料，女靠一般只用粉红、大红、淡湖几种颜色，绣的是牡丹和凤凰，不绣龙。照这个改了两版。</p>
+  <div class="stills">
+    <figure class="still"><img src="assets/still-crimson.webp" alt="第一版：大红配满身金线和龙纹" loading="lazy" width="560" height="560"><figcaption><b>第一版</b>金色太多，又绣了龙，更像男将的大靠。</figcaption></figure>
+    <figure class="still"><img src="assets/still-lake.webp" alt="淡湖色女靠版本" loading="lazy" width="560" height="560"><figcaption><b>淡湖女靠</b>好看，但淡蓝和绿底太近，抠图时容易被一起抠掉。</figcaption></figure>
+    <figure class="still pick"><img src="assets/still-pink.webp" alt="粉红女靠版本，选定" loading="lazy" width="560" height="560"><figcaption><b>粉红女靠<span class="tag">选定</span></b>最常见的刀马旦扮相，后面所有动作都从这张出发。</figcaption></figure>
+  </div>
+
+  <h2 id="actions"><span class="n">2</span>每个动作演一段，再切成帧</h2>
+  <p class="sub">每个动作一段图生视频，程序先自动挑：转身了、换了颜色、首尾接不上的都打回重拍，然后逐张人工看过。一共拍了 16 段。</p>
+  <div class="acts">
+    <div class="act"><canvas data-clip="idle" width="300" height="320"></canvas><b>待机</b><p>一次过。呼吸起伏，翎子和靠旗轻轻晃。</p></div>
+    <div class="act"><canvas data-clip="walk" width="300" height="320"></canvas><b>走</b><p>第三段才过，前两段首尾接不上。</p></div>
+    <div class="act"><canvas data-clip="attack" width="300" height="320"></canvas><b>出枪</b><p>一次过。蓄力、弓步平刺、收回原位，压到 0.7 秒。</p></div>
+    <div class="act"><canvas data-clip="jump" width="300" height="320"></canvas><b>跳</b><p>前三段空中转身对着镜头，第四段又连跳两下，只截了第一跳。</p></div>
+    <div class="act"><canvas data-clip="hurt" width="300" height="320"></canvas><b>受击</b><p>后半段身子慢慢转正，只留了被打退那一下。</p></div>
+    <div class="act miss"><b>跑（没做成）</b><p>拍了六段，画面都能看，但靠旗、飘带、翎子一直在飘，盖过了腿的节奏，程序找不到能接成循环的一段。舞台上先用走路加速代替。</p></div>
+  </div>
+
+  <h2 id="play"><span class="n">3</span>放到舞台上试一试</h2>
+  <div class="stage-box">
+    <canvas id="stage" width="960" height="420" aria-label="刀马旦试玩舞台"></canvas>
+    <div class="pad">
+      <button data-k="left" aria-label="向左走">←</button>
+      <button data-k="right" aria-label="向右走">→</button>
+      <button data-k="run" aria-pressed="false">跑</button>
+      <button data-k="attack">出枪</button>
+      <button data-k="jump">跳</button>
+      <button data-k="hurt">受击</button>
+    </div>
+    <p class="keys">键盘：← → 走 · 按住 Shift 跑 · J 出枪 · K 或空格 跳 · H 受击</p>
+  </div>
+
+  <div class="how">
+    <ul>
+      <li>原画：Codex 生图，绿底，一次出图约一分钟。</li>
+      <li>动作：Grok 图生视频，每个动作从同一张原画出发。</li>
+      <li>抠图、对位、挑循环、压时长、打包图集：开源工具 <a href="https://github.com/0x0funky/agent-sprite-forge">agent-sprite-forge</a>（MIT）。</li>
+      <li>这一页：Canvas 2D 按图集逐帧画，跑步是走路帧 2.2 倍速。</li>
+    </ul>
+  </div>
+  <footer>角色与画面由 AI 生成，戏服配色参考戏曲服饰资料。源码在 <a href="https://github.com/AliceLJY/playground/tree/main/daomadan-sprite">GitHub</a>。</footer>
+</div>
+<script src="src/clips.js"></script>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>

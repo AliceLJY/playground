@@ -49,6 +49,7 @@
 | [agent 引擎是什么](agent-engine/) · [看](https://aliceljy.github.io/playground/agent-engine/) | 六个镜头讲清 API、引擎、harness 三层：只有 API 会卡在哪、加上循环能做什么、循环之外的失败怎么接住；页面里的循环是真跑的教学小实现 | 讲解页，纯前端，手动翻页或自动播放，手机电脑都行 |
 | [手写板书](handwritten-board/) · [看](https://aliceljy.github.io/playground/handwritten-board/) | 两页手写板书一笔一笔写出来，讲的是它自己怎么做出来的：龙藏行书逐字揭示，一只手跟着笔尖走，红笔圈重点；可暂停、倍速、翻页或长卷、换字体 | DOM 文字加 SVG，GSAP 时间线，字体子集打包在页面里，没有构建步骤 |
 | [像素办公室](ai-office/) · [看](https://aliceljy.github.io/playground/ai-office/) | 十一位 AI 伙伴各坐一张工位，按状态敲键盘、蹦跳撒彩带、到老板桌前排队敲门；送信员把推送当纸条递来，公告板留底。线上是演示版，真实版在自己机器上跑一个零依赖的小服务读本机状态 | Canvas 2D 像素风，演示剧本一分钟循环，白天傍晚夜晚按北京时间换灯，没有构建步骤 |
+| [刀马旦精灵](daomadan-sprite/) · [看](https://aliceljy.github.io/playground/daomadan-sprite/) | 一张粤剧刀马旦原画，AI 变出待机、走、出枪、跳、受击五个游戏动作：照戏服资料改对颜色，每个动作从同一张画出发演一段图生视频再切成帧，最后放到舞台上试玩。跑步没做成，页面里写了原因 | Canvas 2D 逐帧图集（agent-sprite-forge 打包），WebP，没有构建步骤 |
 
 ## 加一个新玩意
 
