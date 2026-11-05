@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style></head><body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="endcard.js"></script>
+<script>
+const ctx=document.getElementById('c').getContext('2d');
+const {drawThumb,drawSeal}=SignatureEndcard;
+const cl=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const eo=k=>1-Math.pow(1-k,3);
+const MODE=new URLSearchParams(location.search).get('m');
+function fadeOut(t,a,b){return 1-cl((t-a)/(b-a));}
+// 印章盖下：t0 起 0.22s 从 1.6 倍缩到 1，带回正
+function seal(t,t0,x,y,s){ if(t<t0) return; const f=cl((t-t0)/.22); const sc=(1.6-.6*eo(f))*s;
+  ctx.save(); ctx.translate(x,y); ctx.scale(sc,sc); ctx.rotate(-8*(1-f)*Math.PI/180); ctx.globalAlpha*=cl(f*3); drawSeal(ctx); ctx.restore(); }
+function ball(x,y,s,sx=1,sy=1,blink=false){ ctx.save(); ctx.translate(x,y); ctx.scale(s*sx,s*sy); drawThumb(ctx);
+  if(blink){ ctx.fillStyle='#111'; for(const ex of [-47,47]){ctx.beginPath();ctx.arc(ex,-4,11,0,7);ctx.fill();} ctx.strokeStyle='#fff';ctx.lineWidth=4; for(const ex of [-47,47]){ctx.beginPath();ctx.moveTo(ex-9,-4);ctx.lineTo(ex+9,-4);ctx.stroke();} }
+  ctx.restore(); }
+// 像素门
+function door(x,y,open,a){ ctx.save(); ctx.globalAlpha=a; const P=10; // 像素块
+  const px=(cx,cy,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x+cx*P,y+cy*P,w*P,h*P);};
+  px(-1,-1,16,25,'#5a3b24'); // 门框
+  px(0,0,14,23,'#2a1c12');   // 门洞（暗）
+  const w=Math.round(14*(1-open*.72)); // 门板向左收
+  px(0,0,w,23,'#b07a45'); if(w>3){ px(1,1,w-2,10,'#c08a52'); px(1,12,w-2,10,'#c08a52'); }
+  if(w>2) px(w-2,11,1,2,'#f1c75a'); // 把手
+  px(-3,23,20,2,'#5a3b24'); // 门槛
+  ctx.fillStyle='#efe7d4'; ctx.fillRect(x-3*P,y-5*P,20*P,3.6*P); ctx.fillStyle='#5a3b24'; ctx.font='700 26px "PingFang SC"'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('像素办公室',x+7*P,y-3.2*P);
+  ctx.restore(); }
+window.__seek=t=>{ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,1080,1920); ctx.globalAlpha=1;
+  const X=170,Y=250;
+  if(MODE==='a'){ // 煤球跳下来盖章
+    const land=.38;
+    ctx.globalAlpha=fadeOut(t,1.7,2.1);
+    seal(t,land,X,Y+10,.95);
+    if(t<land){ const k=t/land; ball(X,-180+(Y+40+180)*k*k,.62); }
+    else if(t<land+.12){ const k=(t-land)/.12; ball(X,Y+40+20*Math.sin(k*Math.PI),.62,1+.25*Math.sin(k*Math.PI),1-.25*Math.sin(k*Math.PI)); }
+    else if(t<1.15){ const k=(t-land-.12)/(1.15-land-.12); const bx=X+k*230, by=Y+40-Math.sin(k*Math.PI)*170+k*30; ball(bx,by,.62*(1-k*.25)); }
+    else { // 停在印章右边，眨眼
+      const bx=X+230,by=Y+70; ball(bx,by,.465,1,1, t>1.35&&t<1.47); }
+  }
+  if(MODE==='b'){ // 像素门开缝探头
+    const a=cl(t/.2)*fadeOut(t,1.8,2.15);
+    const open=t<.25?0:t<.6?eo((t-.25)/.35):t<1.45?1:1-eo(cl((t-1.45)/.3));
+    const DX=110,DY=110;
+    // 煤球画在门洞里（先画门洞再画煤球再画门板会更复杂，这里用裁切）
+    door(DX,DY,open,a);
+    const peek=t<.6?0:t<.85?eo((t-.6)/.25):t<1.3?1:1-eo(cl((t-1.3)/.2));
+    if(peek>0){ ctx.save(); ctx.globalAlpha=a; ctx.beginPath(); ctx.rect(DX+40,DY,100,230); ctx.clip();
+      ball(DX+200-95*peek,DY+120,.5,1,1,t>1.0&&t<1.12); ctx.restore(); }
+  }
+  if(MODE==='c'){ // 只盖印章
+    ctx.globalAlpha=fadeOut(t,1.7,2.1);
+    seal(t,.22,X,Y,1.05);
+    // 盖下瞬间一圈淡红印泥晕
+    if(t>.22&&t<.6){ const k=(t-.22)/.38; ctx.save(); ctx.globalAlpha*=.35*(1-k); ctx.strokeStyle='#C8352B'; ctx.lineWidth=6; ctx.strokeRect(X-80-40*k,Y-80-40*k,160+80*k,160+80*k); ctx.restore(); }
+  }
+};
+(async()=>{ await document.fonts.load('900 54px "Kaiti SC"'); await document.fonts.load('700 26px "PingFang SC"'); window.__ready=true; })();
+</script></body></html>
