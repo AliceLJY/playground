@@ -70,7 +70,7 @@
   // 11-05 her real mornings (Alice: 「7点半起床……现在是不让他们进房睡，7点半他们才会进门，我平时7点45出门的，出门前喂猫，15分钟内洗漱啥的
   // 猫咪们就一直跟着我喵喵喵的」): the cats wait outside till 07:30, come in and wake her, follow her meowing while she washes, get fed, she leaves at 07:45.
   const BOSS_DAY = [[30,'sleep','在医务室睡觉'],[450,'wake','被猫叫醒'],[452,'wash','洗漱，两只猫跟着喵喵叫'],[462,'feed','出门前喂猫'],[465,'desk','在老板桌上班'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[570,'games','玩游戏'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
-    [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
+    [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[780,'bath','给小橘洗澡'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
     [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1290,'bbq','撸串涮火锅'],[1350,'sing','唱K'],[1380,'dance','跳舞'],[1410,'read','看书']];
   // A show runs two hours (Alice: 「看剧一般是两个小时的」): 19:30–21:30, then BBQ, then K 房.
   // 11-03: K 房 is one stretch after the BBQ (唱K then 跳舞), not two visits split by it (Alice: 「这么奇怪的」).
@@ -85,14 +85,14 @@
   // 「带娃看剧哈哈哈哈，自己看剧其实是不是也可以」: the evening show is with her; 14:00–14:30 they watch one by themselves.
   const KIDS_DAY = [[480,'boss','跟着老板'],[630,'study','上 AI 课'],[690,'boss','跟着老板'],[810,'chase','追小猫'],[840,'show','自己看剧'],[870,'play','在游乐室玩'],
     [900,'boss','跟着老板']];
-  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'}, KID_WITH = ['desk','games','pet','swim','gym','farm','theatre'];
+  const KID_MEALS = {tea:'跟着吃茶点',kitchen:'跟着吃饭'}, KID_WITH = ['desk','games','pet','bath','swim','gym','farm','theatre'];
   const kidsPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); if (m<480 || m>=1260) return {kind:'sleep',label:'睡觉'};
     const b=bossPlan(time); if (KID_MEALS[b.kind]) return {kind:'meal',meal:b.kind,label:KID_MEALS[b.kind]};
     let p=KIDS_DAY[0]; for (const e of KIDS_DAY) if (e[0]<=m) p=e;
     if (p[1]==='boss') return KID_WITH.includes(b.kind) ? {kind:'boss',with:b.kind,label:'跟着老板'} : {kind:'play',label:'在游乐室玩'};
     return {kind:p[1],label:p[2]}; };
   // Her drawer line while the kids are with her (only once she is actually at that activity).
-  const KID_BOSS_LABEL = {desk:'带娃办公',games:'带娃玩游戏',pet:'带娃撸猫',swim:'带娃游泳',gym:'带娃运动',farm:'带娃浇菜',theatre:'带娃看剧',kitchen:'带娃吃饭',tea:'带娃吃茶点'};
+  const KID_BOSS_LABEL = {bath:'带娃给小橘洗澡',desk:'带娃办公',games:'带娃玩游戏',pet:'带娃撸猫',swim:'带娃游泳',gym:'带娃运动',farm:'带娃浇菜',theatre:'带娃看剧',kitchen:'带娃吃饭',tea:'带娃吃茶点'};
   const isBBQTime = time => { const h=new Date(time+8*3600000).getUTCHours(); return h>=19 && h<23; };
   const isBreakfast = time => !!teaTime(time);
   const isFunTime = time => Math.floor(time / 1200000) % 3 === 2;
@@ -226,10 +226,12 @@
     swim:{x:T_POOL[0]+60,y:T_POOL[1]+30}, gym:{x:T_GYM[0]+70,y:T_GYM[1]+66}, farm:{x:T_FUN.garden[0]+30,y:T_FUN.garden[1]+52},
     theatre:{x:T_FUN.cinema[0]+100,y:T_FUN.cinema[1]+66}, sing:{x:T_FUN.ktv[0]+44,y:T_FUN.ktv[1]+52}, dance:{x:T_FUN.ktv[0]+70,y:T_FUN.ktv[1]+52},
     bbq:{x:T_FUN.bbq[0]+40,y:T_FUN.bbq[1]+64}, games:{x:208,y:356}, read:{x:T_FUN.read[0]+55,y:T_FUN.read[1]+70},
-    wash:{x:T_CLINIC[0]+14,y:T_CLINIC[1]+52}, feed:{x:T_CAT[0]+46,y:T_CAT[1]+66}};
+    wash:{x:T_CLINIC[0]+14,y:T_CLINIC[1]+52}, feed:{x:T_CAT[0]+46,y:T_CAT[1]+66},
+    // 11-05 「可以加给猫咪洗澡啊」: only 小橘 — raised from a kitten, happy to be held and bathed; 三花 won't have it.
+    bath:{x:T_CAT[0]+46,y:T_CAT[1]+66}};
   // Where 无忧 (index 0) and 无虑 (index 1) stand for each item of their day; garden lists the points they run between. Checked by kids.test.
   const KID_SPOTS = {play:[{x:T_KIDS[0]+8,y:T_KIDS[1]+30},{x:T_KIDS[0]+54,y:T_KIDS[1]+62}], games:[{x:160,y:356},{x:184,y:356}],
-    desk:[{x:183,y:352},{x:209,y:352}], pet:[{x:284,y:700},{x:308,y:700}], swim:[{x:156,y:760},{x:196,y:760}], gym:[{x:74,y:796},{x:98,y:796}], farm:[{x:66,y:1010},{x:70,y:1022}], theatre:[{x:204,y:598},{x:216,y:598}], show:[{x:204,y:598},{x:216,y:598}],
+    desk:[{x:183,y:352},{x:209,y:352}], pet:[{x:284,y:700},{x:308,y:700}], bath:[{x:272,y:700},{x:320,y:700}], swim:[{x:156,y:760},{x:196,y:760}], gym:[{x:74,y:796},{x:98,y:796}], farm:[{x:66,y:1010},{x:70,y:1022}], theatre:[{x:204,y:598},{x:216,y:598}], show:[{x:204,y:598},{x:216,y:598}],
     tea:[{x:98,y:672},{x:98,y:684}], kitchen:[{x:138,y:712},{x:158,y:712}],
     read:[{x:62,y:952},{x:82,y:952}],
     garden:[{x:70,y:1000},{x:100,y:1020},{x:120,y:1004},{x:60,y:1024}]};
