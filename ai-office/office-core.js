@@ -74,7 +74,14 @@
     [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1290,'bbq','撸串涮火锅'],[1350,'sing','唱K'],[1380,'dance','跳舞'],[1410,'read','看书']];
   // A show runs two hours (Alice: 「看剧一般是两个小时的」): 19:30–21:30, then BBQ, then K 房.
   // 11-03: K 房 is one stretch after the BBQ (唱K then 跳舞), not two visits split by it (Alice: 「这么奇怪的」).
-  const bossPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); let p=BOSS_DAY[BOSS_DAY.length-1]; for(const e of BOSS_DAY) if(e[0]<=m) p=e; return {kind:p[1],label:p[2]}; };
+  // 11-05 「我们是看情况的，因为他们会出去花园弄的脏兮兮，我们就要给他洗澡了，每个月还要去杀虫的」: the 13:00 bath only happens on
+  // days 小橘 has been rolling in the garden (about one day in three, picked by the date so page and server agree; that morning
+  // 11:00–11:45 it is out in the garden and comes back muddy); otherwise the petting just goes on. On the 1st of each month that
+  // half hour is the trip to the vet for flea and worm treatment, both cats in tow.
+  const catDay = time => { const d=new Date(time+8*3600000), day=d.toISOString().slice(0,10); return {muddy:stableHash('mud:'+day)%3===0, vet:d.getUTCDate()===1}; };
+  const bossPlan = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); let p=BOSS_DAY[BOSS_DAY.length-1]; for(const e of BOSS_DAY) if(e[0]<=m) p=e;
+    if (p[1]==='bath') { const c=catDay(time); if (c.vet) return {kind:'vet',label:'带两只猫去宠物医院驱虫'}; if (!c.muddy) return {kind:'pet',label:'撸猫'}; return {kind:'bath',label:'小橘在花园滚脏了，给它洗澡'}; }
+    return {kind:p[1],label:p[2]}; };
   // 无忧 and 无虑's own day (Alice 11-04: 「无忧无虑是不是不止局限在游乐室……玩游戏、去花园，和猫咪追逐……吃东西的时候带上他们」).
   // Awake 08:00–21:00 Beijing. Whenever the boss's plan is a meal (早茶 / 午饭 / 下午茶 / 晚饭) they go with her and eat beside her;
   // otherwise KIDS_DAY says where: playroom, game room, the farm, or chasing a cat round the building.
@@ -922,8 +929,8 @@
       else if (sim.reception?.mode === 'closed' && sim.reception.phase !== 'leaving' && !legacy && !sim.classicLeisure) moveTo(sim.boss, { x: door.x - 40, y: door.y });
       else if (L.bossSpots && sim.clockKnown && !legacy && !sim.classicLeisure) {
         // Her own day: go where the plan says; at the desk or strolling with the cat she still wanders between a few points.
-        const plan = bossPlan(signalNow()); sim.bossPlan = plan; sim.bossAway = plan.kind === 'home';
-        if (plan.kind === 'home') moveTo(sim.boss, door);
+        const plan = bossPlan(signalNow()); sim.bossPlan = plan; sim.bossAway = ['home','vet'].includes(plan.kind);
+        if (['home','vet'].includes(plan.kind)) moveTo(sim.boss, door);
         else if (['sleep','wake'].includes(plan.kind) && L.clinicBed) moveTo(sim.boss, L.clinicBed);
         else if (L.bossSpots[plan.kind]) moveTo(sim.boss, L.bossSpots[plan.kind]);
         else if (plan.kind === 'desk') moveTo(sim.boss, bossDesk);
@@ -1054,8 +1061,8 @@
       if(sim.reception?.mode==='closed') return '在门口接待客人';
       if(L.clinicDoctor && distance(sim.boss,L.clinicDoctor)<1) return '在医务室坐诊';
       const p=sim.bossPlan; if(!p) return '在办公室转转';
-      if(sim.boss.path.length && p.kind!=='stroll') return p.kind==='home'?'下班回家':'正要去'+p.label.replace(/^在/,'');
-      if(!bossActivity() && p.kind!=='home') return '在办公室转转';
+      if(sim.boss.path.length && p.kind!=='stroll') return p.kind==='home'?'下班回家':p.kind==='vet'?'拎着猫包出门去驱虫':'正要去'+p.label.replace(/^在/,'');
+      if(!bossActivity() && !['home','vet'].includes(p.kind)) return '在办公室转转';
       const kp=L.kidSpots && kidsPlan(signalNow()), act=bossActivity();
       return kp && (kp.kind==='meal' || kp.kind==='boss') && act===p.kind && KID_BOSS_LABEL[act] ? KID_BOSS_LABEL[act] : p.label;
     }
@@ -1235,7 +1242,7 @@
   const SWAY_SECONDS = 2.5;
   function swayAt(age, reduced = false) { return age >= 0 && age < SWAY_SECONDS ? Math.round(springAt(120, .16, age, { to: 0, v: 32 }, reduced)) + 0 : 0; }
 
-  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, bossPlan, BOSS_DAY, kidsPlan, KIDS_DAY, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
+  const api = { spring, springStep, springAt, hopAt, HOP_SECONDS, greetPose, swayAt, SWAY_SECONDS, createReplay,validateHistory,validateHistoryList,validDay,meetingBoardText,ACTIVITY_PRIORITY,stableHash,MEET_NAMES,MEET_LINES,layouts,getLayout,noticeBoard,lookIndex, plateName, nameplates, games, leisureSlots, isBreakfast, isFunTime, teaTime, mealTime, bossPlan, catDay, BOSS_DAY, kidsPlan, KIDS_DAY, dishOf, CUISINES, isBBQTime, LEISURE_ORDER, BREAKFAST_ORDER, KITCHEN_ORDER, BBQ_ORDER, leisure:L=>{L=getLayout(L);return L.id==='legacy'?L.games.slice(0,10):[...L.games,...(L.gym||[]),...(L.tea||[]),...machineSpots,...(L.fun||[]),...(L.kitchen||[]),...(L.pool||[]),...(L.catSpot?[L.catSpot]:[]),...(L.clinic||[])];}, gameWatch:tower.gameWatch, standing:tower.standing, podium:tower.podium, seats:tower.seats, booth:tower.booth, audience:tower.audience, patrol:tower.patrol, classicSeats:seats, emptyScene, diskLayers, isNight, validateSceneFields, eventText, TREAT_NAMES, W, H, desks, mvDesks, rest, home, door, handoff, bossDesk, pantry, blocked, queuePoint, create, distance, route };
   if (typeof module !== 'undefined') module.exports = api;
   root.OfficeCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

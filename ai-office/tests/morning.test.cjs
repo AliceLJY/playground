@@ -17,11 +17,18 @@ test('she stays in bed while being woken, then walks to the basin and the cat bo
     for(let i=0;i<4;i++)s.step(15000);assert.equal(s.bossActivity(),act,hm);assert.equal(s.bossLabel(),label,hm);
   }
 });
-// 11-05 Alice: 「可以加给猫咪洗澡啊」— only 小橘 gets bathed; the kids come along (无忧 picked it up as a kitten).
-test('13:00 she bathes 小橘 by the cat tree, kids in tow',()=>{
-  assert.equal(C.bossPlan(at('12:59')).kind,'pet'); assert.equal(C.bossPlan(at('13:00')).kind,'bath'); assert.equal(C.bossPlan(at('13:30')).kind,'desk');
-  assert.equal(C.kidsPlan(at('13:10')).with,'bath');
+// 11-05 Alice: 「我们是看情况的，因为他们会出去花园弄的脏兮兮，我们就要给他洗澡了，每个月还要去杀虫的」.
+const on=(day,hm)=>Date.parse(`${day}T${hm}:00+08:00`);
+test('13:00 is a bath only on muddy days, the vet on the 1st, otherwise more petting',()=>{
+  assert.equal(C.bossPlan(on('2026-11-01','13:10')).kind,'vet'); assert.equal(C.bossPlan(on('2026-12-01','13:10')).kind,'vet');
+  assert.equal(C.bossPlan(on('2026-11-02','13:10')).kind,'pet'); assert.equal(C.bossPlan(on('2026-11-03','13:10')).kind,'bath');
+  assert.equal(C.bossPlan(on('2026-11-03','12:59')).kind,'pet'); assert.equal(C.bossPlan(on('2026-11-03','13:30')).kind,'desk');
+  let muddy=0; for(let i=0;i<90;i++) if(C.catDay(on('2026-11-02','12:00')+i*86400000).muddy) muddy++;
+  assert.ok(muddy>15 && muddy<45, `about one day in three, got ${muddy}/90`);
+  assert.equal(C.kidsPlan(on('2026-11-03','13:10')).with,'bath'); assert.equal(C.kidsPlan(on('2026-11-01','13:10')).kind,'play');
   const L=C.layouts.portrait,p=L.bossSpots.bath; assert.equal(C.blocked(p.x,p.y,L),false); for(const q of L.kidSpots.bath) assert.equal(C.blocked(q.x,q.y,L),false);
-  const s=C.create(require('../demo-script.json').roster,7,'portrait');s.setScene(C.emptyScene(),at('13:05'));for(const a of s.actors)s.setStatus(a.id,'busy');
+  const s=C.create(require('../demo-script.json').roster,7,'portrait');s.setScene(C.emptyScene(),on('2026-11-03','13:05'));for(const a of s.actors)s.setStatus(a.id,'busy');
   for(let i=0;i<4;i++)s.step(15000);assert.equal(s.bossActivity(),'bath');assert.equal(s.bossLabel(),'带娃给小橘洗澡');
+  const v=C.create(require('../demo-script.json').roster,7,'portrait');v.setScene(C.emptyScene(),on('2026-11-01','13:05'));for(const a of v.actors)v.setStatus(a.id,'busy');
+  for(let i=0;i<8;i++)v.step(15000);assert.equal(v.bossAway,true);assert.equal(v.bossLabel(),'带两只猫去宠物医院驱虫');
 });

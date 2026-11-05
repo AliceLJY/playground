@@ -666,12 +666,17 @@
       if (sim.time>catPlay.aim) { catPlay.aim=sim.time+.8; chaser.goal=null; go(chaser,{x:Math.round(runner.x/4)*4,y:Math.round(runner.y/4)*4}); }
       if (Core.distance(runner,chaser)<10 || sim.time>catPlay.until) { catPlay={phase:'tussle',a:runner,b:chaser,until:sim.time+2.5}; runner.path=[]; chaser.path=[]; }
     } else if (catPlay?.phase==='tussle' && sim.time>catPlay.until) { catPlay=null; for(const c of cats){c.goal=null;c.wait=2+Math.random()*4;} }
-    const carried = sim.bossPlan?.kind==='stroll', bathing = sim.bossActivity?.()==='bath';
+    const carried = sim.bossPlan?.kind==='stroll', bathing = sim.bossActivity?.()==='bath', vet = sim.bossPlan?.kind==='vet';
+    // Muddy days (Core.catDay): 小橘 is out in the garden 11:00–11:45 and stays grubby till its 13:00 bath.
+    const cd=Core.catDay(now()), hm=(d=>d.getUTCHours()*60+d.getUTCMinutes())(new Date(now()+8*3600000)), garden=cd.muddy && hm>=660 && hm<705 && C.bossSpots?.farm, muddy=cd.muddy && hm>=670 && hm<810;
+    cats.muddy=muddy; cats.vet=vet;
+    if (vet) for (const c of cats) Object.assign(c,{x:sim.boss.x,y:sim.boss.y,path:[],goal:null,task:null}); // in the carrier with her
     if (carried) { Object.assign(cats[0],{x:sim.boss.x,y:sim.boss.y,path:[],goal:null,task:null}); }
     if (bathing) { Object.assign(cats[0],{x:sim.boss.x-12,y:sim.boss.y+2,path:[],goal:null,task:null}); }
     const shy = sim.bossPlan?.kind==='bath' || !!petter; // 三花 keeps out of the way of petting and baths
     for (const c of cats) {
-      if ((carried || bathing) && c.k===0) continue;
+      if ((carried || bathing) && c.k===0 || vet) continue;
+      if (garden && c.k===0 && !c.task && !catPlay) { const g=C.bossSpots.farm; go(c,{x:g.x+(Math.floor(sim.time/6)%2?10:-6),y:g.y}); }
       // Courier duty (Alice: 「也可以让猫咪替我送信」): runs from the boss to the colleague with the note, then is free again.
       if (c.task) {
         const o=c.task,a=sim.actors.find(a=>a.id===o.id);
@@ -686,7 +691,7 @@
         const b=sim.boss, side=[{x:b.x+(c.k?-10:10),y:b.y+4},{x:b.x+(c.k?-12:12),y:b.y},{x:b.x,y:b.y+(c.k?-8:8)}].find(p=>!Core.blocked(Math.round(p.x),Math.round(p.y),L));
         if (side && sim.time-(c.follow||0)>.6) { c.follow=sim.time; c.goal=null; go(c,{x:Math.round(side.x/2)*2,y:Math.round(side.y/2)*2}); }
       } else if (!playing) {
-        const want=fed?bowlOf(c.k):(petter||sleepy||shy&&c.k===1)?homeOf(c.k):null;
+        const want=garden&&c.k===0?null:fed?bowlOf(c.k):(petter||sleepy||shy&&c.k===1)?homeOf(c.k):null;
         if (want) go(c,want);
         else if (!c.path.length) { c.wait-=dt; if (c.wait<=0) { c.goal=null; go(c,cats.spots[Math.floor(Math.random()*cats.spots.length)]); c.wait=4+Math.random()*7; } }
       }
@@ -695,14 +700,14 @@
     }
     const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
     return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,carrying:!!c.task&&!c.task.arrived,fed,running:catPlay?.phase==='chase',
-      tussle:catPlay?.phase==='tussle',meow:!!morning&&!fed,bath:bathing&&c.k===0,hiss:c.k===1&&!fed&&!morning&&!c.path.length&&[...sim.actors,...sim.visitors,sim.boss].filter(Boolean).some(p=>Core.distance(p,c)<14),petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
+      tussle:catPlay?.phase==='tussle',meow:!!morning&&!fed,muddy:muddy&&c.k===0,bath:bathing&&c.k===0,hiss:c.k===1&&!fed&&!morning&&!c.path.length&&[...sim.actors,...sim.visitors,sim.boss].filter(Boolean).some(p=>Core.distance(p,c)<14),petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
   }
   function drawCats() {
     const list=catTick(); if(!list)return; const t=sim.time;
     if (list[0].fed) { const p={x:C.catSpot.x+6,y:C.catSpot.y+2}; r(ctx,'#b5473a',p.x-6,p.y-2,10,4); r(ctx,'#e9c9a0',p.x-5,p.y-3,8,2); }
     const carried = sim.bossActivity?.()==='stroll' || (sim.bossPlan?.kind==='stroll');
     for (const c of list) {
-      if (carried && c.k===0) continue; // 小橘 is in the boss's arms
+      if (carried && c.k===0 || cats.vet) continue; // 小橘 is in the boss's arms; on vet day both are in the carrier
       if (c.bath) {
         // 小橘 in a tub of suds beside her: head and ears above the foam, bubbles drifting up, a contented 喵.
         const L=c.look, x=c.x, y=c.y, b=Math.floor(t*2)%2;
@@ -722,6 +727,7 @@
       r(ctx,L.stripe,p.x-4+leg,p.y-1,1,2); r(ctx,L.stripe,p.x+2-leg,p.y-1,1,2); r(ctx,L.patch?L.stripe:L.fur,p.x-8,p.y-8+(Math.floor(t*(c.running?8:2))%2),3,2);
       if (c.tussle && Math.floor(t*6+c.k)%2) r(ctx,'#f4f1e6',p.x+(c.k?-6:8),p.y-10,3,2);
       if (c.carrying) { r(ctx,'#fffaf0',p.x+7,p.y-7,5,4); r(ctx,'#c1b597',p.x+8,p.y-5,3,1); }
+      if (c.muddy && !c.asleep) { for (const [mx,my] of [[-4,-5],[0,-3],[3,-6],[-2,-2]]) r(ctx,'#7a5a3a',p.x+mx,p.y+my,2,1); if (Math.floor(t/3)%4===0) text(ctx,'脏兮兮',p.x+4,p.y-14,5,'#7a5a3a'); }
       if (c.hiss) { if (Math.floor(t*1.2)%3===0) { text(ctx,'哈！',p.x+4,p.y-14,6,'#b5473a'); r(ctx,L.head,p.x+8,p.y-8-(Math.floor(t*6)%2),2,2); } }
       else if (c.meow) { const say=['喵～','喵喵！','喵——','咪呜'][Math.floor(t/1.3+c.k*2)%4]; if (Math.floor(t*1.5+c.k)%3) text(ctx,say,p.x+4,p.y-14-(Math.floor(t*4)%2),6,'#b5473a'); }
       else if ((c.petted||c.fed) && !c.carrying) text(ctx,'♥',p.x+2,p.y-14-(t%2)*2,6,'#e58f9a');
@@ -1173,6 +1179,8 @@
     }
     // 11-05 her morning: brushing her teeth at the clinic basin, then shaking cat food into the bowl before she leaves.
     if (!greets && game === 'brush') { const scrub = Math.floor(t * 8) % 2; r(ctx, '#7ad7ff', x + 4 + scrub, y - 15, 5, 1); r(ctx, '#ffffff', x + 3 + scrub, y - 16, 2, 2); if (Math.floor(t * 3) % 2) r(ctx, '#ffffffd0', x + 8, y - 19, 2, 2); }
+    // 1st of the month: off to the vet for flea and worm treatment, a carrier with both cats peering out of the grille.
+    if (boss && !mv && sim.bossPlan?.kind === 'vet') { r(ctx, '#8c6447', x + 5, y - 11, 13, 9); r(ctx, '#d1ad83', x + 6, y - 10, 11, 7); r(ctx, '#3e4b47', x + 8, y - 9, 7, 5); r(ctx, '#e8963a', x + 9, y - 8, 2, 2); r(ctx, '#f4f1e6', x + 12, y - 8, 2, 2); r(ctx, '#d1ad83', x + 10, y - 9, 1, 5); r(ctx, '#d1ad83', x + 13, y - 9, 1, 5); r(ctx, '#5a4636', x + 9, y - 13, 6, 2); if (Math.floor(t / 2) % 3 === 0) text(ctx, '哈！', x + 20, y - 16, 6, '#b5473a'); }
     if (!greets && game === 'catbath') { const rub = Math.floor(t * 6) % 2; r(ctx, '#e4bb91', x - 9 + rub * 2, y - 11, 3, 3); r(ctx, '#ffffff', x - 10 + rub * 2, y - 13, 2, 2); }
     if (!greets && game === 'catfood') { const tip = Math.floor(t * 2) % 2; r(ctx, '#d9564d', x + 4, y - 16 + tip, 5, 7); r(ctx, '#efc66c', x + 5, y - 14 + tip, 3, 2); for (let j = 0; j < 3; j++) r(ctx, '#8c6447', x + 8 + (j % 2), y - 8 + ((t * 12 + j * 3) % 6 | 0), 1, 1); }
     if (!greets && game === 'book') {
