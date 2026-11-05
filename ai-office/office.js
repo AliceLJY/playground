@@ -1675,9 +1675,25 @@
     visitorTag = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
     try { sessionStorage.setItem('office-visitor', visitorTag); } catch { /* fine without */ }
   }
+  // Where this tab came from, worked out once and sent along with the hello (the office keeps a per-day tally, never
+  // shown on the page). A shared link may carry ?from=xhs; otherwise the in-app browser's name, then the referrer.
+  // The ?from= is taken off the address bar right away, so a guest copying the link passes on a clean one.
+  let visitorSource = '';
+  try { visitorSource = sessionStorage.getItem('office-source') || ''; } catch { /* fine without */ }
+  if (!/^[a-z]{1,12}$/.test(visitorSource)) {
+    const params = new URLSearchParams(location.search), from = (params.get('from') || '').toLowerCase();
+    const ua = navigator.userAgent || '';
+    let ref = ''; try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch { /* none */ }
+    const byRef = [[/(^|\.)(t\.co|x\.com|twitter\.com)$/, 'x'], [/(^|\.)(youtube\.com|youtu\.be)$/, 'youtube'], [/xiaohongshu|xhslink/, 'xhs'], [/weixin|wechat|qq\.com$/, 'wechat'], [/weibo/, 'weibo'], [/douyin/, 'douyin'], [/bilibili|b23\.tv/, 'bilibili'], [/github/, 'github'], [/google|bing|baidu|sogou|so\.com|duckduckgo/, 'search']];
+    visitorSource = /^[a-z]{1,12}$/.test(from) ? from
+      : /xhsdiscover|xiaohongshu/i.test(ua) ? 'xhs' : /MicroMessenger/i.test(ua) ? 'wechat' : /Twitter/i.test(ua) ? 'x' : /Weibo/i.test(ua) ? 'weibo' : /aweme|Douyin/i.test(ua) ? 'douyin' : /BiliApp/i.test(ua) ? 'bilibili' : / QQ\//.test(ua) ? 'qq'
+      : (byRef.find(([re]) => re.test(ref)) || [, ref && ref !== location.hostname ? 'other' : 'direct'])[1];
+    try { sessionStorage.setItem('office-source', visitorSource); } catch { /* fine without */ }
+    if (params.has('from')) { params.delete('from'); try { history.replaceState(null, '', location.pathname + (params.size ? '?' + params : '') + location.hash); } catch { /* keep it */ } }
+  }
   function sayHello() {
     if (!guest || forced || wallMode) return;
-    fetch(guestApi.replace(/api\/state$/, 'visit') + '?v=' + visitorTag, { mode: 'cors', cache: 'no-store', signal: AbortSignal.timeout(6000) }).catch(() => {});
+    fetch(guestApi.replace(/api\/state$/, 'visit') + '?v=' + visitorTag + '&s=' + visitorSource, { mode: 'cors', cache: 'no-store', signal: AbortSignal.timeout(6000) }).catch(() => {});
   }
   async function fetchState() {
     const sameOrigin = new URL('api/state', location.href);
