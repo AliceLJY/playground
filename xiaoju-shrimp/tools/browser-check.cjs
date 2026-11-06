@@ -6,11 +6,11 @@ const OUT=process.argv[2]||'/tmp/sneak-shots',BASE=(process.argv[3]||'http://127
 (async()=>{
   const b=await chromium.launch();const out=[];
   for(const [vw,vh,tag] of [[390,664,'phone'],[320,568,'small'],[1280,800,'desk']]){
-    for(const v of ['start','hiss','table','exit','clear',null,'L2:start','L2:heard','L2:hug','L2:exit','L2:clear','L2:']){
+    for(const v of ['start','hiss','table','exit','clear',null,'L2:start','L2:heard','L2:hug','L2:exit','L2:clear','L2:','L3:start','L3:warn','L3:stop','L3:exit','L3:clear','L3:']){
       const p=await b.newPage({viewport:{width:vw,height:vh},deviceScaleFactor:1});const errs=[];
       p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-      const lv2=v&&v.startsWith('L2:'),vv=lv2?v.slice(3)||null:v;
-      await p.goto(BASE+'?'+(lv2?'level=2&':'')+(vv?'view='+vv:''));
+      const lvn=v&&/^L\d:/.test(v)?+v[1]:1,lv2=lvn>1,vv=lv2?v.slice(3)||null:v;
+      await p.goto(BASE+'?'+(lv2?'level='+lvn+'&':'')+(vv?'view='+vv:''));
       await p.waitForFunction(()=>window.__PLAYTEST__&&window.__PLAYTEST__.ready,null,{polling:100});
       await p.waitForTimeout(300);
       const snap=await p.evaluate(()=>window.__PLAYTEST__.snapshot());
@@ -18,7 +18,7 @@ const OUT=process.argv[2]||'/tmp/sneak-shots',BASE=(process.argv[3]||'http://127
       const cardUp=await p.evaluate(()=>!document.getElementById('card').hidden);
       if(vv&&vv!=='clear'&&cardUp){console.error('FAIL card left over the view',v);process.exitCode=1;}
       const f=path.join(OUT,`${tag}-${(v||'entry').replace(':','-')||'entry'}.png`);await p.screenshot({path:f});
-      out.push({tag,v,ok:vv?snap.view===vv&&snap.level===(lv2?2:1):true,cell:snap.cell,phase:snap.phase,under:snap.under,errs});
+      out.push({tag,v,ok:vv?snap.view===vv&&snap.level===lvn:true,cell:snap.cell,phase:snap.phase,under:snap.under,errs});
       await p.close();
     }
   }

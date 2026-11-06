@@ -4,7 +4,7 @@
 
 A small stealth game. You are Xiaoju, a greedy and fearless orange cat. Each level has one "patrol" to slip past; in the last one you jump onto the dinner table and drag the shrimp away. Underneath it is hide-and-seek plus red-light-green-light.
 
-This is a grey-box build: level 1, "Slip past Sanhua in the living room", and level 2, "Slip past the child in the hallway", with blocks standing in for the cats and furniture, to check whether it is fun before any art; it is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
+This is a grey-box build: all three levels: slip past Sanhua in the living room, slip past the child in the hallway, and steal the shrimp off the dinner table, with blocks standing in for the cats and furniture, to check whether it is fun before any art; it is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
 
 ## How to play (level 1)
 
@@ -13,6 +13,10 @@ Tap a cell and Xiaoju walks there by the shortest way; tap Xiaoju and it stops a
 ## How to play (level 2)
 
 The child sits by the hallway wall playing with a toy. She does not look, she listens. Wooden floor goes "tap" under the cat, rugs are silent; the blue floor is the wood she can hear. While the toy plays she hears nothing, and the bar over her head shows how long it has left. If she hears you she says "huh?" and walks over to look; if she gets next to you she picks you up and puts you back at the start. The start card has a level picker; add `?level=2` to the address to go straight to level 2.
+
+## How to play (level 3)
+
+Xiaoju jumps onto the dinner table, picks up the shrimp from the plate in front of the owner, and drags it to the left edge to jump down. Walk while she eats with her head down; when her chopsticks stop she is about to look, so stop; while she looks at the table, anything moving is seen. Seen without the shrimp, you are shooed back to the window sill; seen with it, she shouts "stop!" and you have one second to reach the edge, which still counts as a win.
 
 ## Run and test
 
