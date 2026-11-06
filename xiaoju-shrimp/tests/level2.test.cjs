@@ -5,8 +5,11 @@ const L=C.level(1);
 const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
 const SEEDS=300;
 
-test('spec 3b: constants — child 0.3 s/cell (faster than the cat), 「咦？」 0.5 s, looks round 1.5 s, hears 4 cells, toy 2.5 s on / 3.5 s off',()=>{
-  assert.deepStrictEqual([CFG.kidMove,CFG.kidHuh,CFG.kidLook,CFG.hear,CFG.toyOn,CFG.toyOff],[3,5,15,4,25,35]);
+test('spec 3b: constants — child 0.3 s/cell (faster than the cat), 「咦？」 0.5 s, looks round 1.5 s, hears 5 cells, toy in uneven short bursts',()=>{
+  assert.deepStrictEqual([CFG.kidMove,CFG.kidHuh,CFG.kidLook,CFG.hear],[3,5,15,5]);
+  const on=CFG.toy.map(x=>x[0]),off=CFG.toy.map(x=>x[1]);
+  assert.ok(Math.max(...on)<=22&&Math.min(...on)>=12,'spec 3b: each burst lasts 1.2–2.2 s');
+  assert.ok(new Set(off).size>=4&&Math.max(...off)-Math.min(...off)>=20,'spec 3b: the quiet gaps vary by at least 2 s, so they cannot be counted');
   assert.ok(CFG.kidMove<CFG.catMove,'spec 3b: the child walks faster than the cat, so being heard close by is real danger');
   assert.strictEqual(L.type,'sound');assert.ok(L.kid>=0&&L.nest>=0&&L.door>=0&&L.treat>=0);
 });
@@ -79,16 +82,24 @@ test('spec 4b / 8.5b: reckless autopilot gets hugged in at least half the seeds,
 });
 
 test('spec 3b: she hears wood, not rugs, and not while the toy plays; a heard step makes her freeze, walk there and look',()=>{
+  const quiet=[...Array(L.P).keys()].find(p=>!L.toyOn(p)),playing=[...Array(L.P).keys()].find(p=>L.toyOn(p));
   const rug=[...Array(L.N).keys()].find(i=>L.kind[i]==='~'&&L.man(i,L.kid)<=CFG.hear&&L.man(i,L.kid)>1);
-  assert.ok(rug>=0&&!L.noisy(rug,CFG.toyOn+1),'a rug in earshot is silent');
+  assert.ok(rug>=0&&!L.noisy(rug,quiet),'a rug in earshot is silent');
   const w=L.hearZone.find(i=>L.man(i,L.kid)>1);
-  assert.ok(L.noisy(w,CFG.toyOn+1)&&!L.noisy(w,0),'wood in earshot: heard when the toy is quiet, not while it plays');
+  assert.ok(L.noisy(w,quiet)&&!L.noisy(w,playing),'wood in earshot: heard when the toy is quiet, not while it plays');
   // put the cat next to a wood cell in earshot during quiet time and step onto it
-  const s=C.create({level:1,seed:1});s.san.p=CFG.toyOn+2;
+  const s=C.create({level:1,seed:1});s.san.p=quiet+1;while(L.toyOn(s.san.p+2))s.san.p++;
   const from=L.nbr(w).map(x=>x[1]).find(j=>L.man(j,L.kid)>1&&j!==L.kid);
   s.cat.at=from;const d=L.nbr(from).find(x=>x[1]===w)[0];s.stepDir(d);
   const seen=[];for(let k=0;k<60&&s.phase==='play';k++){s.step();seen.push(s.kid.state);}
   assert.ok(seen.includes('huh'),'spec 3b: she freezes with 「咦？」 first');
   const huh=seen.filter(x=>x==='huh').length;assert.ok(huh*CFG.tick>=0.5-1e-9-0.1,'spec 3b: the 「咦？」 warning lasts about 0.5 s, got '+huh*CFG.tick);
   assert.ok(seen.indexOf('huh')<seen.indexOf('walk'),'then walks');
+});
+
+// Alice 2026-11-06 second playtest: 「躲孩子比躲三花猫简单多了。第二关不行，太简单了」
+test('playtest 2: level 2 is harder than level 1 for the same human-error player',()=>{
+  const rate=(lv,n)=>{let hit=0;for(let seed=1;seed<=n;seed++){const s=C.create({level:lv,seed});C.run(s,C.human(s,seed),1500);if(s.hissed)hit++;}return hit/n;};
+  const r1=rate(0,SEEDS),r2=rate(1,SEEDS);
+  assert.ok(r2>=r1+0.1,`playtest 2: level 2 must catch the human-error player clearly more often than level 1 (level 1 ${r1.toFixed(2)}, level 2 ${r2.toFixed(2)})`);
 });

@@ -17,9 +17,10 @@ const CFG={
   kidMove:3,     // ticks per cell for the child (0.3 s, faster than the cat)
   kidHuh:5,      // ticks the child freezes with 「咦？」 after hearing a step, before she gets up
   kidLook:15,    // ticks she stands looking round where she heard it
-  hear:4,        // cells (walking distance on the grid, Manhattan) she hears a step on wood
-  toyOn:25,      // ticks her toy plays (she hears nothing while it plays)
-  toyOff:35      // ticks it is quiet
+  hear:5,        // cells (walking distance on the grid, Manhattan) she hears a step on wood
+  // her toy plays in uneven bursts (she hears nothing while it plays) with uneven quiet gaps between:
+  // [ticks on, ticks quiet] pairs, looped; each game starts at a seeded point in the loop, so the gaps cannot be learned
+  toy:[[16,30],[12,44],[20,24],[14,52],[18,34],[12,40],[22,28],[15,48]]
 };
 // '.' floor (wood: a step on it makes a sound in level 2), '~' rug (silent), '#' blocks the way and the sight,
 // 'T' coffee table (cat can hide under it, blocks sight), 'N' start, 'D' door (goal), 'F' cat treat (optional),
@@ -44,13 +45,13 @@ const LEVELS=[
     map:[
       '####D##',
       '#.~..##',
-      '#F.~.##',
+      '#F...##',
       '#~..###',
-      'K..~###',
+      'K....##',
       '#.~.###',
-      '#~..~##',
+      '#~...##',
       '#....##',
-      '#N...##'],
+      '#.N..##'],
     labels:[{c:5,r:0,w:2,h:9,text:'卫生间'},{c:4,r:3,w:1,h:3,text:'鞋柜'},{c:0,r:0,w:4,h:1,text:'墙'}],
     startName:'客厅',doorName:'饭厅',exitText:'溜过走廊！'}
 ];
@@ -75,13 +76,18 @@ function build(def){
     let kid=-1;for(let i=0;i<N;i++)if(kind[i]==='K')kid=i;
     const man=(a,b)=>Math.abs(a%cols-b%cols)+Math.abs(((a/cols)|0)-((b/cols)|0));
     const wood=i=>walk(i)&&kind[i]!=='~';
-    const P=CFG.toyOn+CFG.toyOff,toyOn=p=>(((p%P)+P)%P)<CFG.toyOn;
+    const sched=[];for(const [on,off] of CFG.toy){for(let t=0;t<on;t++)sched.push(on-t);for(let t=0;t<off;t++)sched.push(0);}
+    const lens=[];{let cur=0;for(let p=0;p<sched.length;p++){if(sched[p]>0&&(p===0||sched[p-1]===0))cur=sched[p];lens.push(sched[p]>0?cur:0);}}
+    const P=sched.length,ph=p=>((p%P)+P)%P;
+    const toyOn=p=>sched[ph(p)]>0;
+    const toyLeft=p=>sched[ph(p)];        // ticks of play left in the current burst (0 when quiet)
+    const toyLen=p=>lens[ph(p)];          // length of the current burst
     // while she sits at her spot: the cells next to her are always unsafe (she reaches out), and a step on wood
     // within earshot is unsafe whenever the toy is quiet
     const danger=(i,p)=>man(i,kid)<=1;
     const noisy=(j,p)=>wood(j)&&man(j,kid)<=CFG.hear&&!toyOn(p);
     const hearZone=[];for(let i=0;i<N;i++)if(wood(i)&&man(i,kid)<=CFG.hear&&i!==kid)hearZone.push(i);
-    return Object.assign(base,{kid,man,wood,P,toyOn,danger,noisy,hearZone,opaque:()=>false});
+    return Object.assign(base,{kid,man,wood,P,toyOn,toyLeft,toyLen,danger,noisy,hearZone,opaque:()=>false});
   }
   const opaque=i=>kind[i]==='#'||kind[i]==='T';      // stops 三花's sight; a cat under the table is hidden
   // patrol timeline: one entry per tick of the loop
@@ -293,14 +299,17 @@ function precise(s,goalTable){
     if(a&&a.dir!=null)s.stepDir(a.dir);
   };
 }
-// Knows the way but misjudges 三花's timing: each time it gets ready to step it guesses her phase off by N(0, sd) ticks.
+// Knows the way but misjudges the timing. Level 1: guesses 三花's phase off by N(0, sd) ticks (she has to be predicted).
+// Level 2: the toy's bar is plain to read, so the error is mostly reaction — it acts on what it saw `lag` ticks ago,
+// starting late and stopping late (Alice's playtest 2026-11-06: level 2 felt far easier than level 1).
 function human(s,seed,opt){
-  const o=Object.assign({sd:3,look:20},opt||{}),R=rng(seed*7919+13);let wait=o.look,guess=null;
+  const def=s.L.type==='sound'?{sd:1,lag:4}:{sd:3,lag:0};
+  const o=Object.assign({look:20},def,opt||{}),R=rng(seed*7919+13);let wait=o.look,guess=null;
   return ()=>{
     if(s.phase!=='play'){guess=null;wait=Math.max(wait,4);return;}
     if(s.cat.move)return;
     if(wait>0){wait--;return;}
-    if(guess===null)guess=Math.round(gauss(R)*o.sd);
+    if(guess===null)guess=Math.round(gauss(R)*o.sd)-o.lag;
     const a=bestAction(s.L,s.L.toDoor,s.cat.at,s.san.p+guess);
     if(a&&a.dir!=null){s.stepDir(a.dir);guess=null;}
     else if(!a)guess=null;
