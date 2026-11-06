@@ -22,10 +22,18 @@ const OUT=process.argv[2]||'/tmp/sneak-shots',BASE=(process.argv[3]||'http://127
       await p.close();
     }
   }
+  // playtest 3: picking a level on the start card starts it straight away, and the floor legend is on screen
+  {const p=await b.newPage({viewport:{width:390,height:664}});
+   await p.goto(BASE);await p.waitForFunction(()=>window.__PLAYTEST__&&window.__PLAYTEST__.ready,null,{polling:100});
+   await p.click('#cardbox [data-lv="1"]');await p.waitForTimeout(400);
+   const r=await p.evaluate(()=>({card:!document.getElementById('card').hidden,s:window.__PLAYTEST__.snapshot(),legend:document.getElementById('legend').textContent}));
+   if(r.card||r.s.level!==2||r.s.paused||r.s.tick<1){console.error('FAIL playtest 3: choosing level 2 did not start it at once',JSON.stringify(r));process.exitCode=1;}
+   if(!/地毯/.test(r.legend)||!/听得见/.test(r.legend)){console.error('FAIL playtest 3: level 2 legend missing',r.legend);process.exitCode=1;}
+   await p.screenshot({path:path.join(OUT,'phone-L2-picked.png')});await p.close();}
   // real input: tap a cell on the phone layout and see the cat move
   const p=await b.newPage({viewport:{width:390,height:664}});
   await p.goto(BASE);await p.waitForFunction(()=>window.__PLAYTEST__&&window.__PLAYTEST__.ready,null,{polling:100});
-  await p.click('#go');
+  await p.click('#cardbox [data-lv="0"]');
   const box=await p.evaluate(()=>{const c=document.getElementById('board').getBoundingClientRect();const s=window.__PLAYTEST__.snapshot();return {x:c.left,y:c.top,w:c.width,h:c.height,cell:s.cell};});
   const ox=(box.w-box.cell*7)/2,oy=(box.h-box.cell*9)/2;
   const t0=Date.now();await p.mouse.click(box.x+ox+3.5*box.cell,box.y+oy+8.5*box.cell);

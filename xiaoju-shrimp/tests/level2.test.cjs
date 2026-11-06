@@ -103,3 +103,20 @@ test('playtest 2: level 2 is harder than level 1 for the same human-error player
   const r1=rate(0,SEEDS),r2=rate(1,SEEDS);
   assert.ok(r2>=r1+0.1,`playtest 2: level 2 must catch the human-error player clearly more often than level 1 (level 1 ${r1.toFixed(2)}, level 2 ${r2.toFixed(2)})`);
 });
+
+// Alice 2026-11-06 third playtest: 「我现在是分不清到底我要走哪里……我就不知道我是该躲还是该藏，有没有藏的地方」
+// The page coaches from game events, so the rules must announce when the toy starts and stops while she sits with it.
+test('playtest 3: the game announces when the toy starts and stops, so the page can say "go" and "stop"',()=>{
+  const s=C.create({level:1,seed:3});let on=0,off=0;
+  for(let k=0;k<L.P*2;k++){s.step();if(s.events.includes('toyOn'))on++;if(s.events.includes('toyOff'))off++;}
+  assert.ok(on>=CFG.toy.length&&off>=CFG.toy.length,`playtest 3: every burst announces its start and end (on ${on}, off ${off})`);
+  // and it agrees with the rule she listens by
+  const s2=C.create({level:1,seed:3});
+  for(let k=0;k<200;k++){s2.step();if(s2.events.includes('toyOn'))assert.ok(L.toyOn(s2.san.p));if(s2.events.includes('toyOff'))assert.ok(!L.toyOn(s2.san.p));}
+});
+
+test('furniture labels sit only on furniture (2026-11-06: 「鞋柜」 was printed over a floor cell after the map changed)',()=>{
+  for(const lv of [0,1]){const Lx=C.level(lv);
+    for(const lb of Lx.def.labels)for(let r=lb.r;r<lb.r+lb.h;r++)for(let c=lb.c;c<lb.c+lb.w;c++){
+      const k=Lx.kind[r*Lx.cols+c];assert.ok(k==='#'||k==='T',`level ${lv+1}: label 「${lb.text}」 covers a ${k} cell at (${c},${r})`);}}
+});

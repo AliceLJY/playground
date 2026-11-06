@@ -52,7 +52,7 @@ const LEVELS=[
       '#~...##',
       '#....##',
       '#.N..##'],
-    labels:[{c:5,r:0,w:2,h:9,text:'卫生间'},{c:4,r:3,w:1,h:3,text:'鞋柜'},{c:0,r:0,w:4,h:1,text:'墙'}],
+    labels:[{c:5,r:0,w:2,h:9,text:'卫生间'},{c:4,r:3,w:1,h:1,text:'鞋柜'},{c:4,r:5,w:1,h:1,text:'鞋柜'},{c:0,r:0,w:4,h:1,text:'墙'}],
     startName:'客厅',doorName:'饭厅',exitText:'溜过走廊！'}
 ];
 
@@ -251,9 +251,12 @@ function create(opt){
     if(!s.cat.move)startMove();
     let landed=-1;
     if(s.cat.move){const m=s.cat.move;m.k++;if(m.k===LAND)landed=m.to;if(m.k>=CFG.catMove){s.cat.at=m.to;s.cat.move=null;if(s.cat.target===s.cat.at)s.cat.target=-1;}}
+    const wasOn=s.kid?L.toyOn(s.san.p):false;
     s.san.p=(s.san.p+1)%L.P;
     if(s.kid){
       const k=s.kid;
+      if(L.toyOn(s.san.p)!==wasOn)s.events.push(wasOn?'toyOff':'toyOn');
+      if(landed>=0&&L.kind[landed]==='~')s.events.push('rug');
       if(landed>=0&&L.wood(landed)){
         s.noise={cell:landed,tick:s.tick};s.events.push('step');
         const busy=k.state==='play'&&L.toyOn(s.san.p);
