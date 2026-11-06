@@ -6,11 +6,12 @@ const canvas=document.getElementById('board'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
 const COL={bg:'#1b1d29',floor:'#2a2d3e',wood:'#4a3c30',woodLine:'#3d3127',rug:'#3f6170',rugEdge:'#5d8796',line:'#353a52',wall:'#5a5f7a',table:'#7a6a4f',
   cone:'#ffd75e',ear:'#7fc8ff',alert:'#ff5d5d',cat:'#ff9d2e',catDark:'#c46a14',sanW:'#f4efe6',sanK:'#2b2b2b',sanO:'#e08a3c',
-  kid:'#9fd3ff',kidDark:'#3d6f93',toy:'#7ee08a',nest:'#3fb8a0',door:'#9fe3c8',treat:'#ffcf5a',text:'#f4ecd8',dim:'#c9c2b2'};
+  kid:'#9fd3ff',kidDark:'#3d6f93',top:'#5c4634',topLine:'#4c3a2b',owner:'#e9c9a8',ownerDark:'#7a5235',shrimp:'#ff8a6b',plate:'#e8e4da',toy:'#7ee08a',nest:'#3fb8a0',door:'#9fe3c8',treat:'#ffcf5a',text:'#f4ecd8',dim:'#c9c2b2'};
 // words that change between levels; the rules behind them live in core.js
 const TXT=[
   {hitWord:'被哈',hit:'哈！被三花看见了，吓回猫窝。',back:'再来。看准三花背对你的时候走，目标是右上角的出口。',sub:'走廊 ↑'},
-  {hitWord:'被抱',hit:'抱住啦！孩子把小橘放回客厅门口。',back:'再来。等玩具响起来再过木地板，目标是右上角的出口。',sub:'饭厅 ↑'}
+  {hitWord:'被抱',hit:'抱住啦！孩子把小橘放回客厅门口。',back:'再来。等玩具响起来再过木地板，目标是右上角的出口。',sub:'饭厅 ↑'},
+  {hitWord:'被发现',hit:'去！被主人赶回窗台。',back:'再来。她低头吃饭时走，筷子一停就站住。',sub:'← 跳下'}
 ];
 const params=new URLSearchParams(location.search),view=params.get('view');
 let LV=Math.max(0,Math.min(C.LEVELS.length-1,(parseInt(params.get('level'),10)||1)-1));
@@ -21,13 +22,14 @@ function start(sd,lv){
   seed=sd;S=C.create({level:LV,seed});acc=0;flash=0;
   $('title').textContent=L.def.title;
   $('legend').innerHTML=LEGEND[LV];
-  say(LV===1?'先别急：等孩子的玩具响了（头上变绿）再过蓝色木地板，地毯上随时能停下躲。':'目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
+  say(LV===2?'先去叼虾：虾盘在主人跟前。她低头吃饭时走，筷子一停就站住别动。':LV===1?'先别急：等孩子的玩具响了（头上变绿）再过蓝色木地板，地毯上随时能停下躲。':'目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
   hud();
 }
 function say(t,cls){const m=$('msg');m.textContent=t;m.className=cls||'';}
 function hud(){
   if(!S)return;
-  $('stats').innerHTML=`<span>离出口 <b>${S.stepsLeft()}</b> 格</span><span>用时 <b>${S.time().toFixed(1)}</b> 秒</span><span>${TXT[LV].hitWord} <b>${S.hissed}</b> 次</span><span>猫条 <b>${S.treat?1:0}</b>/1</span>`;
+  const toShrimp=LV===2&&!S.carry;
+  $('stats').innerHTML=`<span>${toShrimp?'离虾':'离出口'} <b>${toShrimp?Math.max(0,L.shrimpDist[S.catOcc()]):S.stepsLeft()}</b> 格</span><span>用时 <b>${S.time().toFixed(1)}</b> 秒</span><span>${TXT[LV].hitWord} <b>${S.hissed}</b> 次</span><span>猫条 <b>${S.treat?1:0}</b>/1</span>`;
 }
 function card(html){$('cardbox').innerHTML=html;$('card').hidden=false;}
 function hideCard(){$('card').hidden=true;}
@@ -37,26 +39,29 @@ function play(lv){hideCard();start(newSeed(),lv);paused=false;}
 // always on screen under the stats: what the colours on the floor mean (playtest 3: nobody reads the start card)
 const LEGEND=[
   `<span><i style="background:${COL.cone}"></i>三花看得见，别进</span><span><i style="background:${COL.table}"></i>茶几底下能藏</span><span><i style="background:${COL.door}"></i>出口</span>`,
-  `<span><i style="background:${COL.rug}"></i>地毯没声音，能趴着躲</span><span><i style="background:${COL.ear}"></i>她听得见的木地板</span><span><i style="background:${COL.toy}"></i>玩具响时她听不见</span>`
+  `<span><i style="background:${COL.rug}"></i>地毯没声音，能趴着躲</span><span><i style="background:${COL.ear}"></i>她听得见的木地板</span><span><i style="background:${COL.toy}"></i>玩具响时她听不见</span>`,
+  `<span><i style="background:${COL.alert}"></i>主人看着时别动</span><span><i style="background:${COL.cone}"></i>筷子停了＝要转头</span><span><i style="background:${COL.shrimp}"></i>叼着虾走得慢</span>`
 ];
 // pick a level and it starts at once (playtest 3: choosing a level and then pressing 「开始」 again was a chore)
-const BLURB=['三花绕着茶几巡逻，别被她看见','孩子在玩玩具，别被她听见'];
+const BLURB=['三花绕着茶几巡逻，别被她看见','孩子在玩玩具，别被她听见','主人在吃饭，趁她不看把虾拖走'];
 function startCard(lv){
   const levels=C.LEVELS.map((d,i)=>`<button class="${i===lv?'main':'ghost'} lv" data-lv="${i}">${d.title}<small>${BLURB[i]||''}</small></button>`).join('');
   card(`<h1>小橘偷虾记</h1><p class="tag">灰盒试玩版 · 方块代替猫和家具</p>
-  <p class="big">点一关就开始。目标都是走进右上角闪光的<b style="color:${COL.door}">出口</b></p>
+  <p class="big">点一关就开始。跟着画面上闪光的<b style="color:${COL.door}">出口</b>走</p>
   ${levels}
   <p class="small">玩法看画面：顶上有图例，边走边有提示。</p>`);
   for(const b of document.querySelectorAll('#cardbox [data-lv]'))b.onclick=()=>play(+b.dataset.lv);
 }
 function winCard(){
-  const clean=S.hissed===0,who=LV===0?'三花':'孩子',next=LV+1<C.LEVELS.length;
+  const clean=S.hissed===0&&!S.caughtWin,who=['三花','孩子','主人'][LV],next=LV+1<C.LEVELS.length;
   card(`<h2>${L.def.exitText}</h2>
   <p class="big">用时 ${S.time().toFixed(1)} 秒 · ${TXT[LV].hitWord} ${S.hissed} 次 · 猫条 ${S.treat?'拿到了':'没拿'}</p>
   ${clean?`<p class="medal">一次都没被${who}发现</p>`:''}${S.treat&&clean?'<p class="medal">拿了猫条还没被发现，高手</p>':''}
-  ${next?`<button class="main" id="next">下一关：${C.LEVELS[LV+1].title.replace(/^第 \d 关 · /,'')}</button>`:'<p class="small">最后一关「饭桌偷虾」还没做。这一关好不好玩，太难还是太简单，告诉 CC。</p>'}
-  <button class="${next?'ghost':'main'}" id="again">再玩这一关</button>`);
+  ${S.caughtWin?'<p class="medal">当场被抓包，照样得手！</p>':''}
+  ${next?`<button class="main" id="next">下一关：${C.LEVELS[LV+1].title.replace(/^第 \d 关 · /,'')}</button>`:'<p>小橘叼着虾溜出门，跑到菜地里，边吃边打滚……<br>然后被一把抱起，送去洗澡。</p><p class="big">全剧终</p>'}
+  <button class="${next?'ghost':'main'}" id="again">再玩这一关</button>${next?'':'<button class="ghost" id="first">从第 1 关重玩</button>'}`);
   $('again').onclick=()=>play(LV);
+  if(!next)$('first').onclick=()=>play(0);
   if(next)$('next').onclick=()=>play(LV+1);
 }
 function pauseCard(){
@@ -84,10 +89,11 @@ function sanPos(f){
   const e=L.tl[S.san.p];if(S.phase==='hiss'||e.from===e.to)return [cx(e.to),cy(e.to),e.face];
   const t=Math.min(1,e.prog+f/CFG.sanMove);return [lerp(cx(e.from),cx(e.to),t),lerp(cy(e.from),cy(e.to),t),e.face];
 }
-function exitK(f){if(!S||S.phase==='play'||S.phase==='hiss')return 0;if(S.phase==='cleared')return 1;return Math.min(1,(S.exitT+f)/CFG.exit);}
+function exitK(f){if(!S||(S.phase!=='exit'&&S.phase!=='cleared'))return 0;if(S.phase==='cleared')return 1;return Math.min(1,(S.exitT+f)/CFG.exit);}
 function drawTile(i){
-  const c=cx(i),r=cy(i),k=L.kind[i],sound=L.type==='sound';
+  const c=cx(i),r=cy(i),k=L.kind[i],sound=L.type==='sound',still=L.type==='still';
   if(k==='#')rect(c,r,1,1,COL.wall);
+  else if(still){rect(c,r,1,1,COL.top);ctx.strokeStyle=COL.topLine;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ox+c*cell,oy+(r+.5)*cell);ctx.lineTo(ox+(c+1)*cell,oy+(r+.5)*cell);ctx.stroke();}
   else if(k==='T')rect(c,r,1,1,COL.table);
   else if(k==='~'){rect(c,r,1,1,COL.rug);ctx.strokeStyle=COL.rugEdge;ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.strokeRect(ox+c*cell+4,oy+r*cell+4,cell-8,cell-8);ctx.setLineDash([]);}
   else if(sound){rect(c,r,1,1,COL.wood);ctx.strokeStyle=COL.woodLine;ctx.lineWidth=1;for(let y=1;y<4;y++){ctx.beginPath();ctx.moveTo(ox+c*cell,oy+(r+y/4)*cell);ctx.lineTo(ox+(c+1)*cell,oy+(r+y/4)*cell);ctx.stroke();}}
@@ -145,6 +151,22 @@ function drawKid(f){
   else if(k.state==='walk')bubble('在哪？',kxp,kyp-cell*.72,cell*.26,COL.kid);
   else if(k.state==='look')bubble('？？',kxp,kyp-cell*.72,cell*.3,COL.kid);
 }
+function drawOwner(){
+  const st=L.owner(S.san.p),dash=S.phase==='dash',hot=st===2||dash;
+  if(hot){ctx.globalAlpha=.16;rect(0,0,L.cols,L.rows-1,COL.alert);ctx.globalAlpha=1;}
+  // the plate and the shrimp
+  const pc=cx(L.shrimp),pr=cy(L.shrimp);
+  ctx.fillStyle=COL.plate;ctx.beginPath();ctx.ellipse(ox+(pc+.5)*cell,oy+(pr+.5)*cell,cell*.42,cell*.32,0,0,Math.PI*2);ctx.fill();
+  if(!S.carry){label('🦐',ox+(pc+.5)*cell,oy+(pr+.48)*cell,cell*.42,COL.shrimp);label('虾',ox+(pc+.5)*cell,oy+(pr+.86)*cell,cell*.18,COL.shrimp);}
+  // the owner at her seat, below the table edge
+  const o=L.def.owner,x=ox+(o.c+.5)*cell,y=oy+(o.r+.5)*cell,w=cell*1.6,h=cell*.8;
+  ctx.fillStyle=COL.owner;ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,cell*.2);ctx.fill();ctx.strokeStyle=COL.ownerDark;ctx.lineWidth=2;ctx.stroke();
+  label(st===2||dash?'主人 👀':'主人',x,y,cell*.28,COL.ownerDark);
+  if(dash)bubble('住手！',x,y-cell*.9,cell*.4,COL.alert);
+  else if(st===0)bubble('低头吃饭',x,y-cell*.85,cell*.22,COL.dim);
+  else if(st===1)bubble('筷子停了…要转头！',x,y-cell*.85,cell*.24,COL.cone);
+  else bubble('看！别动！',x,y-cell*.85,cell*.3,COL.alert);
+}
 function draw(f){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle=COL.bg;ctx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);
@@ -159,20 +181,24 @@ function draw(f){
   for(const lb of L.def.labels)label(lb.text,ox+(lb.c+lb.w/2)*cell,oy+(lb.r+lb.h/2)*cell,Math.min(cell*.3,18),'#ffffffaa');
   if(S.cat.target>=0){const c=cx(S.cat.target),r=cy(S.cat.target);ctx.strokeStyle=COL.cat;ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeRect(ox+(c+.15)*cell,oy+(r+.15)*cell,cell*.7,cell*.7);ctx.setLineDash([]);}
   let sp=null;
-  if(L.type==='sound')drawKid(f);else sp=drawSan(f);
+  if(L.type==='sound')drawKid(f);else if(L.type==='still')drawOwner();else sp=drawSan(f);
   // 小橘 (dimmed when hidden under the table)
   let [kx,ky]=moverPos(S.cat.at,S.cat.move,CFG.catMove,f);ky-=k*.9;
   const kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell,kz=cell*.66,under=L.kind[S.catOcc()]==='T';
   if(!(S.phase==='hiss'&&Math.floor(flash*10)%2)){
     ctx.globalAlpha=(under?.5:1)*(1-k*.85);ctx.fillStyle=COL.cat;ctx.beginPath();ctx.roundRect(kxp-kz/2,kyp-kz/2,kz,kz,kz*.22);ctx.fill();
-    ctx.strokeStyle=COL.catDark;ctx.lineWidth=2;ctx.stroke();label('橘',kxp,kyp,cell*.32,'#4a2400');ctx.globalAlpha=1;
+    ctx.strokeStyle=COL.catDark;ctx.lineWidth=2;ctx.stroke();label('橘',kxp,kyp,cell*.32,'#4a2400');
+    if(S.carry)label('🦐',kxp+kz*.42,kyp-kz*.38,cell*.3,COL.shrimp);ctx.globalAlpha=1;
   }
   if(sp&&S.phase==='hiss')label('哈！',sp[0],sp[1]-cell*.75,cell*.62,COL.alert);
-  if(S.phase==='play'||S.phase==='hiss'){ // goal pointer: tells a first-time player where the level ends
-    const bob=Math.sin(performance.now()/220)*cell*.08,dxp=ox+(cx(L.door)-.05)*cell+bob,dyp=oy+(cy(L.door)+.5)*cell;
-    ctx.fillStyle=COL.door;ctx.beginPath();ctx.moveTo(dxp,dyp);ctx.lineTo(dxp-cell*.28,dyp-cell*.18);ctx.lineTo(dxp-cell*.28,dyp+cell*.18);ctx.fill();
-    ctx.fillStyle='#1b1d29d8';ctx.fillRect(dxp-cell*1.75,dyp-cell*.2,cell*1.45,cell*.4);
-    label('走进这里过关',dxp-cell*1.03,dyp,Math.max(11,cell*.22),COL.door);
+  if(S.phase==='play'||S.phase==='hiss'||S.phase==='dash'){ // goal pointer: tells a first-time player where to go next
+    const goal=L.type==='still'&&!S.carry?L.shrimp:L.door,text=L.type==='still'?(S.carry?'叼着虾跳下去':'先来叼虾'):'走进这里过关';
+    const gc=cx(goal),fromRight=gc<=1,bob=Math.sin(performance.now()/220)*cell*.08*(fromRight?-1:1);
+    const tip=ox+(fromRight?gc+1.05:gc-.05)*cell+bob,dyp=oy+(cy(goal)+.5)*cell,dir=fromRight?1:-1;
+    ctx.fillStyle=COL.door;ctx.beginPath();ctx.moveTo(tip,dyp);ctx.lineTo(tip+dir*cell*.28,dyp-cell*.18);ctx.lineTo(tip+dir*cell*.28,dyp+cell*.18);ctx.fill();
+    const bx=fromRight?tip+cell*.3:tip-cell*1.75;
+    ctx.fillStyle='#1b1d29d8';ctx.fillRect(bx,dyp-cell*.2,cell*1.45,cell*.4);
+    label(text,bx+cell*.72,dyp,Math.max(11,cell*.22),COL.door);
   }
   if(k>0){ // title over the shot, in screen space
     ctx.setTransform(dpr,0,0,dpr,0,0);const W=canvas.width/dpr,H=canvas.height/dpr;
@@ -212,7 +238,16 @@ function onEvents(){
     if(ev==='back')say(TXT[LV].back);
     if(ev==='under')say('钻进茶几底下了，三花看不见你。','good');
     if(ev==='treat')say('拿到猫条了！但还没过关，出口在右上角。','good');
-    if(ev==='door')say('到出口了！','good');
+    if(ev==='door'&&!S.caughtWin)say('到出口了！','good');
+    if(ev==='warn')say('筷子停了！她要转头，快停下！','alert');
+    if(ev==='look')say('定住！别动！','alert');
+    if(ev==='eat')say(S.carry?'她又低头吃饭了，拖着虾往左边桌沿走！':'她又低头吃饭了，走！','good');
+    if(ev==='grab')say('叼到虾了！拖着走得慢，往左边桌沿拖，跳下去就赢。','good');
+    if(ev==='shoo'){flash=0;say(TXT[LV].hit,'alert');}
+    if(ev==='stop')say('住手！——快跑，冲到左边桌沿！','alert');
+    if(ev==='plate'){flash=0;say('没跑掉，盘子被端走了……虾放回盘里，重来。','alert');}
+    if(ev==='dashWin')say('当场被抓包，照样得手！','good');
+    if(ev==='needShrimp')say('先去叼虾！虾盘在主人跟前。');
     if(ev==='clear'){winCard();}
   }
 }
@@ -241,13 +276,15 @@ function runView(v){
   // the first seed from 2 up where the reckless run really gets heard / hugged (reckless is not caught every time)
   else if(v==='heard'&&LV===1){for(let sd=2;sd<60&&!ok;sd++)ok=go(sd,s=>C.reckless(s),s=>s.kid.state==='huh',600);}
   else if(v==='hug'&&LV===1){for(let sd=2;sd<60&&!ok;sd++)ok=go(sd,s=>C.reckless(s),s=>s.phase==='hiss',600);}
+  else if(v==='warn'&&LV===2)ok=go(1,s=>C.precise(s),s=>L.owner(s.san.p)===1&&s.tick>20,3000);
+  else if(v==='stop'&&LV===2){for(let sd=1;sd<80&&!ok;sd++)ok=go(sd,s=>C.human(s,sd),s=>s.phase==='dash',3000);}
   else if(v==='exit')ok=go(4,s=>C.precise(s),s=>s.phase==='exit'&&s.exitT>=Math.floor(CFG.exit*.6),3000);
   else if(v==='clear')ok=go(4,s=>C.precise(s),s=>s.phase==='cleared',3000);
   viewOk=ok?v:'failed:'+v;hud();
   if(!ok){$('card').hidden=true;say('机位 '+v+' 没能进入请求的状态','alert');}
 }
 function snapshot(){return S?{view:viewOk,level:LV+1,seed,tick:S.tick,time:S.time(),phase:S.phase,stepsLeft:S.stepsLeft(),exitT:S.exitT,hissed:S.hissed,treat:S.treat,
-  cat:S.cat.at,catOcc:S.catOcc(),under:L.kind[S.catOcc()]==='T',clock:S.san.p,kid:S.kid?S.kid.state:null,cell,paused,frozen}:{view:viewOk};}
+  cat:S.cat.at,catOcc:S.catOcc(),under:L.kind[S.catOcc()]==='T',clock:S.san.p,kid:S.kid?S.kid.state:null,carry:S.carry,owner:L.owner?L.owner(S.san.p):null,cell,paused,frozen}:{view:viewOk};}
 window.__sneak={get state(){return S;},snapshot};
 window.__PLAYTEST__={get ready(){return !!S;},snapshot,reset(){start(seed);hideCard();paused=false;},setSeed(n){start(n);hideCard();paused=false;},step(ms){advanceTicks(Math.round(ms/1000/CFG.tick));}};
 

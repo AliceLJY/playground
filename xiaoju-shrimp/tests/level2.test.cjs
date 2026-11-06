@@ -116,7 +116,7 @@ test('playtest 3: the game announces when the toy starts and stops, so the page 
 });
 
 test('furniture labels sit only on furniture (2026-11-06: 「鞋柜」 was printed over a floor cell after the map changed)',()=>{
-  for(const lv of [0,1]){const Lx=C.level(lv);
+  for(const lv of [0,1,2]){const Lx=C.level(lv);
     for(const lb of Lx.def.labels)for(let r=lb.r;r<lb.r+lb.h;r++)for(let c=lb.c;c<lb.c+lb.w;c++){
       const k=Lx.kind[r*Lx.cols+c];assert.ok(k==='#'||k==='T',`level ${lv+1}: label 「${lb.text}」 covers a ${k} cell at (${c},${r})`);}}
 });

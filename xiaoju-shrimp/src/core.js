@@ -1,5 +1,5 @@
 // 小橘偷虾记 · rules: level 1 (living room, 三花's patrol and sight), level 2 (hallway, the child who listens),
-// the cat's moves, the safe-route table and three autopilots.
+// level 3 (dinner table, red-light-green-light with the owner), the cat's moves, the safe-route table and three autopilots.
 // No DOM, no drawing; runs in Node for tests and in the page as window.SneakCore.
 // Grid: column c grows right, row r grows down. Directions: 0 N, 1 E, 2 S, 3 W. Logic advances in ticks of 0.1 s.
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.SneakCore=factory();})(typeof self!=='undefined'?self:this,function(){
@@ -20,7 +20,12 @@ const CFG={
   hear:5,        // cells (walking distance on the grid, Manhattan) she hears a step on wood
   // her toy plays in uneven bursts (she hears nothing while it plays) with uneven quiet gaps between:
   // [ticks on, ticks quiet] pairs, looped; each game starts at a seeded point in the loop, so the gaps cannot be learned
-  toy:[[16,30],[12,44],[20,24],[14,52],[18,34],[12,40],[22,28],[15,48]]
+  toy:[[16,30],[12,44],[20,24],[14,52],[18,34],[12,40],[22,28],[15,48]],
+  dragMove:6,    // ticks per cell while dragging the shrimp (0.6 s)
+  ownerWarn:6,   // ticks her chopsticks stop before she turns her head (the warning)
+  // the owner at dinner: [ticks eating with her head down, ticks looking at the table], looped, seeded start
+  owner:[[32,14],[48,18],[24,12],[40,20],[28,16],[54,14],[36,18]],
+  dash:10        // ticks the cat has after 「住手！」 to get the shrimp off the table
 };
 // '.' floor (wood: a step on it makes a sound in level 2), '~' rug (silent), '#' blocks the way and the sight,
 // 'T' coffee table (cat can hide under it, blocks sight), 'N' start, 'D' door (goal), 'F' cat treat (optional),
@@ -53,7 +58,22 @@ const LEVELS=[
       '#....##',
       '#.N..##'],
     labels:[{c:5,r:0,w:2,h:9,text:'卫生间'},{c:4,r:3,w:1,h:1,text:'鞋柜'},{c:4,r:5,w:1,h:1,text:'鞋柜'},{c:0,r:0,w:4,h:1,text:'墙'}],
-    startName:'客厅',doorName:'饭厅',exitText:'溜过走廊！'}
+    startName:'客厅',doorName:'饭厅',exitText:'溜过走廊！'},
+  {id:'table',type:'still',title:'第 3 关 · 饭桌偷虾',
+    // '=' table top, 'P' the plate of shrimp, 'D' the table edge to jump down with it, '#' dishes and the owner's side
+    map:[
+      '......N',
+      '.##....',
+      '.......',
+      'D....##',
+      '..##...',
+      '.......',
+      '...P..F',
+      '.......',
+      '#######'],
+    labels:[{c:1,r:1,w:2,h:1,text:'汤锅'},{c:5,r:3,w:2,h:1,text:'饭锅'},{c:2,r:4,w:2,h:1,text:'菜'}],
+    owner:{c:3,r:8},
+    startName:'窗台',doorName:'跳下桌',exitText:'叼走啦！'}
 ];
 
 function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
@@ -72,6 +92,16 @@ function build(def){
   const nbr=i=>{const c0=i%cols,r0=(i/cols)|0,out=[];for(let d=0;d<4;d++){const cc=c0+DC[d],rr=r0+DR[d];if(inB(cc,rr)&&walk(rr*cols+cc))out.push([d,rr*cols+cc]);}return out;};
   const doorDist=new Int32Array(N).fill(-1);{const q=[door];doorDist[door]=0;while(q.length){const i=q.shift();for(const [,j] of nbr(i))if(doorDist[j]<0){doorDist[j]=doorDist[i]+1;q.push(j);}}}
   const base={def,cols,rows,N,kind,nest,door,treat,walk,nbr,doorDist,type:def.type||'sight'};
+  if(def.type==='still'){
+    let shrimp=-1;for(let i=0;i<N;i++)if(kind[i]==='P')shrimp=i;
+    // owner timeline: 0 eating, 1 chopsticks stopped (warning), 2 looking at the table
+    const st=[];for(const [eat,look] of CFG.owner){for(let t=0;t<eat;t++)st.push(0);for(let t=0;t<CFG.ownerWarn;t++)st.push(1);for(let t=0;t<look;t++)st.push(2);}
+    const P=st.length,ph=p=>((p%P)+P)%P;
+    const owner=p=>st[ph(p)];
+    const moveBan=p=>st[ph(p)]===2;
+    const shrimpDist=new Int32Array(N).fill(-1);{const q=[shrimp];shrimpDist[shrimp]=0;while(q.length){const i=q.shift();for(const [,j] of nbr(i))if(shrimpDist[j]<0){shrimpDist[j]=shrimpDist[i]+1;q.push(j);}}}
+    return Object.assign(base,{shrimp,P,owner,moveBan,danger:()=>false,noisy:null,shrimpDist,opaque:()=>false});
+  }
   if(def.type==='sound'){
     let kid=-1;for(let i=0;i<N;i++)if(kind[i]==='K')kid=i;
     const man=(a,b)=>Math.abs(a%cols-b%cols)+Math.abs(((a/cols)|0)-((b/cols)|0));
@@ -143,17 +173,18 @@ function build(def){
 
 // Can the cat step from i to j starting at phase p without being caught? It is in i for the first half of the
 // move and in j for the second; on a sound level the step lands (and makes its sound) the tick it enters j.
+// On the dinner table the owner sees any cat that is moving while she looks (red-light-green-light).
 const LAND=Math.ceil(CFG.catMove/2);
-function moveOk(L,i,j,p){
-  const M=CFG.catMove,P=L.P;
-  for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(L.danger(occ,(p+k)%P))return false;}
-  if(L.noisy&&L.noisy(j,(p+LAND)%P))return false;
+function moveOk(L,i,j,p,M){
+  M=M||CFG.catMove;const P=L.P;
+  for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(L.danger(occ,(p+k)%P))return false;if(L.moveBan&&L.moveBan(p+k))return false;}
+  if(L.noisy&&L.noisy(j,(p+Math.ceil(M/2))%P))return false;
   return true;
 }
 // Fewest ticks from (cell, patrol phase) to a goal cell without ever being seen, for every cell and phase.
 // The patrol is periodic, so this is a fixed point over (cell, phase mod P); Infinity means no safe way from there.
-function safeTable(L,goal){
-  const {N,P,danger,nbr,walk}=L,INF=Infinity,M=CFG.catMove;
+function safeTable(L,goal,Mv){
+  const {N,P,danger,nbr,walk}=L,INF=Infinity,M=Mv||CFG.catMove;
   const dist=new Float64Array(N*P).fill(INF);
   for(let p=0;p<P;p++)dist[goal*P+p]=0;
   let changed=true,passes=0;
@@ -166,7 +197,7 @@ function safeTable(L,goal){
         const p1=(p+1)%P;
         if(!danger(i,p1)&&dist[i*P+p1]+1<best)best=dist[i*P+p1]+1;
         for(const [,j] of nbr(i)){
-          if(!moveOk(L,i,j,p))continue;
+          if(!moveOk(L,i,j,p,M))continue;
           const v=dist[j*P+(p+M)%P]+M;
           if(v<best)best=v;
         }
@@ -177,13 +208,13 @@ function safeTable(L,goal){
   return {dist,get:(i,p)=>dist[i*P+(p%P+P)%P]};
 }
 // The move (or wait) that keeps the fewest-ticks promise from (cell, phase); null when there is no safe way.
-function bestAction(L,T,i,p){
-  const {P,danger,nbr}=L,M=CFG.catMove;p=((p%P)+P)%P;const here=T.get(i,p);
+function bestAction(L,T,i,p,Mv){
+  const {P,danger,nbr}=L,M=Mv||CFG.catMove;p=((p%P)+P)%P;const here=T.get(i,p);
   if(!isFinite(here))return null;
   if(here===0)return {wait:true};
   let best=null,bv=Infinity;
   for(const [d,j] of nbr(i)){
-    if(!moveOk(L,i,j,p))continue;
+    if(!moveOk(L,i,j,p,M))continue;
     const v=T.get(j,p+M)+M;if(v<bv){bv=v;best={dir:d};}
   }
   const w=danger(i,(p+1)%P)?Infinity:T.get(i,p+1)+1;
@@ -192,14 +223,14 @@ function bestAction(L,T,i,p){
 }
 
 // Every (cell, patrol phase) the cat can be in, starting idle at (i, p), without ever being seen.
-function reachable(L,i,p){
-  const {N,P,danger,nbr}=L,M=CFG.catMove,seenS=new Uint8Array(N*P),q=[[i,((p%P)+P)%P]];
+function reachable(L,i,p,Mv){
+  const {N,P,danger,nbr}=L,M=Mv||CFG.catMove,seenS=new Uint8Array(N*P),q=[[i,((p%P)+P)%P]];
   seenS[i*P+q[0][1]]=1;
   while(q.length){
     const [c,ph]=q.pop(),p1=(ph+1)%P;
     if(!danger(c,p1)&&!seenS[c*P+p1]){seenS[c*P+p1]=1;q.push([c,p1]);}
     for(const [,j] of nbr(c)){
-      const ok=moveOk(L,c,j,ph),pj=(ph+M)%P;
+      const ok=moveOk(L,c,j,ph,M),pj=(ph+M)%P;
       if(ok&&!seenS[j*P+pj]){seenS[j*P+pj]=1;q.push([j,pj]);}
     }
   }
@@ -207,7 +238,10 @@ function reachable(L,i,p){
 }
 
 const cache={};
-function level(n){if(!cache[n]){const L=build(LEVELS[n]);L.toDoor=safeTable(L,L.door);L.toTreat=L.treat>=0?safeTable(L,L.treat):null;cache[n]=L;}return cache[n];}
+function level(n){if(!cache[n]){const L=build(LEVELS[n]);
+  if(L.type==='still'){L.toShrimp=safeTable(L,L.shrimp);L.toDoor=safeTable(L,L.door,CFG.dragMove);}
+  else L.toDoor=safeTable(L,L.door);
+  L.toTreat=L.treat>=0?safeTable(L,L.treat):null;cache[n]=L;}return cache[n];}
 
 // One game. Input: setTarget(i) walk there by the shortest way, stop() halt after this cell, stepDir(d) one cell.
 function create(opt){
@@ -215,13 +249,13 @@ function create(opt){
   const s={L,seed,tick:0,phase:'play',hissed:0,treat:false,underTable:0,
     san:{p:Math.floor(R()*L.P)},
     cat:{at:L.nest,move:null,target:-1},
-    hissT:0,exitT:-1,clearTick:-1,events:[],noise:null};
+    hissT:0,exitT:-1,clearTick:-1,events:[],noise:null,carry:false,dashT:0,dashWins:0,plateLost:0};
   // san.p is the level clock: 三花's place on her loop in level 1, the toy's place in its on/off cycle in level 2
   const kidHome=()=>({at:L.kid,move:null,state:'play',target:-1,t:0});
   if(L.type==='sound')s.kid=kidHome();
   const kidOcc=()=>{const m=s.kid.move;if(!m)return s.kid.at;return (m.k*2>=CFG.kidMove)?m.to:m.from;};
   s.kidOcc=kidOcc;
-  const occ=()=>{const m=s.cat.move;if(!m)return s.cat.at;return (m.k*2>=CFG.catMove)?m.to:m.from;};
+  const occ=()=>{const m=s.cat.move;if(!m)return s.cat.at;return (m.k*2>=m.n)?m.to:m.from;};
   s.catOcc=occ;
   function path(from,to,avoid){ // spatial BFS over cells the cat can stand on, never through `avoid`
     if(from===to)return [];
@@ -230,15 +264,18 @@ function create(opt){
     if(prev[to]<0)return null;
     const out=[];for(let i=to;i!==from;i=prev[i])out.push(i);return out.reverse();
   }
-  s.setTarget=i=>{if(s.phase!=='play'||i<0||i>=L.N||!L.walk(i))return false;s.cat.target=i;return true;};
+  const canAct=()=>s.phase==='play'||s.phase==='dash';
+  s.setTarget=i=>{if(!canAct()||i<0||i>=L.N||!L.walk(i))return false;s.cat.target=i;return true;};
   s.stop=()=>{s.cat.target=-1;s.cat.queued=null;};
-  s.stepDir=d=>{if(s.phase!=='play')return false;s.cat.target=-1;s.cat.queued=d;return true;};
+  s.stepDir=d=>{if(!canAct())return false;s.cat.target=-1;s.cat.queued=d;return true;};
+  // dragging the shrimp is slow; after 「住手！」 the cat runs with it in its mouth
+  const moveLen=()=>s.carry&&s.phase!=='dash'?CFG.dragMove:CFG.catMove;
   function startMove(){
     const c=s.cat;let next=-1;
     if(c.queued!=null){const cc=c.at%L.cols+DC[c.queued],rr=((c.at/L.cols)|0)+DR[c.queued];c.queued=null;
       if(cc>=0&&rr>=0&&cc<L.cols&&rr<L.rows&&L.walk(rr*L.cols+cc))next=rr*L.cols+cc;}
     else if(c.target>=0){const p=path(c.at,c.target);if(p&&p.length)next=p[0];else c.target=-1;}
-    if(next>=0)c.move={from:c.at,to:next,k:0};
+    if(next>=0)c.move={from:c.at,to:next,k:0,n:moveLen()};
   }
   s.step=()=>{
     s.events.length=0;
@@ -246,12 +283,13 @@ function create(opt){
     s.tick++;
     if(s.phase==='exit'){s.exitT++;if(s.exitT>=CFG.exit){s.phase='cleared';s.events.push('clear');}return;}
     if(s.phase==='hiss'){
-      if(--s.hissT<=0){s.phase='play';s.cat={at:L.nest,move:null,target:-1};if(s.kid)s.kid=kidHome();s.events.push('back');}
+      if(--s.hissT<=0){s.phase='play';s.cat={at:L.nest,move:null,target:-1};s.carry=false;if(s.kid)s.kid=kidHome();s.events.push('back');}
       return;
     }
     if(!s.cat.move)startMove();
-    let landed=-1;
-    if(s.cat.move){const m=s.cat.move;m.k++;if(m.k===LAND)landed=m.to;if(m.k>=CFG.catMove){s.cat.at=m.to;s.cat.move=null;if(s.cat.target===s.cat.at)s.cat.target=-1;}}
+    let landed=-1;const moving=!!s.cat.move;
+    if(s.cat.move){const m=s.cat.move;m.k++;if(m.k===Math.ceil(m.n/2))landed=m.to;if(m.k>=m.n){s.cat.at=m.to;s.cat.move=null;if(s.cat.target===s.cat.at)s.cat.target=-1;}}
+    if(L.type==='still'){stillStep(moving);return;}
     const wasOn=s.kid?L.toyOn(s.san.p):false;
     s.san.p=(s.san.p+1)%L.P;
     if(s.kid){
@@ -291,17 +329,50 @@ function create(opt){
     const o=occ(),hide=L.kind[o]==='~'?o:-1;
     const pth=path(k.at,goal,hide);if(pth&&pth.length)k.move={from:k.at,to:pth[0],k:0};
   }
+  // the dinner table: grab the shrimp, drag it to the edge; moving while she looks gets you seen
+  function stillStep(moving){
+    if(s.phase==='dash'){
+      s.dashT--;
+      if(!s.cat.move&&s.cat.at===L.door){s.dashWins++;s.caughtWin=true;s.phase='exit';s.exitT=0;s.clearTick=s.tick;s.cat.target=-1;s.events.push('dashWin','door');return;}
+      if(s.dashT<=0){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.plateLost++;s.carry=false;s.cat.target=-1;s.cat.queued=null;s.events.push('plate');}
+      return;
+    }
+    const was=L.owner(s.san.p);
+    s.san.p=(s.san.p+1)%L.P;
+    const now=L.owner(s.san.p);
+    if(now!==was)s.events.push(now===1?'warn':now===2?'look':'eat');
+    const o=occ();
+    if(!s.carry&&o===L.shrimp){s.carry=true;s.events.push('grab');}
+    if(o===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
+    if(now===2&&moving){
+      s.cat.queued=null;
+      if(s.carry){s.phase='dash';s.dashT=CFG.dash;s.cat.target=L.door;s.events.push('stop');}
+      else{s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.events.push('shoo');}
+      return;
+    }
+    if(!s.cat.move&&s.cat.at===L.door){
+      if(s.carry){s.phase='exit';s.exitT=0;s.clearTick=s.tick;s.cat.target=-1;s.events.push('door');}
+      else if(!s.toldShrimp){s.toldShrimp=true;s.events.push('needShrimp');}
+    }
+  }
   s.time=()=>(s.clearTick>=0?s.clearTick:s.tick)*CFG.tick;
-  s.stepsLeft=()=>{const d=L.doorDist[occ()];return d<0?0:d;};
+  s.stepsLeft=()=>{const o=occ();if(L.type==='still'&&!s.carry){const a=L.shrimpDist[o],b=L.doorDist[L.shrimp];return a<0?0:a+b;}const d=L.doorDist[o];return d<0?0:d;};
   return s;
 }
 
 // Autopilots drive a game only through stepDir / waiting, like a player would.
+// which table and move length the cat is planning with right now (level 3: to the shrimp, then dragging it to the edge)
+function plan(s){
+  const L=s.L;
+  if(L.type==='still')return s.carry?[L.toDoor,CFG.dragMove]:[L.toShrimp,CFG.catMove];
+  return [L.toDoor,CFG.catMove];
+}
 function precise(s,goalTable){
-  const T=goalTable||s.L.toDoor;
   return ()=>{
+    if(s.phase==='dash'){if(s.cat.target!==s.L.door)s.setTarget(s.L.door);return;}
     if(s.phase!=='play'||s.cat.move)return;
-    const a=bestAction(s.L,T,s.cat.at,s.san.p);
+    const [T,M]=goalTable?[goalTable,CFG.catMove]:plan(s);
+    const a=bestAction(s.L,T,s.cat.at,s.san.p,M);
     if(a&&a.dir!=null)s.stepDir(a.dir);
   };
 }
@@ -309,21 +380,29 @@ function precise(s,goalTable){
 // Level 2: the toy's bar is plain to read, so the error is mostly reaction — it acts on what it saw `lag` ticks ago,
 // starting late and stopping late (Alice's playtest 2026-11-06: level 2 felt far easier than level 1).
 function human(s,seed,opt){
-  const def=s.L.type==='sound'?{sd:1,lag:4}:{sd:3,lag:0};
+  const def=s.L.type==='sight'?{sd:3,lag:0}:{sd:1,lag:4}; // level 3: the chopsticks are a plain warning too
   const o=Object.assign({look:20},def,opt||{}),R=rng(seed*7919+13);let wait=o.look,guess=null;
   return ()=>{
+    if(s.phase==='dash'){if(s.cat.target!==s.L.door)s.setTarget(s.L.door);return;}
     if(s.phase!=='play'){guess=null;wait=Math.max(wait,4);return;}
     if(s.cat.move)return;
     if(wait>0){wait--;return;}
     if(guess===null)guess=Math.round(gauss(R)*o.sd)-o.lag;
-    const a=bestAction(s.L,s.L.toDoor,s.cat.at,s.san.p+guess);
+    const [T,M]=plan(s);
+    // at the table a person does not step off while (as far as they saw) her chopsticks have stopped or she looks
+    if(s.L.type==='still'&&s.L.owner(s.san.p+guess)!==0)return;
+    const a=bestAction(s.L,T,s.cat.at,s.san.p+guess,M);
     if(a&&a.dir!=null){s.stepDir(a.dir);guess=null;}
     else if(!a)guess=null;
     else if(R()<0.15)guess=null; // looks again now and then while waiting
   };
 }
 // Ignores 三花 and runs the shortest way to the door.
-function reckless(s){return ()=>{if(s.phase==='play'&&!s.cat.move&&s.cat.target!==s.L.door)s.setTarget(s.L.door);};}
+function reckless(s){return ()=>{
+  if(s.phase!=='play'&&s.phase!=='dash')return;
+  const goal=s.L.type==='still'&&!s.carry?s.L.shrimp:s.L.door;
+  if(!s.cat.move&&s.cat.target!==goal)s.setTarget(goal);
+};}
 
 function run(s,pilot,maxTicks,watch){for(let n=0;n<maxTicks&&s.phase!=='cleared';n++){pilot();s.step();if(watch&&watch(s))break;}return s;}
 
