@@ -14,6 +14,9 @@ const OUT=process.argv[2]||'/tmp/sneak-shots',BASE=(process.argv[3]||'http://127
       await p.waitForFunction(()=>window.__PLAYTEST__&&window.__PLAYTEST__.ready,null,{polling:100});
       await p.waitForTimeout(300);
       const snap=await p.evaluate(()=>window.__PLAYTEST__.snapshot());
+      // a fixed view other than the result card must not have a card over it (2026-11-06: a stale win card from an earlier seed covered ?view=heard)
+      const cardUp=await p.evaluate(()=>!document.getElementById('card').hidden);
+      if(vv&&vv!=='clear'&&cardUp){console.error('FAIL card left over the view',v);process.exitCode=1;}
       const f=path.join(OUT,`${tag}-${(v||'entry').replace(':','-')||'entry'}.png`);await p.screenshot({path:f});
       out.push({tag,v,ok:vv?snap.view===vv&&snap.level===(lv2?2:1):true,cell:snap.cell,phase:snap.phase,under:snap.under,errs});
       await p.close();

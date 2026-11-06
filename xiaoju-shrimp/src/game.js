@@ -144,7 +144,7 @@ function drawKid(f){
   // toy timer above her while she sits: green and filling down while it plays, grey and filling up while quiet
   if(home&&S.phase!=='hiss'){
     const p=((S.san.p%L.P)+L.P)%L.P,bw=cell*1.3,bx=kxp-bw/2+cell*.35,by=kyp-cell*.78;
-    const frac=on?1-p/CFG.toyOn:(p-CFG.toyOn)/CFG.toyOff;
+    const frac=on?L.toyLeft(p)/L.toyLen(p):0; // while quiet there is no countdown: you cannot tell when it starts again
     ctx.fillStyle='#1b1d29e0';ctx.fillRect(bx-2,by-cell*.36,bw+4,cell*.52);
     ctx.fillStyle='#353a52';ctx.fillRect(bx,by,bw,cell*.12);ctx.fillStyle=on?COL.toy:'#8a90aa';ctx.fillRect(bx,by,bw*frac,cell*.12);
     label(on?'♪ 玩具响 · 听不见':'安静 · 她在听',bx+bw/2,by-cell*.15,Math.max(10,cell*.17),on?COL.toy:COL.dim);
@@ -238,13 +238,14 @@ function frame(t){
 // ---- fixed views (spec 7): ?view=… for level 1, ?level=2&view=… for level 2
 function runView(v){
   frozen=true;paused=false;hideCard();
-  const go=(sd,pilotOf,until,max)=>{start(sd);const p=pilotOf(S);for(let n=0;n<max;n++){if(until(S))return true;p();S.step();onEvents();if(S.phase==='cleared'&&!until(S))return false;}return until(S);};
+  const go=(sd,pilotOf,until,max)=>{start(sd);hideCard();const p=pilotOf(S);for(let n=0;n<max;n++){if(until(S))return true;p();S.step();onEvents();if(S.phase==='cleared'&&!until(S))return false;}return until(S);};
   let ok=false;
   if(v==='start')ok=go(1,s=>C.precise(s),s=>s.tick>=20,20);
   else if(v==='hiss'&&LV===0)ok=go(2,s=>C.reckless(s),s=>s.phase==='hiss',600);
   else if(v==='table'&&LV===0)ok=go(3,s=>C.precise(s),s=>L.kind[s.catOcc()]==='T',600);
-  else if(v==='heard'&&LV===1)ok=go(2,s=>C.reckless(s),s=>s.kid.state==='huh',600);
-  else if(v==='hug'&&LV===1)ok=go(2,s=>C.reckless(s),s=>s.phase==='hiss',600);
+  // the first seed from 2 up where the reckless run really gets heard / hugged (reckless is not caught every time)
+  else if(v==='heard'&&LV===1){for(let sd=2;sd<60&&!ok;sd++)ok=go(sd,s=>C.reckless(s),s=>s.kid.state==='huh',600);}
+  else if(v==='hug'&&LV===1){for(let sd=2;sd<60&&!ok;sd++)ok=go(sd,s=>C.reckless(s),s=>s.phase==='hiss',600);}
   else if(v==='exit')ok=go(4,s=>C.precise(s),s=>s.phase==='exit'&&s.exitT>=Math.floor(CFG.exit*.6),3000);
   else if(v==='clear')ok=go(4,s=>C.precise(s),s=>s.phase==='cleared',3000);
   viewOk=ok?v:'failed:'+v;hud();
