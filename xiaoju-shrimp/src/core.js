@@ -1,0 +1,240 @@
+// 小橘偷虾记 · rules: the living room, 三花's patrol and sight, the cat's moves, the safe-route table and three autopilots.
+// No DOM, no drawing; runs in Node for tests and in the page as window.SneakCore.
+// Grid: column c grows right, row r grows down. Directions: 0 N, 1 E, 2 S, 3 W. Logic advances in ticks of 0.1 s.
+(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.SneakCore=factory();})(typeof self!=='undefined'?self:this,function(){
+'use strict';
+const DC=[0,1,0,-1],DR=[-1,0,1,0];
+const CFG={
+  tick:0.1,      // seconds per logic tick
+  catMove:4,     // ticks per cell for the cat (0.4 s)
+  sanMove:5,     // ticks per cell for 三花 (0.5 s)
+  sanLook:6,     // ticks 三花 looks back down the side she just walked, at every corner
+  sanTurn:6,     // ticks 三花 stands at a corner already facing the new way (the warning before her sight sweeps)
+  hiss:12,       // ticks of the 「哈！」 freeze after the cat is seen
+  sight:4        // cells of sight straight ahead
+};
+// '.' floor, '#' blocks the way and the sight, 'T' coffee table (cat can hide under it, blocks sight),
+// 'N' cat bed (start), 'D' door to the hallway (goal), 'F' cat treat (optional).
+const LEVELS=[
+  {id:'living',title:'第 1 关 · 客厅躲三花',
+    map:[
+      '......D',
+      '#.....#',
+      '#.###.#',
+      '#.###.#',
+      '#.TTT.#',
+      '#.TTT.#',
+      '#....F#',
+      '....##.',
+      'N...##.'],
+    labels:[{c:0,r:1,w:1,h:6,text:'电视柜'},{c:6,r:1,w:1,h:6,text:'书柜'},{c:2,r:2,w:3,h:2,text:'鱼缸'},{c:2,r:4,w:3,h:2,text:'茶几'},{c:4,r:7,w:2,h:2,text:'沙发'}],
+    // clockwise loop round the fish tank and coffee table, starting at the top-left corner
+    patrol:{start:{c:1,r:1},legs:[[1,4],[2,5],[3,4],[0,5]]}}
+];
+
+function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
+function gauss(R){let u=0,v=0;while(u===0)u=R();while(v===0)v=R();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+// Everything about a level that never changes: walls, the patrol timeline, what 三花 sees at every tick of her loop.
+function build(def){
+  const rows=def.map.length,cols=def.map[0].length,N=cols*rows;
+  const kind=new Array(N);let nest=-1,door=-1,treat=-1;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const ch=def.map[r][c],i=r*cols+c;kind[i]=ch;
+    if(ch==='N')nest=i;if(ch==='D')door=i;if(ch==='F')treat=i;
+  }
+  const inB=(c,r)=>c>=0&&r>=0&&c<cols&&r<rows;
+  const walk=i=>kind[i]!=='#';                       // the cat can stand here
+  const opaque=i=>kind[i]==='#'||kind[i]==='T';      // stops 三花's sight; a cat under the table is hidden
+  // patrol timeline: one entry per tick of the loop
+  const tl=[];let c=def.patrol.start.c,r=def.patrol.start.r;
+  const legs=def.patrol.legs;
+  legs.forEach((leg,li)=>{
+    const [d,n]=leg;
+    for(let k=0;k<n;k++){
+      const fc=c,fr=r,tc=c+DC[d],tr=r+DR[d];
+      for(let t=1;t<=CFG.sanMove;t++){
+        const occ=(t*2>=CFG.sanMove)?tr*cols+tc:fr*cols+fc;
+        tl.push({occ,face:d,from:fr*cols+fc,to:tr*cols+tc,prog:t/CFG.sanMove});
+      }
+      c=tc;r=tr;
+    }
+    const nd=legs[(li+1)%legs.length][0];
+    // at a corner she first looks back the way she came, then turns to the new way; both are standing still
+    for(let t=0;t<CFG.sanLook;t++)tl.push({occ:r*cols+c,face:(d+2)&3,from:r*cols+c,to:r*cols+c,prog:1,look:true});
+    for(let t=0;t<CFG.sanTurn;t++)tl.push({occ:r*cols+c,face:nd,from:r*cols+c,to:r*cols+c,prog:1,turn:true});
+  });
+  if(c!==def.patrol.start.c||r!==def.patrol.start.r)throw new Error('patrol of '+def.id+' does not close');
+  const P=tl.length;
+  // line of sight: every cell strictly between the two centres must be see-through, and the target itself too
+  function clear(a,b){
+    const ac=a%cols,ar=(a/cols)|0,bc=b%cols,br=(b/cols)|0;
+    if(opaque(b))return false;
+    const steps=Math.max(Math.abs(bc-ac),Math.abs(br-ar))*4;
+    for(let s=1;s<steps;s++){
+      const x=ac+(bc-ac)*s/steps,y=ar+(br-ar)*s/steps;
+      const i=Math.round(y)*cols+Math.round(x);
+      if(i!==a&&i!==b&&opaque(i))return false;
+    }
+    return true;
+  }
+  function cone(occ,face){
+    const oc=occ%cols,or=(occ/cols)|0,out=[];
+    for(let d=1;d<=CFG.sight;d++){
+      const spread=d>=2?1:0;
+      for(let s=-spread;s<=spread;s++){
+        const cc=oc+DC[face]*d+(face%2===0?s:0),rr=or+DR[face]*d+(face%2===1?s:0);
+        if(!inB(cc,rr))continue;
+        const i=rr*cols+cc;
+        if(clear(occ,i))out.push(i);
+      }
+    }
+    return out;
+  }
+  const seen=tl.map(e=>{const set=new Uint8Array(N);for(const i of cone(e.occ,e.face))set[i]=1;return set;});
+  const danger=(i,p)=>seen[p][i]===1||tl[p].occ===i;
+  const nbr=i=>{const c0=i%cols,r0=(i/cols)|0,out=[];for(let d=0;d<4;d++){const cc=c0+DC[d],rr=r0+DR[d];if(inB(cc,rr)&&walk(rr*cols+cc))out.push([d,rr*cols+cc]);}return out;};
+  return {def,cols,rows,N,kind,nest,door,treat,walk,opaque,tl,P,seen,danger,nbr,cone};
+}
+
+// Fewest ticks from (cell, patrol phase) to a goal cell without ever being seen, for every cell and phase.
+// The patrol is periodic, so this is a fixed point over (cell, phase mod P); Infinity means no safe way from there.
+function safeTable(L,goal){
+  const {N,P,danger,nbr,walk}=L,INF=Infinity,M=CFG.catMove;
+  const dist=new Float64Array(N*P).fill(INF);
+  for(let p=0;p<P;p++)dist[goal*P+p]=0;
+  let changed=true,passes=0;
+  while(changed&&passes<400){
+    changed=false;passes++;
+    for(let i=0;i<N;i++){
+      if(!walk(i)||i===goal)continue;
+      for(let p=0;p<P;p++){
+        let best=dist[i*P+p];
+        const p1=(p+1)%P;
+        if(!danger(i,p1)&&dist[i*P+p1]+1<best)best=dist[i*P+p1]+1;
+        for(const [,j] of nbr(i)){
+          let ok=true;
+          for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(danger(occ,(p+k)%P)){ok=false;break;}}
+          if(!ok)continue;
+          const v=dist[j*P+(p+M)%P]+M;
+          if(v<best)best=v;
+        }
+        if(best<dist[i*P+p]){dist[i*P+p]=best;changed=true;}
+      }
+    }
+  }
+  return {dist,get:(i,p)=>dist[i*P+(p%P+P)%P]};
+}
+// The move (or wait) that keeps the fewest-ticks promise from (cell, phase); null when there is no safe way.
+function bestAction(L,T,i,p){
+  const {P,danger,nbr}=L,M=CFG.catMove;p=((p%P)+P)%P;const here=T.get(i,p);
+  if(!isFinite(here))return null;
+  if(here===0)return {wait:true};
+  let best=null,bv=Infinity;
+  for(const [d,j] of nbr(i)){
+    let ok=true;
+    for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(danger(occ,(p+k)%P)){ok=false;break;}}
+    if(!ok)continue;
+    const v=T.get(j,p+M)+M;if(v<bv){bv=v;best={dir:d};}
+  }
+  const w=danger(i,(p+1)%P)?Infinity:T.get(i,p+1)+1;
+  if(w<bv)return {wait:true};
+  return best||(isFinite(w)?{wait:true}:null);
+}
+
+// Every (cell, patrol phase) the cat can be in, starting idle at (i, p), without ever being seen.
+function reachable(L,i,p){
+  const {N,P,danger,nbr}=L,M=CFG.catMove,seenS=new Uint8Array(N*P),q=[[i,((p%P)+P)%P]];
+  seenS[i*P+q[0][1]]=1;
+  while(q.length){
+    const [c,ph]=q.pop(),p1=(ph+1)%P;
+    if(!danger(c,p1)&&!seenS[c*P+p1]){seenS[c*P+p1]=1;q.push([c,p1]);}
+    for(const [,j] of nbr(c)){
+      let ok=true;for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:c;if(danger(occ,(ph+k)%P)){ok=false;break;}}
+      const pj=(ph+M)%P;
+      if(ok&&!seenS[j*P+pj]){seenS[j*P+pj]=1;q.push([j,pj]);}
+    }
+  }
+  return seenS;
+}
+
+const cache={};
+function level(n){if(!cache[n]){const L=build(LEVELS[n]);L.toDoor=safeTable(L,L.door);L.toTreat=L.treat>=0?safeTable(L,L.treat):null;cache[n]=L;}return cache[n];}
+
+// One game. Input: setTarget(i) walk there by the shortest way, stop() halt after this cell, stepDir(d) one cell.
+function create(opt){
+  const L=level(opt.level||0),seed=opt.seed||1,R=rng(seed);
+  const s={L,seed,tick:0,phase:'play',hissed:0,treat:false,underTable:0,
+    san:{p:Math.floor(R()*L.P)},
+    cat:{at:L.nest,move:null,target:-1},
+    hissT:0,events:[]};
+  const occ=()=>{const m=s.cat.move;if(!m)return s.cat.at;return (m.k*2>=CFG.catMove)?m.to:m.from;};
+  s.catOcc=occ;
+  function path(from,to){ // spatial BFS over cells the cat can stand on
+    if(from===to)return [];
+    const prev=new Int32Array(L.N).fill(-1),q=[from];prev[from]=from;
+    while(q.length){const i=q.shift();if(i===to)break;for(const [,j] of L.nbr(i))if(prev[j]<0){prev[j]=i;q.push(j);}}
+    if(prev[to]<0)return null;
+    const out=[];for(let i=to;i!==from;i=prev[i])out.push(i);return out.reverse();
+  }
+  s.setTarget=i=>{if(s.phase!=='play'||i<0||i>=L.N||!L.walk(i))return false;s.cat.target=i;return true;};
+  s.stop=()=>{s.cat.target=-1;s.cat.queued=null;};
+  s.stepDir=d=>{if(s.phase!=='play')return false;s.cat.target=-1;s.cat.queued=d;return true;};
+  function startMove(){
+    const c=s.cat;let next=-1;
+    if(c.queued!=null){const cc=c.at%L.cols+DC[c.queued],rr=((c.at/L.cols)|0)+DR[c.queued];c.queued=null;
+      if(cc>=0&&rr>=0&&cc<L.cols&&rr<L.rows&&L.walk(rr*L.cols+cc))next=rr*L.cols+cc;}
+    else if(c.target>=0){const p=path(c.at,c.target);if(p&&p.length)next=p[0];else c.target=-1;}
+    if(next>=0)c.move={from:c.at,to:next,k:0};
+  }
+  s.step=()=>{
+    s.events.length=0;
+    if(s.phase==='cleared')return;
+    s.tick++;
+    if(s.phase==='hiss'){
+      if(--s.hissT<=0){s.phase='play';s.cat={at:L.nest,move:null,target:-1};s.events.push('back');}
+      return;
+    }
+    if(!s.cat.move)startMove();
+    if(s.cat.move){const m=s.cat.move;m.k++;if(m.k>=CFG.catMove){s.cat.at=m.to;s.cat.move=null;if(s.cat.target===s.cat.at)s.cat.target=-1;}}
+    s.san.p=(s.san.p+1)%L.P;
+    const o=occ();
+    if(L.kind[o]==='T'){if(!s.wasUnder){s.underTable++;s.events.push('under');}s.wasUnder=true;}else s.wasUnder=false;
+    if(o===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
+    if(L.danger(o,s.san.p)){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.cat.queued=null;s.events.push('hiss');return;}
+    if(!s.cat.move&&s.cat.at===L.door){s.phase='cleared';s.events.push('clear');}
+  };
+  s.time=()=>s.tick*CFG.tick;
+  return s;
+}
+
+// Autopilots drive a game only through stepDir / waiting, like a player would.
+function precise(s,goalTable){
+  const T=goalTable||s.L.toDoor;
+  return ()=>{
+    if(s.phase!=='play'||s.cat.move)return;
+    const a=bestAction(s.L,T,s.cat.at,s.san.p);
+    if(a&&a.dir!=null)s.stepDir(a.dir);
+  };
+}
+// Knows the way but misjudges 三花's timing: each time it gets ready to step it guesses her phase off by N(0, sd) ticks.
+function human(s,seed,opt){
+  const o=Object.assign({sd:3,look:20},opt||{}),R=rng(seed*7919+13);let wait=o.look,guess=null;
+  return ()=>{
+    if(s.phase!=='play'){guess=null;wait=Math.max(wait,4);return;}
+    if(s.cat.move)return;
+    if(wait>0){wait--;return;}
+    if(guess===null)guess=Math.round(gauss(R)*o.sd);
+    const a=bestAction(s.L,s.L.toDoor,s.cat.at,s.san.p+guess);
+    if(a&&a.dir!=null){s.stepDir(a.dir);guess=null;}
+    else if(!a)guess=null;
+    else if(R()<0.15)guess=null; // looks again now and then while waiting
+  };
+}
+// Ignores 三花 and runs the shortest way to the door.
+function reckless(s){return ()=>{if(s.phase==='play'&&!s.cat.move&&s.cat.target!==s.L.door)s.setTarget(s.L.door);};}
+
+function run(s,pilot,maxTicks,watch){for(let n=0;n<maxTicks&&s.phase!=='cleared';n++){pilot();s.step();if(watch&&watch(s))break;}return s;}
+
+return {CFG,LEVELS,DC,DR,build,level,safeTable,bestAction,reachable,create,precise,human,reckless,run,rng};
+});

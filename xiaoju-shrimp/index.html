@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b1d29">
+<link rel="icon" href="data:,">
+<title>小橘偷虾记（灰盒）</title>
+<meta name="description" content="潜行小游戏：肌肉小橘躲开三花，溜出客厅。灰盒试玩版。">
+<style>
+html,body{margin:0;height:100%;background:#1b1d29;color:#f4ecd8;font-family:-apple-system,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;overflow:hidden;overscroll-behavior:none}
+[hidden]{display:none!important}
+#app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto;padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));box-sizing:border-box;gap:6px}
+body.wide #app{grid-template-columns:minmax(220px,32%) 1fr;grid-template-rows:auto 1fr;column-gap:16px}
+body.wide #hud,body.wide #msg{grid-column:1}
+body.wide #board{grid-column:2;grid-row:1/span 2}
+body.wide #msg{align-self:start}
+#hud{display:flex;flex-direction:column;gap:4px}
+#title{font-size:16px;font-weight:700;color:#ff9d2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#stats{font-size:13px;font-variant-numeric:tabular-nums;color:#c9c2b2;display:flex;gap:12px;flex-wrap:wrap}
+#stats b{color:#f4ecd8}
+#board{width:100%;height:100%;min-height:0;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:pointer}
+#msg{min-height:2.6em;font-size:14px;line-height:1.35;display:flex;align-items:center;padding:0 4px;color:#c9c2b2}
+#msg.alert{color:#ff8a7a;font-weight:700}
+#msg.good{color:#9fe3c8;font-weight:700}
+#card{position:fixed;inset:0;display:grid;place-items:center;background:#1b1d29e8;overflow:auto;padding:16px;box-sizing:border-box}
+#card .box{width:min(340px,100%);text-align:center;line-height:1.5}
+#card h1{font-size:26px;color:#ff9d2e;margin:4px 0 6px}
+#card h2{font-size:21px;color:#ff9d2e;margin:4px 0 6px}
+#card p{margin:8px 0;font-size:15px}
+#card ul{text-align:left;padding-left:1.2em;font-size:14px;margin:8px 0}
+#card .small{font-size:13px;color:#c9c2b2}
+#card .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:#353a52;color:#c9c2b2}
+#card .big{font-size:18px;font-weight:700}
+#card .medal{color:#ffcf5a;font-weight:700}
+button{min-width:48px;min-height:48px;border:2px solid #ff9d2e;border-radius:12px;background:#24283a;color:#f4ecd8;font:700 17px inherit;font-family:inherit;touch-action:manipulation;cursor:pointer}
+#card button{display:block;width:100%;margin:10px 0}
+#card button.main{background:#ff9d2e;color:#1b1d29;font-size:19px;min-height:56px}
+#card button.ghost{border-color:#6b7090;min-height:44px;font-size:15px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud"><div id="title">第 1 关 · 客厅躲三花</div><div id="stats"></div></div>
+  <canvas id="board" aria-label="客厅：点一格让小橘走过去，点小橘让它停下"></canvas>
+  <div id="msg" aria-live="polite"></div>
+</div>
+<div id="card" role="dialog" aria-modal="true"><div class="box" id="cardbox"></div></div>
+<noscript>这个小游戏需要打开 JavaScript 才能玩。</noscript>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
