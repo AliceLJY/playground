@@ -11,7 +11,8 @@ const CFG={
   sanLook:6,     // ticks 三花 looks back down the side she just walked, at every corner
   sanTurn:6,     // ticks 三花 stands at a corner already facing the new way (the warning before her sight sweeps)
   hiss:12,       // ticks of the 「哈！」 freeze after the cat is seen
-  sight:4        // cells of sight straight ahead
+  sight:4,       // cells of sight straight ahead
+  exit:15        // ticks of the exit shot after the cat reaches the door (Alice's first playtest: show the level is over)
 };
 // '.' floor, '#' blocks the way and the sight, 'T' coffee table (cat can hide under it, blocks sight),
 // 'N' cat bed (start), 'D' door to the hallway (goal), 'F' cat treat (optional).
@@ -94,7 +95,9 @@ function build(def){
   const seen=tl.map(e=>{const set=new Uint8Array(N);for(const i of cone(e.occ,e.face))set[i]=1;return set;});
   const danger=(i,p)=>seen[p][i]===1||tl[p].occ===i;
   const nbr=i=>{const c0=i%cols,r0=(i/cols)|0,out=[];for(let d=0;d<4;d++){const cc=c0+DC[d],rr=r0+DR[d];if(inB(cc,rr)&&walk(rr*cols+cc))out.push([d,rr*cols+cc]);}return out;};
-  return {def,cols,rows,N,kind,nest,door,treat,walk,opaque,tl,P,seen,danger,nbr,cone};
+  // walking distance to the door from every cell, for the cells-left number on screen
+  const doorDist=new Int32Array(N).fill(-1);{const q=[door];doorDist[door]=0;while(q.length){const i=q.shift();for(const [,j] of nbr(i))if(doorDist[j]<0){doorDist[j]=doorDist[i]+1;q.push(j);}}}
+  return {def,cols,rows,N,kind,nest,door,treat,walk,opaque,tl,P,seen,danger,nbr,cone,doorDist};
 }
 
 // Fewest ticks from (cell, patrol phase) to a goal cell without ever being seen, for every cell and phase.
@@ -167,7 +170,7 @@ function create(opt){
   const s={L,seed,tick:0,phase:'play',hissed:0,treat:false,underTable:0,
     san:{p:Math.floor(R()*L.P)},
     cat:{at:L.nest,move:null,target:-1},
-    hissT:0,events:[]};
+    hissT:0,exitT:-1,clearTick:-1,events:[]};
   const occ=()=>{const m=s.cat.move;if(!m)return s.cat.at;return (m.k*2>=CFG.catMove)?m.to:m.from;};
   s.catOcc=occ;
   function path(from,to){ // spatial BFS over cells the cat can stand on
@@ -191,6 +194,7 @@ function create(opt){
     s.events.length=0;
     if(s.phase==='cleared')return;
     s.tick++;
+    if(s.phase==='exit'){s.exitT++;if(s.exitT>=CFG.exit){s.phase='cleared';s.events.push('clear');}return;}
     if(s.phase==='hiss'){
       if(--s.hissT<=0){s.phase='play';s.cat={at:L.nest,move:null,target:-1};s.events.push('back');}
       return;
@@ -202,9 +206,10 @@ function create(opt){
     if(L.kind[o]==='T'){if(!s.wasUnder){s.underTable++;s.events.push('under');}s.wasUnder=true;}else s.wasUnder=false;
     if(o===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
     if(L.danger(o,s.san.p)){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.cat.queued=null;s.events.push('hiss');return;}
-    if(!s.cat.move&&s.cat.at===L.door){s.phase='cleared';s.events.push('clear');}
+    if(!s.cat.move&&s.cat.at===L.door){s.phase='exit';s.exitT=0;s.clearTick=s.tick;s.cat.target=-1;s.events.push('door');}
   };
-  s.time=()=>s.tick*CFG.tick;
+  s.time=()=>(s.clearTick>=0?s.clearTick:s.tick)*CFG.tick;
+  s.stepsLeft=()=>{const d=L.doorDist[occ()];return d<0?0:d;};
   return s;
 }
 

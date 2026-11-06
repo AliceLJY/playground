@@ -127,3 +127,25 @@ test('spec 7: the same seed replays exactly',()=>{
   C.run(a,C.human(a,5),900);C.run(b,C.human(b,5),900);
   assert.deepStrictEqual([a.tick,a.hissed,a.cat.at,a.san.p],[b.tick,b.hissed,b.cat.at,b.san.p]);
 });
+
+// Alice 2026-11-06 first playtest: 「我不知道什么时候这个关才打完」 — the goal and the end of the level must be visible.
+test('playtest 1: the game reports how many cells are left to the door, and it counts down to 0 on the way',()=>{
+  const s=C.create({seed:4});
+  assert.strictEqual(typeof s.stepsLeft,'function','playtest 1: the HUD needs a cells-left-to-the-door number');
+  const first=s.stepsLeft();
+  assert.ok(first>=10,'playtest 1: from the bed the door is at least 10 cells away, got '+first);
+  const pilot=C.precise(s);let seenLow=Infinity;
+  for(let n=0;n<3000&&s.phase==='play';n++){pilot();s.step();seenLow=Math.min(seenLow,s.stepsLeft());}
+  assert.strictEqual(seenLow,0,'playtest 1: reaching the door shows 0 cells left');
+});
+test('playtest 1: reaching the door plays an exit shot of at least 1.2 s before the level is cleared, and the clock stops at the door',()=>{
+  const s=C.create({seed:4}),pilot=C.precise(s);
+  for(let n=0;n<3000&&s.phase==='play';n++){pilot();s.step();}
+  assert.strictEqual(s.phase,'exit','playtest 1: arriving at the door starts the exit shot, not the result card at once');
+  const atDoor=s.time();let ticks=0;
+  while(s.phase==='exit'&&ticks<100){s.step();ticks++;}
+  assert.strictEqual(s.phase,'cleared','the exit shot ends in cleared');
+  assert.ok(ticks*CFG.tick>=1.2-1e-9&&ticks*CFG.tick<=2.5,'playtest 1: exit shot lasts 1.2–2.5 s, got '+ticks*CFG.tick);
+  assert.strictEqual(s.time(),atDoor,'playtest 1: the time on the card is the moment the cat reached the door');
+  assert.ok(s.exitT>=0,'the page can read how far into the exit shot it is');
+});
