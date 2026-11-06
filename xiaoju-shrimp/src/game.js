@@ -20,7 +20,8 @@ function start(sd,lv){
   if(lv!=null&&lv!==LV){LV=lv;L=C.level(LV);layout();}
   seed=sd;S=C.create({level:LV,seed});acc=0;flash=0;
   $('title').textContent=L.def.title;
-  say('目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
+  $('legend').innerHTML=LEGEND[LV];
+  say(LV===1?'先别急：等孩子的玩具响了（头上变绿）再过蓝色木地板，地毯上随时能停下躲。':'目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
   hud();
 }
 function say(t,cls){const m=$('msg');m.textContent=t;m.className=cls||'';}
@@ -33,32 +34,20 @@ function hideCard(){$('card').hidden=true;}
 function newSeed(){return (Date.now()%997)+1;}
 function play(lv){hideCard();start(newSeed(),lv);paused=false;}
 
-const RULES=[
-  `<ul>
-    <li><b style="color:${COL.sanO}">三花</b>绕着鱼缸和茶几转圈，地上的黄色是她看得见的地方，走进去她就哈你，你会被吓回猫窝。</li>
-    <li>她在拐角会先回头看一眼，再转身。</li>
-    <li><b style="color:#c9a86a">茶几</b>底下可以钻，钻进去她看不见。</li>
-    <li>点一格，小橘自己走过去；点小橘，它停下。电脑上也能用方向键，空格停下。</li>
-    <li><b style="color:${COL.treat}">猫条</b>是额外奖励，拿不拿都行，过关还是要走进出口。</li>
-  </ul>`,
-  `<ul>
-    <li><b style="color:${COL.kid}">孩子</b>坐在走廊边玩玩具。她不看，只听。</li>
-    <li>踩<b style="color:#c7a27e">木地板</b>会「嗒」一声，踩<b style="color:${COL.rugEdge}">地毯</b>没声音。地上的蓝色是她听得见的木地板。</li>
-    <li><b style="color:${COL.toy}">玩具响</b>的时候她玩得入迷，听不见。看她头上的进度条，等玩具响了再过木地板。</li>
-    <li>被听见，她会「咦？」一下，走到出声的地方找你。她走得比你快，被她摸到身边就抱住了。悄悄踩着地毯躲开。</li>
-    <li>操作和第 1 关一样。猫条是额外奖励。</li>
-  </ul>`
+// always on screen under the stats: what the colours on the floor mean (playtest 3: nobody reads the start card)
+const LEGEND=[
+  `<span><i style="background:${COL.cone}"></i>三花看得见，别进</span><span><i style="background:${COL.table}"></i>茶几底下能藏</span><span><i style="background:${COL.door}"></i>出口</span>`,
+  `<span><i style="background:${COL.rug}"></i>地毯没声音，能趴着躲</span><span><i style="background:${COL.ear}"></i>她听得见的木地板</span><span><i style="background:${COL.toy}"></i>玩具响时她听不见</span>`
 ];
+// pick a level and it starts at once (playtest 3: choosing a level and then pressing 「开始」 again was a chore)
+const BLURB=['三花绕着茶几巡逻，别被她看见','孩子在玩玩具，别被她听见'];
 function startCard(lv){
-  const levels=C.LEVELS.map((d,i)=>`<button class="ghost" data-lv="${i}">${d.title}</button>`).join('');
+  const levels=C.LEVELS.map((d,i)=>`<button class="${i===lv?'main':'ghost'} lv" data-lv="${i}">${d.title}<small>${BLURB[i]||''}</small></button>`).join('');
   card(`<h1>小橘偷虾记</h1><p class="tag">灰盒试玩版 · 方块代替猫和家具</p>
-  <h2>${C.LEVELS[lv].title}</h2>
-  <p class="big">目标：走进右上角闪光的<b style="color:${COL.door}">出口</b>，就过关</p>
-  ${RULES[lv]}
-  <button class="main" id="go">开始</button>
-  <p class="small">选关</p>${levels}`);
-  $('go').onclick=()=>play(lv);
-  for(const b of document.querySelectorAll('#cardbox [data-lv]'))b.onclick=()=>{const n=+b.dataset.lv;if(n!==LV){LV=n;L=C.level(LV);layout();start(newSeed());}startCard(n);};
+  <p class="big">点一关就开始。目标都是走进右上角闪光的<b style="color:${COL.door}">出口</b></p>
+  ${levels}
+  <p class="small">玩法看画面：顶上有图例，边走边有提示。</p>`);
+  for(const b of document.querySelectorAll('#cardbox [data-lv]'))b.onclick=()=>play(+b.dataset.lv);
 }
 function winCard(){
   const clean=S.hissed===0,who=LV===0?'三花':'孩子',next=LV+1<C.LEVELS.length;
@@ -68,7 +57,7 @@ function winCard(){
   ${next?`<button class="main" id="next">下一关：${C.LEVELS[LV+1].title.replace(/^第 \d 关 · /,'')}</button>`:'<p class="small">最后一关「饭桌偷虾」还没做。这一关好不好玩，太难还是太简单，告诉 CC。</p>'}
   <button class="${next?'ghost':'main'}" id="again">再玩这一关</button>`);
   $('again').onclick=()=>play(LV);
-  if(next)$('next').onclick=()=>{hideCard();start(newSeed(),LV+1);paused=true;startCard(LV);};
+  if(next)$('next').onclick=()=>play(LV+1);
 }
 function pauseCard(){
   if(!S||S.phase==='cleared'||!$('card').hidden||frozen)return;
@@ -106,6 +95,8 @@ function drawTile(i){
   ctx.strokeStyle=COL.line;ctx.lineWidth=1;ctx.strokeRect(ox+c*cell+.5,oy+r*cell+.5,cell-1,cell-1);
   if(k==='T'){ctx.save();ctx.beginPath();ctx.rect(ox+c*cell,oy+r*cell,cell,cell);ctx.clip();ctx.strokeStyle='#00000033';ctx.lineWidth=2;
     for(let s=-cell;s<cell*2;s+=cell/4){ctx.beginPath();ctx.moveTo(ox+c*cell+s,oy+r*cell);ctx.lineTo(ox+c*cell+s-cell,oy+r*cell+cell);ctx.stroke();}ctx.restore();}
+  if(sound&&k==='~')label('可躲',ox+(c+.5)*cell,oy+(r+.5)*cell,Math.max(10,cell*.2),'#cfe8f2');
+  if(sound&&L.wood(i)&&L.man(i,L.kid)<=CFG.hear&&i!==L.kid&&i!==L.treat&&i!==L.door&&i!==L.nest)label('响',ox+(c+.5)*cell,oy+(r+.5)*cell,Math.max(11,cell*.24),'#e8f5ff');
   if(i===L.nest){rect(c+.1,r+.1,.8,.8,COL.nest+'55');label(L.def.startName,ox+(c+.5)*cell,oy+(r+.5)*cell,cell*(L.def.startName.length>1?.24:.34),COL.nest);}
   if(i===L.door){const pulse=.5+.5*Math.sin(performance.now()/260);rect(c,r,1,1,COL.door+'40');
     ctx.strokeStyle=COL.door;ctx.lineWidth=2+pulse*3;ctx.globalAlpha=.5+.5*pulse;ctx.strokeRect(ox+c*cell+3,oy+r*cell+3,cell-6,cell-6);ctx.globalAlpha=1;
@@ -214,6 +205,10 @@ function onEvents(){
   for(const ev of S.events){
     if(ev==='hiss'||ev==='hug'){flash=0;say(TXT[LV].hit,'alert');}
     if(ev==='heard')say('嗒——被她听见了！快踩着地毯悄悄躲开。','alert');
+    if(ev==='toyOn'&&S.kid.state==='play')say('玩具响了！她听不见，快过木地板！','good');
+    if(ev==='toyOff'&&S.kid.state==='play'){const o=S.catOcc(),loud=L.wood(o)&&L.man(o,L.kid)<=CFG.hear&&o!==L.nest;
+      say(loud?'玩具停了！站住别动，下一步踩地毯或者等它再响。':'玩具停了，她在听。找块地毯趴着等。',loud?'alert':'');}
+    if(ev==='rug'&&S.kid.state==='play'&&!L.toyOn(S.san.p))say('趴在地毯上，她听不见你。等玩具响了再走。','good');
     if(ev==='back')say(TXT[LV].back);
     if(ev==='under')say('钻进茶几底下了，三花看不见你。','good');
     if(ev==='treat')say('拿到猫条了！但还没过关，出口在右上角。','good');

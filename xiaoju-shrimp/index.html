@@ -19,6 +19,12 @@ body.wide #msg{align-self:start}
 #title{font-size:16px;font-weight:700;color:#ff9d2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #stats{font-size:13px;font-variant-numeric:tabular-nums;color:#c9c2b2;display:flex;gap:12px;flex-wrap:wrap}
 #stats b{color:#f4ecd8}
+#legend{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:12px;color:#c9c2b2}
+#legend span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+#legend i{display:inline-block;width:14px;height:14px;border-radius:3px}
+#card .lv{text-align:left;padding:10px 14px;min-height:64px;line-height:1.35}
+#card .lv small{display:block;font-weight:400;font-size:13px;color:#c9c2b2}
+#card button.main.lv small{color:#3a2a14}
 #board{width:100%;height:100%;min-height:0;display:block;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:pointer}
 #msg{min-height:2.6em;font-size:14px;line-height:1.35;display:flex;align-items:center;padding:0 4px;color:#c9c2b2}
 #msg.alert{color:#ff8a7a;font-weight:700}
@@ -41,7 +47,7 @@ button{min-width:48px;min-height:48px;border:2px solid #ff9d2e;border-radius:12p
 </head>
 <body>
 <div id="app">
-  <div id="hud"><div id="title">第 1 关 · 客厅躲三花</div><div id="stats"></div></div>
+  <div id="hud"><div id="title">第 1 关 · 客厅躲三花</div><div id="stats"></div><div id="legend"></div></div>
   <canvas id="board" aria-label="客厅：点一格让小橘走过去，点小橘让它停下"></canvas>
   <div id="msg" aria-live="polite"></div>
 </div>
