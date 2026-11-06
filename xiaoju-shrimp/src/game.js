@@ -11,13 +11,13 @@ let S=null,L=C.level(0),seed=1,acc=0,last=0,paused=true,frozen=false,flash=0,cel
 
 function start(sd){
   seed=sd;S=C.create({level:0,seed});acc=0;flash=0;
-  say('点一格，小橘自己走过去；点小橘，它就停下。');
+  say('目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
   hud();
 }
 function say(t,cls){const m=$('msg');m.textContent=t;m.className=cls||'';}
 function hud(){
   if(!S)return;
-  $('stats').innerHTML=`<span>用时 <b>${S.time().toFixed(1)}</b> 秒</span><span>被哈 <b>${S.hissed}</b> 次</span><span>猫条 <b>${S.treat?1:0}</b>/1</span>`;
+  $('stats').innerHTML=`<span>离出口 <b>${S.stepsLeft()}</b> 格</span><span>用时 <b>${S.time().toFixed(1)}</b> 秒</span><span>被哈 <b>${S.hissed}</b> 次</span><span>猫条 <b>${S.treat?1:0}</b>/1</span>`;
 }
 function card(html){$('cardbox').innerHTML=html;$('card').hidden=false;}
 function hideCard(){$('card').hidden=true;}
@@ -25,13 +25,14 @@ function hideCard(){$('card').hidden=true;}
 function startCard(){
   card(`<h1>小橘偷虾记</h1><p class="tag">灰盒试玩版 · 方块代替猫和家具</p>
   <h2>第 1 关 · 客厅躲三花</h2>
+  <p class="big">目标：走进右上角闪光的<b style="color:${COL.door}">出口</b>，就过关</p>
   <ul>
-    <li>你是<b style="color:${COL.cat}">橘</b>，要溜到右上角的<b style="color:${COL.door}">门</b>。</li>
+    <li>你是<b style="color:${COL.cat}">橘</b>，顶上会显示离出口还有几格。</li>
     <li><b style="color:${COL.sanO}">三花</b>绕着鱼缸和茶几转圈，地上的黄色是她看得见的地方，走进去她就哈你，你会被吓回猫窝。</li>
     <li>她在拐角会先回头看一眼，再转身。</li>
     <li><b style="color:#c9a86a">茶几</b>底下可以钻，钻进去她看不见。</li>
     <li>点一格，小橘自己走过去；点小橘，它停下。电脑上也能用方向键，空格停下。</li>
-    <li>顶上那根<b style="color:${COL.treat}">猫条</b>，想拿就绕路去拿。</li>
+    <li><b style="color:${COL.treat}">猫条</b>是额外奖励，拿不拿都行，过关还是要走进出口。</li>
   </ul>
   <button class="main" id="go">开始</button>`);
   $('go').onclick=()=>{hideCard();start(newSeed());paused=false;};
@@ -74,10 +75,17 @@ function sanPos(f){
   const e=L.tl[S.san.p];if(S.phase==='hiss'||e.from===e.to)return [cx(e.to),cy(e.to),e.face];
   const t=Math.min(1,e.prog+f/CFG.sanMove);return [lerp(cx(e.from),cx(e.to),t),lerp(cy(e.from),cy(e.to),t),e.face];
 }
+function exitK(f){if(!S||S.phase==='play'||S.phase==='hiss')return 0;if(S.phase==='cleared')return 1;return Math.min(1,(S.exitT+f)/CFG.exit);}
 function draw(f){
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.fillStyle=COL.bg;ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle=COL.bg;ctx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);
   if(!S)return;
+  const k=exitK(f),ease=k*k*(3-2*k),zoom=1+1.2*ease;
+  if(k>0){ // push the camera in on the door
+    const dx=ox+(cx(L.door)+.5)*cell,dy=oy+(cy(L.door)+.5)*cell,W=canvas.width/dpr,H=canvas.height/dpr;
+    const tx=lerp(dx,W/2,ease),ty=lerp(dy,H/2,ease);
+    ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(tx-dx*zoom),dpr*(ty-dy*zoom));
+  }
   // floor and special cells
   for(let i=0;i<L.N;i++){
     const c=cx(i),r=cy(i),k=L.kind[i];
@@ -86,7 +94,9 @@ function draw(f){
     if(k==='T'){ctx.save();ctx.beginPath();ctx.rect(ox+c*cell,oy+r*cell,cell,cell);ctx.clip();ctx.strokeStyle='#00000033';ctx.lineWidth=2;
       for(let s=-cell;s<cell*2;s+=cell/4){ctx.beginPath();ctx.moveTo(ox+c*cell+s,oy+r*cell);ctx.lineTo(ox+c*cell+s-cell,oy+r*cell+cell);ctx.stroke();}ctx.restore();}
     if(i===L.nest){rect(c+.1,r+.1,.8,.8,COL.nest+'55');label('窝',ox+(c+.5)*cell,oy+(r+.5)*cell,cell*.34,COL.nest);}
-    if(i===L.door){rect(c+.08,r+.08,.84,.84,COL.door+'33');label('门',ox+(c+.5)*cell,oy+(r+.38)*cell,cell*.32,COL.door);label('走廊',ox+(c+.5)*cell,oy+(r+.75)*cell,cell*.2,COL.door);}
+    if(i===L.door){const pulse=.5+.5*Math.sin(performance.now()/260);rect(c,r,1,1,COL.door+'40');
+      ctx.strokeStyle=COL.door;ctx.lineWidth=2+pulse*3;ctx.globalAlpha=.5+.5*pulse;ctx.strokeRect(ox+c*cell+3,oy+r*cell+3,cell-6,cell-6);ctx.globalAlpha=1;
+      label('出口',ox+(c+.5)*cell,oy+(r+.42)*cell,cell*.3,COL.door);label('走廊 ↑',ox+(c+.5)*cell,oy+(r+.76)*cell,cell*.19,COL.door);}
     if(i===L.treat&&!S.treat){ctx.save();ctx.translate(ox+(c+.5)*cell,oy+(r+.5)*cell);ctx.rotate(-.5);ctx.fillStyle=COL.treat;ctx.fillRect(-cell*.28,-cell*.08,cell*.56,cell*.16);ctx.restore();label('猫条',ox+(c+.5)*cell,oy+(r+.82)*cell,cell*.18,COL.treat);}
   }
   for(const lb of L.def.labels)label(lb.text,ox+(lb.c+lb.w/2)*cell,oy+(lb.r+lb.h/2)*cell,Math.min(cell*.3,18),'#ffffffaa');
@@ -106,12 +116,24 @@ function draw(f){
   ctx.moveTo(sxp+fx*sz*.62,syp+fy*sz*.62);ctx.lineTo(sxp+fx*sz*.36-fy*sz*.18,syp+fy*sz*.36+fx*sz*.18);ctx.lineTo(sxp+fx*sz*.36+fy*sz*.18,syp+fy*sz*.36-fx*sz*.18);ctx.fill();
   label('花',sxp,syp,cell*.3,'#7a3d12');
   // 小橘 (dimmed when hidden under the table)
-  const [kx,ky]=catPos(f),kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell,kz=cell*.66,under=L.kind[S.catOcc()]==='T';
+  let [kx,ky]=catPos(f);ky-=k*.9;
+  const kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell,kz=cell*.66,under=L.kind[S.catOcc()]==='T';
   if(!(S.phase==='hiss'&&Math.floor(flash*10)%2)){
-    ctx.globalAlpha=under?.5:1;ctx.fillStyle=COL.cat;ctx.beginPath();ctx.roundRect(kxp-kz/2,kyp-kz/2,kz,kz,kz*.22);ctx.fill();
+    ctx.globalAlpha=(under?.5:1)*(1-k*.85);ctx.fillStyle=COL.cat;ctx.beginPath();ctx.roundRect(kxp-kz/2,kyp-kz/2,kz,kz,kz*.22);ctx.fill();
     ctx.strokeStyle=COL.catDark;ctx.lineWidth=2;ctx.stroke();label('橘',kxp,kyp,cell*.32,'#4a2400');ctx.globalAlpha=1;
   }
   if(S.phase==='hiss'){label('哈！',sxp,syp-cell*.75,cell*.62,COL.alert);}
+  if(S.phase==='play'||S.phase==='hiss'){ // goal pointer: tells a first-time player where the level ends
+    const bob=Math.sin(performance.now()/220)*cell*.08,dxp=ox+(cx(L.door)-.05)*cell+bob,dyp=oy+(cy(L.door)+.5)*cell;
+    ctx.fillStyle=COL.door;ctx.beginPath();ctx.moveTo(dxp,dyp);ctx.lineTo(dxp-cell*.28,dyp-cell*.18);ctx.lineTo(dxp-cell*.28,dyp+cell*.18);ctx.fill();
+    ctx.fillStyle='#1b1d29d8';ctx.fillRect(dxp-cell*1.75,dyp-cell*.2,cell*1.45,cell*.4);
+    label('走进这里过关',dxp-cell*1.03,dyp,Math.max(11,cell*.22),COL.door);
+  }
+  if(k>0){ // title over the shot, in screen space
+    ctx.setTransform(dpr,0,0,dpr,0,0);const W=canvas.width/dpr,H=canvas.height/dpr;
+    ctx.globalAlpha=Math.min(1,k*2);ctx.fillStyle='#1b1d29b0';ctx.fillRect(0,H*.38,W,H*.2);
+    label('溜出客厅！',W/2,H*.46,Math.min(W*.11,46),COL.cat);label('第 1 关完成',W/2,H*.53,Math.min(W*.05,20),COL.text);ctx.globalAlpha=1;
+  }
 }
 
 // ---- input
@@ -139,9 +161,10 @@ function advanceTicks(n){
     S.step();
     for(const ev of S.events){
       if(ev==='hiss'){flash=0;say('哈！被三花看见了，吓回猫窝。','alert');}
-      if(ev==='back')say('再来。看准三花背对你的时候走。');
+      if(ev==='back')say('再来。看准三花背对你的时候走，目标是右上角的出口。');
       if(ev==='under')say('钻进茶几底下了，三花看不见你。','good');
-      if(ev==='treat')say('拿到猫条了！','good');
+      if(ev==='treat')say('拿到猫条了！但还没过关，出口在右上角。','good');
+      if(ev==='door')say('到出口了！','good');
       if(ev==='clear'){winCard();}
     }
   }
@@ -165,13 +188,14 @@ function runView(v){
   if(v==='start')ok=go(1,s=>C.precise(s),s=>s.tick>=20,20);
   else if(v==='hiss')ok=go(2,s=>C.reckless(s),s=>s.phase==='hiss',600);
   else if(v==='table')ok=go(3,s=>C.precise(s),s=>L.kind[s.catOcc()]==='T',600);
+  else if(v==='exit')ok=go(4,s=>C.precise(s),s=>s.phase==='exit'&&s.exitT>=Math.floor(CFG.exit*.6),3000);
   else if(v==='clear'){ok=go(4,s=>C.precise(s),s=>s.phase==='cleared',3000);if(ok)winCard();}
   viewOk=ok?v:'failed:'+v;hud();
   if(!ok)say('机位 '+v+' 没能进入请求的状态','alert');
   else if(v==='hiss')say('哈！被三花看见了，吓回猫窝。','alert');
   else if(v==='table')say('钻进茶几底下了，三花看不见你。','good');
 }
-function snapshot(){return S?{view:viewOk,seed,tick:S.tick,time:S.time(),phase:S.phase,hissed:S.hissed,treat:S.treat,cat:S.cat.at,catOcc:S.catOcc(),under:L.kind[S.catOcc()]==='T',san:S.san.p,cell,paused,frozen}:{view:viewOk};}
+function snapshot(){return S?{view:viewOk,seed,tick:S.tick,time:S.time(),phase:S.phase,stepsLeft:S.stepsLeft(),exitT:S.exitT,hissed:S.hissed,treat:S.treat,cat:S.cat.at,catOcc:S.catOcc(),under:L.kind[S.catOcc()]==='T',san:S.san.p,cell,paused,frozen}:{view:viewOk};}
 window.__sneak={get state(){return S;},snapshot};
 window.__PLAYTEST__={get ready(){return !!S;},snapshot,reset(){start(seed);hideCard();paused=false;},setSeed(n){start(n);hideCard();paused=false;},step(ms){advanceTicks(Math.round(ms/1000/CFG.tick));}};
 

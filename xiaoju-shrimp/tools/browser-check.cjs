@@ -6,7 +6,7 @@ const OUT=process.argv[2]||'/tmp/sneak-shots',BASE=(process.argv[3]||'http://127
 (async()=>{
   const b=await chromium.launch();const out=[];
   for(const [vw,vh,tag] of [[390,664,'phone'],[320,568,'small'],[1280,800,'desk']]){
-    for(const v of ['start','hiss','table','clear',null]){
+    for(const v of ['start','hiss','table','exit','clear',null]){
       const p=await b.newPage({viewport:{width:vw,height:vh},deviceScaleFactor:1});const errs=[];
       p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
       await p.goto(BASE+(v?'?view='+v:''));
@@ -27,6 +27,8 @@ const OUT=process.argv[2]||'/tmp/sneak-shots',BASE=(process.argv[3]||'http://127
   const t0=Date.now();await p.mouse.click(box.x+ox+3.5*box.cell,box.y+oy+8.5*box.cell);
   await p.waitForFunction(()=>window.__PLAYTEST__.snapshot().catOcc!==56,null,{polling:10,timeout:3000});
   const lat=Date.now()-t0;
+  const hint=await p.evaluate(()=>document.getElementById('msg').textContent);
+  if(!/出口/.test(hint)){console.error('FAIL playtest 1: the hint line does not name the exit:',hint);process.exitCode=1;}
   await p.waitForTimeout(1500);const s2=await p.evaluate(()=>window.__PLAYTEST__.snapshot());
   await p.screenshot({path:path.join(OUT,'phone-tapped.png')});
   out.push({tap:'(3,8)',catAt:s2.cat,msUntilOccChanged:lat});
