@@ -1,0 +1,94 @@
+// Level 2 「走廊躲孩子」: rules and difficulty, every threshold from SPEC.md section 3b / 4b, measured on real simulated play.
+const test=require('node:test'),assert=require('node:assert');
+const C=require('../src/core.js'),{CFG}=C;
+const L=C.level(1);
+const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+const SEEDS=300;
+
+test('spec 3b: constants — child 0.3 s/cell (faster than the cat), 「咦？」 0.5 s, looks round 1.5 s, hears 4 cells, toy 2.5 s on / 3.5 s off',()=>{
+  assert.deepStrictEqual([CFG.kidMove,CFG.kidHuh,CFG.kidLook,CFG.hear,CFG.toyOn,CFG.toyOff],[3,5,15,4,25,35]);
+  assert.ok(CFG.kidMove<CFG.catMove,'spec 3b: the child walks faster than the cat, so being heard close by is real danger');
+  assert.strictEqual(L.type,'sound');assert.ok(L.kid>=0&&L.nest>=0&&L.door>=0&&L.treat>=0);
+});
+
+test('spec 1 / 8.1: same controls as level 1 — the cat only takes setTarget, stop, stepDir',()=>{
+  const s=C.create({level:1,seed:1});
+  for(const f of ['setTarget','stop','stepDir'])assert.strictEqual(typeof s[f],'function');
+  assert.ok(s.setTarget(L.door));
+});
+
+test('spec 3b: the shoe cabinet closes the silent far side — every way to the door crosses wood within earshot',()=>{
+  // remove every wood cell she can hear; the door must then be unreachable from the start
+  const blocked=new Set(L.hearZone);const q=[L.nest],seen=new Set([L.nest]);
+  while(q.length){const i=q.shift();for(const [,j] of L.nbr(i))if(!seen.has(j)&&!blocked.has(j)&&L.man(j,L.kid)>1){seen.add(j);q.push(j);}}
+  assert.ok(!seen.has(L.door),'spec 3b: there is a way to the door that never makes a sound she can hear');
+});
+
+test('spec 8.2b: the start is never next to her or within earshot, so a cat put back is safe',()=>{
+  assert.ok(L.man(L.nest,L.kid)>CFG.hear,'start is out of earshot');
+});
+
+test('spec 8.3b: a safe way to the door and through the treat exists at every toy phase, and the treat is off the fastest way',()=>{
+  for(let p=0;p<L.P;p++){
+    assert.ok(isFinite(L.toDoor.get(L.nest,p)),'no safe way to the door at toy phase '+p);
+    const R=C.reachable(L,L.nest,p);let ok=false;
+    for(let q=0;q<L.P&&!ok;q++)if(R[L.treat*L.P+q]&&isFinite(L.toDoor.get(L.treat,q)))ok=true;
+    assert.ok(ok,'no safe way through the treat at toy phase '+p);
+  }
+  assert.ok(L.wood(L.treat)&&L.man(L.treat,L.kid)<=CFG.hear,'spec 3b: the treat sits on wood within earshot (a risk to take)');
+  let passed=0;for(let seed=1;seed<=SEEDS;seed++){const s=C.create({level:1,seed});C.run(s,C.precise(s),3000);if(s.treat)passed++;}
+  assert.strictEqual(passed,0,'spec 8.3b: the fastest safe way never passes the treat');
+});
+
+test('spec 4b: precise autopilot clears every seed without ever being heard',()=>{
+  for(let seed=1;seed<=SEEDS;seed++){
+    const s=C.create({level:1,seed});let heard=0;
+    C.run(s,C.precise(s),3000,x=>{if(x.events.includes('heard'))heard++;});
+    assert.strictEqual(s.phase,'cleared','precise seed '+seed);
+    assert.strictEqual(heard+s.hissed,0,'spec 4b: precise seed '+seed+' was heard or hugged');
+  }
+});
+
+test('spec 4b: human-error autopilot — two-sided difficulty over 300 seeds, and she really gets up in the sample',()=>{
+  let win=0,hug=0,heard=0,walked=0;const times=[];
+  for(let seed=1;seed<=SEEDS;seed++){
+    const s=C.create({level:1,seed});let h=false,w=false;
+    C.run(s,C.human(s,seed),1500,x=>{if(x.events.includes('heard'))h=true;if(x.kid.state==='walk')w=true;});
+    if(s.phase==='cleared'){win++;times.push(s.time());}
+    if(s.hissed)hug++;if(h)heard++;if(w)walked++;
+  }
+  assert.ok(win/SEEDS>=0.95,'spec 4b: at least 95% clear within 150 s, got '+win/SEEDS);
+  assert.ok(hug/SEEDS>=0.25&&hug/SEEDS<=0.75,'spec 4b: 25–75% of runs get hugged at least once, got '+hug/SEEDS);
+  assert.ok(heard/SEEDS>=0.3,'spec 4b: in at least 30% of runs she hears a step (the new thing is really met), got '+heard/SEEDS);
+  assert.ok(walked>=1,'spec 4b: in the sample she really gets up and walks to the sound');
+  const m=mean(times);assert.ok(m>=8&&m<=40,'spec 4b: mean clear time 8–40 s, got '+m.toFixed(1));
+});
+
+test('spec 4b / 8.5b: reckless autopilot gets hugged in at least half the seeds, and play recovers cleanly',()=>{
+  let caught=0;
+  for(let seed=1;seed<=SEEDS;seed++){
+    const s=C.create({level:1,seed});C.run(s,C.reckless(s),600,x=>x.phase==='hiss');
+    if(s.phase!=='hiss')continue;caught++;
+    for(let k=0;k<CFG.hiss;k++)s.step();
+    assert.strictEqual(s.phase,'play');assert.strictEqual(s.cat.at,L.nest,'spec 3b: the cat is put back at the start');
+    assert.deepStrictEqual([s.kid.at,s.kid.state,s.kid.move],[L.kid,'play',null],'spec 3b: she is back at her toy');
+    C.run(s,C.precise(s),3000);
+    assert.strictEqual(s.phase,'cleared','spec 8.5b: winnable after the hug, seed '+seed);
+  }
+  assert.ok(caught/SEEDS>=0.5,'spec 4b: reckless hugged in at least half the seeds, got '+caught/SEEDS);
+});
+
+test('spec 3b: she hears wood, not rugs, and not while the toy plays; a heard step makes her freeze, walk there and look',()=>{
+  const rug=[...Array(L.N).keys()].find(i=>L.kind[i]==='~'&&L.man(i,L.kid)<=CFG.hear&&L.man(i,L.kid)>1);
+  assert.ok(rug>=0&&!L.noisy(rug,CFG.toyOn+1),'a rug in earshot is silent');
+  const w=L.hearZone.find(i=>L.man(i,L.kid)>1);
+  assert.ok(L.noisy(w,CFG.toyOn+1)&&!L.noisy(w,0),'wood in earshot: heard when the toy is quiet, not while it plays');
+  // put the cat next to a wood cell in earshot during quiet time and step onto it
+  const s=C.create({level:1,seed:1});s.san.p=CFG.toyOn+2;
+  const from=L.nbr(w).map(x=>x[1]).find(j=>L.man(j,L.kid)>1&&j!==L.kid);
+  s.cat.at=from;const d=L.nbr(from).find(x=>x[1]===w)[0];s.stepDir(d);
+  const seen=[];for(let k=0;k<60&&s.phase==='play';k++){s.step();seen.push(s.kid.state);}
+  assert.ok(seen.includes('huh'),'spec 3b: she freezes with 「咦？」 first');
+  const huh=seen.filter(x=>x==='huh').length;assert.ok(huh*CFG.tick>=0.5-1e-9-0.1,'spec 3b: the 「咦？」 warning lasts about 0.5 s, got '+huh*CFG.tick);
+  assert.ok(seen.indexOf('huh')<seen.indexOf('walk'),'then walks');
+});
