@@ -366,14 +366,17 @@ test('guest visits: a tagged hello counts for 45 s, bad tags 400, CORS only for 
   assert.equal((await fetch(base+'/guest/visit',{method:'POST'})).status,404);
   let full=await (await fetch(base+'/api/state')).json(); assert.equal(full.visitorsTotal,2,'two tags ever heard');
   time+=3000; assert.equal((await hello('0123456789abcdef')).status,200);
-  full=await (await fetch(base+'/api/state')).json(); assert.equal(full.visitorsTotal,3,'a tab back after 45 s of silence is a new visit'); assert.equal(full.visitors,1);
+  full=await (await fetch(base+'/api/state')).json(); assert.equal(full.visitorsTotal,2,'a hidden tab whose hello slowed to once a minute is not a new guest'); assert.equal(full.visitors,1,'but it is back in the room');
+  for(let i=0;i<40;i++){time+=60000;await hello('0123456789abcdef');} assert.equal((await (await fetch(base+'/api/state')).json()).visitorsTotal,2,'forty minutes of once-a-minute hellos stay one guest');
+  time+=31*60000; await hello('0123456789abcdef'); assert.equal((await (await fetch(base+'/api/state')).json()).visitorsTotal,3,'back after 30 min of silence is a new visit');
   time+=3000; await hello('0123456789abcdef'); assert.equal((await (await fetch(base+'/api/state')).json()).visitorsTotal,3,'the same open tab is not counted twice');
   const again=await createOffice({config,token:randomBytes(24).toString('hex'),stateFile:path.join(dir,'state.json'),clock:()=>time,collector:async()=>({})});
   await again.poll(); assert.equal(again.snapshot().visitorsTotal,3,'the guest book survives a restart'); assert.equal(again.snapshot().visitors,0);
   time+=60000; await fetch(`${base}/guest/visit?v=aaaaaaaaaaaaaaaa&s=xhs`); time+=3000; await fetch(`${base}/guest/visit?v=bbbbbbbbbbbbbbbb&s=<script>`); time+=3000; await fetch(`${base}/guest/visit?v=aaaaaaaaaaaaaaaa&s=xhs`);
   const saved=JSON.parse(await fs.readFile(path.join(dir,'state.json'),'utf8')),tally=Object.values(saved.sources).reduce((m,row)=>{for(const[k,v]of Object.entries(row))m[k]=(m[k]||0)+v;return m;},{});
   assert.equal(tally.xhs,1,'a source is counted once per new visit');assert.equal(tally.other,1,'an unknown label is other');assert.equal(tally.direct,3,'no label means direct');
-  const pub=JSON.stringify(await (await fetch(base+'/guest/api/state')).json())+JSON.stringify(await (await fetch(base+'/api/state')).json());assert.ok(!pub.includes('sources')&&!pub.includes('xhs'),'sources never leave the state file');
+  assert.equal(Object.values(saved.visitHours).flat().reduce((a,b)=>a+b,0),5,'every new visit lands in one Beijing hour');
+  const pub=JSON.stringify(await (await fetch(base+'/guest/api/state')).json())+JSON.stringify(await (await fetch(base+'/api/state')).json());assert.ok(!pub.includes('sources')&&!pub.includes('xhs')&&!pub.includes('visitHours'),'sources never leave the state file');
 });
 
 test('guest feed rounds times to the minute; the /guest/ tree has a per-address budget with Retry-After',async t=>{
