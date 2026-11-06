@@ -60,6 +60,11 @@ function noteSource(state, label, now) {
   state.sources = state.sources || {}; const row = state.sources[day] = state.sources[day] || {};
   row[src] = (row[src] || 0) + 1;
   const days = Object.keys(state.sources).sort(); while (days.length > 90) delete state.sources[days.shift()];
+  // New visits per Beijing hour, so a burst can be matched to the time a link went out. Same 90 days, never published.
+  const hour = new Date(now + 8 * 3600_000).getUTCHours();
+  state.visitHours = state.visitHours || {}; const hrs = state.visitHours[day] = state.visitHours[day] || Array(24).fill(0);
+  hrs[hour] += 1;
+  const hd = Object.keys(state.visitHours).sort(); while (hd.length > 90) delete state.visitHours[hd.shift()];
 }
 
 async function loadState(file, now = Date.now()) {
@@ -69,6 +74,7 @@ async function loadState(file, now = Date.now()) {
     data.notices = data.notices.filter(n => typeof n.text === 'string' && Number.isFinite(Date.parse(n.at))).slice(-20).map(n => ({ at: n.at, text: cleanNotice(n.text) }));
     data.visitorsTotal = Number.isInteger(data.visitorsTotal) && data.visitorsTotal >= 0 ? data.visitorsTotal : 0;
     data.sources = cleanSources(data.sources);
+    data.visitHours = Object.fromEntries(Object.entries(data.visitHours && typeof data.visitHours === 'object' ? data.visitHours : {}).filter(([d, h]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && Array.isArray(h) && h.length === 24 && h.every(n => Number.isInteger(n) && n >= 0)).sort().slice(-90));
     data.treats = (Array.isArray(data.treats) ? data.treats : []).filter(t => TREAT_KINDS.includes(t?.kind) && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
     data.meets = (Array.isArray(data.meets) ? data.meets : []).filter(t => MEET_KINDS.includes(t?.kind) && typeof t.at === 'string' && Number.isFinite(Date.parse(t.at))).slice(-50).map(t => ({ kind: t.kind, at: t.at }));
     const day = beijingDay(now);
@@ -125,6 +131,16 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
   // a tag silent for 45 s has left. Only a count ever leaves the server. Capped so a flood cannot grow memory.
   const VISIT_TTL = 45_000, VISIT_CAP = 200;
   const visitors = new Map();
+  // A tab hidden in a desktop browser has its timer slowed to once a minute, so its hello arrives after the 45 s above
+  // and it would enter the book again every minute. The book therefore counts a tag again only after 30 min of silence.
+  const VISIT_AGAIN = 30 * 60_000, COUNTED_CAP = 5000;
+  const counted = new Map();
+  function countedRecently(tag, now) {
+    for (const [t, at] of counted) { if (now - at > VISIT_AGAIN || counted.size > COUNTED_CAP) counted.delete(t); else break; }
+    const was = counted.has(tag) && now - counted.get(tag) <= VISIT_AGAIN;
+    counted.delete(tag); counted.set(tag, now);
+    return was;
+  }
   function visitorCount(now) {
     for (const [tag, at] of visitors) if (now - at > VISIT_TTL) visitors.delete(tag);
     return visitors.size;
@@ -314,9 +330,11 @@ export async function createOffice({ config, token, botKeys: botKeys_ = {}, stat
         if (!limiter.take(`visit:${tag}`, now)) return reply(res, 429, { error: 'Rate limited' }, cors);
         visitorCount(now);
         // A tag heard for the first time is one more guest in the book, kept across restarts; a tab that goes quiet
-        // for 45 s and comes back counts again (it is a new visit), which is how a guest book works anyway.
-        if (!visitors.has(tag) && visitors.size < VISIT_CAP) { visitors.set(tag, now); state.visitorsTotal = (state.visitorsTotal || 0) + 1; noteVisitor(state.scene, now); noteSource(state, url.searchParams.get('s') || 'direct', now); await persist(); }
-        else if (visitors.has(tag)) visitors.set(tag, now);
+        // for 30 min and comes back counts again (it is a new visit). Shorter gaps only re-enter the room.
+        if (!visitors.has(tag) && visitors.size < VISIT_CAP) {
+          visitors.set(tag, now);
+          if (!countedRecently(tag, now)) { state.visitorsTotal = (state.visitorsTotal || 0) + 1; noteVisitor(state.scene, now); noteSource(state, url.searchParams.get('s') || 'direct', now); await persist(); }
+        } else if (visitors.has(tag)) { visitors.set(tag, now); countedRecently(tag, now); }
         return reply(res, 200, { ok: true, visitors: visitors.size, visitorsTotal: state.visitorsTotal || 0 }, cors);
       }
       if (req.method === 'POST' && url.pathname === '/guest/meet') {
