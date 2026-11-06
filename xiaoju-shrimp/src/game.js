@@ -40,7 +40,7 @@ function play(lv){hideCard();start(newSeed(),lv);paused=false;}
 const LEGEND=[
   `<span><i style="background:${COL.cone}"></i>三花看得见，别进</span><span><i style="background:${COL.table}"></i>茶几底下能藏</span><span><i style="background:${COL.door}"></i>出口</span>`,
   `<span><i style="background:${COL.rug}"></i>地毯没声音，能趴着躲</span><span><i style="background:${COL.ear}"></i>她听得见的木地板</span><span><i style="background:${COL.toy}"></i>玩具响时她听不见</span>`,
-  `<span><i style="background:${COL.alert}"></i>主人看着时别动</span><span><i style="background:${COL.cone}"></i>筷子停了＝要转头</span><span><i style="background:${COL.shrimp}"></i>叼着虾走得慢</span>`
+  `<span><i style="background:${COL.alert}"></i>主人看着时别动</span><span><i style="background:${COL.cone}"></i>筷子停了＝要转头</span><span><i style="background:${COL.shrimp}"></i>叼了虾她一抬头就发现</span>`
 ];
 // pick a level and it starts at once (playtest 3: choosing a level and then pressing 「开始」 again was a chore)
 const BLURB=['三花绕着茶几巡逻，别被她看见','孩子在玩玩具，别被她听见','主人在吃饭，趁她不看把虾拖走'];
@@ -239,12 +239,12 @@ function onEvents(){
     if(ev==='under')say('钻进茶几底下了，三花看不见你。','good');
     if(ev==='treat')say('拿到猫条了！但还没过关，出口在右上角。','good');
     if(ev==='door'&&!S.caughtWin)say('到出口了！','good');
-    if(ev==='warn')say('筷子停了！她要转头，快停下！','alert');
+    if(ev==='warn')say(S.carry?'筷子停了！她要抬头了，快冲！':'筷子停了！她要转头，快停下！','alert');
     if(ev==='look')say('定住！别动！','alert');
-    if(ev==='eat')say(S.carry?'她又低头吃饭了，拖着虾往左边桌沿走！':'她又低头吃饭了，走！','good');
-    if(ev==='grab')say('叼到虾了！拖着走得慢，往左边桌沿拖，跳下去就赢。','good');
+    if(ev==='eat')say('她又低头吃饭了，走！','good');
+    if(ev==='grab')say('叼到虾了！她下次抬头就会发现盘子空了，赶在那之前拖到左边桌沿！','good');
     if(ev==='shoo'){flash=0;say(TXT[LV].hit,'alert');}
-    if(ev==='stop')say('住手！——快跑，冲到左边桌沿！','alert');
+    if(ev==='stop')say(S.events.includes('missing')?'「我的虾呢？！住手！」——快跑，冲到左边桌沿！':'住手！——快跑，冲到左边桌沿！','alert');
     if(ev==='plate'){flash=0;say('没跑掉，盘子被端走了……虾放回盘里，重来。','alert');}
     if(ev==='dashWin')say('当场被抓包，照样得手！','good');
     if(ev==='needShrimp')say('先去叼虾！虾盘在主人跟前。');
