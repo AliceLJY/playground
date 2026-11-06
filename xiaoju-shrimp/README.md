@@ -4,7 +4,7 @@
 
 A small stealth game. You are Xiaoju, a greedy and fearless orange cat. Each level has one "patrol" to slip past; in the last one you jump onto the dinner table and drag the shrimp away. Underneath it is hide-and-seek plus red-light-green-light.
 
-This is a grey-box build: only level 1, "Slip past Sanhua in the living room", with blocks standing in for the cats and furniture, to check whether it is fun before any art. It is not on the front page and not wired into `pages.yml`. The spec (in Chinese) is [SPEC.md](SPEC.md).
+This is a grey-box build: only level 1, "Slip past Sanhua in the living room", with blocks standing in for the cats and furniture, to check whether it is fun before any art; it is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
 
 ## How to play (level 1)
 

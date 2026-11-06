@@ -150,6 +150,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Xiaoju Shrimp
+        working-directory: xiaoju-shrimp
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Herb Match
         working-directory: herb-match
         run: |
@@ -347,6 +354,13 @@ jobs:
           mkdir -p _site/message-pipe
           cp message-pipe/index.html _site/message-pipe/index.html
           cp -R message-pipe/src _site/message-pipe/
+
+      - name: Assemble Xiaoju Shrimp
+        run: |
+          # 小橘偷虾记：二维画布的潜行小游戏（灰盒，第 1 关），没有构建步骤，页面和源码原样发布
+          mkdir -p _site/xiaoju-shrimp
+          cp xiaoju-shrimp/index.html _site/xiaoju-shrimp/index.html
+          cp -R xiaoju-shrimp/src _site/xiaoju-shrimp/
 
       - name: Assemble Shared Table
         run: |
