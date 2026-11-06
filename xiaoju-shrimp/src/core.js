@@ -1,4 +1,5 @@
-// 小橘偷虾记 · rules: the living room, 三花's patrol and sight, the cat's moves, the safe-route table and three autopilots.
+// 小橘偷虾记 · rules: level 1 (living room, 三花's patrol and sight), level 2 (hallway, the child who listens),
+// the cat's moves, the safe-route table and three autopilots.
 // No DOM, no drawing; runs in Node for tests and in the page as window.SneakCore.
 // Grid: column c grows right, row r grows down. Directions: 0 N, 1 E, 2 S, 3 W. Logic advances in ticks of 0.1 s.
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.SneakCore=factory();})(typeof self!=='undefined'?self:this,function(){
@@ -12,10 +13,17 @@ const CFG={
   sanTurn:6,     // ticks 三花 stands at a corner already facing the new way (the warning before her sight sweeps)
   hiss:12,       // ticks of the 「哈！」 freeze after the cat is seen
   sight:4,       // cells of sight straight ahead
-  exit:15        // ticks of the exit shot after the cat reaches the door (Alice's first playtest: show the level is over)
+  exit:15,       // ticks of the exit shot after the cat reaches the door (Alice's first playtest: show the level is over)
+  kidMove:3,     // ticks per cell for the child (0.3 s, faster than the cat)
+  kidHuh:5,      // ticks the child freezes with 「咦？」 after hearing a step, before she gets up
+  kidLook:15,    // ticks she stands looking round where she heard it
+  hear:4,        // cells (walking distance on the grid, Manhattan) she hears a step on wood
+  toyOn:25,      // ticks her toy plays (she hears nothing while it plays)
+  toyOff:35      // ticks it is quiet
 };
-// '.' floor, '#' blocks the way and the sight, 'T' coffee table (cat can hide under it, blocks sight),
-// 'N' cat bed (start), 'D' door to the hallway (goal), 'F' cat treat (optional).
+// '.' floor (wood: a step on it makes a sound in level 2), '~' rug (silent), '#' blocks the way and the sight,
+// 'T' coffee table (cat can hide under it, blocks sight), 'N' start, 'D' door (goal), 'F' cat treat (optional),
+// 'K' where the child sits playing (level 2).
 const LEVELS=[
   {id:'living',title:'第 1 关 · 客厅躲三花',
     map:[
@@ -30,7 +38,21 @@ const LEVELS=[
       'N...##.'],
     labels:[{c:0,r:1,w:1,h:6,text:'电视柜'},{c:6,r:1,w:1,h:6,text:'书柜'},{c:2,r:2,w:3,h:2,text:'鱼缸'},{c:2,r:4,w:3,h:2,text:'茶几'},{c:4,r:7,w:2,h:2,text:'沙发'}],
     // clockwise loop round the fish tank and coffee table, starting at the top-left corner
-    patrol:{start:{c:1,r:1},legs:[[1,4],[2,5],[3,4],[0,5]]}}
+    patrol:{start:{c:1,r:1},legs:[[1,4],[2,5],[3,4],[0,5]]},
+    startName:'窝',doorName:'出口',exitText:'溜出客厅！'},
+  {id:'hall',type:'sound',title:'第 2 关 · 走廊躲孩子',
+    map:[
+      '####D##',
+      '#.~..##',
+      '#F.~.##',
+      '#~..###',
+      'K..~###',
+      '#.~.###',
+      '#~..~##',
+      '#....##',
+      '#N...##'],
+    labels:[{c:5,r:0,w:2,h:9,text:'卫生间'},{c:4,r:3,w:1,h:3,text:'鞋柜'},{c:0,r:0,w:4,h:1,text:'墙'}],
+    startName:'客厅',doorName:'饭厅',exitText:'溜过走廊！'}
 ];
 
 function rng(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
@@ -46,6 +68,21 @@ function build(def){
   }
   const inB=(c,r)=>c>=0&&r>=0&&c<cols&&r<rows;
   const walk=i=>kind[i]!=='#';                       // the cat can stand here
+  const nbr=i=>{const c0=i%cols,r0=(i/cols)|0,out=[];for(let d=0;d<4;d++){const cc=c0+DC[d],rr=r0+DR[d];if(inB(cc,rr)&&walk(rr*cols+cc))out.push([d,rr*cols+cc]);}return out;};
+  const doorDist=new Int32Array(N).fill(-1);{const q=[door];doorDist[door]=0;while(q.length){const i=q.shift();for(const [,j] of nbr(i))if(doorDist[j]<0){doorDist[j]=doorDist[i]+1;q.push(j);}}}
+  const base={def,cols,rows,N,kind,nest,door,treat,walk,nbr,doorDist,type:def.type||'sight'};
+  if(def.type==='sound'){
+    let kid=-1;for(let i=0;i<N;i++)if(kind[i]==='K')kid=i;
+    const man=(a,b)=>Math.abs(a%cols-b%cols)+Math.abs(((a/cols)|0)-((b/cols)|0));
+    const wood=i=>walk(i)&&kind[i]!=='~';
+    const P=CFG.toyOn+CFG.toyOff,toyOn=p=>(((p%P)+P)%P)<CFG.toyOn;
+    // while she sits at her spot: the cells next to her are always unsafe (she reaches out), and a step on wood
+    // within earshot is unsafe whenever the toy is quiet
+    const danger=(i,p)=>man(i,kid)<=1;
+    const noisy=(j,p)=>wood(j)&&man(j,kid)<=CFG.hear&&!toyOn(p);
+    const hearZone=[];for(let i=0;i<N;i++)if(wood(i)&&man(i,kid)<=CFG.hear&&i!==kid)hearZone.push(i);
+    return Object.assign(base,{kid,man,wood,P,toyOn,danger,noisy,hearZone,opaque:()=>false});
+  }
   const opaque=i=>kind[i]==='#'||kind[i]==='T';      // stops 三花's sight; a cat under the table is hidden
   // patrol timeline: one entry per tick of the loop
   const tl=[];let c=def.patrol.start.c,r=def.patrol.start.r;
@@ -94,12 +131,18 @@ function build(def){
   }
   const seen=tl.map(e=>{const set=new Uint8Array(N);for(const i of cone(e.occ,e.face))set[i]=1;return set;});
   const danger=(i,p)=>seen[p][i]===1||tl[p].occ===i;
-  const nbr=i=>{const c0=i%cols,r0=(i/cols)|0,out=[];for(let d=0;d<4;d++){const cc=c0+DC[d],rr=r0+DR[d];if(inB(cc,rr)&&walk(rr*cols+cc))out.push([d,rr*cols+cc]);}return out;};
-  // walking distance to the door from every cell, for the cells-left number on screen
-  const doorDist=new Int32Array(N).fill(-1);{const q=[door];doorDist[door]=0;while(q.length){const i=q.shift();for(const [,j] of nbr(i))if(doorDist[j]<0){doorDist[j]=doorDist[i]+1;q.push(j);}}}
-  return {def,cols,rows,N,kind,nest,door,treat,walk,opaque,tl,P,seen,danger,nbr,cone,doorDist};
+  return Object.assign(base,{opaque,tl,P,seen,danger,noisy:null,cone});
 }
 
+// Can the cat step from i to j starting at phase p without being caught? It is in i for the first half of the
+// move and in j for the second; on a sound level the step lands (and makes its sound) the tick it enters j.
+const LAND=Math.ceil(CFG.catMove/2);
+function moveOk(L,i,j,p){
+  const M=CFG.catMove,P=L.P;
+  for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(L.danger(occ,(p+k)%P))return false;}
+  if(L.noisy&&L.noisy(j,(p+LAND)%P))return false;
+  return true;
+}
 // Fewest ticks from (cell, patrol phase) to a goal cell without ever being seen, for every cell and phase.
 // The patrol is periodic, so this is a fixed point over (cell, phase mod P); Infinity means no safe way from there.
 function safeTable(L,goal){
@@ -116,9 +159,7 @@ function safeTable(L,goal){
         const p1=(p+1)%P;
         if(!danger(i,p1)&&dist[i*P+p1]+1<best)best=dist[i*P+p1]+1;
         for(const [,j] of nbr(i)){
-          let ok=true;
-          for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(danger(occ,(p+k)%P)){ok=false;break;}}
-          if(!ok)continue;
+          if(!moveOk(L,i,j,p))continue;
           const v=dist[j*P+(p+M)%P]+M;
           if(v<best)best=v;
         }
@@ -135,9 +176,7 @@ function bestAction(L,T,i,p){
   if(here===0)return {wait:true};
   let best=null,bv=Infinity;
   for(const [d,j] of nbr(i)){
-    let ok=true;
-    for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:i;if(danger(occ,(p+k)%P)){ok=false;break;}}
-    if(!ok)continue;
+    if(!moveOk(L,i,j,p))continue;
     const v=T.get(j,p+M)+M;if(v<bv){bv=v;best={dir:d};}
   }
   const w=danger(i,(p+1)%P)?Infinity:T.get(i,p+1)+1;
@@ -153,8 +192,7 @@ function reachable(L,i,p){
     const [c,ph]=q.pop(),p1=(ph+1)%P;
     if(!danger(c,p1)&&!seenS[c*P+p1]){seenS[c*P+p1]=1;q.push([c,p1]);}
     for(const [,j] of nbr(c)){
-      let ok=true;for(let k=1;k<=M;k++){const occ=(k*2>=M)?j:c;if(danger(occ,(ph+k)%P)){ok=false;break;}}
-      const pj=(ph+M)%P;
+      const ok=moveOk(L,c,j,ph),pj=(ph+M)%P;
       if(ok&&!seenS[j*P+pj]){seenS[j*P+pj]=1;q.push([j,pj]);}
     }
   }
@@ -170,7 +208,12 @@ function create(opt){
   const s={L,seed,tick:0,phase:'play',hissed:0,treat:false,underTable:0,
     san:{p:Math.floor(R()*L.P)},
     cat:{at:L.nest,move:null,target:-1},
-    hissT:0,exitT:-1,clearTick:-1,events:[]};
+    hissT:0,exitT:-1,clearTick:-1,events:[],noise:null};
+  // san.p is the level clock: 三花's place on her loop in level 1, the toy's place in its on/off cycle in level 2
+  const kidHome=()=>({at:L.kid,move:null,state:'play',target:-1,t:0});
+  if(L.type==='sound')s.kid=kidHome();
+  const kidOcc=()=>{const m=s.kid.move;if(!m)return s.kid.at;return (m.k*2>=CFG.kidMove)?m.to:m.from;};
+  s.kidOcc=kidOcc;
   const occ=()=>{const m=s.cat.move;if(!m)return s.cat.at;return (m.k*2>=CFG.catMove)?m.to:m.from;};
   s.catOcc=occ;
   function path(from,to){ // spatial BFS over cells the cat can stand on
@@ -196,18 +239,46 @@ function create(opt){
     s.tick++;
     if(s.phase==='exit'){s.exitT++;if(s.exitT>=CFG.exit){s.phase='cleared';s.events.push('clear');}return;}
     if(s.phase==='hiss'){
-      if(--s.hissT<=0){s.phase='play';s.cat={at:L.nest,move:null,target:-1};s.events.push('back');}
+      if(--s.hissT<=0){s.phase='play';s.cat={at:L.nest,move:null,target:-1};if(s.kid)s.kid=kidHome();s.events.push('back');}
       return;
     }
     if(!s.cat.move)startMove();
-    if(s.cat.move){const m=s.cat.move;m.k++;if(m.k>=CFG.catMove){s.cat.at=m.to;s.cat.move=null;if(s.cat.target===s.cat.at)s.cat.target=-1;}}
+    let landed=-1;
+    if(s.cat.move){const m=s.cat.move;m.k++;if(m.k===LAND)landed=m.to;if(m.k>=CFG.catMove){s.cat.at=m.to;s.cat.move=null;if(s.cat.target===s.cat.at)s.cat.target=-1;}}
     s.san.p=(s.san.p+1)%L.P;
+    if(s.kid){
+      const k=s.kid;
+      if(landed>=0&&L.wood(landed)){
+        s.noise={cell:landed,tick:s.tick};s.events.push('step');
+        const busy=k.state==='play'&&L.toyOn(s.san.p);
+        if(!busy&&L.man(landed,kidOcc())<=CFG.hear){
+          k.target=landed;s.events.push('heard');
+          if(k.state==='play'){k.state='huh';k.t=CFG.kidHuh;}else if(k.state!=='huh'){k.state='walk';}
+        }
+      }
+      kidStep();
+      if(L.man(occ(),kidOcc())<=1){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.cat.queued=null;s.events.push('hug');return;}
+      if(!s.cat.move&&s.cat.at===L.door){s.phase='exit';s.exitT=0;s.clearTick=s.tick;s.cat.target=-1;s.events.push('door');}
+      const o2=occ();if(o2===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
+      return;
+    }
     const o=occ();
     if(L.kind[o]==='T'){if(!s.wasUnder){s.underTable++;s.events.push('under');}s.wasUnder=true;}else s.wasUnder=false;
     if(o===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
     if(L.danger(o,s.san.p)){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.cat.queued=null;s.events.push('hiss');return;}
     if(!s.cat.move&&s.cat.at===L.door){s.phase='exit';s.exitT=0;s.clearTick=s.tick;s.cat.target=-1;s.events.push('door');}
   };
+  // the child: 「咦？」, walks to where she heard the step, looks round, walks back to her toy
+  function kidStep(){
+    const k=s.kid;
+    if(k.move){k.move.k++;if(k.move.k>=CFG.kidMove){k.at=k.move.to;k.move=null;}else return;}
+    if(k.state==='play')return;
+    if(k.state==='huh'){if(--k.t<=0)k.state='walk';return;}
+    if(k.state==='look'){if(--k.t<=0){k.state='return';k.target=L.kid;}return;}
+    const goal=k.state==='return'?L.kid:k.target;
+    if(k.at===goal){if(k.state==='return'){k.state='play';k.target=-1;}else{k.state='look';k.t=CFG.kidLook;}return;}
+    const pth=path(k.at,goal);if(pth&&pth.length)k.move={from:k.at,to:pth[0],k:0};
+  }
   s.time=()=>(s.clearTick>=0?s.clearTick:s.tick)*CFG.tick;
   s.stepsLeft=()=>{const d=L.doorDist[occ()];return d<0?0:d;};
   return s;

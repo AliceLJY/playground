@@ -4,11 +4,15 @@
 
 A small stealth game. You are Xiaoju, a greedy and fearless orange cat. Each level has one "patrol" to slip past; in the last one you jump onto the dinner table and drag the shrimp away. Underneath it is hide-and-seek plus red-light-green-light.
 
-This is a grey-box build: only level 1, "Slip past Sanhua in the living room", with blocks standing in for the cats and furniture, to check whether it is fun before any art; it is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
+This is a grey-box build: level 1, "Slip past Sanhua in the living room", and level 2, "Slip past the child in the hallway", with blocks standing in for the cats and furniture, to check whether it is fun before any art; it is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
 
 ## How to play (level 1)
 
 Tap a cell and Xiaoju walks there by the shortest way; tap Xiaoju and it stops after the cell it is on. On a computer, arrow keys or WASD step one cell, Space stops, Esc pauses. Sanhua walks a loop round the fish tank and the coffee table; the yellow floor is what she can see, and stepping into it gets you hissed back to your bed. At each corner she first looks back the way she came, then turns. You can hide under the coffee table, where she cannot see you. The cat treat sits on the bottom-right corner of her loop, off every short way to the door.
+
+## How to play (level 2)
+
+The child sits by the hallway wall playing with a toy. She does not look, she listens. Wooden floor goes "tap" under the cat, rugs are silent; the blue floor is the wood she can hear. While the toy plays she hears nothing, and the bar over her head shows how long it has left. If she hears you she says "huh?" and walks over to look; if she gets next to you she picks you up and puts you back at the start. The start card has a level picker; add `?level=2` to the address to go straight to level 2.
 
 ## Run and test
 
