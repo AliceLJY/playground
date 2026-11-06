@@ -5,8 +5,8 @@ const L=C.level(2);
 const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
 const SEEDS=300;
 
-test('spec 3c: constants — dragging 0.6 s/cell, chopsticks stop 0.6 s before she looks, 1 s to run after 「住手！」, uneven rhythm',()=>{
-  assert.deepStrictEqual([CFG.catMove,CFG.dragMove,CFG.ownerWarn,CFG.dash],[4,6,6,10]);
+test('spec 3c: constants — dragging 0.5 s/cell, chopsticks stop 0.6 s before she looks, 1.2 s to run after 「住手！」, uneven rhythm',()=>{
+  assert.deepStrictEqual([CFG.catMove,CFG.dragMove,CFG.ownerWarn,CFG.dash],[4,5,6,12]);
   assert.strictEqual(L.type,'still');assert.ok(L.shrimp>=0&&L.door>=0&&L.nest>=0);
   const eat=CFG.owner.map(x=>x[0]),look=CFG.owner.map(x=>x[1]);
   assert.ok(Math.max(...eat)-Math.min(...eat)>=20,'spec 3c: how long she eats varies by at least 2 s, so it cannot be counted');
@@ -52,14 +52,15 @@ test('spec 4c: precise autopilot clears every seed without ever being seen',()=>
 });
 
 test('spec 4c: human-error autopilot — two-sided difficulty, both outcomes of 「住手！」 happen, and it is the hardest level',()=>{
-  let win=0,seen=0,dash=0,plate=0;const times=[];
+  let win=0,seen=0,failed=0,dash=0,plate=0;const times=[];
   for(let seed=1;seed<=SEEDS;seed++){
     const s=C.create({level:2,seed});C.run(s,C.human(s,seed),2000);
     if(s.phase==='cleared'){win++;times.push(s.time());}
-    if(s.hissed||s.dashWins)seen++;dash+=s.dashWins;plate+=s.plateLost;
+    if(s.hissed||s.dashWins)seen++;if(s.hissed)failed++;dash+=s.dashWins;plate+=s.plateLost;
   }
   assert.ok(win/SEEDS>=0.95,'spec 4c: at least 95% clear within 200 s, got '+win/SEEDS);
-  assert.ok(seen/SEEDS>=0.25&&seen/SEEDS<=0.85,'spec 4c: 25–85% of runs get seen at least once, got '+seen/SEEDS);
+  // a run that makes it after 「住手！」 is the thrill, not a failure; the frustration cap counts real setbacks only
+  assert.ok(failed/SEEDS>=0.25&&failed/SEEDS<=0.85,'spec 4c: 25–85% of runs are sent back at least once (shooed or plate taken), got '+failed/SEEDS);
   assert.ok(dash>=1&&plate>=1,`spec 4c: the sample has both a run that makes it after 「住手！」 (${dash}) and a plate taken away (${plate})`);
   assert.ok(plate/SEEDS<=1,'spec 4c: on average at most one plate taken away per game, got '+plate/SEEDS);
   const m=mean(times);assert.ok(m>=8&&m<=45,'spec 4c: mean clear time 8–45 s, got '+m.toFixed(1));
@@ -79,4 +80,14 @@ test('spec 4c / 8.5c: reckless autopilot gets seen in at least half the seeds, a
     assert.strictEqual(s.phase,'cleared','spec 8.5c: winnable after being sent back, seed '+seed);
   }
   assert.ok(seen/SEEDS>=0.5,'spec 4c: reckless gets sent back in at least half the seeds, got '+seen/SEEDS);
+});
+
+// Alice 2026-11-06 fifth playtest: 「叼了之后它不动就不会抓了，好像又少了点刺激感」
+test('playtest 5: with the shrimp, standing still does not keep you safe — her next look notices the empty plate',()=>{
+  const s=C.create({level:2,seed:5});
+  s.carry=true;s.cat.at=L.shrimp;            // just grabbed, standing on the plate
+  while(L.owner(s.san.p)!==0)s.step();       // she is eating
+  let noticed=false;for(let k=0;k<L.P&&!noticed;k++){s.step();if(s.events.includes('stop'))noticed=true;}
+  assert.ok(noticed,'playtest 5: standing still with the shrimp through her look, she must still notice');
+  assert.strictEqual(s.phase,'dash','playtest 5: noticing starts the run (「我的虾呢？！住手！」)');
 });

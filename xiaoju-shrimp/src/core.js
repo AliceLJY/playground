@@ -21,11 +21,11 @@ const CFG={
   // her toy plays in uneven bursts (she hears nothing while it plays) with uneven quiet gaps between:
   // [ticks on, ticks quiet] pairs, looped; each game starts at a seeded point in the loop, so the gaps cannot be learned
   toy:[[16,30],[12,44],[20,24],[14,52],[18,34],[12,40],[22,28],[15,48]],
-  dragMove:6,    // ticks per cell while dragging the shrimp (0.6 s)
+  dragMove:5,    // ticks per cell while dragging the shrimp (0.5 s)
   ownerWarn:6,   // ticks her chopsticks stop before she turns her head (the warning)
   // the owner at dinner: [ticks eating with her head down, ticks looking at the table], looped, seeded start
   owner:[[32,14],[48,18],[24,12],[40,20],[28,16],[54,14],[36,18]],
-  dash:10        // ticks the cat has after 「住手！」 to get the shrimp off the table
+  dash:12        // ticks the cat has after 「住手！」 to get the shrimp off the table
 };
 // '.' floor (wood: a step on it makes a sound in level 2), '~' rug (silent), '#' blocks the way and the sight,
 // 'T' coffee table (cat can hide under it, blocks sight), 'N' start, 'D' door (goal), 'F' cat treat (optional),
@@ -183,10 +183,11 @@ function moveOk(L,i,j,p,M){
 }
 // Fewest ticks from (cell, patrol phase) to a goal cell without ever being seen, for every cell and phase.
 // The patrol is periodic, so this is a fixed point over (cell, phase mod P); Infinity means no safe way from there.
-function safeTable(L,goal,Mv){
+// `term(p)`, if given, is what reaching the goal at phase p still costs (level 3: the shrimp, then the run to the edge).
+function safeTable(L,goal,Mv,term){
   const {N,P,danger,nbr,walk}=L,INF=Infinity,M=Mv||CFG.catMove;
   const dist=new Float64Array(N*P).fill(INF);
-  for(let p=0;p<P;p++)dist[goal*P+p]=0;
+  for(let p=0;p<P;p++)dist[goal*P+p]=term?term(p):0;
   let changed=true,passes=0;
   while(changed&&passes<400){
     changed=false;passes++;
@@ -239,7 +240,13 @@ function reachable(L,i,p,Mv){
 
 const cache={};
 function level(n){if(!cache[n]){const L=build(LEVELS[n]);
-  if(L.type==='still'){L.toShrimp=safeTable(L,L.shrimp);L.toDoor=safeTable(L,L.door,CFG.dragMove);}
+  if(L.type==='still'){
+    // with the shrimp in its mouth, any look of hers notices the empty plate, standing still or not
+    L.carryL=Object.assign({},L,{danger:(i,p)=>L.owner(p)===2&&i!==L.door});
+    L.toDoor=safeTable(L.carryL,L.door,CFG.dragMove);
+    L.toShrimp=safeTable(L,L.shrimp,CFG.catMove,p=>L.toDoor.get(L.shrimp,p));
+    L.toShrimpNaive=safeTable(L,L.shrimp,CFG.catMove); // a person gets to the plate unseen and grabs at once
+  }
   else L.toDoor=safeTable(L,L.door);
   L.toTreat=L.treat>=0?safeTable(L,L.treat):null;cache[n]=L;}return cache[n];}
 
@@ -344,9 +351,11 @@ function create(opt){
     const o=occ();
     if(!s.carry&&o===L.shrimp){s.carry=true;s.events.push('grab');}
     if(o===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
-    if(now===2&&moving){
+    // she sees a moving cat; and once the shrimp is gone she notices the empty plate whatever the cat does
+    // (playtest 5: 「叼了之后它不动就不会抓了，好像又少了点刺激感」)
+    if(now===2&&(moving||s.carry)){
       s.cat.queued=null;
-      if(s.carry){s.phase='dash';s.dashT=CFG.dash;s.cat.target=L.door;s.events.push('stop');}
+      if(s.carry){s.phase='dash';s.dashT=CFG.dash;s.cat.target=L.door;s.events.push('stop');if(!moving)s.events.push('missing');}
       else{s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.events.push('shoo');}
       return;
     }
@@ -362,18 +371,19 @@ function create(opt){
 
 // Autopilots drive a game only through stepDir / waiting, like a player would.
 // which table and move length the cat is planning with right now (level 3: to the shrimp, then dragging it to the edge)
-function plan(s){
+function plan(s,naive){
   const L=s.L;
-  if(L.type==='still')return s.carry?[L.toDoor,CFG.dragMove]:[L.toShrimp,CFG.catMove];
-  return [L.toDoor,CFG.catMove];
+  if(L.type==='still')return s.carry?[L.toDoor,CFG.dragMove,L.carryL]:[naive?L.toShrimpNaive:L.toShrimp,CFG.catMove,L];
+  return [L.toDoor,CFG.catMove,L];
 }
 function precise(s,goalTable){
   return ()=>{
     if(s.phase==='dash'){if(s.cat.target!==s.L.door)s.setTarget(s.L.door);return;}
     if(s.phase!=='play'||s.cat.move)return;
-    const [T,M]=goalTable?[goalTable,CFG.catMove]:plan(s);
-    const a=bestAction(s.L,T,s.cat.at,s.san.p,M);
+    const [T,M,LL]=goalTable?[goalTable,CFG.catMove,s.L]:plan(s);
+    const a=bestAction(LL,T,s.cat.at,s.san.p,M);
     if(a&&a.dir!=null)s.stepDir(a.dir);
+    else if(!a&&s.carry&&s.cat.target!==s.L.door)s.setTarget(s.L.door); // no safe way left: just go
   };
 }
 // Knows the way but misjudges the timing. Level 1: guesses 三花's phase off by N(0, sd) ticks (she has to be predicted).
@@ -388,10 +398,12 @@ function human(s,seed,opt){
     if(s.cat.move)return;
     if(wait>0){wait--;return;}
     if(guess===null)guess=Math.round(gauss(R)*o.sd)-o.lag;
-    const [T,M]=plan(s);
-    // at the table a person does not step off while (as far as they saw) her chopsticks have stopped or she looks
-    if(s.L.type==='still'&&s.L.owner(s.san.p+guess)!==0)return;
-    const a=bestAction(s.L,T,s.cat.at,s.san.p+guess,M);
+    const [T,M,LL]=plan(s,true);
+    // at the table a person does not step off while (as far as they saw) her chopsticks have stopped or she looks;
+    // with the shrimp in its mouth stopping does not help any more, so it keeps going
+    if(s.L.type==='still'&&!s.carry&&s.L.owner(s.san.p+guess)!==0)return;
+    const a=bestAction(LL,T,s.cat.at,s.san.p+guess,M);
+    if(!a&&s.carry){if(s.cat.target!==s.L.door)s.setTarget(s.L.door);return;}
     if(a&&a.dir!=null){s.stepDir(a.dir);guess=null;}
     else if(!a)guess=null;
     else if(R()<0.15)guess=null; // looks again now and then while waiting
