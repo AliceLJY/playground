@@ -120,3 +120,19 @@ test('furniture labels sit only on furniture (2026-11-06: 「鞋柜」 was print
     for(const lb of Lx.def.labels)for(let r=lb.r;r<lb.r+lb.h;r++)for(let c=lb.c;c<lb.c+lb.w;c++){
       const k=Lx.kind[r*Lx.cols+c];assert.ok(k==='#'||k==='T',`level ${lv+1}: label 「${lb.text}」 covers a ${k} cell at (${c},${r})`);}}
 });
+
+// Alice 2026-11-06 fourth playtest: 「我看到可躲的那个地方，我躲进去了呀，为什么还会被孩子抓到呢」
+// Measured before the fix: 24 of 303 hugs in the human-error sample happened with the cat on a rug, all while she was searching.
+test('playtest 4: a cat lying on a rug (可躲) is never hugged — she walks round it',()=>{
+  let onRug=0,hugs=0,searchedPastRug=0;
+  for(let seed=1;seed<=SEEDS;seed++){
+    const s=C.create({level:1,seed}),pilot=C.human(s,seed);
+    for(let n=0;n<1500&&s.phase!=='cleared';n++){
+      pilot();s.step();
+      if(s.events.includes('hug')){hugs++;if(L.kind[s.catOcc()]==='~')onRug++;}
+      if(s.kid.state==='walk'&&L.kind[s.catOcc()]==='~'&&L.man(s.catOcc(),s.kidOcc())<=1)searchedPastRug++;
+    }
+  }
+  assert.strictEqual(onRug,0,`playtest 4: ${onRug} of ${hugs} hugs happened on a rug`);
+  assert.ok(searchedPastRug>=1,'playtest 4: the sample really has her searching right next to a cat on a rug (else this test proves nothing)');
+});

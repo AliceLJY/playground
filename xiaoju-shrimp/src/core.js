@@ -84,7 +84,8 @@ function build(def){
     const toyLen=p=>lens[ph(p)];          // length of the current burst
     // while she sits at her spot: the cells next to her are always unsafe (she reaches out), and a step on wood
     // within earshot is unsafe whenever the toy is quiet
-    const danger=(i,p)=>man(i,kid)<=1;
+    // a cat lying on a rug is hidden even right next to her (playtest 4: 「我躲进去了呀，为什么还会被孩子抓到呢」)
+    const danger=(i,p)=>man(i,kid)<=1&&kind[i]!=='~';
     const noisy=(j,p)=>wood(j)&&man(j,kid)<=CFG.hear&&!toyOn(p);
     const hearZone=[];for(let i=0;i<N;i++)if(wood(i)&&man(i,kid)<=CFG.hear&&i!==kid)hearZone.push(i);
     return Object.assign(base,{kid,man,wood,P,toyOn,toyLeft,toyLen,danger,noisy,hearZone,opaque:()=>false});
@@ -222,10 +223,10 @@ function create(opt){
   s.kidOcc=kidOcc;
   const occ=()=>{const m=s.cat.move;if(!m)return s.cat.at;return (m.k*2>=CFG.catMove)?m.to:m.from;};
   s.catOcc=occ;
-  function path(from,to){ // spatial BFS over cells the cat can stand on
+  function path(from,to,avoid){ // spatial BFS over cells the cat can stand on, never through `avoid`
     if(from===to)return [];
     const prev=new Int32Array(L.N).fill(-1),q=[from];prev[from]=from;
-    while(q.length){const i=q.shift();if(i===to)break;for(const [,j] of L.nbr(i))if(prev[j]<0){prev[j]=i;q.push(j);}}
+    while(q.length){const i=q.shift();if(i===to)break;for(const [,j] of L.nbr(i))if(prev[j]<0&&j!==avoid){prev[j]=i;q.push(j);}}
     if(prev[to]<0)return null;
     const out=[];for(let i=to;i!==from;i=prev[i])out.push(i);return out.reverse();
   }
@@ -266,7 +267,7 @@ function create(opt){
         }
       }
       kidStep();
-      if(L.man(occ(),kidOcc())<=1){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.cat.queued=null;s.events.push('hug');return;}
+      if(L.man(occ(),kidOcc())<=1&&L.kind[occ()]!=='~'){s.phase='hiss';s.hissT=CFG.hiss;s.hissed++;s.cat.target=-1;s.cat.queued=null;s.events.push('hug');return;}
       if(!s.cat.move&&s.cat.at===L.door){s.phase='exit';s.exitT=0;s.clearTick=s.tick;s.cat.target=-1;s.events.push('door');}
       const o2=occ();if(o2===L.treat&&!s.treat){s.treat=true;s.events.push('treat');}
       return;
@@ -286,7 +287,9 @@ function create(opt){
     if(k.state==='look'){if(--k.t<=0){k.state='return';k.target=L.kid;}return;}
     const goal=k.state==='return'?L.kid:k.target;
     if(k.at===goal){if(k.state==='return'){k.state='play';k.target=-1;}else{k.state='look';k.t=CFG.kidLook;}return;}
-    const pth=path(k.at,goal);if(pth&&pth.length)k.move={from:k.at,to:pth[0],k:0};
+    // she walks round a cat lying on a rug (she does not know it is there; the rug is a promise to the player)
+    const o=occ(),hide=L.kind[o]==='~'?o:-1;
+    const pth=path(k.at,goal,hide);if(pth&&pth.length)k.move={from:k.at,to:pth[0],k:0};
   }
   s.time=()=>(s.clearTick>=0?s.clearTick:s.tick)*CFG.tick;
   s.stepsLeft=()=>{const d=L.doorDist[occ()];return d<0?0:d;};
