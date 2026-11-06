@@ -531,3 +531,7 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # GitHub's Pages step was taking ~8 min by the afternoon of 2026-11-06 and then hit the 10-min default twice
+          # (runs 42241727604, 42245095559); the artifact was the same 35.7 MB as the runs that went through
+          timeout: 1800000
