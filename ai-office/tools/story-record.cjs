@@ -6,6 +6,8 @@
 //   t: 从演示剧本第 t 秒开拍（吵架、吃瓜、请客这些都按剧本时间发生；at 只管钟点）。follow 也可写 "actor:<id>"。
 //   settle: 预热到孩子/老板停下脚步再开录（最多 warm 毫秒，默认 60 秒）。night: true 压夜色（演示页不画昼夜）。
 // 每帧都加暗角（11-05 Alice 嫌画面花、看不出重点：中间亮、四周压暗）。
+// COVER=square：朋友圈封面方形宽镜头版（11-10 第二版，Alice 嫌第一版放大后糊、看不到整体布局）——出 1080×1080，
+//   镜头宽 360＝整栋楼全宽（1.5 倍、不再放大到五倍），不压暗角；shots 里不写 caption 就不出字幕。只配固定机位 cam:[a,b]。
 // COVER=1：朋友圈封面版（11-10）——封面平时只露画面正中 1080×1080，展开才是整幅 9:16，所以暗角中心、字幕都收进中间那块方形。
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path'), { execFileSync } = require('node:child_process');
@@ -55,14 +57,16 @@ const still = (snap, who) => who === 'boss' ? true : (snap.kids?.list || []).eve
       } else { const [a, b] = shot.cam, e = ease(i / Math.max(1, total - 1)); cam = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e }; }
       const fade = Math.min(1, i / 6, (total - 1 - i) / 6);
       const data = await page.evaluate(({ cam, caption, fade, night, cover }) => {
-        const src = document.querySelector('#office'), o = document.createElement('canvas'); o.width = 1080; o.height = 1920;
-        const g = o.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#efe7d4'; g.fillRect(0, 0, 1080, 1920);
-        const W = src.width / 2, H = src.height / 2, h = cam.w * 16 / 9;
+        const sq = cover === 'square', src = document.querySelector('#office'), o = document.createElement('canvas'); o.width = 1080; o.height = sq ? 1080 : 1920;
+        const g = o.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#efe7d4'; g.fillRect(0, 0, 1080, o.height);
+        const W = src.width / 2, H = src.height / 2, h = sq ? cam.w : cam.w * 16 / 9;
         const x = Math.max(0, Math.min(cam.x, W - cam.w)), y = Math.max(0, Math.min(cam.y, H - h));
         const s = 1080 / cam.w; g.drawImage(src, 0, 0, src.width, src.height, -x * s, -y * s, W * s, H * s);
         if (night) { g.fillStyle = 'rgba(14,22,52,0.38)'; g.fillRect(0, 0, 1080, 1920); }
+        if (!sq) {
         const cy = cover ? 960 : 860, v = g.createRadialGradient(540, cy, cover ? 220 : 260, 540, cy, cover ? 900 : 1150);
         v.addColorStop(0, 'rgba(18,22,26,0)'); v.addColorStop(1, 'rgba(18,22,26,0.72)'); g.fillStyle = v; g.fillRect(0, 0, 1080, 1920);
+        }
         if (caption) {
           g.textAlign = 'center'; g.font = '600 52px "PingFang SC",system-ui';
           const lines = []; let cur = ''; for (const ch of caption) { if (g.measureText(cur + ch).width > 900) { lines.push(cur); cur = ''; } cur += ch; } lines.push(cur);
@@ -71,7 +75,7 @@ const still = (snap, who) => who === 'boss' ? true : (snap.kids?.list || []).eve
           g.fillStyle = '#fff6dc'; lines.forEach((l, j) => g.fillText(l, 540, by + 72 + j * 70)); g.globalAlpha = 1;
         }
         return o.toDataURL('image/jpeg', .92);
-      }, { cam, caption: shot.caption, fade, night: !!shot.night, cover: process.env.COVER === '1' });
+      }, { cam, caption: shot.caption, fade, night: !!shot.night, cover: process.env.COVER === 'square' ? 'square' : process.env.COVER === '1' });
       fs.writeFileSync(path.join(frames, String(n++).padStart(5, '0') + '.jpg'), Buffer.from(data.split(',')[1], 'base64'));
     }
     await page.close(); console.log(`shot ${k + 1}/${shots.length} ${shot.at} done (${n} frames)`);
