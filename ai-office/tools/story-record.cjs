@@ -6,6 +6,7 @@
 //   t: 从演示剧本第 t 秒开拍（吵架、吃瓜、请客这些都按剧本时间发生；at 只管钟点）。follow 也可写 "actor:<id>"。
 //   settle: 预热到孩子/老板停下脚步再开录（最多 warm 毫秒，默认 60 秒）。night: true 压夜色（演示页不画昼夜）。
 // 每帧都加暗角（11-05 Alice 嫌画面花、看不出重点：中间亮、四周压暗）。
+// COVER=1：朋友圈封面版（11-10）——封面平时只露画面正中 1080×1080，展开才是整幅 9:16，所以暗角中心、字幕都收进中间那块方形。
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path'), { execFileSync } = require('node:child_process');
 const { createPreview } = require('./preview.cjs');
@@ -16,6 +17,8 @@ fs.rmSync(frames, { recursive: true, force: true }); fs.mkdirSync(frames, { recu
 const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const centre = (snap, who) => {
   if (who === 'boss' && snap.boss) return snap.boss;
+  // 被猫叫醒、喂猫（11-10 朋友圈封面）: aim between the boss and the cat nearest her, so both sit in the centre square.
+  if (who === 'bosscat' && snap.boss) { if (!snap.cats?.length) return snap.boss; const b = snap.boss, c = snap.cats.reduce((p, q) => Math.hypot(q.x - b.x, q.y - b.y) < Math.hypot(p.x - b.x, p.y - b.y) ? q : p); return { x: (b.x + c.x) / 2, y: (b.y + c.y) / 2 }; }
   if (who.startsWith('actor:')) { const a = snap.actors.find(q => q.id === who.slice(6)); if (a) return a; }
   const k = (snap.kids?.list || []).filter(c => c.x != null); if (!k.length) return snap.boss;
   const m = { x: k.reduce((s, c) => s + c.x, 0) / k.length, y: k.reduce((s, c) => s + c.y, 0) / k.length };
@@ -51,24 +54,24 @@ const still = (snap, who) => who === 'boss' ? true : (snap.kids?.list || []).eve
         follow = follow ? { x: follow.x + (target.x - follow.x) * (shot.chase ? .25 : .1), y: follow.y + (target.y - follow.y) * (shot.chase ? .25 : .1), w } : target; cam = follow;
       } else { const [a, b] = shot.cam, e = ease(i / Math.max(1, total - 1)); cam = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, w: a.w + (b.w - a.w) * e }; }
       const fade = Math.min(1, i / 6, (total - 1 - i) / 6);
-      const data = await page.evaluate(({ cam, caption, fade, night }) => {
+      const data = await page.evaluate(({ cam, caption, fade, night, cover }) => {
         const src = document.querySelector('#office'), o = document.createElement('canvas'); o.width = 1080; o.height = 1920;
         const g = o.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#efe7d4'; g.fillRect(0, 0, 1080, 1920);
         const W = src.width / 2, H = src.height / 2, h = cam.w * 16 / 9;
         const x = Math.max(0, Math.min(cam.x, W - cam.w)), y = Math.max(0, Math.min(cam.y, H - h));
         const s = 1080 / cam.w; g.drawImage(src, 0, 0, src.width, src.height, -x * s, -y * s, W * s, H * s);
         if (night) { g.fillStyle = 'rgba(14,22,52,0.38)'; g.fillRect(0, 0, 1080, 1920); }
-        const v = g.createRadialGradient(540, 860, 260, 540, 860, 1150);
+        const cy = cover ? 960 : 860, v = g.createRadialGradient(540, cy, cover ? 220 : 260, 540, cy, cover ? 900 : 1150);
         v.addColorStop(0, 'rgba(18,22,26,0)'); v.addColorStop(1, 'rgba(18,22,26,0.72)'); g.fillStyle = v; g.fillRect(0, 0, 1080, 1920);
         if (caption) {
           g.textAlign = 'center'; g.font = '600 52px "PingFang SC",system-ui';
           const lines = []; let cur = ''; for (const ch of caption) { if (g.measureText(cur + ch).width > 900) { lines.push(cur); cur = ''; } cur += ch; } lines.push(cur);
-          const bh = 44 + lines.length * 70, by = 1920 - 230 - bh;
+          const bh = 44 + lines.length * 70, by = cover ? 1500 - 40 - bh : 1920 - 230 - bh;
           g.globalAlpha = fade; g.fillStyle = '#253334e0'; g.beginPath(); g.roundRect(60, by, 960, bh, 24); g.fill();
           g.fillStyle = '#fff6dc'; lines.forEach((l, j) => g.fillText(l, 540, by + 72 + j * 70)); g.globalAlpha = 1;
         }
         return o.toDataURL('image/jpeg', .92);
-      }, { cam, caption: shot.caption, fade, night: !!shot.night });
+      }, { cam, caption: shot.caption, fade, night: !!shot.night, cover: process.env.COVER === '1' });
       fs.writeFileSync(path.join(frames, String(n++).padStart(5, '0') + '.jpg'), Buffer.from(data.split(',')[1], 'base64'));
     }
     await page.close(); console.log(`shot ${k + 1}/${shots.length} ${shot.at} done (${n} frames)`);
