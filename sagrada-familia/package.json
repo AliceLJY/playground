@@ -1,0 +1,14 @@
+{
+  "name": "sagrada-familia",
+  "private": true,
+  "type": "module",
+  "description": "圣家堂：纯代码生成、可环绕可走进去的建筑导览",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
