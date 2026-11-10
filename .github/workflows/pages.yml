@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deploy_retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
 
@@ -528,10 +528,19 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+      # deploy-pages@v4 caps timeout at 600000 ms (10 min); a larger value is ignored with a warning.
+      # GitHub's side sometimes sits in syncing_files past 10 min with an unchanged 35 MB artifact
+      # (runs 42241727604, 42245095559 on 11-06; 42741792001 on 11-10). Retry the deploy in the same job:
+      # re-running the whole job instead would upload a second github-pages artifact and fail on the duplicate.
       - name: Deploy
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v4
         with:
-          # GitHub's Pages step was taking ~8 min by the afternoon of 2026-11-06 and then hit the 10-min default twice
-          # (runs 42241727604, 42245095559); the artifact was the same 35.7 MB as the runs that went through
-          timeout: 1800000
+          timeout: 600000
+      - name: Deploy (retry after timeout)
+        id: deploy_retry
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
