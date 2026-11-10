@@ -49,6 +49,8 @@ export const DOORS = [
   { id: 'nativity', cn: '诞生门', x: TRANS_HALF, z: CROSS.z, half: 2.4, axis: 'z' },
   { id: 'passion', cn: '受难门', x: -TRANS_HALF, z: CROSS.z, half: 2.4, axis: 'z' },
 ];
+// 荣耀门廊前的八根大柱（示意），走路要绕开
+export const GLORY_COLS = Array.from({ length: 8 }, (_, k) => ({ x: (k - 3.5) * 5.9, z: Z_GLORY + 14.4, r: 1.15 }));
 const inDoor = (x, z) => DOORS.some(d => d.axis === 'x' ? Math.abs(x - d.x) < d.half && Math.abs(z - d.z) < 6 : Math.abs(z - d.z) < d.half && Math.abs(x - d.x) < 9);
 
 // ---- 柱网（7.5 米网格）----
@@ -97,6 +99,7 @@ export function blocked(x, z) {
     for (const p of SOLIDS) if (Math.abs(x - p.x) < p.hx + 0.3 && Math.abs(z - p.z) < p.hz + 0.3) return 'solid';
     return null;
   }
+  for (const c of GLORY_COLS) if (Math.hypot(x - c.x, z - c.z) < c.r + 0.35) return 'porch';
   for (const t of TOWERS) if (t.y0 === 0 && Math.hypot(x - t.x, z - t.z) < t.r0 + 0.4) return 'tower';
   for (const b of BLOCKS) if (!b.park && inChamferBox(x, z, b.x, b.z, BLOCK / 2, CHAMFER)) return 'block';
   if (Math.abs(x) > 3.4 * PITCH || Math.abs(z) > 3.4 * PITCH) return 'edge';
@@ -131,10 +134,10 @@ export const WINDOW_TIERS = [{ y: 4.5, h: 10.5, w: 1.25, n: 2 }, { y: 19.5, h: 6
 const V = (id, cn, en, zone, pos, look, mode, text, light) => ({ id, cn, en, zone, pos, look, mode, text, light });
 export const VIEWS = [
   V('whole', '教堂全景', 'Whole basilica', 'out', [150, 118, 178], [0, 52, -6], 'orbit', '拉丁十字平面，长约 90 米、横厅宽 60 米，十八座塔。这里搭出来的是高迪设计完成后的样子：荣耀立面的四座塔现实中还没建起来。'),
-  V('nativity', '诞生立面', 'Nativity façade', 'out', [118, 34, 34], [30, 44, -12], 'orbit', '朝东北，迎着日出。高迪在世时亲自督造的一面，石头像融化的蜡一样堆满了植物和人物，三个门洞分别是望德、爱德、信德。'),
-  V('nativity-detail', '诞生门雕刻', 'Nativity sculpture', 'out', [66, 22, -4], [33, 24, -12], 'orbit', '中门上方是一棵绿色的柏树，树上停着白鸽，象征永生。细部在这里只是示意的起伏，不是雕像复原。'),
-  V('passion', '受难立面', 'Passion façade', 'out', [-128, 26, -12], [-30, 46, -12], 'orbit', '朝西南，对着日落。和诞生立面相反，它故意做得又冷又硬：六根像骨头一样斜撑的柱子，上面一排十八根小骨柱。'),
-  V('passion-detail', '受难门雕刻', 'Passion sculpture', 'out', [-76, 26, 2], [-33, 20, -12], 'orbit', '苏比拉克斯的雕塑线条像刀切的。门廊正中高处是十字架。'),
+  V('nativity', '诞生立面', 'Nativity façade', 'out', [112, 30, -4], [30, 32, -12], 'orbit', '朝东北，迎着日出。高迪在世时亲自督造的一面，石头像融化的蜡一样堆满了植物和人物，三个门洞分别是望德、爱德、信德。'),
+  V('nativity-detail', '诞生门雕刻', 'Nativity sculpture', 'out', [60, 15, -8], [33, 21, -12], 'orbit', '中门上方是一棵绿色的柏树，树上停着白鸽，象征永生。细部在这里只是示意的起伏，不是雕像复原。'),
+  V('passion', '受难立面', 'Passion façade', 'out', [-124, 30, -22], [-30, 34, -12], 'orbit', '朝西南，对着日落。和诞生立面相反，它故意做得又冷又硬：六根像骨头一样斜撑的柱子，上面一排十八根小骨柱。'),
+  V('passion-detail', '受难门雕刻', 'Passion sculpture', 'out', [-66, 11, -4], [-33, 15, -12], 'orbit', '苏比拉克斯的雕塑线条像刀切的。门廊正中高处是十字架。'),
   V('glory', '荣耀立面', 'Glory façade', 'out', [42, 62, 158], [0, 44, 45], 'orbit', '朝南，是将来的正门，也是三面里最大的一面。现实中还在施工，这里按设计意向示意：七扇门、一排锥形灯笼顶。'),
   V('towers', '塔群', 'Towers', 'out', [92, 150, 96], [0, 118, -10], 'orbit', '中央耶稣塔 172.5 米，后面的圣母塔 138 米，四座福音塔 135 米，三个立面各四座使徒钟塔。'),
   V('cross', '耶稣塔十字', 'Cross of Jesus', 'out', [30, 170, 30], [0, 160, -12], 'orbit', '塔顶是一座 17 米高的四臂十字架，2026 年 2 月装上之后教堂到了最终高度。'),

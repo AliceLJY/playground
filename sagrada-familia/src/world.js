@@ -1,10 +1,11 @@
 // 圣家堂：全部形体。外部（塔、三个立面、后殿、街区）与内部（柱林、拱顶、彩窗、祭坛）分两组，按镜头在里在外切换显示。
 import * as THREE from 'three';
 import * as C from './core.js';
+import { buildExterior } from './exterior.js';
 
 // ---------- 小工具 ----------
-function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-function canvasTex(w, h, draw, { repeat = [1, 1], srgb = true, aniso = 8 } = {}) {
+export function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+export function canvasTex(w, h, draw, { repeat = [1, 1], srgb = true, aniso = 8 } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); t.anisotropy = aniso;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t;
@@ -13,10 +14,13 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Eule
 const UP = new THREE.Vector3(0, 1, 0);
 
 // 把大量小部件攒成几个 InstancedMesh：同一种基础形体一次绘制。
-function batcher(group, material, { cast = true, receive = true } = {}) {
+export function batcher(group, material, { cast = true, receive = true } = {}) {
   const GEO = {
     box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 10), taper: new THREE.CylinderGeometry(0.3, 0.5, 1, 10),
     cone: new THREE.ConeGeometry(0.5, 1, 8), ball: new THREE.SphereGeometry(0.5, 10, 7), ring: new THREE.TorusGeometry(0.5, 0.16, 6, 14),
+    spike: new THREE.ConeGeometry(0.5, 1, 4), hoop: new THREE.TorusGeometry(0.5, 0.035, 4, 18), disc: new THREE.CircleGeometry(0.5, 16),
+    // 抛物线尖券的平面形（朝 +Z），宽 1 高 1，直边占下面六成
+    lancet: (() => { const s = new THREE.Shape(); s.moveTo(-0.5, 0); s.lineTo(0.5, 0); s.lineTo(0.5, 0.6); for (let i = 1; i <= 10; i++) { const u = 1 - i / 5; s.lineTo(u * 0.5, 0.6 + 0.4 * (1 - u * u)); } s.closePath(); return new THREE.ShapeGeometry(s); })(),
     prism: (() => { const s = new THREE.Shape(); s.moveTo(-0.5, 0); s.lineTo(0.5, 0); s.lineTo(0, 1); s.closePath(); const g = new THREE.ExtrudeGeometry(s, { depth: 1, bevelEnabled: false }); g.translate(0, 0, -0.5); return g; })(),
   };
   const lists = {};
@@ -56,34 +60,41 @@ function batcher(group, material, { cast = true, receive = true } = {}) {
 
 // ---------- 彩窗光：把两侧窗子的色光「投」到内部所有表面上 ----------
 // 不用真实光源：对每个像素沿光的方向倒推回墙面，看落点是不是在窗洞里，是就按那块玻璃的颜色加亮。
-export const GLASS = { uGI: { value: new THREE.Vector3(1, 0.16, 0) } };
+export const GLASS = { uGI: { value: new THREE.Vector3(1, 0.16, 0) }, uGL: { value: new THREE.Vector2(-0.62, -0.16) } };
 const GLASS_GLSL = /* glsl */`
-uniform vec3 uGI;
+uniform vec3 uGI; uniform vec2 uGL;
 varying vec3 vGW; varying vec3 vGN;
 float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float lancet(vec2 p, float w, float h){ if (p.y < 0.) return 0.; float ax = abs(p.x) / w; if (ax > 1.) return 0.; return step(p.y, h + w * 1.8 * sqrt(max(1. - ax * ax, 0.))); }
-vec3 sideGlass(vec3 wp, vec3 n, float s, float I, vec3 ca, vec3 cb, vec3 cc){
-  if (I < .01) return vec3(0.);
-  vec3 L = normalize(vec3(-s, -.62, -.16));
-  float nl = max(dot(n, -L), 0.); if (nl <= 0.) return vec3(0.);
-  float t = (wp.x - s * 22.5) / L.x; if (t < 0.) return vec3(0.);
+// 沿光的方向倒推回墙面：落点在不在窗洞里、是哪块玻璃的颜色。返回 rgb=颜色，a=走了多远
+vec4 glassHit(vec3 wp, float s, vec3 ca, vec3 cb, vec3 cc){
+  vec3 L = normalize(vec3(-s, uGL.x, uGL.y));
+  float t = (wp.x - s * 22.5) / L.x; if (t < 0.) return vec4(0.);
   vec3 h = wp - L * t; float m = 0.;
   if (h.z > 3.) {
-    if (h.z > 45.) return vec3(0.);
+    if (h.z > 45.) return vec4(0.);
     float qx = (fract((h.z - 3.) / 7.) - .5) * 7.;
     m = max(lancet(vec2(abs(qx) - 1.55, h.y - 4.5), 1.25, 10.5), lancet(vec2(abs(qx) - 1.3, h.y - 19.5), 1.05, 6.5));
+    m = max(m, step(length(vec2(qx, h.y - 17.5)), 1.3));
   } else {
-    t = (wp.x - s * 30.) / L.x; if (t < 0.) return vec3(0.); h = wp - L * t;
-    if (h.z < -27. || h.z > 3.) return vec3(0.);
+    t = (wp.x - s * 30.) / L.x; if (t < 0.) return vec4(0.); h = wp - L * t;
+    if (h.z < -27. || h.z > 3.) return vec4(0.);
     float qx = h.z + 12.;
     m = max(step(length(vec2(qx, h.y - 24.)), 5.), lancet(vec2(mod(abs(qx) + 1.6, 3.2) - 1.6, h.y - 5.), 1.1, 9.) * step(abs(qx), 8.));
   }
-  if (m <= 0.) return vec3(0.);
+  if (m <= 0.) return vec4(0.);
   vec2 cell = floor(vec2(h.z * 2.6, h.y * 1.7));
   vec3 col = mix(ca, cb, smoothstep(.15, .85, gh(cell) * .7 + .3 * fract(h.y * .07)));
   col = mix(col, cc, step(.8, gh(cell + 7.3)));
   col = mix(vec3(dot(col, vec3(.3, .5, .2))) + .12, col, .72);
-  return col * nl * I * .95 * exp(-t * .012);
+  return vec4(col, t);
+}
+vec3 sideGlass(vec3 wp, vec3 n, float s, float I, vec3 ca, vec3 cb, vec3 cc){
+  if (I < .01) return vec3(0.);
+  vec3 L = normalize(vec3(-s, uGL.x, uGL.y));
+  float nl = max(dot(n, -L), 0.); if (nl <= 0.) return vec3(0.);
+  vec4 g = glassHit(wp, s, ca, cb, cc);
+  return g.rgb * nl * I * .95 * exp(-g.a * .012);
 }
 vec3 glassLight(vec3 wp, vec3 n){
   return sideGlass(wp, n, 1., uGI.x, vec3(.10, .32, 1.), vec3(.12, .85, .45), vec3(.75, 1., .35))
@@ -91,7 +102,7 @@ vec3 glassLight(vec3 wp, vec3 n){
 }`;
 export function glassLit(mat, gain = 1) {
   mat.onBeforeCompile = sh => {
-    sh.uniforms.uGI = GLASS.uGI;
+    sh.uniforms.uGI = GLASS.uGI; sh.uniforms.uGL = GLASS.uGL;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGW; varying vec3 vGN;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec4 gwp = vec4(transformed, 1.); vec3 gn = objectNormal;
@@ -109,8 +120,8 @@ export function glassLit(mat, gain = 1) {
 // ---------- 贴图（全部现画）----------
 const WARM = ['#d81f1f', '#f0541a', '#ff8c1a', '#ffc21a', '#fff07a', '#c2185b', '#ff6a3d'];
 const COOL = ['#1f4fd6', '#2a8be0', '#35c9c0', '#3fbf5a', '#9fe060', '#e8f070', '#5a6fe8'];
-const MIXED = ['#1f4fd6', '#35c9c0', '#ffc21a', '#f0541a', '#9fe060', '#c2185b', '#fff07a', '#2a8be0'];
-function glassTexture(pal, seed, shape = 'lancet') {
+export const MIXED = ['#1f4fd6', '#35c9c0', '#ffc21a', '#f0541a', '#9fe060', '#c2185b', '#fff07a', '#2a8be0'];
+export function glassTexture(pal, seed, shape = 'lancet') {
   return canvasTex(128, 512, (g, w, h) => {
     const r = rng(seed); g.clearRect(0, 0, w, h);
     g.save(); g.beginPath();
@@ -137,25 +148,31 @@ function glassTexture(pal, seed, shape = 'lancet') {
     g.stroke();
   }, { aniso: 4 });
 }
-function stoneTexture(base, seed, lines = true) {
-  return canvasTex(256, 256, (g, w, h) => {
+export function stoneTexture(base, seed, lines = true) {
+  return canvasTex(512, 512, (g, w, h) => {
     const r = rng(seed); g.fillStyle = base; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2600; i++) { g.fillStyle = r() < 0.5 ? '#00000010' : '#ffffff12'; g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 3); }
-    if (lines) { g.strokeStyle = '#00000022'; g.lineWidth = 1; for (let y = 0; y < h; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (y / 32 % 2) * 32; x < w; x += 64) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); } } }
+    // 大块的深浅斑：风化、雨痕
+    for (let i = 0; i < 70; i++) { const x = r() * w, y = r() * h, rad = 30 + r() * 90, gr = g.createRadialGradient(x, y, 2, x, y, rad); const dark = r() < 0.55; gr.addColorStop(0, dark ? 'rgba(70,60,45,0.05)' : 'rgba(255,255,255,0.08)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]) { g.save(); g.translate(ox, oy); g.fillRect(x - rad, y - rad, rad * 2, rad * 2); g.restore(); } }
+    for (let i = 0; i < 9000; i++) { g.fillStyle = r() < 0.5 ? '#0000000b' : '#ffffff10'; g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 3); }
+    if (lines) { const rh = 32; for (let y = 0; y < h; y += rh) { g.fillStyle = '#0000001c'; g.fillRect(0, y, w, 1.5); g.fillStyle = '#ffffff18'; g.fillRect(0, y + 1.5, w, 1); const off = (y / rh % 2) * 40 + r() * 10; for (let x = off; x < w; x += 64 + (r() - 0.5) * 20) { g.fillStyle = '#00000016'; g.fillRect(x, y, 1.5, rh); if (r() < 0.3) { g.fillStyle = `rgba(${r() < 0.5 ? '60,50,35' : '255,255,255'},0.06)`; g.fillRect(x, y, 64, rh); } } } }
   });
 }
-// 塔身：一圈圈螺旋上升的百叶窗洞
-function towerTexture(seed) {
+// 塔身：一格格百叶窗洞螺旋上升，窗洞之间是竖向的墩和横向的石片
+export function towerTexture(seed, { cols = 6, rows = 84 } = {}) {
   return canvasTex(256, 1024, (g, w, h) => {
-    const r = rng(seed); const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, '#e9dcc0'); grad.addColorStop(1, '#cdb994'); g.fillStyle = grad; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 5000; i++) { g.fillStyle = r() < 0.5 ? '#0000000d' : '#ffffff10'; g.fillRect(r() * w, r() * h, 1 + r() * 3, 2 + r() * 6); }
-    const rows = 46;
-    for (let j = 1; j < rows; j++) {
-      const y = h - (j / rows) * h * 0.86 - h * 0.04, sh = h / rows * 0.6;
-      for (let i = 0; i < 6; i++) { const x = ((i + 0.5) / 6 * w + j * 7) % w; g.fillStyle = '#3a2f25'; g.beginPath(); g.roundRect(x - 5, y - sh * 1.25, 10, sh * 1.25, 5); g.fill(); g.fillStyle = '#ffffff30'; g.fillRect(x - 7, y - 1, 14, 2); }
-      g.fillStyle = '#00000018'; g.fillRect(0, y + 3, w, 2);
+    const r = rng(seed); const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, '#fbf8f0'); grad.addColorStop(1, '#e9e3d6'); g.fillStyle = grad; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) { const x = r() * w, y = r() * h, rad = 20 + r() * 60, gr = g.createRadialGradient(x, y, 2, x, y, rad); gr.addColorStop(0, r() < 0.6 ? 'rgba(80,70,50,0.07)' : 'rgba(255,255,255,0.1)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
+    for (let i = 0; i < 6000; i++) { g.fillStyle = r() < 0.5 ? '#0000000a' : '#ffffff10'; g.fillRect(r() * w, r() * h, 1 + r() * 2, 2 + r() * 5); }
+    const cw = w / cols, rh = h * 0.8 / rows, y0 = h * 0.9;
+    for (let j = 0; j < rows; j++) {
+      const y = y0 - j * rh, k = j / rows, ow = cw * (0.5 - 0.14 * k), oh = rh * 0.56;
+      for (let i = 0; i < cols; i++) {
+        const x = ((i + 0.5) * cw + j * cw / 12) % w;
+        for (const ox of [-w, 0, w]) { g.fillStyle = '#2e2620'; g.beginPath(); g.roundRect(x + ox - ow / 2, y - oh, ow, oh, [ow * 0.4, ow * 0.4, 1, 1]); g.fill(); g.fillStyle = '#ffffff55'; g.fillRect(x + ox - ow / 2 - 2, y, ow + 4, 1.6); g.fillStyle = '#00000022'; g.fillRect(x + ox - ow / 2 - 2, y + 1.6, ow + 4, 1.4); }
+      }
     }
-    for (let i = 0; i < 4; i++) { g.fillStyle = '#ffffff1c'; g.fillRect((i / 4) * w - 3, 0, 6, h); }
+    // 塔身上一段竖排的字带（Sanctus），只画成一串彩色小方块
+    for (let k = 0; k < 9; k++) { g.fillStyle = ['#c8452e', '#d9a520', '#c8452e', '#6a8f3c'][k % 4]; g.fillRect(w * 0.5 - 5, h * 0.2 + k * 15, 10, 10); }
   }, { repeat: [3, 1] });
 }
 function cityTexture() {
@@ -181,7 +198,7 @@ function rayTexture() {
 }
 
 // ---------- 塔 ----------
-function towerProfile(t) {
+export function towerProfile(t) {
   // 返回 [半径, 高度] 的折线：下段近乎直，上段抛物线收尖。
   const top = { jesus: t.h - 19, mary: t.h - 9, evangelist: t.h - 9, apostle: t.h - 15 }[t.kind];
   const rTop = { jesus: 1.9, mary: 1.3, evangelist: 1.1, apostle: 0.85 }[t.kind], k = { jesus: 1.55, mary: 1.7, evangelist: 1.9, apostle: 2.3 }[t.kind];
@@ -193,7 +210,7 @@ function towerProfile(t) {
 export function buildWorld(scene, { coarse = false } = {}) {
   const ext = new THREE.Group(), int = new THREE.Group(); ext.name = 'exterior'; int.name = 'interior'; scene.add(ext, int);
   const R = rng(2026);
-  const stone = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.92, map: stoneTexture('#dccdae', 11) });
+  const stone = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.92, map: stoneTexture('#f6f3ec', 11) });
   const plain = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 });
   const E = batcher(ext, plain);          // 外部小部件
   const ES = batcher(ext, stone);         // 外部大体块（带石缝）
@@ -239,136 +256,10 @@ export function buildWorld(scene, { coarse = false } = {}) {
   for (const [x, z, s] of treeSpots) { T.cyl(x, 0, z, 0.28 * s, 3.2 * s, '#6b5238'); T.ball(x, 4.6 * s, z, 2.6 * s, ['#4f8f3a', '#5c9e44', '#44803a', '#6aa84f'][Math.floor(R() * 4)], 0.95); }
   T.build();
 
-  // ===== 教堂外壳 =====
-  const LIGHT = '#e6dabd', MID = '#d6c6a2', DARK = '#b9a47f', WHITE = '#f3ecdc';
+  // ===== 教堂外壳、三个立面、十八座塔（见 exterior.js）=====
   const naveLen = C.Z_GLORY - C.Z_NAVE_END, naveMid = (C.Z_GLORY + C.Z_NAVE_END) / 2, transLen = C.Z_NAVE_END - C.Z_TRANS_END, transMid = (C.Z_NAVE_END + C.Z_TRANS_END) / 2;
-  ES.box(0, 0, naveMid, 45.6, 31, naveLen, MID);                       // 侧廊一层
-  ES.box(0, 31, naveMid, 31, 15, naveLen, LIGHT);                      // 中廊高出的一层
-  ES.prism(0, 46, naveMid, 31, 8, naveLen, '#c7b594');                 // 中廊屋脊
-  ES.box(0, 0, transMid, 60.6, 31, transLen, MID);
-  ES.box(0, 31, transMid, 48, 15, transLen - 4, LIGHT);
-  ES.prism(0, 46, transMid, transLen - 4, 8, 48, '#c7b594', Math.PI / 2);
-  // 十字交叉上的八角鼓座
-  ES.raw('cyl', [0, 52, C.CROSS.z], [29, 14, 29], [0, Math.PI / 8, 0], LIGHT);
-  // 后殿：半圆 + 七间小礼拜堂 + 两座圣器室穹顶
-  ES.cyl(C.APSE.x, 0, C.APSE.z, 18.3, 31, MID); ES.cyl(C.APSE.x, 31, C.APSE.z, 12.5, 19, LIGHT); ES.cone(C.APSE.x, 50, C.APSE.z, 12.5, 7, '#c7b594');
-  for (let i = 0; i < 7; i++) { const a = Math.PI * (0.06 + 0.88 * i / 6), x = Math.cos(a) * 19.5, z = C.APSE.z - Math.sin(a) * 19.5; ES.cyl(x, 0, z, 3.6, 22, LIGHT); E.cone(x, 22, z, 3.8, 9, MID); E.taper(x, 31, z, 0.5, 6, WHITE); E.ball(x, 37.6, z, 0.75, ['#d84a2f', '#e8b923', '#3f9b55', '#ffffff'][i % 4]); }
-  for (const sx of [-1, 1]) { const g = new THREE.LatheGeometry(Array.from({ length: 16 }, (_, i) => new THREE.Vector2(10 * Math.sqrt(1 - Math.pow(i / 15, 1.6)) + 0.4, i / 15 * 38)), 16); const m = new THREE.Mesh(g, stone); m.position.set(sx * 27, 0, -42); m.castShadow = m.receiveShadow = true; ext.add(m); E.taper(sx * 27, 38, -42, 0.6, 5, WHITE); E.ball(sx * 27, 43.5, -42, 0.9, '#e8b923'); }
-  // 回廊：沿中殿两侧的矮廊
-  for (const sx of [-1, 1]) { ES.box(sx * 26, 0, naveMid + 2, 6, 11, naveLen - 6, LIGHT); for (let k = 0; k < 6; k++) E.prism(sx * 26, 11, C.Z_NAVE_END + 6 + k * 6.5, 6, 3.4, 6, MID, Math.PI / 2); }
-  // 侧廊与中廊檐口上一排尖山花和彩色果篮顶饰
-  const FRUIT = ['#d84a2f', '#e8b923', '#7ab648', '#f08a24', '#c94f9b', '#f3ecdc'];
-  for (let k = 0; k < C.BAYS; k++) {
-    const z = C.BAY_Z0 + C.BAY * (k + 0.5);
-    for (const sx of [-1, 1]) {
-      E.prism(sx * 22.9, 31, z, 5.4, 6.5, 1.6, LIGHT, Math.PI / 2); E.taper(sx * 22.9, 37.5, z, 0.42, 3.2, WHITE); E.ball(sx * 22.9, 41.2, z, 0.8, FRUIT[(k * 2 + (sx > 0 ? 1 : 0)) % 6], 1.25);
-      E.box(sx * 22.9, 0, z + 3.5, 1.8, 34, 1.5, LIGHT); E.cone(sx * 22.9, 34, z + 3.5, 1.1, 5, WHITE);
-      E.prism(sx * 15.6, 46, z, 5, 6, 1.4, LIGHT, Math.PI / 2); E.taper(sx * 15.6, 52, z, 0.36, 2.8, WHITE); E.ball(sx * 15.6, 55.2, z, 0.7, FRUIT[(k * 2 + 3 + (sx > 0 ? 1 : 0)) % 6], 1.25);
-    }
-  }
-  // 外墙上的窗（外面看是深色玻璃带一点彩）
-  const extGlass = new THREE.MeshStandardMaterial({ map: glassTexture(MIXED, 91), transparent: true, alphaTest: 0.5, roughness: 0.25, metalness: 0.2, color: '#8f8a9c', emissive: '#20242e', emissiveIntensity: 1 });
-  const extWins = [];
-  for (let k = 0; k < C.BAYS; k++) for (const sx of [-1, 1]) for (const tier of C.WINDOW_TIERS) for (const o of [-1, 1]) {
-    const x0 = sx * (tier.y > 18 ? 15.56 : 22.86), y = tier.y > 18 ? tier.y + 14 : tier.y, hh = tier.h + tier.w * 1.8;
-    extWins.push({ pos: [x0, y + hh / 2, C.BAY_Z0 + C.BAY * (k + 0.5) + o * 1.5], scl: [tier.w * 2, hh, 1], ry: sx * Math.PI / 2 });
-  }
-  for (let i = 0; i < 7; i++) { const a = Math.PI * (0.1 + 0.8 * i / 6); extWins.push({ pos: [Math.cos(a) * 12.56, 41, C.APSE.z - Math.sin(a) * 12.56], scl: [2.4, 13, 1], ry: a + Math.PI / 2 }); }
-  const ewMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), extGlass, extWins.length);
-  extWins.forEach((w, i) => { _m.compose(_p.set(...w.pos), _q.setFromEuler(_e.set(0, w.ry, 0)), _s.set(...w.scl)); ewMesh.setMatrixAt(i, _m); }); ewMesh.frustumCulled = false; ext.add(ewMesh);
-
-  // ===== 诞生立面（+X）：堆满雕刻、像融化的蜡 =====
-  {
-    const X = 30.3, zc = C.CROSS.z;
-    ES.box(X + 1.2, 0, zc, 3, 44, 31, DARK);
-    const CARVE = ['#c2ad86', '#b39c74', '#cdb991', '#a58f69', '#bba57c'];
-    for (const [dz, wid, hgt] of [[0, 12, 50], [-10.4, 8.6, 34], [10.4, 8.6, 34]]) {
-      E.prism(X + 3.6, hgt * 0.4, zc + dz, wid, hgt * 0.6, 2.6, DARK, Math.PI / 2);            // 尖山花
-      E.box(X + 3.4, 0, zc + dz, 2.4, hgt * 0.4, wid, '#bfa980');
-      E.box(X + 4.62, 0, zc + dz, 0.2, hgt * 0.27, wid * 0.42, '#231d16');                     // 门洞
-      E.prism(X + 4.67, hgt * 0.27, zc + dz, wid * 0.42, wid * 0.4, 0.2, '#231d16', Math.PI / 2);
-      // 雕刻：密密的小凸起，越往上越稀；山花边缘垂一圈钟乳
-      const n = Math.round(wid * 42);
-      for (let k = 0; k < n; k++) {
-        const py = hgt * (0.04 + Math.pow(R(), 1.25) * 0.93), half = (wid / 2) * (py > hgt * 0.4 ? (1 - (py - hgt * 0.4) / (hgt * 0.6)) : 1), pz = zc + dz + (R() * 2 - 1) * half * 0.96;
-        if (py < hgt * 0.27 + wid * 0.2 && Math.abs(pz - zc - dz) < wid * 0.23) continue;
-        const rr = 0.13 + R() * R() * 0.42; E.ball(X + 4.86 + R() * 0.25, py, pz, rr, CARVE[k % 5], 0.7 + R() * 1.6);
-      }
-      for (let k = 0; k < 15; k++) { const u = (k + 0.5) / 15 * 2 - 1; E.raw('cone', [X + 4.9, hgt * 0.4 + (1 - Math.abs(u)) * hgt * 0.6 - 0.9, zc + dz + u * wid / 2], [0.42, 1.4 + R() * 1.5, 0.42], [Math.PI, 0, 0], '#c9b68d'); }
-      // 门楣上的人物群：一排小立像
-      const nf = dz ? 5 : 9; for (let k = 0; k < nf; k++) { const pz = zc + dz + (k - (nf - 1) / 2) * (wid * 0.5 / nf) * 1.5, py = hgt * 0.27 + wid * 0.4 + 0.5 + (dz ? 0 : (1 - Math.abs(k - 4) / 4) * 1.4); E.taper(X + 5.0, py, pz, 0.26, 1.25, '#d8c7a0'); E.ball(X + 5.0, py + 1.42, pz, 0.19, '#d8c7a0'); }
-      E.box(X + 4.9, hgt * 0.27 + wid * 0.4, zc + dz, 0.5, 0.4, wid * 0.62, '#b39c74');
-      E.taper(X + 4.4, hgt - 0.5, zc + dz, 0.5, 4.5, '#cdb991');
-    }
-    for (const dz of [-5.6, 5.6]) { E.cone(X + 3.6, 30, zc + dz, 1.1, 13, DARK); E.ball(X + 3.6, 43.4, zc + dz, 0.5, '#e8b923'); }
-    // 中门顶上的柏树与白鸽
-    E.cone(X + 3.4, 50, zc, 2.3, 12, '#3f7a3a'); E.cone(X + 3.4, 54, zc, 1.7, 9, '#4b8c44'); E.ball(X + 3.4, 63, zc, 0.5, '#d84a2f');
-    for (let k = 0; k < 14; k++) { const a = k * 2.4, y = 51 + (k / 14) * 9; E.ball(X + 3.4 + Math.cos(a) * (2.3 - (y - 50) * 0.16), y, zc + Math.sin(a) * (2.3 - (y - 50) * 0.16), 0.22, '#ffffff'); }
-    for (const dz of [-6.1, 6.1]) { E.taper(X + 5.2, 0, zc + dz, 0.55, 14, '#cdb990'); E.ball(X + 5.2, 14.5, zc + dz, 0.9, '#b9a47f', 0.7); }   // 两根棕榈柱
-  }
-  // ===== 受难立面（-X）：冷硬、像骨头 =====
-  {
-    const X = -30.3, zc = C.CROSS.z, BONE = '#e9e0cb';
-    ES.box(X - 1.2, 0, zc, 3, 42, 30, '#e1d6bd');
-    for (let k = 0; k < 6; k++) { const z = zc + (k - 2.5) * 5.2; E.rod([X - 13.5, 0, z], [X - 3, 19, z + (k < 3 ? 0.8 : -0.8)], 0.72, BONE, 'taper'); E.ball(X - 13.5, 0.4, z, 1.0, BONE, 0.6); }
-    E.raw('box', [X - 6.5, 20, zc], [11.5, 0.7, 30], [0, 0, 0.2], '#ddd2ba');                                // 斜出的门廊顶
-    for (let k = 0; k < 18; k++) { const z = zc + (k - 8.5) * 1.5; E.rod([X - 3.2, 29, z], [X - 2.6, 37.5, z], 0.26, BONE, 'taper'); }      // 上面一排十八根小骨柱
-    E.box(X - 3, 28.2, zc, 1.6, 0.8, 28, BONE); E.prism(X - 2.8, 37.5, zc, 28, 8.5, 1.6, '#e1d6bd', Math.PI / 2);
-    E.box(X - 2.8, 46, zc, 0.5, 6, 0.5, '#f3ecdc'); E.box(X - 2.8, 49.5, zc, 0.5, 0.5, 3.2, '#f3ecdc');        // 山花顶的十字
-    for (const dz of [0, -9, 9]) { E.box(X - 2.95, 0, zc + dz, 0.2, dz ? 8 : 11, dz ? 3.2 : 4.6, '#2b241c'); }
-    E.box(X - 3.4, 12.5, zc, 0.35, 4.2, 0.35, '#8a7c66'); E.box(X - 3.4, 15.2, zc, 0.35, 0.35, 2.6, '#8a7c66'); // 门上的十字架
-    for (let k = 0; k < 40; k++) E.box(X - 2.95, 2 + R() * 24, zc + (R() * 2 - 1) * 14, 0.3, 0.6 + R() * 1.6, 0.6 + R() * 1.8, ['#d8ccb2', '#e9e0cb', '#cfc2a6'][k % 3]);
-  }
-  // ===== 荣耀立面（+Z）：最大的一面，现实中未完成，这里是示意 =====
-  {
-    const Z = C.Z_GLORY + 0.3;
-    ES.box(0, 0, Z + 1.3, 45.6, 42, 3, LIGHT);
-    for (let k = 0; k < 8; k++) { const x = (k - 3.5) * 5.9; E.taper(x, 0, Z + 10.5, 1.15, 23, WHITE); E.ball(x, 23.4, Z + 10.5, 1.5, '#e6dabd', 0.6); }
-    E.box(0, 23.5, Z + 6.5, 47, 1.6, 10, LIGHT);
-    for (let k = 0; k < 7; k++) { const x = (k - 3) * 5.9, big = k === 3; E.box(x, 0, Z + 2.9, big ? 4.4 : 3.2, big ? 13 : 9.5, 0.2, '#2b241c'); E.prism(x, big ? 13 : 9.5, Z + 2.9, big ? 4.4 : 3.2, big ? 4 : 3, 0.2, '#2b241c'); }
-    for (let k = 0; k < 16; k++) { const x = (k - 7.5) * 2.9, hgt = 9 + (1 - Math.abs(k - 7.5) / 7.5) * 16 + (k % 2) * 3; E.cone(x, 25.1, Z + 6 + (k % 2) * 2.4, 1.5, hgt, WHITE); E.ball(x, 25.4 + hgt, Z + 6 + (k % 2) * 2.4, 0.5, FRUIT[k % 6]); }
-    for (let k = 0; k < 3; k++) E.box(0, 0, Z + 15 + k * 1.1, 52 + k * 3, 0.45 - k * 0.14, 2, '#d9cfb8');
-    const rose = new THREE.Mesh(new THREE.CircleGeometry(5.4, 40), extGlass.clone()); rose.material.map = glassTexture(MIXED, 44, 'rose'); rose.position.set(0, 33.5, Z + 2.85); ext.add(rose);
-  }
-
-  // ===== 十八座塔 =====
-  const towerMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.88, map: towerTexture(7) });
-  const bigTowerMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, map: towerTexture(9) }); bigTowerMat.map = bigTowerMat.map.clone(); bigTowerMat.map.repeat.set(6, 1);
-  const glow = new THREE.MeshBasicMaterial({ color: '#fff4c8', toneMapped: false });
-  const G = batcher(ext, glow, { cast: false, receive: false });
-  const MOSAIC = [['#d8402b', '#f0c419', '#ffffff'], ['#f0c419', '#d8402b', '#ffffff'], ['#3f9b55', '#f0c419', '#ffffff'], ['#d8402b', '#ffffff', '#f0c419']];
-  C.TOWERS.forEach((t, ti) => {
-    const { pts, top, rTop } = towerProfile(t);
-    const body = new THREE.Mesh(new THREE.LatheGeometry(pts, t.kind === 'apostle' ? 18 : 28), t.kind === 'apostle' ? towerMat : bigTowerMat);
-    body.position.set(t.x, 0, t.z); body.rotation.y = ti * 0.7; body.castShadow = body.receiveShadow = true; ext.add(body);
-    if (t.kind === 'apostle') {
-      // 权杖形尖顶：黄色杆身、红环、白球，顶上一个带十字的圆盘
-      const [a, b, c] = MOSAIC[ti % 4];
-      E.taper(t.x, top, t.z, rTop * 0.95, 6.5, b); E.ring(t.x, top + 1.2, t.z, rTop * 1.5, a); E.ring(t.x, top + 3.4, t.z, rTop * 1.3, a);
-      for (let k = 0; k < 6; k++) { const an = k * 1.047; E.ball(t.x + Math.cos(an) * rTop * 1.05, top + 5.2, t.z + Math.sin(an) * rTop * 1.05, 0.42, c); }
-      E.ball(t.x, top + 7.6, t.z, 1.25, a, 1.25); E.ring(t.x, top + 9.4, t.z, 1.5, b);
-      E.raw('cyl', [t.x, top + 11.6, t.z], [3.4, 0.5, 3.4], [Math.PI / 2, 0, (t.face === 'glory' ? 0 : Math.PI / 2)], c);
-      E.box(t.x, top + 12.6, t.z, 0.4, 2.4, 0.4, c); E.ball(t.x, top + 11.6, t.z, 0.6, a);
-      for (let k = 0; k < 4; k++) { const an = k * 1.571 + 0.6; E.ball(t.x + Math.cos(an) * 1.3, top + 10.2, t.z + Math.sin(an) * 1.3, 0.36, '#ffffff'); }
-    } else if (t.kind === 'jesus') {
-      // 17 米的四臂十字架，白釉面，夜里会亮
-      E.taper(t.x, top, t.z, 1.9, 4, WHITE); E.box(t.x, top + 3.5, t.z, 1.7, 14.5, 1.7, '#ffffff');
-      E.box(t.x, top + 10.2, t.z, 9.4, 1.7, 1.7, '#ffffff'); E.box(t.x, top + 10.2, t.z, 1.7, 1.7, 9.4, '#ffffff');
-      for (const [dx, dz] of [[4.9, 0], [-4.9, 0], [0, 4.9], [0, -4.9]]) G.ball(t.x + dx, top + 11.05, t.z + dz, 0.75, '#fff4c8'); G.ball(t.x, top + 18.4, t.z, 0.8, '#fff4c8');
-      for (let k = 0; k < 4; k++) { const an = k * 1.571 + 0.785; E.cone(t.x + Math.cos(an) * 10.6, t.y0 - 6, t.z + Math.sin(an) * 10.6, 1.6, 22, WHITE); }
-    } else if (t.kind === 'mary') {
-      E.taper(t.x, top, t.z, 1.3, 3, '#dfe9f2'); E.ring(t.x, top + 1, t.z, 1.9, '#3f6fd8');
-      const star = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 0), glow); star.position.set(t.x, top + 5.6, t.z); ext.add(star);
-      for (let k = 0; k < 12; k++) { const v = new THREE.Vector3().setFromSphericalCoords(1, Math.acos(1 - 2 * (k + 0.5) / 12), k * 2.4); G.rod([t.x + v.x * 0.6, top + 5.6 + v.y * 0.6, t.z + v.z * 0.6], [t.x + v.x * 3.4, top + 5.6 + v.y * 3.4, t.z + v.z * 3.4], 0.55, '#fff7d6', 'cone'); }
-    } else {
-      // 福音塔顶：带翅膀的象征物，简化成一个白色的有翼体
-      E.taper(t.x, top, t.z, 1.1, 3.2, WHITE); E.ball(t.x, top + 4.6, t.z, 1.25, '#ffffff', 1.2);
-      const out = Math.atan2(t.x, t.z - C.CROSS.z);
-      for (const sgn of [-1, 1]) E.raw('box', [t.x + Math.cos(out) * sgn * 1.9, top + 6, t.z - Math.sin(out) * sgn * 1.9], [3.4, 2.4, 0.3], [0, out, sgn * 0.5], '#ffffff');
-      E.ball(t.x, top + 8.2, t.z, 0.5, '#f0c419');
-    }
-  });
-  ES.build(); E.build(); G.build();
+  const { extGlass } = buildExterior({ ext, E, ES, R, stone, plain, coarse });
+  ES.build(); E.build();
 
   // ====================== 内部 ======================
   const litStone = glassLit(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, map: stoneTexture('#cfc6b6', 21) }));
@@ -429,24 +320,45 @@ export function buildWorld(scene, { coarse = false } = {}) {
   // 后殿：金色的半穹顶，正中一个大采光口
   { const g = new THREE.SphereGeometry(C.APSE.r, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2); const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: '#e9d9a8', roughness: 0.6, metalness: 0.25, side: THREE.BackSide, emissive: '#7a5d1c', emissiveIntensity: 0.35 })); m.scale.set(1, 1.35, 1); m.position.set(C.APSE.x, C.H.nave + 6, C.APSE.z); int.add(m); oculi.push([C.APSE.x, C.H.nave + 6 + C.APSE.r * 1.33, C.APSE.z, 2.6]); }
   const IG = batcher(int, new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), { cast: false, receive: false });
-  for (const [x, y, z, r] of oculi) IG.raw('cyl', [x, y, z], [r * 2, 0.1, r * 2], null, '#fff6d8');
+  {
+    const tex = canvasTex(128, 128, (g, w, h) => { const rg = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); rg.addColorStop(0, '#ffffff'); rg.addColorStop(0.22, '#fff6dcee'); rg.addColorStop(0.5, '#ffeec066'); rg.addColorStop(1, '#ffe8b000'); g.fillStyle = rg; g.fillRect(0, 0, w, h); });
+    const om = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, color: '#d8d2c0', fog: false }), oculi.length);
+    oculi.forEach(([x, y, z, r], i) => { _m.compose(_p.set(x, y - 0.25, z), _q.setFromEuler(_e.set(Math.PI / 2, 0, 0)), _s.set(r * 5.2, r * 5.2, 1)); om.setMatrixAt(i, _m); }); om.frustumCulled = false; om.renderOrder = 4; int.add(om);
+  }
 
-  // 柱林：柱身 → 节（挂灯）→ 一级分枝 → 二级细枝
-  const trunkMat = glassLit(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.62, map: canvasTex(64, 64, (g, w, h) => { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#00000016' : '#ffffff00'; g.fillRect(i * 8, 0, 8, h); } }, { repeat: [2, 1] }) }), 0.95);
+  // 柱林：有棱的柱身一路扭上去（两个方向相反的螺旋叠在一起，越高棱越多越圆）→ 带灯的节 → 一级分枝 → 二级细枝
+  const trunkMat = glassLit(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 }), 0.95);
   const K = batcher(int, trunkMat, { cast: false, receive: false });
-  const COLC = { crossing: '#a24a3c', nave: '#6f7682', aisle: '#bdb7aa', apse: '#b9b2a3' };
+  // 四种石头：斑岩红（十字交叉）、玄武岩深灰（中廊）、花岗岩灰（侧廊）、砂岩米（后殿），棱数 12 / 10 / 8 / 6
+  const COLK = { crossing: { c: '#9b4a3d', n: 12 }, nave: { c: '#5f6670', n: 10 }, aisle: { c: '#a8a49b', n: 8 }, apse: { c: '#cbc0a8', n: 6 } };
+  function trunkGeo(r, knot, n) {
+    const rings = 40, seg = coarse ? 40 : 60, pos = [], idx = [];
+    for (let j = 0; j <= rings; j++) {
+      const y = knot * j / rings, t = j / rings, flare = y < 1.8 ? 1 + 0.55 * Math.pow(1 - y / 1.8, 2) : 1, rad = r * (1.16 - 0.2 * t) * flare, amp = 0.2 * Math.pow(1 - t, 1.15) + 0.012, tw = t * Math.PI / n * 2.2;
+      for (let i = 0; i <= seg; i++) { const th = i / seg * Math.PI * 2, p = 1 + amp * (Math.max(Math.cos(n * (th - tw)), Math.cos(n * (th + tw))) - 0.45); pos.push(Math.cos(th) * rad * p, y, Math.sin(th) * rad * p); }
+    }
+    for (let j = 0; j < rings; j++) for (let i = 0; i < seg; i++) { const a0 = j * (seg + 1) + i, b0 = a0 + seg + 1; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+  }
+  for (const kind of Object.keys(COLK)) {
+    const cols = C.COLUMNS.filter(c => c.kind === kind); if (!cols.length) continue;
+    const mesh = new THREE.InstancedMesh(trunkGeo(cols[0].r, cols[0].knot, COLK[kind].n), trunkMat, cols.length);
+    cols.forEach((c, i) => { _m.compose(_p.set(c.x, C.groundY(c.x, c.z), c.z), _q.identity(), _s.set(1, 1, 1)); mesh.setMatrixAt(i, _m); mesh.setColorAt(i, _c.set(COLK[kind].c)); }); mesh.frustumCulled = false; int.add(mesh);
+  }
   C.COLUMNS.forEach((c, ci) => {
-    const col = c.kind === 'nave' && ci % 5 === 2 ? '#9a5546' : COLC[c.kind], pale = '#e6dfd0';
-    K.raw('taper', [c.x, 0.9, c.z], [c.r * 3.2, 1.8, c.r * 3.2], null, col);                                    // 柱础
-    K.rod([c.x, 1.6, c.z], [c.x, c.knot, c.z], c.r, col, 'taper');
-    K.ball(c.x, c.knot + c.r * 0.5, c.z, c.r * 1.75, pale, 0.85);                                               // 节
-    const lamps = c.kind === 'aisle' ? 4 : 6; for (let k = 0; k < lamps; k++) { const a = k * Math.PI * 2 / lamps + ci; IG.ball(c.x + Math.cos(a) * c.r * 1.7, c.knot + c.r * 0.5, c.z + Math.sin(a) * c.r * 1.7, c.r * 0.26, '#ffe9b0', 1.5); }
-    const nb = c.kind === 'aisle' ? 4 : 5, reach = c.kind === 'crossing' ? 5.5 : c.kind === 'aisle' ? 3 : 4.2, mid = c.knot + (c.top - c.knot) * 0.58;
+    const col = COLK[c.kind].c, pale = '#e9e3d6', mid2 = _c.set(col).lerp(new THREE.Color(pale), 0.55).getStyle();
+    K.raw('cyl', [c.x, C.groundY(c.x, c.z) + 0.2, c.z], [c.r * 3.6, 0.4, c.r * 3.6], null, col);                 // 柱础的垫石
+    // 节：一个椭球，周围嵌一圈椭圆的灯
+    K.ball(c.x, c.knot + c.r * 0.9, c.z, c.r * 1.6, pale, 1.3); K.raw('taper', [c.x, c.knot - c.r * 0.3, c.z], [c.r * 2.9, c.r * 1.2, c.r * 2.9], [Math.PI, 0, 0], mid2);
+    const lamps = c.kind === 'aisle' ? 4 : 6; for (let k = 0; k < lamps; k++) { const a = k * Math.PI * 2 / lamps + ci; IG.ball(c.x + Math.cos(a) * c.r * 1.42, c.knot + c.r * 0.9, c.z + Math.sin(a) * c.r * 1.42, c.r * 0.36, '#fff4d2', 1.75); }
+    // 节上面一小段过渡柱，再分枝
+    K.rod([c.x, c.knot + c.r * 1.8, c.z], [c.x, c.knot + c.r * 4.2, c.z], c.r * 0.78, mid2, 'taper');
+    const nb = c.kind === 'aisle' ? 4 : 5, reach = c.kind === 'crossing' ? 5.5 : c.kind === 'aisle' ? 3 : 4.2, y0 = c.knot + c.r * 4, mid = y0 + (c.top - y0) * 0.55;
     for (let k = 0; k < nb; k++) {
       const a = k * Math.PI * 2 / nb + ci * 0.7, bx = c.x + Math.cos(a) * reach * 0.5, bz = c.z + Math.sin(a) * reach * 0.5;
-      K.rod([c.x, c.knot + c.r, c.z], [bx, mid, bz], c.r * 0.36, pale, 'taper');
-      K.ball(bx, mid, bz, c.r * 0.5, pale);
-      for (let q = 0; q < 4; q++) { const a2 = a + (q - 1.5) * 0.55, rr = reach * (0.75 + (q % 2) * 0.3); K.rod([bx, mid, bz], [c.x + Math.cos(a2) * rr, c.top + 1.2, c.z + Math.sin(a2) * rr], c.r * 0.15, '#efe9dc', 'taper'); }
+      K.rod([c.x, y0, c.z], [bx, mid, bz], c.r * 0.42, pale, 'taper');
+      K.ball(bx, mid, bz, c.r * 0.56, pale, 1.2);
+      for (let q = 0; q < 4; q++) { const a2 = a + (q - 1.5) * 0.55, rr = reach * (0.75 + (q % 2) * 0.3); K.rod([bx, mid, bz], [c.x + Math.cos(a2) * rr, c.top + 1.2, c.z + Math.sin(a2) * rr], c.r * 0.17, '#efe9dc', 'taper'); }
     }
   });
   K.build();
@@ -481,22 +393,28 @@ export function buildWorld(scene, { coarse = false } = {}) {
   }
   const coolMats = [...glassCool, roseCool], warmMats = [...glassWarm, roseWarm], mixedMats = [...glassMixed, roseMixed];
 
-  // 光柱：从每扇下层侧窗斜着打进来的两片交叉薄片
-  const rayTex = rayTexture(), L = new THREE.Vector3(-1, -0.62, -0.16).normalize();
-  const rayMat = col => new THREE.MeshBasicMaterial({ map: rayTex, color: col, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
-  const rays = { cool: rayMat('#6fd0ff'), warm: rayMat('#ffb238') };
-  function rayMesh(side) {
-    const s = side === 'cool' ? 1 : -1, dir = new THREE.Vector3(L.x * s, L.y, L.z), verts = [], uvs = [], idx = [];
-    const quad = (a, b, len) => { const n = verts.length / 3; for (const [p, v] of [[a, 0], [b, 0]]) { verts.push(p.x, p.y, p.z); uvs.push(p === a ? 0 : 1, 1 - v); } for (const p of [a, b]) { const e = p.clone().addScaledVector(dir, len); verts.push(e.x, e.y, e.z); uvs.push(p === a ? 0 : 1, 0); } idx.push(n, n + 1, n + 2, n + 1, n + 3, n + 2); };
-    for (let k = 0; k < C.BAYS; k++) for (const tier of C.WINDOW_TIERS) for (const o of [-1, 1]) {
-      const z = C.BAY_Z0 + C.BAY * (k + 0.5) + o * (tier.y > 18 ? 1.3 : 1.55), x = s * (C.NAVE_HALF - 0.2), y0 = tier.y, y1 = tier.y + tier.h + tier.w, len = Math.min(46, (y1 + 1) / -L.y);
-      quad(new THREE.Vector3(x, y0, z), new THREE.Vector3(x, y1, z), len);
-      quad(new THREE.Vector3(x, (y0 + y1) / 2, z - tier.w), new THREE.Vector3(x, (y0 + y1) / 2, z + tier.w), len);
-    }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(idx);
-    const m = new THREE.Mesh(g, rays[side]); m.renderOrder = 5; m.frustumCulled = false; int.add(m); return m;
-  }
-  rayMesh('cool'); rayMesh('warm');
+  // 光柱：体积光。沿每条视线取若干点，每个点都用和地面色斑同一套算法问一句「这里被哪块玻璃照到了」，累加起来
+  const volMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false,
+    uniforms: { uGI: GLASS.uGI, uGL: GLASS.uGL, uK: { value: 1 }, uSteps: { value: coarse ? 12 : 26 } },
+    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `uniform vec3 uGI; uniform vec2 uGL; uniform float uK, uSteps; varying vec3 vW;
+      float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float lancet(vec2 p, float w, float h){ if (p.y < 0.) return 0.; float ax = abs(p.x) / w; if (ax > 1.) return 0.; return step(p.y, h + w * 1.8 * sqrt(max(1. - ax * ax, 0.))); }
+      ${GLASS_GLSL.slice(GLASS_GLSL.indexOf('// 沿光的方向倒推回墙面'), GLASS_GLSL.indexOf('vec3 sideGlass('))}
+      float room(vec3 p){ return step(abs(p.x), p.z > 3. ? 22.4 : 29.9) * step(p.y, p.z > 3. && abs(p.x) > 15. ? 30. : 46.); }
+      void main(){
+        vec3 ro = cameraPosition, rd = vW - ro; float far = min(length(rd), 80.); rd = normalize(rd);
+        float n = uSteps, dt = far / n, j = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
+        vec3 acc = vec3(0.);
+        for (float i = 0.; i < 40.; i++) { if (i >= n) break; vec3 p = ro + rd * (i + j) * dt; if (p.y < 0. || room(p) < .5) continue;
+          vec4 a = glassHit(p, 1., vec3(.10, .32, 1.), vec3(.12, .85, .45), vec3(.75, 1., .35)), b = glassHit(p, -1., vec3(1., .16, .06), vec3(1., .55, .05), vec3(1., .9, .25));
+          acc += (a.rgb * uGI.x * exp(-a.a * .03) + b.rgb * uGI.y * exp(-b.a * .03)) * exp(-(i + j) * dt * .018); }
+        gl_FragColor = vec4(acc * dt * .015 * uK, 1.);
+      }`,
+  });
+  const vol = new THREE.Mesh(new THREE.BoxGeometry(61, 62, 92), volMat); vol.position.set(0, 31, 0); vol.renderOrder = 6; vol.frustumCulled = false; int.add(vol);
+  const rays = { vol: volMat, mesh: vol };
 
   // 长椅
   for (const p of C.PEWS) { I.box(p.x, 0.38, p.z, p.hx * 2, 0.08, 0.5, '#5a3b26'); I.box(p.x, 0, p.z + 0.26, p.hx * 2, 0.95, 0.07, '#4a2f1e'); for (const e of [-1, 1]) I.box(p.x + e * p.hx, 0, p.z, 0.08, 0.95, 0.62, '#3f2819'); }

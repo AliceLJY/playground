@@ -24,3 +24,7 @@ Spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese).
 ## Who this is for, and AI material
 
 For anyone who wants to wander around the Sagrada Família in a browser without waiting for a model to download. All code, geometry and textures were produced with an AI assistant (Claude); there are no external models, images or audio. Building facts come from public sources and the detailing is indicative. The demo it is measured against comes from a video by the channel AI超元域; the interface shell follows the author's earlier FORMA guide.
+
+## Round 2 (2026-11-11)
+
+The three façades are rebuilt from grouped parts and moved in front of the bell towers; towers gain ribs and louvre rings; columns have a twisting ribbed section; light shafts are now ray-marched volumetric light; there are three quality levels (button at the right of the footer, steps down automatically when frames drop) and collision for the Glory porch columns. Comparison script: `tools/compare2.cjs`.
