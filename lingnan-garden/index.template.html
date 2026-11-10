@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>岭南园林一角 · A Corner of a Lingnan Garden</title><link rel="icon" href="data:,">
+<style>
+:root{--ink:#2b2a26;--paper:#f6f1e4;--glass:#f6f1e4de;--line:#2b2a2633;--red:#a5321f;--green:#2f6f4c;--serif:"Songti SC","STSong","Noto Serif CJK SC",Georgia,serif;--sans:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#cfe4f2;color:var(--ink);font-family:var(--sans);user-select:none;-webkit-user-select:none}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:fixed;pointer-events:none;z-index:3}.hud>*{pointer-events:auto}
+#title{left:14px;top:12px;font:600 15px/1.3 var(--serif);letter-spacing:.12em;text-shadow:0 0 8px #f6f1e4,0 0 3px #f6f1e4}
+#title small{display:block;font:11px var(--sans);letter-spacing:.04em;opacity:.8;margin-top:2px}
+#stats{right:12px;top:12px;font:11px/1.5 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:5px 9px;text-align:right;min-width:118px}
+#where{left:50%;top:14px;transform:translateX(-50%);font:13px var(--serif);background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:4px 12px;white-space:nowrap}
+#bar{left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(#f6f1e400,#f6f1e4cc 55%)}
+.row{display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}.row::-webkit-scrollbar{display:none}
+button{font:13px var(--sans);color:var(--ink);background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:0 13px;height:38px;min-width:44px;white-space:nowrap;cursor:pointer;flex:none}
+button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.sep{flex:none;width:1px;height:20px;background:var(--line)}
+#joy{position:fixed;width:110px;height:110px;border-radius:50%;border:2px solid #2b2a2655;background:#f6f1e444;display:none;z-index:4;pointer-events:none}
+#joy b{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:#2b2a26aa}
+#hint{left:50%;bottom:66px;transform:translateX(-50%);font-size:12px;background:var(--glass);border-radius:12px;padding:5px 12px;border:1px solid var(--line);opacity:0;transition:opacity .4s;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#hint.show{opacity:1}
+#ref{position:fixed;z-index:5;right:12px;top:58px;width:min(34vw,420px);border:3px solid var(--paper);border-radius:6px;box-shadow:0 6px 24px #0005;display:none;cursor:zoom-in;background:var(--paper)}
+#ref.big{width:min(94vw,150vh);right:50%;transform:translateX(50%);top:8vh;cursor:zoom-out}
+#ref img{display:block;width:100%;border-radius:3px}#ref span{display:block;font-size:11px;padding:3px 6px;opacity:.8}
+#info{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:80vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;font-size:13px;line-height:1.8;display:none;box-shadow:0 10px 40px #0004;user-select:text;-webkit-user-select:text}
+#info h2{font:600 17px var(--serif);margin:0 0 6px}#info h3{font:600 13px var(--sans);margin:12px 0 2px;color:var(--red)}#info p{margin:4px 0}#info button{margin-top:12px}
+#intro{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:radial-gradient(#f6f1e4ee,#e6ecdcf5);text-align:center;padding:20px}
+#intro h1{font:600 clamp(28px,7vw,52px)/1.2 var(--serif);letter-spacing:.2em;margin:0 0 8px;text-indent:.2em}
+#intro p{font-size:13px;line-height:1.9;margin:6px auto;max-width:31em;opacity:.88}
+#intro .go{display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap}#intro button{height:46px;padding:0 22px;font-size:15px}
+#intro .seal{display:inline-block;font:12px var(--serif);color:var(--red);border:1px solid var(--red);padding:2px 8px;letter-spacing:.2em;margin-bottom:14px}
+#intro img{width:min(360px,70vw);border-radius:6px;border:3px solid #fff;box-shadow:0 4px 18px #0003;margin:8px 0 2px}
+@media (max-width:520px){#title{font-size:13px}#title small{display:none}#stats{font-size:10px;min-width:0;padding:4px 7px}#where{top:44px}#ref{width:52vw;top:74px}}
+</style></head><body>
+<canvas id="scene"></canvas>
+<div class="hud" id="title">岭南园林一角<small>照一张图搭出来的可走场景 · 纯代码</small></div>
+<div class="hud" id="stats">…</div>
+<div class="hud" id="where"></div>
+<div class="hud" id="hint"></div>
+<div id="joy"><b></b></div>
+<div id="ref"><img alt="起始图（AI 生成）" src="__REF_IMAGE__"><span>起始图 · AI 生成 · 点一下放大</span></div>
+<div class="hud" id="bar">
+  <div class="row">
+    <button id="bCard">明信片视角</button><button id="bWalk">走进去</button><button id="bTour">带我逛一圈</button><button id="bTop">俯瞰</button><span class="sep"></span>
+    <button id="bRef">对照原图</button><button id="mute">声音 开</button><button id="infoBtn">说明</button>
+  </div>
+</div>
+<div id="info">
+  <h2>这是怎么来的</h2>
+  <p>先让 AI 画了一张岭南园林的场景图（就是「对照原图」里那张，不是照片，也不是哪座真实的园子），再把图里看得见的东西一样样列出来，用代码搭成能走进去的三维场景。没有用模型文件和贴图素材，纹理是程序现画的；那张图只用来对照，没有贴进场景里。</p>
+  <h3>照着图搭的</h3>
+  <p>临水的水榭（灰瓦歇山顶、绿脊、红柱、满洲窗、美人靠、两盏红灯笼）、镬耳墙与月洞门、石板路、三盆盆景、石桌石鼓与茶具、大陶缸、芭蕉、荷塘里的荷叶荷花和锦鲤、曲廊、石拱桥、假山上的六角亭、大榕树、木棉、竹丛、远处的塔和山。</p>
+  <h3>图里看不到、自己补的</h3>
+  <p>水榭屋里的样子、月洞门后面的竹院、屋后的北岸、东岸的竹径、南面的园门，这些在图里被挡住或在画框外，是按岭南园林的常见做法补的，方便走一整圈。</p>
+  <h3>声音</h3>
+  <p>水声、鸟叫和风铃是浏览器现场合成的。</p>
+  <p style="opacity:.7">© 我的AI小木屋</p>
+  <button id="infoClose">关闭</button>
+</div>
+<div id="intro"><div>
+  <span class="seal">一张图 · 走进去</span>
+  <h1>岭南园林一角</h1>
+  <p>下面这张图是 AI 画的。这个页面把图里的水榭、荷塘、石桥、假山一样样用代码搭了出来，可以走进去看。</p>
+  <p>电脑：WASD 走动，拖动转头。手机：左下摇杆走动，其余地方拖动转头。</p>
+  <div class="go"><button id="goCard" class="on">先看同一个机位</button><button id="goWalk">走进去</button><button id="goTour">带我逛一圈</button></div>
+</div></div>
+<!--BUNDLE-->
+</body></html>
