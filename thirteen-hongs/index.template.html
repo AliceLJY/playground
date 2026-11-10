@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>十三行江岸 · Thirteen Hongs Waterfront</title><link rel="icon" href="data:,">
+<style>
+:root{--ink:#2c2620;--paper:#f3ecd9;--glass:#f3ecd9d9;--line:#2c262033;--red:#a8432f;--serif:"Songti SC","STSong","Noto Serif CJK SC",Georgia,serif;--sans:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#d9d2bd;color:var(--ink);font-family:var(--sans);user-select:none;-webkit-user-select:none}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:fixed;pointer-events:none;z-index:3}.hud>*{pointer-events:auto}
+#title{left:14px;top:12px;font:600 15px/1.3 var(--serif);letter-spacing:.12em;text-shadow:0 0 8px #f3ecd9}
+#title small{display:block;font:11px var(--sans);letter-spacing:.04em;opacity:.75;margin-top:2px}
+#stats{right:12px;top:12px;font:11px/1.5 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:5px 9px;text-align:right;min-width:128px}
+#where{left:50%;top:14px;transform:translateX(-50%);font:13px var(--serif);background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:4px 12px;display:none;white-space:nowrap}
+#bar{left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:7px;background:linear-gradient(#f3ecd900,#f3ecd9cc 45%)}
+.row{display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}.row::-webkit-scrollbar{display:none}
+button{font:13px var(--sans);color:var(--ink);background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:0 13px;height:38px;min-width:44px;white-space:nowrap;cursor:pointer;flex:none}
+button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.sep{flex:none;width:1px;height:20px;background:var(--line)}
+#event{flex:1;min-width:150px;padding:0 10px;text-align:left;position:relative;overflow:hidden;border-color:#a8432f77}
+#event i{position:absolute;left:0;top:0;bottom:0;background:#a8432f2e;width:0}#event span{position:relative}
+#labels{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
+#labels div{position:absolute;transform:translate(-50%,-100%);font:12px var(--serif);background:#f3ecd9cc;border:1px solid var(--line);border-radius:3px;padding:1px 5px;white-space:nowrap}
+#labels div.lane{background:#2c2620bb;color:var(--paper)}
+#joy{position:fixed;width:110px;height:110px;border-radius:50%;border:2px solid #2c262055;background:#f3ecd944;display:none;z-index:4;pointer-events:none}
+#joy b{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:#2c2620aa}
+#hint{left:50%;bottom:118px;transform:translateX(-50%);font-size:12px;background:var(--glass);border-radius:12px;padding:5px 12px;border:1px solid var(--line);opacity:0;transition:opacity .4s;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#hint.show{opacity:1}
+#info{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:80vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;font-size:13px;line-height:1.8;display:none;box-shadow:0 10px 40px #0004;user-select:text;-webkit-user-select:text}
+#info h2{font:600 17px var(--serif);margin:0 0 6px}#info h3{font:600 13px var(--sans);margin:12px 0 2px;color:var(--red)}#info p{margin:4px 0}#info button{margin-top:12px}
+#intro{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:radial-gradient(#f3ecd9e8,#e4d9bdf2);text-align:center;padding:20px}
+#intro h1{font:600 clamp(30px,7vw,54px)/1.2 var(--serif);letter-spacing:.2em;margin:0 0 8px;text-indent:.2em}
+#intro p{font-size:13px;line-height:1.9;margin:6px auto;max-width:30em;opacity:.85}
+#intro .go{display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap}#intro button{height:46px;padding:0 24px;font-size:15px}
+#intro .seal{display:inline-block;font:12px var(--serif);color:var(--red);border:1px solid var(--red);padding:2px 8px;letter-spacing:.2em;margin-bottom:14px}
+@media (max-width:520px){#title{font-size:13px}#title small{display:none}#stats{font-size:10px;min-width:0;padding:4px 7px}#labels div{font-size:10px;padding:0 3px}#where{top:44px}}
+</style></head><body>
+<canvas id="scene"></canvas>
+<div id="labels"></div>
+<div class="hud" id="title">十三行江岸<small>约 1805 年前后 · 广州商馆区 · 示意复原</small></div>
+<div class="hud" id="stats">…</div>
+<div class="hud" id="where"></div>
+<div class="hud" id="hint"></div>
+<div id="joy"><b></b></div>
+<div class="hud" id="bar">
+  <div class="row" id="views">
+    <button data-mode="top">俯瞰</button><button data-mode="walk">步行</button><span class="sep"></span>
+    <button data-follow="tea">跟 茶艇</button><button data-follow="porter">跟 挑夫</button><button data-follow="merchant">跟 行商</button><button data-follow="hawker">跟 小贩</button><button data-follow="sampan">跟 疍家艇</button><button data-follow="junk">跟 帆船</button>
+  </div>
+  <div class="row">
+    <button id="event"><i></i><span>名场面</span></button>
+    <button id="speed">×1</button><button id="mute">声音 开</button><button id="infoBtn">依据</button>
+  </div>
+</div>
+<div id="info">
+  <h2>哪些有依据，哪些是示意</h2>
+  <h3>有来源的</h3>
+  <p>十三座商馆自西向东的排列与中文馆名、行名；靖远街（Old China Street）与新豆栏（Hog Lane）夹在馆与馆之间；商馆两三层、砖墙瓦顶、西式立面、底层作货仓；馆前有围起来的空地；约 1805 年一幅外销玻璃画上挂着丹麦、西班牙、美国、瑞典、英国、荷兰六面旗；茶叶装箱过秤后由驳艇运往黄埔上大船。法兰西馆的檐廊、新英国馆的门廊两种外廊样式见建筑史论文。</p>
+  <h3>示意的</h3>
+  <p>每座馆的颜色、开间、高矮，空地的尺寸，花园、税口小屋、摊档、货场的位置，人物的衣着配色，江面宽度，对岸与城里的屋顶，全是按外销画的大致印象搭的，不是复原。远处下游的三艘洋船只是桅影示意：当年外洋大船泊在黄埔，并不开到馆前。</p>
+  <h3>声音</h3>
+  <p>水声、人声底噪、橹声、锣与钟都是浏览器现场合成；叫卖是照粤语声调走向做的拟声，听不出字句。</p>
+  <p style="opacity:.7">全部形体与声音由代码生成，没有模型、图片和音频文件。© 我的AI小木屋</p>
+  <button id="infoClose">关闭</button>
+</div>
+<div id="intro"><div>
+  <span class="seal">纯代码 · 无素材</span>
+  <h1>十三行江岸</h1>
+  <p>约 1805 年前后，珠江北岸的广州商馆区。一排西式立面的商馆，馆前空地、旗杆、码头石阶，江上是疍家艇、西瓜扁和帆船。</p>
+  <p>电脑：拖动转头，WASD 走动，滚轮缩放。手机：左下摇杆走动，其余地方拖动转头，双指缩放。</p>
+  <div class="go"><button id="goTop" class="on">先从空中看</button><button id="goWalk">走进去</button></div>
+</div></div>
+<!--BUNDLE-->
+</body></html>

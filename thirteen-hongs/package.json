@@ -1,0 +1,14 @@
+{
+  "name": "thirteen-hongs",
+  "private": true,
+  "type": "module",
+  "description": "十三行江岸：纯代码生成、可第一人称走进去的清代广州商馆区江岸",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
