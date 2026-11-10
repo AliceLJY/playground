@@ -6,7 +6,7 @@ const results = []; let fail = 0;
 const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail }); if (!ok) fail++; console.log(ok ? 'PASS' : 'FAIL', name, detail); };
 (async () => {
   const base = process.argv[2], out = process.argv[3]; fs.mkdirSync(out, { recursive: true });
-  const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-unsafe-webgpu', '--enable-features=WebGPU'] });
   const ready = p => p.waitForFunction(() => window.__hong && window.__hong.ready, null, { polling: 100, timeout: 30000 });
   const snap = p => p.evaluate(() => window.__PLAYTEST__.snapshot());
 
@@ -14,6 +14,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   let ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } }), page = await ctx.newPage(); const errs = [];
   page.on('pageerror', e => errs.push(String(e))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await page.goto(base + '?mute'); await ready(page);
+  console.log('后端', await page.evaluate(() => window.__hong.backend));
   check('桌面 GPU 不是软渲染', !/SwiftShader/i.test(await page.evaluate(() => window.__hong.gpu())), await page.evaluate(() => window.__hong.gpu()));
   await page.screenshot({ path: path.join(out, 'desk-intro.png') });
   await page.click('#goWalk'); await page.waitForTimeout(400);
@@ -39,6 +40,8 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   const d = await snap(page);
   check('朝江走停在岸边', d.walk.z <= 0 && d.walk.z > -1.5, 'z=' + d.walk.z);
   for (const k of ['tea', 'porter', 'merchant', 'hawker', 'sedan', 'official', 'monk', 'sampan', 'junk']) { await page.click(`[data-follow=${k}]`); await page.waitForTimeout(300); const s = await snap(page); check('点跟随 ' + k, s.mode === 'follow' && s.follow === k); }
+  await page.click('#tod'); await page.waitForTimeout(300); const td1 = (await snap(page)).tod; await page.click('#tod'); const td2 = (await snap(page)).tod; await page.waitForTimeout(2500); await page.screenshot({ path: path.join(out, 'desk-night.png') }); await page.click('#tod');
+  check('天色按钮依次切到黄昏、入夜、再回午后', td1 === 'dusk' && td2 === 'night' && (await snap(page)).tod === 'day', td1 + '>' + td2);
   await page.click('[data-mode=top]'); await page.waitForTimeout(1500);
   const top = await snap(page);
   check('桌面俯瞰帧率 ≥ 30', top.fps >= 30, top.fps + ' fps / ' + top.calls + ' 次绘制 / ' + top.tris + ' 三角面');
@@ -83,7 +86,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('手机边走边拖动转头', Math.abs(y1 - y0) > 0.3, (y1 - y0).toFixed(2) + ' rad');
   await page.waitForTimeout(500); const m2 = await snap(page), m3 = (await page.waitForTimeout(600), await snap(page));
   check('松手后停下（不粘键）', Math.hypot(m3.walk.x - m2.walk.x, m3.walk.z - m2.walk.z) < 0.05);
-  for (const sel of ['[data-mode=top]', '[data-mode=walk]', '#event', '#speed', '#mute', '#infoBtn']) { const r = await page.locator(sel).boundingBox(); check('手机按钮在可视区 ' + sel, r && r.y + r.height <= 664 && r.x >= 0 && r.x + r.width <= 390 && r.height >= 38, JSON.stringify(r)); }
+  for (const sel of ['[data-mode=top]', '[data-mode=walk]', '#tod', '#event', '#speed', '#mute', '#infoBtn']) { const r = await page.locator(sel).boundingBox(); check('手机按钮在可视区 ' + sel, r && r.y + r.height <= 664 && r.x >= 0 && r.x + r.width <= 390 && r.height >= 38, JSON.stringify(r)); }
   const txt = await page.evaluate(() => { const b = document.querySelector('#event'), s = b.querySelector('span'); s.textContent = '名场面｜挑夫落货 15/15'; return { over: s.getBoundingClientRect().right > b.getBoundingClientRect().right - 4, t: s.textContent }; });
   check('手机名场面条文字不被截断', !txt.over, txt.t);
   await page.tap('[data-mode=top]'); await page.waitForTimeout(1500); await page.screenshot({ path: path.join(out, 'phone-top.png') });

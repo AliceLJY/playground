@@ -43,7 +43,7 @@ button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 <div id="joy"><b></b></div>
 <div class="hud" id="bar">
   <div class="row" id="views">
-    <button data-mode="top">俯瞰</button><button data-mode="walk">步行</button><span class="sep"></span>
+    <button data-mode="top">俯瞰</button><button data-mode="walk">步行</button><button id="tod">午后</button><span class="sep"></span>
     <button data-follow="tea">跟 茶艇</button><button data-follow="porter">跟 挑夫</button><button data-follow="merchant">跟 行商</button><button data-follow="hawker">跟 小贩</button><button data-follow="sedan">跟 轿子</button><button data-follow="official">跟 官员</button><button data-follow="monk">跟 僧人</button><button data-follow="sampan">跟 疍家艇</button><button data-follow="junk">跟 帆船</button>
   </div>
   <div class="row">
@@ -60,6 +60,7 @@ button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   <h3>声音</h3>
   <p>水声、人声底噪、橹声、锣与钟都是浏览器现场合成；叫卖是照粤语声调走向做的拟声，听不出字句。</p>
   <p style="opacity:.7">全部形体与声音由代码生成，没有模型、图片和音频文件。© 我的AI小木屋</p>
+  <p><a id="alt" href="webgpu.html" style="color:var(--red)">换成 WebGPU 版看看</a></p>
   <button id="infoClose">关闭</button>
 </div>
 <div id="intro"><div>

@@ -1,5 +1,6 @@
 // 十三行江岸：把布局搭成 three 场景。全部形体由代码生成，贴图只有运行时画的画布（旗、招牌、地面噪点）。
 import * as THREE from 'three';
+import { detail } from './gfx.js';
 import { FACTORIES, LANES, FRONT, WATER_Y, GARDEN, YARDS, SCALE, SHED, STALLS, POLES, JETTIES, STEPS, BOUND, EVENT, DECK, rng } from './core.js';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _c = new THREE.Color(), _n = new THREE.Matrix3();
@@ -169,35 +170,12 @@ const SAIL_BUILD = {
 };
 const SAIL_BASE = { chop: 3.0, junk: 2.4 };
 
-// 程序纹理：按顶点上的材质号，在片元里给瓦、木板、篾席、砖石加纹路（不用任何贴图）
-function detail(mat) {
-  mat.onBeforeCompile = sh => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aMat; varying float vMat; varying vec3 vOp; varying vec3 vOn;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMat = aMat; vOp = position; vOn = normal;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying float vMat; varying vec3 vOp; varying vec3 vOn;
-      float dHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float dNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(dHash(i), dHash(i + vec2(1., 0.)), f.x), mix(dHash(i + vec2(0., 1.)), dHash(i + vec2(1., 1.)), f.x), f.y); }`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
-      { float m = floor(vMat + .5), k = 1.; vec3 p = vOp; vec3 an = abs(vOn);
-        float u = an.x > an.z ? p.z : p.x;                      // 沿墙面或屋脊的水平方向
-        float grain = dNoise(p.xz * 2.3 + p.y * 1.7);
-        if (m == 1.) { float v = an.x > an.z ? p.x : p.z; k = (.74 + .26 * smoothstep(.0, .3, abs(fract(u * 2.6) - .5))) * (.9 + .1 * step(.5, fract(v * 1.6 + p.y * 1.6))) * (.9 + .2 * grain); }
-        else if (m == 2.) { float a = an.y > .6 ? p.x : p.y; k = (.8 + .2 * smoothstep(0., .07, abs(fract(a * 2.4) - .5))) * (.9 + .16 * dNoise(vec2(a * 3., (p.z + p.x) * 14.))); }
-        else if (m == 3.) { float w1 = step(.5, fract((u + p.y) * 5.)), w2 = step(.5, fract((u - p.y) * 5.)); k = .8 + .12 * w1 + .12 * w2; }
-        else if (m == 4.) { float row = floor(p.y * 3.3); k = (.84 + .16 * smoothstep(0., .08, abs(fract(p.y * 3.3) - .5)) * smoothstep(0., .05, abs(fract(u * 1.5 + mod(row, 2.) * .5) - .5))) * (.92 + .14 * grain); }
-        else { k = .93 + .12 * grain; }
-        diffuseColor.rgb *= k; }`);
-  };
-  return mat;
-}
-
 export function buildWorld(scene, sim, opts = {}) {
   const R = rng(1805), rr = (a, b) => a + R() * (b - a), pk = a => a[Math.floor(R() * a.length)];
   const matWorld = detail(new THREE.MeshLambertMaterial({ vertexColors: true }));
   const matBoat = detail(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
   const B = new Builder(11), P = new Builder(12), FAR = new Builder(13);   // 建筑 / 小件 / 远景
-  const signs = [];
+  const signs = [], glow = [];   // glow：入夜后亮起来的窗与灯笼 [x, y, z, 宽, 高, 是否灯笼]
   const TRIM = '#f6f1e4', DARK = '#2e2620', STONE = '#a39a86', WOOD = '#8a6f4d';
   const TILE = ['#6e6b63', '#7a7468', '#67645e', '#85705f'];
 
@@ -261,7 +239,7 @@ export function buildWorld(scene, sim, opts = {}) {
       B.mat = 2; B.box(cx, 0, z + 0.04, 3.6, 3.9, 0.1, '#4d241f'); B.box(cx, 0, z + 0.1, 0.08, 3.9, 0.06, '#2a1512');
       B.box(cx, 3.9, z + 0.1, 4.6, 0.3, 0.3, '#3a2a22');
       B.box(cx, 5.75, z + 1.0, 9, 0.16, 2.6, pk(TILE), 0, 0, 0.28); for (const s of [-1, 1]) B.box(cx + s * 4.1, 0, z + 2.0, 0.24, 5.4, 0.24, '#5a2a22');
-      for (const s of [-1, 1]) { P.ball(cx + s * 2.5, 4.3, z + 1.7, 0.33, 0.42, 0.33, '#d6452f'); for (const dx of [5.4, 8.1]) { B.box(cx + s * dx, 1.3, z + 0.04, 1.5, 1.7, 0.08, '#3a2a22'); for (let i = -1; i <= 1; i++) B.box(cx + s * dx + i * 0.4, 1.3, z + 0.09, 0.07, 1.7, 0.04, '#8a7152'); } }
+      for (const s of [-1, 1]) { P.ball(cx + s * 2.5, 4.3, z + 1.7, 0.33, 0.42, 0.33, '#d6452f'); glow.push([cx + s * 2.5, 4.3, z + 1.7, 0.36, 0.45, 1]); for (const dx of [5.4, 8.1]) { B.box(cx + s * dx, 1.3, z + 0.04, 1.5, 1.7, 0.08, '#3a2a22'); for (let i = -1; i <= 1; i++) B.box(cx + s * dx + i * 0.4, 1.3, z + 0.09, 0.07, 1.7, 0.04, '#8a7152'); } }
       B.box(cx, 5.6, z + 0.06, w - 1.4, 1.9, 0.1, '#5b4132'); for (let x = -9; x <= 9; x += 1.5) { B.box(cx + x, 5.6, z + 0.12, 0.12, 1.9, 0.06, '#8a7152'); B.box(cx + x + 0.75, 5.9, z + 0.12, 1.0, 1.1, 0.04, '#231b16'); }
       B.mat = 0; signs.push({ text: f.hong, x: cx, y: 4.75, z: z + 0.32, w: 3.6, h: 1.2 });
       rearRanges(f, w, H, z - 15);
@@ -280,7 +258,7 @@ export function buildWorld(scene, sim, opts = {}) {
           B.box(bx, 0, fz + 0.07, 2.0, 2.6, 0.05, DARK); B.half(bx, 2.6, fz + 0.096, 1.0, DARK);
           if (b !== 2) B.box(bx, 0, fz + 0.1, 2.0, 1.0, 0.05, '#5b4132');
         } else {
-          B.box(bx, y0 + 1.2, fz + 0.03, 1.3, 2.4, 0.06, DARK);
+          B.box(bx, y0 + 1.2, fz + 0.03, 1.3, 2.4, 0.06, DARK); if (R() < 0.6) glow.push([bx, y0 + 2.4, fz + 0.075, 1.2, 2.2, 0]);
           for (const s2 of [-1, 1]) B.box(bx + s2 * 0.98, y0 + 1.2, fz + 0.06, 0.6, 2.4, 0.08, shut, 0, 0.1);
           B.box(bx, y0 + 1.06, fz + 0.12, 2.6, 0.14, 0.26, TRIM); B.box(bx, y0 + 3.6, fz + 0.1, 1.7, 0.18, 0.2, TRIM);
         }
@@ -334,7 +312,8 @@ export function buildWorld(scene, sim, opts = {}) {
       for (let i = 0; i < 4; i++) P.box(x - s * 0.5, 0.85, z - 1.1 + i * 0.75, 0.5, rr(0.15, 0.4), 0.5, pk(['#e8dcc0', '#3f6a8c', '#b23a2e', '#d9b860', '#5d7f5a']));
       B.box(x - s * 0.04, 0, z, 0.08, 2.5, 2.6, '#3a2a22');
       if (wide) { signs.push({ text: CHARS[n % CHARS.length], x: x - s * 1.9, y: 3.6, z: z + 1.9, w: 0.7, h: 0.7, ry: Math.PI / 2, both: true }); P.box(x - s * 1.0, 3.95, z + 1.9, 2.0, 0.06, 0.06, '#3a2a22'); n++; }
-      else if (n++ % 2 === 0) P.ball(x - s * 0.9, 2.3, z + 1.8, 0.18, 0.24, 0.18, '#d6452f');
+      else if (n++ % 2 === 0) { P.ball(x - s * 0.9, 2.3, z + 1.8, 0.18, 0.24, 0.18, '#d6452f'); glow.push([x - s * 0.9, 2.3, z + 1.8, 0.2, 0.26, 1]); }
+      if (wide) { P.ball(x - s * 1.5, 3.1, z - 1.2, 0.2, 0.27, 0.2, '#d6452f'); glow.push([x - s * 1.5, 3.1, z - 1.2, 0.22, 0.29, 1]); glow.push([x - s * 0.02, 1.6, z, 0.04, 1.5, 0, 2.2]); }
     }
     for (const s of [-1, 1]) {   // 巷子两侧连续的铺屋墙与披檐
       const x = s < 0 ? l.x0 : l.x1, len = FRONT - 14 - l.zEnd, zc = (FRONT - 14 + l.zEnd) / 2;
@@ -476,9 +455,17 @@ export function buildWorld(scene, sim, opts = {}) {
     return { g, sail };
   });
 
+  // 入夜的灯：窗是暖色薄片，灯笼是小球，白天整体隐藏
+  const glowMat = new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, opacity: 0, depthWrite: false });
+  for (const s of STALLS) if (!['rest', 'sailors', 'easel', 'barber'].includes(s.goods)) glow.push([s.x + 0.9, 1.9, s.z - 0.2, 0.16, 0.2, 1]);
+  for (const b of sim.boats) if (b.type === 'flower') { const sn = Math.sin(b.h), cs = Math.cos(b.h); for (let lz = -6.5; lz <= 5.6; lz += 2.4) for (const lx of [-2.62, 2.62]) glow.push([b.x + lx * cs + lz * sn, WATER_Y + 3.3, b.z - lx * sn + lz * cs, 0.24, 0.3, 1]); }
+  const lit = [new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), glowMat, glow.filter(g => !g[5]).length), new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), glowMat, glow.filter(g => g[5]).length)], gi = [0, 0];
+  for (const [x, y, z, w, h, lantern, d] of glow) { const k = lantern ? 1 : 0; _m.compose(_p.set(x, y, z), _q.identity(), lantern ? _s.set(w * 0.8, h * 0.8, w * 0.8) : _s.set(d ? 0.06 : w, h, d || 0.03)); lit[k].setMatrixAt(gi[k], _m); lit[k].setColorAt(gi[k]++, _c.set(lantern ? '#ff8a4a' : '#ffe2a8')); }
+  for (const l of lit) { l.frustumCulled = false; l.visible = false; l.renderOrder = 2; scene.add(l); }
   let tris = B.tris + P.tris + FAR.tris;
   return {
     flags, boats, yardStack, boatStack, staticTris: tris,
+    setGlow(k) { for (const l of lit) l.visible = k > 0.02; glowMat.opacity = Math.min(1, k); },
     update(t) {
       for (const f of flags) {
         const pos = f.geometry.attributes.position, base = f.userData.base;

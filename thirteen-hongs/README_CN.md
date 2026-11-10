@@ -1,13 +1,14 @@
 # 十三行江岸
 
-约 1805 年前后，珠江北岸的广州商馆区：一排西式立面的商馆，馆前空地与旗杆，码头石阶和栈桥，江上是疍家艇、西瓜扁、花艇和帆船。可以从空中看，也可以第一人称走进去，或者跟着茶艇、挑夫、行商、小贩、疍家艇、帆船看。
+约 1805 年前后，珠江北岸的广州商馆区：一排西式立面的商馆，馆前空地与旗杆，码头石阶和栈桥，江上是疍家艇、西瓜扁、花艇和帆船。可以从空中看，也可以第一人称走进去，或者跟着茶艇、挑夫、行商、小贩、轿子、官员、僧人、疍家艇、帆船看。天色能在午后、黄昏、入夜之间切换，入夜后商馆和巷子亮灯。
 
-[在线看](https://aliceljy.github.io/playground/thirteen-hongs/)
+[在线看](https://aliceljy.github.io/playground/thirteen-hongs/) · [WebGPU 版](https://aliceljy.github.io/playground/thirteen-hongs/webgpu.html)（同一套场景，渲染换成 WebGPU；浏览器不支持时自动退回 WebGL2）
 
 ## 里面有什么
 
 - 十三座商馆按史料次序排开，中间夹着靖远街和新豆栏两条能走进去的巷子。
-- 一百七十多个人：挑夫、行商、通事、账房、洋商、水手、小贩、疍家女，各做各的事。二十九条船。
+- 近四百个人（手机上约六成）：挑夫、行商、通事、账房、洋商、水手、小贩、疍家女、官员、僧人，各做各的事；身体圆润、手肘膝盖会弯，男子留辫，有真实投影。二十九条船，一顶绕着空地走的二人小轿。
+- 屋瓦、砖墙、木板、篾席的纹路是着色器里算出来的，没有贴图。
 - 名场面「茶箱落艇」每四分多钟发生一遍：茶艇进港靠上栈桥，行商和大班在三脚秤旁验货，五个挑夫把十五箱茶一箱箱扛上艇，升帆，开往黄埔。底栏那条会显示进度，点它就跟过去看；嫌慢点「×1」调成四倍。
 - 水声、人声、橹声、锣、对岸的钟，以及按粤语声调走向做的拟声叫卖，都是浏览器现场合成的。
 
@@ -22,8 +23,8 @@
 ## 本地运行与检查
 
 ```
-npm ci && node tools/build.mjs          # 打成 dist/index.html 一个文件
-node --test tests/*.test.cjs            # 9 条逻辑测试
+npm ci && node tools/build.mjs          # 打成 dist/index.html（WebGL）和 dist/webgpu.html 两个单文件
+node --test tests/*.test.cjs            # 11 条逻辑测试
 node tools/serve.cjs . 8947             # 起本地服务
 NODE_PATH="$(npm root -g)" node tools/shots.cjs http://127.0.0.1:8947/dist/index.html shots/x
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8947/dist/index.html shots/y
