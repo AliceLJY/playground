@@ -301,7 +301,8 @@ export function buildWorld(scene, sim, opts = {}) {
   FACTORIES.forEach(facade);
 
   // ---- 两条巷：铺面、招牌、灯笼 ----
-  const CHARS = ['茶', '瓷', '絲', '漆', '扇', '畫', '銀', '蓆', '香', '藥'];
+  const CHARS = ['茶莊', '瓷器', '絲綢', '漆器', '扇莊', '畫室', '銀樓', '蓆店', '香舖', '藥材'];
+  const CHINA = ['#e8e4d8', '#3f6a8c', '#dfe6e4', '#5d7f8a', '#c9d6dc'];
   for (const l of LANES) {
     const wide = l.x1 - l.x0 > 6;
     let n = 0;
@@ -311,7 +312,14 @@ export function buildWorld(scene, sim, opts = {}) {
       P.box(x - s * 0.5, 0, z, 0.9, 0.85, 3.0, '#6b5540', 0, 0.1);
       for (let i = 0; i < 4; i++) P.box(x - s * 0.5, 0.85, z - 1.1 + i * 0.75, 0.5, rr(0.15, 0.4), 0.5, pk(['#e8dcc0', '#3f6a8c', '#b23a2e', '#d9b860', '#5d7f5a']));
       B.box(x - s * 0.04, 0, z, 0.08, 2.5, 2.6, '#3a2a22');
-      if (wide) { signs.push({ text: CHARS[n % CHARS.length], x: x - s * 1.9, y: 3.6, z: z + 1.9, w: 0.7, h: 0.7, ry: Math.PI / 2, both: true }); P.box(x - s * 1.0, 3.95, z + 1.9, 2.0, 0.06, 0.06, '#3a2a22'); n++; }
+      if (wide) {   // 每个铺面各摆各的：茶桌、瓷器架、绸缎、扇与画
+        const kind = n % 5, wx = x - s * 0.22;
+        if (kind === 0) { P.box(x - s * 2.3, 0, z - 2.6, 0.9, 0.72, 0.9, '#6b4a32'); for (const d of [-0.75, 0.75]) P.box(x - s * 2.3, 0, z - 2.6 + d, 0.34, 0.42, 0.34, '#7a5a40'); P.cyl(x - s * 2.3, 0.72, z - 2.6, 0.11, 0.16, '#7a4a32'); for (const d of [-0.25, 0.25]) P.cyl(x - s * 2.3 + d, 0.72, z - 2.45, 0.045, 0.05, '#e8e4d8'); }
+        if (kind === 1) { for (let sh = 0; sh < 3; sh++) { P.box(wx, 1.0 + sh * 0.55, z, 0.34, 0.04, 2.4, '#5b4132'); for (let j = 0; j < 6; j++) { const jz = z - 1 + j * 0.4, big = (j + sh) % 3 === 0; P.cyl(wx, 1.04 + sh * 0.55, jz, big ? 0.12 : 0.08, big ? 0.3 : 0.18, CHINA[(j + sh) % 5]); if (big) P.cyl(wx, 1.34 + sh * 0.55, jz, 0.06, 0.08, CHINA[(j + sh + 1) % 5]); } } }
+        if (kind === 2) for (let j = 0; j < 7; j++) P.cyl(x - s * 0.5, 0.92 + (j % 2) * 0.17, z - 1.2 + j * 0.4, 0.085, 0.8, pk(['#b23a2e', '#d9b860', '#3f6a8c', '#5d8a5a', '#e3dccb', '#7a2f5a']), 0, 0, Math.PI / 2);
+        if (kind === 3) for (let j = 0; j < 5; j++) { P.half(wx - s * 0.03, 1.5 + (j % 2) * 0.55, z - 1 + j * 0.5, 0.26, pk(['#e8dcc0', '#b23a2e', '#d9b860', '#5d8a7a']), s > 0 ? -Math.PI / 2 : Math.PI / 2); }
+        if (kind === 4) for (let j = 0; j < 3; j++) { P.box(wx - s * 0.03, 1.25, z - 0.9 + j * 0.9, 0.03, 0.9, 0.62, '#efe6cf'); P.box(wx - s * 0.05, 1.5, z - 0.9 + j * 0.9, 0.02, 0.3, 0.5, pk(['#a9c0cc', '#c9b98f', '#9fb59a'])); P.box(wx - s * 0.05, 1.33, z - 0.9 + j * 0.9, 0.02, 0.1, 0.5, '#8d6a4a'); }
+        signs.push({ text: CHARS[n % CHARS.length], x: x - s * 1.9, y: 3.35, z: z + 1.9, w: 0.5, h: 1.0, ry: Math.PI / 2, both: true }); P.box(x - s * 1.0, 3.95, z + 1.9, 2.0, 0.06, 0.06, '#3a2a22'); n++; }
       else if (n++ % 2 === 0) { P.ball(x - s * 0.9, 2.3, z + 1.8, 0.18, 0.24, 0.18, '#d6452f'); glow.push([x - s * 0.9, 2.3, z + 1.8, 0.2, 0.26, 1]); }
       if (wide) { P.ball(x - s * 1.5, 3.1, z - 1.2, 0.2, 0.27, 0.2, '#d6452f'); glow.push([x - s * 1.5, 3.1, z - 1.2, 0.22, 0.29, 1]); glow.push([x - s * 0.02, 1.6, z, 0.04, 1.5, 0, 2.2]); }
     }
@@ -439,6 +447,8 @@ export function buildWorld(scene, sim, opts = {}) {
     _m.makeTranslation(-0.72 + (i % 3) * 0.72, DECK.chop + 0.3 + Math.floor(i / 9) * 0.47, 3.7 + (Math.floor(i / 3) % 3) * 0.62); boatStack.setMatrixAt(i, _m);
   }
   yardStack.castShadow = true; scene.add(yardStack);
+  const flyChest = new THREE.Mesh(chestGeo, chestMat); flyChest.visible = false; flyChest.castShadow = !!opts.shadows; scene.add(flyChest);
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.07, 2.6), new THREE.MeshLambertMaterial({ color: WOOD })); plank.position.set(40, -0.3, 14.9); plank.rotation.x = 0.2; plank.castShadow = !!opts.shadows; scene.add(plank);
 
   // ---- 船 ----
   const geoCache = {}, sailCache = {};
@@ -480,6 +490,14 @@ export function buildWorld(scene, sim, opts = {}) {
         o.g.rotation.set(Math.sin(t * 0.9 + b.bob) * 0.02 * k, b.h, Math.sin(t * 1.3 + b.bob * 2) * 0.03 * k);
         if (o.sail && b.id === 0) { o.sail.visible = b.sail > 0.02; o.sail.scale.y = Math.max(0.02, b.sail); }
       });
+      const ev = sim.event, tb = sim.boats[0];
+      plank.visible = !tb.hidden && (ev.stage === 'inspect' || ev.stage === 'load' || ev.stage === 'hoist');
+      flyChest.visible = !!ev.fly;
+      if (ev.fly) {   // 箱子从挑夫手里到艇上那一格，走一条小弧线
+        const i = ev.fly.slot, k = Math.min(1, ev.fly.t / ev.fly.dur), lx = -0.72 + (i % 3) * 0.72, ly = DECK.chop + 0.3 + Math.floor(i / 9) * 0.47, lz = 3.7 + (Math.floor(i / 3) % 3) * 0.62;
+        const sn = Math.sin(tb.h), cs = Math.cos(tb.h), tx = tb.x + lx * cs + lz * sn, tz = tb.z - lx * sn + lz * cs;
+        flyChest.position.set(ev.fly.x + (tx - ev.fly.x) * k, 1.0 + (WATER_Y + ly - 1.0) * k + Math.sin(k * Math.PI) * 0.45, ev.fly.z + (tz - ev.fly.z) * k); flyChest.rotation.y = k * 1.2;
+      }
       yardStack.count = Math.max(0, EVENT.chests - sim.event.picked);
       boatStack.count = sim.event.loaded;
     },

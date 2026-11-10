@@ -1,7 +1,7 @@
 // 渲染后端（WebGPU 版）：three 的 WebGPURenderer，着色用 TSL 节点写，和 gfx.js 的 GLSL 版逐项对应。
 // 浏览器没有 WebGPU 时，WebGPURenderer 会自己退回 WebGL2 后端，HUD 上会写明。
 import * as THREE from 'three';
-import { Fn, float, vec2, vec3, floor, fract, abs, sin, dot, mix, smoothstep, step, select, mod, max, pow, clamp, normalize, reflect, length, attribute, positionLocal, normalLocal, positionWorld, cameraPosition, uniform } from 'three/tsl';
+import { Fn, float, vec2, vec3, floor, fract, abs, sin, dot, mix, smoothstep, step, select, mod, max, pow, clamp, normalize, reflect, length, attribute, positionLocal, normalLocal, positionWorld, cameraPosition, uniform, texture, screenUV } from 'three/tsl';
 
 export let backend = 'WebGPU';
 let adapterName = 'unknown';
@@ -55,14 +55,27 @@ export function makeWater(SUN, FOG, y) {
   const n = normalize(vec3(hx.mul(amp).negate(), 1, hz.mul(amp).negate())), v = normalize(toCam);
   const fr = pow(float(1).sub(max(dot(n, v), 0)), 3);
   const sp = max(dot(reflect(v.negate(), n), sun), 0);
-  let c = mix(deep, sky, clamp(fr.mul(0.85).add(0.16), 0, 1));
+  const rt = new THREE.RenderTarget(4, 4), use = uniform(0);
+  const refl = texture(rt.texture, clamp(vec2(screenUV.x, screenUV.y.oneMinus()).add(n.xz.mul(0.09)), 0.002, 0.998)).rgb;
+  let c = mix(deep, mix(sky, refl, use), clamp(fr.mul(0.85).add(0.16).add(use.mul(0.1)), 0, 1));
   c = c.add(vec3(1, 0.94, 0.78).mul(pow(sp, 160).mul(1.6).add(pow(sp, 24).mul(0.18))));
   c = c.add(hx.add(hz).mul(0.02).mul(amp));
   c = mix(c, fog, smoothstep(140, 1500, dist));
   const m = new THREE.MeshBasicNodeMaterial({ fog: false }); m.colorNode = c;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(9000, 5200), m);
   mesh.rotation.x = -Math.PI / 2; mesh.position.set(0, y, 900);
-  return { mesh, update(t) { uT.value = t; }, setColors(d2, s2, f2) { deep.value = d2; sky.value = s2; fog.value = f2; } };
+  const rc = new THREE.PerspectiveCamera(), _d = new THREE.Vector3(), _sz = new THREE.Vector2();
+  function renderMirror(renderer, scene, camera) {   // 不能叫 reflect：那是 TSL 里求反射向量的函数
+    renderer.getDrawingBufferSize(_sz); const w = Math.max(2, _sz.x >> 1), h = Math.max(2, _sz.y >> 1);
+    if (rt.width !== w || rt.height !== h) rt.setSize(w, h);
+    rc.fov = camera.fov; rc.aspect = camera.aspect; rc.near = camera.near; rc.far = camera.far; rc.updateProjectionMatrix();
+    camera.getWorldDirection(_d);
+    rc.position.set(camera.position.x, 2 * y - camera.position.y, camera.position.z);
+    rc.up.set(0, 1, 0); rc.lookAt(rc.position.x + _d.x, rc.position.y - _d.y, rc.position.z + _d.z);
+    mesh.visible = false; renderer.setRenderTarget(rt); renderer.render(scene, rc); renderer.setRenderTarget(null); mesh.visible = true;
+    use.value = 1;
+  }
+  return { mesh, reflect: renderMirror, noReflect() { use.value = 0; }, update(t) { uT.value = t; }, setColors(d2, s2, f2) { deep.value = d2; sky.value = s2; fog.value = f2; } };
 }
 
 // 程序纹理：与 gfx.js 的 detail() 同一套公式

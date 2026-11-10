@@ -6,12 +6,21 @@ export function createRenderer(canvas, coarse) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.info.autoReset = false;            // 一帧里有阴影、倒影、主画面三遍，合起来计数
   renderer.shadowMap.autoUpdate = !coarse;   // 桌面：人和船的影子逐帧更新；手机：只烘一次建筑的影子，人用圆片影
   return renderer;
 }
 export const ready = () => Promise.resolve();
 export function gpuName(renderer) { const gl = renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); return x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : 'unknown'; }
-export const frameInfo = renderer => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles });
+export const frameInfo = renderer => { const r = { calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; renderer.info.reset(); return r; };
+
+// 把相机按水面镜像过去：位置和视线方向的 y 都翻转
+export function mirror(rc, camera, y, d) {
+  rc.fov = camera.fov; rc.aspect = camera.aspect; rc.near = camera.near; rc.far = camera.far; rc.updateProjectionMatrix();
+  camera.getWorldDirection(d);
+  rc.position.set(camera.position.x, 2 * y - camera.position.y, camera.position.z);
+  rc.up.set(0, 1, 0); rc.lookAt(rc.position.x + d.x, rc.position.y - d.y, rc.position.z + d.z);
+}
 
 export function makeSky(SUN, FOG) {
   const sky = new THREE.Mesh(new THREE.SphereGeometry(4200, 24, 12), new THREE.ShaderMaterial({
@@ -38,9 +47,9 @@ export function makeSky(SUN, FOG) {
 
 export function makeWater(SUN, FOG, y) {
 const waterMat = new THREE.ShaderMaterial({
-  uniforms: { uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uFog: { value: FOG }, uDeep: { value: new THREE.Color('#77845f') }, uSky: { value: new THREE.Color('#cdd6d2') }, uNear: { value: 140 }, uFar: { value: 1500 } },
+  uniforms: { uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uFog: { value: FOG }, uDeep: { value: new THREE.Color('#77845f') }, uSky: { value: new THREE.Color('#cdd6d2') }, uNear: { value: 140 }, uFar: { value: 1500 }, uRefl: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uUse: { value: 0 } },
   vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-  fragmentShader: `varying vec3 vW; uniform float uT, uNear, uFar; uniform vec3 uCam, uSun, uFog, uDeep, uSky;
+  fragmentShader: `varying vec3 vW; uniform float uT, uNear, uFar, uUse; uniform vec3 uCam, uSun, uFog, uDeep, uSky; uniform sampler2D uRefl; uniform vec2 uRes;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
     float fbm(vec2 p){ return vn(p) * .5 + vn(p * 2.03 + 7.) * .25 + vn(p * 4.1 + 13.) * .125; }
@@ -50,7 +59,9 @@ float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); 
       float dist = length(uCam - vW), amp = .55 / (1. + dist * .005);
       vec3 n = normalize(vec3(-hx * amp, 1., -hz * amp)), v = normalize(uCam - vW);
       float fr = pow(1. - max(dot(n, v), 0.), 3.);
-      vec3 c = mix(uDeep, uSky, clamp(.16 + fr * .85, 0., 1.));
+      vec2 suv = gl_FragCoord.xy / uRes;
+      vec3 refl = texture2D(uRefl, clamp(vec2(suv.x, 1. - suv.y) + n.xz * .09, .002, .998)).rgb;   // 倒影：镜像相机拍的一遍，按水面法线扰动
+      vec3 c = mix(uDeep, mix(uSky, refl, uUse), clamp(.16 + uUse * .1 + fr * .85, 0., 1.));
       float sp = max(dot(reflect(-v, n), uSun), 0.); c += vec3(1., .94, .78) * (pow(sp, 160.) * 1.6 + pow(sp, 24.) * .18);
       c += (hx + hz) * .02 * amp;
       c = mix(c, uFog, smoothstep(uNear, uFar, dist));
@@ -60,7 +71,15 @@ float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); 
 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(9000, 5200), waterMat);
   mesh.rotation.x = -Math.PI / 2; mesh.position.set(0, y, 900);
-  return { mesh, update(t, cam) { waterMat.uniforms.uT.value = t; waterMat.uniforms.uCam.value.copy(cam); }, setColors(deep, sky, fog) { waterMat.uniforms.uDeep.value = deep; waterMat.uniforms.uSky.value = sky; waterMat.uniforms.uFog.value = fog; } };
+  let rt = null; const rc = new THREE.PerspectiveCamera(), _d = new THREE.Vector3(), _sz = new THREE.Vector2();
+  function reflect(renderer, scene, camera) {
+    renderer.getDrawingBufferSize(_sz); const w = Math.max(2, _sz.x >> 1), h = Math.max(2, _sz.y >> 1);
+    if (!rt) rt = new THREE.WebGLRenderTarget(w, h); else if (rt.width !== w || rt.height !== h) rt.setSize(w, h);
+    mirror(rc, camera, y, _d);
+    mesh.visible = false; renderer.setRenderTarget(rt); renderer.render(scene, rc); renderer.setRenderTarget(null); mesh.visible = true;
+    waterMat.uniforms.uRefl.value = rt.texture; waterMat.uniforms.uRes.value.copy(_sz); waterMat.uniforms.uUse.value = 1;
+  }
+  return { mesh, reflect, noReflect() { waterMat.uniforms.uUse.value = 0; }, update(t, cam) { waterMat.uniforms.uT.value = t; waterMat.uniforms.uCam.value.copy(cam); }, setColors(deep, sky, fog) { waterMat.uniforms.uDeep.value = deep; waterMat.uniforms.uSky.value = sky; waterMat.uniforms.uFog.value = fog; } };
 }
 
 // 程序纹理：按顶点上的材质号，在片元里给瓦、木板、篾席、砖石加纹路（不用任何贴图）

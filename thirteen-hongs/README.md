@@ -7,9 +7,10 @@ The foreign factories of Canton on the north bank of the Pearl River, around 180
 ## What is in it
 
 - Thirteen factories in their documented order, with Old China Street and Hog Lane between them, both walkable.
-- Nearly 400 people (about 60% of that on phones): porters, hong merchants, linguists, clerks, foreign traders, sailors, hawkers, boatwomen, officials and monks, each busy with something. Rounded bodies, bending elbows and knees, queues, real shadows. 29 boats and a two-bearer sedan chair circling the ground.
-- Roof tiles, brick, planks and matting are computed in the shader; there are no textures.
-- A set piece that plays every four minutes or so: a tea lighter comes alongside the jetty, the merchant and the supercargo check the weighing, five porters carry fifteen chests aboard one by one, the sail goes up and the boat leaves for Whampoa. The bar at the bottom shows its progress; tap it to follow, and tap the speed button for four times speed.
+- More than 630 people on desktop (about 200 on phones): porters, hong merchants, linguists, clerks, foreign traders, sailors, hawkers, boatwomen, officials and monks, each busy with something. Rounded bodies, bending elbows and knees, queues, real shadows. 29 boats and a two-bearer sedan chair circling the ground.
+- Roof tiles, brick, planks and matting are computed in the shader; there are no textures. On desktop the water mirrors the bank, boats and flags; if the frame rate stays under 28 the page drops reflections first, then per-frame shadows.
+- The shops along Old China Street each stock something different: a tea table, shelves of porcelain, bolts of silk, fans, export paintings, with trade names on the signboards.
+- A set piece that plays every four minutes or so: a tea lighter comes alongside the jetty, the merchant and the supercargo check the weighing, five porters carry fifteen chests to the jetty head and hand them down one by one to a deckhand who stacks them, the sail goes up and the boat leaves for Whampoa. The bar at the bottom shows its progress; tap it to follow, and tap the speed button for four times speed.
 - Water, crowd murmur, sculling, a gong, a temple bell and hawkers' calls shaped after Cantonese tone contours, all synthesised in the browser.
 
 ## Controls
@@ -24,7 +25,7 @@ See [facts.md](facts.md) (in Chinese). The order of the factories, the two lanes
 
 ```
 npm ci && node tools/build.mjs          # bundles dist/index.html (WebGL) and dist/webgpu.html
-node --test tests/*.test.cjs            # 11 logic tests
+node --test tests/*.test.cjs            # 12 logic tests
 node tools/serve.cjs . 8947
 NODE_PATH="$(npm root -g)" node tools/shots.cjs http://127.0.0.1:8947/dist/index.html shots/x
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8947/dist/index.html shots/y

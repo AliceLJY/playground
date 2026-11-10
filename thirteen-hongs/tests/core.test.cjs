@@ -78,7 +78,7 @@ test('人物各有长相：十类人都在场，衣着组合不少于 60 种', a
   assert.ok(looks.size >= 60, `衣着组合只有 ${looks.size} 种`);
   const poses = new Set(sim.agents.map(a => a.pose));
   assert.ok(poses.size >= 8, `在做的事只有 ${poses.size} 种：${[...poses]}`);
-  assert.ok(sim.agents.length >= 380 && sim.boats.length >= 25, `规模：${sim.agents.length} 人 ${sim.boats.length} 船`);
+  assert.ok(sim.agents.length >= 600 && sim.boats.length >= 25, `规模：${sim.agents.length} 人 ${sim.boats.length} 船`);
   assert.ok(sim.agents.filter(a => a.kind !== 'foreigner' && a.kind !== 'sailor' && a.kind !== 'boatwoman' && a.kind !== 'monk').every(a => a.look.queue), '清代男子留辫');
 });
 
@@ -106,9 +106,19 @@ test('轿子绕空地走：十分钟里不撞进建筑和货堆，轿夫和坐�
   for (const id of b.crew) { const w = C.agentWorld(sim, sim.agents[id]); assert.ok(Math.hypot(w.x - b.x, w.z - b.z) < 2 && w.y < 1, '轿夫与乘客应在轿旁、在地面上'); }
 });
 
-test('手机档人数约为桌面的六成，名场面照样走完', async () => {
-  const C = await load(); const full = C.createSim(1805, 1), lite = C.createSim(1805, 0.6);
-  assert.ok(lite.agents.length < full.agents.length * 0.75 && lite.agents.length > 200, `${lite.agents.length} / ${full.agents.length}`);
+test('手机档人数约为桌面的四成，名场面照样走完', async () => {
+  const C = await load(); const full = C.createSim(1805, 1), lite = C.createSim(1805, 0.25);
+  assert.ok(lite.agents.length < full.agents.length * 0.5 && lite.agents.length > 180 && lite.agents.length < 260, `${lite.agents.length} / ${full.agents.length}`);
   let t = 0; while (lite.event.cycles < 1 && t < 600) { C.stepSim(lite, 0.05); t += 0.05; }
   assert.strictEqual(lite.event.cycles, 1);
+});
+
+test('落货有递接：每箱都先脱手飞向艇上，艇上有人接，落点在艇上那一摞', async () => {
+  const C = await load(); const sim = C.createSim(); let flights = 0, last = null, caught = 0, maxT = 0;
+  while (sim.event.stage !== 'hoist') { C.stepSim(sim, 0.05); const f = sim.event.fly; if (f && f !== last) { flights++; assert.strictEqual(f.slot, sim.event.loaded, '飞向的格子应是下一格'); assert.ok(f.z > 13 && f.z < 14.4, '脱手点应在栈桥头'); } if (f) { maxT = Math.max(maxT, f.t); if (sim.agents[sim.boats[0].crew[1]].pose === 'catch') caught++; } last = f; }
+  assert.strictEqual(flights, C.EVENT.chests, `应有 15 次递接，实际 ${flights}`);
+  assert.ok(caught > 100, '艇上的人应在箱子飞来时抬手接');
+  assert.ok(maxT <= 0.6, '箱子在空中不超过 0.6 秒');
+  const b = sim.boats[0], d = sim.agents[b.crew[1]], w = C.agentWorld(sim, d);
+  assert.ok(Math.abs(w.x - 40.7) < 1.5 && w.z > 15 && w.z < 17, `接货的人应站在艇上靠栈桥一侧，实际 ${w.x.toFixed(1)}, ${w.z.toFixed(1)}`);
 });

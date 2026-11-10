@@ -213,7 +213,7 @@ export const EVENT = {
   chests: 15, porters: 5, wait: 8, inspect: 9, hoist: 6,
   berth: { x: 45, z: 17.4, h: -Math.PI / 2 },
   pick: { x: 38.5, z: -8 },
-  loop: [[40.7, -3.5], [40.7, 12.3], [39.3, 12.3], [39.3, -3.5]],
+  loop: [[40.7, -3.5], [40.7, 13.5], [39.3, 13.5], [39.3, -3.5]],
 };
 const ARRIVE = makePath([[235, 64], [150, 50], [95, 30], [62, 18.6], [45, 17.4]]);
 const DEPART = makePath([[45, 17.4], [18, 19], [-2, 34], [14, 56], [90, 70], [200, 82], [350, 96]]);
@@ -222,6 +222,8 @@ const WHERE = { home: i => ({ x: 38.7, z: -15.6 - i * 1.3 }) };
 function stepEvent(sim, dt) {
   const e = sim.event, b = sim.boats[0];
   e.t += dt;
+  if (e.fly) { e.fly.t += dt; if (e.fly.t >= e.fly.dur) e.fly = null; }
+  sim.agents[b.crew[1]].pose = e.fly ? 'catch' : e.stage === 'load' ? 'ready' : 'stand';
   const go = s => { e.stage = s; e.t = 0; e.log.push(s); };
   if (e.stage === 'wait') {
     b.hidden = true;
@@ -273,10 +275,15 @@ function stepPorter(sim, p, dt) {
   if (ev.state === 'out') {
     p.pose = 'carry';
     const w = EVENT.loop[ev.wp];
-    if (walkTo(p, w[0], w[1], V, dt)) { ev.wp++; if (ev.wp === 2) { ev.state = 'drop'; ev.t = 0.8; } }
+    if (walkTo(p, w[0], w[1], V, dt)) { ev.wp++; if (ev.wp === 2) { ev.state = 'drop'; ev.t = 1.0; } }
     return false;
   }
-  if (ev.state === 'drop') { p.pose = 'stand'; p.h = lerpAngle(p.h, Math.PI, 0.2); ev.t -= dt; if (ev.t <= 0) { p.carry = null; e.loaded++; e.lastDrop = sim.t; ev.state = 'back'; } return false; }
+  if (ev.state === 'drop') {   // 走到栈桥头，转身朝艇，把箱子递过去：先放低，再脱手，艇上的人接住码好
+    p.pose = 'hand'; p.h = lerpAngle(p.h, 0, 0.25); ev.t -= dt;
+    if (ev.t <= 0.55 && p.carry) { p.carry = null; e.fly = { t: 0, dur: 0.55, x: p.x, z: p.z + 0.5, slot: e.loaded }; }
+    if (ev.t <= 0) { e.loaded++; e.lastDrop = sim.t; ev.state = 'back'; }
+    return false;
+  }
   if (ev.state === 'back') {
     p.pose = 'walk';
     const w = EVENT.loop[ev.wp];
@@ -306,12 +313,12 @@ function crew(sim, b, kind, lx, lz, lh, pose) {
 }
 
 export function createSim(seed = 1805, crowd = 1) {
-  const sim = { seed, crowd, t: 0, rand: rng(seed), agents: [], boats: [], porters: [], walkers: [], follow: {}, graph: buildGraph(), event: { stage: 'wait', t: 0, loaded: 0, picked: 0, cycles: 0, lastDrop: -99, log: ['wait'] } };
+  const sim = { seed, crowd, t: 0, rand: rng(seed), agents: [], boats: [], porters: [], walkers: [], follow: {}, graph: buildGraph(), event: { stage: 'wait', fly: null, t: 0, loaded: 0, picked: 0, cycles: 0, lastDrop: -99, log: ['wait'] } };
   const r = sim.rand;
 
   // 0 号：名场面的茶艇（西瓜扁）
   const tea = addBoat(sim, 'chop', { x: 235, z: 64, h: -1.4, hidden: true });
-  crew(sim, tea, 'boatwoman', 0.3, -7.3, 0.2, 'scull'); crew(sim, tea, 'coolie', -0.6, 6.6, 3.1, 'stand');
+  crew(sim, tea, 'boatwoman', 0.3, -7.3, 0.2, 'scull'); crew(sim, tea, 'coolie', -1.45, 4.3, -Math.PI / 2, 'stand');
   sim.follow.tea = { label: '茶艇', boat: 0, note: '西瓜扁 · 运茶驳艇，装满开往黄埔' };
 
   // 来往的艇
@@ -391,7 +398,7 @@ export function createSim(seed = 1805, crowd = 1) {
     crew(sim, b, 'coolie', 0, 1.8, 0, 'bear'); crew(sim, b, 'coolie', 0, -1.8, 0, 'bear'); crew(sim, b, 'merchant', 0, 0.05, 0, 'sit').ly = 0.5;
     sim.follow.sedan = { label: '轿子', boat: b.id, note: '二人小轿 · 轿里坐着一位行商' };
   }
-  const mix = [['coolie', 130], ['hawker', 28], ['merchant', 34], ['linguist', 14], ['clerk', 24], ['foreigner', 38], ['sailor', 32], ['official', 5], ['monk', 5]];
+  const mix = [['coolie', 236], ['hawker', 50], ['merchant', 62], ['linguist', 24], ['clerk', 44], ['foreigner', 66], ['sailor', 58], ['official', 8], ['monk', 8]];
   for (const [kind, n0] of mix) for (let i = 0, n = Math.max(2, Math.round(n0 * crowd)); i < n; i++) {
     const node = sim.graph[Math.floor(r() * sim.graph.length)];
     const a = makeAgent(sim, kind, { ox: r() * 2 - 1, oz: r() * 2 - 1, node: node.id, prev: -1, pause: 0, pose: 'walk', role: 'walker' });

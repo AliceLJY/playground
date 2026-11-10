@@ -24,6 +24,7 @@ const sun = new THREE.DirectionalLight('#fff0d2', 2.5);
 sun.position.copy(SUN).multiplyScalar(300).add(new THREE.Vector3(0, 0, -40)); sun.target.position.set(0, 0, -40);
 sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 2048 : 4096, coarse ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -215, right: 215, top: 130, bottom: -130, near: 10, far: 700 }); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.25;
+sun.shadow.autoUpdate = false; sun.shadow.needsUpdate = true;   // 阴影一帧只算一次（倒影那一遍沿用），手机上只在开场算一次
 scene.add(sun, sun.target);
 
 // 天穹
@@ -34,11 +35,11 @@ scene.add(sky);
 const water = G.makeWater(SUN, FOG, C.WATER_Y); scene.add(water.mesh);
 
 // ---- 模拟与场景 ----
-const sim = C.createSim(Number(Q.get('seed')) || 1805, Number(Q.get('crowd')) || (coarse ? 0.6 : 1));
+const sim = C.createSim(Number(Q.get('seed')) || 1805, Number(Q.get('crowd')) || (coarse ? 0.25 : 1));
 const skip = sec => { for (let t = 0; t < sec; t += 0.1) C.stepSim(sim, 0.1); };
 if (Q.get('t')) skip(Number(Q.get('t')));
 const world = buildWorld(scene, sim, { plainFlags: Q.get('flags') === 'plain', shadows: !coarse });
-const people = createPeople(scene, sim, { shadows: !coarse });
+const people = createPeople(scene, sim, { shadows: !coarse, lite: coarse });
 const audio = createAudio();
 renderer.shadowMap.needsUpdate = true;
 
@@ -204,6 +205,16 @@ function resize() {
 }
 addEventListener('resize', resize);
 
+// 画质档：桌面默认有倒影和逐帧阴影；连续掉到 28 帧以下就先关倒影、再关逐帧阴影（人改用圆片影）
+const quality = { reflect: !coarse && !Q.has('noreflect'), shadows: !coarse, low: 0 };
+function guard() {
+  if (coarse || stat.fps >= 28 || document.hidden) { quality.low = 0; return; }
+  if (++quality.low < 4) return;
+  quality.low = 0;
+  if (quality.reflect) { quality.reflect = false; water.noReflect(); }
+  else if (quality.shadows) { quality.shadows = false; for (const k in people.meshes) people.meshes[k].castShadow = false; people.meshes.blob.visible = true; sun.shadow.needsUpdate = true; }
+}
+
 // ---- 主循环 ----
 const stat = { fps: 0, frames: 0, acc: 0, calls: 0, tris: 0 };
 let last = performance.now(), T = 0;
@@ -212,7 +223,7 @@ function frame(now) {
   const real = Math.min(0.1, (now - last) / 1000); last = now;
   step(real);
   stat.frames++; stat.acc += real;
-  if (stat.acc >= 0.5) { stat.fps = Math.round(stat.frames / stat.acc); stat.frames = 0; stat.acc = 0; hud(); }
+  if (stat.acc >= 0.5) { stat.fps = Math.round(stat.frames / stat.acc); stat.frames = 0; stat.acc = 0; guard(); hud(); }
   requestAnimationFrame(frame);
 }
 function step(real) {
@@ -222,6 +233,8 @@ function step(real) {
   world.update(T); people.update(T); updateCamera(real); updateTod(real);
   water.update(T, camera.position); sky.position.copy(camera.position);
   audio.update(real, sim, { x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw: camera.rotation.y }, S.mode === 'walk' ? S.walk.v : 0);
+  if (quality.shadows) sun.shadow.needsUpdate = true;
+  if (quality.reflect) water.reflect(renderer, scene, camera);
   renderer.render(scene, camera);
   const fi = G.frameInfo(renderer); stat.calls = fi.calls; stat.tris = fi.tris;
   if (S.mode === 'top') {
@@ -267,7 +280,7 @@ window.__hong = {
 };
 window.__PLAYTEST__ = {
   ready: false,
-  snapshot: () => ({ tod: todNow.key, mode: S.mode, follow: S.follow, t: +sim.t.toFixed(2), stage: sim.event.stage, loaded: sim.event.loaded, cycles: sim.event.cycles, cam: camera.position.toArray().map(v => +v.toFixed(2)), walk: { x: +S.walk.x.toFixed(2), z: +S.walk.z.toFixed(2) }, fps: stat.fps, calls: stat.calls, tris: stat.tris }),
+  snapshot: () => ({ tod: todNow.key, reflect: quality.reflect, shadows: quality.shadows, mode: S.mode, follow: S.follow, t: +sim.t.toFixed(2), stage: sim.event.stage, loaded: sim.event.loaded, cycles: sim.event.cycles, cam: camera.position.toArray().map(v => +v.toFixed(2)), walk: { x: +S.walk.x.toFixed(2), z: +S.walk.z.toFixed(2) }, fps: stat.fps, calls: stat.calls, tris: stat.tris }),
   step(ms) { for (let t = 0; t < ms; t += 16) step(0.016); hud(); },
 };
 G.ready(renderer).then(() => {
