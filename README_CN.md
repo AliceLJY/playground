@@ -33,7 +33,7 @@
 | [机械沙虫](sandworm/) · [看](https://aliceljy.github.io/playground/sandworm/) | 一份虚构的工程设计档案：沙漠地下掘进的机械沙虫，六个机位、X 光看地下、拆开装甲看内部 | Three.js 程序化建模，键鼠与触屏，单文件离线可看 |
 | [户型图 · 三维小样](floorplan/) · [看](https://aliceljy.github.io/playground/floorplan/) | 从一张公有领域户型图读出墙、门窗和房间，拉成能转的三维，配上 CAD 平面图、光追效果图和冬至日照 | Three.js 手机竖屏页，数据与效果图来自本地出片工程 |
 | [走进户型图](floorplan-walk/) · [看](https://aliceljy.github.io/playground/floorplan-walk/) | 同一张户型图做成能摆家具的彩色平面图：从家具库拖进去，切到 3D 房子从图上长出来，转着看或者从入户门走进去；真实日照、夜景、剖切、整屋换木色 | SVG 平面图 + Three.js，60 种家具（图例与模型移植自 floorplan-3d，MIT），键鼠与触屏，单文件离线可看 |
-| [十三行江岸](thirteen-hongs/) · [看](https://aliceljy.github.io/playground/thirteen-hongs/) | 约 1805 年前后的广州商馆区江岸：十三座商馆、旗杆、码头、二十九条船和近四百个各忙各的人；可俯瞰、第一人称走进去或跟随茶艇、挑夫、轿子等九个对象，天色可切黄昏与入夜，每隔几分钟发生一遍「茶箱落艇」 | Three.js 纯代码大场景，没有模型、图片和音频，WebGL 与 WebGPU 两版，鼠标与触屏，单文件离线可看 |
+| [十三行江岸](thirteen-hongs/) · [看](https://aliceljy.github.io/playground/thirteen-hongs/) | 约 1805 年前后的广州商馆区江岸：十三座商馆、旗杆、码头、二十九条船和六百多个各忙各的人，水面有倒影；可俯瞰、第一人称走进去或跟随茶艇、挑夫、轿子等九个对象，天色可切黄昏与入夜，每隔几分钟发生一遍「茶箱落艇」 | Three.js 纯代码大场景，没有模型、图片和音频，WebGL 与 WebGPU 两版，鼠标与触屏，单文件离线可看 |
 | [圣家堂](sagrada-familia/) · [看](https://aliceljy.github.io/playground/sagrada-familia/) | 巴塞罗那圣家堂整座用代码搭出来：十八座塔、三个立面、切角街区；内部有树形柱、带采光口的拱顶和一冷一暖的彩窗光；十七个视点，可环绕、漫游、飞行，早晨、正午、傍晚三档光 | Three.js 纯代码，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [岭南园林一角](lingnan-garden/) · [看](https://aliceljy.github.io/playground/lingnan-garden/) | 从一张 AI 画的岭南园林图出发搭成能走进去的院子：水榭、镬耳墙月洞门、荷塘、曲廊、石拱桥、假山六角亭；可回到原图机位并叠原图对照 | 一张图到 Three.js 纯代码场景，起始图为 AI 生成，第一人称步行，鼠标与触屏，单文件离线可看 |
 | [花城秋岸](huacheng-autumn/) · [看](https://aliceljy.github.io/playground/huacheng-autumn/) | 广州海珠珠江南岸的秋天：簕杜鹃挂满天桥，白色有轨电车从花下开过，赤岗塔下异木棉开花，同岸西端是广州塔，对岸是珠江新城；时间从白天拖到入夜 | Three.js 纯代码沙盘，没有模型和图片，鼠标与触屏，单文件离线可看 |
