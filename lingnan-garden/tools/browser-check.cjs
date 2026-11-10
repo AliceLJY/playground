@@ -68,8 +68,13 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('自动逛一圈走完并回到起点附近', ended && Math.hypot(s.x - ST.x, s.z - ST.z) < 0.6, `(${s.x}, ${s.z})`);
   check('一圈经过屋内、曲廊、石矶、北岸、石拱桥、东岸、石桌', ['水榭 · 屋内', '曲廊', '曲廊 · 石矶', '石拱桥', '东岸竹径', '石桌旁'].every(p => places.has(p)) && [...places].some(p => p === '北岸' || p === '假山下'), [...places].join('、'));
   check('过桥时脚下到过桥顶高度', maxY > 1.0, maxY.toFixed(2));
-  // 接手：自动走的时候按键就停
-  await page.click('#bTour'); await page.waitForTimeout(300); await hold(page, 's', 300);
+  // 自动走的时候拖动只改视线、不打断；按方向键才接手
+  await page.click('#bTour'); await page.waitForTimeout(600); const ty0 = await snap(page);
+  await page.mouse.move(700, 400); await page.mouse.down(); await page.mouse.move(520, 400, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(700); const ty1 = await snap(page);
+  check('自动走时拖动只改视线，人还在往前走', ty1.tour === true && Math.abs(ty1.yaw - ty0.yaw) > 0.4 && Math.hypot(ty1.x - ty0.x, ty1.z - ty0.z) > 0.8, `yaw ${(ty1.yaw - ty0.yaw).toFixed(2)} rad，走了 ${Math.hypot(ty1.x - ty0.x, ty1.z - ty0.z).toFixed(2)} m`);
+  await page.waitForTimeout(4200); const ty2 = await snap(page);
+  check('放手三秒后视线转回前进方向', ty2.tour === true && Math.abs(ty2.yaw - ty1.yaw) > 0.25, `yaw 又变了 ${(ty2.yaw - ty1.yaw).toFixed(2)} rad`);
+  await hold(page, 's', 300);
   check('自动走时按方向键就接手', (await snap(page)).tour === false);
   await page.click('#bTop'); await page.waitForTimeout(1600); s = await snap(page);
   check('点「俯瞰」', s.mode === 'top'); await page.screenshot({ path: path.join(out, 'desk-top.png') });

@@ -31,7 +31,7 @@ const audio = createAudio();
 renderer.shadowMap.needsUpdate = true;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const S = { mode: 'card', started: false, walk: { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.04, bob: 0, v: 0, y: 0 }, tour: { on: false, i: 1 }, top: { az: 0.5, pol: 0.95, dist: 46 } };
+const S = { mode: 'card', started: false, walk: { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.04, bob: 0, v: 0, y: 0 }, tour: { on: false, i: 1, hold: 0 }, top: { az: 0.5, pol: 0.95, dist: 46 } };
 const keys = new Set();
 let hintTimer = 0;
 function hint(text) { const h = $('hint'); h.textContent = text; h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 4200); }
@@ -42,7 +42,7 @@ function setMode(mode) {
   if (mode === 'top') hint('拖动旋转 · 滚轮或双指缩放');
   refreshButtons(); resize();
 }
-function startTour() { S.mode = 'walk'; S.tour.on = true; S.tour.i = 1; Object.assign(S.walk, { x: C.TOUR[0].x, z: C.TOUR[0].z }); hint('自动逛一圈 · 碰一下摇杆或按方向键就接手'); refreshButtons(); resize(); }
+function startTour() { S.mode = 'walk'; S.tour.on = true; S.tour.i = 1; S.tour.hold = 0; Object.assign(S.walk, { x: C.TOUR[0].x, z: C.TOUR[0].z }); hint('自动逛一圈 · 拖动可以随便看 · 推摇杆或按方向键就接手'); refreshButtons(); resize(); }
 function refreshButtons() { $('bCard').classList.toggle('on', S.mode === 'card'); $('bWalk').classList.toggle('on', S.mode === 'walk' && !S.tour.on); $('bTour').classList.toggle('on', S.tour.on); $('bTop').classList.toggle('on', S.mode === 'top'); }
 
 const joy = { x: 0, y: 0, id: -1, ox: 0, oy: 0 };
@@ -57,7 +57,7 @@ function updateCamera(dt) {
   if (S.tour.on) {
     const t = C.TOUR[S.tour.i], d = Math.hypot(t.x - W.x, t.z - W.z);
     if (d < 0.25) { S.tour.i++; if (S.tour.i >= C.TOUR.length) { S.tour.on = false; refreshButtons(); hint('逛完一圈了'); } }
-    else { const r = C.walkToward(W.x, W.z, t.x, t.z, dt, 1.7, dt); nx = r.x; nz = r.z; const want = Math.atan2(-(t.x - W.x), -(t.z - W.z)); let dy = want - W.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; W.yaw += dy * (1 - Math.exp(-dt * 2.2)); W.pitch += (-0.03 - W.pitch) * (1 - Math.exp(-dt * 2)); }
+    else { const r = C.walkToward(W.x, W.z, t.x, t.z, dt, 1.7, dt); nx = r.x; nz = r.z; const want = Math.atan2(-(t.x - W.x), -(t.z - W.z)); let dy = want - W.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; S.tour.hold = Math.max(0, S.tour.hold - dt); if (S.tour.hold <= 0 && ![...ptrs.values()].some(q => q.role === 'look')) { W.yaw += dy * (1 - Math.exp(-dt * 2.2)); W.pitch += (-0.03 - W.pitch) * (1 - Math.exp(-dt * 2)); } }
   } else {
     const m = Math.hypot(ix, iy); if (m > 1) { ix /= m; iy /= m; }
     const v = keys.has('shift') ? 5 : 2.5, fx = -Math.sin(W.yaw), fz = -Math.cos(W.yaw);
@@ -74,7 +74,7 @@ const ptrs = new Map(); let pinch = 0;
 function look(dx, dy) {
   if (S.mode === 'card') return;
   if (S.mode === 'top') { S.top.az -= dx * 0.006; S.top.pol = clamp(S.top.pol - dy * 0.004, 0.15, 1.45); return; }
-  if (S.tour.on) { S.tour.on = false; refreshButtons(); }
+  if (S.tour.on) S.tour.hold = 3;
   S.walk.yaw -= dx * (coarse ? 0.0065 : 0.0045); S.walk.pitch = clamp(S.walk.pitch - dy * 0.004, -1.1, 1.1);
 }
 canvas.addEventListener('pointerdown', e => {
