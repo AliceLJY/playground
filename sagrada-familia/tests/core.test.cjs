@@ -74,3 +74,18 @@ test('光：早晨诞生一侧冷色亮，傍晚受难一侧暖色亮', async ()
   assert.ok(C.LIGHTS.morning.cool > C.LIGHTS.morning.warm * 3); assert.ok(C.LIGHTS.evening.warm > C.LIGHTS.evening.cool * 3);
   assert.ok(Math.abs(C.LIGHTS.noon.cool - C.LIGHTS.noon.warm) < 0.1);
 });
+
+test('走路：荣耀门廊的八根大柱挡人，柱子之间走得过去', async () => {
+  const C = await load();
+  assert.equal(C.GLORY_COLS.length, 8, '门廊柱应为八根');
+  for (const c of C.GLORY_COLS) {
+    assert.equal(C.blocked(c.x, c.z), 'porch', `门廊柱 (${c.x},${c.z}) 中心应被挡`);
+    // 正对着柱子从街上走过来：停在柱子外侧，不会穿过去
+    let p = { x: c.x, z: c.z + 9 }; for (let i = 0; i < 200; i++) { const q = C.blocked(p.x, p.z - 0.1) ? p : { x: p.x, z: p.z - 0.1 }; if (q === p) break; p = q; }
+    assert.ok(p.z > c.z + c.r, `不该穿过门廊柱，停在 z=${p.z.toFixed(2)}，柱心 z=${c.z}`);
+  }
+  // 相邻两根柱子正中间是空的；正中那一跨对着荣耀门，能一路走进中殿
+  const a = C.GLORY_COLS[3], b = C.GLORY_COLS[4]; assert.equal(C.blocked((a.x + b.x) / 2, a.z), null, '柱间应能通过');
+  let p = { x: 0, z: 70 }; for (let i = 0; i < 500; i++) p = C.moveWalker(p.x, p.z, 0, -0.1);
+  assert.ok(C.inside(p.x, p.z), `从街上穿过门廊正中应能走进中殿，停在 z=${p.z.toFixed(2)}`);
+});

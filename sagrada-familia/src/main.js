@@ -15,7 +15,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-const DPR = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
+let DPR = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
 renderer.setPixelRatio(DPR);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
@@ -91,7 +91,9 @@ function updateLight(dt) {
   for (const m of world.warmMats) m.color.setScalar(0.42 + 0.75 * light.warm);
   world.ceilMat.color.set('#d9d4c8').lerp(_ca.set('#bcd4f5'), light.cool * 0.3).lerp(_cb.set('#ffd9a0'), light.warm * 0.4);
   for (const m of world.mixedMats) m.color.setScalar(0.62 + 0.3 * Math.max(light.cool, light.warm));
-  world.rays.cool.opacity = 0.01 + 0.1 * light.cool; world.rays.warm.opacity = 0.01 + 0.15 * light.warm;
+  // 太阳越高，光斑落得离窗越近；早晚斜着打进来，能一直铺到对面的柱子上
+  GLASS.uGL.value.set(-0.5 - 0.8 * Math.sin(Math.PI * t), -0.16);
+  world.rays.vol.uniforms.uK.value = 0.5 + 1.2 * light.warm;   // 傍晚的金光最浓，早晨只留一层薄雾
 }
 
 // ---------- 镜头 ----------
@@ -294,6 +296,18 @@ function resize() {
 }
 addEventListener('resize', resize);
 
+// ---------- 画质 ----------
+// 高：全分辨率、体积光 26 步；中：1.5 倍像素、14 步（手机默认）；低：1 倍像素、不算体积光、不泛光。连续掉到 28 帧以下会自动降一档。
+const QUAL = { high: { cn: '高', dpr: 2, steps: 26, bloom: true }, mid: { cn: '中', dpr: 1.5, steps: 14, bloom: true }, low: { cn: '低', dpr: 1, steps: 0, bloom: false } };
+let quality = QUAL[Q.get('q')] ? Q.get('q') : (coarse ? 'mid' : 'high'), slow = 0;
+function setQuality(q, auto) {
+  if (!QUAL[q]) return; quality = q; const k = QUAL[q];
+  DPR = Math.min(window.devicePixelRatio || 1, k.dpr); renderer.setPixelRatio(DPR);
+  world.rays.vol.uniforms.uSteps.value = Math.max(1, k.steps); world.rays.mesh.visible = k.steps > 0; bloom.enabled = k.bloom;
+  $('qBtn').textContent = '画质 ' + k.cn + (auto ? '（自动）' : ''); resize();
+}
+$('qBtn').addEventListener('click', () => setQuality({ high: 'mid', mid: 'low', low: 'high' }[quality]));
+
 // ---------- 主循环 ----------
 const stat = { fps: 0, frames: 0, acc: 0, calls: 0, tris: 0 };
 let last = performance.now(), mapAcc = 0;
@@ -308,7 +322,7 @@ function hud() {
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now; step(dt);
   stat.frames++; stat.acc += dt; mapAcc += dt;
-  if (stat.acc >= 0.5) { stat.fps = Math.round(stat.frames / stat.acc); stat.frames = 0; stat.acc = 0; hud(); }
+  if (stat.acc >= 0.5) { stat.fps = Math.round(stat.frames / stat.acc); stat.frames = 0; stat.acc = 0; hud(); slow = stat.fps < 28 && document.visibilityState === 'visible' ? slow + 1 : 0; if (slow >= 4 && quality !== 'low') { slow = 0; setQuality(quality === 'high' ? 'mid' : 'low', true); } }
   if (mapAcc > 0.1) { mapAcc = 0; drawMap(); }
   requestAnimationFrame(frame);
 }
@@ -317,6 +331,9 @@ function frame(now) {
 window.__sf = {
   ready: false, C, S, stat, counts: world.counts,
   snapshot: () => ({ ...S, tween: !!tween, cam: camera.position.toArray().map(v => +v.toFixed(2)), fp: { x: +fp.x.toFixed(2), y: +fp.y.toFixed(2), z: +fp.z.toFixed(2), yaw: +fp.yaw.toFixed(3) }, orbit: { az: +orbit.az.toFixed(3), dist: +orbit.dist.toFixed(1) }, light: S.light, cool: +light.cool.toFixed(3), warm: +light.warm.toFixed(3), glass: GLASS.uGI.value.toArray().map(v => +v.toFixed(3)), extVisible: world.ext.visible, intVisible: world.int.visible, fps: stat.fps, calls: stat.calls, tris: stat.tris }),
+  quality: () => quality, setQuality,
+  // 任意机位（对照截图用）：临时加一个视点，飞过去再拿掉
+  shot(pos, look) { C.VIEWS.push({ id: '_shot', cn: '', en: '', zone: C.inside(pos[0], pos[2]) && pos[1] < 57 ? 'in' : 'out', pos, look, mode: 'fly', text: '' }); goView('_shot', true); C.VIEWS.pop(); },
   setView: (id, instant = true) => goView(id, instant), setLight: (id, instant = true) => { setLight(id, instant); updateLight(0); }, setMode,
   step(ms) { for (let t = 0; t < ms; t += 16) step(0.016); hud(); drawMap(); },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
@@ -325,7 +342,7 @@ window.__sf = {
 };
 
 window.__PLAYTEST__ = { ready: false, snapshot: () => window.__sf.snapshot(), reset: () => goView('whole', true), step: ms => window.__sf.step(ms) };
-resize(); renderList(); setLight(Q.get('light') || 'morning', true);
+setQuality(quality); renderList(); setLight(Q.get('light') || 'morning', true);
 goView(Q.get('view') || 'whole', true);
 if (Q.get('mode')) setMode(Q.get('mode'));
 hint('拖动旋转 · 滚轮或双指缩放 · 右边点视点前往');

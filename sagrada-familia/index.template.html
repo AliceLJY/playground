@@ -47,6 +47,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
 #side footer{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.2em;color:var(--dim);flex:none}
 #foot{position:fixed;left:0;right:0;bottom:0;height:var(--foot);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;font:11px ui-monospace,Menlo,monospace;color:var(--dim);border-top:1px solid var(--line);background:var(--bg);z-index:6;white-space:nowrap;overflow:hidden}
 #foot b{color:var(--gold);font-weight:400}
+#qBtn{font:inherit;color:var(--gold);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-right:6px;background:#0f0f0b;cursor:pointer}#foot i{font-style:normal}
 #info{position:fixed;z-index:9;left:50%;top:50%;transform:translate(-50%,-50%);width:min(580px,92vw);max-height:82vh;overflow:auto;background:var(--panel);border:1px solid var(--gold2);border-radius:12px;padding:18px 20px;font-size:13px;line-height:1.85;display:none;box-shadow:0 20px 60px #000a;user-select:text;-webkit-user-select:text}
 #info h2{font:600 17px var(--serif);margin:0 0 6px;color:var(--gold)}#info h3{font:600 12px var(--sans);letter-spacing:.14em;margin:12px 0 2px;color:var(--gold)}#info p{margin:4px 0;color:#d6cfb9}
 #info button{margin-top:12px}
@@ -62,7 +63,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
   #hero{left:14px;top:12px}#hero h1{font-size:26px;margin:6px 0 4px}#hero p{font-size:10px}
   #cap{left:10px;bottom:10px;width:calc(100% - 20px);padding:9px 11px}#cap p{font-size:11px;line-height:1.6}
   #hint{display:none}#map{height:190px}
-  #foot{font-size:9px;padding:0 8px}
+  #foot{font-size:9px;padding:0 8px}#foot .wide{display:none}
 }
 </style></head><body>
 <div id="top">
@@ -92,7 +93,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
   <div id="list"></div>
   <footer><span>ANTONI GAUDÍ</span><span>BARCELONA · ES</span></footer>
 </aside>
-<div id="foot"><span id="stats">…</span><span><b>实时场景</b> / WEBGL · 全部形体由代码生成</span></div>
+<div id="foot"><span id="stats">…</span><span><button id="qBtn" title="点一下换画质档位">画质</button> <b>实时场景</b> / WEBGL<i class="wide"> · 全部形体由代码生成</i></span></div>
 <div id="info">
   <h2>哪些有依据，哪些是示意</h2>
   <h3>查过两处以上来源的</h3>
