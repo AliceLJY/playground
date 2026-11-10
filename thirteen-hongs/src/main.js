@@ -61,6 +61,7 @@ function updateTod(dt, snap) {
   todNow.hi += (P.hi - todNow.hi) * k; todNow.si += (P.si - todNow.si) * k; todNow.glow += (P.glow - todNow.glow) * k;
   hemi.intensity = todNow.hi; sun.intensity = todNow.si;
   FOG.lerp(_tc.set(P.fog), k); todNow.zen.lerp(_tc.set(P.zen), k); todNow.deep.lerp(_tc.set(P.deep), k); todNow.wsky.lerp(_tc.set(P.wsky), k);
+  scene.fog.color.copy(FOG);   // Fog 构造时拷了一份颜色，要单独跟着改
   sky.setColors(FOG, todNow.zen); water.setColors(todNow.deep, todNow.wsky, FOG); world.setGlow(todNow.glow);
   document.body.style.background = '#' + FOG.getHexString();
 }
