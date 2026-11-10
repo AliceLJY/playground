@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path');
 (async () => {
   const base = process.argv[2], out = process.argv[3], only = process.argv[4] ? process.argv[4].split(',') : null;
   fs.mkdirSync(out, { recursive: true });
-  const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-unsafe-webgpu', '--enable-features=WebGPU'] });
   const report = [];
   const jobs = [
     ['top', 'top', 30], ['wide', 'wide', 30], ['walk', 'walk', 30], ['quay', 'quay', 120], ['lane', 'lane', 30], ['facade', 'facade', 30],
@@ -15,7 +15,7 @@ const fs = require('fs'), path = require('path');
     for (const [name, view, t] of jobs) {
       const page = await ctx.newPage(); const errors = [];
       page.on('pageerror', e => errors.push(String(e))); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-      await page.goto(`${base}?view=${view}&t=${t}&mute`);
+      await page.goto(`${base}?view=${view}&t=${t}&mute${process.env.TOD ? "&tod=" + process.env.TOD : ""}`);
       await page.waitForFunction(() => window.__hong && window.__hong.ready, null, { polling: 100, timeout: 30000 });
       await page.waitForTimeout(2600);
       const snap = await page.evaluate(() => ({ ...window.__PLAYTEST__.snapshot(), gpu: window.__hong.gpu() }));

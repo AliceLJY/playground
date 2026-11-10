@@ -6,11 +6,11 @@
 
 **构图**：默认俯瞰从江面东南上空看北岸，商馆一排占画面中带；步行视高 1.62 米；下午偏西南的光，立面受光。
 
-**性能预算**：桌面 Chrome 1440×900 不低于 30 帧，绘制次数不超过 300，三角面 30 万以内；手机像素比封顶 1.5。
+**性能预算**：桌面 Chrome 1440×900 不低于 30 帧，绘制次数不超过 300，三角面 120 万以内（含阴影那一遍）；手机像素比封顶 1.5、人数六成、不逐帧更新阴影。
 
 ## 机位
 
-`?view=top|wide|walk|quay|lane|facade|tea|porter|merchant|hawker|sampan|junk`，`?t=秒` 先把模拟推进到那一刻，`?speed=4` 调快，`?seed=`，`?flags=plain`，`?mute`。钩子 `window.__hong`（`setView`、`skip`、`gpu`）与 `window.__PLAYTEST__`（`snapshot`、`step`）。
+`?view=top|wide|walk|quay|lane|facade|tea|porter|merchant|hawker|sedan|official|monk|sampan|junk`，`?t=秒` 先把模拟推进到那一刻，`?tod=dusk|night` 天色，`?crowd=0.6` 人数比例，`?speed=4` 调快，`?seed=`，`?flags=plain`，`?mute`。`webgpu.html` 是同一套代码的 WebGPU 后端。钩子 `window.__hong`（`setView`、`skip`、`gpu`）与 `window.__PLAYTEST__`（`snapshot`、`step`）。
 
 ## 验收
 
@@ -22,6 +22,8 @@
 | 4 | 名场面完整发生一遍 | Node 测试三个种子；浏览器 ×4 实时看完一遍 | 六阶段依次出现、15 箱全上艇、3–5.5 分钟一遍 |
 | 5 | 不穿墙、不下水 | Node 测试与浏览器顶墙、冲江 | 停在立面外、岸线内 |
 | 6 | 行人不进建筑、不卡住 | Node 测试两个种子各十分钟 | 越界 0 次，人人走满 150 米 |
-| 7 | 人物各有长相、各做各的事 | Node 测试 | 衣着组合 ≥ 40 种，姿态 ≥ 8 种 |
+| 7 | 人物各有长相、各做各的事 | Node 测试 | 衣着组合 ≥ 60 种，姿态 ≥ 8 种，十类人都在场 |
+| 10 | 轿子不撞进建筑和货堆 | Node 测试十分钟 | 0 次 |
+| 11 | 两种渲染后端都过同一套浏览器检查 | `browser-check.cjs` 分别对 `index.html` 与 `webgpu.html` | 各 38 项 |
 | 8 | 手机按钮都在可视区 | 浏览器检查 | 开场两个按钮与底栏六个按钮完整可见 |
 | 9 | 不碰禁区题材 | Node 测试扫源码字样 | 0 处 |
