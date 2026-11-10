@@ -9,7 +9,7 @@
 ## 判据
 
 1. 「明信片视角」的机位、朝向、视角固定在 `src/core.js` 的 `POSTCARD`，和起始图并排看，清单里每一项标「还原了 / 近似 / 没做」。
-2. 桌面 WASD 加拖动、手机摇杆加拖动都能走；不进水、不穿墙、平台只能从踏步上（`tests/core.test.cjs` 10 条，`tools/browser-check.cjs` 35 项）。
+2. 桌面 WASD 加拖动、手机摇杆加拖动都能走；不进水、不穿墙、平台只能从踏步上（`tests/core.test.cjs` 10 条，`tools/browser-check.cjs` 37 项）。
 3. 桌面不低于 30 帧。
 
 ## 读图清单（判据 1 的逐项结果）
