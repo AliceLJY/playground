@@ -157,10 +157,10 @@ export function buildFlowers(scene, M, anim, isPaved) {
 
 export function buildSmallTrees(scene, M) {
   const b = new Batch(), R = rng(91);
-  const spots = [[10.6, 18.8, 3.8, 1], [-10.4, 18.4, 4.2, 0], [-1.0, -6.5, 4.2, 0], [-4.8, -9.0, 5.0, 1], [1.6, -13.6, 5.5, 0], [-12.6, 6.4, 3.6, 1], [-13.4, 12.6, 4.4, 0], [12.6, 13.8, 3.8, 1]];
-  for (const [x, z, h, pink] of spots) {
+  const spots = [[10.6, 18.8, 3.8], [-10.4, 18.4, 4.2], [-1.0, -6.5, 4.2], [-4.8, -9.0, 5.0], [1.6, -13.6, 5.5], [-12.6, 6.4, 3.6], [-13.4, 12.6, 4.4], [12.6, 13.8, 3.8]];
+  for (const [x, z, h] of spots) {
     b.add(taperTube([[x, -0.1, z], [x + 0.15, h * 0.35, z - 0.1], [x - 0.1, h * 0.62, z + 0.1]], 0.2, 0.1, 7), M.bark);
-    canopy(scene, M, R, x, h * 0.82, z, h * 0.42, h * 0.26, h * 0.42, 14, h * 0.2, h * 0.32, pink ? ['#f58ab8', '#ffa9cc', '#ee6fa6', '#5aa935'] : CANOPY, 93 + x);
+    canopy(scene, M, R, x, h * 0.82, z, h * 0.42, h * 0.26, h * 0.42, 14, h * 0.2, h * 0.32, CANOPY, 93 + x);
   }
   b.flush(scene);
   // 墙外的树顶，一圈，让墙头后面不空
