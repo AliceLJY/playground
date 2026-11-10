@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path');
   const report = [];
   const jobs = [
     ['top', 'top', 30], ['wide', 'wide', 30], ['walk', 'walk', 30], ['quay', 'quay', 120], ['lane', 'lane', 30], ['facade', 'facade', 30],
-    ['tea', 'tea', 45], ['porter', 'porter', 110], ['merchant', 'merchant', 30], ['hawker', 'hawker', 30], ['sampan', 'sampan', 30], ['junk', 'junk', 30],
+    ['tea', 'tea', 45], ['porter', 'porter', 110], ['merchant', 'merchant', 30], ['hawker', 'hawker', 30], ['sampan', 'sampan', 30], ['junk', 'junk', 30], ['sedan', 'sedan', 30], ['official', 'official', 30], ['monk', 'monk', 30],
   ].filter(j => !only || only.includes(j[0]));
   for (const [vw, vh, tag, dpr] of [[1440, 900, 'desk', 1], [390, 664, 'phone', 2]]) {
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, hasTouch: tag === 'phone', isMobile: tag === 'phone' });
