@@ -36,8 +36,8 @@ export function createPeople(scene, sim, opts = {}) {
   sim.agents.forEach((a, i) => {
     const L = a.look, bare = a.kind === 'coolie' || a.kind === 'hawker' || a.kind === 'boatwoman';
     for (const j of [0, 1]) {
-      col(M.thigh, i * 2 + j, L.bottom, j ? 0.94 : 1); col(M.shin, i * 2 + j, bare && i % 3 ? L.skin : L.bottom, j ? 0.94 : 1); col(M.foot, i * 2 + j, bare ? L.skin : '#1c1a18', 0.9);
-      col(M.upper, i * 2 + j, L.gown || L.top, 0.95); col(M.fore, i * 2 + j, bare && i % 2 ? L.skin : (L.gown || L.top), 0.92); col(M.hand, i * 2 + j, L.skin);
+      col(M.thigh, i * 2 + j, L.bottom, j ? 0.94 : 1); col(M.shin, i * 2 + j, L.bottom, j ? 0.9 : 0.96); col(M.foot, i * 2 + j, bare ? L.skin : '#1c1a18', 0.9);
+      col(M.upper, i * 2 + j, L.gown || L.top, 0.95); col(M.fore, i * 2 + j, L.gown || L.top, 0.92); col(M.hand, i * 2 + j, L.skin);
       col(M.eye, i * 2 + j, '#1a1512'); col(M.basket, i * 2 + j, j ? '#a88c58' : '#b59a62');
     }
     col(M.neck, i, L.skin, 0.96); col(M.nose, i, L.skin, 0.9); col(M.mouth, i, '#7a3b30');
