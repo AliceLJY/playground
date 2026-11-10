@@ -1320,7 +1320,7 @@
   $('#photo-close').addEventListener('click', () => { $('#photo').hidden = true; });
   function draw() {
     if (!sim) return;
-    if(wallRoom) {const full=!!(sim.reception || sim.argue || (sim.boothCall() && !C.noBooth)),height=full?C.H*2:840;if(canvas.height!==height){canvas.height=height;document.body.classList.toggle('wall-room',!full);fitRoom();}}
+    // The wallpaper always shows the ground floor alone (11-10, Alice): stretching to the whole tower for a reception, an argument or a call made it a thin strip on the desktop. ?annex=1 still shows the whole building.
     const started = performance.now(); speechBoxes = []; nameplates = [];
     if (mv) {
       // The MV draws the room every frame through its camera, the two lights of a dusk or night change blended.
