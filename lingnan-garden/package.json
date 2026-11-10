@@ -1,0 +1,14 @@
+{
+  "name": "lingnan-garden",
+  "private": true,
+  "type": "module",
+  "description": "岭南园林一角：照一张 AI 画的场景图用代码搭出来、可第一人称走进去",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}

@@ -1,0 +1,15 @@
+Stylized 3D game environment concept art, storybook-miniature look with clean rounded low-detail shapes, bright saturated but harmonious colors, soft warm afternoon sunlight from the upper left, soft contact shadows, blue sky with a few puffy white clouds. No people, no text, no UI, no watermark.
+
+Subject: one corner of a classical Lingnan (Cantonese) garden in Guangzhou, seen from eye level standing on a path, wide 16:9 view.
+
+Main building (center-left, the clear hero): a single-storey waterside pavilion (shui xie) standing partly over a lotus pond on short stone piers. Grey clay-tile hip-and-gable roof with gently upturned eaves and a green glazed ridge ornament, dark red wooden columns, carved wooden lattice under the eaves, and a row of Manchurian windows with small colored glass panes (red, blue, green, amber) in dark wood frames. A low wooden balustrade with a bench seat along the water side. Two red paper lanterns hang under the eave.
+
+Behind and to the left of the pavilion: a tall white garden wall topped with a grey "wok-ear" (huo er) curved gable, with a round moon gate opening through the wall.
+
+Foreground: a curving path of irregular grey granite flagstones leading from the bottom of the frame toward the pavilion steps. Beside the path: three glazed ceramic pots with bonsai (one blue-and-white pot, one green, one brown), a round stone table with two drum-shaped stone stools and a small teapot with cups on it, a large brown glazed water jar, clumps of low flowers (pink, yellow, white), and broad banana-leaf plants at the right edge.
+
+Middle ground: a lotus pond with round green lotus leaves, several pink lotus flowers, a few orange koi visible near the surface, and a small single-arch stone bridge with low stone railings crossing the pond on the right. A short covered zigzag corridor with red columns and a grey tile roof connects the pavilion toward the right.
+
+Background: a rockery of pale weathered limestone with a small hexagonal pavilion with a pointed green roof on top, a big banyan tree with a rounded canopy, a kapok tree with red flowers, a bamboo grove, and far away above the garden wall a slender multi-storey pagoda and soft blue hills.
+
+Everything should read as solid, simple, buildable 3D forms with clear silhouettes, like a polished stylized game level.

@@ -537,6 +537,17 @@ jobs:
           mkdir -p _site/nanchan-temple
           cp nanchan-temple/index.html nanchan-temple/ANATOMY-LICENSE.txt _site/nanchan-temple/
 
+      - name: Check, bundle and assemble Lingnan Garden
+        working-directory: lingnan-garden
+        run: |
+          # 岭南园林一角：照一张 AI 画的场景图用代码搭出来、可第一人称走进去；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+          mkdir -p ../_site/lingnan-garden
+          cp dist/index.html ../_site/lingnan-garden/index.html
+
       - name: Assemble Xiguan House
         run: |
           mkdir -p _site/xiguan-house/src
