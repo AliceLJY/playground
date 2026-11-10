@@ -38,11 +38,14 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   await page.keyboard.down('w'); await page.waitForTimeout(3500); await page.keyboard.up('w');
   const d = await snap(page);
   check('朝江走停在岸边', d.walk.z <= 0 && d.walk.z > -1.5, 'z=' + d.walk.z);
-  for (const k of ['tea', 'porter', 'merchant', 'hawker', 'sampan', 'junk']) { await page.click(`[data-follow=${k}]`); await page.waitForTimeout(300); const s = await snap(page); check('点跟随 ' + k, s.mode === 'follow' && s.follow === k); }
+  for (const k of ['tea', 'porter', 'merchant', 'hawker', 'sedan', 'official', 'monk', 'sampan', 'junk']) { await page.click(`[data-follow=${k}]`); await page.waitForTimeout(300); const s = await snap(page); check('点跟随 ' + k, s.mode === 'follow' && s.follow === k); }
   await page.click('[data-mode=top]'); await page.waitForTimeout(1500);
   const top = await snap(page);
   check('桌面俯瞰帧率 ≥ 30', top.fps >= 30, top.fps + ' fps / ' + top.calls + ' 次绘制 / ' + top.tris + ' 三角面');
   check('绘制次数 ≤ 300', top.calls <= 300, String(top.calls));
+  const where = await (await page.click('[data-follow=official]'), await page.waitForTimeout(700), page.textContent('#where'));
+  check('跟随时顶上显示这个人在做什么', /官员/.test(where) && where.length > 6, where);
+  await page.click('[data-mode=top]');
 
   // ---- 名场面：×4 实时走完一整遍，每个阶段拍一张 ----
   await page.click('#speed'); await page.click('#event');

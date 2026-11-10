@@ -70,21 +70,21 @@ test('第一人称：进不了墙、下不了水，能上栈桥、下石阶、�
   const slide = walk(0, -61, 0.07, -0.07, 200); assert.ok(slide.x > 10, '贴墙斜走应沿墙滑动而不是卡死');
 });
 
-test('人物各有长相：七类人都在场，衣着组合不少于 40 种', async () => {
+test('人物各有长相：十类人都在场，衣着组合不少于 60 种', async () => {
   const C = await load(); const sim = C.createSim();
   const kinds = new Set(sim.agents.map(a => a.kind));
-  for (const k of ['coolie', 'merchant', 'linguist', 'clerk', 'foreigner', 'sailor', 'hawker', 'boatwoman']) assert.ok(kinds.has(k), '缺 ' + k);
+  for (const k of ['coolie', 'merchant', 'linguist', 'clerk', 'foreigner', 'sailor', 'hawker', 'boatwoman', 'official', 'monk']) assert.ok(kinds.has(k), '缺 ' + k);
   const looks = new Set(sim.agents.map(a => [a.kind, a.look.top, a.look.bottom, a.look.gown, a.look.hat, a.look.skin].join('|')));
-  assert.ok(looks.size >= 40, `衣着组合只有 ${looks.size} 种`);
+  assert.ok(looks.size >= 60, `衣着组合只有 ${looks.size} 种`);
   const poses = new Set(sim.agents.map(a => a.pose));
   assert.ok(poses.size >= 8, `在做的事只有 ${poses.size} 种：${[...poses]}`);
-  assert.ok(sim.agents.length >= 150 && sim.boats.length >= 25, `规模：${sim.agents.length} 人 ${sim.boats.length} 船`);
-  assert.ok(sim.agents.filter(a => a.kind !== 'foreigner' && a.kind !== 'sailor' && a.kind !== 'boatwoman').every(a => a.look.queue), '清代男子留辫');
+  assert.ok(sim.agents.length >= 380 && sim.boats.length >= 25, `规模：${sim.agents.length} 人 ${sim.boats.length} 船`);
+  assert.ok(sim.agents.filter(a => a.kind !== 'foreigner' && a.kind !== 'sailor' && a.kind !== 'boatwoman' && a.kind !== 'monk').every(a => a.look.queue), '清代男子留辫');
 });
 
-test('六个跟随对象都存在，船上的人随船走', async () => {
+test('九个跟随对象都存在，船上的人随船走', async () => {
   const C = await load(); const sim = C.createSim();
-  assert.deepStrictEqual(Object.keys(sim.follow).sort(), ['hawker', 'junk', 'merchant', 'porter', 'sampan', 'tea']);
+  assert.deepStrictEqual(Object.keys(sim.follow).sort(), ['hawker', 'junk', 'merchant', 'monk', 'official', 'porter', 'sampan', 'sedan', 'tea']);
   const b = sim.boats[sim.follow.sampan.boat], a = sim.agents[b.crew[0]];
   const p0 = C.agentWorld(sim, a); for (let i = 0; i < 200; i++) C.stepSim(sim, 0.1); const p1 = C.agentWorld(sim, a);
   assert.ok(Math.hypot(p1.x - p0.x, p1.z - p0.z) > 10, '疍家艇上的人应随艇移动');
@@ -95,4 +95,20 @@ test('画面与页面文字不碰禁区题材', () => {
   const fs = require('fs'), path = require('path');
   const text = ['src/core.js', 'src/world.js', 'src/main.js', 'src/audio.js', 'index.template.html'].map(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
   for (const w of ['鸦片', 'opium', '炮', '战争', '地图']) assert.ok(!text.toLowerCase().includes(w), '出现了不该有的字样：' + w);
+});
+
+test('轿子绕空地走：十分钟里不撞进建筑和货堆，轿夫和坐轿的人跟着走', async () => {
+  const C = await load(); const sim = C.createSim(); const b = sim.boats[sim.follow.sedan.boat]; let bad = 0, dist = 0, px = b.x, pz = b.z;
+  for (let i = 0; i < 6000; i++) { C.stepSim(sim, 0.1); if (C.hitsObstacle(b.x, b.z, 0.6) || b.z > -2 || b.z < C.FRONT + 2) bad++; dist += Math.hypot(b.x - px, b.z - pz); px = b.x; pz = b.z; }
+  assert.strictEqual(bad, 0, `轿子撞进障碍 ${bad} 次`);
+  assert.ok(dist > 600, `十分钟应走 600 米以上，实际 ${dist.toFixed(0)}`);
+  assert.strictEqual(b.crew.length, 3);
+  for (const id of b.crew) { const w = C.agentWorld(sim, sim.agents[id]); assert.ok(Math.hypot(w.x - b.x, w.z - b.z) < 2 && w.y < 1, '轿夫与乘客应在轿旁、在地面上'); }
+});
+
+test('手机档人数约为桌面的六成，名场面照样走完', async () => {
+  const C = await load(); const full = C.createSim(1805, 1), lite = C.createSim(1805, 0.6);
+  assert.ok(lite.agents.length < full.agents.length * 0.75 && lite.agents.length > 200, `${lite.agents.length} / ${full.agents.length}`);
+  let t = 0; while (lite.event.cycles < 1 && t < 600) { C.stepSim(lite, 0.05); t += 0.05; }
+  assert.strictEqual(lite.event.cycles, 1);
 });

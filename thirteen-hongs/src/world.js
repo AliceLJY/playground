@@ -26,7 +26,7 @@ const UNIT = {
 };
 
 export class Builder {
-  constructor(seed = 7) { this.p = []; this.n = []; this.c = []; this.r = rng(seed); }
+  constructor(seed = 7, mat = 0) { this.p = []; this.n = []; this.c = []; this.m = []; this.mat = mat; this.r = rng(seed); }
   xf(x, y, z, sx, sy, sz, ry = 0, rx = 0, rz = 0) { _e.set(rx, ry, rz, 'YXZ'); _q.setFromEuler(_e); return _m.compose(_p.set(x, y, z), _q, _s.set(sx, sy, sz)); }
   add(g, m, color, jit = 0) {
     const pos = g.attributes.position, nor = g.attributes.normal;
@@ -35,7 +35,7 @@ export class Builder {
     for (let i = 0; i < pos.count; i++) {
       _v.fromBufferAttribute(pos, i).applyMatrix4(m); this.p.push(_v.x, _v.y, _v.z);
       _v.fromBufferAttribute(nor, i).applyMatrix3(_n).normalize(); this.n.push(_v.x, _v.y, _v.z);
-      this.c.push(_c.r, _c.g, _c.b);
+      this.c.push(_c.r, _c.g, _c.b); this.m.push(this.mat);
     }
     return this;
   }
@@ -43,15 +43,16 @@ export class Builder {
   cyl(x, y0, z, r, h, color, jit = 0, rx = 0, rz = 0) { return this.add(UNIT.cyl, this.xf(x, y0 + h / 2, z, r, h, r, 0, rx, rz), color, jit); }
   cone(x, y0, z, r, h, color, jit = 0) { return this.add(UNIT.cone, this.xf(x, y0 + h / 2, z, r, h, r), color, jit); }
   ball(x, y, z, rx, ry, rz, color, jit = 0) { return this.add(UNIT.ball, this.xf(x, y, z, rx, ry, rz), color, jit); }
-  prism(x, y0, z, w, h, len, color, ry = 0, jit = 0) { return this.add(UNIT.prism, this.xf(x, y0, z, w, h, len, ry), color, jit); }
+  prism(x, y0, z, w, h, len, color, ry = 0, jit = 0) { const k = this.mat; this.mat = 1; this.add(UNIT.prism, this.xf(x, y0, z, w, h, len, ry), color, jit); this.mat = k; return this; }
   half(x, y, z, r, color, ry = 0) { return this.add(UNIT.half, this.xf(x, y, z, r, r, 1, ry), color); }
-  arch(x, y0, z, r, h, len, color, ry = 0, jit = 0) { return this.add(UNIT.arch, this.xf(x, y0, z, r, h, len, ry), color, jit); }
+  arch(x, y0, z, r, h, len, color, ry = 0, jit = 0) { const k = this.mat; this.mat = 3; this.add(UNIT.arch, this.xf(x, y0, z, r, h, len, ry), color, jit); this.mat = k; return this; }
   geo(m, color, g, jit = 0) { return this.add(g, m, color, jit); }
   geometry() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    g.setAttribute('aMat', new THREE.Float32BufferAttribute(this.m, 1));
     return g;
   }
   mesh(mat) { return new THREE.Mesh(this.geometry(), mat); }
@@ -150,6 +151,14 @@ const BOAT_BUILD = {
     for (const z of [3, 5, 6.5]) b.cyl(-1.6 + z * 0.3, 2.3, z - 1, 0.42, 0.8, '#7a6146', 0.1);
   },
 };
+BOAT_BUILD.sedan = b => {
+  for (const s of [-1, 1]) b.box(s * 0.43, 0.84, 0, 0.06, 0.06, 4.7, '#5b4636');
+  b.box(0, 0.5, 0, 0.84, 0.07, 1.05, '#3d3026'); b.mat = 0;
+  for (const s of [-1, 1]) { b.box(s * 0.42, 0.57, 0, 0.04, 1.3, 1.05, '#2f5d4a'); b.box(s * 0.445, 1.15, 0.05, 0.02, 0.45, 0.5, '#1d1815'); }
+  b.box(0, 0.57, -0.52, 0.84, 1.3, 0.04, '#2f5d4a'); b.box(0, 1.5, 0.52, 0.84, 0.37, 0.03, '#27405e');
+  b.box(0, 1.87, 0, 1.0, 0.07, 1.2, '#1f1b18'); b.prism(0, 1.94, 0, 1.0, 0.16, 1.2, '#2a2623'); b.ball(0, 2.14, 0, 0.07, 0.07, 0.07, '#c9a24a');
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * 0.41, 0.5, sz * 0.51, 0.05, 1.4, 0.05, '#7a2f2a');
+};
 function lugSail(b, x, y0, z, w, h, color = '#9a5a3c') {
   b.box(x + 0.08, y0, z - w * 0.18, 0.05, h, w, color, 0, 0.05);
   for (let i = 0; i <= 6; i++) b.box(x + 0.12, y0 + i * h / 6 - 0.05, z - w * 0.18, 0.09, 0.1, w + 0.2, '#5c3a28');
@@ -160,10 +169,33 @@ const SAIL_BUILD = {
 };
 const SAIL_BASE = { chop: 3.0, junk: 2.4 };
 
+// 程序纹理：按顶点上的材质号，在片元里给瓦、木板、篾席、砖石加纹路（不用任何贴图）
+function detail(mat) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aMat; varying float vMat; varying vec3 vOp; varying vec3 vOn;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMat = aMat; vOp = position; vOn = normal;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying float vMat; varying vec3 vOp; varying vec3 vOn;
+      float dHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float dNoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(dHash(i), dHash(i + vec2(1., 0.)), f.x), mix(dHash(i + vec2(0., 1.)), dHash(i + vec2(1., 1.)), f.x), f.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      { float m = floor(vMat + .5), k = 1.; vec3 p = vOp; vec3 an = abs(vOn);
+        float u = an.x > an.z ? p.z : p.x;                      // 沿墙面或屋脊的水平方向
+        float grain = dNoise(p.xz * 2.3 + p.y * 1.7);
+        if (m == 1.) { float v = an.x > an.z ? p.x : p.z; k = (.74 + .26 * smoothstep(.0, .3, abs(fract(u * 2.6) - .5))) * (.9 + .1 * step(.5, fract(v * 1.6 + p.y * 1.6))) * (.9 + .2 * grain); }
+        else if (m == 2.) { float a = an.y > .6 ? p.x : p.y; k = (.8 + .2 * smoothstep(0., .07, abs(fract(a * 2.4) - .5))) * (.9 + .16 * dNoise(vec2(a * 3., (p.z + p.x) * 14.))); }
+        else if (m == 3.) { float w1 = step(.5, fract((u + p.y) * 5.)), w2 = step(.5, fract((u - p.y) * 5.)); k = .8 + .12 * w1 + .12 * w2; }
+        else if (m == 4.) { float row = floor(p.y * 3.3); k = (.84 + .16 * smoothstep(0., .08, abs(fract(p.y * 3.3) - .5)) * smoothstep(0., .05, abs(fract(u * 1.5 + mod(row, 2.) * .5) - .5))) * (.92 + .14 * grain); }
+        else { k = .93 + .12 * grain; }
+        diffuseColor.rgb *= k; }`);
+  };
+  return mat;
+}
+
 export function buildWorld(scene, sim, opts = {}) {
   const R = rng(1805), rr = (a, b) => a + R() * (b - a), pk = a => a[Math.floor(R() * a.length)];
-  const matWorld = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const matBoat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const matWorld = detail(new THREE.MeshLambertMaterial({ vertexColors: true }));
+  const matBoat = detail(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
   const B = new Builder(11), P = new Builder(12), FAR = new Builder(13);   // 建筑 / 小件 / 远景
   const signs = [];
   const TRIM = '#f6f1e4', DARK = '#2e2620', STONE = '#a39a86', WOOD = '#8a6f4d';
@@ -180,6 +212,7 @@ export function buildWorld(scene, sim, opts = {}) {
   ground.rotation.x = -Math.PI / 2; ground.position.set(-51, 0, -130); ground.receiveShadow = true; scene.add(ground);
   // 陆地铺满北岸（小溪留一道口），铺石只在商馆区
   const landMat = new THREE.MeshLambertMaterial({ color: '#b9b190' });
+  B.mat = 4;
   for (const [x0, x1] of [[-2600, 152.5], [158, 2600]]) {
     const land = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 2600), landMat);
     land.rotation.x = -Math.PI / 2; land.position.set((x0 + x1) / 2, -0.04, -1300.9); land.receiveShadow = true; scene.add(land);
@@ -192,11 +225,13 @@ export function buildWorld(scene, sim, opts = {}) {
     for (const x of [s.x0 - 0.3, s.x1 + 0.3]) B.box(x, -4.5, 2.1, 0.6, 4.6, 4.2, STONE);
     for (const x of [s.x0 - 0.3, s.x1 + 0.3]) P.cyl(x, 0.1, -0.3, 0.2, 0.9, '#7d7566');
   }
+  B.mat = 2; P.mat = 2;
   for (const j of JETTIES) {
     const w = j.x1 - j.x0, cx = (j.x0 + j.x1) / 2;
     for (let z = 0.3; z < j.z1; z += 0.62) B.box(cx, -0.16, z, w, 0.16, 0.58, WOOD, 0, 0.16);
     for (let z = 1; z < j.z1; z += 3.2) for (const x of [j.x0 + 0.2, j.x1 - 0.2]) { B.cyl(x, -4.5, z, 0.16, 4.4, '#5b4636'); P.cyl(x, 0, z, 0.13, 0.75, '#5b4636'); }
   }
+  B.mat = 4; P.mat = 0;
   // 小溪与石桥（东端）
   B.box(152.5, -4.5, -115, 0.9, 4.5, 230, STONE); B.box(158, -4.5, -115, 0.9, 4.5, 230, STONE);
   B.box(155.3, 0.1, -30, 7.6, 0.4, 3.4, '#aaa18c'); for (const z of [-31.6, -28.4]) B.box(155.3, 0.5, z, 7.6, 0.7, 0.25, STONE);
@@ -205,12 +240,13 @@ export function buildWorld(scene, sim, opts = {}) {
   const creekCover = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 260), ground.material); // 铺石平面只到 x=149，补到小溪西岸
   creekCover.rotation.x = -Math.PI / 2; creekCover.position.set(150.7, 0, -130); scene.add(creekCover);
 
+  B.mat = 0;
   // ---- 商馆 ----
   function rearRanges(f, w, H, z0) {
     let z = z0;
     for (let k = 0; k < 6; k++) {
       const len = rr(18, 26), ww = w * rr(0.78, 0.96), hh = H * rr(0.62, 0.85), cx = f.cx + rr(-0.6, 0.6);
-      B.box(cx, 0, z - len / 2, ww, hh, len, k % 2 ? '#d6cdb8' : '#b9b3a4', 0, 0.06);
+      B.mat = 4; B.box(cx, 0, z - len / 2, ww, hh, len, k % 2 ? '#d6cdb8' : '#b9b3a4', 0, 0.06); B.mat = 0;
       B.prism(cx, hh, z - len / 2, ww + 0.8, rr(2.2, 3.2), len + 0.4, pk(TILE), 0, 0.08);
       z -= len + rr(1.5, 5);
     }
@@ -219,15 +255,15 @@ export function buildWorld(scene, sim, opts = {}) {
     const w = 20.5, cx = f.cx, z = FRONT;
     if (f.style === 'hong') {
       const H = 8.4, brick = f.wall;
-      B.box(cx, 0, z - 7, w, H, 14, brick, 0, 0.03);
+      B.mat = 4; B.box(cx, 0, z - 7, w, H, 14, brick, 0, 0.03);
       for (const s of [-1, 1]) { B.box(cx + s * (w / 2 - 0.2), 0, z - 7, 0.5, H + 2.2, 14.6, '#8d8d86'); B.box(cx + s * (w / 2 - 0.2), H + 2.2, z - 7, 0.7, 0.25, 15, '#55534d'); }
       B.prism(cx, H, z - 7, 14.4, 2.6, w - 0.6, pk(TILE), Math.PI / 2);
-      B.box(cx, 0, z + 0.04, 3.6, 3.9, 0.1, '#4d241f'); B.box(cx, 0, z + 0.1, 0.08, 3.9, 0.06, '#2a1512');
+      B.mat = 2; B.box(cx, 0, z + 0.04, 3.6, 3.9, 0.1, '#4d241f'); B.box(cx, 0, z + 0.1, 0.08, 3.9, 0.06, '#2a1512');
       B.box(cx, 3.9, z + 0.1, 4.6, 0.3, 0.3, '#3a2a22');
       B.box(cx, 5.75, z + 1.0, 9, 0.16, 2.6, pk(TILE), 0, 0, 0.28); for (const s of [-1, 1]) B.box(cx + s * 4.1, 0, z + 2.0, 0.24, 5.4, 0.24, '#5a2a22');
       for (const s of [-1, 1]) { P.ball(cx + s * 2.5, 4.3, z + 1.7, 0.33, 0.42, 0.33, '#d6452f'); for (const dx of [5.4, 8.1]) { B.box(cx + s * dx, 1.3, z + 0.04, 1.5, 1.7, 0.08, '#3a2a22'); for (let i = -1; i <= 1; i++) B.box(cx + s * dx + i * 0.4, 1.3, z + 0.09, 0.07, 1.7, 0.04, '#8a7152'); } }
       B.box(cx, 5.6, z + 0.06, w - 1.4, 1.9, 0.1, '#5b4132'); for (let x = -9; x <= 9; x += 1.5) { B.box(cx + x, 5.6, z + 0.12, 0.12, 1.9, 0.06, '#8a7152'); B.box(cx + x + 0.75, 5.9, z + 0.12, 1.0, 1.1, 0.04, '#231b16'); }
-      signs.push({ text: f.hong, x: cx, y: 4.75, z: z + 0.32, w: 3.6, h: 1.2 });
+      B.mat = 0; signs.push({ text: f.hong, x: cx, y: 4.75, z: z + 0.32, w: 3.6, h: 1.2 });
       rearRanges(f, w, H, z - 15);
       return;
     }
@@ -302,7 +338,7 @@ export function buildWorld(scene, sim, opts = {}) {
     }
     for (const s of [-1, 1]) {   // 巷子两侧连续的铺屋墙与披檐
       const x = s < 0 ? l.x0 : l.x1, len = FRONT - 14 - l.zEnd, zc = (FRONT - 14 + l.zEnd) / 2;
-      B.box(x + s * 0.45, 0, zc, 0.9, 6.2, len, s < 0 ? '#b5b0a2' : '#a9a69b', 0, 0.02);
+      B.mat = 4; B.box(x + s * 0.45, 0, zc, 0.9, 6.2, len, s < 0 ? '#b5b0a2' : '#a9a69b', 0, 0.02); B.mat = 0;
       B.box(x - s * 0.5, 4.3, zc, 1.9, 0.14, len, pk(TILE), 0, 0, 0, s * 0.32);
       for (let z = FRONT - 17; z > l.zEnd + 4; z -= wide ? 7 : 6) B.box(x - s * 0.02, 4.9, z + 3.4, 0.06, 0.9, 1.2, '#2e2620');
     }
@@ -428,11 +464,11 @@ export function buildWorld(scene, sim, opts = {}) {
   // ---- 船 ----
   const geoCache = {}, sailCache = {};
   const boats = sim.boats.map(b => {
-    if (!geoCache[b.type]) { const bb = new Builder(21); BOAT_BUILD[b.type](bb); geoCache[b.type] = bb.geometry(); }
-    const g = new THREE.Group(); g.add(new THREE.Mesh(geoCache[b.type], matBoat));
+    if (!geoCache[b.type]) { const bb = new Builder(21, 2); BOAT_BUILD[b.type](bb); geoCache[b.type] = bb.geometry(); }
+    const g = new THREE.Group(); const hull = new THREE.Mesh(geoCache[b.type], matBoat); hull.castShadow = !!opts.shadows; g.add(hull);
     let sail = null;
     if (SAIL_BUILD[b.type] && (b.id === 0 || b.sail > 0)) {
-      if (!sailCache[b.type]) { const sb = new Builder(22); SAIL_BUILD[b.type](sb); sailCache[b.type] = sb.geometry(); }
+      if (!sailCache[b.type]) { const sb = new Builder(22, 3); SAIL_BUILD[b.type](sb); sailCache[b.type] = sb.geometry(); }
       sail = new THREE.Mesh(sailCache[b.type], matBoat); sail.position.y = SAIL_BASE[b.type]; g.add(sail);
     }
     if (b.id === 0) g.add(boatStack);
@@ -451,6 +487,7 @@ export function buildWorld(scene, sim, opts = {}) {
       }
       sim.boats.forEach((b, i) => {
         const o = boats[i]; o.g.visible = !b.hidden;
+        if (b.land) { o.g.position.set(b.x, Math.abs(Math.sin(t * 4.6)) * 0.02, b.z); o.g.rotation.set(0, b.h, 0); return; }
         const k = b.type === 'sampan' ? 1 : 0.5;
         o.g.position.set(b.x, WATER_Y + Math.sin(t * 1.1 + b.bob) * 0.05 * k, b.z);
         o.g.rotation.set(Math.sin(t * 0.9 + b.bob) * 0.02 * k, b.h, Math.sin(t * 1.3 + b.bob * 2) * 0.03 * k);

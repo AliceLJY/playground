@@ -12,7 +12,7 @@ const coarse = matchMedia('(pointer:coarse)').matches;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 const DPR = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
 renderer.setPixelRatio(DPR);
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = !coarse;   // 桌面：人和船的影子逐帧更新；手机：只烘一次建筑的影子，人用圆片影
 
 const scene = new THREE.Scene();
 const FOG = new THREE.Color('#d6d0bc');
@@ -64,7 +64,7 @@ float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); 
       vec3 n = normalize(vec3(-hx * amp, 1., -hz * amp)), v = normalize(uCam - vW);
       float fr = pow(1. - max(dot(n, v), 0.), 3.);
       vec3 c = mix(uDeep, uSky, clamp(.16 + fr * .85, 0., 1.));
-      c += vec3(1., .93, .75) * pow(max(dot(reflect(-v, n), uSun), 0.), 120.) * .8;
+      float sp = max(dot(reflect(-v, n), uSun), 0.); c += vec3(1., .94, .78) * (pow(sp, 160.) * 1.6 + pow(sp, 24.) * .18);
       c += (hx + hz) * .02 * amp;
       c = mix(c, uFog, smoothstep(uNear, uFar, dist));
       gl_FragColor = vec4(c, 1.);
@@ -75,11 +75,11 @@ const water = new THREE.Mesh(new THREE.PlaneGeometry(9000, 5200), waterMat);
 water.rotation.x = -Math.PI / 2; water.position.set(0, C.WATER_Y, 900); scene.add(water);
 
 // ---- 模拟与场景 ----
-const sim = C.createSim(Number(Q.get('seed')) || 1805);
+const sim = C.createSim(Number(Q.get('seed')) || 1805, Number(Q.get('crowd')) || (coarse ? 0.6 : 1));
 const skip = sec => { for (let t = 0; t < sec; t += 0.1) C.stepSim(sim, 0.1); };
 if (Q.get('t')) skip(Number(Q.get('t')));
-const world = buildWorld(scene, sim, { plainFlags: Q.get('flags') === 'plain' });
-const people = createPeople(scene, sim);
+const world = buildWorld(scene, sim, { plainFlags: Q.get('flags') === 'plain', shadows: !coarse });
+const people = createPeople(scene, sim, { shadows: !coarse });
 const audio = createAudio();
 renderer.shadowMap.needsUpdate = true;
 
@@ -94,7 +94,7 @@ const S = {
   walk: { x: 27, z: -7, yaw: 0.55, pitch: 0.04, bob: 0, v: 0 },
   fol: { yaw: 0, pitch: 0.24, dist: 4, h: 0, pos: new THREE.Vector3(), init: false },
 };
-const FOLLOW_DIST = { sampan: 9, ferry: 12, chop: 17, junk: 34, flower: 24 };
+const FOLLOW_DIST = { sampan: 9, ferry: 12, chop: 17, junk: 34, flower: 24, sedan: 6 };
 const keys = new Set();
 const lerpA = (a, b, t) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -103,7 +103,7 @@ function setMode(mode, follow = null) {
   S.mode = mode; S.follow = follow;
   if (mode === 'follow') {
     const f = sim.follow[follow];
-    S.fol.dist = f.boat != null ? FOLLOW_DIST[sim.boats[f.boat].type] : 4; S.fol.pitch = f.boat != null ? 0.3 : 0.2; S.fol.yaw = 0; S.fol.init = false;
+    S.fol.dist = f.boat != null ? FOLLOW_DIST[sim.boats[f.boat].type] : 4; S.fol.pitch = f.boat != null ? 0.3 : 0.2; S.fol.yaw = follow === 'sedan' ? 0.9 : 0; S.fol.init = false;
     if (follow === 'tea' && sim.boats[0].hidden) hint('茶艇还没进港，稍等片刻；右下 ×1 可以调快');
   }
   if (mode === 'walk') hint(coarse ? '左下摇杆走动 · 其余地方拖动转头' : 'WASD 走动 · 拖动转头 · Shift 快走');
@@ -118,7 +118,7 @@ function hint(text) { const h = $('hint'); h.textContent = text; h.classList.add
 
 function followTarget(out) {
   const f = sim.follow[S.follow];
-  if (f.boat != null) { const b = sim.boats[f.boat]; out.set(b.x, C.WATER_Y + C.DECK[b.type] + (b.type === 'junk' ? 4 : 1.8), b.z); return b.h; }
+  if (f.boat != null) { const b = sim.boats[f.boat]; out.set(b.x, b.land ? 1.5 : C.WATER_Y + C.DECK[b.type] + (b.type === 'junk' ? 4 : 1.8), b.z); return b.h; }
   const a = sim.agents[f.agent], w = C.agentWorld(sim, a); out.set(w.x, w.y + 1.5 * a.scale, w.z); return w.h;
 }
 const _t = new THREE.Vector3(), _want = new THREE.Vector3(), _look = new THREE.Vector3();
@@ -264,7 +264,7 @@ function hud() {
   $('event').querySelector('i').style.width = Math.round(prog * 100) + '%';
   if (S.mode !== 'top') {
     const p = camera.position;
-    $('where').textContent = S.mode === 'follow' ? `跟随：${sim.follow[S.follow].label}` : p.z > 0.2 ? '码头' : p.z < C.FRONT ? C.nearestFactory(p.x) : `${C.nearestFactory(p.x)}前`;
+    $('where').textContent = S.mode === 'follow' ? sim.follow[S.follow].note : p.z > 0.2 ? '码头' : p.z < C.FRONT ? C.nearestFactory(p.x) : `${C.nearestFactory(p.x)}前`;
   }
 }
 

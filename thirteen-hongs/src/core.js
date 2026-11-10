@@ -178,7 +178,10 @@ export function makePath(pts, closed = false) {
 
 // ---------- 人物长相 ----------
 const SKIN = ['#c99a6b', '#b98558', '#d2a877', '#a9774c'], PALE = ['#e2b998', '#d9ad8c'];
+const HAIRF = ['#3a2a1c', '#6b4a2a', '#8a6a3a', '#2a2622', '#a08a6a'];
 const LOOKS = {
+  official: r => ({ skin: pick(r, SKIN), top: '#1b2748', bottom: '#e6e0d2', gown: pick(r, ['#1f2f5a', '#23325e', '#2a2f52']), hat: 'official', hatColor: '#e9dfc4', queue: true, prop: 'badge', propColor: '#c9a24a' }),
+  monk: r => ({ skin: pick(r, SKIN), top: '#8a7a55', bottom: '#d8d2c2', gown: pick(r, ['#8a6f3a', '#7d7468', '#9a7a48']), hat: null, hatColor: '#000', queue: false, hairStyle: 'none', prop: 'staff', propColor: '#6b5540' }),
   coolie: r => ({ skin: pick(r, SKIN), top: pick(r, ['#3d5a80', '#56697a', '#7a6a55', '#4a5a4c', '#8a7a62', '#2f4763']), bottom: pick(r, ['#2c3440', '#4a4138', '#3a4a5c']), gown: null, hat: r() < 0.75 ? 'cone' : null, hatColor: '#c9b27a', queue: true }),
   merchant: r => ({ skin: pick(r, SKIN), top: pick(r, ['#1e2a3c', '#2a2230', '#23302a']), bottom: '#e6e0d2', gown: pick(r, ['#2f4a6b', '#5a3e6b', '#3f5d4a', '#7b5a36', '#6b2f3a']), hat: 'cap', hatColor: '#15151a', queue: true }),
   linguist: r => ({ skin: pick(r, SKIN), top: '#5d6c78', bottom: '#e6e0d2', gown: pick(r, ['#6d7f8c', '#7d8a7a', '#8a8072']), hat: 'cap', hatColor: '#1c1c22', queue: true }),
@@ -192,9 +195,13 @@ function pick(r, a) { return a[Math.floor(r() * a.length)]; }
 function makeAgent(sim, kind, o = {}) {
   const r = sim.rand;
   const a = Object.assign({
-    id: sim.agents.length, kind, look: LOOKS[kind](r), scale: 0.93 + r() * 0.14,
+    id: sim.agents.length, kind, look: LOOKS[kind](r), scale: 0.93 + r() * 0.14, girth: (kind === 'merchant' || kind === 'official' ? 1.04 : 0.9) + r() * 0.2,
     x: 0, z: 0, h: 0, phase: r() * 6.28, pose: 'stand', carry: null, speed: 0, boat: -1, lx: 0, ly: 0, lz: 0, lh: 0, moved: 0,
   }, o);
+  const L = a.look;
+  if (!L.hairStyle) L.hairStyle = L.queue ? 'queue' : kind === 'boatwoman' ? 'bun' : 'short';
+  if (kind === 'foreigner' || kind === 'sailor') L.hair = pick(r, HAIRF);
+  if (a.pose === 'write') { L.prop = 'book'; L.propColor = '#e8e0cc'; }
   sim.agents.push(a);
   return a;
 }
@@ -286,7 +293,7 @@ function stepPorter(sim, p, dt) {
 }
 
 // ---------- 船 ----------
-export const DECK = { sampan: 0.32, chop: 0.95, flower: 1.05, junk: 2.3, ferry: 0.5 };
+export const DECK = { sampan: 0.32, chop: 0.95, flower: 1.05, junk: 2.3, ferry: 0.5, sedan: 0 };
 function addBoat(sim, type, o) {
   const b = Object.assign({ id: sim.boats.length, type, x: 0, z: 0, h: 0, d: 0, speed: 0, path: null, sail: 0, hidden: false, bob: sim.rand() * 6.28, crew: [] }, o);
   sim.boats.push(b);
@@ -298,14 +305,14 @@ function crew(sim, b, kind, lx, lz, lh, pose) {
   return a;
 }
 
-export function createSim(seed = 1805) {
-  const sim = { seed, t: 0, rand: rng(seed), agents: [], boats: [], porters: [], walkers: [], follow: {}, graph: buildGraph(), event: { stage: 'wait', t: 0, loaded: 0, picked: 0, cycles: 0, lastDrop: -99, log: ['wait'] } };
+export function createSim(seed = 1805, crowd = 1) {
+  const sim = { seed, crowd, t: 0, rand: rng(seed), agents: [], boats: [], porters: [], walkers: [], follow: {}, graph: buildGraph(), event: { stage: 'wait', t: 0, loaded: 0, picked: 0, cycles: 0, lastDrop: -99, log: ['wait'] } };
   const r = sim.rand;
 
   // 0 号：名场面的茶艇（西瓜扁）
   const tea = addBoat(sim, 'chop', { x: 235, z: 64, h: -1.4, hidden: true });
   crew(sim, tea, 'boatwoman', 0.3, -7.3, 0.2, 'scull'); crew(sim, tea, 'coolie', -0.6, 6.6, 3.1, 'stand');
-  sim.follow.tea = { label: '茶艇', boat: 0 };
+  sim.follow.tea = { label: '茶艇', boat: 0, note: '西瓜扁 · 运茶驳艇，装满开往黄埔' };
 
   // 来往的艇
   const loops = [
@@ -328,8 +335,8 @@ export function createSim(seed = 1805) {
     if (type === 'junk') { crew(sim, b, 'coolie', 0, -11, 0, 'stand'); crew(sim, b, 'coolie', 1.4, 2, 1.5, 'stand'); crew(sim, b, 'coolie', -1.2, 8, 0, 'stand'); }
     if (type === 'chop') { crew(sim, b, 'boatwoman', 0.3, -7.3, 0.2, 'scull'); }
   });
-  sim.follow.sampan = { label: '疍家艇', boat: 1 };
-  sim.follow.junk = { label: '帆船', boat: 7 };
+  sim.follow.sampan = { label: '疍家艇', boat: 1, note: '疍家艇 · 摇橹的艇家，沿岸揽客' };
+  sim.follow.junk = { label: '帆船', boat: 7, note: '帆船 · 篾席硬帆，顺江而下' };
 
   // 泊着的艇
   const moored = [
@@ -353,7 +360,7 @@ export function createSim(seed = 1805) {
     const p = makeAgent(sim, 'coolie', { x: hm.x, z: hm.z, h: Math.PI / 2, pose: i % 2 ? 'sit' : 'stand', slot: i, role: 'porter', ev: { state: 'home', t: 0, wp: 0 } });
     sim.porters.push(p);
   }
-  sim.follow.porter = { label: '挑夫', agent: sim.porters[0].id };
+  sim.follow.porter = { label: '挑夫', agent: sim.porters[0].id, note: '挑夫 · 扛茶箱上栈桥落艇' };
 
   // 过秤验货的一组
   const S = SCALE;
@@ -376,19 +383,30 @@ export function createSim(seed = 1805) {
   makeAgent(sim, 'clerk', { x: -19.5, z: -4.6, h: 0, pose: 'write', role: 'customs' });
 
   // 走动的人
-  const mix = [['coolie', 40], ['hawker', 10], ['merchant', 12], ['linguist', 6], ['clerk', 8], ['foreigner', 14], ['sailor', 12]];
-  for (const [kind, n] of mix) for (let i = 0; i < n; i++) {
+  // 轿子：两名轿夫抬一位行商，绕空地走一圈（当成一条走在陆上的「船」）
+  {
+    const path = makePath([[-125, -53], [55, -53], [70, -46], [55, -39], [-125, -39], [-138, -46]], true);
+    const b = addBoat(sim, 'sedan', { path, speed: 1.25, d: 60, land: true });
+    Object.assign(b, path.at(b.d));
+    crew(sim, b, 'coolie', 0, 1.8, 0, 'bear'); crew(sim, b, 'coolie', 0, -1.8, 0, 'bear'); crew(sim, b, 'merchant', 0, 0.05, 0, 'sit').ly = 0.5;
+    sim.follow.sedan = { label: '轿子', boat: b.id, note: '二人小轿 · 轿里坐着一位行商' };
+  }
+  const mix = [['coolie', 130], ['hawker', 28], ['merchant', 34], ['linguist', 14], ['clerk', 24], ['foreigner', 38], ['sailor', 32], ['official', 5], ['monk', 5]];
+  for (const [kind, n0] of mix) for (let i = 0, n = Math.max(2, Math.round(n0 * crowd)); i < n; i++) {
     const node = sim.graph[Math.floor(r() * sim.graph.length)];
     const a = makeAgent(sim, kind, { ox: r() * 2 - 1, oz: r() * 2 - 1, node: node.id, prev: -1, pause: 0, pose: 'walk', role: 'walker' });
-    a.speed = kind === 'merchant' || kind === 'linguist' ? 0.9 + r() * 0.25 : kind === 'coolie' ? 1.3 + r() * 0.5 : 1.05 + r() * 0.4;
+    a.speed = kind === 'merchant' || kind === 'linguist' || kind === 'official' || kind === 'monk' ? 0.9 + r() * 0.25 : kind === 'coolie' ? 1.3 + r() * 0.5 : 1.05 + r() * 0.4;
     if (kind === 'coolie') a.carry = i % 3 === 0 ? 'chest' : i % 3 === 1 ? 'pole' : null;
     if (kind === 'hawker') a.carry = 'pole';
     a.x = node.x + a.ox * node.off; a.z = node.z + a.oz * node.off;
     a.target = pickNext(sim, a);
     sim.walkers.push(a);
   }
-  sim.follow.merchant = { label: '行商', agent: sim.walkers.find(a => a.kind === 'merchant').id };
-  sim.follow.hawker = { label: '小贩', agent: sim.walkers.find(a => a.kind === 'hawker').id };
+  const first = k => sim.walkers.find(a => a.kind === k).id;
+  sim.follow.merchant = { label: '行商', agent: first('merchant'), note: '行商 · 长袍马褂瓜皮帽，在馆前走动' };
+  sim.follow.hawker = { label: '小贩', agent: first('hawker'), note: '小贩 · 挑着担子沿空地叫卖' };
+  sim.follow.official = { label: '官员', agent: first('official'), note: '官员 · 补服凉帽，来馆前巡看' };
+  sim.follow.monk = { label: '僧人', agent: first('monk'), note: '僧人 · 持杖，从对岸寺里过江来' };
   return sim;
 }
 function pickNext(sim, a) {
@@ -419,7 +437,7 @@ export function stepSim(sim, dt) {
 export function agentWorld(sim, a) {
   if (a.boat < 0) return { x: a.x, y: groundY(a.x, a.z), z: a.z, h: a.h };
   const b = sim.boats[a.boat], s = Math.sin(b.h), c = Math.cos(b.h);
-  return { x: b.x + a.lx * c + a.lz * s, y: WATER_Y + a.ly, z: b.z - a.lx * s + a.lz * c, h: b.h + a.lh, hidden: b.hidden };
+  return { x: b.x + a.lx * c + a.lz * s, y: (b.land ? 0 : WATER_Y) + a.ly, z: b.z - a.lx * s + a.lz * c, h: b.h + a.lh, hidden: b.hidden };
 }
 export function nearestFactory(x) {
   for (const l of LANES) if (x >= l.x0 && x <= l.x1) return l.cn;
