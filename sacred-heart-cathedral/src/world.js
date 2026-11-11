@@ -401,13 +401,16 @@ export function buildWorld(scene, { coarse = false } = {}) {
   { // 祭台：前面是铺红布的祭台，后面靠后殿是白色主祭台，正中一座小尖塔龛
     const y = C.SANCT.h, A = C.ALTAR, Hh = C.HIGH_ALTAR, WH = '#f1ede2', GOLD = '#d9b860';
     I.box(A.x, y, A.z, 3.0, 0.98, 1.0, '#7c1f24'); I.box(A.x, y + 0.98, A.z, 3.2, 0.08, 1.15, '#f4f0e6'); I.box(A.x, y + 0.5, A.z + 0.51, 0.5, 0.34, 0.02, GOLD);
-    I.box(Hh.x, y, Hh.z, 5.0, 0.3, 2.0, WH); I.box(Hh.x, y + 0.3, Hh.z - 0.2, 4.4, 1.0, 1.3, WH); I.box(Hh.x, y + 1.3, Hh.z - 0.45, 4.6, 0.12, 0.9, WH);
-    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) { const x = sx * (0.95 + k * 0.6); I.box(x, y + 1.42, Hh.z - 0.6, 0.5, 1.0, 0.35, WH); I.prism(x, y + 2.42, Hh.z - 0.6, 0.56, 0.5, 0.36, WH); I.box(x, y + 1.55, Hh.z - 0.41, 0.28, 0.7, 0.03, '#cfc6b0'); }
-    I.box(Hh.x, y + 1.42, Hh.z - 0.6, 1.2, 2.6, 0.9, WH); I.box(Hh.x, y + 1.8, Hh.z - 0.14, 0.8, 1.9, 0.04, '#e8d9a8'); I.prism(Hh.x, y + 4.02, Hh.z - 0.6, 1.5, 1.0, 0.92, WH); I.spike(Hh.x, y + 4.6, Hh.z - 0.6, 0.42, 2.4, WH); I.box(Hh.x, y + 7.0, Hh.z - 0.6, 0.06, 0.5, 0.06, GOLD); I.box(Hh.x, y + 7.25, Hh.z - 0.6, 0.3, 0.06, 0.06, GOLD);
-    for (const sx of [-1, 1]) { I.spike(Hh.x + sx * 0.72, y + 4.0, Hh.z - 0.6, 0.14, 1.2, WH); I.spike(Hh.x + sx * 2.3, y + 2.4, Hh.z - 0.6, 0.16, 1.0, WH); }
+    // 主祭台整体放大一号：照片里它有五六米高
+    const K = 1.5, sc = (B, ox, oy, oz) => ({ box: (x, yy, z, sx, sy, sz, c) => B.box(ox + (x - ox) * K, oy + (yy - oy) * K, oz + (z - oz) * K, sx * K, sy * K, sz * K, c), prism: (x, yy, z, w, h, d, c) => B.prism(ox + (x - ox) * K, oy + (yy - oy) * K, oz + (z - oz) * K, w * K, h * K, d * K, c), spike: (x, yy, z, r, h, c) => B.spike(ox + (x - ox) * K, oy + (yy - oy) * K, oz + (z - oz) * K, r * K, h * K, c), cyl: (x, yy, z, r, h, c, kind) => B.cyl(ox + (x - ox) * K, oy + (yy - oy) * K, oz + (z - oz) * K, r * K, h * K, c, kind), ball: (x, yy, z, r, c, sy) => B.ball(ox + (x - ox) * K, oy + (yy - oy) * K, oz + (z - oz) * K, r * K, c, sy) });
+    const HA = sc(I, Hh.x, y, Hh.z + 0.9), HG = sc(IG, Hh.x, y, Hh.z + 0.9);
+    HA.box(Hh.x, y, Hh.z, 5.0, 0.3, 2.0, WH); HA.box(Hh.x, y + 0.3, Hh.z - 0.2, 4.4, 1.0, 1.3, WH); HA.box(Hh.x, y + 1.3, Hh.z - 0.45, 4.6, 0.12, 0.9, WH);
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) { const x = sx * (0.95 + k * 0.6); HA.box(x, y + 1.42, Hh.z - 0.6, 0.5, 1.0, 0.35, WH); HA.prism(x, y + 2.42, Hh.z - 0.6, 0.56, 0.5, 0.36, WH); HA.box(x, y + 1.55, Hh.z - 0.41, 0.28, 0.7, 0.03, '#cfc6b0'); }
+    HA.box(Hh.x, y + 1.42, Hh.z - 0.6, 1.2, 2.6, 0.9, WH); HA.box(Hh.x, y + 1.8, Hh.z - 0.14, 0.8, 1.9, 0.04, '#e8d9a8'); HA.prism(Hh.x, y + 4.02, Hh.z - 0.6, 1.5, 1.0, 0.92, WH); HA.spike(Hh.x, y + 4.6, Hh.z - 0.6, 0.42, 2.4, WH); HA.box(Hh.x, y + 7.0, Hh.z - 0.6, 0.06, 0.5, 0.06, GOLD); HA.box(Hh.x, y + 7.25, Hh.z - 0.6, 0.3, 0.06, 0.06, GOLD);
+    for (const sx of [-1, 1]) { HA.spike(Hh.x + sx * 0.72, y + 4.0, Hh.z - 0.6, 0.14, 1.2, WH); HA.spike(Hh.x + sx * 2.3, y + 2.4, Hh.z - 0.6, 0.16, 1.0, WH); }
     // 龛里的圣心像：只做成一个红袍的小立像
-    I.cyl(Hh.x, y + 2.0, Hh.z - 0.25, 0.2, 1.0, '#a8242a', 'taper'); I.ball(Hh.x, y + 3.12, Hh.z - 0.25, 0.13, '#e8c9a8'); I.box(Hh.x, y + 2.5, Hh.z - 0.2, 0.62, 0.12, 0.1, '#f1ede2');
-    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) { I.cyl(Hh.x + sx * (0.9 + k * 0.6), y + 1.42, Hh.z + 0.05, 0.03, 0.5 + k * 0.08, GOLD); IG.ball(Hh.x + sx * (0.9 + k * 0.6), y + 1.99 + k * 0.08, Hh.z + 0.05, 0.045, '#ffd98a', 1.6); }
+    HA.cyl(Hh.x, y + 2.0, Hh.z - 0.25, 0.2, 1.0, '#a8242a', 'taper'); HA.ball(Hh.x, y + 3.12, Hh.z - 0.25, 0.13, '#e8c9a8'); HA.box(Hh.x, y + 2.5, Hh.z - 0.2, 0.62, 0.12, 0.1, '#f1ede2');
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) { HA.cyl(Hh.x + sx * (0.9 + k * 0.6), y + 1.42, Hh.z + 0.05, 0.03, 0.5 + k * 0.08, GOLD); HG.ball(Hh.x + sx * (0.9 + k * 0.6), y + 1.99 + k * 0.08, Hh.z + 0.05, 0.045, '#ffd98a', 1.6); }
     // 侧廊北端的两座小祭台
     for (const sx of [-1, 1]) { const x = sx * 7.7, z = C.Z_APSE + 1.0; I.box(x, 0, z, 2.4, 1.0, 0.9, WH); I.box(x, 1.0, z - 0.2, 1.3, 2.2, 0.5, WH); I.prism(x, 3.2, z - 0.2, 1.5, 0.9, 0.52, WH); I.spike(x, 3.9, z - 0.2, 0.2, 1.3, WH); I.cyl(x, 1.3, z + 0.02, 0.16, 0.9, sx > 0 ? '#3a5fb0' : '#8a5a3a', 'taper'); I.ball(x, 2.3, z + 0.02, 0.11, '#e8c9a8'); }
     // 圣所一侧柱上的十字架
