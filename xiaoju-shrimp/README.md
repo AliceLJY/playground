@@ -1,10 +1,10 @@
-# Xiaoju Steals the Shrimp (grey box)
+# Xiaoju Steals the Shrimp
 
 [中文](README_CN.md)
 
 A small stealth game. You are Xiaoju, a greedy and fearless orange cat. Each level has one "patrol" to slip past; in the last one you jump onto the dinner table and drag the shrimp away. Underneath it is hide-and-seek plus red-light-green-light.
 
-This is a grey-box build: all three levels: slip past Sanhua in the living room, slip past the child in the hallway, and steal the shrimp off the dinner table, with blocks standing in for the cats and furniture, to check whether it is fun before any art; it is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
+A playtest build with all three levels: slip past Sanhua in the living room, slip past the child in the hallway, and steal the shrimp off the dinner table. The rooms are drawn from above in code: wooden floorboards and rugs, a fish tank with swimming fish, a bookshelf, a sofa, a coffee table to hide under, a steaming soup pot; the two cats, the child and the owner are drawn figures that face the way they move. It is published and changed as we play. The spec (in Chinese) is [SPEC.md](SPEC.md).
 
 ## How to play (level 1)
 
@@ -25,4 +25,4 @@ Serve the repository root, for example `python3 -m http.server 8811`, and open `
 ## Who opens this, AI material
 
 - Who opens this: people whose cat has stolen food off their plate; anyone after a two-minute phone game about reading a pattern and finding the gap.
-- AI material: no AI-generated images, models, motion or sound; the grey box is blocks drawn in code. The code was written through human–AI collaboration.
+- AI material: no AI-generated images, models, motion or sound in the game; every picture is drawn in canvas code (`src/art.js`). One AI-generated mock-up of the living room was used only as a visual target while drawing, and is not shipped. The code was written through human–AI collaboration.
