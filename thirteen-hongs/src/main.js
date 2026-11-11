@@ -83,7 +83,7 @@ function setMode(mode, follow = null) {
   S.mode = mode; S.follow = follow;
   if (mode === 'follow') {
     const f = sim.follow[follow];
-    S.fol.dist = f.boat != null ? FOLLOW_DIST[sim.boats[f.boat].type] : 4; S.fol.pitch = f.boat != null ? 0.3 : 0.2; S.fol.yaw = follow === 'sedan' ? 0.9 : 0; S.fol.init = false;
+    S.fol.dist = f.boat != null ? FOLLOW_DIST[sim.boats[f.boat].type] : 4; S.fol.pitch = f.boat != null ? 0.3 : 0.2; S.fol.yaw = follow === 'sedan' ? 0.9 : 0; S.fol.low = 0; S.fol.init = false;
     if (follow === 'tea' && sim.boats[0].hidden) hint('茶艇还没进港，稍等片刻；右下 ×1 可以调快');
   }
   if (mode === 'walk') hint(coarse ? '左下摇杆走动 · 其余地方拖动转头' : 'WASD 走动 · 拖动转头 · Shift 快走');
@@ -120,7 +120,7 @@ function updateCamera(dt) {
     camera.position.set(W.x, C.groundY(W.x, W.z) + 1.62 + Math.sin(W.bob) * 0.03 * Math.min(1, W.v), W.z);
     camera.rotation.set(W.pitch, W.yaw, 0);
   } else {
-    const Fo = S.fol, h = followTarget(_t);
+    const Fo = S.fol, h = followTarget(_t); _t.y -= Fo.low || 0;
     Fo.h = Fo.init ? lerpA(Fo.h, h, 1 - Math.exp(-dt * 2.5)) : h;
     const A = Fo.h + Math.PI + Fo.yaw, cp = Math.cos(Fo.pitch);
     _want.set(_t.x + Math.sin(A) * cp * Fo.dist, _t.y + Math.sin(Fo.pitch) * Fo.dist + 0.25, _t.z + Math.cos(A) * cp * Fo.dist);
@@ -271,6 +271,7 @@ const VIEWS = {
   facade: () => { begin('walk'); Object.assign(S.walk, { x: 70, z: -22, yaw: -0.5, pitch: 0.16 }); },
 };
 for (const k of Object.keys(sim.follow)) VIEWS[k] = () => begin('follow', k);
+VIEWS.gait = () => { begin('follow', 'porter'); Object.assign(S.fol, { yaw: 1.5, pitch: 0.04, dist: 3.0, low: 0.7 }); };   // 侧面近看一个人走路
 window.__hong = {
   sim, C, S, stat, views: Object.keys(VIEWS), ready: false,
   setView(v) { if (!VIEWS[v]) return null; VIEWS[v](); step(0.016); step(0.016); hud(); return { mode: S.mode, follow: S.follow }; },

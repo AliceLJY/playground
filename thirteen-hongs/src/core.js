@@ -176,6 +176,29 @@ export function makePath(pts, closed = false) {
   };
 }
 
+// ---------- 步态：脚落地后钉在地上，身体从它上面走过去 ----------
+// 一个完整步态周期（左右各一步）身体前进 cycle 米；每只脚半个周期着地、半个周期摆动。
+export const GAIT = { cycle: 1.25, hip: 0.92, thigh: 0.46, shin: 0.45, ankle: 0.05, lift: 0.1 };
+export const PHASE_PER_M = 2 * Math.PI / GAIT.cycle;
+// 脚踝相对胯的前后位置 f（身体坐标，向前为正）与离地高度；stride 是半个周期身体走过的距离
+export function footAt(phase, leg, stride = GAIT.cycle / 2) {
+  let u = (phase / (2 * Math.PI) + leg * 0.5) % 1; if (u < 0) u += 1;
+  if (u < 0.5) return { f: stride / 2 - stride * (u / 0.5), lift: 0, stance: true };
+  const v = (u - 0.5) / 0.5, s = v * v * (3 - 2 * v);
+  return { f: -stride / 2 + stride * s, lift: GAIT.lift * Math.sin(Math.PI * v), stance: false };
+}
+// 身体的起伏：让着地那条腿几乎伸直（脚在正下方时人最高，两脚换步时最低），像人走路而不是蹲着走
+export function gaitY(phase, stride = GAIT.cycle / 2) {
+  const a = footAt(phase, 0, stride), f = a.stance ? a.f : footAt(phase, 1, stride).f, R = GAIT.thigh + GAIT.shin - 0.012;
+  return Math.sqrt(R * R - f * f) + GAIT.ankle - GAIT.hip;
+}
+// 两段腿的反解：给脚踝相对胯的前后 f 与垂直距离 h，求大腿转角 a 与膝盖弯角 b（约定同 people.js 的 limb）
+export function legIK(f, h) {
+  const L1 = GAIT.thigh, L2 = GAIT.shin, d = Math.min(Math.hypot(f, h), L1 + L2 - 0.004);
+  const g = Math.atan2(f, h), al = Math.acos((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d)), k = Math.acos((L1 * L1 + L2 * L2 - d * d) / (2 * L1 * L2));
+  return { a: -(g + al), b: Math.PI - k };
+}
+
 // ---------- 人物长相 ----------
 const SKIN = ['#c99a6b', '#b98558', '#d2a877', '#a9774c'], PALE = ['#e2b998', '#d9ad8c'];
 const HAIRF = ['#3a2a1c', '#6b4a2a', '#8a6a3a', '#2a2622', '#a08a6a'];
@@ -257,7 +280,7 @@ function walkTo(a, tx, tz, v, dt) {
   if (d < 0.05) return true;
   const s = Math.min(d, v * dt);
   a.x += dx / d * s; a.z += dz / d * s; a.h = lerpAngle(a.h, Math.atan2(dx, dz), Math.min(1, dt * 10));
-  a.phase += s * 2.6; a.moved += s;
+  a.phase += s * PHASE_PER_M; a.moved += s;
   return s >= d - 1e-6;
 }
 // 返回 true 表示这名挑夫已回原位歇着

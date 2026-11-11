@@ -1,6 +1,6 @@
 // 人物：圆润的躯干、会弯的手肘和膝盖、头发辫子眼睛。全体共用二十来个 InstancedMesh。
 import * as THREE from 'three';
-import { agentWorld } from './core.js';
+import { agentWorld, GAIT, PHASE_PER_M, footAt, legIK, gaitY } from './core.js';
 
 const _root = new THREE.Matrix4(), _loc = new THREE.Matrix4(), _out = new THREE.Matrix4();
 const _p = new THREE.Vector3(), _o = new THREE.Vector3(), _s = new THREE.Vector3(), _mid = new THREE.Vector3(), _end = new THREE.Vector3();
@@ -24,7 +24,7 @@ export function createPeople(scene, sim, opts = {}) {
     upper: mk(seg, N * 2), fore: mk(seg, N * 2), hand: mk(new THREE.SphereGeometry(1, 6, 5), N * 2),
     torso: mk(lathe([[0, 1.08], [0.2, 1.06], [0.44, 0.92], [0.52, 0.7], [0.5, 0.2], [0.44, -0.45], [0.47, -0.9], [0.4, -1.02], [0, -1.02]])),
     skirt: mk(lathe([[0, 0.02], [0.5, 0], [0.56, -0.2], [0.68, -0.5], [0.86, -0.8], [1, -1], [0.96, -1.02], [0, -1.02]])),
-    neck: mk(seg), nose: mk(new THREE.SphereGeometry(1, 5, 4), N, mat, false), mouth: mk(box, N, mat, false),
+    pelvis: mk(new THREE.SphereGeometry(1, lite ? 8 : 10, lite ? 5 : 7)), neck: mk(seg), nose: mk(new THREE.SphereGeometry(1, 5, 4), N, mat, false), mouth: mk(box, N, mat, false),
     head: mk(new THREE.SphereGeometry(1, lite ? 8 : 10, lite ? 6 : 8)), hair: mk(new THREE.SphereGeometry(1.07, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.56)),
     eye: mk(new THREE.SphereGeometry(1, 5, 4), N * 2, mat, false), bun: mk(new THREE.SphereGeometry(1, 6, 5)),
     cone: mk(new THREE.ConeGeometry(1, 1, 12)), cap: mk(new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2)), top: mk(new THREE.CylinderGeometry(0.72, 0.8, 1, 10)), brim: mk(new THREE.CylinderGeometry(1, 1, 1, 10)),
@@ -40,7 +40,7 @@ export function createPeople(scene, sim, opts = {}) {
       col(M.upper, i * 2 + j, L.gown || L.top, 0.95); col(M.fore, i * 2 + j, L.gown || L.top, 0.92); col(M.hand, i * 2 + j, L.skin);
       col(M.eye, i * 2 + j, '#1a1512'); col(M.basket, i * 2 + j, j ? '#a88c58' : '#b59a62');
     }
-    col(M.neck, i, L.skin, 0.96); col(M.nose, i, L.skin, 0.9); col(M.mouth, i, '#7a3b30');
+    col(M.pelvis, i, L.gown || L.bottom, 0.98);   // 胯和裤腿同色，看上去是一条裤子 col(M.neck, i, L.skin, 0.96); col(M.nose, i, L.skin, 0.9); col(M.mouth, i, '#7a3b30');
     col(M.torso, i, L.gown && a.kind !== 'merchant' ? L.gown : L.top); col(M.skirt, i, L.gown || L.top); col(M.head, i, L.skin);
     col(M.hair, i, L.hair || '#17140f'); col(M.bun, i, L.hair || '#17140f'); col(M.queue, i, '#17140f');
     col(M.cone, i, L.hatColor); col(M.cap, i, L.hatColor); col(M.top, i, L.hatColor); col(M.brim, i, L.hat === 'official' ? '#b23a2e' : L.hatColor, L.hat === 'straw' || L.hat === 'official' ? 1 : 0.9);
@@ -64,14 +64,18 @@ export function createPeople(scene, sim, opts = {}) {
     for (let i = 0; i < N; i++) {
       const a = sim.agents[i], w = agentWorld(sim, a), L = a.look;
       if (w.hidden) { for (const k in M) { if (PAIR.has(k)) { hide(M[k], i * 2); hide(M[k], i * 2 + 1); } else hide(M[k], i); } continue; }
-      const pose = a.pose, ph = a.pose === 'bear' ? t * 4.6 + i : a.phase, sw = Math.sin(ph), cw = Math.cos(ph);
+      const pose = a.pose, ph = a.pose === 'bear' ? t * 1.25 * PHASE_PER_M + i : a.phase, sw = Math.sin(ph), cw = Math.cos(ph);
       const walking = pose === 'walk' || pose === 'carry' || pose === 'pole' || pose === 'bear';
       const gown = !!L.gown, idle = Math.sin(t * 1.3 + i * 1.7);
       let tA = 0, tB = 0, kA = 0.04, kB = 0.04, uA = 0.06 * idle, uB = -0.06 * idle, eA = -0.18, eB = -0.18, sA = 0.1, sB = 0.1, y = 0, lean = 0;
       if (walking) {
-        const st = gown ? 0.4 : 0.6;
-        tA = sw * st; tB = -sw * st; kA = 0.1 + 0.75 * Math.max(0, cw); kB = 0.1 + 0.75 * Math.max(0, -cw);
-        uA = -sw * 0.5; uB = sw * 0.5; eA = -0.35 - 0.25 * Math.max(0, -sw); eB = -0.35 - 0.25 * Math.max(0, sw); y = Math.abs(cw) * 0.03 - 0.015; lean = 0.06;
+        // 腿：脚的位置由步态给出（着地时钉在地上），再反解出大腿和膝盖的角度，所以不会打滑
+        const st = GAIT.cycle / 2 / a.scale;
+        y = gaitY(ph, st);
+        const fa = footAt(ph, 0, st), fb = footAt(ph, 1, st);
+        const ia = legIK(fa.f, GAIT.hip + y - GAIT.ankle - fa.lift), ib = legIK(fb.f, GAIT.hip + y - GAIT.ankle - fb.lift);
+        tA = ia.a; kA = ia.b; tB = ib.a; kB = ib.b;
+        uA = cw * 0.42; uB = -cw * 0.42; eA = -0.3 - 0.2 * Math.max(0, -cw); eB = -0.3 - 0.2 * Math.max(0, cw); lean = 0.05;
       }
       if (gown && (pose === 'stand' || (pose === 'walk' && i % 3 === 0))) { uA = uB = -0.42; eA = eB = -1.5; sA = sB = -0.3; }     // 袖手
       if (pose === 'carry' || pose === 'carry-stand') { uA = -2.5; eA = -0.75; sA = 0.25; lean += 0.05; }
@@ -94,12 +98,12 @@ export function createPeople(scene, sim, opts = {}) {
       const girth = a.girth || 1;
       // 腿与脚
       for (const j of [0, 1]) {
-        const sx = j ? -0.1 : 0.1;
-        limb(M.thigh, M.shin, i * 2 + j, sx, 0.88, 0, j ? tB : tA, 0, j ? kB : kA, 0.43, 0.42, 0.17, 0.13);
-        put(M.foot, i * 2 + j, _end.x, Math.max(0.035 - y, _end.y + 0.02), _end.z + 0.06, _q2, 0.095, 0.07, 0.24);
+        limb(M.thigh, M.shin, i * 2 + j, j ? -0.085 : 0.085, GAIT.hip, 0, j ? tB : tA, 0, j ? kB : kA, GAIT.thigh, GAIT.shin, 0.16, 0.125);
+        put(M.foot, i * 2 + j, _end.x, Math.max(0.035 - y, _end.y - 0.015), _end.z + 0.06, pose === 'sit' ? _q2 : ID, 0.095, 0.07, 0.24);
       }
       // 躯干与下摆
       put(M.torso, i, 0, 1.15, 0, ID, 0.4 * girth, 0.3, 0.25 * girth);
+      put(M.pelvis, i, 0, 0.9, 0, ID, 0.178 * girth, 0.105, 0.105 * girth);   // 胯：把躯干和两条腿接起来
       if (gown) { _e.set(pose === 'sit' ? -0.9 : walking ? 0.03 : 0, 0, 0); _q.setFromEuler(_e); put(M.skirt, i, 0, 1.02, 0, _q, 0.37 * girth, pose === 'sit' ? 0.6 : 0.84, 0.31 * girth); }
       else hide(M.skirt, i);
       // 手臂与手
