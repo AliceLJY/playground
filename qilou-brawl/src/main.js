@@ -42,6 +42,7 @@ const LINES = [
 const PHASE2_LINE = ['醒狮头', '采青！街坊，帮手！'];
 
 let scene, sim, bot, chars = new Map(), have = new Set(), started = false, paused = false, talk = null;
+let street = null; const blobs = [], proxies = [], SMALL = matchMedia('(pointer:coarse)').matches || Math.min(innerWidth, innerHeight) < 600, SHADOWS = q.get('shadows') !== '0';
 let winCam = false, camYaw = 0, camDist = 5.2, camPos = new pc.Vec3(0, 3, -4), camLook = new pc.Vec3(0, 1, 2), shake = 0;
 const keys = new Set(), stick = { x: 0, y: 0 }, pressed = {}, held = { block: false };
 let clearInput = () => {};
@@ -65,8 +66,8 @@ async function boot() {
   scene = await Scene.create(canvas, { fov: 52, depth: true, far: 220, antialias: true, maxPixelRatio: VIEW ? 1 : 2, preserveDrawingBuffer: !!VIEW });
   scene.start();
   SkyDome.create(scene, { topColor: '#3B3A6B', bottomColor: '#F6A96B' });
-  const st = buildStreet(scene.app, { halfW: C.HALF_W });
-  scene.app.root.addChild(st.root); addLights(scene.app, scene.app.root);
+  const st = street = buildStreet(scene.app, { halfW: C.HALF_W, small: SMALL, shadows: SHADOWS });
+  scene.app.root.addChild(st.root); addLights(scene.app, scene.app.root, { small: SMALL, shadows: SHADOWS, proxyLayer: st.proxyLayer });
   setLoad(.1, '搭骑楼街');
   const files = Object.entries(CLIPS);
   let n = 0;
@@ -165,6 +166,17 @@ function frame(dt) {
   }
   for (const e of sim.enemies) if (!chars.has(e.id)) ensureChar(e);
   for (const v of chars.values()) syncChar(v, dt);
+  // 每个在场的人脚下一块软影；擂台地毯比街面高一点
+  let nb = 0;
+  for (const v of chars.values()) {
+    if (!v.c || v.gone || v.loading) continue;
+    const b = blobs[nb] || (blobs[nb] = street.blob()), px = proxies[nb] || (proxies[nb] = SHADOWS ? street.proxy() : null), o = v.o, flat = o.state === 'down' || o.state === 'dead';
+    const big = o.kind === 'baozugong' ? 1.35 : o.kind === 'lionhead' ? 1.2 : 1;
+    b.enabled = true; b.setPosition(o.x, o.z > street.ring.z0 - .1 && o.z < street.ring.z1 + .1 ? .075 : .014, o.z); b.setLocalScale(flat ? 2.6 * big : 1.5 * big, 1, flat ? 2.6 * big : 1.5 * big);
+    if (px) { px.enabled = true; px.setPosition(o.x, 0, o.z); px.setLocalScale(flat ? 3.4 : big, flat ? .22 : 1, flat ? 3.4 : big); }
+    nb++;
+  }
+  for (let k = nb; k < blobs.length; k++) { blobs[k].enabled = false; if (proxies[k]) proxies[k].enabled = false; }
   updateCamera(dt);
   updateHud(dt);
   sfx.setTempo(sim.gongT > 0 ? 1.5 : sim.wave === 3 ? 1.2 : 1);
@@ -400,12 +412,13 @@ function setupView(v) {
   while (sim.t < runFor && sim.phase === 'fight') { C.step(sim, bot(sim), C.STEP); }
   sim.events.length = 0; paused = true;
   if (v === 'wide') { camDist = 9; camYaw = 0.35; }
-  window.__qilou.view = v;
+  window.__qilou.view = v; window.__qilou.scene = scene; window.__qilou.blobs = blobs;
 }
 function info() {
   const p = sim.player;
   return { phase: sim.phase, wave: sim.wave, practice: sim.practice ? { ...sim.practice } : null, t: +sim.t.toFixed(2), hp: p.hp, x: +p.x.toFixed(2), z: +p.z.toFixed(2), state: p.state, enemies: sim.enemies.filter((e) => !e.dead).length,
-    chars: [...chars.values()].filter((v) => v.c).length, anims: [...have], fps: Math.round(fps) };
+    chars: [...chars.values()].filter((v) => v.c).length, anims: [...have], fps: Math.round(fps),
+    backend: scene.app.graphicsDevice.deviceType, tris: street.tris, meshes: street.meshes, blobs: blobs.filter((b) => b.enabled).length };
 }
 // 验收用：从左右锁骨骨骼的世界坐标算身体实际朝向，和逻辑朝向比。返回角度差（度，-180..180）。
 function facing(id = 0) {

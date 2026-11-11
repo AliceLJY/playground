@@ -26,7 +26,7 @@
 
 - 四个角色先用 AI 画成卡通全身图，再交给 [PINOC](https://viggle.ai/pinoc)（Viggle）一张图生成带骨骼的高斯泼溅角色，没有建模、没有手动绑骨。
 - 动作：走、跑、踢、回旋踢、翻滚、格挡、受击、倒地、起身、欢呼来自 PINOC 免费动作库；库里没有出拳，三连拳是用一句话描述生成的。
-- 渲染：PlayCanvas + [@viggle/splat-engine](https://www.npmjs.com/package/@viggle/splat-engine)（MIT）。骑楼街、满洲窗、招牌、灯笼、擂台都是代码搭的方块，合并成两个网格。
+- 渲染：PlayCanvas + [@viggle/splat-engine](https://www.npmjs.com/package/@viggle/splat-engine)（MIT）。骑楼街是代码一件件搭的（柱础、柱头、横匾、趟栊、满洲窗、百叶、阳台、山花、灯箱），按材质合并成十个网格；灰泥、青砖、麻石、花阶砖、木纹和招牌上的字都是加载时算出来的贴图，没有图片文件。傍晚的低角度阳光带阴影贴图，角色脚下有软影和顺光拉长的影子。
 - 声音全部现场合成：拳脚、铜锣、醒狮锣鼓点。
 - 玩法逻辑在 `src/core.js`，不依赖画面，Node 里能直接跑；自动驾驶（`makeBot`）用来测试、打通全局和固定机位截图。
 
