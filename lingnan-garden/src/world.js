@@ -64,6 +64,12 @@ export function buildWorld(scene, { coarse, sunDir, flatWater = false, still = f
   else {
   water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 512 : 768, textureHeight: coarse ? 512 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x1d5a48, distortionScale: 0.5, alpha: 1, fog: false });
   water.rotation.x = -Math.PI / 2; water.position.y = C.WATER_Y; water.material.uniforms.size.value = 0.55; scene.add(water);
+  // 倒影柔化：倒影贴图比屏幕小，砖缝、窗格这类细线映进去再被波纹扰动，视角一动就一格一格地闪。
+  // 给倒影贴图开多级渐远，采样时往模糊的一级偏，细线化成一片颜色。
+  { const rt = water.material.uniforms.mirrorSampler.value; rt.generateMipmaps = true; rt.minFilter = THREE.LinearMipmapLinearFilter;
+    const key = 'mirrorCoord.xy / mirrorCoord.w + distortion )', fs = water.material.fragmentShader;
+    if (!fs.includes(key)) throw new Error('Water shader changed: reflection sample line not found');
+    water.material.fragmentShader = fs.replace(key, 'mirrorCoord.xy / mirrorCoord.w + distortion, 2.2 )'); water.material.needsUpdate = true; }
   anim.push((t) => { water.material.uniforms.time.value = t * 0.28; });
   }
   buildWalls(scene, M); tick('walls');
