@@ -17,7 +17,7 @@ function buildGround(scene, M, T) {
   const pos = [], idx = [], uv = [], O = C.POND; let acc = 0;
   O.forEach((p, i) => { const q = O[(i + 1) % O.length], len = Math.hypot(q.x - p.x, q.z - p.z), k = pos.length / 3; pos.push(p.x, 0.0, p.z, p.x, -1.3, p.z, q.x, 0.0, q.z, q.x, -1.3, q.z); uv.push(acc, 0, acc, 0.65, acc + len * 0.5, 0, acc + len * 0.5, 0.65); acc += len * 0.5; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); });
   const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); wg.setIndex(idx); wg.computeVertexNormals();
-  scene.add(new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ map: T.granite, color: '#9a968a', roughness: 1, side: THREE.DoubleSide })));
+  scene.add(new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ map: T.granite, color: '#9a968a', roughness: 1, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 8 })   /* 北岸那段池壁和敞厅台基的南立面在同一个平面上（z = RECT.z0），两个面抢深度会闪条纹；让池壁在深度上退后一点，重合处始终是台基在前 */));
   const bed = new THREE.Mesh(new THREE.PlaneGeometry(26, 14), new THREE.MeshStandardMaterial({ color: '#2b3a30', roughness: 1 })); bed.rotation.x = -Math.PI / 2; bed.position.set(4.6, -1.3, 4.4); scene.add(bed);
 }
 
