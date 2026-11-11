@@ -116,9 +116,28 @@ test('playtest 3: the game announces when the toy starts and stops, so the page 
 });
 
 test('furniture labels sit only on furniture (2026-11-06: 「鞋柜」 was printed over a floor cell after the map changed)',()=>{
-  for(const lv of [0,1,2]){const Lx=C.level(lv);
-    for(const lb of Lx.def.labels)for(let r=lb.r;r<lb.r+lb.h;r++)for(let c=lb.c;c<lb.c+lb.w;c++){
-      const k=Lx.kind[r*Lx.cols+c];assert.ok(k==='#'||k==='T',`level ${lv+1}: label 「${lb.text}」 covers a ${k} cell at (${c},${r})`);}}
+  const Art=require('../src/art.js').SneakArt;
+  const expected=[['电视柜','书柜','沙发'],['卫生间','鞋柜','鞋柜'],['汤锅','饭锅','菜']];
+  for(const lv of [0,1,2])for(const s of [40,64,96]){
+    const Lx=C.level(lv),G={ox:13,oy:17,s},drawn=[];
+    const names=new Set(Lx.def.labels.map(lb=>lb.text));
+    const ctx=new Proxy({}, {get(target,key){
+      if(key in target)return target[key];
+      if(key==='fillText')return (text,x,y)=>{if(names.has(text))drawn.push({text,x,y});};
+      if(key==='measureText')return ()=>({width:20});
+      if(key==='createLinearGradient'||key==='createRadialGradient')return ()=>({addColorStop(){}});
+      return ()=>{};
+    }});
+    Art.paintRoom(ctx,Lx,G,true);
+    assert.deepStrictEqual(drawn.map(lb=>lb.text).sort(),[...expected[lv]].sort(),'the sample must contain every rendered furniture label');
+    for(const lb of drawn){
+      const c=Math.floor((lb.x-G.ox)/s),r=Math.floor((lb.y-G.oy)/s),k=Lx.kind[r*Lx.cols+c];
+      assert.ok(c>=0&&c<Lx.cols&&r>=0&&r<Lx.rows&&(k==='#'||k==='T'),
+        `level ${lv+1}, ${s}px: drawn label 「${lb.text}」 at (${c},${r}) is over ${k}`);
+      assert.ok(Lx.def.labels.some(f=>f.text===lb.text&&c>=f.c&&c<f.c+f.w&&r>=f.r&&r<f.r+f.h),
+        `level ${lv+1}: drawn label 「${lb.text}」 must sit on its own furniture`);
+    }
+  }
 });
 
 // Alice 2026-11-06 fourth playtest: 「我看到可躲的那个地方，我躲进去了呀，为什么还会被孩子抓到呢」

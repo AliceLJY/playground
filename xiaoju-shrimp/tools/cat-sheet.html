@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小橘与三花 · 大头卷尾候选</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 24px; width: max-content; color: #33251b; background: #f5ecdc; font: 15px system-ui, sans-serif; }
+  h1 { margin: 0 0 8px; font-size: 24px; }
+  p { margin: 0 0 20px; }
+  table { border-collapse: collapse; }
+  th { padding: 10px; }
+  td { padding: 0; border: 1px solid #d2b793; background: #b17d4d; }
+  tbody + tbody { border-top: 4px solid #7a5639; }
+  .group th { padding: 14px; text-align: left; background: #e6d5ba; }
+  canvas { display: block; width: 184px; height: 184px; }
+</style>
+<h1>小橘与三花 · 大头卷尾候选</h1>
+<p>尺寸为绘制参数 s 的 CSS 像素。行走固定为 1/8 周期，尾摆时间固定为 0 秒。A 侧身卷成圈，B 后翘小螺旋。此页可直接在本地打开。</p>
+<table id="sheet">
+  <thead><tr><th>花色 / 尺寸</th></tr></thead>
+</table>
+<script src="../src/art.js"></script>
+<script>
+'use strict';
+const directions=[['↑',-Math.PI/2],['→',0],['↓',Math.PI/2],['←',Math.PI]];
+const frames=[['静止',-1],['行走',.125]];
+const table=document.getElementById('sheet'),header=table.tHead.rows[0];
+for(const [name] of directions)for(const [frame] of frames){
+  const th=document.createElement('th');th.textContent=name+' '+frame;header.append(th);
+}
+for(const [tail,title] of [['ring','A · 卷成圈（游戏默认）'],['curl','B · 翘起打卷']]){
+  const heading=document.createElement('tbody');heading.className='group';
+  const headingRow=heading.insertRow(),headingCell=document.createElement('th');
+  headingCell.colSpan=9;headingCell.textContent=title;headingRow.append(headingCell);table.append(heading);
+  for(const [kind,name] of [['orange','小橘'],['calico','三花']]){
+    const group=document.createElement('tbody');table.append(group);
+    for(const size of [40,64,96]){
+      const row=document.createElement('tr'),label=document.createElement('th');
+      label.scope='row';label.textContent=name+' / '+size+' px';row.append(label);group.append(row);
+      for(const [direction,angle] of directions)for(const [frame,walk] of frames){
+        const td=document.createElement('td'),canvas=document.createElement('canvas');
+        canvas.width=canvas.height=368;
+        canvas.setAttribute('aria-label',title+' '+name+' '+size+' px '+direction+' '+frame);
+        canvas.dataset.tail=tail;
+        canvas.dataset.size=size;canvas.dataset.kind=kind;canvas.dataset.walk=walk;canvas.dataset.angle=angle;
+        td.append(canvas);row.append(td);
+        const ctx=canvas.getContext('2d');ctx.scale(2,2);
+        SneakArt.cat(ctx,92,92,size,angle,{kind,tail,walk,t:0,seed:kind==='calico'?3:0});
+      }
+    }
+  }
+}
+// State details use the same artwork and both tail options.
+const states=document.createElement('tbody');table.append(states);
+const stateRow=states.insertRow(),stateLabel=document.createElement('th');stateLabel.textContent='状态 / 96 px';stateRow.append(stateLabel);
+for(const tail of ['ring','curl'])for(const kind of ['orange','calico'])for(const state of ['puff','carry']){
+  const td=stateRow.insertCell(),canvas=document.createElement('canvas');canvas.width=368;canvas.height=416;canvas.style.height='208px';
+  canvas.setAttribute('aria-label',tail+' '+kind+' '+state);canvas.dataset.tail=tail;canvas.dataset.state=state;td.append(canvas);
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
+  SneakArt.cat(ctx,92,92,96,-Math.PI/2,{kind,tail,walk:-1,t:0,[state]:true});
+  ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillStyle='#fff5e5';
+  ctx.fillText((tail==='ring'?'A':'B')+' '+(kind==='orange'?'小橘':'三花')+' '+(state==='puff'?'哈气':'叼虾'),92,197);
+}
+window.__CAT_SHEET__={ready:true,count:table.querySelectorAll('canvas').length};
+</script>
+</html>

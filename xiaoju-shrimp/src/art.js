@@ -328,50 +328,192 @@ function ownerSide(ctx,x,y,w,s){ // the row below the table: floor and her chair
 const ORANGE={body:'#f29a3a',light:'#ffcf8e',dark:'#c2621a',line:'#7a3a0c',ear:'#f6b8a8'};
 const CALICO={body:'#f6f1e6',light:'#ffffff',dark:'#cfc6b4',line:'#5a4a3a',ear:'#f2b2a8',black:'#2c2826',orange:'#e2873a'};
 // a cat seen from above, nose pointing along angle ang; o.walk is the stride phase 0..1 or -1 standing,
-// o.t seconds (tail sway), o.kind 'orange'|'calico', o.puff for a hissing cat (fur up, ears flat), o.carry shows the shrimp
+// o.t seconds (rigid tail sway), o.tail 'ring' (default)|'curl', o.kind 'orange'|'calico',
+// o.puff for a hissing cat (ears flat, narrowed eyes, open mouth), o.carry shows the shrimp
 function cat(ctx,x,y,s,ang,o){
-  const P=o.kind==='calico'?CALICO:ORANGE,walking=o.walk>=0,ph=walking?o.walk*TAU:0,bob=walking?Math.abs(Math.sin(ph))*s*.02:0,puff=o.puff?1.12:1;
+  const calico=o.kind==='calico',P=calico?CALICO:ORANGE;
+  const walking=o.walk>=0,ph=walking?o.walk*TAU:0;
+  const bob=walking?Math.abs(Math.sin(ph))*s*.02:0,puff=o.puff?1.12:1;
+  const stride=walking?Math.sin(ph)*s*.065:0;
+  const shoulder=.008+(walking?Math.sin(ph)*.014:0);
+  const hip=-.008-(walking?Math.sin(ph)*.012:0);
+  const white='#fff5e5',small=s<=48;
   ctx.save();ctx.translate(x,y);
-  if(!o.hitMask){ctx.fillStyle='rgba(30,12,2,.32)';ell(ctx,s*.05,s*.08,s*.42,s*.27,ang);ctx.fill();}
+  if(!o.hitMask){
+    // A fading contact shadow stays tucked under the torso, without an outlined second silhouette.
+    ctx.save();ctx.translate(s*.025,s*.035);ctx.rotate(ang);ctx.scale(1,.48);
+    const contact=ctx.createRadialGradient(-s*.04,0,s*.06,-s*.04,0,s*.47);
+    contact.addColorStop(0,'rgba(30,12,2,.18)');
+    contact.addColorStop(.65,'rgba(30,12,2,.09)');
+    contact.addColorStop(1,'rgba(30,12,2,0)');
+    ctx.fillStyle=contact;ell(ctx,-s*.04,0,s*.47,s*.47);ctx.fill();ctx.restore();
+  }
   ctx.rotate(ang);ctx.translate(bob,0);
-  // tail
-  const sway=Math.sin(o.t*(walking?6:2)+(o.seed||0))*(o.puff?.15:walking?.3:.55);
-  ctx.lineCap='round';
-  const tail=()=>{ctx.beginPath();ctx.moveTo(-s*.3,0);ctx.quadraticCurveTo(-s*.58,sway*s*.5,-s*.74,sway*s*.2+s*.14*Math.sign(sway||1));};
-  tail();ctx.strokeStyle=P.line;ctx.lineWidth=s*.12*puff;ctx.stroke();tail();ctx.strokeStyle=o.kind==='calico'?P.black:P.body;ctx.lineWidth=s*.085*puff;ctx.stroke();
-  if(o.kind!=='calico'){ctx.save();ctx.setLineDash([s*.04,s*.05]);tail();ctx.strokeStyle=P.dark;ctx.lineWidth=s*.085;ctx.stroke();ctx.restore();}
-  // paws: diagonal pairs step together
-  const st=walking?Math.sin(ph)*s*.07:0;
-  for(const [px,py,k] of [[.17,-.16,1],[.17,.16,-1],[-.2,-.15,-1],[-.2,.15,1]]){ctx.fillStyle=P.line;ell(ctx,s*px+st*k,s*py*1.08,s*.07,s*.055);ctx.fill();ctx.fillStyle=o.kind==='calico'?P.light:P.light;ell(ctx,s*px+st*k,s*py*1.08,s*.055,s*.042);ctx.fill();}
-  // body
-  const bry=(o.kind==='calico'?.19:.215)*puff;
-  ctx.fillStyle=P.line;ell(ctx,-s*.04,0,s*.33*puff,s*bry+s*.015);ctx.fill();
-  const g=ctx.createRadialGradient(-s*.06,-s*.06,s*.02,-s*.04,0,s*.34);g.addColorStop(0,P.light);g.addColorStop(.55,P.body);g.addColorStop(1,P.dark);
-  ctx.fillStyle=g;ell(ctx,-s*.04,0,s*.32*puff,s*bry);ctx.fill();
-  ctx.save();ell(ctx,-s*.04,0,s*.32*puff,s*bry);ctx.clip();
-  if(o.kind==='calico'){ctx.fillStyle=P.black;ell(ctx,-s*.18,-s*.1,s*.15,s*.12,.4);ctx.fill();ell(ctx,-s*.33,s*.06,s*.08,s*.08);ctx.fill();ctx.fillStyle=P.orange;ell(ctx,s*.04,s*.11,s*.13,s*.1,-.3);ctx.fill();ell(ctx,-s*.26,-s*.04,s*.06,s*.05);ctx.fill();}
-  else{ctx.strokeStyle=P.dark;ctx.lineWidth=s*.035;ctx.globalAlpha=.8;for(let i=0;i<5;i++){const sx=-s*.3+i*s*.1;ctx.beginPath();ctx.moveTo(sx,-s*.25);ctx.quadraticCurveTo(sx+s*.05,0,sx,s*.25);ctx.stroke();}
-    ctx.globalAlpha=.5;ctx.fillStyle=P.dark;ell(ctx,-s*.06,0,s*.28,s*.05);ctx.fill();
-    // 「肌肉小橘」: broad shoulders
-    ctx.globalAlpha=.35;ctx.fillStyle=P.light;ell(ctx,s*.12,-s*.12,s*.09,s*.06);ctx.fill();ell(ctx,s*.12,s*.12,s*.09,s*.06);ctx.fill();}
+  ctx.lineJoin='round';ctx.lineCap='round';
+
+  // Both the tapered contour and transverse rings follow this sampled centreline.
+  // Rotate the whole tail at its root so its circle or spiral keeps its shape during a stride.
+  const root=[-.30,.08],curves=o.tail==='curl'?[
+    [-.47,.07,-.52,.20,-.65,.18],
+    [-.84,.16,-.90,-.08,-.75,-.17],
+    [-.60,-.24,-.54,-.02,-.68,0],
+    [-.75,.01,-.76,-.07,-.70,-.09]
+  ]:[
+    [-.52,.08,-.68,.27,-.56,.45],
+    [-.42,.64,-.12,.50,-.18,.31],
+    [-.22,.19,-.40,.19,-.43,.32]
+  ];
+  const compact=o.tail!=='curl';
+  const centres=[root];
+  let start=root;
+  for(const [ax,ay,bx,by,cx,cy] of curves){
+    for(let i=1;i<=12;i++){
+      const t=i/12,u=1-t;
+      const x=u*u*u*start[0]+3*u*u*t*ax+3*u*t*t*bx+t*t*t*cx;
+      const y=u*u*u*start[1]+3*u*u*t*ay+3*u*t*t*by+t*t*t*cy;
+      centres.push(compact?[root[0]+(x-root[0])*.85,root[1]+(y-root[1])*.85]:[x,y]);
+    }
+    start=[cx,cy];
+  }
+  const edges=centres.map(([x,y],i)=>{
+    const prev=centres[Math.max(0,i-1)],next=centres[Math.min(centres.length-1,i+1)];
+    const dx=next[0]-prev[0],dy=next[1]-prev[1],length=Math.hypot(dx,dy);
+    const radius=.075-.055*i/(centres.length-1),nx=-dy/length*radius,ny=dx/length*radius;
+    return [[x+nx,y+ny],[x-nx,y-ny]];
+  });
+  const tail=()=>{
+    ctx.beginPath();ctx.moveTo(s*edges[0][0][0],s*edges[0][0][1]);
+    for(const edge of edges.slice(1))ctx.lineTo(s*edge[0][0],s*edge[0][1]);
+    const end=centres.at(-1),prev=centres.at(-2),length=Math.hypot(end[0]-prev[0],end[1]-prev[1]);
+    ctx.quadraticCurveTo(s*(end[0]+(end[0]-prev[0])/length*.03),s*(end[1]+(end[1]-prev[1])/length*.03),
+      s*edges.at(-1)[1][0],s*edges.at(-1)[1][1]);
+    for(const edge of edges.slice(0,-1).reverse())ctx.lineTo(s*edge[1][0],s*edge[1][1]);
+    ctx.closePath();
+  };
+  const band=(from,to)=>{
+    ctx.beginPath();ctx.moveTo(s*edges[from][0][0],s*edges[from][0][1]);
+    for(let i=from+1;i<=to;i++)ctx.lineTo(s*edges[i][0][0],s*edges[i][0][1]);
+    for(let i=to;i>=from;i--)ctx.lineTo(s*edges[i][1][0],s*edges[i][1][1]);
+    ctx.closePath();ctx.fill();
+  };
+  const sway=Math.sin((o.t||0)*(walking?6:2)+(o.seed||0))*(o.puff?.025:walking?.055:.075);
+  ctx.save();ctx.translate(s*root[0],s*root[1]);ctx.rotate(sway);ctx.translate(-s*root[0],-s*root[1]);
+  tail();ctx.fillStyle=P.body;ctx.fill();
+  // Keep the first stroke on the visible centreline for the input regression sampler.
+  ctx.beginPath();ctx.moveTo(s*centres[0][0],s*centres[0][1]);
+  for(const [tx,ty] of centres.slice(1))ctx.lineTo(s*tx,s*ty);
+  ctx.strokeStyle=P.light;ctx.lineWidth=s*.018;ctx.stroke();
+  ctx.save();tail();ctx.clip();ctx.fillStyle=calico?P.black:P.dark;
+  for(const fraction of [.28,.46,.64,.79]){
+    const i=Math.round((centres.length-1)*fraction);band(i,i+2);
+  }
+  ctx.fillStyle=white;band(centres.length-6,centres.length-1);
+  ctx.restore();tail();ctx.strokeStyle=P.line;ctx.lineWidth=s*.016;ctx.stroke();ctx.restore();
+
+  // Feet run fore/aft underneath the cat. The body occludes their roots, leaving rounded tips.
+  for(const [px,sd,k] of [[.015,-1,1],[.015,1,-1],[-.275,-1,-1],[-.275,1,1]]){
+    const front=px>0,lx=s*px*.8+stride*k,offset=front?shoulder:hip;
+    ctx.fillStyle=calico&&px<0&&sd<0?P.orange:P.body;
+    ell(ctx,lx,s*(sd*.225+offset*.3),s*.052,s*.036);ctx.fill();
+    ctx.strokeStyle=P.line;ctx.lineWidth=s*.014;ctx.stroke();
+    ctx.fillStyle=white;
+    ell(ctx,lx+s*.012,s*(sd*(front?.254:.264)+offset*.3),s*.034,s*.024);ctx.fill();
+  }
+
+  // Retain the curved shoulder, waist and haunches, compressing only their fore/aft axis.
+  ctx.save();ctx.scale(.8,1);
+  const body=()=>{
+    ctx.beginPath();ctx.moveTo(s*.245,s*(-.075+shoulder)*puff);
+    ctx.bezierCurveTo(s*.17,s*(-.105+shoulder)*puff,s*.13,s*(-.19+shoulder)*puff,s*.035,s*(-.20+shoulder)*puff);
+    ctx.bezierCurveTo(-s*.055,-s*.195*puff,-s*.10,-s*.195*puff,-s*.17,s*(-.215+hip)*puff);
+    ctx.bezierCurveTo(-s*.30,s*(-.25+hip)*puff,-s*.47,s*(-.22+hip)*puff,-s*.475,s*hip);
+    ctx.bezierCurveTo(-s*.48,s*(.18+hip)*puff,-s*.36,s*(.245+hip)*puff,-s*.24,s*(.23+hip)*puff);
+    ctx.bezierCurveTo(-s*.14,s*.225*puff,-s*.11,s*.195*puff,-s*.035,s*.19*puff);
+    ctx.bezierCurveTo(s*.085,s*(.20+shoulder)*puff,s*.14,s*(.15+shoulder)*puff,s*.205,s*(.085+shoulder)*puff);
+    ctx.quadraticCurveTo(s*.27,s*shoulder,s*.245,s*(-.075+shoulder)*puff);ctx.closePath();
+  };
+  const g=ctx.createRadialGradient(-s*.11,-s*.055,s*.02,-s*.08,0,s*.39);
+  g.addColorStop(0,P.light);g.addColorStop(.55,P.body);g.addColorStop(1,P.dark);
+  body();ctx.fillStyle=g;ctx.fill();ctx.strokeStyle=P.line;ctx.lineWidth=s*.018;ctx.stroke();
+  ctx.save();body();ctx.clip();
+  if(calico){
+    ctx.fillStyle=P.black;ell(ctx,-s*.28,-s*.14,s*.15,s*.115,.35);ctx.fill();
+    ell(ctx,-s*.36,s*.11,s*.105,s*.085,-.4);ctx.fill();
+    ctx.fillStyle=P.orange;ell(ctx,s*.02,s*.12,s*.14,s*.105,-.3);ctx.fill();
+    ell(ctx,-s*.21,-s*.065,s*.08,s*.065,.3);ctx.fill();
+  }else{
+    // Stagger the flank bars and omit a heavy centre seam, which can read as a shell.
+    const bars=small?[-.30,-.12,.055]:[-.33,-.20,-.075,.055];
+    ctx.strokeStyle=P.dark;ctx.lineWidth=s*(small?.034:.027);
+    for(const sd of [-1,1])for(const tx of bars){
+      const shift=sd>0?.028:0;
+      ctx.beginPath();ctx.moveTo(s*(tx+.035+shift),sd*s*.035);
+      ctx.bezierCurveTo(s*(tx+.015+shift),sd*s*.085,s*(tx-.035+shift),sd*s*.14,s*(tx-.075+shift),sd*s*.18);ctx.stroke();
+    }
+  }
+  ctx.restore();ctx.restore();
+
+  // Broad cheeks and a lifted face make the head larger than the shortened torso.
+  ctx.save();ctx.scale(1,puff);
+  const head=()=>{
+    ctx.beginPath();ctx.moveTo(s*.15,0);
+    ctx.bezierCurveTo(s*.15,-s*.17,s*.21,-s*.28,s*.33,-s*.28);
+    ctx.bezierCurveTo(s*.46,-s*.28,s*.55,-s*.18,s*.56,-s*.07);
+    ctx.quadraticCurveTo(s*.59,0,s*.56,s*.07);
+    ctx.bezierCurveTo(s*.55,s*.18,s*.46,s*.28,s*.33,s*.28);
+    ctx.bezierCurveTo(s*.21,s*.28,s*.15,s*.17,s*.15,0);ctx.closePath();
+  };
+  const hg=ctx.createRadialGradient(s*.37,-s*.07,s*.01,s*.34,0,s*.31);
+  hg.addColorStop(0,P.light);hg.addColorStop(1,P.body);
+  head();ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle=P.line;ctx.lineWidth=s*.018;ctx.stroke();
+  ctx.save();head();ctx.clip();
+  if(calico){
+    ctx.fillStyle=P.black;ell(ctx,s*.25,-s*.18,s*.10,s*.12,.25);ctx.fill();
+    ctx.fillStyle=P.orange;ell(ctx,s*.29,s*.16,s*.13,s*.13,-.3);ctx.fill();
+  }else{
+    // The M stays on the rear forehead, leaving the front half free for the lifted face.
+    ctx.strokeStyle=P.dark;ctx.lineWidth=s*(small?.019:.014);
+    ctx.beginPath();ctx.moveTo(s*.25,-s*.065);ctx.lineTo(s*.30,-s*.032);
+    ctx.lineTo(s*.263,0);ctx.lineTo(s*.30,s*.032);ctx.lineTo(s*.25,s*.065);ctx.stroke();
+  }
   ctx.restore();
-  // head and ears
-  const hx=s*.27,hr=s*.155;
-  for(const sd of [-1,1]){const tip=o.puff?[s*.2,sd*s*.24]:[s*.33,sd*s*.21];
-    ctx.fillStyle=P.line;ctx.beginPath();ctx.moveTo(tip[0],tip[1]);ctx.lineTo(s*.17,sd*s*.1);ctx.lineTo(s*.36,sd*s*.05);ctx.fill();
-    ctx.fillStyle=o.kind==='calico'?(sd<0?P.black:P.orange):P.body;ctx.beginPath();ctx.moveTo(tip[0]+(o.puff?.01:-.005)*s,tip[1]-sd*s*.02);ctx.lineTo(s*.19,sd*s*.1);ctx.lineTo(s*.34,sd*s*.06);ctx.fill();
-    ctx.fillStyle=P.ear;ctx.beginPath();ctx.moveTo((tip[0]+s*.26)/2,(tip[1]+sd*s*.1)/2+sd*s*.02);ctx.lineTo(s*.23,sd*s*.1);ctx.lineTo(s*.31,sd*s*.08);ctx.fill();}
-  ctx.fillStyle=P.line;ell(ctx,hx,0,hr+s*.014,hr*.95+s*.014);ctx.fill();
-  const hg=ctx.createRadialGradient(hx-s*.04,-s*.04,s*.01,hx,0,hr);hg.addColorStop(0,P.light);hg.addColorStop(1,P.body);ctx.fillStyle=hg;ell(ctx,hx,0,hr,hr*.95);ctx.fill();
-  if(o.kind==='calico'){ctx.save();ell(ctx,hx,0,hr,hr*.95);ctx.clip();ctx.fillStyle=P.black;ell(ctx,hx-s*.04,-s*.1,s*.12,s*.09);ctx.fill();ctx.fillStyle=P.orange;ell(ctx,hx-s*.05,s*.11,s*.1,s*.08);ctx.fill();ctx.restore();}
-  else{ctx.strokeStyle=P.dark;ctx.lineWidth=s*.022;for(const dy of [-.05,0,.05]){ctx.beginPath();ctx.moveTo(hx-s*.1,dy*s);ctx.lineTo(hx+s*.0,dy*s*.6);ctx.stroke();}}
-  // face: eyes, nose, whiskers (a hissing cat opens its mouth)
-  ctx.fillStyle=o.puff?'#ffe14a':'#2a1a10';for(const sd of [-1,1]){ell(ctx,hx+s*.085,sd*s*.06,s*.026,s*.021);ctx.fill();}
-  if(o.puff){ctx.fillStyle='#111';for(const sd of [-1,1]){ell(ctx,hx+s*.088,sd*s*.06,s*.008,s*.018);ctx.fill();}ctx.fillStyle='#8a1f1f';ell(ctx,hx+s*.14,0,s*.035,s*.045);ctx.fill();}
-  ctx.fillStyle='#e07a7a';ell(ctx,hx+s*.15,0,s*.018,s*.022);ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=Math.max(.6,s*.008);
-  for(const sd of [-1,1])for(const k of [-.04,.02]){ctx.beginPath();ctx.moveTo(hx+s*.13,sd*s*.04);ctx.lineTo(hx+s*.21,sd*(s*.14+k*s));ctx.stroke();}
-  if(o.carry)shrimp(ctx,hx+s*.24,s*.02,s*.42,Math.PI*.5);
+
+  // Enlarge the established forward-leaning triangles, keeping their roots on the crown.
+  for(const sd of [-1,1]){
+    const earX=o.puff?.20:.385,earY=o.puff?.36:.355;
+    ctx.beginPath();ctx.moveTo(s*.185,sd*s*.18);
+    ctx.lineTo(s*earX,sd*s*earY);ctx.lineTo(s*.39,sd*s*.17);ctx.closePath();
+    ctx.fillStyle=calico?(sd<0?P.black:P.orange):P.body;ctx.fill();
+    ctx.strokeStyle=P.line;ctx.lineWidth=s*.017;
+    ctx.beginPath();ctx.moveTo(s*.185,sd*s*.18);ctx.lineTo(s*earX,sd*s*earY);ctx.lineTo(s*.39,sd*s*.17);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*.225,sd*s*.205);
+    ctx.lineTo(s*(o.puff?.215:.36),sd*s*(o.puff?.32:.323));ctx.lineTo(s*.365,sd*s*.20);ctx.closePath();
+    ctx.fillStyle=P.ear;ctx.fill();
+  }
+  ctx.fillStyle=white;
+  for(const sd of [-1,1]){ell(ctx,s*.515,sd*s*.04,s*.043,s*.055);ctx.fill();}
+  for(const sd of [-1,1]){
+    ctx.fillStyle='#2a1a10';ell(ctx,s*.438,sd*s*.125,s*.053,s*(o.puff?.028:.055),sd*.10);ctx.fill();
+    ctx.fillStyle='#ffffff';ell(ctx,s*.449,sd*s*.125-s*.014,s*.016,s*(o.puff?.009:.017));ctx.fill();
+    if(o.puff){
+      ctx.strokeStyle=P.line;ctx.lineWidth=s*.018;ctx.beginPath();
+      ctx.moveTo(s*.40,sd*s*.085);ctx.lineTo(s*.414,sd*s*.18);ctx.stroke();
+    }
+  }
+  ctx.fillStyle='#de8581';ctx.beginPath();ctx.moveTo(s*.55,-s*.019);
+  ctx.quadraticCurveTo(s*.588,0,s*.55,s*.019);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=P.line;ctx.lineWidth=s*.011;
+  ctx.beginPath();ctx.moveTo(s*.568,0);ctx.lineTo(s*.584,0);
+  for(const sd of [-1,1]){ctx.moveTo(s*.584,0);ctx.quadraticCurveTo(s*.596,sd*s*.03,s*.562,sd*s*.055);}
+  ctx.stroke();
+  if(o.puff){ctx.fillStyle='#8a1f1f';ell(ctx,s*.572,0,s*.022,s*.032);ctx.fill();}
+  ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=Math.max(.6,s*.008);
+  for(const sd of [-1,1])for(const k of [-.025,.025]){
+    ctx.beginPath();ctx.moveTo(s*.512,sd*s*.085);
+    ctx.lineTo(s*(.56+k),sd*s*.245);ctx.stroke();
+  }
+  ctx.restore();
+  if(o.carry)shrimp(ctx,s*.65,0,s*.42,Math.PI*.5);
   ctx.restore();
 }
 // the child, sitting or walking, seen from above, facing angle ang
@@ -498,7 +640,7 @@ function paintRoom(ctx,L,G,labels){
     plateAt(ctx,X(3.5),Y(6.5),s*.46,s*.38,s);
     // the edge to jump down from: the table edge on the left, a little drop shadow beyond it
     ctx.fillStyle='rgba(20,8,0,.5)';ctx.fillRect(X(0),Y(3)+s*.08,s*.1,s*.84);
-    lab('汤锅',1,1,2,1,-.02);lab('饭锅',5,3,2,1,-.02);lab('菜',2,4,2,1,-.02);
+    lab('汤锅',1,1,2,1,.18);lab('饭锅',5,3,2,1,.18);lab('菜',2,4,2,1,.18);
     label(ctx,'窗台',X(6.5),Y(.86),Math.max(10,s*.16),'#ffe9c8','rgba(40,22,10,.6)');
   }
   ctx.restore();
