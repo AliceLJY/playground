@@ -29,7 +29,7 @@ const SURFACE_GLSL = /* glsl */`
   // the shared noises, cheap versions on big flat ground (most of the hero picture: one value noise each, not three)
   float grain = gN(pq * 9.3), blotch = gN(pq * .45 + 3.) * .65 + gN(pq * 1.1 + 8.) * .35, drip = 0.;
   if (flat_ < .5) drip = gN(vec2(uu * 2.6, vWp.y * .16)) * gN(vec2(uu * 7.3 + 3., vWp.y * .5));   // rain streaks running down walls
-  float low = (1. - flat_) * smoothstep(1.1, .12, vWp.y);                                   // rising damp and splash-back
+  float low = (1. - flat_) * (1. - smoothstep(.12, 1.1, vWp.y));                         // rising damp and splash-back
   if (ext) {
   #if SURF == 1 || SURF == 3 || SURF == 2 || SURF == 13
     // ---- a wall: brick, plaster over brick, the shop front's boards; a band of small tiles at the foot
@@ -71,7 +71,7 @@ const SURFACE_GLSL = /* glsl */`
       vec3 tileC = mix(vec3(.2, .205, .19), vec3(.13, .17, .16), step(.7, tid)) * (.75 + .3 * tid);
       alb = mix(mix(tileC, vec3(.07, .065, .06), grout), brickC * .6, miss);
       hB = (1. - grout) * .6 - miss; kS = .25 * (1. - grout);
-      alb *= 1. - .35 * smoothstep(.3, .0, vWp.y - .12) ;                                  // splash dirt
+      alb *= 1. - .35 * (1. - smoothstep(.0, .3, vWp.y - .12));                            // splash dirt
       alb = mix(alb, vec3(.04, .036, .03), step(.47, vWp.y) * step(vWp.y, .5));          // top edge trim
     } else {
       alb = brick; hB = bh;
@@ -100,7 +100,7 @@ const SURFACE_GLSL = /* glsl */`
       float seam = max(edgeLine(fract(sc.x), .025, sfw.x), edgeLine(fract(sc.y), .03, sfw.y));
       float pud = smoothstep(.6, .7, gN(vWp.xz * .5 + 21.));
       float tarP = step(.8, gH(floor(sc) + 5.)) * smoothstep(.45, .6, gN(vWp.xz * 1.7));
-      float corner = smoothstep(.9, .3, min(min(vWp.x - uBox.x, uBox.z - vWp.x), min(vWp.z - uBox.y, uBox.w - vWp.z)));
+      float corner = 1. - smoothstep(.3, .9, min(min(vWp.x - uBox.x, uBox.z - vWp.x), min(vWp.z - uBox.y, uBox.w - vWp.z)));
       alb *= .72;                                                                            // weathered dark grey, not a lit floor
       alb = mix(alb, vec3(.025, .024, .024), max(seam * .4, tarP * .75));
       alb = mix(alb, vec3(.03, .045, .02), corner * smoothstep(.35, .65, blotch) * .8);     // moss and silt along the parapets
@@ -125,7 +125,7 @@ const SURFACE_GLSL = /* glsl */`
     float aggK = 1. - smoothstep(.02, .08, length(fwidth(vWp.xz))), agg = .5;
     if (aggK > 0.) agg = gN(vWp.xz * 27.) * .6 + gN(vWp.xz * 61.) * .4;
     float patchK = step(.74, gN(floor(vWp.xz * vec2(.25, .4)) + 3.));
-    float crack = smoothstep(.015, .0, abs(gN(vWp.xz * 1.3) - .5) - .002) * smoothstep(.5, .7, blotch);
+    float crack = (1. - smoothstep(.0, .015, abs(gN(vWp.xz * 1.3) - .5) - .002)) * smoothstep(.5, .7, blotch);
     float oil = smoothstep(.66, .8, gN(vWp.xz * .7 + 20.)), pud = smoothstep(.6, .72, gN(vWp.xz * .35 + 2.));
     alb = vec3(.025, .026, .03) * (.85 + mix(.12, .4, aggK) * agg) * (1. - .2 * patchK) * (.8 + .35 * blotch) * (1. - .35 * oil);
     alb *= 1. - .5 * crack; alb *= 1. - .4 * pud;
@@ -150,7 +150,7 @@ const SURFACE_GLSL = /* glsl */`
     float tape = step(abs(uu - floor(uu / .7) * .7 - .35), .025) * (1. - flat_) + flat_ * step(abs(fract(vWp.x * 1.43) - .5), .04);
     alb = diffuseColor.rgb * (.88 + .08 * fl) * (.85 + .25 * blotch);
     alb = mix(alb, vec3(.33, .3, .22), tape * .7);
-    alb *= 1. - .45 * smoothstep(.45, .12, vWp.y);
+    alb *= 1. - .45 * (1. - smoothstep(.12, .45, vWp.y));
     hB = fl * .1;
   #elif SURF == 10
     // ---- bench: slats along its length, worn grain
@@ -168,13 +168,13 @@ const SURFACE_GLSL = /* glsl */`
   }`;
 
 // Patch a Lambert or Phong material (keeping whatever onBeforeCompile it already has, e.g. main.js's indoor ambient).
-export function surface(mat, kind, { box = null, low = false } = {}) {
+export function surface(mat, kind, { box = null } = {}) {
   const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
   const uBox = { value: box ? new THREE.Vector4(box.x0, box.z0, box.x1, box.z1) : new THREE.Vector4() };
   mat.onBeforeCompile = (sh, r) => {
     if (prev) prev(sh, r);
     sh.uniforms.uBox = uBox;
-    sh.defines = { ...(sh.defines || {}), SURF: kind, SURF_EXT: box && !box.roof ? 1 : 0, SURF_LOW: low ? 1 : 0 };
+    sh.defines = { ...(sh.defines || {}), SURF: kind, SURF_EXT: box && !box.roof ? 1 : 0 };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWp; varying vec3 vWn;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWp = (modelMatrix * vec4(position, 1.)).xyz; vWn = normalize(mat3(modelMatrix) * normal);');
@@ -190,7 +190,7 @@ export function surface(mat, kind, { box = null, low = false } = {}) {
     for (const k of ['varying vec3 vWp;', 'SURF ==', 'specularStrength = kS', 'dFdx(hB)']) if (!fs.includes(k)) throw new Error('surface shader: three chunk changed upstream (' + k + ')');
     sh.fragmentShader = fs;
   };
-  mat.customProgramCacheKey = () => prevKey() + '|surf' + kind + (box ? 'b' : '') + (low ? 'l' : '');
+  mat.customProgramCacheKey = () => prevKey() + '|surf' + kind + (box ? 'b' : '');
   return mat;
 }
 export const phong = (c, shininess = 40) => new THREE.MeshPhongMaterial({ color: c, specular: 0x8a929c, shininess });
@@ -291,21 +291,34 @@ function glowTexture() {
 const REFL = {
   vertex: /* glsl */`attribute vec4 aSpot; attribute vec3 aCol; varying vec2 vQ; varying vec3 vCol; varying float vGrp; varying vec3 vW;
     void main(){ vQ = aSpot.xy; vCol = aCol; vGrp = aSpot.z; vW = position; gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.); }`,
-  fragment: /* glsl */`uniform float uTime, uShop; varying vec2 vQ; varying vec3 vCol; varying float vGrp; varying vec3 vW;` + NOISE + `
+  fragment: /* glsl */`uniform float uTime, uShop, uLightbox, uNeon; varying vec2 vQ; varying vec3 vCol; varying float vGrp; varying vec3 vW;` + NOISE + `
     void main(){
       // a long soft smear towards the street, broken up by ripples (rain on the puddles)
       float a = exp(-vQ.x * vQ.x * 3.2) * exp(-vQ.y * vQ.y * 1.6);
       float rip = gN(vec2(vW.x * 9., vW.z * 2.2 - uTime * 1.3)) * .6 + gN(vec2(vW.x * 23. + 3., vW.z * 6. + uTime * 2.1)) * .4;
       float pud = smoothstep(.3, .7, gN(vW.xz * .9 + 4.));
       a *= (.35 + .9 * rip) * (.45 + .75 * pud);
-      float lv = vGrp > .5 ? uShop : 1.;
-      gl_FragColor = vec4(vCol * a * lv, 1.);
+      float lv = vGrp > 2.5 ? uNeon : vGrp > 1.5 ? uLightbox : vGrp > .5 ? uShop : 1.;
+      gl_FragColor = vec4(vCol * a * lv * .22, 1.); // a wet glint, below the window and sign
     }`,
 };
 
 // ---------------- the dressing: everything that is built here ----------------
-export function buildLook(scene, { low = false, matFor, MESH, dressBoxes, boxGeo }) {
-  const out = { lit: [], halos: [], uniforms: { uTime: { value: 0 }, uShop: { value: 1 } } };
+// Shared with L2: bounds are measured from the same vertices the page draws, including the outlet shoes.
+export function drainGeometries() {
+  const S = C.STORE, N = C.NEXT, FZ = C.FACADE_Z, pipes = [];
+  const cyl = (r0, r1, h, x, y, z) => new THREE.CylinderGeometry(r0, r1, h, 12).translate(x, y + h / 2, z);
+  for (const x of [S.x0 + 0.1, S.x1 - 0.1]) {
+    pipes.push(cyl(0.045, 0.045, 3.3 - 0.32, x, 0.32, FZ + 0.07), cyl(0.055, 0.045, 0.12, x, 3.2, FZ + 0.07));
+    pipes.push(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 10).rotateX(Math.PI / 2.6).translate(x, 0.26, FZ + 0.11)); // joined to the downpipe, within 0.2 m of the wall
+    for (const y of [0.9, 1.8, 2.7]) pipes.push(new THREE.BoxGeometry(0.12, 0.03, 0.09).translate(x, y, FZ + 0.045));
+  }
+  pipes.push(cyl(0.045, 0.045, 3.1, N.x0 + 0.1, 0.3, FZ + 0.07));
+  return pipes;
+}
+
+export function buildLook(scene, { matFor, MESH, dressBoxes, boxGeo }) {
+  const out = { lit: [], halos: [], uniforms: { uTime: { value: 0 }, uShop: { value: 1 }, uLightbox: { value: 1 }, uNeon: { value: 1 } } };
   const add = (key, geo, mat, { cast = false, recv = false, order = 0 } = {}) => {
     const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = recv; m.renderOrder = order; scene.add(m);
     if (MESH[key]) { MESH[key].geometry = mergeGeometries([MESH[key].geometry, geo.index ? geo.toNonIndexed() : geo].map((x) => (x.index ? x.toNonIndexed() : x))); scene.remove(m); return MESH[key]; }
@@ -319,14 +332,7 @@ export function buildLook(scene, { low = false, matFor, MESH, dressBoxes, boxGeo
   // round things: drainpipes on the front corners, the rooftop water tanks on their stands, vent stacks, the lamp
   const cyl = (r0, r1, h, x, y, z, seg = 12) => new THREE.CylinderGeometry(r0, r1, h, seg).translate(x, y + h / 2, z);
   const S = C.STORE, N = C.NEXT, FZ = C.FACADE_Z, F = C.SIDEWALK_H;
-  const pipes = [];
-  for (const x of [S.x0 + 0.1, S.x1 - 0.1]) {
-    pipes.push(cyl(0.045, 0.045, 3.3 - 0.32, x, 0.32, FZ + 0.07), cyl(0.055, 0.045, 0.12, x, 3.2, FZ + 0.07));
-    pipes.push(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 10).rotateX(Math.PI / 2.6).translate(x, 0.24, FZ + 0.16));   // shoe, turned out onto the pavement
-    for (const y of [0.9, 1.8, 2.7]) pipes.push(new THREE.BoxGeometry(0.12, 0.03, 0.09).translate(x, y, FZ + 0.045));
-  }
-  pipes.push(cyl(0.045, 0.045, 3.1, N.x0 + 0.1, 0.3, FZ + 0.07));
-  (byMat.pipe ||= []).push(...pipes);
+  (byMat.pipe ||= []).push(...drainGeometries());
   const tank = [cyl(0.55, 0.55, 0.95, 7.4, S.h + 0.55, -7.3, 20), cyl(0.57, 0.57, 0.05, 7.4, S.h + 1.5, -7.3, 20), cyl(0.12, 0.12, 0.08, 7.4, S.h + 1.55, -7.3)], tankN = [];
   for (const [dx, dz] of [[-0.42, -0.42], [0.42, -0.42], [-0.42, 0.42], [0.42, 0.42]]) tank.push(new THREE.BoxGeometry(0.06, 0.55, 0.06).translate(7.4 + dx, S.h + 0.275, -7.3 + dz));
   tank.push(new THREE.BoxGeometry(1.0, 0.05, 1.0).translate(7.4, S.h + 0.53, -7.3));
@@ -363,37 +369,40 @@ export function buildLook(scene, { low = false, matFor, MESH, dressBoxes, boxGeo
   const paintMat = new THREE.MeshLambertMaterial({ map: atlas, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -1 });
   const vendMat = new THREE.MeshBasicMaterial({ map: atlas, color: new THREE.Color(0.07, 0.07, 0.07), polygonOffset: true, polygonOffsetFactor: -1 });
   const d = S.door;
-  const signGeo = [atlasQuad('sign', d.cx, 3.08, FZ + 0.062, 2.5, 0.44)];
-  signGeo.push(atlasQuad('lightbox', 3.13 - 0.002, 2.6, FZ + 0.34, 0.46, 0.88, -Math.PI / 2), atlasQuad('lightbox', 3.29 + 0.002, 2.6, FZ + 0.34, 0.46, 0.88, Math.PI / 2));
-  out.sign = add('signText', mergeGeometries(signGeo), litMat);
+  out.sign = add('signText', atlasQuad('sign', d.cx, 3.08, FZ + 0.062, 2.5, 0.44), litMat);
+  const lightboxMat = litMat.clone();
+  out.lightbox = add(keyOf('lightboxText', 'store'), mergeGeometries([
+    atlasQuad('lightbox', 3.13 - 0.002, 2.6, FZ + 0.34, 0.46, 0.88, -Math.PI / 2),
+    atlasQuad('lightbox', 3.29 + 0.002, 2.6, FZ + 0.34, 0.46, 0.88, Math.PI / 2),
+  ]), lightboxMat);
   out.neon = add('neon', atlasQuad('neon', (C.WINDOW.x0 + C.WINDOW.x1) / 2, 2.735, FZ + 0.01, 1.3, 0.16), neonMat, { order: 3 });
-  add('sign2Text', atlasQuad('next', N.door.cx, 2.725, FZ + 0.052, 1.6, 0.35), paintMat);
+  add('sign2Text', atlasQuad('next', N.door.cx, 2.725, FZ + 0.052, 1.6, 0.35), paintMat.clone());
   const papers = [atlasQuad('hours', 3.62, 1.55, FZ + 0.004, 0.24, 0.32), atlasQuad('flyer', -1.2, 1.5, FZ + 0.004, 0.24, 0.32), atlasQuad('poster', -0.4, 1.45, FZ + 0.004, 0.75, 0.55),
     atlasQuad('flyer', -6.9, 1.4, FZ + 0.004, 0.24, 0.32), atlasQuad('poster', -8.2, 1.5, FZ + 0.004, 0.75, 0.55)];
   add('papers', mergeGeometries(papers), paintMat);
   add('vendFront', atlasQuad('vend', 6.4, F + 1.15, FZ + 0.722, 0.74, 1.2), vendMat);
   out.fuGeo = atlasQuad('fu', 0, 0, 0, 0.2, 0.2); out.paintMat = paintMat;
-  out.lit.push(litMat, neonMat);
+  out.lit.push({ mat: litMat, dark: 0.06 }, { mat: lightboxMat, dark: 0.06 }, { mat: neonMat, dark: 0 });
   // glows: the lightbox sign, the small lightbox, the neon, the lamp (sprites, additive, no depth write)
-  const gt = glowTexture(), halo = (x, y, z, sx, sy, color, op, shop) => {
+  const gt = glowTexture(), halo = (x, y, z, sx, sy, color, op, key) => {
     const m = new THREE.SpriteMaterial({ map: gt, color, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
-    const s = new THREE.Sprite(m); s.position.set(x, y, z); s.scale.set(sx, sy, 1); s.renderOrder = 4; scene.add(s); out.halos.push({ s, op, shop }); return s;
+    const s = new THREE.Sprite(m); s.position.set(x, y, z); s.scale.set(sx, sy, 1); s.renderOrder = 4; scene.add(s); out.halos.push({ s, op, key }); return s;
   };
-  halo(d.cx, 3.08, FZ + 0.35, 3.6, 1.15, 0xffe2ad, 0.55, true);
-  halo(3.21, 2.6, FZ + 0.33, 1.0, 1.4, 0xffd0c0, 0.35, true);
-  halo((C.WINDOW.x0 + C.WINDOW.x1) / 2, 2.735, FZ + 0.12, 1.9, 0.5, 0xff3a22, 0.45, true);
-  halo(L.x, L.top - 0.24, L.z + 0.85, 1.5, 1.5, 0xffb768, 0.7, false);
+  halo(d.cx, 3.08, FZ + 0.35, 3.6, 1.15, 0xffe2ad, 0.55, 'signText');
+  halo(3.21, 2.6, FZ + 0.33, 1.0, 1.4, 0xffd0c0, 0.35, 'lightboxText@store');
+  halo((C.WINDOW.x0 + C.WINDOW.x1) / 2, 2.735, FZ + 0.12, 1.9, 0.5, 0xff3a22, 0.45, 'neon');
+  halo(L.x, L.top - 0.24, L.z + 0.85, 1.5, 1.5, 0xffb768, 0.7, null);
   // reflections on the wet ground: under the sign (pavement, out into the street), the lightbox, the neon, the lamp
   const rv = [], rs = [], rc = [], refl = (cx, cz, w, len, y, col, grp) => {
     const x0 = cx - w / 2, x1 = cx + w / 2, z0 = cz, z1 = cz + len;
-    const P = [[x0, z0, -1, 0], [x1, z0, 1, 0], [x1, z1, 1, 1], [x0, z0, -1, 0], [x1, z1, 1, 1], [x0, z1, -1, 1]];
+    const P = [[x0, z0, -1, 0], [x1, z1, 1, 1], [x1, z0, 1, 0], [x0, z0, -1, 0], [x0, z1, -1, 1], [x1, z1, 1, 1]];
     for (const [x, z, qx, qz] of P) { rv.push(x, y, z); rs.push(qx, qz * 2 - 0.3, grp, 0); rc.push(...col); }
   };
   const ys = F + 0.003;
   refl(d.cx, FZ + 1.15, 2.6, ROAD0() - FZ - 1.15, ys, [0.85, 0.72, 0.48], 1);
   refl(d.cx, ROAD0(), 2.4, 3.2, 0.003, [0.5, 0.42, 0.28], 1);
-  refl(3.21, FZ + 0.65, 0.5, 2.0, ys, [0.6, 0.3, 0.22], 1);
-  refl((C.WINDOW.x0 + C.WINDOW.x1) / 2, FZ + 1.6, 1.4, 1.9, ys, [0.7, 0.09, 0.05], 1);
+  refl(3.21, FZ + 0.65, 0.5, 2.0, ys, [0.6, 0.3, 0.22], 2);
+  refl((C.WINDOW.x0 + C.WINDOW.x1) / 2, FZ + 1.6, 1.4, 1.9, ys, [0.7, 0.09, 0.05], 3);
   refl(L.x, L.z + 0.2, 1.3, ROAD0() - L.z - 0.2, ys, [0.75, 0.48, 0.2], 0);
   refl(L.x, ROAD0(), 1.4, 4.0, 0.003, [0.6, 0.38, 0.16], 0);
   const rg = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(rv, 3)).setAttribute('aSpot', new THREE.Float32BufferAttribute(rs, 4)).setAttribute('aCol', new THREE.Float32BufferAttribute(rc, 3));

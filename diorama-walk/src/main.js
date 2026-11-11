@@ -109,10 +109,8 @@ const glow = (c) => new THREE.MeshBasicMaterial({ color: c });
 const VEND_DIM = 0.025;                         // round 9: the vending machine's light well under the shop window's (SPEC 两处小修①); a linear-light factor: about 16% of the old brightness on screen
 const glassMat = () => new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: C.GLASS_OPACITY, depthWrite: false, side: THREE.DoubleSide });
 // The outside is dressed (look.js): brick, plaster, boards, concrete, paving, asphalt, tin, worn paint, worked out in the
-// shaders from world position. Only the outer faces change; the shop interiors keep their colours. Touch screens pass
-// SURF_LOW (reserved for a lighter path; the shaders do not branch on it yet).
-const LOW = COARSE;
-const sf = (m, kind, box = null) => surface(m, kind, { box, low: LOW });
+// shaders from world position. Only the outer faces change; the shop interiors keep their colours.
+const sf = (m, kind, box = null) => surface(m, kind, { box });
 const MATS = {
   sidewalk: sf(phong(COL.sidewalk), K.PAVING), stripe: sf(lam('#7a7f86'), K.METAL),
   storeWall: sf(lamIn(COL.storeWall), K.BRICK, C.STORE), storeRoof: sf(phong(COL.storeRoof), K.ROOF, { ...C.STORE, roof: true }), storeFloor: lamIn(COL.storeFloor), storeFacade: sf(lam(COL.storeFacade), K.FRONT, C.STORE), 'storeFacade:upper': sf(lam(COL.storeFacade), K.FRONT, C.STORE),
@@ -338,10 +336,10 @@ const DRESS_MATS = {
   lightbox: () => sf(lam('#d6d4cc'), K.METAL), shutterBox: () => sf(lam('#59606a'), K.METAL), pipe: () => sf(lam('#5f5c55'), K.METAL), tank: () => sf(lam('#5e686e'), K.METAL),
   pole: () => sf(lam(COL.pole), K.METAL), lamp: () => glow(COL.lamp), stripe: () => MATS.stripe,
 };
-const look = buildLook(scene, { low: LOW, MESH, dressBoxes: dressBoxes(), boxGeo, matFor: (k) => { if (!DRESS_MATS[k]) throw new Error('no dressing material for ' + k); return DRESS_MATS[k](); } });
+const look = buildLook(scene, { MESH, dressBoxes: dressBoxes(), boxGeo, matFor: (k) => { if (!DRESS_MATS[k]) throw new Error('no dressing material for ' + k); return DRESS_MATS[k](); } });
 for (const id of ['store', 'next']) { LIFT[id].push(...look.lifted[id]); ROOM_LIFT[id].push(...look.room[id]); }
 // a red 福 on each leaf of the grocery's glass door, at chest height
-for (const lf of leaves.slice(0, 2)) { const m = new THREE.Mesh(look.fuGeo, look.paintMat); m.position.set(0, 0.25, 0.013); lf.add(m); }
+for (const lf of leaves.slice(0, 2)) { const m = new THREE.Mesh(look.fuGeo, look.paintMat.clone()); m.position.set(0, 0.25, 0.013); lf.add(m); }
 
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
 const N_RAIN = 2400;
@@ -642,9 +640,15 @@ function sync() {
   if (!tvState || tvState.reflect !== V.tv.reflect || V.tv.snow || tvState.snow !== V.tv.snow || tvState.level !== V.tv.level) drawTv(V.tv, S.t);
   puddleMat.opacity = 0.35 + 0.65 * V.bulbs[0];
   { const shop = Math.max(V.bulbs[0], V.bulbs[1]);                        // the signs run off the shop's power: dark when its lights are
-    look.lit[0].color.setScalar(0.06 + 0.94 * shop); look.lit[1].color.setScalar(shop);
-    for (const h of look.halos) h.s.material.opacity = h.op * (h.shop ? shop : 1);
-    look.uniforms.uShop.value = shop; look.uniforms.uTime.value = S.rainT; }
+    for (const { mat, dark } of look.lit) mat.color.setScalar(dark + (1 - dark) * shop);
+    const alpha = (k) => MESH[k].visible ? MESH[k].material.opacity : 0;
+    for (const h of look.halos) {
+      const a = h.key ? alpha(h.key) : 1;
+      h.s.visible = a > 0.01; h.s.material.opacity = h.op * a * (h.key ? shop : 1);
+    }
+    look.uniforms.uShop.value = shop * alpha('signText');
+    look.uniforms.uLightbox.value = shop * alpha('lightboxText@store');
+    look.uniforms.uNeon.value = shop * alpha('neon'); look.uniforms.uTime.value = S.rainT; }
   poseDog(V.dog, S.t);
   camera.position.x += V.shake[0]; camera.position.y += V.shake[1]; camera.position.z += V.shake[2];   // the picture shakes, the walker does not
   darkEl.style.opacity = String(0.55 * V.darken);
