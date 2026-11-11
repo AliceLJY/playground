@@ -588,6 +588,17 @@ jobs:
           mkdir -p ../_site/tidal-disruption
           cp dist/index.html ../_site/tidal-disruption/index.html
 
+      - name: Check, bundle and assemble Sky Citadel
+        working-directory: sky-citadel
+        run: |
+          # 浮空之城：近 48 万个体素搭的云上小城，只上传外露面、阴影缓存；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+          mkdir -p ../_site/sky-citadel
+          cp dist/index.html ../_site/sky-citadel/index.html
+
       - name: Show what will be published
         run: find _site -type f | sort
 
