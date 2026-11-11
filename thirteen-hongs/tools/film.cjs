@@ -1,7 +1,7 @@
 // 竖屏演示片录制（手动跑，不进 CI）。逐帧接管页面时钟：每帧推进 1/30 秒再按设备像素截图，
 // 页面自己的 Web Audio 换成离线上下文同钟渲染，所以声音和画面对得上。镜头是这份脚本排的，场景和人都是页面实时算的。
 //   node tools/serve.cjs . 8947
-//   NODE_PATH="$(npm root -g)" node tools/film.cjs <输出目录> [--base http://127.0.0.1:8947/dist/index.html] [--endcard <署名页目录>] [--only 镜头名,…] [--pace 1.5]
+//   NODE_PATH="$(npm root -g)" node tools/film.cjs <输出目录> [--base http://127.0.0.1:8947/dist/index.html] [--endcard <署名页目录>] [--only 镜头名,…] [--pace 1.5] [--query flags=plain]
 // 产物：<输出目录>/shots/*.mp4（每镜一段）、ambience.wav（页面环境声，已按叠化接好）、film-silent.mp4、timeline.json。
 // 配乐与合轨见 tools/film-music.py。
 const { chromium } = require('playwright');
@@ -104,7 +104,7 @@ const encoder = file => {   // 截图是全范围 BT.601 的 JPEG，转成有限
   await ctx.addInitScript(takeOverClock);
   const page = await ctx.newPage(), errors = [];
   page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(base + '?capture&t=40');
+  await page.goto(base + '?capture&t=40' + (flag('query', '') ? '&' + flag('query', '') : ''));   // --query flags=plain：国内版换素旗
   const ready = () => page.evaluate(() => !!(window.__hong && window.__hong.ready));
   for (let i = 0; i < 600 && !await ready(); i++) { await page.evaluate(ms => window.__rec.step(ms), FRAME); await page.waitForTimeout(15); }
   if (!await ready()) throw new Error('页面没有就绪');
