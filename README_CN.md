@@ -41,6 +41,7 @@
 | [岭南园林一角](lingnan-garden/) · [看](https://aliceljy.github.io/playground/lingnan-garden/) | 按查证过的岭南园林特征让 AI 画一张图，再用代码搭成能走进去的院子：青砖墙麻石脚、长方荷池接八角池、八角亭与廊桥、英石壁山与跌水、满洲窗与蚝壳窗、灰塑屋脊、荔枝木棉；可回到原图机位并叠原图对照 | 一张图到 Three.js 纯代码场景，特征出处见 facts.md，起始图为 AI 生成，第一人称步行，鼠标与触屏，单文件离线可看 |
 | [花城秋岸](huacheng-autumn/) · [看](https://aliceljy.github.io/playground/huacheng-autumn/) | 广州海珠珠江南岸的秋天：簕杜鹃挂满天桥，白色有轨电车从花下开过，赤岗塔下异木棉开花，同岸西端是广州塔，对岸是珠江新城；时间从白天拖到入夜 | Three.js 纯代码沙盘，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [雪线小木屋](snowline-cabin/) · [看](https://aliceljy.github.io/playground/snowline-cabin/) | 雪夜山顶一间亮着灯的木屋：点暗着的山头替它点灯，七座点满有流星；时间从黄昏拖到日出；还能进屋待一会儿 | Three.js 纯代码场景，没有模型和图片，鼠标与触屏，单文件离线可看 |
+| [潮汐之下 · 黑洞撕裂恒星](tidal-disruption/) · [看](https://aliceljy.github.io/playground/tidal-disruption/) | 一颗恒星靠近超大质量黑洞，108 秒里经历接近、潮汐拉长、撕裂、回落碰撞、成盘和余波；黑洞周围的光线真的被弯折，盘的背面被弯到黑洞上下，朝向镜头的一侧更亮；时间轴可拖，镜头可转，物理说明写明哪些是近似 | Three.js 加自写 GLSL，光线弯折与碎屑都在 GPU 上算，锁 30 帧并按负载自动降画质，鼠标与触屏，单文件离线可看 |
 | [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
 | [齿轮返修](gear-repair/) · [看](https://aliceljy.github.io/playground/gear-repair/) | DeepSeek Harness 一次写出的齿轮页把渐开线方向写反了一个符号，两对齿轮帧帧穿模；作者只给症状和查法，它自己修好。一键切换原版与返修后，红点标出穿模处 | Three.js，两版齿形代码原样保留，穿模检测与页面共用一份代码，鼠标与触屏 |
 | [山河卷](shanhe-scroll/) · [看](https://aliceljy.github.io/playground/shanhe/) | 可以走进去的历史长卷：宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场 | Three.js 全景球，换一个数据文件就能换题材 |
