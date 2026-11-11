@@ -6,7 +6,7 @@ A rainy night on an arcade street in old Guangzhou. Three manholes have been pus
 
 ## How to play
 
-- Desktop: `W A S D` to move, mouse to look, left button to spray, right button or `F` to slap, hold `E` to seal a manhole, `R` to swap the tank, `Shift` to run, Space to jump, `Esc` to pause.
+- Desktop: `W A S D` to move, mouse to look, left button to spray, right button to slap, hold `E` to seal a manhole, `R` to swap the tank, `Shift` to run, Space to jump, `Esc` to pause. Without a mouse, the right hand uses `J` to spray, `K` to slap, the arrow keys to look and `L` to seal, so the left hand only moves.
 - Phone: drag on the left half to move and on the right half to look; spray, slap, swap and jump buttons sit at the bottom right, and a seal button appears next to a manhole.
 - Crawlers rear up before biting. Flyers hover, then dive in a straight line. The armoured one shrugs off spray from the front: bait it into a column so it flips over, then hit it.
 
