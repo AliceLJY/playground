@@ -45,6 +45,10 @@
 
 `?view=` 加 `signs`（街景）、`alley`、`pier`、`ferry`（站位）；`nest`、`bite`、`flyer`、`charger`、`stun`、`won`（由手抖档自动驾驶真实打到那个时刻再定格，种子 5）。`?auto=precise|shaky&seed=N` 让自动驾驶在页面里实打，`?q=low|mid|high` 指定画质，`?touch` 强制触屏布局。钩子 `window.__qilou` 与 `window.__PLAYTEST__`；`__qilou.info().view.entered` 回报实际进到的状态。
 
+## 录演示片
+
+`tools/record.cjs` 竖屏 1080×1920 逐帧录一整局（精准档自动驾驶，赶路和无虫封盖的段落快进，片尾接署名页），顺手写 `events.json`；`tools/demo-sound.py` 按事件时间合成雨声、配乐和音效。命令在两个文件的文件头。录片要先 `page.clock.pauseAt`，否则截图期间真实时间照走，画面会是三倍速。
+
 ## 验收
 
 | # | 条目 | 检查 | 结果 |
