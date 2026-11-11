@@ -795,6 +795,7 @@
     };
   }
   window.__foyer = {
+    get geometry() { const g = geom(); return { curtain: { x: g.cx0, y: 0, width: g.cx1 - g.cx0, height: g.curtainH } }; },
     get ready() { return !!S; }, act, snapshot, canAct, gong, photo, openProgramme, flip, nextShow, clearVisits, get state() { return S; }, get visits() { return visits; }, get frameStamp() { return frameStamp; },
     pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; },
     // 把开演时刻挪到「从现在起 sec 秒后」，用来在测试里快进到一铃 / 二铃 / 开演
