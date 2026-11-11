@@ -277,6 +277,7 @@ window.__hong = {
   setView(v) { if (!VIEWS[v]) return null; VIEWS[v](); step(0.016); step(0.016); hud(); return { mode: S.mode, follow: S.follow }; },
   skip(sec) { skip(sec); step(0.016); hud(); return sim.event.stage; },
   gpu() { return G.gpuName(renderer); }, backend: G.backend,
+  uncoloured: () => people.uncoloured(),
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
 };
 window.__PLAYTEST__ = {

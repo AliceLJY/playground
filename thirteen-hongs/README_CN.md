@@ -25,7 +25,7 @@
 
 ```
 npm ci && node tools/build.mjs          # 打成 dist/index.html（WebGL）和 dist/webgpu.html 两个单文件
-node --test tests/*.test.cjs            # 14 条逻辑测试
+node --test tests/*.test.cjs            # 15 条逻辑测试
 node tools/serve.cjs . 8947             # 起本地服务
 NODE_PATH="$(npm root -g)" node tools/shots.cjs http://127.0.0.1:8947/dist/index.html shots/x
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8947/dist/index.html shots/y
