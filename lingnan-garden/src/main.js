@@ -57,6 +57,12 @@ function refreshButtons() { $('bCard').classList.toggle('on', S.mode === 'card')
 
 const joy = { x: 0, y: 0, id: -1, ox: 0, oy: 0 };
 function updateCamera(dt) {
+  if (S.mode === 'free') {   // 录片用：机位、注视点、视场都由外面给（tools/film.cjs）
+    const F = S.free; camera.position.set(F.p[0], F.p[1], F.p[2]);
+    if (F.l) camera.lookAt(F.l[0], F.l[1], F.l[2]); else camera.rotation.set(F.pitch || 0, F.yaw || 0, 0);
+    if (F.fov && camera.fov !== F.fov) { camera.fov = F.fov; camera.updateProjectionMatrix(); }
+    return;
+  }
   if (S.mode === 'card') { const P = C.POSTCARD; camera.position.set(P.x, P.y, P.z); camera.rotation.set(P.pitch, P.yaw, 0); return; }
   if (S.mode === 'top') { const T = S.top, sp = Math.sin(T.pol); camera.position.set(1 + T.dist * sp * Math.sin(T.az), T.dist * Math.cos(T.pol), 2 + T.dist * sp * Math.cos(T.az)); camera.lookAt(1, 1, 2); return; }
   const W = S.walk;
@@ -135,7 +141,7 @@ function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h;
   // 明信片机位按横向视角对齐起始图：竖屏时把纵向视角放大，免得左右被裁掉太多
   const hf = 2 * Math.atan(Math.tan(C.POSTCARD.fov * Math.PI / 360) * 16 / 9);
-  camera.fov = S.mode === 'card' ? clamp(2 * Math.atan(Math.tan(hf / 2) / Math.max(camera.aspect, 0.9)) * 180 / Math.PI, C.POSTCARD.fov, 84) : S.mode === 'top' ? 42 : (w < h ? 74 : 62);
+  camera.fov = S.mode === 'free' ? camera.fov : S.mode === 'card' ? clamp(2 * Math.atan(Math.tan(hf / 2) / Math.max(camera.aspect, 0.9)) * 180 / Math.PI, C.POSTCARD.fov, 84) : S.mode === 'top' ? 42 : (w < h ? 74 : 62);
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -147,7 +153,7 @@ function step(real) {
   T += real; world.update(T, real); updateCamera(real);
   world.sky.position.copy(camera.position);
   if (Q.has('shadow1') || ++shadowTick % (coarse ? 20 : 4) === 0) renderer.shadowMap.needsUpdate = true;   // 诊断开关 ?shadow1：阴影每帧更新
-  const nearWater = S.mode === 'walk' ? Math.max(clamp(1 - (Math.hypot(S.walk.x + 0.5, S.walk.z - 3.2) - 4) / 7, 0, 1), clamp(1 - (Math.hypot(S.walk.x - C.FALL.x, S.walk.z + 1.5) - 2) / 7, 0, 1)) : 0.6;
+  const nearWater = S.mode === 'walk' || S.mode === 'free' ? Math.max(clamp(1 - (Math.hypot(S.walk.x + 0.5, S.walk.z - 3.2) - 4) / 7, 0, 1), clamp(1 - (Math.hypot(S.walk.x - C.FALL.x, S.walk.z + 1.5) - 2) / 7, 0, 1)) : 0.6;
   audio.update(real, nearWater);
   renderer.info.reset(); renderer.render(scene, camera);
   stat.calls = renderer.info.render.calls; stat.tris = renderer.info.render.triangles;
@@ -185,6 +191,8 @@ const VIEWS = {
   tour: () => begin('tour'),
 };
 window.__garden = {
+  audio, camera,
+  free(cam) { S.mode = 'free'; S.free = cam; S.walk.x = cam.p[0]; S.walk.z = cam.p[2]; },   // 录片：直接摆机位
   C, S, stat, views: Object.keys(VIEWS), ready: false, prof: world.prof,
   setView(v) { if (!VIEWS[v]) return null; VIEWS[v](); step(0.016); step(0.016); hud(); return S.mode; },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
@@ -193,6 +201,8 @@ window.__garden = {
   step(ms) { for (let t = 0; t < ms; t += 16) step(0.016); hud(); },
 };
 resize(); refreshButtons();
+// 录片模式 ?capture：界面全收起，不出开场页（tools/film.cjs 用；平时打开页面不带这个参数）
+if (Q.has('capture')) { const st = document.createElement('style'); st.textContent = '.hud,#bar,#intro,#ref,#joy,#info{display:none!important}'; document.head.append(st); S.started = true; }
 if (Q.get('view') && VIEWS[Q.get('view')]) VIEWS[Q.get('view')]();
 if (Q.get('at')) { const [x, z, yaw, pitch] = Q.get('at').split(',').map(Number); at(x, z, yaw || 0, pitch || 0)(); }
 step(0.016); hud();
