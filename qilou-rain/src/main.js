@@ -45,7 +45,7 @@ function boot() {
   scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(FOG.getHex(), 0.017); scene.background = FOG.clone();
   camera = new THREE.PerspectiveCamera(72, 1, 0.03, 950); camera.rotation.order = 'YXZ'; camera.layers.enable(1); scene.add(camera);
   scene.add(makeSky());
-  scene.add(new THREE.HemisphereLight('#51648f', '#1a1418', 0.7));
+  scene.add(new THREE.HemisphereLight('#51648f', '#1a1418', 0.95));
   const moon = new THREE.DirectionalLight('#8fa2d8', 0.3); moon.position.set(-30, 60, -20); scene.add(moon);
   for (const [x, y, z, c] of [[0, 5, -46, '#ff5030'], [0, 5, -17, '#30d0c0'], [0, 5, 14, '#ff50c0'], [0, 5.5, 50, '#ffc080'], [22, 4, 0, '#ffcf80']]) { const l = new THREE.PointLight(c, 16, 30, 1.7); l.position.set(x, y, z); scene.add(l); }
   flash = new THREE.SpotLight('#fff1dc', 7, 48, 0.56, 0.75, 0.35); flash.position.set(0.1, -0.06, -0.44); flash.target.position.set(0, -0.6, -12);

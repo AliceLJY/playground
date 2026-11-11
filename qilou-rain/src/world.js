@@ -26,6 +26,24 @@ export const LIGHTS = [];
 const GLOW_K = 0.3;
 const lamp = (x, y, z, color, power, reach) => { _c.set(color); LIGHTS.push({ x, y, z, r: _c.r * power * GLOW_K, g: _c.g * power * GLOW_K, b: _c.b * power * GLOW_K, reach }); };
 
+// 灯下的体积光锥：开口圆台，顶亮底暗，叠加混合
+const CONES = [];
+const cone = (x, yTop, z, r, h, color, k = 1) => CONES.push({ x, yTop, z, r, h, color, k });
+function conesGeometry() {
+  const P = [], Cc = [], c = new THREE.Color();
+  for (const o of CONES) {
+    const g = new THREE.CylinderGeometry(o.r * 0.12, o.r, o.h, 14, 3, true).toNonIndexed(), pos = g.attributes.position;
+    c.set(o.color);
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i), f = Math.pow(Math.max(0, Math.min(1, (y + o.h / 2) / o.h)), 1.6) * o.k;
+      P.push(pos.getX(i) + o.x, y + o.yTop - o.h / 2, pos.getZ(i) + o.z); Cc.push(c.r * f, c.g * f, c.b * f);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3));
+  return g;
+}
+
 export class Builder {
   constructor(seed = 7) { this.p = []; this.n = []; this.c = []; this.m = []; this.mat = 0; this.r = rng(seed); }
   xf(x, y, z, sx, sy, sz, ry = 0, rx = 0, rz = 0) { _e.set(rx, ry, rz, 'YXZ'); _q.setFromEuler(_e); return _m.compose(_p.set(x, y, z), _q, _s.set(sx, sy, sz)); }
@@ -180,6 +198,12 @@ export function buildWorld(shared, quality) {
         const z = zc + (k - 1) * 1.55, lit = r() < 0.5;
         manchu(xe - side * 0.02, y + 1.75, z, 1.05, 1.9, side > 0 ? -Math.PI / 2 : Math.PI / 2, lit);
         B.mat = 0; B.box(xe - side * 0.1, y + 2.75, z, 0.24, 0.16, 1.3, '#cfc8b6');
+        B.prism(xe - side * 0.12, y + 2.91, z, 0.26, 0.2, 1.36, '#d8d2c2'); B.box(xe - side * 0.16, y + 2.72, z, 0.16, 0.3, 0.16, '#e2dccb');
+        for (const dz of [-0.62, 0.62]) B.box(xe - side * 0.07, y + 0.78, z + dz, 0.12, 2.0, 0.1, '#c8c0ae');
+        if (!lit && r() < 0.14) {
+          B.mat = 7; B.cyl(xe - side * 0.85, y + 1.1, z, 0.018, 1.6, '#8a7440', 0, 0, Math.PI / 2);
+          for (let q = 0; q < 3; q++) B.box(xe - side * (0.5 + q * 0.42), y + 0.62, z, 0.3, 0.46, 0.02, pick(['#5a6878', '#785a5a', '#8a8470', '#4a6456', '#806a3a']), 0, 0.2);
+        }
         B.box(xe - side * 0.12, y + 0.68, z, 0.3, 0.1, 1.3, '#cfc8b6');
       }
       if (f === 0 && r() < 0.4) {
@@ -187,7 +211,13 @@ export function buildWorld(shared, quality) {
         for (let k = -5; k <= 5; k++) B.box(xe - side * 0.82, y + 0.25, zc + k * 0.42, 0.04, 0.85, 0.04, '#222428');
         B.box(xe - side * 0.82, y + 1.1, zc, 0.06, 0.06, 4.4, '#222428');
       }
-      if (r() < 0.35) { B.mat = 7; B.box(xe - side * 0.35, y + 0.9, zc + 2.1, 0.6, 0.5, 0.7, '#9aa0a4'); }
+      if (r() < 0.45) {
+        const az = zc + (r() < 0.5 ? 2.1 : -2.1);
+        B.mat = 7; B.box(xe - side * 0.36, y + 0.9, az, 0.62, 0.52, 0.76, '#a4aaae', 0, 0.1);
+        B.cyl(xe - side * 0.68, y + 1.16, az, 0.2, 0.03, '#2a2e32', 0, 0, Math.PI / 2); B.box(xe - side * 0.36, y + 0.84, az, 0.7, 0.05, 0.84, '#4a4e52');
+        B.box(xe - side * 0.36, y + 0.6, az - 0.3, 0.6, 0.26, 0.04, '#4a4e52'); B.box(xe - side * 0.36, y + 0.6, az + 0.3, 0.6, 0.26, 0.04, '#4a4e52');
+        B.cyl(xe - side * 0.12, y - 0.6, az + 0.3, 0.018, 1.5, '#d8d8d2');
+      }
     }
     B.mat = 0; B.box(xe - side * 0.05, top, zc, 0.4, 0.9, 5.02, wall, 0, 0.08);
     B.box(xe - side * 0.1, top + 0.9, zc, 0.5, 0.12, 5.1, '#d8d2c2');
@@ -196,8 +226,31 @@ export function buildWorld(shared, quality) {
       B.half(xe - side * 0.26, top + 1.9, zc, 1.2, '#d8d2c2', side > 0 ? -Math.PI / 2 : Math.PI / 2);
       B.ball(xe - side * 0.05, top + 3.2, zc, 0.2, 0.26, 0.2, '#d8d2c2');
     }
+    B.mat = 0;
+    B.box(xe - side * 0.13, AH, zc - 2.5, 0.3, top - AH + 0.9, 0.36, '#cfc8b6', 0, 0.06);
+    B.box(xe - side * 0.17, top - 0.34, zc - 2.5, 0.38, 0.3, 0.46, '#ddd6c4'); B.box(xe - side * 0.17, AH + 0.02, zc - 2.5, 0.38, 0.26, 0.46, '#ddd6c4');
+    for (let k = -5; k <= 5; k++) B.box(xe - side * 0.2, top - 0.24, zc + k * 0.44, 0.24, 0.16, 0.2, '#d8d2c2');
+    B.box(xe - side * 0.2, top - 0.07, zc, 0.56, 0.1, 5.04, '#e2dccb');
+    for (let k = -5; k <= 4; k++) B.cyl(xe - side * 0.05, top + 0.18, zc + k * 0.5 + 0.25, 0.07, 0.62, '#d8d2c2');
+    for (let k = 0; k < 4; k++) for (const sg of [-1, 1]) B.box(xe + side * 0.35, AH - 0.7 - 0.15 * (k + 1), zc - 2.5 + sg * (0.36 + (3 - k) * 0.2), 0.62, 0.15, 0.22 + (3 - k) * 0.02, '#bdb5a4', 0, 0.05);
+    B.box(xe + side * 0.35, AH - 1.36, zc - 2.5, 0.9, 0.12, 0.9, '#cfc8b6');
     B.mat = 7; B.cyl(xe - side * 0.3, AH, zc - 2.4, 0.06, top - AH, '#3c4a44');
+    for (let k = 0; k < 3; k++) B.box(xe - side * 0.3, AH + 0.8 + k * 2.6, zc - 2.4, 0.16, 0.06, 0.16, '#2a302c');
+    B.box(xe - side * 0.22, AH + 0.42, zc, 0.03, 0.03, 5, '#101010'); B.box(xe - side * 0.22, AH + 0.5, zc, 0.03, 0.03, 5, '#181818');
+    if (r() < 0.35) { B.cyl(side * 8, top + 0.2, zc + 1, 0.7, 1.3, '#8a9096', 0.1); B.cyl(side * 8, top, zc + 1, 0.05, 0.2, '#333'); }
+    if (r() < 0.3) { B.box(side * 7, top, zc - 1.5, 0.05, 2.6, 0.05, '#222'); for (let k = 0; k < 4; k++) B.box(side * 7, top + 1.4 + k * 0.3, zc - 1.5, 0.04, 0.03, 1.2 - k * 0.2, '#222'); }
+    if (side < 0 && i % 2 === 0) {
+      const y0 = AH + 2.2 + r() * 3;
+      for (let k = 0; k < 10; k++) { const x0 = -5 + k, sag = y0 - Math.sin((k + 0.5) / 10 * Math.PI) * 0.6; B.box(x0 + 0.5, sag, zc + 1.2 + k * 0.05, 1.02, 0.025, 0.025, '#0c0c0c', 0, 0, 0, (Math.cos((k + 0.5) / 10 * Math.PI) * -0.19)); }
+    }
     if (!real) return;
+    // 柱身：柱头线脚、电表箱、旧招贴
+    B.mat = 0;
+    for (const yy of [AH - 1.5, AH - 1.62]) B.box(xe + side * 0.35, yy, zc - 2.5, 0.8 - (AH - 1.5 - yy), 0.07, 0.8 - (AH - 1.5 - yy), '#d8d2c2');
+    if (r() < 0.5) { B.mat = 7; B.box(xe + side * 0.35, 1.5, zc - 2.5 + 0.37, 0.34, 0.46, 0.08, '#6a7078'); B.cyl(xe + side * 0.35, 1.96, zc - 2.5 + 0.38, 0.02, 1.7, '#3a3a3a'); }
+    if (r() < 0.6) { B.mat = 7; B.box(xe + side * 0.35 - side * 0.36, 1.2 + r() * 0.5, zc - 2.5, 0.01, 0.5, 0.38, pick(['#c8c2a8', '#b84a3a', '#d8c060', '#8aa0b8']), 0, 0.2, r() * 0.1 - 0.05); }
+    // 墙裙与门槛
+    B.mat = 4; B.box(xi - side * 0.03, 0, zc, 0.1, 1.0, 5, '#6a6e6c', 0, 0.1); B.mat = 6; B.box(xi - side * 0.25, 0, zc, 0.5, 0.08, 4.2, '#5a5852');
     // 铺面内墙与铺口
     B.mat = 0; B.box(xi + side * 0.2, 0, zc, 0.4, AH, 5, wall, 0, 0.1);
     const kind = r();
@@ -209,15 +262,21 @@ export function buildWorld(shared, quality) {
       B.box(xi - side * 0.7, 0, zc, 0.6, 0.95, 2.6, '#4a3222');
       lamp(xi - side * 1.6, 2.4, zc, '#ffc070', 2.2, 4.2);
       hsign(xi - side * 0.08, 3.5, zc, Math.floor(r() * 5), side > 0 ? -Math.PI / 2 : Math.PI / 2);
+      B.mat = 2; B.box(xi - side * 0.05, 0, zc - 1.9, 0.14, 3.1, 0.14, '#3a2418'); B.box(xi - side * 0.05, 0, zc + 1.9, 0.14, 3.1, 0.14, '#3a2418'); B.box(xi - side * 0.05, 3.0, zc, 0.16, 0.14, 3.9, '#3a2418');
+      if (r() < 0.6) { const c1 = pick(['#b83a2a', '#2a6a4a', '#2a4a8a', '#c88a2a']); B.mat = 7; for (let k = 0; k < 8; k++) B.box(xe + side * 0.9, 3.05, zc - 1.75 + k * 0.5, 1.5, 0.04, 0.5, k % 2 ? '#e2dccb' : c1, 0, 0.08, 0, side * 0.3); B.box(xe + side * 0.25, 2.82, zc, 0.04, 0.2, 4, c1); }
+      B.mat = 7; B.cyl(xi - side * 1.3, 2.9, zc - 0.8, 0.01, 0.8, '#222'); G.ball(xi - side * 1.3, 2.85, zc - 0.8, 0.08, 0.1, 0.08, '#ffe9b0'); B.cone(xi - side * 1.3, 2.9, zc - 0.8, 0.2, 0.14, '#2a4a3a');
+      cone(xi - side * 1.3, 2.9, zc - 0.8, 1.3, 2.9, '#ffd9a0', 0.8);
     } else if (kind < 0.85) {
       B.mat = 3; B.box(xi - side * 0.03, 0, zc, 0.08, 3.1, 3.6, pick(['#5a6a6c', '#6a6258', '#4c5a66']), 0, 0.1);
-      B.mat = 0; B.box(xi - side * 0.06, 3.1, zc, 0.14, 0.3, 3.8, '#3a3a3a');
+      B.mat = 7; B.box(xi - side * 0.1, 3.1, zc, 0.3, 0.34, 3.9, '#4a4e50', 0, 0.1); B.box(xi - side * 0.08, 0, zc - 1.85, 0.08, 3.1, 0.1, '#3c4042'); B.box(xi - side * 0.08, 0, zc + 1.85, 0.08, 3.1, 0.1, '#3c4042');
+      B.box(xi - side * 0.09, 0.02, zc, 0.06, 0.1, 3.6, '#2e3234'); B.box(xi - side * 0.1, 0.5, zc, 0.06, 0.1, 0.14, '#c8a030');
+      if (r() < 0.5) B.box(xi - side * 0.09, 1.3 + r() * 0.6, zc + (r() - 0.5) * 2, 0.01, 0.42, 0.32, pick(['#e2dccb', '#d8c060', '#c84a3a']), 0, 0.2, r() * 0.16 - 0.08);
     } else {
       B.mat = 2; B.box(xi - side * 0.03, 0, zc - 0.9, 0.1, 2.5, 1.1, '#4a2a1c');
       manchu(xi - side * 0.02, 1.9, zc + 0.9, 1.3, 1.5, side > 0 ? -Math.PI / 2 : Math.PI / 2, true);
     }
     if (r() < 0.3) { B.mat = 7; B.cyl(xi - side * 0.8, 0, zc + 2.0, 0.24, 0.4, '#7a3a28'); B.ball(xi - side * 0.8, 0.75, zc + 2.0, 0.42, 0.42, 0.42, '#1f4a2c', 0.3); }
-    if (r() < 0.5) lamp(side * 7, 3.6, zc, '#ffd9a0', 0.9, 3.2), G.ball(side * 7, 3.85, zc, 0.11, 0.11, 0.11, '#fff0c8');
+    if (r() < 0.6) { lamp(side * 7, 3.4, zc, '#ffd9a0', 1.1, 3.4); G.ball(side * 7, 3.5, zc, 0.1, 0.12, 0.1, '#fff0c8'); B.mat = 7; B.cyl(side * 7, 3.6, zc, 0.012, 0.6, '#222'); B.cone(side * 7, 3.56, zc, 0.26, 0.16, '#2a4a3a'); cone(side * 7, 3.56, zc, 1.7, 3.56, '#ffd9a0', 1); }
     if (i % 2 === (side > 0 ? 0 : 1)) vsign(xe - side * 0.75, AH + 2.6 + r() * 1.2, zc + (r() - 0.5) * 2, (vs++) % VSIGNS.length, 3.2 + r() * 1.0);
   }
   for (let i = -3; i < 19; i++) {
@@ -275,7 +334,7 @@ export function buildWorld(shared, quality) {
     for (const z of [45, 56]) {
       B.cyl(s * 6, 0, z, 0.09, 5.2, '#23262a'); B.box(s * 6, 5.2, z, 0.9, 0.08, 0.08, '#23262a');
       G.ball(s * 6 - 0.4, 5.05, z, 0.2, 0.16, 0.2, '#ffd9a0'); G.ball(s * 6 + 0.4, 5.05, z, 0.2, 0.16, 0.2, '#ffd9a0');
-      lamp(s * 6, 4.6, z, '#ffc888', 4.2, 7);
+      lamp(s * 6, 4.6, z, '#ffc888', 4.2, 7); cone(s * 6 - 0.4, 5.0, z, 2.6, 5.0, '#ffc888', 1.2); cone(s * 6 + 0.4, 5.0, z, 2.6, 5.0, '#ffc888', 1.2);
     }
   }
   hsign(0, 5.3, 61.9, 6, Math.PI, 5.4);
@@ -395,7 +454,17 @@ export function buildWorld(shared, quality) {
     GR.mat = 5;
     for (let z = -58; z < 38; z += 6) GR.box(0, 0.004, z, 0.16, 0.004, 2.6, '#8a7a3a');
     for (const s of [-1, 1]) GR.box(s * 5, 0.004, -10, 0.2, 0.006, 100, '#5c5a54');
-    for (const d of DRAINS) { GR.disk(d.x, 0.012, d.z, 0.95, '#3c3e40'); GR.disk(d.x, 0.016, d.z, 0.72, '#020302'); }
+    for (const d of DRAINS) {
+      GR.disk(d.x, 0.012, d.z, 0.95, '#3c3e40'); GR.disk(d.x, 0.016, d.z, 0.72, '#020302');
+      GR.mat = 6; for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; GR.box(d.x + Math.cos(a) * 1.16, 0.0, d.z + Math.sin(a) * 1.16, 0.56, 0.035, 0.3, k % 2 ? '#6a6a64' : '#585852', -a + Math.PI / 2, 0.15); }
+      GR.mat = 5; for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + 0.2; GR.box(d.x + Math.cos(a) * 1.75, 0.006, d.z + Math.sin(a) * 1.75, 0.5, 0.004, 0.14, '#b89a2a', -a + Math.PI / 2); }
+    }
+    GR.mat = 4;
+    for (const s of [-1, 1]) for (let z = -72; z < 40; z += 2) {
+      if (s === 1 && Math.abs(z + 1) < 7.6) continue;
+      GR.box(s * 5.08, 0, z + 1, 0.3, 0.09, 1.96, '#6a6862', 0, 0.12);
+      if (z % 10 === 0) { GR.mat = 7; GR.box(s * 4.7, 0.006, z + 1, 0.4, 0.008, 0.7, '#0c0c0c'); for (let k = -2; k <= 2; k++) GR.box(s * 4.7, 0.012, z + 1 + k * 0.14, 0.36, 0.008, 0.04, '#3a3a3a'); GR.mat = 4; }
+    }
   }
   // 江面
   const RV = new Builder(2); RV.mat = 5;
@@ -416,6 +485,8 @@ export function buildWorld(shared, quality) {
   const glow = new THREE.Mesh(G.geometry(false), glowMat);
   const far = new THREE.Mesh(FAR.geometry(false), new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(1.5, 1.5, 1.5), fog: false, side: THREE.DoubleSide }));
   const signs = new THREE.Mesh(S.geometry(), new THREE.MeshBasicMaterial({ map: drawAtlas(), color: new THREE.Color(1.7, 1.7, 1.7) }));
-  group.add(world, ground, river, glow, far, signs);
+  const beams = new THREE.Mesh(conesGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(0.09, 0.09, 0.09), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beams.renderOrder = 2;
+  group.add(world, ground, river, glow, far, signs, beams);
   return { group, ground, river, tris: B.tris + G.tris + FAR.tris + GR.tris + RV.tris, lights: LIGHTS.length };
 }
