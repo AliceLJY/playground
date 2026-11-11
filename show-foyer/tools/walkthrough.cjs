@@ -29,9 +29,9 @@ const fs = require('node:fs'), path = require('node:path');
   const teaDisabled = await p.$eval('#bar button[data-act="3"]', (el) => el.disabled);
   // 点戏台拍照（真实点击画布上半部），再点台口左侧的节目单翻两页
   const rect = await p.$eval('#scene', (c) => { const r = c.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
-  const stageH = Math.min(rect.h * 0.36, 230);
+  const geometry = await p.evaluate(() => __foyer.geometry), stageH = geometry.stage.height;
   await p.mouse.click(rect.x + rect.w / 2, rect.y + stageH * 0.4); await p.waitForTimeout(500); const s3b = await shot('03b-snap');
-  await p.mouse.click(rect.x + 8 + 17, rect.y + stageH * 0.72 + 8 + 12); await p.waitForTimeout(400); const s3c = await shot('03c-programme');
+  await p.mouse.click(rect.x + geometry.book.x + geometry.book.w / 2, rect.y + geometry.book.y + geometry.book.h / 2); await p.waitForTimeout(400); const s3c = await shot('03c-programme');
   await p.click('#progNext'); await p.waitForTimeout(250); await p.click('#progNext'); await p.waitForTimeout(250); const s3d = await shot('03d-programme-p3');
   await p.click('[data-close="programmeOverlay"]'); await p.waitForTimeout(200);
   await tap(4); await p.waitForTimeout(1800); const s5 = await shot('05-leave-and-reenter');

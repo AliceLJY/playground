@@ -28,7 +28,7 @@ function context() {
     rect(...box) { calls.rects.push({ box, clip: true }); },
     createLinearGradient() { return { addColorStop() {} }; },
     createRadialGradient(...args) { calls.radials.push(args); return { addColorStop() {} }; },
-    measureText(text) { return { width: text.length * 6 }; }, createPattern() { return {}; },
+    measureText(text) { return { width: text.length * 6 }; }, createPattern() { return { setTransform() {} }; },
   }, { get(target, key) { return key in target ? target[key] : () => {}; } });
   return ctx;
 }
@@ -112,4 +112,17 @@ test('总光实际 tick：真实落座点灯后约一秒渐亮，不能靠 0.6 �
   game.reset(); game.act(0); game.act(1); game.state.lamps[0].t = -1;
   for (let i = 0; i < 60; i++) actual.tick(1 / 60);
   assert.ok(Math.abs(game.state.lit - values[1000]) < 1e-10, '总光不得依赖灯笼淡入或测试时间步');
+});
+
+
+test('电脑真实台口回报为主构图，比例 2.2–2.6，侧墙各留至少 12%', () => {
+  const { game } = load(1440, 686, 1), g = game.geometry;
+  const ratio = g.stage.width / g.stage.height;
+  assert.ok(ratio >= 2.2 && ratio <= 2.6, '电脑台口仍是一条扁带');
+  assert.ok(g.stage.height / g.canvas.height >= 0.5 && g.stage.height / g.canvas.height <= 0.56, '戏台与台口高度须占画布约一半');
+  assert.ok(g.stage.x >= 1440 * 0.12 && 1440 - g.stage.x - g.stage.width >= 1440 * 0.12, '侧墙须有足够的绘制空间');
+  assert.equal(g.seats.length, 12, '原三排四列保持十二席');
+  assert.ok(g.seats[8].width > g.seats[0].width, '近排须大于远排');
+  const tablet = load(768, 900, 2).game.geometry;
+  assert.ok(tablet.stage.x >= 0 && tablet.stage.x + tablet.stage.width <= tablet.canvas.width, '竖置平板的台框不得横向出画');
 });

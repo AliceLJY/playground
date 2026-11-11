@@ -20,6 +20,33 @@ const fs = require('node:fs'), path = require('node:path');
       await p.goto(`${url}${sep}view=${view}&t=6&mute=1`);
       await p.waitForFunction(() => window.__foyer && window.__foyer.ready, null, { polling: 100 });
       await p.waitForTimeout(200);
+      // 入门状态先验，再落座，防止座椅标签遮住自己的圆环和名签。
+      const door = await p.evaluate(() => {
+        const canvas = document.getElementById('scene'), c = canvas.getContext('2d');
+        const originalText = c.fillText, originalArc = c.arc, labels = [], rings = [];
+        const kx = canvas.width / __foyer.geometry.canvas.width, ky = canvas.height / __foyer.geometry.canvas.height;
+        c.fillText = function (text, x, y, ...args) {
+          if (this.globalAlpha > 0.15 && (text === '我' || text === '身影 · 非真人' || text.startsWith('你 · '))) {
+            const m = this.measureText(text), t = this.getTransform();
+            labels.push({ text, left: (t.a * (x - m.actualBoundingBoxLeft) + t.e) / kx, right: (t.a * (x + m.actualBoundingBoxRight) + t.e) / kx, top: (t.d * (y - m.actualBoundingBoxAscent) + t.f) / ky, bottom: (t.d * (y + m.actualBoundingBoxDescent) + t.f) / ky });
+          }
+          return originalText.call(this, text, x, y, ...args);
+        };
+        c.arc = function (x, y, radius, start, end, ...args) {
+          if (this.strokeStyle === '#f7dc9a' && this.lineWidth === 2 && end - start >= Math.PI * 2 - 0.001) {
+            const t = this.getTransform(), r = radius + this.lineWidth / 2;
+            rings.push({ left: (t.a * (x - r) + t.e) / kx, right: (t.a * (x + r) + t.e) / kx, top: (t.d * (y - r) + t.f) / ky, bottom: (t.d * (y + r) + t.f) / ky });
+          }
+          return originalArc.call(this, x, y, radius, start, end, ...args);
+        };
+        try { __foyer.step(0); } finally { c.fillText = originalText; c.arc = originalArc; }
+        const markers = [...rings, ...labels.filter(b => b.text === '我')];
+        const audience = labels.filter(b => b.text !== '我');
+        const clashes = audience.filter(b => markers.some(a => Math.min(a.right, b.right) > Math.max(a.left, b.left) && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top)));
+        return { phase: __foyer.snapshot().phase, rings, labels, clashes };
+      });
+      fs.writeFileSync(path.join(out, `${tag}-${view}-door.json`), JSON.stringify(door, null, 2));
+      await p.screenshot({ path: path.join(out, `${tag}-${view}-door.png`) });
       // 固定机位里先落座，再读状态
       await p.evaluate(() => { window.__foyer.act(0); window.__foyer.step(100); });
       const r = await p.evaluate(() => {
@@ -40,6 +67,8 @@ const fs = require('node:fs'), path = require('node:path');
       const halls = r.snap.halls.map((t) => [t.no, t.count]);
       const expect = { first: { halls: [[1, 1]], hall: 1, residents: 3 }, busy: { halls: [[1, 12], [2, 1]], hall: 2, residents: 3 }, full: { halls: [[1, 10]], hall: 1, residents: 0 } }[view];
       const checks = {
+        doorMarkerSampled: door.phase === 'door' && door.rings.length === 1 && door.labels.some(b => b.text === '我') && (view === 'full' || door.labels.filter(b => b.text === '身影 · 非真人').length === 3),
+        doorMarkerNoLabelOverlap: door.clashes.length === 0,
         noPageErrors: errors.length === 0,
         notScrollable: !r.scrollable,
         buttonsInside: r.btns.every((x) => x.box.left >= -1 && x.box.right <= r.vw + 1 && x.box.top >= -1 && x.box.bottom <= r.vh + 1),
@@ -52,6 +81,34 @@ const fs = require('node:fs'), path = require('node:path');
         residentsMatch: r.snap.residents === expect.residents,
         clapResponds: after.frameStamp > before && after.claps === r.snap.claps + 1 && after.lastSound === 'clap' && after.effects.includes('ripple'),
       };
+      if (view === 'full') {
+        await p.goto(`${url}${sep}view=full&t=9.1&mute=1`);
+        await p.waitForFunction(() => window.__foyer && window.__foyer.ready, null, { polling: 100 });
+        await p.click('#bar button[data-act="0"]');
+        const labels = await p.evaluate(() => {
+          const canvas = document.getElementById('scene'), c = canvas.getContext('2d'), original = c.fillText, boxes = [];
+          const scale = canvas.width / __foyer.geometry.canvas.width;
+          c.fillText = function (text, x, y, ...args) {
+            if (this.globalAlpha > 0.15) {
+              const m = this.measureText(text), t = this.getTransform();
+              boxes.push({ text, left: (t.a * (x - m.actualBoundingBoxLeft) + t.e) / scale, right: (t.a * (x + m.actualBoundingBoxRight) + t.e) / scale, top: (t.d * (y - m.actualBoundingBoxAscent) + t.f) / scale, bottom: (t.d * (y + m.actualBoundingBoxDescent) + t.f) / scale });
+            }
+            return original.call(this, text, x, y, ...args);
+          };
+          try { __foyer.step(0); } finally { c.fillText = original; }
+          const clashes = [];
+          for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i], b = boxes[j];
+            if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) clashes.push([a.text, b.text]);
+          }
+          return { boxes, clashes, geometry: __foyer.geometry };
+        });
+        checks.bubbleSampled = labels.boxes.some(b => b.text === '👏');
+        checks.canvasLabelsNoOverlap = labels.clashes.length === 0;
+        checks.canvasLabelsInside = labels.boxes.every(b => b.left >= -0.5 && b.right <= labels.geometry.canvas.width + 0.5 && b.top >= -0.5 && b.bottom <= labels.geometry.canvas.height + 0.5);
+        fs.writeFileSync(path.join(out, `${tag}-labels.json`), JSON.stringify(labels, null, 2));
+        await p.screenshot({ path: path.join(out, `${tag}-labels.png`) });
+      }
       const bad = Object.entries(checks).filter(([, v]) => !v).map(([k]) => k);
       if (bad.length) fail++;
       console.log(`${bad.length ? 'FAIL' : 'ok  '} ${tag} ${view}  halls=${JSON.stringify(halls)} residents=${r.snap.residents} lamps=${r.snap.lamps}${bad.length ? '  ← ' + bad.join(', ') : ''}${errors.length ? '  errors: ' + errors.join(' | ') : ''}`);
