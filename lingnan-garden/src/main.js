@@ -15,7 +15,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog('#cfe4f2', 60, 420);
-const camera = new THREE.PerspectiveCamera(60, 1, 0.08, 1400);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.08, 1400); camera.layers.enable(1);   // 第 1 层是不进水面倒影的东西（荷叶荷花锦鲤），主相机照常看得见
 camera.rotation.order = 'YXZ';
 
 const SUN = new THREE.Vector3(-0.56, 0.7, 0.44).normalize();
