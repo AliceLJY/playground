@@ -108,7 +108,7 @@ export function createRoaches(scene, quality) {
       _e.set(st.pitch, e.yaw + wob, flip * Math.PI + wob * 0.4, 'YXZ'); _q.setFromEuler(_e);
       _mb.compose(_p.set(e.x + shake, by, e.z), _q, _s.set(s, s, s));
       const hit = e.hitT < 0.09 && !e.dead ? 1 : 0;
-      const tint = (hex, k = 1) => { _c.set(hex); if (hit) _c.lerp(_hc, 0.7); if (e.dead) _c.multiplyScalar(0.7); return _c.multiplyScalar(k); };
+      const tint = (hex, k = 1) => { _c.set(hex); if (hit) _c.lerp(_hc, 0.4); if (e.dead) _c.multiplyScalar(0.7); return _c.multiplyScalar(k); };
       part(abd, n, 0, L.h + 0.01, 0.22, L.abd[0], L.abd[1] * 1.5, L.abd[2], -0.04); abd.setColorAt(n, tint(L.body, 1.15));
       part(shield, n, 0, L.h + 0.045, -0.36, L.shield[0], L.shield[1], L.shield[2], -0.12); shield.setColorAt(n, tint(e.type === 'charger' ? '#9a8468' : '#b8b0a8'));
       const nod = tele ? 0.25 : Math.sin(t * 6 + e.phase) * 0.06;

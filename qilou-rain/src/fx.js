@@ -27,7 +27,7 @@ export function createFx(scene, quality) {
   function spray(o, d, vx, vz) {
     for (let k = 0; k < 5; k++) {
       const sp = 20 + r() * 6, t = r() * 0.03;
-      emit(o.x + d.x * t * sp, o.y + d.y * t * sp, o.z + d.z * t * sp, d.x * sp + jit(1.7) + vx, d.y * sp + jit(1.7), d.z * sp + jit(1.7) + vz, 0.4 + r() * 0.22, 0.04, 0.8 + r() * 0.4, 0.86, 0.96, 0.9, 0.34, 3.2, -1.5);
+      emit(o.x + d.x * t * sp, o.y + d.y * t * sp, o.z + d.z * t * sp, d.x * sp + jit(1.7) + vx, d.y * sp + jit(1.7), d.z * sp + jit(1.7) + vz, 0.4 + r() * 0.22, 0.04, 0.5 + r() * 0.3, 0.86, 0.96, 0.9, 0.2, 3.2, -1.5);
     }
   }
   function burst(x, y, z, kind, n = 26) {
@@ -88,12 +88,13 @@ export function createFx(scene, quality) {
       D.lid.position.set(D.d.x + (1 - e) * 1.35, 0.05 + Math.sin(e * Math.PI) * 0.25 + (1 - e) * 0.02, D.d.z + (1 - e) * 0.5);
       D.lid.rotation.set(0, (1 - e) * 0.8, (1 - e) * 0.16);
       D.beam.visible = !d.sealed; D.ring.visible = !d.sealed;
-      D.beam.material.opacity = 0.05 + 0.02 * Math.sin(t * 3 + D.d.x);
+      const near = Math.min(1, Math.max(0, (Math.hypot(D.d.x - sim.player.x, D.d.z - sim.player.z) - 3) / 6));
+      D.beam.material.opacity = (0.05 + 0.02 * Math.sin(t * 3 + D.d.x)) * near;
       D.beam.rotation.y = t * 0.3;
     }
     exitBeam.visible = sim.extractOpen; exitBeam.rotation.y = t * 0.4;
     crates.forEach((C, i) => { const on = sim.crates[i].t <= 0; C.cans.visible = on; C.strip.visible = on; });
     drops.forEach((m, i) => { const d = sim.drops[i]; m.visible = !!d; if (d) { m.position.set(d.x, 0.5 + Math.sin(t * 3 + i) * 0.08, d.z); m.rotation.y = t * 2; m.scale.setScalar(d.t > 19 ? Math.max(0.2, (22 - d.t) / 3) : 1); } });
   }
-  return { update, spray, burst, resize(h, dpr) { mat.uniforms.uScale.value = h * dpr * 0.9; } };
+  return { update, spray, burst, resize(w, h, dpr) { mat.uniforms.uScale.value = Math.min(h, w * 0.62) * dpr * 0.9; } };
 }

@@ -74,7 +74,7 @@ function boot() {
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h; camera.fov = w < h ? 86 : 72; camera.updateProjectionMatrix();
-  pipeline.resize(w, h); fx.resize(h, renderer.getPixelRatio());
+  pipeline.resize(w, h); fx.resize(w, h, renderer.getPixelRatio());
 }
 
 // ---------- 状态切换 ----------
@@ -92,6 +92,8 @@ function end(kind) { app.mode = kind; ui.fillEnd(app.sim); setTimeout(() => { if
 function lock() { if (canvas.requestPointerLock) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* 锁不住就用拖动转头 */ } } canvas.focus({ preventScroll: true }); }
 function release() { if (document.pointerLockElement) document.exitPointerLock(); }
 function clearInput() { keys.clear(); inp.fire = inp.use = inp.tFire = inp.tUse = false; inp.mx = inp.mz = 0; dragging = false; }
+// 自动驾驶时镜头跟着它的瞄准方向走，带一点缓动，录出来不至于一帧一甩
+function follow(input) { look.yaw += C.wrap(input.yaw - look.yaw) * 0.2; look.pitch += (input.pitch - look.pitch) * 0.2; }
 function setAuto(level) { app.auto = level || null; app.bot = level ? C.makeBot(level, app.seed) : null; }
 
 ui.onAct(a => {
@@ -184,6 +186,7 @@ function readInput(dt) {
 
 // ---------- 事件 → 声音、特效、界面 ----------
 function onEvent(e) {
+  if (window.__evlog) window.__evlog.push([e.type, e.kind || e.key || '']);
   const sim = app.sim, p = sim.player, live = app.mode === 'play';
   const near = (x, z, d) => Math.hypot(x - p.x, z - p.z) < d;
   switch (e.type) {
@@ -265,7 +268,7 @@ function advance(dt) {
   acc += dt; let n = 0;
   while (acc >= STEP && n < 5) {
     let input;
-    if (app.auto) { input = C.botInput(sim, app.bot, STEP); look.yaw = input.yaw; look.pitch = input.pitch; } else input = readInput(STEP);
+    if (app.auto) { input = C.botInput(sim, app.bot, STEP); follow(input); } else input = readInput(STEP);
     const hitBefore = sim.stats.hitT;
     C.stepSim(sim, STEP, input);
     for (const e of sim.events) onEvent(e);
@@ -323,6 +326,6 @@ window.__PLAYTEST__ = {
   get ready() { return app.ready; },
   snapshot() { const s = app.sim, p = s.player; return { mode: app.mode, t: +s.t.toFixed(2), state: s.state, x: +p.x.toFixed(2), z: +p.z.toFixed(2), yaw: +look.yaw.toFixed(3), hp: Math.round(p.hp), tank: Math.round(p.tank), cans: p.cans, sealed: C.sealedCount(s), alive: C.aliveCount(s), kills: s.stats.kills, firing: p.firing, near: s.near ? s.near.id : null }; },
   reset() { start(app.seed); }, setSeed(n) { app.seed = n; },
-  step(ms) { const n = Math.round(ms / 1000 / STEP); for (let i = 0; i < n && app.mode === 'play'; i++) { const input = app.auto ? C.botInput(app.sim, app.bot, STEP) : readInput(STEP); if (app.auto) { look.yaw = input.yaw; look.pitch = input.pitch; } C.stepSim(app.sim, STEP, input); for (const e of app.sim.events) onEvent(e); } },
+  step(ms) { const n = Math.round(ms / 1000 / STEP); for (let i = 0; i < n && app.mode === 'play'; i++) { const input = app.auto ? C.botInput(app.sim, app.bot, STEP) : readInput(STEP); if (app.auto) follow(input); C.stepSim(app.sim, STEP, input); for (const e of app.sim.events) onEvent(e); } },
 };
 boot();
