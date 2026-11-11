@@ -477,6 +477,14 @@ jobs:
           npm ci
           node tools/build.mjs
 
+      - name: Check and bundle Qilou Rain
+        working-directory: qilou-rain
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node tools/build.mjs
+          node --test tests/*.test.cjs
+
       - name: Check and bundle Sagrada Familia
         working-directory: sagrada-familia
         run: |
@@ -522,6 +530,9 @@ jobs:
           # 十三行江岸：约 1805 年广州商馆区，纯代码、可第一人称走进去；上面已打成单文件（Three.js 许可在文件开头注释里）
           mkdir -p _site/thirteen-hongs
           cp thirteen-hongs/dist/index.html thirteen-hongs/dist/webgpu.html _site/thirteen-hongs/
+          # 骑楼雨夜：雨夜西关骑楼街打巨型蟑螂的第一人称小游戏，纯代码；上面已打成单文件（Three.js 许可在文件开头注释里）
+          mkdir -p _site/qilou-rain
+          cp qilou-rain/dist/index.html _site/qilou-rain/index.html
           # 圣家堂：纯代码搭的建筑导览，可环绕、可走进去；上面已打成单文件（Three.js 许可在文件开头注释里）
           mkdir -p _site/sagrada-familia
           cp sagrada-familia/dist/index.html _site/sagrada-familia/index.html

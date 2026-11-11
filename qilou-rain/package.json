@@ -1,0 +1,14 @@
+{
+  "name": "qilou-rain",
+  "private": true,
+  "type": "module",
+  "description": "骑楼雨夜：纯代码生成的第一人称小游戏，雨夜西关骑楼街，拿杀虫喷雾和凉拖对付巨型蟑螂",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
