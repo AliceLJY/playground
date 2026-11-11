@@ -45,7 +45,7 @@ See [SPEC.md](SPEC.md) for budgets and [VERIFICATION.md](VERIFICATION.md) for ac
 
 MVP limits: session-only edits and inventory, 48-block vertical span, no caves, multiplayer, dynamic fluid or disk saves. Water is a visual surface with slower movement in the shallows. Dinosaurs use simple terrain-following AI, and a shelter is a local roof/wall check rather than a general enclosure solver. No sound is included. Physical-phone feel and long-session thermal behavior require human testing.
 
-The default palette is a clear, sunlit Jurassic island, with blue sky, warm sunlight, cool fill light, green foliage, a red-brown rex, striped blue-grey grazers and copper pterosaurs. Fog begins after 60% of the visible distance. Sky, terrain textures and grass zones are generated in code.
+The default palette is a calmer take on a clear Jurassic island: a steel-blue sky fading to pale blue, sage-green grass, deep green trees, a terracotta rex, slate-blue grazers and copper pterosaurs, rendered with AgX tone mapping so nothing shouts. Fog begins after 60% of the visible distance. Sky, terrain textures and grass zones are generated in code.
 
 CI runs pure Node checks with `node --test tests/*.test.cjs`. Local rendered palette checks run separately with `NODE_PATH="$(npm root -g)" node --test tests/palette.browser.cjs`. `node tools/palette-check.cjs --default` measures hero, wide and headlamp night. When local old-C captures exist, it also creates matched before/after pairs. The measured baseline in `tests/fixtures/` calibrates the regression checks.
 
