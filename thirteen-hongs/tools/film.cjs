@@ -1,7 +1,7 @@
 // 竖屏演示片录制（手动跑，不进 CI）。逐帧接管页面时钟：每帧推进 1/30 秒再按设备像素截图，
 // 页面自己的 Web Audio 换成离线上下文同钟渲染，所以声音和画面对得上。镜头是这份脚本排的，场景和人都是页面实时算的。
 //   node tools/serve.cjs . 8947
-//   NODE_PATH="$(npm root -g)" node tools/film.cjs <输出目录> [--base http://127.0.0.1:8947/dist/index.html] [--endcard <署名页目录>] [--only 镜头名,…]
+//   NODE_PATH="$(npm root -g)" node tools/film.cjs <输出目录> [--base http://127.0.0.1:8947/dist/index.html] [--endcard <署名页目录>] [--only 镜头名,…] [--pace 1.5]
 // 产物：<输出目录>/shots/*.mp4（每镜一段）、ambience.wav（页面环境声，已按叠化接好）、film-silent.mp4、timeline.json。
 // 配乐与合轨见 tools/film-music.py。
 const { chromium } = require('playwright');
@@ -11,7 +11,8 @@ const fs = require('fs'), path = require('path');
 const args = process.argv.slice(2), flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const out = args[0]; if (!out || out.startsWith('--')) { console.error('usage: film.cjs <输出目录>'); process.exit(2); }
 const base = flag('base', 'http://127.0.0.1:8947/dist/index.html'), endcardDir = flag('endcard', ''), only = flag('only', '');
-const FPS = 30, FRAME = 1000 / FPS, W = 540, H = 960, DPR = 2, XF = 1.0;   // XF：镜头之间叠化的秒数
+const PACE = Number(flag('pace', 1));   // 节奏：1.5 就是每个镜头缩到三分之二长、镜头走得快一半；人和船还是原来的速度
+const FPS = 30, FRAME = 1000 / FPS, W = 540, H = 960, DPR = 2, XF = PACE > 1 ? 0.7 : 1.0;   // XF：镜头之间叠化的秒数
 fs.mkdirSync(path.join(out, 'shots'), { recursive: true });
 
 // ---- 镜头表。cam 在页面里执行：u 是本镜进度 0–1，t 是本镜秒数；返回机位 p、注视点 l、视场 fov ----
@@ -20,11 +21,12 @@ const SHOTS = [
   { name: 'tea', dur: 8, sub: '江上：运茶的西瓜扁进港' },
   { name: 'walk', dur: 8.5, sub: '第一人称走上岸' },
   { name: 'sedan', dur: 6.5, sub: '跟着一顶轿子走一段' },
-  { name: 'faces', dur: 6.5, sub: '近看：脸和衣服是开场时现画的' },
-  { name: 'handover', dur: 9, skip: 14.5, sub: '茶箱落艇：一箱箱递上去' },
+  { name: 'faces', dur: 6.5, skip: 6, sub: '近看：脸和衣服是开场时现画的' },
+  { name: 'handover', dur: 9, skip: 8.5, sub: '茶箱落艇：一箱箱递上去' },
   { name: 'lane', dur: 7, skip: 5, sub: '走进靖远街' },
   { name: 'night', dur: 10.5, tod: [[0.6, 'dusk'], [5.0, 'night']], sub: '天色从黄昏到入夜', link: [6.6, '浏览器打开就能走进去\naliceljy.github.io/playground'] },
 ];
+for (const s of SHOTS) { s.dur0 = s.dur; s.dur = Math.round(s.dur / PACE * FPS) / FPS; if (s.tod) s.tod = s.tod.map(([at, k]) => [at / PACE, k]); if (s.link) s.link = [s.link[0] / PACE, s.link[1]]; }
 function installFilm() {   // 在页面里执行一次
   const H = window.__hong, C = H.C, ease = u => u * u * (3 - 2 * u), mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
   const along = (pts, d) => { for (let i = 1; i < pts.length; i++) { const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); if (d <= L || i === pts.length - 1) { const k = Math.min(1, d / L); return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k]; } d -= L; } };
@@ -40,7 +42,7 @@ function installFilm() {   // 在页面里执行一次
     },
     sedan(u) { const b = H.where('sedan'), fx = Math.sin(b.h), fz = Math.cos(b.h), k = ease(u), side = 7.4 - 1.2 * k, f = 3.6 - 1.8 * k; return { p: [b.x + fx * f - fz * side, 1.6, b.z + fz * f + fx * side], l: [b.x, 1.3, b.z], fov: 44 }; },
     faces(u, t) {   // 在一位行商斜前方倒退着走，看脸和衣服；朝向做了平滑，他拐弯时镜头不甩
-      const b = H.where('merchant'); let d = b.h - (state.fh ?? b.h); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; state.fh = (state.fh ?? b.h) + d * 0.04;
+      const b = H.where('merchant'); let d = b.h - (state.fh ?? b.h); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; state.fh = (state.fh ?? b.h) + d * 0.14;
       const fx = Math.sin(state.fh), fz = Math.cos(state.fh), k = ease(u), f = 2.7 - 0.8 * k, side = 1.3 - 0.5 * k;
       return { p: [b.x + fx * f - fz * side, b.y + 0.02, b.z + fz * f + fx * side], l: [b.x, b.y - 0.3, b.z], fov: 36 };
     },
@@ -111,9 +113,10 @@ const encoder = file => {   // 截图是全范围 BT.601 的 JPEG，转成有限
   await page.evaluate(() => window.__hong.audio.start());
   for (let i = 0; i < 20; i++) await page.evaluate(ms => { window.__hong.free(window.__film.aerial(0)); window.__rec.step(ms); }, FRAME);   // 预热：上传贴图、编译着色器
   const videoStart = await page.evaluate(() => window.__rec.now);
-  let clock = 0;
+  let clock = 0, lag = Number(flag('presim', 0));   // --presim：单拍某一镜试机位时，先把模拟推进到它在整片里开拍的时刻   // lag：镜头缩短后少走的模拟时间，下一镜开拍前补上，每一镜开始时场上的事和原节奏一样
   for (const s of shots) {
-    if (s.skip) await page.evaluate(sec => window.__hong.skip(sec), s.skip);
+    if (s.skip || lag > 0.01) await page.evaluate(sec => window.__hong.skip(sec), (s.skip || 0) + lag);
+    lag = s.dur0 - s.dur;
     const n = Math.round(s.dur * FPS), enc = encoder(path.join(out, 'shots', s.name + '.mp4')), todDone = new Set();
     const simStart = await page.evaluate(() => window.__hong.sim.t);
     for (let f = 0; f < n; f++) {
@@ -121,7 +124,7 @@ const encoder = file => {   // 截图是全范围 BT.601 的 JPEG，转成有限
       for (const [at, key] of s.tod || []) if (t >= at && !todDone.has(key)) { todDone.add(key); await page.evaluate(k => window.__hong.setTod(k), key); }
       const fade = Math.min(1, t / 0.5, (s.dur - t) / 0.5), aT = s.title ? Math.max(0, Math.min(1, (t - 0.4) / 0.6, (s.dur - 0.9 - t) / 0.6)) : 0;
       const link = s.link && t >= s.link[0], sub = link ? s.link[1] : s.sub, aS = link ? Math.min(1, (t - s.link[0]) / 0.4, (s.dur - t) / 0.3 + 1) : s.link ? Math.max(0, Math.min(fade, (s.link[0] - 0.3 - t) / 0.4)) : Math.max(0, Math.min(1, (t - 0.9) / 0.5, (s.dur - 1.1 - t) / 0.5));
-      await page.evaluate(([name, u, t, title, sub, aT, aS, ms]) => { window.__hong.free(window.__film[name](u, t)); window.__caption(title, sub, aT, aS); window.__rec.step(ms); }, [s.name, u, t, s.title || null, sub, aT, aS, FRAME]);
+      await page.evaluate(([name, u, t, title, sub, aT, aS, ms]) => { window.__hong.free(window.__film[name](u, t)); window.__caption(title, sub, aT, aS); window.__rec.step(ms); }, [s.name, u, t * PACE, s.title || null, sub, aT, aS, FRAME]);
       await enc.write(await page.screenshot({ type: 'jpeg', quality: 94 }));
     }
     await enc.end();
