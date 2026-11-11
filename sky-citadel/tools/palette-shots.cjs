@@ -1,24 +1,60 @@
-// Browser-native Canvas montage: no image or graphics dependencies to install.
-const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const {chromium}=require(require.resolve('playwright',{paths:[process.env.NODE_PATH||'/opt/homebrew/lib/node_modules']}));
-const {renderViews}=require('./palette-render.cjs');
-async function montage(pg,rows,file,cellWidth=960){
- const images=rows.map(row=>row.map(({file,label})=>({label,src:'data:image/png;base64,'+fs.readFileSync(file).toString('base64')})));
- const png=await pg.evaluate(async({images,cellWidth})=>{const h=cellWidth*900/1440,c=document.createElement('canvas');c.width=cellWidth*images[0].length;c.height=(h+34)*images.length;const g=c.getContext('2d');g.fillStyle='#102233';g.fillRect(0,0,c.width,c.height);g.font='bold 24px system-ui';
-  for(let y=0;y<images.length;y++)for(let x=0;x<images[y].length;x++){const {src,label}=images[y][x],im=new Image();im.src=src;await im.decode();g.drawImage(im,x*cellWidth,y*(h+34)+34,cellWidth,h);g.fillStyle='#ffe2ab';g.fillText(label,x*cellWidth+14,y*(h+34)+25);}return c.toDataURL('image/png').split(',')[1];
- },{images,cellWidth});fs.writeFileSync(file,Buffer.from(png,'base64'));
+// Fourth-round comparisons use browser Canvas and the measured sky-row colours.
+// node tools/palette-shots.cjs [base-url] [--montage-only]
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const {chromium} = require(require.resolve('playwright', {paths: [process.env.NODE_PATH || '/opt/homebrew/lib/node_modules']}));
+const {renderSkyScenarios} = require('./sky-render.cjs');
+
+async function main() {
+  const root = path.resolve(__dirname, '..');
+  const before = path.join(root, 'shots/r4-before'), after = path.join(root, 'shots/r4-after');
+  if (!process.argv.includes('--montage-only')) {
+    const base = process.argv.slice(2).find(arg => !arg.startsWith('--')) || 'file://' + path.join(root, 'dist/index.html');
+    for (const [url, out] of [['file://' + path.join(root, 'shots/r4-baseline.html'), before], [base, after]]) {
+      const report = await renderSkyScenarios({base: url, out});
+      assert.deepEqual(report.errors, []);
+    }
+  }
+  const report = JSON.parse(fs.readFileSync(path.join(after, 'metrics.json'), 'utf8'));
+  const browser = await chromium.launch({channel: 'chrome', headless: true});
+  try {
+    const page = await browser.newPage();
+    for (const name of ['default', 'hero', 'noon', 'night']) {
+      const images = [before, after].map(dir => 'data:image/png;base64,' + fs.readFileSync(path.join(dir, name + '.png')).toString('base64'));
+      const rows = report.scenarios.find(s => s.name === name).metrics.rows;
+      const png = await page.evaluate(async ({images, rows, name}) => {
+        const width = 1440, height = 900, header = 44;
+        const canvas = document.createElement('canvas');
+        canvas.width = width * 2 + 88;
+        canvas.height = height + header;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#102233';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = 'bold 23px system-ui';
+        for (let i = 0; i < 2; i++) {
+          const image = new Image();
+          image.src = images[i];
+          await image.decode();
+          ctx.drawImage(image, i * width, header);
+          ctx.fillStyle = '#fff2de';
+          ctx.fillText((i === 0 ? 'BEFORE' : 'AFTER') + ' / ' + name.toUpperCase(), i * width + 18, 30);
+        }
+        for (let y = 0; y < height; y++) {
+          ctx.fillStyle = rows[y].hex;
+          ctx.fillRect(width * 2 + 16, header + y, 56, 1);
+        }
+        ctx.font = '13px system-ui';
+        ctx.fillStyle = '#fff2de';
+        ctx.fillText('SKY', width * 2 + 28, 29);
+        return canvas.toDataURL('image/png').split(',')[1];
+      }, {images, rows, name});
+      const file = path.join(root, 'shots/r4-compare-' + name + '.png');
+      fs.writeFileSync(file, Buffer.from(png, 'base64'));
+      console.log(file);
+    }
+  } finally {
+    await browser.close();
+  }
 }
-(async()=>{
- const base=process.argv[2]||'file://'+path.resolve(__dirname,'../dist/index.html');
- if(!process.argv.includes('--montage-only'))for(const p of 'abc'){
-  const r=await renderViews({base,out:'shots/r3-'+p,query:'palette='+p,periods:true});assert.deepEqual(r.errors,[]);
-  for(const v of r.views){assert.equal(v.snapshot.palette,p);assert.equal(v.snapshot.view,v.view);assert.equal(v.snapshot.simTime,12);assert.ok(v.snapshot.drawMax<=15);}
-  r.periods.forEach((v,hour)=>{assert.equal(v.snapshot.hour,hour);assert.equal(v.snapshot.palette,p);assert.ok(Number.isFinite(v.metrics.span)&&v.metrics.city.pixels>50000);});
-  const noon=r.periods[1],night=r.periods[3];assert.ok(night.metrics.meanLuma<noon.metrics.meanLuma);assert.ok(night.metrics.warmFraction>=.003);assert.equal(noon.snapshot.stars,0);assert.equal(night.snapshot.stars,500);console.log('PASS palette '+p+': cameras, four rendered periods, night windows, draw calls and zero errors');
- }
- const browser=await chromium.launch({channel:'chrome',headless:true});try{const pg=await browser.newPage();
- await montage(pg,[... 'abc'].map(p=>['hero','night'].map(v=>({file:`shots/r3-${p}/${v}.png`,label:p.toUpperCase()+' / '+(p==='a'?'GOLDEN DUSK':p==='b'?'CLEAR SKY':'AZURE & AMBER')+' / '+v.toUpperCase()}))),'shots/r3-palette-options.png');
- for(const view of ['hero','night','wide'])await montage(pg,[[{file:`shots/r3-before/${view}.png`,label:'BEFORE / '+view.toUpperCase()},{file:`shots/r3-c/${view}.png`,label:'C / AFTER / '+view.toUpperCase()}]],`shots/r3-compare-${view}.png`,1440);
- await montage(pg,[...'abc'].map(p=>['dawn','noon','dusk','night'].map(v=>({file:`shots/r3-${p}/time-${v}.png`,label:p.toUpperCase()+' / '+v.toUpperCase()}))),'shots/r3-four-periods.png',720);
- }finally{await browser.close();}
-})().catch(e=>{console.error(e);process.exitCode=1;});
+main().catch(e => { console.error(e); process.exitCode = 1; });

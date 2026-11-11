@@ -7,9 +7,10 @@ Everything is generated in JavaScript. The city contains 463,099 occupied voxels
 ## Run and check
 
 ```sh
-npm install
+npm ci
 node tools/build.mjs
 node --test tests/*.test.cjs
+NODE_PATH="$(npm root -g)" node --test tests/*.browser.cjs
 node tools/browser-check.cjs
 ```
 
@@ -35,7 +36,7 @@ The optional checker arguments are `[base-url] [output-directory]`, including a 
 
 `?view=hero`, `?view=wide` and `?view=night` freeze the same seed at animation time 12 seconds, using the ordinary renderer and adaptive quality. Continue motion with the pause button. Night is an architectural close view and intentionally crops some distant roots/island edges; hero and wide show the complete static silhouette.
 
-`?palette=c` (the default) uses azure skies and amber limestone. `?palette=a` selects golden dusk; `?palette=b` selects a clear-sky scheme. Each has four continuously interpolated periods. These comparison controls stay out of the player UI. Run `node tools/palette-shots.cjs` for the six-panel and four-period sheets. The pixel tests require the build above and use actual city masks and background renders; see SPEC A11.
+The default retains the C city materials and lighting, with clean blue skies, a bright peach sunset horizon and cool cloud shadows. Spatial sky gradients and time transitions use OKLCH with hue-preserving gamut mapping. Earlier palette parameters fall back to the default. Run `node tools/palette-shots.cjs` to render the saved fourth-round baseline and current build into four before/after comparisons with sky-row colour strips. The local pixel tests measure both isolated GPU skies and the final CSS compositing, alongside the city masks from SPEC A11. Sky and cloud thresholds are in SPEC A12.
 
 ## Rendering budget
 
@@ -43,7 +44,7 @@ Visible animation is capped at 30 fps. Desktop DPR is capped at 1.5, phone DPR a
 
 The normal dusk frame submits 13 draw calls and 299,370 triangles; a shadow update uses 14 calls. Night adds the star field, reaching 14 calls normally and 15 on a shadow update. The triangle peak is 575,354. Smoke, falling water and mist total 348 particles, with 86 analytic cloud sprites (mist and clouds share one draw call, offsetting the sky gradient) and a separate 500-point night sky. There is no full-screen postprocessing pass or frame-time geometry generation. Thermal behaviour was not measured.
 
-`window.__PLAYTEST__` provides `ready`, `snapshot()`, `reset()`, `setSeed(n)` and `step(ms)`. Snapshots include actual renderer draw calls, triangles, GPU name, capped DPR, quality, JS update and submission time and current camera/animation state. Diagnostic controls exist only with `?debug=1`. See [SPEC.md](SPEC.md) and [VERIFICATION.md](VERIFICATION.md) for the acceptance criteria and evidence. Three.js 0.186.1 is bundled under MIT; its licence is retained in the generated HTML.
+`window.__PLAYTEST__` provides `ready`, `snapshot()`, `reset()`, `setSeed(n)` and `step(ms)`. Snapshots include actual renderer draw calls, triangles, GPU name, capped DPR, quality, JS update and submission time and current camera/animation state. Diagnostic controls require `?debug=1` or the browser checker’s injected development flag. See [SPEC.md](SPEC.md) and [VERIFICATION.md](VERIFICATION.md) for the acceptance criteria and evidence. Three.js 0.186.1 is bundled under MIT; its licence is retained in the generated HTML.
 
 ## Who it's for, AI assets
 
