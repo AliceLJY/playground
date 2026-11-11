@@ -131,14 +131,17 @@ function gem(s, x, y, fake, value) {
 }
 function hurt(s) {
   if (s.invuln > 0 || s.phase !== 0) return;
-  s.hp--; s.hits++; s.invuln = 84; s.event = 3;
+  s.hp--; s.hits++; s.invuln = 84; s.hurtUntil = s.tick + 18; s.event = 3;
   if (s.hp > 0) return;
   if (s.revives > 0) {
-    s.revives--; s.hp = s.maxHP; s.invuln = 180; s.revivals++; s.event = 7;
+    s.revives--; s.hp = s.maxHP; s.invuln = 180; s.hurtUntil = 0; s.revivals++; s.event = 7;
     for (let i = 0; i < s.eOn.length; i++) {
       if (!s.eOn[i]) continue;
       const dx = s.ex[i] - s.x, dy = s.ey[i] - s.y, d = Math.hypot(dx, dy) || 1;
-      if (d < 110) { s.ex[i] = bound(s.ex[i] + dx / d * 90, 20, 340); s.ey[i] = bound(s.ey[i] + dy / d * 90, 24, 494); }
+      if (d < 110) {
+        s.ex[i] = bound(s.ex[i] + dx / d * 90, 20, 340); s.ey[i] = bound(s.ey[i] + dy / d * 90, 24, 494);
+        if (s.er[i] < 20) { pushOut(s, s.ex[i], s.ey[i], s.er[i]); s.ex[i] = s.cx; s.ey[i] = s.cy; }
+      }
     }
   } else { s.phase = 3; s.event = 5; }
 }
@@ -241,10 +244,11 @@ function step(s, ix, iy, card) {
     s.x += dx / d * s.stage.pull; s.y += dy / d * s.stage.pull; s.pullFrames++;
   }
   const hero = s.data.hero;
+  s.x = bound(s.x, hero.minX + s.wall, hero.maxX - s.wall);
+  s.y = bound(s.y, hero.minY + s.wall, hero.maxY - s.wall);
   pushOut(s, s.x, s.y + hero.footY, hero.footRadius);
   if (s.cx !== s.x || s.cy !== s.y + hero.footY) s.blocked++;
-  s.x = bound(s.cx, hero.minX + s.wall, hero.maxX - s.wall);
-  s.y = bound(s.cy - hero.footY, hero.minY + s.wall, hero.maxY - s.wall);
+  s.x = s.cx; s.y = s.cy - hero.footY;
   if (s.tick % 6 === 1) chase(s);
   if (s.tick === 1) {
     gem(s, 190, 210, 0, 2); gem(s, 220, 250, 0, 2); gem(s, 150, 275, 0, 2);

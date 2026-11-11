@@ -102,3 +102,44 @@ test('P5: the token wall swallows props before the gap to them gets narrower tha
     assert.ok(swallowed > 0, `seed ${seed}: the wall never reached a prop`);
   }
 });
+
+test('P6: a shrinking north wall cannot clamp the hero back into a live prop', () => {
+  let contacts = 0;
+  for (let seed = 1; seed <= 12; seed++) for (const p of props(C.create(seed, 1))) {
+    if (p.y > 160) continue;
+    const s = C.create(seed, 1); s.nextSpawn = 1e9;
+    s.x = p.x; s.y = p.y - p.hh - hero.footRadius - hero.footY;
+    // Start tangent to the prop and inside the current wall. Let normal wall ticks close the gap.
+    s.wall = s.y - hero.minY - .02;
+    const edge = Math.min(p.x - p.hw, p.y - p.hh, 360 - p.x - p.hw, 520 - p.y - p.hh);
+    if (edge < s.wall + s.stage.wallRate * 26 + 34) continue;
+    assert.ok(s.wall > 0 && s.wall < s.stage.wallMax);
+    assert.ok(gap(s.x, s.y + hero.footY, p) >= hero.footRadius);
+    assert.ok(s.y >= hero.minY + s.wall, 'hero starts within the shrinking wall bounds');
+    for (let i = 0; i < 26; i++) H(s, 0, 0, -2);
+    assert.equal(s.oOn[p.i], 1, 'sample must retain its obstacle');
+    assert.ok(gap(s.x, s.y + hero.footY, p) >= hero.footRadius - 1e-6,
+      `seed ${seed} prop ${p.i}: wall pushed feet ${hero.footRadius - gap(s.x, s.y + hero.footY, p)} units into prop`);
+    assert.ok(s.y >= hero.minY && s.y <= hero.maxY, 'hero stays inside the field');
+    contacts++;
+  }
+  assert.ok(contacts >= 6, `only ${contacts} north-wall contacts sampled`);
+});
+
+test('P7: revival knockback separates ordinary enemies from props immediately', () => {
+  let landings = 0;
+  for (let seed = 1; seed <= 12; seed++) for (const p of props(C.create(seed))) {
+    const s = C.create(seed); s.nextSpawn = 1e9;
+    const dir = p.x > 180 ? 1 : -1;
+    s.x = p.x - dir * 120; s.y = p.y; s.hp = 1; s.revives = 1;
+    const e = H.enemy(s, 0, p.x - dir * 90, p.y);
+    assert.ok(gap(s.ex[e], s.ey[e], p) >= s.er[e], 'enemy starts outside the prop');
+    H.hurt(s);
+    assert.equal(s.revivals, 1, 'sample must actually revive');
+    for (const q of props(s)) assert.ok(gap(s.ex[e], s.ey[e], q) >= s.er[e] - 1e-6,
+      `seed ${seed}: revival landed enemy inside prop ${q.i}`);
+    assert.ok(Math.hypot(s.ex[e] - s.x, s.ey[e] - s.y) > 30, 'revival still pushes the enemy away');
+    landings++;
+  }
+  assert.equal(landings, 48);
+});

@@ -384,15 +384,15 @@
         g.fillStyle = 'rgba(2,3,8,.5)'; g.fillRect(s.x - 18, s.y + 25, 36, 6); g.fillRect(s.x - 12, s.y + 31, 24, 2);
         sprite(g, a, 10 + face * 3 + stride, s.x, s.y + bob, 64, 96); calls += 3;
         if (s.invuln > 74 && !only) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = .55; sprite(g, a, 10 + face * 3 + stride, s.x, s.y + bob, 64, 96); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; calls++; }
-        // A prop whose base is in front of the hero's feet covers the hero, see-through so the hero stays readable.
-        for (let i = 0; i < s.oOn.length; i++) if (s.oOn[i]) {
-          const p = props[s.oKind[i]], top = s.oy[i] - s.ohh[i];
-          if (s.y + 22 < top && s.y + 30 > top - p.up * 2 && Math.abs(s.x - s.ox[i]) < s.ohw[i] + 24) prop(s, i, .5);
-        }
-        if (s.invuln && !only) { g.strokeStyle = s.invuln % 12 < 6 ? C.white : C.pink; g.lineWidth = 1; g.beginPath(); g.arc(s.x, s.y - 4, 28, 0, Math.PI * 2); g.stroke(); calls++; }
       }
+      // Match prop compositing in both measurement passes so their difference contains only the hero.
+      for (let i = 0; i < s.oOn.length; i++) if (s.oOn[i]) {
+        const p = props[s.oKind[i]], top = s.oy[i] - s.ohh[i];
+        if (s.y + 22 < top && s.y + 30 > top - p.up * 2 && Math.abs(s.x - s.ox[i]) < s.ohw[i] + 24) prop(s, i, .5);
+      }
+      if (s.invuln && !only) { g.strokeStyle = s.invuln % 12 < 6 ? C.white : C.pink; g.lineWidth = 1; g.beginPath(); g.arc(s.x, s.y - 4, 28, 0, Math.PI * 2); g.stroke(); calls++; }
       // Hit flash: red edges for the first 18 frames of an ordinary hit (a revival's longer shield does not flash).
-      if (!only && s.invuln > 66 && s.invuln <= 84) { g.globalAlpha = (s.invuln - 66) / 18; g.drawImage(hurtEdge, 0, 0, 360, 520); g.globalAlpha = 1; calls++; }
+      if (!only && s.hurtUntil > s.tick) { g.globalAlpha = (s.hurtUntil - s.tick) / 18; g.drawImage(hurtEdge, 0, 0, 360, 520); g.globalAlpha = 1; calls++; }
       g.globalAlpha = 1; return calls;
     }
     return { draw, atlas: a, canvas, colors: C, sprite, get calls() { return calls; } };
