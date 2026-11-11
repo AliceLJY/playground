@@ -575,7 +575,12 @@ clockRoot.add(shaftGreat);
 // 后方棕色发条盒鼓轮
 const drumGeo = new THREE.CylinderGeometry(2.6, 2.6, 1.4, 36);
 drumGeo.rotateX(Math.PI / 2);
-const drumMesh = new THREE.Mesh(drumGeo, metal(COLORS.drum, 2.6, 0.38));
+const drumMat = metal(COLORS.drum, 2.6, 0.38);
+const drumGrain = drumMat.roughnessMap; // 与 bumpMap 共用这张贴图
+// 圆柱端面的 UV 是 0–1（轴心 .5，边缘半径 .5），不同于挤出齿轮按坐标取的 UV（轴心 0，边缘半径 r）：
+// 缩放换成让端面边缘落在纹理同一圈上（齿轮是 r / 2.3r），圆心对到纹理圆心。
+drumGrain.repeat.set(1 / 1.15, 1 / 1.15); drumGrain.offset.set(.5 - drumGrain.repeat.x / 2, .5 - drumGrain.repeat.y / 2);
+const drumMesh = new THREE.Mesh(drumGeo, drumMat);
 drumMesh.position.z = -2.0;
 addOutline(drumMesh, 25);
 shaftGreat.add(drumMesh);
