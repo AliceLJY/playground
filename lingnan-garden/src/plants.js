@@ -3,8 +3,8 @@ import * as THREE from 'three';
 import * as C from './core.js';
 import { Batch, box, cyl, sph, lathe, tube, taperTube, blob, instanced, rng, lerp, pick } from './kit.js';
 
-const GREENS = ['#3f8f2f', '#4fa238', '#5db142', '#377f2b', '#6cbb4a', '#2f7426'];
-const DEEP = ['#2f6b2a', '#377a2e', '#2a5f27', '#417f33', '#356f2c'];
+const GREENS = ['#566f47', '#5f7a4e', '#6a8455', '#4d6641', '#748c5c', '#465d3c'];   // 实拍里树叶是偏暗偏灰的绿
+const DEEP = ['#3f5a3d', '#476443', '#385236', '#4f6b48', '#42603f'];
 
 // 一片叶子：菱形，中脉略折
 function leafCard(len = 0.3, wid = 0.11) {
@@ -13,11 +13,11 @@ function leafCard(len = 0.3, wid = 0.11) {
   g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(8), 2)); return g;
 }
 // 分层的叶簇：每一团是几片压扁的叶盘错开叠着，外面再撒一圈朝外垂的叶片，不是一个球
-function foliage(parent, M, R, clusters, { palette = GREENS, leaf = 0.3, per = 34, flat = 0.4, seed = 1 } = {}) {
+function foliage(parent, M, R, clusters, { palette = GREENS, leaf = 0.3, per = 56, flat = 0.4, seed = 1 } = {}) {
   const pads = [], leaves = [];
   for (const c of clusters) {
     const n = 3 + ((R() * 2) | 0);
-    for (let k = 0; k < n; k++) { const a = R() * 6.28, u = R() * c.r * 0.55; pads.push({ x: c.x + Math.cos(a) * u, y: c.y + (k - (n - 1) / 2) * c.r * 0.34 + (R() - 0.5) * 0.1, z: c.z + Math.sin(a) * u, sx: c.r * (0.75 + R() * 0.4), sy: c.r * flat * (0.7 + R() * 0.4), sz: c.r * (0.75 + R() * 0.4), ry: R() * 6, color: pick(R, palette) }); }
+    for (let k = 0; k < n; k++) { const a = R() * 6.28, u = R() * c.r * 0.55; pads.push({ x: c.x + Math.cos(a) * u, y: c.y + (k - (n - 1) / 2) * c.r * 0.34 + (R() - 0.5) * 0.1, z: c.z + Math.sin(a) * u, sx: c.r * (0.62 + R() * 0.36), sy: c.r * flat * (0.7 + R() * 0.4), sz: c.r * (0.62 + R() * 0.36), ry: R() * 6, color: pick(R, palette) }); }
     for (let k = 0; k < per; k++) { const a = R() * 6.28, e = (R() - 0.25) * 1.3, rr = c.r * (0.8 + R() * 0.35); leaves.push({ x: c.x + Math.cos(a) * Math.cos(e) * rr, y: c.y + Math.sin(e) * rr * 0.6, z: c.z + Math.sin(a) * Math.cos(e) * rr, ry: -a + Math.PI / 2 + (R() - 0.5) * 0.9, rx: 0.3 + R() * 0.8, rz: (R() - 0.5) * 0.6, s: 0.8 + R() * 0.6, color: pick(R, palette) }); }
   }
   parent.add(instanced(blob(seed, 1, 0.2), M.leaf, pads));
@@ -66,7 +66,7 @@ export function buildLychee(scene, M) {
     for (let k = 0; k < 3; k++) { const a = R() * 6.28, cx = x + dx + Math.cos(a) * 1.0, cz = z + dz + Math.sin(a) * 1.0, cy = y - 0.75 - R() * 0.3; for (let q = 0; q < 7; q++) fruit.push({ x: cx + (R() - 0.5) * 0.2, y: cy - R() * 0.22, z: cz + (R() - 0.5) * 0.2, s: 0.045 + R() * 0.015, color: pick(R, ['#d7261c', '#e2382a', '#c21f18', '#e4543a']) }); }
   }
   b.flush(scene);
-  foliage(scene, M, R, clusters, { palette: ['#3f8a34', '#4a9a3c', '#357a2e', '#58a846', '#2f6b2a'], leaf: 0.34, per: 46, flat: 0.36, seed: 45 });
+  foliage(scene, M, R, clusters, { palette: ['#4f6f47', '#587a4e', '#476641', '#65885a', '#3f5a3d'], leaf: 0.34, per: 72, flat: 0.36, seed: 45 });
   scene.add(instanced(sph(1, 7, 6), M.petal, fruit, { receive: false }));
 }
 
@@ -79,7 +79,7 @@ export function buildJack(scene, M) {
   clusters.push({ x, y: 8.0, z, r: 1.6 });
   for (const [dy, a] of [[1.5, 0.6], [2.1, 2.6], [2.8, 4.4]]) b.add(sph(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: '#9aa63a', roughness: 0.9 }), x + Math.cos(a) * 0.42, dy, z + Math.sin(a) * 0.42, 0, 0, 0, 1, 1.5, 1);
   b.flush(scene);
-  foliage(scene, M, R, clusters, { palette: DEEP, leaf: 0.36, per: 30, flat: 0.42, seed: 49 });
+  foliage(scene, M, R, clusters, { palette: DEEP, leaf: 0.36, per: 56, flat: 0.42, seed: 49 });
 }
 
 export function buildBamboo(scene, M) {
@@ -90,7 +90,7 @@ export function buildBamboo(scene, M) {
     for (let i = 0; i < n; i++) {
       const a = R() * 6.28, r = Math.sqrt(R()) * c.r, h = 5.2 + R() * 3.4, lx = (R() - 0.5) * 0.16, lz = (R() - 0.5) * 0.16, bx = c.x + Math.cos(a) * r, bz = c.z + Math.sin(a) * r;
       culms.push({ x: bx + lx * h / 2, y: h / 2, z: bz + lz * h / 2, sx: 1, sy: h, sz: 1, rz: -lx, rx: lz, color: pick(R, ['#ffffff', '#e6f0c0', '#d2e6a0']) });
-      for (let k = 0; k < 16; k++) { const t = 0.5 + R() * 0.5, y = h * t; leaves.push({ x: bx + lx * y + (R() - 0.5) * 1.1, y: y + (R() - 0.3) * 0.5, z: bz + lz * y + (R() - 0.5) * 1.1, rx: 0.5 + R() * 0.9, ry: R() * 6.28, rz: (R() - 0.5) * 0.8, s: 0.9 + R() * 0.8, color: pick(R, ['#5faa32', '#72bb3c', '#4d962a', '#86c94a']) }); }
+      for (let k = 0; k < 16; k++) { const t = 0.5 + R() * 0.5, y = h * t; leaves.push({ x: bx + lx * y + (R() - 0.5) * 1.1, y: y + (R() - 0.3) * 0.5, z: bz + lz * y + (R() - 0.5) * 1.1, rx: 0.5 + R() * 0.9, ry: R() * 6.28, rz: (R() - 0.5) * 0.8, s: 0.9 + R() * 0.8, color: pick(R, ['#6f9a45', '#7ea851', '#62893d', '#8cb45d']) }); }
     }
   }
   const cg = cyl(0.045, 0.055, 1, 7); cg.attributes.uv.array.forEach((v, k, a) => { if (k % 2 === 1) a[k] = v * 14; });
@@ -107,7 +107,7 @@ export function buildBanana(scene, M, anim) {
     const n = 10;
     for (let i = 0; i < n; i++) {
       const young = i >= n - 2, len = young ? 1.5 : 2.0 + R() * 0.7, piv = new THREE.Group(), tilt = young ? 0.15 + R() * 0.2 : 0.75 + R() * 0.6; piv.position.set(0, 1.8, 0); piv.rotation.y = i * 6.283 / (n - 2) + R() * 0.4;
-      const m = new THREE.Mesh(leafGeo(len, young ? 0.5 : 0.78 + R() * 0.22), new THREE.MeshStandardMaterial({ color: pick(R, ['#5fb23c', '#70c046', '#55a636', '#86cf55']), roughness: 0.55, side: THREE.DoubleSide })); m.rotation.x = tilt; m.castShadow = true; m.receiveShadow = true; piv.add(m); g.add(piv);
+      const m = new THREE.Mesh(leafGeo(len, young ? 0.5 : 0.78 + R() * 0.22), new THREE.MeshStandardMaterial({ color: pick(R, ['#6aa04a', '#78ad54', '#5f9443', '#8aba63']), roughness: 0.55, side: THREE.DoubleSide })); m.rotation.x = tilt; m.castShadow = true; m.receiveShadow = true; piv.add(m); g.add(piv);
       const ph = R() * 6; anim.push(t => { m.rotation.x = tilt + Math.sin(t * 1.1 + ph) * 0.03; m.rotation.z = Math.sin(t * 0.8 + ph) * 0.025; });
     }
     b.flush(g);
@@ -144,7 +144,7 @@ export function buildBonsai(scene, M) {
     b.add(taperTube([[bn.x, top - 0.02, bn.z], [bn.x + lean * 0.9, top + th * 0.3, bn.z + 0.06], [bn.x - lean * 0.6, top + th * 0.62, bn.z - 0.05], [bn.x + lean * 0.3, top + th, bn.z]], 0.08, 0.03, 7), M.barkDark);
     // 云片：每个枝托一片扁平的叶盘，越往上越小
     const tiers = [[lean * 2.4, 0.3, 0.12, 0.28], [-lean * 2.0, 0.48, -0.08, 0.25], [lean * 1.5, 0.66, 0.05, 0.22], [-lean * 0.9, 0.84, 0.0, 0.2], [lean * 0.3, 1.04, 0, 0.21]];
-    for (const [dx, t, dz, r] of tiers) { b.add(taperTube([[bn.x + (dx > 0 ? lean : -lean) * 0.3, top + th * t - 0.08, bn.z], [bn.x + dx * 0.6, top + th * t - 0.02, bn.z + dz * 0.6], [bn.x + dx, top + th * t, bn.z + dz]], 0.03, 0.012, 5), M.barkDark); for (let k = 0; k < 5; k++) pads.push({ x: bn.x + dx + (R() - 0.5) * r * 1.1, y: top + th * t + 0.04 + (R() - 0.5) * 0.03, z: bn.z + dz + (R() - 0.5) * r * 1.1, sx: r * (0.55 + R() * 0.3), sy: r * 0.2, sz: r * (0.55 + R() * 0.3), ry: R() * 6, color: pick(R, ['#4c9a3a', '#5aa944', '#417f33', '#6ab84e']) }); }
+    for (const [dx, t, dz, r] of tiers) { b.add(taperTube([[bn.x + (dx > 0 ? lean : -lean) * 0.3, top + th * t - 0.08, bn.z], [bn.x + dx * 0.6, top + th * t - 0.02, bn.z + dz * 0.6], [bn.x + dx, top + th * t, bn.z + dz]], 0.03, 0.012, 5), M.barkDark); for (let k = 0; k < 5; k++) pads.push({ x: bn.x + dx + (R() - 0.5) * r * 1.1, y: top + th * t + 0.04 + (R() - 0.5) * 0.03, z: bn.z + dz + (R() - 0.5) * r * 1.1, sx: r * (0.55 + R() * 0.3), sy: r * 0.2, sz: r * (0.55 + R() * 0.3), ry: R() * 6, color: pick(R, ['#55784a', '#5f8452', '#4a6a42', '#6b905b']) }); }
   });
   b.flush(scene);
   scene.add(instanced(blob(73, 1, 0.14), M.leaf, pads));
@@ -153,7 +153,7 @@ export function buildBonsai(scene, M) {
 // 英石壁山：贴着北墙和东墙叠上去，石头又瘦又皱、棱角分明，没有圆孔；中间一线跌水落进八角池
 export function buildYing(scene, M, T, anim) {
   const R = rng(101), rocks = [], F = C.FALL, wallZ = C.NORTH_JOG.z;
-  const tone = () => pick(R, ['#6b6f73', '#7b7f83', '#5c6064', '#8a8d90', '#54585c', '#74787b']);
+  const tone = () => pick(R, ['#5a5d5f', '#676a6c', '#4d5052', '#737678', '#44474a', '#606365']);   // 实拍里叠石是深灰带黑的
   for (const k of C.ROCKS) {
     const hMax = 2.4 + R() * 2.2;
     for (let i = 0; i < 9; i++) { const a = R() * 6.28, u = R() * k.r * 0.9, h = hMax * (0.35 + R() * 0.65) * (1 - u / (k.r * 1.6)), w = 0.28 + R() * 0.34; rocks.push({ x: k.x + Math.cos(a) * u, y: h * 0.48, z: k.z + Math.sin(a) * u * 0.8, sx: w, sy: h * 0.56, sz: w * (0.6 + R() * 0.5), ry: R() * 6, rx: (R() - 0.5) * 0.24, rz: (R() - 0.5) * 0.24, color: tone() }); }
@@ -167,6 +167,8 @@ export function buildYing(scene, M, T, anim) {
   const px = -F.dz, pz = F.dx;
   for (let i = 0; i < 10; i++) { const sd = i % 2 ? 0.55 : -0.55; rocks.push({ x: F.x - F.dx * 0.2 + px * sd + (R() - 0.5) * 0.3, y: 0.4 + i * 0.3, z: F.z - F.dz * 0.2 + pz * sd + (R() - 0.5) * 0.3, sx: 0.3, sy: 0.5 + R() * 0.4, sz: 0.3, ry: R() * 6, color: tone() }); }
   for (let i = 0; i < 7; i++) rocks.push({ x: F.x + F.dx * 1.0 + (R() - 0.5) * 0.6, y: C.WATER_Y + 0.1, z: F.z + (R() - 0.5) * 2.2, sx: 0.3 + R() * 0.25, sy: 0.25 + R() * 0.3, sz: 0.3 + R() * 0.2, ry: R() * 6, color: tone() });
+  // 实拍里的叠石顶上是一排瘦尖的石笋，身上到处长着草木；原来只有一堆矮胖的石块
+  for (const k of C.ROCKS) for (let i = 0; i < 3; i++) { const a = R() * 6.28, u = R() * k.r * 0.7, h = 0.7 + R() * 0.8; rocks.push({ x: k.x + Math.cos(a) * u, y: 2.0 + R() * 1.4 + h * 0.3, z: k.z + Math.sin(a) * u * 0.7, sx: 0.14 + R() * 0.12, sy: h * 0.5, sz: 0.1 + R() * 0.1, ry: R() * 6, rx: (R() - 0.5) * 0.2, rz: (R() - 0.5) * 0.2, color: tone() }); }
   scene.add(instanced(blob(103, 1, 0.42, 1, false), M.ying, rocks));
   // 跌水：两片交叉的半透明薄片，纹理往下流
   const ft = T.fall.clone(); ft.wrapS = ft.wrapT = THREE.RepeatWrapping; ft.repeat.set(1, 3); ft.needsUpdate = true;
@@ -177,7 +179,7 @@ export function buildYing(scene, M, T, anim) {
   const foam = new THREE.Mesh(new THREE.CircleGeometry(0.55, 16), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5, depthWrite: false })); foam.rotation.x = -Math.PI / 2; foam.position.set(pts[10].x, C.WATER_Y + 0.012, pts[10].z); scene.add(foam);
   anim.push(t => { ft.offset.y = t * 0.9; foam.scale.setScalar(1 + Math.sin(t * 5) * 0.08); });
   // 石缝里的小灌木
-  const sh = []; for (let i = 0; i < 22; i++) { const k = pick(R, C.ROCKS); sh.push({ x: k.x + (R() - 0.5) * k.r * 1.6, y: 0.5 + R() * 2.4, z: k.z + (R() - 0.3) * 0.7, s: 0.28 + R() * 0.3, sy: 0.24, ry: R() * 6, color: pick(R, GREENS) }); }
+  const sh = []; for (let i = 0; i < 64; i++) { const k = pick(R, C.ROCKS); sh.push({ x: k.x + (R() - 0.5) * k.r * 1.6, y: 0.5 + R() * 2.4, z: k.z + (R() - 0.3) * 0.7, s: 0.16 + R() * 0.22, sy: 0.12 + R() * 0.1, ry: R() * 6, color: pick(R, R() < 0.6 ? DEEP : GREENS) }); }
   scene.add(instanced(blob(105, 1, 0.2), M.leaf, sh));
 }
 
@@ -244,7 +246,7 @@ export function buildProps(scene, M) {
 // 墙外的树顶，让墙头后面不空；屋后墙脚几丛矮灌木
 export function buildOutside(scene, M) {
   const out = [], R = rng(95);
-  for (let i = 0; i < 110; i++) { const a = i / 110 * 6.28 + R() * 0.05, r = 24 + R() * 16, x = 1 + Math.cos(a) * r * 1.15, z = 3 + Math.sin(a) * r; if (Math.hypot(x - 12.5, z + 17.5) < 5 || Math.hypot(x - 29, z + 17) < 9) continue; out.push({ x, y: 2.8 + R() * 2.6, z, s: 3.0 + R() * 2.2, sy: 2.4 + R() * 1.6, ry: R() * 6, color: pick(R, ['#4c9a2e', '#3f8627', '#5aa935', '#2f7426', '#6bb83f']) }); }
+  for (let i = 0; i < 110; i++) { const a = i / 110 * 6.28 + R() * 0.05, r = 24 + R() * 16, x = 1 + Math.cos(a) * r * 1.15, z = 3 + Math.sin(a) * r; if (Math.hypot(x - 12.5, z + 17.5) < 5 || Math.hypot(x - 29, z + 17) < 9) continue; out.push({ x, y: 2.8 + R() * 2.6, z, s: 3.0 + R() * 2.2, sy: 2.4 + R() * 1.6, ry: R() * 6, color: pick(R, ['#5c7a60', '#537058', '#66856a', '#4a6652', '#708e72']) }); }
   scene.add(instanced(blob(97, 1, 0.2, 1, true, 1), M.leaf, out, { cast: false }));
   const sh = []; for (let i = 0; i < 22; i++) { const x = lerp(-8.6, 3.6, R()); sh.push({ x, y: 0.3, z: C.BOUNDS.z0 + 0.25 + R() * 0.4, s: 0.45 + R() * 0.35, sy: 0.4, ry: R() * 6, color: pick(R, GREENS) }); }
   scene.add(instanced(blob(85, 1, 0.2), M.leaf, sh));

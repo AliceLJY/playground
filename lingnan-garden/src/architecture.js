@@ -26,6 +26,8 @@ function boguRidge(b, M, x0, x1, y, z, ry = 0) {
   put(box(L, 0.16, 0.34), M.limeDark, 0, 0.08); put(box(L - 0.5, 0.4, 0.24), M.lime, 0, 0.36); put(box(L, 0.08, 0.32), M.limeDark, 0, 0.6);
   const n = Math.max(1, Math.round((L - 2.2) / 2.4));
   for (const s of [-1, 1]) put(plane(L - 2.0, 0.34, n, 1), M.relief, 0, 0.36, s * 0.123);
+  // 灰塑是堆出来的，不是画的：在彩描的底上再压一排凸起的卷草（实拍里余荫山房的脊和檐口都是成排的立体卷草）
+  { const m2 = Math.max(2, Math.round((L - 2.2) / 0.62)); for (const s of [-1, 1]) for (let k = 0; k < m2; k++) { const cx0 = -(L - 2.2) / 2 + (k + 0.5) * (L - 2.2) / m2, dir = k % 2 ? 1 : -1, pts = []; for (let i = 0; i <= 14; i++) { const t = i / 14, a = dir * t * 3.3 * Math.PI, rr = 0.125 * (1 - t * 0.8); pts.push([cx0 + Math.cos(a) * rr, 0.36 + Math.sin(a) * rr * 0.92, s * 0.135]); } put(tube(pts, 0.017, 4, 28), M.lime, 0, 0, 0); } }
   for (const s of [-1, 1]) { const ex = s * (L / 2 - 0.42); put(box(0.84, 0.2, 0.3), M.lime, ex, 0.74); put(box(0.2, 0.62, 0.3), M.lime, ex + s * 0.32, 1.02); put(box(0.62, 0.18, 0.3), M.lime, ex + s * 0.11, 1.38); put(box(0.18, 0.4, 0.3), M.lime, ex - s * 0.11, 1.12); put(box(0.3, 0.14, 0.3), M.lime, ex + s * 0.02, 0.98); }
 }
 
@@ -64,6 +66,7 @@ export function buildHall(scene, M) {
     b.add(box(0.38, 0.6, P.zWall - P.zBack + 0.34), M.graniteLight, x, D + 0.3, (P.zBack + P.zWall) / 2 - 0.02);
     b.add(gableGeo(W - 0.5, rise - 0.24, 0.32), M.brick, x, top + 0.1, zc);
     b.add(plane(1.3, 1.0), M.relief, x + s * 0.17, top + 0.62, zc, 0, s * Math.PI / 2, 0);
+    { const gx = x + s * 0.185, cy0 = top + 0.62; for (const [dz, dy, r, dir] of [[-0.36, 0.08, 0.2, 1], [0.36, 0.08, 0.2, -1], [0, -0.22, 0.16, 1]]) { const pts = []; for (let i = 0; i <= 16; i++) { const t = i / 16, a = dir * t * 3.4 * Math.PI, rr = r * (1 - t * 0.8); pts.push([gx, cy0 + dy + Math.sin(a) * rr, zc + dz + Math.cos(a) * rr]); } b.add(tube(pts, 0.022, 4, 32), M.lime); } b.add(cyl(0.11, 0.11, 0.03, 12), M.lime, gx, cy0 + 0.22, zc, 0, 0, Math.PI / 2); }
     // 垂脊：沿山墙顶走一条灰边
     const pts = []; for (let j = 0; j <= 16; j++) { const v = -1 + j / 8; pts.push([x, top + 0.1 + (rise - 0.24) * Math.pow(1 - Math.abs(v), 1.18) + 0.2, zc + v * (W - 0.45)]); } const band = tube(pts, 0.11, 6, 32); b.add(band, M.limeDark);
   }
@@ -174,7 +177,24 @@ export function buildWalls(scene, M) {
 export function buildPondEdge(scene, M) {
   const b = new Batch(), R = C.RECT, Ch = C.CHANNEL;
   const kerb = (ax, az, bx2, bz, w = 0.36, h = 0.14) => { const len = Math.hypot(bx2 - ax, bz - az), ry = Math.atan2(-(bz - az), bx2 - ax); b.add(box(len + w, h, w), M.graniteLight, (ax + bx2) / 2, h / 2 - 0.02, (az + bz) / 2, 0, ry, 0); };
-  const rail = (ax, az, bx2, bz, y0 = 0) => { const len = Math.hypot(bx2 - ax, bz - az), n = Math.max(1, Math.round(len / 1.7)), ry = Math.atan2(-(bz - az), bx2 - ax); for (let i = 0; i <= n; i++) { const x = ax + (bx2 - ax) * i / n, z = az + (bz - az) * i / n; b.add(box(0.24, 0.82, 0.24), M.graniteLight, x, y0 + 0.41, z, 0, ry, 0); b.add(box(0.3, 0.07, 0.3), M.granite, x, y0 + 0.84, z, 0, ry, 0); if (i < n) { const mx = ax + (bx2 - ax) * (i + 0.5) / n, mz = az + (bz - az) * (i + 0.5) / n; b.add(box(len / n - 0.24, 0.14, 0.14), M.graniteLight, mx, y0 + 0.66, mz, 0, ry, 0); b.add(box(len / n - 0.24, 0.12, 0.12), M.graniteLight, mx, y0 + 0.32, mz, 0, ry, 0); } } };
+  // 池岸的栏杆按实拍改：不是白石望柱栏板，是矮砖墩夹一排绿釉陶瓶、上压一道石压顶（清晖园、可园都是这种）；檐廊上那一道是深色木栏嵌回纹格心（清晖园水榭）。
+  const balu = lathe([[0.03, 0], [0.052, 0.03], [0.03, 0.075], [0.064, 0.17], [0.034, 0.26], [0.052, 0.31], [0.034, 0.34]], 6);
+  const rail = (ax, az, bx2, bz, y0 = 0) => {
+    const len = Math.hypot(bx2 - ax, bz - az), n = Math.max(1, Math.round(len / 1.9)), ry = Math.atan2(-(bz - az), bx2 - ax), seg = len / n, wood = y0 > 0;
+    for (let i = 0; i <= n; i++) {
+      const x = ax + (bx2 - ax) * i / n, z = az + (bz - az) * i / n;
+      if (wood) b.add(box(0.13, 0.88, 0.13), M.wood, x, y0 + 0.44, z, 0, ry, 0);
+      else { b.add(brickBox(0.3, 0.64, 0.3), M.brick, x, y0 + 0.32, z, 0, ry, 0); b.add(box(0.37, 0.07, 0.37), M.graniteDark, x, y0 + 0.675, z, 0, ry, 0); }
+      if (i < n) {
+        const mx = ax + (bx2 - ax) * (i + 0.5) / n, mz = az + (bz - az) * (i + 0.5) / n;
+        if (wood) { const w = seg - 0.13; b.add(box(w, 0.07, 0.09), M.wood, mx, y0 + 0.84, mz, 0, ry, 0); b.add(box(w, 0.06, 0.08), M.wood, mx, y0 + 0.14, mz, 0, ry, 0); b.add(plane(w, 0.62, Math.max(1, Math.round(w / 0.62)), 1), M.lattice, mx, y0 + 0.49, mz, 0, ry, 0); }
+        else {
+          const w = seg - 0.3; b.add(brickBox(w, 0.2, 0.22), M.brick, mx, y0 + 0.1, mz, 0, ry, 0); b.add(box(w, 0.07, 0.27), M.graniteDark, mx, y0 + 0.585, mz, 0, ry, 0);
+          const k = Math.max(2, Math.round(w / 0.17)), ux = (bx2 - ax) / len, uz = (bz - az) / len; for (let q = 0; q < k; q++) { const u = (q + 0.5) / k - 0.5; b.add(balu, M.glazeGreen, mx + ux * u * w, y0 + 0.205, mz + uz * u * w); }
+        }
+      }
+    }
+  };
   const o = 0.16;   // 栏杆退在岸上一点
   kerb(R.x0, R.z0, R.x0, R.z1); kerb(R.x0, R.z1, R.x1, R.z1); kerb(R.x1, Ch.z1, R.x1, R.z1); kerb(R.x1, R.z0, R.x1, Ch.z0); kerb(C.PAV.x1 + 0.3, R.z0, R.x1, R.z0);
   rail(R.x0 - o, C.PAV.zFront + 0.35, R.x0 - o, R.z1 + o); rail(R.x0 - o, R.z1 + o, R.x1 + o, R.z1 + o); rail(R.x1 + o, R.z1 + o, R.x1 + o, 5.75);

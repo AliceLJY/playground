@@ -21,16 +21,16 @@ try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 catch (e) { noWebGL(); throw e; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.02;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.9;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog('#cfe4f2', 60, 420);
+scene.fog = new THREE.Fog('#dfe5e3', 34, 300);   // 实拍里天是发白的，远处的树和楼都蒙着一层
 const camera = new THREE.PerspectiveCamera(60, 1, 0.08, 1400); camera.layers.enable(1);   // 第 1 层是不进水面倒影的东西（荷叶荷花锦鲤），主相机照常看得见
 camera.rotation.order = 'YXZ';
 
 const SUN = new THREE.Vector3(-0.56, 0.7, 0.44).normalize();
-scene.add(new THREE.HemisphereLight('#dcecff', '#c2bd9c', 1.75));
-const sun = new THREE.DirectionalLight('#ffe6ba', 2.7);
+scene.add(new THREE.HemisphereLight('#e6ecee', '#a9a595', 1.3));
+const sun = new THREE.DirectionalLight('#fff0d4', 2.6);
 sun.position.copy(SUN).multiplyScalar(60); sun.castShadow = true;
 sun.shadow.mapSize.set(coarse ? 2048 : 4096, coarse ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -27, right: 27, top: 27, bottom: -27, near: 5, far: 140 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.05;

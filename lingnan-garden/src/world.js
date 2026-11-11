@@ -26,7 +26,7 @@ function buildSky(scene, anim, sunDir) {
     side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uSun: { value: sunDir } },
     vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: `varying vec3 vD; uniform vec3 uSun; void main(){ vec3 d = normalize(vD); float h = clamp(d.y, 0., 1.);
-      vec3 c = mix(vec3(.74,.88,.98), vec3(.22,.52,.92), pow(h, .5)); c = mix(c, vec3(.93,.95,.9), smoothstep(.12, -.02, d.y));
+      vec3 c = mix(vec3(.84,.9,.93), vec3(.5,.67,.86), pow(h, .6)); c = mix(c, vec3(.9,.92,.9), smoothstep(.14, -.02, d.y));
       c += vec3(1., .9, .7) * pow(max(dot(d, uSun), 0.), 40.) * .35; gl_FragColor = vec4(c, 1.);
       #include <colorspace_fragment>
     }`,
@@ -62,14 +62,18 @@ export function buildWorld(scene, { coarse, sunDir, flatWater = false, still = f
   let water;
   if (flatWater) { water = new THREE.Mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({ color: 0x2c6b58, roughness: 0.25, metalness: 0.1 })); water.rotation.x = -Math.PI / 2; water.position.y = C.WATER_Y; water.receiveShadow = true; scene.add(water); }
   else {
-  water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 512 : 768, textureHeight: coarse ? 512 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x1d5a48, distortionScale: 0.5, alpha: 1, fog: false });
+  water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 512 : 768, textureHeight: coarse ? 512 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x4a6a1c, distortionScale: 0.5, alpha: 1, fog: false });
   water.rotation.x = -Math.PI / 2; water.position.y = C.WATER_Y; water.material.uniforms.size.value = 0.55; scene.add(water);
   // 倒影柔化：倒影贴图比屏幕小，砖缝、窗格这类细线映进去再被波纹扰动，视角一动就一格一格地闪。
   // 给倒影贴图开多级渐远，采样时往模糊的一级偏，细线化成一片颜色。
   { const rt = water.material.uniforms.mirrorSampler.value; rt.generateMipmaps = true; rt.minFilter = THREE.LinearMipmapLinearFilter;
     const key = 'mirrorCoord.xy / mirrorCoord.w + distortion )', fs = water.material.fragmentShader;
     if (!fs.includes(key)) throw new Error('Water shader changed: reflection sample line not found');
-    water.material.fragmentShader = fs.replace(key, 'mirrorCoord.xy / mirrorCoord.w + distortion, 2.2 )'); water.material.needsUpdate = true; }
+    let fs2 = fs.replace(key, 'mirrorCoord.xy / mirrorCoord.w + distortion, 2.2 )');
+    // 池水是浑的深绿（实拍三座园都是），不是映着蓝天的清水：垂直看下去多一些水色，倒影只在斜看时强
+    const k2 = 'vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * waterColor;';
+    if (fs2.includes(k2)) fs2 = fs2.replace(k2, 'vec3 scatter = ( 0.55 + 0.45 * max( 0.0, dot( surfaceNormal, eyeDirection ) ) ) * waterColor * 1.5;').replace('reflectionSample + specularLight, reflectance );', 'reflectionSample * vec3( 0.86, 0.94, 0.8 ) + specularLight, reflectance * 0.8 );');
+    water.material.fragmentShader = fs2; water.material.needsUpdate = true; }
   anim.push((t) => { water.material.uniforms.time.value = t * 0.28; });
   }
   buildWalls(scene, M); tick('walls');

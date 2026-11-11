@@ -4,7 +4,7 @@ A walkable scene built from a single picture. [Open it](https://aliceljy.github.
 
 The work started with reading: what sets Lingnan (Cantonese) gardens apart from gardens elsewhere, with sources for each point in [facts.md](facts.md) (in Chinese). A prompt written from those notes produced an AI illustration, and everything visible in that picture was then listed and rebuilt in code with Three.js as a 3D scene you can walk through in first person. The picture is only a reference; it is not used as a texture. "Compare" in the page shows it next to the scene.
 
-This is not a real garden. It is an illustrative corner assembled from typical features of Yuyin Shanfang, Qinghui Yuan and Ke Yuan, and the reference picture is AI-generated.
+After the first build the scene was revised against photographs of the three gardens (pond railings, woodwork and overall colour, Manchurian windows, pond water, plaster relief), so those parts differ from the reference picture on purpose; the photographs were used for comparison only and are not in the page or the repository. This is not a real garden. It is an illustrative corner assembled from typical features of Yuyin Shanfang, Qinghui Yuan and Ke Yuan, and the reference picture is AI-generated.
 
 The first version followed a different picture whose prompt asked for white walls, a naturally curved pond, a stone arch bridge, a zigzag walkway and pale rockery, which is the Jiangnan manner rather than the Lingnan one, so the scene was rebuilt.
 
