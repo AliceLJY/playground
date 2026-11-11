@@ -20,7 +20,13 @@ test('外观 L2: dressing below 2.3 m stays within 0.2 m of the front or inside 
   const [C, D] = await load();
   const solids = C.solids();
   const inSolid = (b) => solids.some((s) => b.x0 >= s.x0 - 1e-6 && b.x1 <= s.x1 + 1e-6 && b.z0 >= s.z0 - 1e-6 && b.z1 <= s.z1 + 1e-6);
-  const bad = D.dressBoxes().filter((b) => b.y0 < 2.3 && b.y1 > C.SIDEWALK_H + 0.02 && b.z1 > C.FACADE_Z + 0.2 + 1e-6 && !inSolid(b));
+  const { drainGeometries } = await import('../src/look.js');
+  const pipes = drainGeometries().map((g, i) => {
+    g.computeBoundingBox(); const { min, max } = g.boundingBox;
+    return { mat: 'pipe:' + i, x0: min.x, y0: min.y, z0: min.z, x1: max.x, y1: max.y, z1: max.z };
+  });
+  assert.ok(pipes.length > 0, 'L2 must sample the rendered drainpipes');
+  const bad = D.dressBoxes().concat(pipes).filter((b) => b.y0 < 2.3 && b.y1 > C.SIDEWALK_H + 0.02 && b.z1 > C.FACADE_Z + 0.2 + 1e-6 && !inSolid(b));
   assert.deepStrictEqual(bad, [], 'dressing reaching into the walkable space: ' + JSON.stringify(bad));
 });
 
@@ -31,4 +37,14 @@ test('外观 L3: the solids and the drawn boxes the game logic uses are unchange
   const changed = A.filter((b) => !V.includes(b)).map((b) => b.mat);
   assert.deepStrictEqual([...new Set(changed)], ['storeFacade:upper']);
   assert.deepStrictEqual([...new Set(V.filter((b) => !A.includes(b) && b.mat !== 'storeFacade:upper').map((b) => b.mat))].sort(), ['lamp', 'pole', 'sign2Text', 'signText']);
+});
+
+test('surface shader smoothstep constant edges are strictly increasing', async () => {
+  const THREE = await import('three'), { surface, K } = await import('../src/look.js');
+  const mat = surface(new THREE.MeshPhongMaterial(), K.BRICK);
+  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.phong.vertexShader, fragmentShader: THREE.ShaderLib.phong.fragmentShader };
+  mat.onBeforeCompile(shader);
+  const edges = [...shader.fragmentShader.matchAll(/smoothstep\(\s*([+-]?[\d.]+)\s*,\s*([+-]?[\d.]+)\s*,/g)];
+  assert.ok(edges.length > 0, 'must inspect the generated surface shader');
+  for (const [call, a, b] of edges) assert.ok(Number(a) < Number(b), 'undefined GLSL edges: ' + call);
 });
