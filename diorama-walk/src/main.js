@@ -9,6 +9,8 @@ import { VerticalTiltShiftShader } from 'three/addons/shaders/VerticalTiltShiftS
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as C from './core.js';
+import { adjustBoxes, dressBoxes } from './dress.js';
+import { K, surface, phong, buildLook, GradeShader } from './look.js';
 
 const Q = new URLSearchParams(location.search);
 const VIEW = C.VIEW_SCRIPTS[Q.get('view')] ? Q.get('view') : null;
@@ -106,22 +108,27 @@ const lamIn = (c) => inside(lam(c));
 const glow = (c) => new THREE.MeshBasicMaterial({ color: c });
 const VEND_DIM = 0.025;                         // round 9: the vending machine's light well under the shop window's (SPEC 两处小修①); a linear-light factor: about 16% of the old brightness on screen
 const glassMat = () => new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: C.GLASS_OPACITY, depthWrite: false, side: THREE.DoubleSide });
+// The outside is dressed (look.js): brick, plaster, boards, concrete, paving, asphalt, tin, worn paint, worked out in the
+// shaders from world position. Only the outer faces change; the shop interiors keep their colours. Touch screens pass
+// SURF_LOW (reserved for a lighter path; the shaders do not branch on it yet).
+const LOW = COARSE;
+const sf = (m, kind, box = null) => surface(m, kind, { box, low: LOW });
 const MATS = {
-  sidewalk: lam(COL.sidewalk), stripe: lam(COL.stripe),
-  storeWall: lamIn(COL.storeWall), storeRoof: lam(COL.storeRoof), storeFloor: lamIn(COL.storeFloor), storeFacade: lam(COL.storeFacade), 'storeFacade:upper': lam(COL.storeFacade),
-  nextWall: lamIn(COL.nextWall), 'nextWall:upper': lamIn(COL.nextWall), nextRoof: lam(COL.nextRoof), nextFloor: lamIn(COL.nextFloor),
+  sidewalk: sf(phong(COL.sidewalk), K.PAVING), stripe: sf(lam('#7a7f86'), K.METAL),
+  storeWall: sf(lamIn(COL.storeWall), K.BRICK, C.STORE), storeRoof: sf(phong(COL.storeRoof), K.ROOF, { ...C.STORE, roof: true }), storeFloor: lamIn(COL.storeFloor), storeFacade: sf(lam(COL.storeFacade), K.FRONT, C.STORE), 'storeFacade:upper': sf(lam(COL.storeFacade), K.FRONT, C.STORE),
+  nextWall: sf(lamIn(COL.nextWall), K.PLASTER, C.NEXT), 'nextWall:upper': sf(lamIn(COL.nextWall), K.PLASTER, C.NEXT), nextRoof: sf(phong(COL.nextRoof), K.ROOF, { ...C.NEXT, roof: true }), nextFloor: lamIn(COL.nextFloor),
   glass: glassMat(), windowGlass: new THREE.MeshLambertMaterial({ color: COL.windowGlass, transparent: true, opacity: C.WINDOW.opacity, depthWrite: false, side: THREE.FrontSide }),   // one face toward the camera: the pane is 0.35 once, not twice
-  frame: lam(COL.frame), sign: lam(COL.oldSign), sign2: lam(COL.nextDark), signText: lam(COL.oldSignText), sign2Text: lam(COL.sign2Text), awning: lam(COL.awning),
+  frame: lam(COL.frame), sign: sf(lam('#2b2723'), K.METAL), sign2: sf(lam(COL.nextDark), K.METAL), awning: sf(phong(COL.awning, 30), K.TIN),
   shelf: lamIn(COL.shelf), shelfBoard: lamIn(COL.shelfBoard), goods: lamIn(COL.goods), goods2: lamIn(COL.goods2), goods3: lamIn(COL.goods3),
   freezerBody: lamIn(COL.chest), chestLid: lamIn(COL.chestLid), counter: lamIn(COL.counter), tvBody: lamIn(COL.tvBody), register: lamIn(COL.register),
-  box: lamIn(COL.box), boxOut: lam(COL.box), hang: lamIn(COL.hang), cord: lamIn(COL.cord), storeCeiling: lamIn(COL.storeCeiling), dark: glow(COL.dark), mat: lamIn(COL.mat),
-  nextLightPanel: lam(COL.nextDark), bar: lamIn(COL.bar), stool: lamIn(COL.stool), shelf2: lamIn(COL.shelf2), vendBody: lam(COL.vendBody), vending: glow(new THREE.Color(COL.vending).multiplyScalar(VEND_DIM)),
-  pole: lam(COL.pole), lamp: glow(COL.lamp), bench: lam(COL.bench), fence: lam(COL.fence),
+  box: lamIn(COL.box), boxOut: sf(lam(COL.box), K.CARD), hang: lamIn(COL.hang), cord: lamIn(COL.cord), storeCeiling: lamIn(COL.storeCeiling), dark: glow(COL.dark), mat: lamIn(COL.mat),
+  nextLightPanel: lam(COL.nextDark), bar: lamIn(COL.bar), stool: lamIn(COL.stool), shelf2: lamIn(COL.shelf2), vendBody: sf(lam('#8e98a4'), K.METAL), vending: glow(new THREE.Color(COL.vending).multiplyScalar(VEND_DIM)),
+  bench: sf(lam(COL.bench), K.BENCH), fence: sf(lam(COL.fence), K.METAL),
   annex: lamIn(COL.annex), annexFloor: lamIn(COL.annexFloor), backGlow: glow(COL.backGlow),
 };
 const boxGeo = (b) => new THREE.BoxGeometry(b.x1 - b.x0, b.y1 - b.y0, b.z1 - b.z0).translate((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.z0 + b.z1) / 2);
 const byMat = {};
-for (const b of C.visualBoxes()) (byMat[b.mat] ||= []).push(boxGeo(b));
+for (const b of adjustBoxes(C.visualBoxes())) (byMat[b.mat] ||= []).push(boxGeo(b));
 const MESH = {};
 const CASTERS = ['shelf', 'shelfBoard', 'goods', 'goods2', 'goods3', 'box', 'counter', 'freezerBody', 'tvBody', 'register', 'hang'];   // what the one shadow-casting light draws
 const RECEIVERS = ['storeFloor', 'storeWall', 'shelf', 'shelfBoard', 'goods', 'goods2', 'goods3', 'box', 'counter', 'freezerBody', 'chestLid'];
@@ -133,13 +140,13 @@ for (const [k, list] of Object.entries(byMat)) {
 }
 // base: street-coloured top (the road is the base top itself) and dark sides that hide once you stand inside
 const H = C.BASE.half;
-const baseTop = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 2 * H).rotateX(-Math.PI / 2), lam(COL.street));
+const baseTop = new THREE.Mesh(new THREE.PlaneGeometry(2 * H, 2 * H).rotateX(-Math.PI / 2), sf(phong(COL.street, 50), K.ASPHALT));
 scene.add(baseTop);
-const baseSides = new THREE.Mesh(new THREE.BoxGeometry(2 * H, C.BASE.thick, 2 * H).translate(0, -C.BASE.thick / 2 - 0.002, 0), lam(COL.baseSide));
+const baseSides = new THREE.Mesh(new THREE.BoxGeometry(2 * H, C.BASE.thick, 2 * H).translate(0, -C.BASE.thick / 2 - 0.002, 0), sf(phong(COL.baseSide, 60), K.PLINTH));
 scene.add(baseSides);
 // the 200 x 200 street-coloured ground that fades in after s = 0.5
 const bigGround = new THREE.Mesh(new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2).translate(0, -0.03, 0),
-  new THREE.MeshLambertMaterial({ color: COL.street, transparent: true, opacity: 0 }));
+  sf(Object.assign(phong(COL.street, 50), { transparent: true, opacity: 0 }), K.ASPHALT));
 bigGround.renderOrder = -1;
 scene.add(bigGround);
 // floor lines: worn tiles in the grocery, planks next door
@@ -324,6 +331,18 @@ function poseDog(v, t) {
 const LIFT = { store: ['storeRoof', 'storeCeiling', 'storeFacade:upper', 'sign', 'signText', 'hang', 'cord'], next: ['nextRoof', 'nextWall:upper', 'sign2', 'sign2Text', 'nextLightPanel'] };
 const ROOM_LIFT = { store: ['storeRoof', 'storeCeiling', 'hang', 'cord'], next: ['nextRoof', 'nextLightPanel'] };   // the room view: roof, ceiling and what hangs from it off; walls and the back room's roof stay
 
+// ---------------- the outside, dressed (look.js): the parts built one by one, lettering, glows, wet reflections ----------------
+const DRESS_MATS = {
+  fascia: () => sf(lam('#8a8478'), K.CONCRETE), coping: () => sf(lam('#8a8478'), K.CONCRETE), parapet: () => sf(lam('#8a8478'), K.CONCRETE), sill: () => sf(lam('#8a8478'), K.CONCRETE),
+  acUnit: () => sf(lam('#7d807b'), K.METAL), metalDark: () => sf(lam('#2a2d31'), K.METAL), hatch: () => sf(lam('#4f5559'), K.METAL), meter: () => sf(lam('#8a9094'), K.METAL),
+  lightbox: () => sf(lam('#d6d4cc'), K.METAL), shutterBox: () => sf(lam('#59606a'), K.METAL), pipe: () => sf(lam('#5f5c55'), K.METAL), tank: () => sf(lam('#5e686e'), K.METAL),
+  pole: () => sf(lam(COL.pole), K.METAL), lamp: () => glow(COL.lamp), stripe: () => MATS.stripe,
+};
+const look = buildLook(scene, { low: LOW, MESH, dressBoxes: dressBoxes(), boxGeo, matFor: (k) => { if (!DRESS_MATS[k]) throw new Error('no dressing material for ' + k); return DRESS_MATS[k](); } });
+for (const id of ['store', 'next']) { LIFT[id].push(...look.lifted[id]); ROOM_LIFT[id].push(...look.room[id]); }
+// a red 福 on each leaf of the grocery's glass door, at chest height
+for (const lf of leaves.slice(0, 2)) { const m = new THREE.Mesh(look.fuGeo, look.paintMat); m.position.set(0, 0.25, 0.013); lf.add(m); }
+
 // ---------------- rain: one LineSegments, positions computed on the GPU from a fixed seed ----------------
 const N_RAIN = 2400;
 const rainGeo = new THREE.BufferGeometry();
@@ -401,6 +420,8 @@ function banded(shader) {
 }
 const tiltPasses = TILT_K.map((k) => [new ShaderPass(banded(HorizontalTiltShiftShader)), new ShaderPass(banded(VerticalTiltShiftShader)), k]);
 for (const [h, v] of tiltPasses) { composer.addPass(h); composer.addPass(v); }
+const gradePass = new ShaderPass(GradeShader);
+composer.addPass(gradePass);
 composer.addPass(new OutputPass());
 
 // ---------------- simulation ----------------
@@ -620,6 +641,10 @@ function sync() {
   bulbMat.forEach((m, i) => m.color.set(COL.bulb).multiplyScalar(0.15 + 0.85 * V.bulbs[i])); tubeMat.color.set(COL.tube).multiplyScalar(0.12 + 0.88 * V.tube);
   if (!tvState || tvState.reflect !== V.tv.reflect || V.tv.snow || tvState.snow !== V.tv.snow || tvState.level !== V.tv.level) drawTv(V.tv, S.t);
   puddleMat.opacity = 0.35 + 0.65 * V.bulbs[0];
+  { const shop = Math.max(V.bulbs[0], V.bulbs[1]);                        // the signs run off the shop's power: dark when its lights are
+    look.lit[0].color.setScalar(0.06 + 0.94 * shop); look.lit[1].color.setScalar(shop);
+    for (const h of look.halos) h.s.material.opacity = h.op * (h.shop ? shop : 1);
+    look.uniforms.uShop.value = shop; look.uniforms.uTime.value = S.rainT; }
   poseDog(V.dog, S.t);
   camera.position.x += V.shake[0]; camera.position.y += V.shake[1]; camera.position.z += V.shake[2];   // the picture shakes, the walker does not
   darkEl.style.opacity = String(0.55 * V.darken);
