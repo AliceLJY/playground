@@ -112,7 +112,9 @@ body.landscape .photo img{height:44px;object-fit:contain}
 /* Reception and treat menus live outside the scrolling artwork, including on short phones. */
 body:not(.mv):not(.wall) .room-section>.treat{position:relative;left:auto;bottom:auto;max-width:100%;width:100%;flex:none;padding:0 0 7px}
 body:not(.mv):not(.wall) .treat button{min-height:44px;touch-action:manipulation}
-body:not(.mv):not(.wall) .treat-row{flex-wrap:nowrap}
+/* One row where it fits; where it does not (the 300 px notebook column, phones under 360) it wraps instead of running off the page. */
+body:not(.mv):not(.wall) .treat-row{flex-wrap:wrap}
+@media(max-width:380px){body:not(.mv):not(.wall) .treat-row{gap:3px}body:not(.mv):not(.wall) .treat-row button{padding:5px}}
 body:not(.mv):not(.wall) .treat-row button{white-space:nowrap}
 #meet-menu{gap:6px}
 
@@ -149,3 +151,11 @@ body.mv .scrim,body.wall .scrim{display:none!important}
 body.mv .to-fun,body.wall .to-fun{display:none!important}
 .arcade-head button{min-width:44px;min-height:44px}
 .arcade-list a{min-height:40px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+
+/* The keepsake card sits in the page flow and never over the room (2026-11-11): under the legend on a phone or a
+   narrow window, in the notebook column on desktop. tools/overlay-check.cjs measures it. */
+body:not(.mv):not(.wall) .photo{position:relative;right:auto;bottom:auto;flex:none;width:100%;max-width:480px;margin:6px 0 0}
+body:not(.mv):not(.wall):not(.landscape) .photo-body{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:7px;align-items:center}
+body:not(.mv):not(.wall):not(.landscape) .photo-body p{grid-column:1}
+body:not(.mv):not(.wall):not(.landscape) .photo-actions{grid-column:2;grid-row:1/span 2}
+body.landscape:not(.mv):not(.wall) .photo{width:auto;max-width:none;margin:0 12px 10px}
