@@ -12,7 +12,7 @@ const fs = require('fs'), path = require('path');
 
 const args = process.argv.slice(2), flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; }, has = n => args.includes('--' + n);
 const out = args[0]; if (!out || out.startsWith('--')) { console.error('usage: film.cjs <输出目录>'); process.exit(2); }
-const base = flag('base', 'http://127.0.0.1:8991/dist/index.html'), endcardDir = flag('endcard', ''), only = flag('only', ''), refFile = flag('ref', ''), LAND = has('landscape'), STILLS = has('stills');
+const base = flag('base', 'http://127.0.0.1:8991/dist/index.html'), endcardDir = flag('endcard', ''), only = flag('only', ''), refFile = flag('ref', ''), LAND = has('landscape'), STILLS = has('stills'), NOTEXT = has('notext');   // --notext：不叠中文片名和小字（YouTube 版另烧英文字幕）
 const FPS = 30, FRAME = 1000 / FPS, DPR = 2, XF = 1.0;
 const W = LAND ? 960 : 540, H = LAND ? 540 : 960;
 // 竖屏第一镜（v2，Alice 11-11「竖屏……这样显得画面太小了」）：起始图等比放大到高度占满、铺满整幅，从图右侧（八角亭、壁山）横移到敞厅和荷池，
@@ -153,6 +153,7 @@ function layers(s, t) {   // 这一帧各叠层的透明度
     L.zoom = 1 + 0.05 * Math.pow(cl(1 - t / 3.4), 2);       // 起始图开头略放大，慢慢收到正好和场景对齐，免得开头一秒多是死的
   }
   if (s.text) { L.text = s.text[2]; L.textA = cl(Math.min((t - s.text[0]) / 0.45, (s.text[1] - t) / 0.45)); }
+  if (NOTEXT) { L.tagA = 0; L.titleA = 0; L.textA = 0; }
   return L;
 }
 
