@@ -14,7 +14,17 @@ const coarse = matchMedia('(pointer:coarse)').matches;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+// 浏览器打不开 WebGL 时盖一层看得清的说明，别让页面空着卡住
+function noWebGL() {
+  if (document.getElementById('nogl')) return;
+  const d = document.createElement('div'); d.id = 'nogl'; d.setAttribute('role', 'alert');
+  d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:28px;box-sizing:border-box;background:#17202b;color:#f6ecdc;font:15px/1.9 system-ui,-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;text-align:center';
+  d.textContent = '这个页面要用 WebGL 画三维画面，这台设备的浏览器打不开。换一个浏览器，或者打开硬件加速后再试。';
+  document.body.append(d);
+}
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' }); }
+catch (e) { noWebGL(); throw e; }
 let DPR = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
 renderer.setPixelRatio(DPR);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
