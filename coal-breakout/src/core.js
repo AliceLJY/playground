@@ -19,6 +19,10 @@
     for (const key of ['bOn', 'bx', 'by', 'bvx', 'bvy', 'bKind', 'bDamage', 'bID']) s[key] = new Float64Array(256);
     for (const key of ['zOn', 'zx', 'zy', 'zBorn']) s[key] = new Float64Array(12);
     s.bHit = new Uint32Array(256 * 512);
+    for (const key of ['oOn', 'oKind', 'ox', 'oy', 'ohw', 'ohh']) s[key] = new Float64Array(8);
+    // Coarse 12-unit chase field (30 x 44 cells) so enemies walk around props instead of piling on them.
+    s.flow = new Int16Array(30 * 44); s.queue = new Int16Array(30 * 44); s.flowOn = 0; s.cx = 0; s.cy = 0; s.blocked = 0;
+    hot.layout(s);
     return s;
   }
   // Cold inspection / persistence. Never called by the simulation.
@@ -27,7 +31,8 @@
       level: s.stageIndex + 1, x: s.x, y: s.y, hp: s.hp, xp: s.xp, rank: s.level, kills: s.kills, enemies: s.live,
       cards: Array.from(s.cards), offers: Array.from(s.offer), warning: s.warning, off: s.off, burst: s.burst, wall: s.wall,
       bossHP: s.boss < 0 ? null : s.eHP[s.boss], hits: s.hits, resets: s.resets, compressions: s.compressions,
-      fakeReveals: s.fakeReveals, shots: s.shots, zones: s.zones, revivals: s.revivals, workflow: s.workflow };
+      fakeReveals: s.fakeReveals, shots: s.shots, zones: s.zones, revivals: s.revivals, workflow: s.workflow,
+      props: Array.from(s.oOn).filter(Boolean).length, blocked: s.blocked };
   }
   function unlocked(value) { const n = Number(value); return Number.isInteger(n) && n >= 1 && n <= data.levels.length ? n : 1; }
   const api = { data, create, step: hot, snapshot, unlocked };

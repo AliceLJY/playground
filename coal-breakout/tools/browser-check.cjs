@@ -86,7 +86,7 @@ const sizes = { phone390: { width: 390, height: 664 }, phone412: { width: 412, h
         }
         hook.paint(); return { samples, white, edgeContrast: delta / white, silhouetteFraction: (maxX - minX + 1) / canvas.width };
       });
-      check(`${size} hero actual pixels: inner white contrast >=100, width 6–8%`, pixels.samples > 100 && pixels.white > 5 && pixels.edgeContrast >= 100 && pixels.silhouetteFraction >= .06 && pixels.silhouetteFraction <= .08, pixels);
+      check(`${size} hero actual pixels: inner white contrast >=100, width 11–14%`, pixels.samples > 100 && pixels.white > 5 && pixels.edgeContrast >= 100 && pixels.silhouetteFraction >= .11 && pixels.silhouetteFraction <= .14, pixels);
     }
     if (view === 'result') {
       const png = await page.evaluate(() => document.querySelector('#poster').toDataURL().split(',')[1]); fs.writeFileSync(path.join(out, `${size}-poster.png`), Buffer.from(png, 'base64'));

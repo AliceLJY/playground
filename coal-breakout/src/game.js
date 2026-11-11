@@ -175,7 +175,7 @@
   $('sound').onclick = sound; $('title-sound').onclick = sound;
   function fixed(view) {
     if (!['hero', 'levelup', 'boss', 'result', 'stress'].includes(view)) return;
-    start(view === 'boss' ? 2 : 0, view === 'boss' ? 1 : 7, view === 'stress');
+    start(view === 'boss' ? 2 : 0, view === 'boss' ? 2 : 7, view === 'stress');
     const pilot = CoalPilot.create('precise', seed), target = view === 'hero' ? 5040 : view === 'boss' ? 9500 : view === 'stress' ? 28 : 18000;
     for (let f = 0; f < 22000 && s.phase < 2; f++) {
       if (view === 'levelup' && s.phase === 1) break;

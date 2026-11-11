@@ -1,6 +1,12 @@
 (function (root) {
   'use strict';
   // Input producer only; never writes game state or bypasses its rules.
+  // Would the feet, 14 units further along (dx, dy), touch a live prop?
+  function blockedAhead(s, dx, dy) {
+    const fx = s.x + dx * 14, fy = s.y + 20 + dy * 14;
+    for (let i = 0; i < s.oOn.length; i++) if (s.oOn[i] && Math.hypot(Math.max(Math.abs(fx - s.ox[i]) - s.ohw[i], 0), Math.max(Math.abs(fy - s.oy[i]) - s.ohh[i], 0)) < 15) return true;
+    return false;
+  }
   function create(mode = 'precise', seed = 1) {
     let rng = (seed ^ 0x9e3779b9) >>> 0, next = 0, angle = 0;
     const out = new Float64Array([0, 0, -2]);
@@ -24,7 +30,18 @@
           if (d < best) { best = d; ex = s.ex[i]; ey = s.ey[i]; }
         }
         const d = Math.hypot(ex - s.x, ey - s.y) || 1;
-        out[0] = (ex - s.x) / d; out[1] = (ey - s.y) / d; return out;
+        out[0] = (ex - s.x) / d; out[1] = (ey - s.y) / d;
+        // Still charges the nearest enemy, but goes round a prop instead of leaning on it behind cover.
+        if (blockedAhead(s, out[0], out[1])) {
+          let near = Infinity;
+          for (let k = 0; k < 16; k++) {
+            const dx = Math.cos(k * Math.PI / 8), dy = Math.sin(k * Math.PI / 8);
+            if (blockedAhead(s, dx, dy)) continue;
+            const left = Math.hypot(ex - s.x - dx * 30, ey - s.y - dy * 30);
+            if (left < near) { near = left; out[0] = dx; out[1] = dy; }
+          }
+        }
+        return out;
       }
       if (s.tick < next) return out;
       next = s.tick + (mode === 'human' ? 20 : mode === 'random' ? 42 : 8);
@@ -40,13 +57,19 @@
         const a = k * Math.PI / 8, dx = Math.cos(a), dy = Math.sin(a);
         const px = s.x + dx * 30, py = s.y + dy * 30;
         let score = -Math.hypot(px - tx, py - ty) * .65;
-        const edge = Math.min(px - 18 - s.wall, 342 - s.wall - px, py - 30 - s.wall, 500 - s.wall - py);
+        const edge = Math.min(px - 24 - s.wall, 336 - s.wall - px, py - 48 - s.wall, 488 - s.wall - py);
         if (edge < 12) score -= (12 - edge) * 12;
         for (let i = 0; i < s.eOn.length; i++) if (s.eOn[i]) {
           const d = Math.hypot(px - s.ex[i], py - s.ey[i]) - s.er[i];
           if (d < 65) score -= (65 - d) ** 2 * (mode === 'random' ? .017 : .09);
         }
         for (let i = 0; i < s.zOn.length; i++) if (s.zOn[i] && Math.abs(px - s.zx[i]) < 60 && Math.abs(py - s.zy[i]) < 60) score -= 500;
+        // Props: never pick a step whose feet end inside one (looked up near and far), and keep a little air around them.
+        for (let i = 0; i < s.oOn.length; i++) if (s.oOn[i]) for (const reach of [12, 30]) {
+          const fx = s.x + dx * reach, fy = s.y + dy * reach + 20;
+          const gapX = Math.abs(fx - s.ox[i]) - s.ohw[i], gapY = Math.abs(fy - s.oy[i]) - s.ohh[i], gap = Math.max(gapX, gapY);
+          if (gap < 15) score -= reach === 12 ? 400 : (15 - gap) * 8;
+        }
         if (score > best) { best = score; bx = dx; by = dy; }
       }
       angle = Math.atan2(by, bx);
