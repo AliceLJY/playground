@@ -605,6 +605,17 @@ jobs:
           mkdir -p ../_site/sky-citadel
           cp dist/index.html ../_site/sky-citadel/index.html
 
+      - name: Check, bundle and assemble Dino Craft
+        working-directory: dino-craft
+        run: |
+          # 方块侏罗纪：第一人称方块生存沙盒，区块随走随生成、像素纹理由代码画；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node tools/build.mjs
+          node --test tests/*.test.cjs
+          mkdir -p ../_site/dino-craft
+          cp dist/index.html ../_site/dino-craft/index.html
+
       - name: Show what will be published
         run: find _site -type f | sort
 
