@@ -92,15 +92,15 @@ export function createPeople(scene, sim, opts = {}) {
     col(M.chest, i, '#c9a86c'); col(M.pole, i, '#8a7152'); col(M.prop, i, L.propColor || '#c9a24a');
   });
   for (const k in M) if (M[k].instanceColor) M[k].instanceColor.needsUpdate = true;
-  // 每人十三个姿势参数：两臂（抬、弯、外摆）、前倾、两腿（摆、弯）、身高起伏、走路的比重；换动作时逐帧向目标靠
-  const NP = 13, sm = new Float32Array(N * NP), tg = new Float32Array(NP), seen = new Uint8Array(N);
+  // 每人十四个姿势参数：两臂（抬、弯、外摆）、前倾、两腿（摆、弯）、身高起伏、走路的比重、袖手的程度；换动作时逐帧向目标靠
+  const NP = 14, sm = new Float32Array(N * NP), tg = new Float32Array(NP), seen = new Uint8Array(N);
   let lastT = -1;
 
   const put = (im, idx, x, y, z, q, sx, sy, sz) => { _loc.compose(_p.set(x, y, z), q, _s.set(sx, sy, sz)); _out.multiplyMatrices(_root, _loc); im.setMatrixAt(idx, _out); };
   const hide = (im, idx) => im.setMatrixAt(idx, ZERO);
   // 两段肢体：根部转 a（绕 x）并外摆 sp（绕 z），关节再弯 b；返回末端位置在 _end、末段朝向在 _q2
-  function limb(imA, imB, idx, px, py, pz, a, sp, b, l1, l2, d1, d2) {
-    _e.set(a, 0, sp, 'ZXY'); _q.setFromEuler(_e);
+  function limb(imA, imB, idx, px, py, pz, a, sp, b, l1, l2, d1, d2, tw = 0) {   // tw：上臂绕自身拧一下，弯肘后前臂就往身前横过去
+    _e.set(a, tw, sp, 'ZXY'); _q.setFromEuler(_e);
     put(imA, idx, px, py, pz, _q, d1, l1, d1);
     _mid.copy(DOWN).multiplyScalar(l1).applyQuaternion(_q); _mid.x += px; _mid.y += py; _mid.z += pz;
     _e.set(b, 0, 0); _qb.setFromEuler(_e); _q2.copy(_q).multiply(_qb);
@@ -118,9 +118,9 @@ export function createPeople(scene, sim, opts = {}) {
       const pose = a.pose, ph = a.pose === 'bear' ? t * 1.25 * PHASE_PER_M + i : a.phase, sw = Math.sin(ph), cw = Math.cos(ph);
       const walking = pose === 'walk' || pose === 'carry' || pose === 'pole' || pose === 'bear';
       const gown = !!L.gown, idle = Math.sin(t * 1.3 + i * 1.7);
-      let tA = 0, tB = 0, kA = 0.04, kB = 0.04, uA = 0.06 * idle, uB = -0.06 * idle, eA = -0.18, eB = -0.18, sA = 0.1, sB = 0.1, y = 0, lean = 0;
+      let tA = 0, tB = 0, kA = 0.04, kB = 0.04, uA = 0.06 * idle, uB = -0.06 * idle, eA = -0.18, eB = -0.18, sA = 0.1, sB = 0.1, y = 0, lean = 0, fold = 0;
       if (walking) { uA = cw * 0.42; uB = -cw * 0.42; eA = -0.3 - 0.2 * Math.max(0, -cw); eB = -0.3 - 0.2 * Math.max(0, cw); lean = 0.05; }
-      if (gown && (pose === 'stand' || (pose === 'walk' && i % 3 === 0))) { uA = uB = -0.42; eA = eB = -1.5; sA = sB = -0.3; }     // 袖手
+      if (gown && (pose === 'stand' || (pose === 'walk' && i % 3 === 0))) { uA = uB = -0.72; eA = eB = -1.3; sA = sB = 0.1; fold = 1; }     // 袖手：两条前臂横在身前，手揣进对面的袖口
       if (pose === 'carry' || pose === 'carry-stand') { uA = -2.5; eA = -0.75; sA = 0.25; lean += 0.05; }
       if (pose === 'pole' || pose === 'pole-stand') { uA = -1.25; eA = -1.5; sA = 0.05; if (walking) uB = sw * 0.25; }   // 挑担：歇脚时手也扶着扁担
       if (pose === 'bear') { uA = uB = -0.2; eA = eB = -0.25; sA = sB = 0.32; lean = 0.08; }
@@ -136,12 +136,12 @@ export function createPeople(scene, sim, opts = {}) {
       if (pose === 'scull') { const s = Math.sin(t * 2.2 + i); uA = -1.0 + 0.4 * s; uB = -0.9 + 0.4 * s; eA = eB = -0.7 + 0.3 * s; sA = sB = -0.12; lean = 0.14 + 0.12 * s; tA = 0.25; tB = -0.2; kA = 0.3; kB = 0.1; }
       if (pose === 'sit') { tA = tB = -1.5; kA = kB = 1.45; y = -0.42; uA = uB = -0.5; eA = eB = -0.9; sA = sB = -0.05; }
       // 过渡：手臂、前倾和站坐姿势的腿逐帧向目标靠；刚出现的人直接取目标值，不从零滑过来
-      tg[0] = uA; tg[1] = uB; tg[2] = eA; tg[3] = eB; tg[4] = sA; tg[5] = sB; tg[6] = lean; tg[7] = tA; tg[8] = tB; tg[9] = kA; tg[10] = kB; tg[11] = y; tg[12] = walking ? 1 : 0;
+      tg[0] = uA; tg[1] = uB; tg[2] = eA; tg[3] = eB; tg[4] = sA; tg[5] = sB; tg[6] = lean; tg[7] = tA; tg[8] = tB; tg[9] = kA; tg[10] = kB; tg[11] = y; tg[12] = walking ? 1 : 0; tg[13] = fold;
       const o = i * NP;
       if (!seen[i]) { for (let k = 0; k < NP; k++) sm[o + k] = tg[k]; seen[i] = 1; }
-      else { for (let k = 0; k < 12; k++) sm[o + k] += (tg[k] - sm[o + k]) * kp; sm[o + 12] += (tg[12] - sm[o + 12]) * kw; if (Math.abs(tg[12] - sm[o + 12]) < 0.004) sm[o + 12] = tg[12]; }
+      else { for (let k = 0; k < 12; k++) sm[o + k] += (tg[k] - sm[o + k]) * kp; sm[o + 13] += (tg[13] - sm[o + 13]) * kp; sm[o + 12] += (tg[12] - sm[o + 12]) * kw; if (Math.abs(tg[12] - sm[o + 12]) < 0.004) sm[o + 12] = tg[12]; }
       uA = sm[o]; uB = sm[o + 1]; eA = sm[o + 2]; eB = sm[o + 3]; sA = sm[o + 4]; sB = sm[o + 5]; lean = sm[o + 6]; tA = sm[o + 7]; tB = sm[o + 8]; kA = sm[o + 9]; kB = sm[o + 10]; y = sm[o + 11];
-      const wk = sm[o + 12];
+      const wk = sm[o + 12]; fold = sm[o + 13];
       if (wk > 0) {
         // 腿：脚的位置由步态给出（着地时钉在地上），再反解出大腿和膝盖的角度，所以不会打滑。
         // 走着的时候腿不做平滑（一平滑脚就滑）；只在起步、停步的零点几秒里和站姿混一下
@@ -166,9 +166,9 @@ export function createPeople(scene, sim, opts = {}) {
       if (gown) { _e.set(pose === 'sit' ? -0.9 : walking ? 0.03 : 0, 0, 0); _q.setFromEuler(_e); put(M.skirt, i, 0, 1.02, 0, _q, 0.37 * girth, pose === 'sit' ? 0.6 : 0.84, 0.31 * girth); }
       else hide(M.skirt, i);
       // 手臂与手
-      const slv = gown ? 1.5 : 1;
+      const slv = gown ? 1.22 : 1;
       for (const j of [0, 1]) {
-        limb(M.upper, M.fore, i * 2 + j, j ? -0.235 : 0.235, 1.4, 0, j ? uB : uA, (j ? -1 : 1) * (j ? sB : sA), j ? eB : eA, 0.28, 0.26, 0.12 * slv, 0.1 * slv);
+        limb(M.upper, M.fore, i * 2 + j, j ? -0.228 : 0.228, 1.378, 0, j ? uB : uA, (j ? -1 : 1) * (j ? sB : sA), j ? eB : eA, 0.28, 0.26, 0.12 * slv, 0.1 * slv, (j ? 0.95 : -0.95) * fold);
         put(M.hand, i * 2 + j, _end.x, _end.y, _end.z, ID, 0.045, 0.055, 0.045);
       }
       // 头、头发、眼睛

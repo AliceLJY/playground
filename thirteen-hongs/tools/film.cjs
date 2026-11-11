@@ -16,12 +16,13 @@ fs.mkdirSync(path.join(out, 'shots'), { recursive: true });
 
 // ---- 镜头表。cam 在页面里执行：u 是本镜进度 0–1，t 是本镜秒数；返回机位 p、注视点 l、视场 fov ----
 const SHOTS = [
-  { name: 'aerial', dur: 7, title: ['十三行江岸', '约 1805 年 · 广州商馆区江岸'], sub: '全部由代码生成，没有模型和贴图' },
+  { name: 'aerial', dur: 7, title: ['十三行江岸', '约 1805 年 · 广州商馆区江岸'], sub: '全部由代码生成，没有模型和图片素材' },
   { name: 'tea', dur: 8, sub: '江上：运茶的西瓜扁进港' },
   { name: 'walk', dur: 8.5, sub: '第一人称走上岸' },
   { name: 'sedan', dur: 6.5, sub: '跟着一顶轿子走一段' },
+  { name: 'faces', dur: 6.5, sub: '近看：脸和衣服是开场时现画的' },
   { name: 'handover', dur: 9, skip: 14.5, sub: '茶箱落艇：一箱箱递上去' },
-  { name: 'lane', dur: 7, sub: '走进靖远街' },
+  { name: 'lane', dur: 7, skip: 5, sub: '走进靖远街' },
   { name: 'night', dur: 10.5, tod: [[0.6, 'dusk'], [5.0, 'night']], sub: '天色从黄昏到入夜', link: [6.6, '浏览器打开就能走进去\naliceljy.github.io/playground'] },
 ];
 function installFilm() {   // 在页面里执行一次
@@ -38,6 +39,11 @@ function installFilm() {   // 在页面里执行一次
       return { p: [x, 1.62 + Math.sin(t * 9.3) * 0.022, z], l: [ax + (40 - ax) * 0.35 * k, 1.6 + 2.6 * k, az + (-62 - az) * 0.45 * k], fov: 62 };
     },
     sedan(u) { const b = H.where('sedan'), fx = Math.sin(b.h), fz = Math.cos(b.h), k = ease(u), side = 7.4 - 1.2 * k, f = 3.6 - 1.8 * k; return { p: [b.x + fx * f - fz * side, 1.6, b.z + fz * f + fx * side], l: [b.x, 1.3, b.z], fov: 44 }; },
+    faces(u, t) {   // 在一位行商斜前方倒退着走，看脸和衣服；朝向做了平滑，他拐弯时镜头不甩
+      const b = H.where('merchant'); let d = b.h - (state.fh ?? b.h); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; state.fh = (state.fh ?? b.h) + d * 0.04;
+      const fx = Math.sin(state.fh), fz = Math.cos(state.fh), k = ease(u), f = 2.7 - 0.8 * k, side = 1.3 - 0.5 * k;
+      return { p: [b.x + fx * f - fz * side, b.y + 0.02, b.z + fz * f + fx * side], l: [b.x, b.y - 0.3, b.z], fov: 36 };
+    },
     handover(u) { const k = ease(u); return { p: mix([34.9, 2.0, 8.2], [36.0, 1.7, 10.2], k), l: [41.5, 0.95, 15.4], fov: 40 }; },
     lane(u, t) { const x = C.LANES[0].cx, z = -63.5 - t * 2.3, sway = Math.sin(t * 0.9) * 2.6; if (!C.walkable(x, z, 0.3)) state.blocked = (state.blocked || 0) + 1; return { p: [x, 1.62 + Math.sin(t * 8.4) * 0.02, z], l: [x + sway, 1.75, z - 9], fov: 64 }; },
     night(u) { const k = ease(u); return { p: mix([-38, 3.6, 24], [-74, 15, 74], k), l: mix([-22, 6, -55], [-34, 7, -46], k), fov: 47 }; },
