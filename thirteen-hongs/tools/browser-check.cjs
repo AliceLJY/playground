@@ -18,10 +18,17 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   const white = await page.evaluate(() => window.__hong.uncoloured());
   check('人物没有漏上色的部件（都不是默认的纯白）', white.length === 0, white.join(',') || '全部上了色');
   check('桌面 GPU 不是软渲染', !/SwiftShader/i.test(await page.evaluate(() => window.__hong.gpu())), await page.evaluate(() => window.__hong.gpu()));
+  // 脸和衣服是画出来的图集：真的画了东西（不是一张白纸），八张脸八种衣型都有人用
+  const skins = await page.evaluate(() => { const P = window.__hong.people, ink = cv => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let n = 0, tot = 0; for (let i = 0; i < d.length; i += 4 * 37) { tot++; if (d[i] < 235 || d[i + 1] < 235 || d[i + 2] < 235) n++; } return n / tot; }; return { ...P.variety(), faceInk: ink(P.atlases.faces.canvas), clothInk: ink(P.atlases.cloth.canvas) }; });
+  check('脸图集和衣服图集都画了东西', skins.faceInk > 0.15 && skins.faceInk < 0.9 && skins.clothInk > 0.05 && skins.clothInk < 0.95, `脸 ${(skins.faceInk * 100).toFixed(0)}% 衣 ${(skins.clothInk * 100).toFixed(0)}% 非白 · 图集 ${skins.atlas.join('×')}`);
+  check('八张脸、八种衣型都有人用', skins.faces === 8 && skins.cloth === 8, `${skins.faces} 张脸 ${skins.cloth} 种衣型`);
+  check('俯瞰时细的那档头一个不画', skins.near === 0, String(skins.near));
   await page.screenshot({ path: path.join(out, 'desk-intro.png') });
   await page.click('#goWalk'); await page.waitForTimeout(400);
   const a = await snap(page);
   check('点「走进去」进入步行', a.mode === 'walk');
+  const nearWalk = await page.evaluate(() => window.__hong.variety().near);
+  check('步行时身边的人换成细的头', nearWalk > 0 && nearWalk < 400, String(nearWalk));
   const tw = Date.now(); await page.keyboard.down('w');
   for (let i = 0; i < 6; i++) { await page.waitForTimeout(500); await page.screenshot({ path: path.join(out, `desk-open-${i}.png`) }); }
   await page.keyboard.up('w'); const secs = (Date.now() - tw) / 1000;

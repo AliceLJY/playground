@@ -2,7 +2,7 @@
 // 浏览器没有 WebGPU 时，WebGPURenderer 会自己退回 WebGL2 后端，HUD 上会写明。
 import * as THREE from 'three';
 import { noWebGL } from './nogl.js';
-import { Fn, float, vec2, vec3, floor, fract, abs, sin, dot, mix, smoothstep, step, select, mod, max, pow, clamp, normalize, reflect, length, attribute, positionLocal, normalLocal, positionWorld, cameraPosition, uniform, texture, screenUV } from 'three/tsl';
+import { Fn, float, vec2, vec3, floor, fract, abs, sin, dot, mix, smoothstep, step, select, mod, max, pow, clamp, normalize, reflect, length, attribute, positionLocal, normalLocal, positionWorld, cameraPosition, uniform, texture, screenUV, uv, exp } from 'three/tsl';
 
 export let backend = 'WebGPU';
 let adapterName = 'unknown';
@@ -48,7 +48,7 @@ export function makeSky(SUN, FOG) {
   return mesh;
 }
 
-export function makeWater(SUN, FOG, y) {
+export function makeWater(SUN, FOG, y, DEN) {
   const uT = uniform(0), sun = uniform(SUN), fog = uniform(FOG), deep = uniform(new THREE.Color('#77845f')), sky = uniform(new THREE.Color('#cdd6d2'));
   const hf = Fn(([p]) => fbm(p.mul(0.3).add(vec2(uT.mul(0.22), uT.mul(0.09)))).mul(2.6)
     .add(fbm(p.mul(1.1).sub(vec2(uT.mul(0.35), uT.mul(0.1)))).mul(0.8))
@@ -64,7 +64,7 @@ export function makeWater(SUN, FOG, y) {
   let c = mix(deep, mix(sky, refl, use), clamp(fr.mul(0.85).add(0.16).add(use.mul(0.1)), 0, 1));
   c = c.add(vec3(1, 0.94, 0.78).mul(pow(sp, 160).mul(1.6).add(pow(sp, 24).mul(0.18))));
   c = c.add(hx.add(hz).mul(0.02).mul(amp));
-  c = mix(c, fog, smoothstep(140, 1500, dist));
+  c = mix(c, fog, float(1).sub(exp(dist.mul(DEN).mul(dist.mul(DEN)).negate())));
   const m = new THREE.MeshBasicNodeMaterial({ fog: false }); m.colorNode = c;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(9000, 5200), m);
   mesh.rotation.x = -Math.PI / 2; mesh.position.set(0, y, 900);
@@ -98,5 +98,13 @@ export function detail(src) {
   const k0 = float(0.93).add(grain.mul(0.12));
   const k = select(m.equal(1), k1, select(m.equal(2), k2, select(m.equal(3), k3, select(m.equal(4), k4, k0))));
   mat.colorNode = vec3(k);
+  return mat;
+}
+
+// 图集材质：与 gfx.js 的 atlasMat() 同一套做法，用节点写
+export function atlasMat(tex, mask, cols, rows) {
+  const mat = new THREE.MeshLambertNodeMaterial();
+  const p = uv().add(attribute('aCell', 'vec2')).mul(vec2(1 / cols, 1 / rows));
+  mat.colorNode = texture(tex, p).rgb.mul(mix(vec3(1, 1, 1), attribute('aTint', 'vec3'), texture(mask, p).r));
   return mat;
 }
