@@ -6,7 +6,7 @@ const fs = require('fs'), path = require('path');
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
   const report = [];
-  const all = ['card', 'pavilion', 'steps', 'veranda', 'inside', 'water', 'back', 'islet', 'bridge', 'far', 'gate', 'court', 'east', 'north', 'top'];
+  const all = ['card', 'hall', 'gable', 'veranda', 'inside', 'pond', 'bridge', 'onbridge', 'oct', 'pavilion', 'rock', 'door', 'alley', 'back', 'court', 'bonsai', 'top'];
   for (const [vw, vh, tag, dpr] of [[1440, 810, 'desk', 1], [390, 664, 'phone', 2]]) {
     if (dev && dev !== tag) continue;
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: dpr, hasTouch: tag === 'phone', isMobile: tag === 'phone' });

@@ -2,22 +2,26 @@
 
 A walkable scene built from a single picture. [Open it](https://aliceljy.github.io/playground/lingnan-garden/)
 
-An AI-generated illustration of a Cantonese garden came first: a waterside pavilion, a wok-ear gable wall with a moon gate, a flagstone path, bonsai, a lotus pond, a stone arch bridge, a hexagonal pavilion on a rockery, a banyan and a kapok tree. Everything visible in that picture was then listed and rebuilt in code with Three.js as a 3D scene you can walk through in first person. The picture is only a reference; it is not used as a texture or backdrop. The page can show it next to the scene for comparison.
+The work started with reading: what sets Lingnan (Cantonese) gardens apart from gardens elsewhere, with sources for each point in [facts.md](facts.md) (in Chinese). A prompt written from those notes produced an AI illustration, and everything visible in that picture was then listed and rebuilt in code with Three.js as a 3D scene you can walk through in first person. The picture is only a reference; it is not used as a texture. "Compare" in the page shows it next to the scene.
 
-This is not a real garden, and the reference picture is AI-generated.
+This is not a real garden. It is an illustrative corner assembled from typical features of Yuyin Shanfang, Qinghui Yuan and Ke Yuan, and the reference picture is AI-generated.
+
+The first version followed a different picture whose prompt asked for white walls, a naturally curved pond, a stone arch bridge, a zigzag walkway and pale rockery, which is the Jiangnan manner rather than the Lingnan one, so the scene was rebuilt.
 
 ## Controls
 
 - Postcard view: the same camera position as the reference picture.
 - Walk: WASD to move, drag to look, Shift to walk faster. On a phone, a joystick appears under your left thumb; drag anywhere else to look.
-- Tour: an automatic walk along the path, up the steps, through the pavilion, along the covered walkway, over the bridge and back. Any input takes over.
-- Overview: the whole garden from above.
+- Tour: an automatic walk out through the door in the north wall, along the alley and behind the hall, up to the covered walkway, into the hall, over the covered bridge, into the octagonal pavilion and back. Any input takes over.
+- Overview: the whole courtyard from above.
 
 ## What is in it
 
-You can enter the pavilion; the coloured window panes show from inside as well. The covered walkway leaves the veranda, lands on a rock in the pond, and splits toward the north bank and over the bridge to the east bank. Behind the moon gate is a small bamboo court. The water reflects the scene; lotus leaves, lanterns and banana leaves move, koi swim, kapok petals fall. Sound is synthesised in the browser.
+A small courtyard enclosed by grey brick walls on granite bases. On the north side an open hall faces a rectangular, stone-lined lotus pond: grey tiled roof, a plaster ridge and gable panels with painted lime relief, eight Manchurian windows (hexagonal lattice with blue and white glass and a red flower), a band of oyster-shell panes above them, and a firecracker vine at the west end of the veranda. A covered walkway leaves the veranda and turns south over a covered bridge; the channel under its arch leads to an octagonal pool with an octagonal pavilion in the middle. Against the east wall stands a rockery of Ying stone with a thin waterfall. In the yard: a brick planter with three elm bonsai, a stone table and drum stools, a large jar, two yellow wax stones and a lychee tree in fruit; a kapok leans in over the wall and a grey brick tower shows beyond.
 
-Parts hidden or outside the frame of the picture (the room, the bamboo court, both far banks, the south gate) were filled in so that a full loop is possible. The item-by-item comparison is in [SPEC.md](SPEC.md).
+You can enter the hall and look up at the open roof frame. The water reflects the scene; lotus and banana leaves move, koi swim, kapok petals fall. Sound is synthesised in the browser.
+
+Parts hidden or outside the frame of the picture (the room, the alley, the yard behind the hall, the slab bridge to the pavilion, the south gate) were filled in with the same researched features so that a full loop is possible. The item-by-item comparison and a checklist of Lingnan features (present, deliberately left out, or illustrative only) are in [SPEC.md](SPEC.md) (in Chinese).
 
 ## Run locally
 
@@ -38,3 +42,9 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8973/di
 ## Licence
 
 Code: same as the repository. The bundle includes Three.js (MIT); its licence text is in a comment at the top of the generated file. `ref/start.jpg` is an AI-generated reference image.
+
+## Who might open this, and what is AI-made
+
+Anyone curious about how a Cantonese garden differs from a Suzhou one, and happy to wander for two or three minutes instead of reading about it.
+
+AI-generated or AI-assisted: the reference picture (`ref/start.jpg`) is AI-generated; the scene code, the procedural textures and this README were written with AI assistance; sound is synthesised in the browser. No model files, photographs or recordings are used. Sources for the garden features are in [facts.md](facts.md); items marked 示意 (illustrative) there were not confirmed.

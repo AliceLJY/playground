@@ -5,9 +5,9 @@ import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometr
 export function rng(seed) { let s = seed >>> 0; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
 export const lerp = (a, b, t) => a + (b - a) * t;
 
-function canvasTex(size, draw, repeat = true) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  draw(c.getContext('2d'), size);
+function canvasTex(size, draw, repeat = true, hMul = 1) {
+  const c = document.createElement('canvas'); c.width = size; c.height = size * hMul;
+  draw(c.getContext('2d'), size, size * hMul);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
@@ -29,17 +29,17 @@ export function makeTextures() {
   T.granite = canvasTex(256, (g, s) => speckle(g, s, '#cfcbc0', 2600, ['#b3afa5', '#e2ded2', '#a39f96', '#d6cfbd'], 0.8, 3.2, 3));
   T.grass = canvasTex(256, (g, s) => speckle(g, s, '#6aa84c', 3200, ['#5c9a40', '#7ab658', '#629f45', '#88c064'], 1, 5, 5));
   T.plaster = canvasTex(256, (g, s) => speckle(g, s, '#f4efe3', 500, ['#e9e2d2', '#fbf8f0', '#e3dccb'], 4, 16, 7));
-  T.wood = canvasTex(128, (g, s) => { g.fillStyle = '#93362a'; g.fillRect(0, 0, s, s); const R = rng(9); for (let i = 0; i < 90; i++) { g.fillStyle = R() < 0.5 ? 'rgba(60,14,12,.25)' : 'rgba(170,70,50,.18)'; g.fillRect(0, R() * s, s, 1 + R() * 2); } });
+  T.wood = canvasTex(128, (g, s) => { g.fillStyle = '#6b3125'; g.fillRect(0, 0, s, s); const R = rng(9); for (let i = 0; i < 90; i++) { g.fillStyle = R() < 0.5 ? 'rgba(60,14,12,.25)' : 'rgba(170,70,50,.18)'; g.fillRect(0, R() * s, s, 1 + R() * 2); } });
   T.plank = canvasTex(128, (g, s) => { g.fillStyle = '#8a5a3a'; g.fillRect(0, 0, s, s); const R = rng(11); for (let i = 0; i < 80; i++) { g.fillStyle = R() < 0.5 ? 'rgba(50,28,14,.25)' : 'rgba(200,150,100,.16)'; g.fillRect(0, R() * s, s, 1 + R() * 2); } g.fillStyle = 'rgba(40,20,10,.6)'; for (let y = 0; y < s; y += 32) g.fillRect(0, y, s, 2); });
   // 挂落与栏杆的回纹格心（透明底）
   T.lattice = canvasTex(128, (g, s) => {
-    g.clearRect(0, 0, s, s); g.strokeStyle = '#7e2a20'; g.lineWidth = 6; g.lineJoin = 'miter';
+    g.clearRect(0, 0, s, s); g.strokeStyle = '#4a2318'; g.lineWidth = 6; g.lineJoin = 'miter';
     g.strokeRect(3, 3, s - 6, s - 6);
     g.beginPath(); g.moveTo(24, 24); g.lineTo(104, 24); g.lineTo(104, 104); g.lineTo(24, 104); g.lineTo(24, 46); g.lineTo(82, 46); g.lineTo(82, 82); g.lineTo(46, 82); g.lineTo(46, 64); g.stroke();
     g.beginPath(); g.moveTo(64, 3); g.lineTo(64, 24); g.moveTo(64, 104); g.lineTo(64, 125); g.moveTo(3, 64); g.lineTo(24, 64); g.moveTo(104, 64); g.lineTo(125, 64); g.stroke();
   });
   T.rail = canvasTex(128, (g, s) => {
-    g.clearRect(0, 0, s, s); g.strokeStyle = '#8e3226'; g.lineWidth = 8;
+    g.clearRect(0, 0, s, s); g.strokeStyle = '#5a2a1e'; g.lineWidth = 8;
     g.strokeRect(4, 4, s - 8, s - 8);
     for (let x = 26; x < s; x += 25) { g.beginPath(); g.moveTo(x, 4); g.lineTo(x, s - 4); g.stroke(); }
     g.beginPath(); g.moveTo(4, 40); g.lineTo(s - 4, 40); g.stroke();
@@ -60,6 +60,57 @@ export function makeTextures() {
     for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) { const dx = (h(x + 1, y) - h(x - 1, y)) * 3.2, dy = (h(x, y + 1) - h(x, y - 1)) * 3.2, l = Math.hypot(dx, dy, 1), i = (y * s + x) * 4; img.data[i] = (-dx / l * 0.5 + 0.5) * 255; img.data[i + 1] = (-dy / l * 0.5 + 0.5) * 255; img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[i + 3] = 255; }
     g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
   })();
+  // 青砖：顺砖错缝，灰蓝色，浅灰缝
+  T.brick = canvasTex(256, (g, s) => {
+    const R = rng(201); g.fillStyle = '#b9bcbb'; g.fillRect(0, 0, s, s);
+    const bw = 64, bh = 16;
+    for (let row = 0; row < s / bh; row++) for (let col = -1; col < s / bw + 1; col++) {
+      const x = col * bw + (row % 2 ? bw / 2 : 0), y = row * bh, v = 104 + R() * 34;
+      g.fillStyle = `rgb(${v - 6},${v + 2},${v + 12})`; g.fillRect(x + 1.5, y + 1.5, bw - 3, bh - 3);
+      if (R() < 0.3) { g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(x + 4, y + 3, bw - 20, 3); }
+    }
+  });
+  // 麻石条板铺地：长条石错缝，细缝
+  T.paving = canvasTex(512, (g, s) => {
+    const R = rng(203); g.fillStyle = '#8f8a7e'; g.fillRect(0, 0, s, s);
+    const rows = 8, rh = s / rows;
+    for (let r = 0; r < rows; r++) { let x = -R() * 120; while (x < s) { const w = 110 + R() * 90, v = 196 + R() * 30; g.fillStyle = `rgb(${v},${v - 4},${v - 14})`; g.fillRect(x + 1.5, r * rh + 1.5, w - 3, rh - 3); for (let k = 0; k < 60; k++) { g.fillStyle = R() < 0.5 ? 'rgba(120,112,100,.16)' : 'rgba(255,255,250,.2)'; g.fillRect(x + 3 + R() * (w - 6), r * rh + 3 + R() * (rh - 6), 1.5 + R() * 2.5, 1.5 + R() * 2); } x += w; } }
+  });
+  // 满洲窗：细密六角木格嵌蓝白两色玻璃，中间一朵红心白瓣的花（形制见 facts.md 第 5 条）
+  T.manchu = canvasTex(256, (g, s, sh) => {
+    const W = s, H = sh; g.fillStyle = '#f2f4f7'; g.fillRect(0, 0, W, H);
+    const hr = 21, hw = hr * Math.sqrt(3);
+    const hex = (cx, cy, r) => { g.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; k ? g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r) : g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.closePath(); };
+    for (let row = -1; row < H / (hr * 1.5) + 1; row++) for (let col = -1; col < W / hw + 1; col++) {
+      const cx = col * hw + (row % 2 ? hw / 2 : 0), cy = row * hr * 1.5;
+      const white = row % 2 === 0 ? ((col % 2) + 2) % 2 === 0 && ((row / 2 + col / 2) % 2 + 2) % 2 === 0 : false;
+      g.fillStyle = white ? '#f4f6f8' : (row + col) % 2 ? '#2f63c2' : '#3b72d0'; hex(cx, cy, hr); g.fill();
+      g.strokeStyle = '#3a2016'; g.lineWidth = 3; g.stroke();
+    }
+    // 中央花饰
+    g.fillStyle = '#fbfbf8'; g.beginPath(); g.arc(W / 2, H / 2, 62, 0, 7); g.fill(); g.strokeStyle = '#3a2016'; g.lineWidth = 4; g.stroke();
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(W / 2 + Math.cos(a) * 34, H / 2 + Math.sin(a) * 34, 20, 13, a, 0, 7); g.fill(); g.strokeStyle = '#9aa7bd'; g.lineWidth = 1.5; g.stroke(); }
+    g.fillStyle = '#d2281e'; g.beginPath(); g.arc(W / 2, H / 2, 22, 0, 7); g.fill(); g.fillStyle = '#f0c23a'; g.beginPath(); g.arc(W / 2, H / 2, 6, 0, 7); g.fill();
+    g.strokeStyle = '#3a2016'; g.lineWidth = 10; g.strokeRect(5, 5, W - 10, H - 10);
+  }, false, 2);
+  // 蚝壳窗横披：小方格里一片片磨薄的蚝壳，珠白半透
+  T.oyster = canvasTex(128, (g, s) => {
+    const R = rng(207); g.fillStyle = '#3a2016'; g.fillRect(0, 0, s, s);
+    const n = 4, c = s / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const v = 226 + R() * 22; g.fillStyle = `rgb(${v},${v - 4},${v - 16})`; g.fillRect(i * c + 3, j * c + 3, c - 6, c - 6); g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.ellipse(i * c + c * (0.35 + R() * 0.3), j * c + c * (0.35 + R() * 0.3), c * 0.22, c * 0.12, R() * 3, 0, 7); g.fill(); g.strokeStyle = 'rgba(170,160,140,.5)'; g.lineWidth = 1; g.beginPath(); g.arc(i * c + c / 2, j * c + c * 0.9, c * 0.5, 3.6, 5.8); g.stroke(); }
+  });
+  // 灰塑彩描：米白灰底上的花鸟（屋脊和山墙顶上那一小条）
+  T.relief = canvasTex(256, (g, s) => {
+    g.fillStyle = '#e9e1cc'; g.fillRect(0, 0, s, s); const R = rng(209);
+    g.strokeStyle = '#8f8a78'; g.lineWidth = 6; g.strokeRect(3, 3, s - 6, s - 6);
+    g.strokeStyle = '#4f8a4a'; g.lineWidth = 5; g.beginPath(); g.moveTo(10, s * 0.62); g.bezierCurveTo(s * 0.3, s * 0.3, s * 0.6, s * 0.8, s - 10, s * 0.42); g.stroke();
+    for (const [fx, fy, col] of [[0.22, 0.46, '#c9423a'], [0.5, 0.6, '#d45a3c'], [0.78, 0.44, '#c9423a']]) { for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; g.fillStyle = col; g.beginPath(); g.ellipse(fx * s + Math.cos(a) * 17, fy * s + Math.sin(a) * 17, 13, 8, a, 0, 7); g.fill(); } g.fillStyle = '#e8b83a'; g.beginPath(); g.arc(fx * s, fy * s, 7, 0, 7); g.fill(); }
+    for (const [lx, ly] of [[0.35, 0.36], [0.63, 0.74], [0.1, 0.7], [0.9, 0.62]]) { g.fillStyle = '#5c9a52'; g.beginPath(); g.ellipse(lx * s, ly * s, 16, 7, R() * 3, 0, 7); g.fill(); }
+    // 一只蓝鸟
+    g.fillStyle = '#3566b8'; g.beginPath(); g.ellipse(s * 0.62, s * 0.3, 20, 10, -0.3, 0, 7); g.fill(); g.beginPath(); g.moveTo(s * 0.55, s * 0.3); g.lineTo(s * 0.42, s * 0.22); g.lineTo(s * 0.5, s * 0.36); g.fill(); g.fillStyle = '#e8b83a'; g.beginPath(); g.moveTo(s * 0.7, s * 0.27); g.lineTo(s * 0.76, s * 0.29); g.lineTo(s * 0.7, s * 0.31); g.fill();
+  });
+  // 跌水：竖向的白丝
+  T.fall = canvasTex(64, (g, s) => { g.clearRect(0, 0, s, s); const R = rng(211); for (let i = 0; i < 46; i++) { g.fillStyle = `rgba(255,255,255,${0.25 + R() * 0.6})`; g.fillRect(R() * s, R() * s, 1 + R() * 2.5, 8 + R() * 26); } });
   return T;
 }
 
@@ -81,6 +132,12 @@ export function makeMaterials(T) {
     leaf: std({ color: '#ffffff', roughness: 0.9 }), leafSmooth: std({ color: '#ffffff', roughness: 0.8, side: THREE.DoubleSide }),
     lotusLeaf: std({ color: '#ffffff', roughness: 0.75, side: THREE.DoubleSide }), petal: std({ color: '#ffffff', roughness: 0.7, side: THREE.DoubleSide }),
     bamboo: std({ map: T.bamboo, roughness: 0.5 }), white: std({ color: '#ffffff', roughness: 0.9 }), dark: std({ color: '#3a2a22', roughness: 0.9 }),
+    brick: std({ map: T.brick, roughness: 0.95 }), paving: std({ map: T.paving, color: '#d6cbb8', roughness: 0.95 }),
+    manchu: std({ map: T.manchu, emissive: '#ffffff', emissiveMap: T.manchu, emissiveIntensity: 0.32, roughness: 0.25, side: THREE.DoubleSide }),
+    oyster: std({ map: T.oyster, emissive: '#fff6dd', emissiveMap: T.oyster, emissiveIntensity: 0.25, roughness: 0.3, side: THREE.DoubleSide }),
+    relief: std({ map: T.relief, roughness: 0.9 }), lime: std({ color: '#d9d2c0', roughness: 0.95 }), limeDark: std({ color: '#8f8f8a', roughness: 0.9 }),
+    ying: std({ color: '#ffffff', roughness: 1, flatShading: true }), wax: std({ color: '#e9b04a', roughness: 0.35 }),
+    tileDark: std({ color: '#565b63', roughness: 0.8 }),
     koi: std({ map: T.koi, roughness: 0.4 }), teapot: std({ color: '#8a4a2e', roughness: 0.35 }), cup: std({ color: '#efe6d2', roughness: 0.4 }),
   };
 }

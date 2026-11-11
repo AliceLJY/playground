@@ -1,4 +1,4 @@
-// 真实输入检查：正常入口进、键盘与触屏各走一段、撞水撞墙、上踏步、明信片机位、自动逛一圈。
+// 真实输入检查：正常入口进、键盘与触屏各走一段、撞水撞墙撞石栏、上踏步、进八角亭、明信片机位、自动逛一圈。
 // 用法：NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <页面地址> <输出目录>
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
@@ -36,29 +36,35 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('按住 W 的步速在 2.0–2.8 米每秒', moved / secs > 2.0 && moved / secs < 2.8, `${moved.toFixed(2)} m / ${secs.toFixed(2)} s`);
   await page.mouse.move(700, 400); await page.mouse.down(); await page.mouse.move(900, 420, { steps: 8 }); await page.mouse.up();
   const c = await snap(page); check('拖动鼠标转头', Math.abs(c.yaw - b.yaw) > 0.5, (c.yaw - b.yaw).toFixed(2) + ' rad');
-  // 朝荷塘走：停在岸上
-  await put(page, 2.0, 11.6, 0); await hold(page, 'w', 2500); s = await snap(page);
-  check('朝荷塘走停在岸上', !(await page.evaluate(([x, z]) => window.__garden.C.inPond(x, z), [s.x, s.z])) && s.z > 10.2 && s.z < 11.4, `z=${s.z}`);
+  // 朝长方荷池走：停在岸上
+  const K = await page.evaluate(() => { const C = window.__garden.C; return { z1: C.RECT.z1, link: C.LINK_Z, door: (C.DOOR.x0 + C.DOOR.x1) / 2, deck: C.DECK_Y, zWall: C.PAV.zWall }; });
+  await put(page, 3.0, 9.4, 0); await hold(page, 'w', 2500); s = await snap(page);
+  check('朝荷池走停在岸上', !(await page.evaluate(([x, z]) => window.__garden.C.inPond(x, z), [s.x, s.z])) && s.z > K.z1 && s.z < K.z1 + 1.0, `z=${s.z}`);
   await page.screenshot({ path: path.join(out, 'desk-shore.png') });
-  // 顶着月洞门旁的白墙走：过不去；对准门洞：过得去
-  const G = await page.evaluate(() => ({ ...window.__garden.C.GATE, wz: window.__garden.C.WALL_Z }));
-  await put(page, G.x - 3, 3.6, 0); await hold(page, 'w', 2200); s = await snap(page);
-  check('顶着白墙走不过去', s.z > G.wz + 0.3, `z=${s.z}`);
-  await put(page, G.x, 3.6, 0); await hold(page, 'w', 2600); s = await snap(page);
-  check('对准月洞门走得过去', s.z < G.wz - 0.8 && s.place === '月洞门内 · 竹院', `z=${s.z} ${s.place}`);
-  // 上踏步进前廊，再进屋
-  const foot = await page.evaluate(() => { const C = window.__garden.C; return [C.pavToWorld(-3.27, C.PAV.zFront + C.PAV.stepsLen + 0.8), C.pavToWorld(-3.0, 1.5), C.PAV.rot]; });
-  await put(page, foot[0].x, foot[0].z, foot[2]); await hold(page, 'w', 1500); s = await snap(page);
-  check('走踏步上到前廊', s.place === '水榭 · 前廊' && Math.abs(s.y - 0.85) < 0.06, `${s.place} y=${s.y}`);
-  await put(page, foot[1].x, foot[1].z, foot[2]); await hold(page, 'w', 1100); s = await snap(page);
-  check('从门洞进到屋里', s.place === '水榭 · 屋内', s.place);
+  // 顶着庭院北面的砖墙走：过不去；对准门：过得去
+  await put(page, -11.2, 0.6, 0); await hold(page, 'w', 2200); s = await snap(page);
+  check('顶着砖墙走不过去', s.z > K.link + 0.3, `z=${s.z}`);
+  await put(page, K.door, 0.6, 0); await hold(page, 'w', 2600); s = await snap(page);
+  check('对准门走得进窄巷', s.z < K.link - 0.8 && s.place === '窄巷', `z=${s.z} ${s.place}`);
+  await page.screenshot({ path: path.join(out, 'desk-alley.png') });
+  // 走踏步上檐廊，再从门洞进屋
+  await put(page, -7.8, -1.5, -Math.PI / 2); await hold(page, 'w', 1500); s = await snap(page);
+  check('走踏步上到檐廊', s.place === '敞厅 · 檐廊' && Math.abs(s.y - K.deck) < 0.06, `${s.place} y=${s.y}`);
+  await put(page, -4.57, -1.2, 0); await hold(page, 'w', 1100); s = await snap(page);
+  check('从门洞进到屋里', s.place === '敞厅 · 屋内', s.place);
   await page.screenshot({ path: path.join(out, 'desk-inside.png') });
   await hold(page, 'w', 2500); s = await snap(page);
-  check('屋里顶着后墙走不出去', s.place === '水榭 · 屋内', s.place);
-  // 从草地顶平台侧面：上不去
-  const side = await page.evaluate(() => { const C = window.__garden.C; return C.pavToWorld(-C.PAV.halfL - 1.6, 1.5); });
-  await put(page, side.x, side.z, foot[2] - Math.PI / 2); await hold(page, 'w', 2000); s = await snap(page);
-  check('从草地顶平台侧面上不去', s.y < 0.05, `y=${s.y} ${s.place}`);
+  check('屋里顶着后墙走不出去', s.place === '敞厅 · 屋内', s.place);
+  // 从踏步旁边顶台基侧面：上不去
+  await put(page, -7.2, -0.35, -Math.PI / 2); await hold(page, 'w', 2000); s = await snap(page);
+  check('从踏步旁边顶台基侧面上不去', s.y < 0.05, `y=${s.y} ${s.place}`);
+  // 檐廊上朝荷池走：被石栏拦住，人还在台上
+  await put(page, -1.0, -1.2, Math.PI); await hold(page, 'w', 1800); s = await snap(page);
+  check('檐廊上朝荷池走被石栏拦住', s.z < -0.2 && Math.abs(s.y - K.deck) < 0.06, `z=${s.z} y=${s.y}`);
+  // 石板桥进八角亭
+  await put(page, 11.3, 9.4, 0); await hold(page, 'w', 1700); s = await snap(page);
+  check('走石板桥进到八角亭', s.place === '八角亭', `${s.place} y=${s.y}`);
+  await page.screenshot({ path: path.join(out, 'desk-pavilion.png') });
   // 自动逛一圈：快进到结束，看经过了哪些地方
   await page.click('#bTour'); await page.waitForTimeout(300);
   check('点「带我逛一圈」开始自动走', (await snap(page)).tour === true);
@@ -66,7 +72,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   for (let i = 0; i < 400 && !ended; i++) { const r = await page.evaluate(() => { window.__garden.step(500); return window.__garden.snapshot(); }); places.add(r.place); maxY = Math.max(maxY, r.y); ended = !r.tour; }
   s = await snap(page); const ST = await page.evaluate(() => window.__garden.C.START);
   check('自动逛一圈走完并回到起点附近', ended && Math.hypot(s.x - ST.x, s.z - ST.z) < 0.6, `(${s.x}, ${s.z})`);
-  check('一圈经过屋内、曲廊、石矶、北岸、石拱桥、东岸、石桌', ['水榭 · 屋内', '曲廊', '曲廊 · 石矶', '石拱桥', '东岸竹径', '石桌旁'].every(p => places.has(p)) && [...places].some(p => p === '北岸' || p === '假山下'), [...places].join('、'));
+  check('一圈经过窄巷、屋后、廊子、檐廊、屋内、廊桥、八角亭', ['窄巷', '屋后', '廊子', '敞厅 · 檐廊', '敞厅 · 屋内', '廊桥', '八角亭', '八角池畔'].every(p => places.has(p)), [...places].join('、'));
   check('过桥时脚下到过桥顶高度', maxY > 1.0, maxY.toFixed(2));
   // 自动走的时候拖动只改视线、不打断；按方向键才接手
   await page.click('#bTour'); await page.waitForTimeout(600); const ty0 = await snap(page);
@@ -80,7 +86,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('点「俯瞰」', s.mode === 'top'); await page.screenshot({ path: path.join(out, 'desk-top.png') });
   await page.click('#bCard'); await page.waitForTimeout(2600); s = await snap(page);
   check('桌面明信片机位帧率 ≥ 30', s.fps >= 30, `${s.fps} fps / ${s.calls} 次绘制 / ${s.tris} 三角面`);
-  await page.click('#infoBtn'); check('「说明」写明起始图是 AI 画的', /AI 画/.test(await page.innerText('#info'))); await page.click('#infoClose');
+  await page.click('#infoBtn'); const infoText = await page.innerText('#info'); check('「说明」写明起始图是 AI 画的', /AI 画/.test(infoText)); check('「说明」里有依据一节，分开写查过的和示意的', /依据/.test(infoText) && /示意/.test(infoText) && /余荫山房/.test(infoText)); await page.click('#infoClose');
   check('桌面全程无页面报错', errs.length === 0, errs[0] || '');
   await ctx.close();
 
