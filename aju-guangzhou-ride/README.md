@@ -12,7 +12,7 @@ On touch screens, confirm the departure note before the bicycle starts: it pedal
 
 Click the small map to open the neighbourhood guide. Choose the tea house, court or riverside stop and explicitly start navigation. The bicycle follows connected streets and garden paths, then parks at the destination. You can cancel navigation at any time.
 
-Explore the garden paths and court, ring the bell with Space, visit nearby stops with E, pause with P or Escape, and recover to a road with R. Faster obstacle impacts trigger a fall and automatic remount. Ride into the river and the cat returns to shore. Save a 2880 × 2080 PNG postcard with the photo button.
+Explore the garden paths and court, ring the bell with Space, visit nearby stops with E, pause with P or Escape, and recover to a road with R. Faster obstacle impacts trigger a fall and automatic remount. If the front wheel is still against the obstacle while ↑ is held or auto-forward is on, the bike turns on the spot to the nearest clear bearing and rides on, so it never stays pressed against a wall. Ride into the river and the cat returns to shore. Save a 2880 × 2080 PNG postcard with the photo button.
 
 The calico challenge is optional, with a countdown and five ordered checkpoints. You can leave the race and continue exploring.
 

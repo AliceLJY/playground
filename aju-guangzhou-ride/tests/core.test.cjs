@@ -54,3 +54,33 @@ test('fall after leaving a finished race does not reopen the old result',()=>{
 test('navigation defaults off and only explicit navigation follows road bends',()=>{const s=C.create();assert.equal(s.assist,false);C.start(s);s.encountered=true;const p=C.at(C.MAIN,C.END*.72);Object.assign(s,{x:p.x,z:p.z,heading:p.heading});const heading=s.heading;seconds(s,{},2);assert.equal(s.heading,heading);s.assist=true;seconds(s,{},2);assert.notEqual(s.heading,heading);});
 test('water is a physical surface and recovery preserves heading and stops automatic pedalling',()=>{const s=riding();s.assist=false;s.x=50;s.z=C.SHORE-2;s.heading=Math.PI;s.speed=13;seconds(s,{forward:true},.3);assert.equal(s.phase,'crash');assert.equal(s.crash.water,true);assert.equal(s.cruising,false);const h=s.heading;seconds(s,{},4);assert.equal(s.phase,'ride');assert.equal(s.heading,h);assert(s.z<C.SHORE-2);assert.equal(s.speed,0);});
 test('court and garden paths have traversable ground instead of projected road height',()=>{assert.equal(C.surface(C.COURT.x,C.COURT.z),'court');assert.equal(C.groundY(C.COURT.x,C.COURT.z),0);const s=riding();Object.assign(s,{assist:false,x:C.COURT.x,z:-16,heading:Math.PI});seconds(s,{forward:true},2);assert.equal(s.phase,'ride');assert.equal(s.collisions,0);assert(s.z>0);assert.equal(s.surface,'court');});
+
+// 2026-11-11 review: after drifting into a building the bike stayed at 0 km/h for good; holding ↑ did nothing because the
+// front wheel still pointed at the wall. Both ways of arriving at a wall are covered, with a real fall in the second.
+const longWall={x:0,z:-3,hx:30,hz:.5,angle:.35,minY:0,maxY:6,kind:'骑楼'};
+const faceWall={...longWall,angle:0}; // contact with the front wheel at z = -1.09
+function free(){const s=C.create();C.start(s);s.encountered=true;s.assist=false;Object.assign(s,{x:0,z:0,heading:0,speed:0});return s;}
+function ride(s,input,n,obstacles){let stuck=0,worst=0;for(let i=0;i<Math.round(n*60);i++){C.step(s,input,1/60,obstacles);if(s.phase==='ride'&&s.speed===0){stuck+=1/60;worst=Math.max(worst,stuck);}else stuck=0;}return worst;}
+test('resting against a wall, holding ↑ alone gets the bike moving again',()=>{
+ const s=free();s.z=-1.05;const from=[s.x,s.z],worst=ride(s,{forward:true},8,[faceWall]);
+ assert.equal(s.phase,'ride');assert.equal(s.collisions,0,'a slow touch is not a fall');
+ assert.ok(worst<3,`stood at 0 km/h for ${worst.toFixed(1)} s with ↑ held`);
+ assert.ok(s.speed>6,`speed ${s.speed.toFixed(1)} m/s after 8 s`);assert.ok(Math.hypot(s.x-from[0],s.z-from[1])>15,'rode away from the wall');
+});
+test('after a fall at a wall, auto-forward rides off without a second fall',()=>{
+ const s=free();s.z=14;ride(s,{},4,[longWall]);assert.equal(s.collisions,1,'the test must contain a real fall');assert.equal(s.phase,'crash');
+ const at=[s.x,s.z],worst=ride(s,{},14,[longWall]);
+ assert.equal(s.phase,'ride');assert.equal(s.collisions,1,'no second fall on the same wall');
+ assert.ok(worst<3,`stood at 0 km/h for ${worst.toFixed(1)} s after getting up`);
+ assert.ok(s.speed>6&&Math.hypot(s.x-at[0],s.z-at[1])>15,`speed ${s.speed.toFixed(1)}, moved ${Math.hypot(s.x-at[0],s.z-at[1]).toFixed(1)} m`);
+});
+test('the wall never turns the bike for a rider who is steering or not pedalling',()=>{
+ const parked=free();parked.z=-1.05;parked.cruising=false;ride(parked,{},4,[faceWall]);assert.equal(parked.heading,0,'parked: heading untouched');assert.equal(parked.z,-1.05);
+ const braking=free();braking.z=-1.05;ride(braking,{brake:true},4,[faceWall]);assert.equal(braking.heading,0,'braking: heading untouched');
+ // Held against the wall the rider's own steering rate is about 0.38 rad/s; anything faster would be the wall steering for them.
+ const steering=free();steering.z=-1.05;ride(steering,{forward:true,left:true},.5,[faceWall]);assert.ok(steering.heading>.15&&steering.heading<.25,`heading ${steering.heading.toFixed(2)} after 0.5 s of left`);
+});
+test('boxed in on every side, the bike stays put instead of spinning',()=>{
+ const box=[[0,-2.2,3,.5],[0,2.2,3,.5],[-2.2,0,.5,3],[2.2,0,.5,3]].map(([x,z,hx,hz])=>({x,z,hx,hz,angle:0,minY:0,maxY:6,kind:'围栏'}));
+ const s=free();ride(s,{forward:true},6,box);assert.ok(Math.hypot(s.x,s.z)<1.2);assert.equal(s.phase,'ride');
+});

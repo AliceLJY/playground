@@ -63,7 +63,7 @@
  }
  function navigate(s,id){const route=planRoute(s,id);if(!route)return false;s.routeNav=route;s.assist=true;s.cruising=true;s.manual=0;return true;}
  const GATES=[.24,.43,.60,.78,.94].map(f=>f*END);
- function create(){const p=at(MAIN,0);return {phase:'intro',x:p.x,z:p.z,y:p.y,heading:p.heading,speed:0,distance:0,routeAt:0,roadId:'ring',lateral:0,pedal:0,elapsed:0,visits:[],bells:0,cruising:true,assist:false,manual:0,boost:100,boosting:false,collisions:0,collisionCooldown:0,encountered:false,race:null,dialog:null,crash:null,resumePhase:null,surface:'road',routeNav:null};}
+ function create(){const p=at(MAIN,0);return {phase:'intro',x:p.x,z:p.z,y:p.y,heading:p.heading,speed:0,distance:0,routeAt:0,roadId:'ring',lateral:0,pedal:0,elapsed:0,visits:[],bells:0,cruising:true,assist:false,manual:0,boost:100,boosting:false,collisions:0,collisionCooldown:0,pivot:null,encountered:false,race:null,dialog:null,crash:null,resumePhase:null,surface:'road',routeNav:null};}
  function start(s){s.phase='ride';}
  function near(s){return STOPS.find(p=>{const w=at(MAIN,p.at);return Math.hypot(s.x-w.x,s.z-w.z)<12;})||null;}
  function interact(s){const p=near(s);if(s.phase!=='ride'||!p||s.race?.status==='racing')return false;s.phase='dialog';s.dialog=p.id;s.speed=0;if(!s.visits.includes(p.id))s.visits.push(p.id);return true;}
@@ -99,6 +99,16 @@
   for(const d of [.75,1.25,2]){const x=s.x+Math.sin(s.heading)*d,z=s.z+Math.cos(s.heading)*d;if(!isWater(x,z)&&!sweep(x,z,x,z,s.heading,obstacles,groundY(x,z))){safe={x,z,heading:s.heading,y:groundY(x,z)};break;}}
   const side=((s.x-n.x)*Math.cos(s.heading)-(s.z-n.z)*Math.sin(s.heading))>0?-1:1;
   s.crash={time:0,kind,side,from:{x:s.x,z:s.z,heading:s.heading,y:s.y},safe};s.phase='crash';s.speed=0;s.boosting=false;s.collisions++;s.manual=0;
+ }
+ // Held against something: the smallest turn (either way, up to a half turn) after which the way ahead is clear: 12 m if any bearing offers it (a shorter look picks bearings that graze back into the same wall), else 4 m, else 1.2 m.
+ // The side the road runs is tried first, so the bike comes off a wall facing along the street.
+ function clearTurn(s,obstacles){
+  const road=nearest(s.x,s.z),along=Math.cos(wrap(s.heading-road.heading))>=0?road.heading:wrap(road.heading+Math.PI),first=wrap(along-s.heading)>=0?1:-1;
+  for(const reach of [12,4,1.2])for(let a=.2;a<=Math.PI;a+=.2)for(const side of [first,-first]){
+   const h=s.heading+side*a,tx=s.x-Math.sin(h)*reach,tz=s.z-Math.cos(h)*reach;
+   if(!isWater(tx,tz)&&!sweep(s.x,s.z,tx,tz,h,obstacles,s.y))return side*a;
+  }
+  return 0;
  }
  const RIVAL={pace:14.4,push:.9};
  function advanceRace(s,dt,playerCanPass=true){
@@ -139,6 +149,10 @@
   if(navTarget)target=Math.min(target,Math.abs(navTurn)>.8?1.5:Math.abs(navTurn)>.35?4:navTarget.road==='ring'?8.5:6);
   s.speed+=(target-s.speed)*(1-Math.exp(-dt*(input.brake?9:2.3)));
   if(s.speed<.015)s.speed=0;
+  if(s.pivot!=null){
+   if(steer||!(target>0)||navTarget)s.pivot=null; // the rider takes over, or stops pedalling
+   else{const d=wrap(s.pivot-s.heading);s.heading=wrap(s.heading+clamp(d,-dt*1.4,dt*1.4));if(Math.abs(d)<=dt*1.4)s.pivot=null;else s.speed=0;}
+  }
   if(steer)s.heading=wrap(s.heading+steer*dt*(.35+Math.min(s.speed,16)*.065));
   else if(s.assist&&s.manual===0&&s.speed>.1){
    if(navTarget){s.heading=wrap(s.heading+clamp(navTurn,-dt*2.1,dt*2.1));}else{
@@ -149,7 +163,12 @@
   }
   const ox=s.x,oz=s.z;s.x-=Math.sin(s.heading)*s.speed*dt;s.z-=Math.cos(s.heading)*s.speed*dt;
   let hit=sweep(ox,oz,s.x,s.z,s.heading,obstacles,s.y);
-  if(hit){const f=Math.max(0,hit.t-.03);s.x=ox+(s.x-ox)*f;s.z=oz+(s.z-oz)*f;if(s.speed>1.8&&s.collisionCooldown===0){beginCrash(s,hit.obstacle.kind,obstacles);advanceRace(s,dt,false);return;}s.speed=0;s.boosting=false;}
+  if(hit){const f=Math.max(0,hit.t-.03);s.x=ox+(s.x-ox)*f;s.z=oz+(s.z-oz)*f;if(s.speed>1.8&&s.collisionCooldown===0){beginCrash(s,hit.obstacle.kind,obstacles);advanceRace(s,dt,false);return;}s.speed=0;s.boosting=false;
+   // Stopped against it with the pedals still asked for and nobody steering: ease the front wheel round to the nearest
+   // clear bearing, so ↑ (or auto-forward) alone gets the bike moving again instead of pressing on the wall for good.
+   // The turn is finished standing still (see s.pivot below): setting off half-turned would only meet the wall again, faster.
+   if(target>0&&!steer&&!navTarget&&s.pivot==null){const turn=clearTurn(s,obstacles);if(turn)s.pivot=wrap(s.heading+turn);}
+  }
   const n=nearest(s.x,s.z);
   if(isWater(s.x,s.z)){
    beginCrash(s,'珠江',obstacles);s.crash.water=true;s.crash.safe={x:ox,z:Math.min(oz,SHORE-2.4),y:groundY(ox,Math.min(oz,SHORE-2.4)),heading:s.heading};s.cruising=false;advanceRace(s,dt,false);return;
