@@ -3,6 +3,8 @@
 'use strict';
 const C=window.SneakCore,CFG=C.CFG,A=window.SneakArt;
 const canvas=document.getElementById('board'),ctx=canvas.getContext('2d');
+const hitCanvas=document.createElement('canvas');hitCanvas.width=hitCanvas.height=1;
+const hitCtx=hitCanvas.getContext('2d',{willReadFrequently:true});
 const $=id=>document.getElementById(id);
 const COL={bg:'#1e1915',floor:'#2a2d3e',wood:'#4a3c30',woodLine:'#3d3127',rug:'#4f8296',rugEdge:'#5d8796',line:'#353a52',wall:'#5a5f7a',table:'#9a6a3e',
   cone:'#ffd75e',ear:'#7fc8ff',alert:'#ff5d5d',cat:'#ff9d2e',catDark:'#c46a14',sanW:'#f4efe6',sanK:'#2b2b2b',sanO:'#e08a3c',
@@ -19,7 +21,7 @@ let S=null,L=C.level(LV),seed=1,acc=0,last=0,paused=true,frozen=false,flash=0,ce
 
 function start(sd,lv){
   if(lv!=null&&lv!==LV){LV=lv;L=C.level(LV);layout();}
-  seed=sd;S=C.create({level:LV,seed});acc=0;flash=0;catAng=LV===2?Math.PI:-Math.PI/2;kidAng=0;
+  seed=sd;S=C.create({level:LV,seed});acc=0;flash=0;catPose=null;catAng=LV===2?Math.PI:-Math.PI/2;kidAng=0;
   $('title').textContent=L.def.title;
   $('legend').innerHTML=LEGEND[LV];
   say(LV===2?'先去叼虾：虾盘在主人跟前。她低头吃饭时走，筷子一停就站住别动。':LV===1?'先别急：等孩子的玩具响了（头上变绿）再过蓝色木地板，地毯上随时能停下躲。':'目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
@@ -72,9 +74,10 @@ function pauseCard(){
 }
 
 // ---- layout & drawing (pictures in art.js; the room is painted once per layout into bgLayer)
-let bgLayer=null,catAng=-Math.PI/2,kidAng=0;
+let bgLayer=null,catPose=null,catAng=-Math.PI/2,kidAng=0;
 const ANG=[-Math.PI/2,0,Math.PI/2,Math.PI];   // facing 0 N, 1 E, 2 S, 3 W → canvas angle
 function layout(){
+  catPose=null;
   const wide=innerWidth/innerHeight>1.1;document.body.classList.toggle('wide',wide);
   const r=canvas.getBoundingClientRect();dpr=Math.min(2,devicePixelRatio||1);
   canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
@@ -193,12 +196,14 @@ function drawOwner(now){
   else bubble('看！别动！',bx,by,cell*.3,COL.alert);
 }
 function drawCat(f,now,k){
+  catPose=null;
   let [kx,ky]=moverPos(S.cat.at,S.cat.move,CFG.catMove,f);ky-=k*.9;
   const m=S.cat.move;if(m)catAng=moveAng(m);
   const kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell;
   if(S.phase==='hiss'&&Math.floor(flash*10)%2)return [kxp,kyp];
   ctx.globalAlpha=1-k*.85;
-  A.cat(ctx,kxp,kyp,cell*.95,k>0?-Math.PI/2:catAng,{kind:'orange',walk:m?((m.k+f)/(m.n||CFG.catMove))%1:k>0?(now*2)%1:-1,t:now,seed:0,carry:S.carry});
+  catPose=[kxp,kyp,cell*.95,k>0?-Math.PI/2:catAng,{kind:'orange',walk:m?((m.k+f)/(m.n||CFG.catMove))%1:k>0?(now*2)%1:-1,t:now,seed:0,carry:S.carry}];
+  A.cat(ctx,...catPose);
   ctx.globalAlpha=1;
   return [kxp,kyp];
 }
@@ -243,11 +248,22 @@ function draw(f){
 }
 
 // ---- input
+function catAt(e){
+  if(!catPose)return false;
+  const r=canvas.getBoundingClientRect(),px=Math.floor((e.clientX-r.left)*dpr),py=Math.floor((e.clientY-r.top)*dpr);
+  // Replay the last visible pose at the clicked device pixel, without the contact shadow.
+  // Using the actual artwork keeps the tail, ears and whiskers in sync with movement and sway.
+  hitCtx.setTransform(1,0,0,1,0,0);hitCtx.clearRect(0,0,1,1);
+  hitCtx.setTransform(dpr,0,0,dpr,-px,-py);
+  const [x,y,s,ang,o]=catPose;A.cat(hitCtx,x,y,s,ang,{...o,hitMask:true});
+  return hitCtx.getImageData(0,0,1,1).data[3]>0;
+}
 function cellAt(e){const r=canvas.getBoundingClientRect(),c=Math.floor((e.clientX-r.left-ox)/cell),rr=Math.floor((e.clientY-r.top-oy)/cell);return (c<0||rr<0||c>=L.cols||rr>=L.rows)?-1:rr*L.cols+c;}
 canvas.addEventListener('pointerdown',e=>{
   if(!S||paused||frozen||S.phase!=='play')return;
-  const i=cellAt(e);if(i<0)return;
-  if(i===S.catOcc()||i===S.cat.at){S.stop();say('小橘停下了。');return;}
+  const i=cellAt(e);
+  if(i===S.catOcc()||i===S.cat.at||catAt(e)){S.stop();say('小橘停下了。');return;}
+  if(i<0)return;
   if(!S.setTarget(i))say('那里过不去。');
 });
 const KEYS={ArrowUp:0,KeyW:0,ArrowRight:1,KeyD:1,ArrowDown:2,KeyS:2,ArrowLeft:3,KeyA:3};
