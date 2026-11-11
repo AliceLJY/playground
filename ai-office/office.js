@@ -1828,6 +1828,8 @@
   function layoutUI() {
     const wide=C.id==='landscape'; document.body.classList.toggle('landscape',wide);
     if(wide)$('#drawer').insertBefore($('#treat'),$('.tabs')); else if(!mvMode && !wallMode) $('.room-section').insertBefore($('#treat'),$('#room-viewport')); else $('#canvas-wrap').append($('#treat'));
+    // The keepsake card stays in the page flow and never lies over the room: in the notebook column on desktop, under the legend otherwise.
+    if(wide)$('#drawer').insertBefore($('#photo'),$('.tabs')); else $('.room-section').append($('#photo'));
     $('#canvas-wrap').style.width=''; $('#room-viewport').scrollTop=0;
     if(funHint) funHint.textContent=C.bands?'↓ 二楼 · 三楼':'↓ 娱乐层';
     $('#room-viewport').setAttribute('aria-label',wide?'办公室全景：上两层同屏，往下滚是娱乐层':C.bands?'办公室三层楼，可上下滚动':'办公室、附楼和娱乐层，可上下滚动');
@@ -1851,6 +1853,9 @@
   const funHint=$('#to-fun'), viewport=$('#room-viewport');
   function syncFunHint(){ if(!funHint)return; const ratio=canvas.getBoundingClientRect().height/C.H, top=(C.funTop ?? (C.id==='landscape'?410:744))*ratio; funHint.hidden=mvMode||wallMode||!C.funOffsets||viewport.scrollTop+viewport.clientHeight>top+40; }
   funHint?.addEventListener('click',()=>{ viewport.scrollTo({top:viewport.scrollHeight,behavior:calm.matches?'auto':'smooth'}); });
+  // While the keepsake card is up under the room, the "↓" hint moves up clear of it (both hang off the room panel's bottom edge).
+  const liftFunHint=()=>{ const card=$('#photo'); if(funHint) funHint.style.bottom=!card.hidden && card.parentElement===$('.room-section') && card.offsetHeight ? `${card.offsetHeight+18}px` : ''; };
+  new ResizeObserver(liftFunHint).observe($('#photo'));
   viewport.addEventListener('scroll',syncFunHint,{passive:true}); new ResizeObserver(syncFunHint).observe(viewport); setTimeout(syncFunHint,500);
   layoutUI();
   function snapshot() {
