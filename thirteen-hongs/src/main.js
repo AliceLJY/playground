@@ -96,14 +96,17 @@ function setMode(mode, follow = null) {
 let hintTimer = 0;
 function hint(text) { const h = $('hint'); h.textContent = text; h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 4200); }
 
-function followTarget(out) {
-  const f = sim.follow[S.follow];
+function followTarget(out, key = S.follow) {
+  const f = sim.follow[key];
   if (f.boat != null) { const b = sim.boats[f.boat]; out.set(b.x, b.land ? 1.5 : C.WATER_Y + C.DECK[b.type] + (b.type === 'junk' ? 4 : 1.8), b.z); return b.h; }
   const a = sim.agents[f.agent], w = C.agentWorld(sim, a); out.set(w.x, w.y + 1.5 * a.scale, w.z); return w.h;
 }
 const _t = new THREE.Vector3(), _want = new THREE.Vector3(), _look = new THREE.Vector3();
 function updateCamera(dt) {
-  if (S.mode === 'top') {
+  if (S.mode === 'free') {   // 录片用：机位由录制脚本逐帧给
+    const F = S.free; camera.position.set(F.p[0], F.p[1], F.p[2]); camera.lookAt(F.l[0], F.l[1], F.l[2]);
+    if (camera.fov !== F.fov) { camera.fov = F.fov; camera.updateProjectionMatrix(); }
+  } else if (S.mode === 'top') {
     const T = S.top; T.idle += dt; if (T.idle > 10 && S.started) T.az += dt * 0.025;
     const sp = Math.sin(T.pol);
     camera.position.set(T.tx + T.dist * sp * Math.sin(T.az), T.dist * Math.cos(T.pol), T.tz + T.dist * sp * Math.cos(T.az));
@@ -278,6 +281,9 @@ window.__hong = {
   skip(sec) { skip(sec); step(0.016); hud(); return sim.event.stage; },
   gpu() { return G.gpuName(renderer); }, backend: G.backend,
   uncoloured: () => people.uncoloured(),
+  // 录片钩子：自由机位、天色、声音、跟随对象的位置
+  free(o) { S.mode = 'free'; S.free = o; }, setTod(k) { setTod(k); }, audio,
+  where(key) { const h = followTarget(_t.set(0, 0, 0), key); return { x: _t.x, y: _t.y, z: _t.z, h }; },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
 };
 window.__PLAYTEST__ = {
@@ -289,6 +295,7 @@ G.ready(renderer).then(() => {
   resize(); setMode('top');
   if (Q.get('view') && VIEWS[Q.get('view')]) VIEWS[Q.get('view')]();
   if (TOD[Q.get('tod')]) { setTod(Q.get('tod')); updateTod(0, true); }
+  if (Q.has('capture')) { document.body.classList.add('capture'); begin('top'); }   // 录片：不显示界面
   step(0.016); hud();
   if (G.backend !== 'WebGL') { $('alt').href = './'; $('alt').textContent = `当前是 WebGPU 版（${G.backend}），点这里回 WebGL 版`; }
   window.__hong.ready = window.__PLAYTEST__.ready = true;

@@ -475,7 +475,7 @@ export function buildWorld(scene, sim, opts = {}) {
   let tris = B.tris + P.tris + FAR.tris;
   return {
     flags, boats, yardStack, boatStack, staticTris: tris,
-    setGlow(k) { for (const l of lit) l.visible = k > 0.02; glowMat.opacity = Math.min(1, k); },
+    setGlow(k) { for (const l of lit) l.visible = k > 0.02; glowMat.opacity = Math.min(1, k); for (const f of flags) f.material.color.setScalar(1 - 0.8 * Math.min(1, k)); },   // 旗不受光照，入夜要自己压暗
     update(t) {
       for (const f of flags) {
         const pos = f.geometry.attributes.position, base = f.userData.base;
