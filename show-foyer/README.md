@@ -18,7 +18,7 @@ This is a personal toy, not an official page of the theatre or the production; i
 
 ## Controls
 
-- You start standing; the top bar says which hall has a seat. Press the first button (sit) or tap an empty seat. The first arrival takes the middle of the second row; later ones gather round it, corners last.
+- You start standing; the top bar says which hall has a seat. Press the first button (sit) or tap an empty seat. On desktop and phones, its backrest and visible cushion accept taps along their drawn outlines, leaving gaps between seats inactive. The first arrival takes the middle of the second row; later ones gather round it, corners last.
 - Lantern (second button): one more paper lantern stands at the front of the stage and throws a warm cone up the curtain. The whole stage brightens a step per lantern (about a second's fade): with none it is dark down to the gilt frame, with five it is in full warm light. The count itself is unlimited as before, and lanterns stay for later visitors.
 - Clap (third button): a ripple around your seat. After the hourly gong and at curtain-up, replays who clapped back then clap again.
 - Tea (fourth button): only when a neighbour (adjacent seat, diagonals included) is present; the cup flies over and they nod.

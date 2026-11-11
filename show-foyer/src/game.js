@@ -565,12 +565,25 @@
   }
   const HAIR = ['#2a1d16', '#3b2a1e', '#1f1a17', '#4a3324', '#5c4a3c', '#2e2622', '#6a5a4c'];
   function hairOf(o) { let h = 0; const s = String(o.id || o.label || 'me'); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return HAIR[h % HAIR.length]; }
+  // 绘制与点击共用外轮廓，随排缩放；圆顶外和座间空隙不算座位。
+  function seatBackPath(x, yt, bw, bh) {
+    const r = bw * 0.24;
+    ctx.beginPath();
+    ctx.moveTo(x - bw * 0.46, yt + bh); ctx.lineTo(x - bw * 0.46, yt + r);
+    ctx.quadraticCurveTo(x - bw * 0.46, yt, x - bw * 0.46 + r, yt);
+    ctx.lineTo(x + bw * 0.46 - r, yt);
+    ctx.quadraticCurveTo(x + bw * 0.46, yt, x + bw * 0.46, yt + r);
+    ctx.lineTo(x + bw * 0.46, yt + bh); ctx.closePath();
+  }
+  function seatCushionPath(x, yt, bw, bh) {
+    roundRect(x - bw * 0.36, yt - bh * 0.16, bw * 0.72, bh * 0.2, bh * 0.1);
+  }
   function drawSeat(p, s, bw, bh, row, col, state) {        // 从背后看的一张剧场椅：坐垫（空座露出）、扶手、丝绒椅背、铜号牌
     const x = p.x, yt = p.y - bh * 0.15, L = Math.max(0, Math.min(1, S.lit));
     if (state.me && state.part === 'back') { const gl = ctx.createRadialGradient(x, yt + bh * 0.3, 2, x, yt + bh * 0.3, bw * 0.95); gl.addColorStop(0, 'rgba(247,210,120,.35)'); gl.addColorStop(1, 'rgba(247,210,120,0)'); ctx.fillStyle = gl; ctx.fillRect(x - bw, yt + bh * 0.3 - bw, bw * 2, bw * 2); }
     if (state.part === 'back' || state.part === 'all') {
       if (state.empty) {                                    // 空座：坐垫放平，从椅背上沿露出一块红丝绒
-        ctx.fillStyle = grad(ctx, 0, yt - bh * 0.22, 0, yt + 2, [[0, '#5a1c14'], [0.5, '#7e2a1e'], [1, '#3a0f0a']]); roundRect(x - bw * 0.36, yt - bh * 0.16, bw * 0.72, bh * 0.2, bh * 0.1); ctx.fill();
+        ctx.fillStyle = grad(ctx, 0, yt - bh * 0.22, 0, yt + 2, [[0, '#5a1c14'], [0.5, '#7e2a1e'], [1, '#3a0f0a']]); seatCushionPath(x, yt, bw, bh); ctx.fill();
         ctx.fillStyle = 'rgba(255,200,170,' + (0.12 + 0.15 * L) + ')'; ctx.fillRect(x - bw * 0.3, yt - bh * 0.145, bw * 0.6, Math.max(1, bh * 0.025));
       }
       return;
@@ -584,13 +597,13 @@
     // 椅背：圆顶丝绒，上沿受台口光
     const r = bw * 0.24;
     ctx.fillStyle = grad(ctx, 0, yt, 0, yt + bh, [[0, '#b2402e'], [0.18, '#8e2c1f'], [0.7, '#6a1f16'], [1, '#3e110b']]);
-    ctx.beginPath(); ctx.moveTo(x - bw * 0.46, yt + bh); ctx.lineTo(x - bw * 0.46, yt + r); ctx.quadraticCurveTo(x - bw * 0.46, yt, x - bw * 0.46 + r, yt); ctx.lineTo(x + bw * 0.46 - r, yt); ctx.quadraticCurveTo(x + bw * 0.46, yt, x + bw * 0.46, yt + r); ctx.lineTo(x + bw * 0.46, yt + bh); ctx.closePath(); ctx.fill();
+    seatBackPath(x, yt, bw, bh); ctx.fill();
     ctx.fillStyle = bake.velvet; ctx.fill();
     const seam = yt + bh * 0.34;                              // 椅背上的软包分缝：一道暗缝压一道亮边
     ctx.fillStyle = 'rgba(30,6,4,.45)'; ctx.fillRect(x - bw * 0.44, seam, bw * 0.88, Math.max(1, bh * 0.025));
     ctx.fillStyle = 'rgba(255,190,160,.1)'; ctx.fillRect(x - bw * 0.44, seam + Math.max(1, bh * 0.025), bw * 0.88, Math.max(1, bh * 0.03));
     ctx.fillStyle = 'rgba(20,4,2,.3)'; for (const k of [-0.2, 0.2]) ctx.fillRect(x + k * bw - 0.5, seam + bh * 0.1, 1, bh * 0.5);
-    ctx.beginPath(); ctx.moveTo(x - bw * 0.46, yt + bh); ctx.lineTo(x - bw * 0.46, yt + r); ctx.quadraticCurveTo(x - bw * 0.46, yt, x - bw * 0.46 + r, yt); ctx.lineTo(x + bw * 0.46 - r, yt); ctx.quadraticCurveTo(x + bw * 0.46, yt, x + bw * 0.46, yt + r); ctx.lineTo(x + bw * 0.46, yt + bh); ctx.closePath();
+    seatBackPath(x, yt, bw, bh);
     ctx.fillStyle = grad(ctx, x - bw * 0.46, 0, x + bw * 0.46, 0, [[0, 'rgba(0,0,0,.35)'], [0.2, 'rgba(0,0,0,0)'], [0.8, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.35)']]); ctx.fill();
     ctx.strokeStyle = state.me ? '#f7dc9a' : 'rgba(255,190,150,' + (0.18 + 0.3 * L * (1.2 - row * 0.25)) + ')'; ctx.lineWidth = state.me ? 2 : 1;
     ctx.beginPath(); ctx.moveTo(x - bw * 0.46 + 1, yt + r); ctx.quadraticCurveTo(x - bw * 0.46 + 1, yt + 1, x - bw * 0.46 + r, yt + 1); ctx.lineTo(x + bw * 0.46 - r, yt + 1); ctx.quadraticCurveTo(x + bw * 0.46 - 1, yt + 1, x + bw * 0.46 - 1, yt + r); if (state.me) { ctx.lineTo(x + bw * 0.46 - 1, yt + bh - 1); ctx.lineTo(x - bw * 0.46 + 1, yt + bh - 1); ctx.closePath(); } ctx.stroke();
@@ -713,8 +726,20 @@
     const b = g.book;
     if (px >= b.x - 6 && px <= b.x + b.w + 6 && py >= b.y - 6 && py <= b.y + b.h + 6) { openProgramme(0); return; }
     if (py < g.stageH) { if (S.phase === 'seated') act(5); else if (S.phase === 'door') hint('先落座，坐下再拍'); else hint('开演了，收好手机'); return; }
-    let best = -1, bd = 1e9; for (let i = 0; i < D.CAP; i++) { const p = seatPos(i, g); const d = Math.hypot(p.x - px, p.y - py); if (d < bd) { bd = d; best = i; } }
-    if (best < 0 || bd > 26) return;
+    let best = -1;
+    // 与绘制顺序相反，从近排查起。Canvas 路径带 DPR 变换，命中点也用画布像素。
+    for (let i = D.CAP - 1; i >= 0; i--) {
+      const p = seatPos(i, g), rs = rowScale(Math.floor(i / D.COLS));
+      const bw = g.seatW * rs, bh = g.seatH * rs, yt = p.y - bh * 0.15;
+      seatBackPath(p.x, yt, bw, bh);
+      let hit = ctx.isPointInPath(px * DPR, py * DPR);
+      if (!hit && !occupant(i)) {
+        seatCushionPath(p.x, yt, bw, bh);
+        hit = ctx.isPointInPath(px * DPR, py * DPR);
+      }
+      if (hit) { best = i; break; }
+    }
+    if (best < 0) return;
     const o = occupant(best);
     if (!o) { if (S.phase === 'door') act(0, best); else if (S.phase === 'seated') hint('换座请先离席'); }
     else if (o === S.usher) hint('领位人 · 非真人，递茶后回赠纸票');
