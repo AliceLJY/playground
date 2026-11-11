@@ -11,12 +11,12 @@ import {createGame,createVoxelKernel,update,snapshot,rayBlock,craft,eat,BLOCKS,S
 const $=id=>document.getElementById(id),canvas=$('scene'),params=new URLSearchParams(location.search),mobile=matchMedia('(pointer:coarse)').matches||innerWidth<700;
 const paletteId='noon',palette=PALETTE;
 let renderer;try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'low-power'});}catch(e){$('error').hidden=false;$('error').textContent='需要支持 WebGL 的浏览器。请开启硬件加速后重试。';throw e;}
-renderer.setClearColor(palette.sky.horizon);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;
+renderer.setClearColor(palette.sky.horizon);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.AgXToneMapping;renderer.toneMappingExposure=1.45;
 const gl=renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info'),rendererName=debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
 const skyDayTexture=createSkyTexture(THREE,palette.sky),skyNightTexture=createSkyTexture(THREE,palette.sky,true);
 const scene=new THREE.Scene();scene.background=skyDayTexture;scene.fog=new THREE.Fog(palette.sky.horizon,(mobile?44:63)*.6,mobile?44:63);
 const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.06,180);camera.rotation.order='YXZ';scene.add(camera);
-const hemi=new THREE.HemisphereLight(palette.ambient,palette.shadow,palette.hemi),sun=new THREE.DirectionalLight(palette.sun,palette.direct);sun.position.set(-30,60,25);const skyFill=new THREE.AmbientLight(palette.ambient,1.2);scene.add(hemi,sun,skyFill);
+const hemi=new THREE.HemisphereLight(palette.ambient,palette.shadow,palette.hemi),sun=new THREE.DirectionalLight(palette.sun,palette.direct);sun.position.set(-30,60,25);const skyFill=new THREE.AmbientLight(palette.ambient,.7);scene.add(hemi,sun,skyFill);
 const lamp=new THREE.SpotLight(palette.lamp,0,43,Math.PI/7,.5,1.35);lamp.position.set(0,-.08,-.1);camera.add(lamp);lamp.target.position.set(0,-.05,-22);camera.add(lamp.target);
 const terrainMaterial=new THREE.MeshLambertMaterial({vertexColors:true,map:createTerrainAtlas(THREE,palette),alphaTest:.35,transparent:true,depthWrite:true,forceSinglePass:true});
 terrainMaterial.onBeforeCompile=shader=>{
@@ -151,7 +151,7 @@ let uiTimer=0,simAccumulator=0,frameCount=0,renderCount=0,lastFrame=0,raf=0,offs
 let hudBounds=[],lastWarning=false;
 function cacheHudBounds(){hudBounds=[];document.querySelectorAll('[data-layout]').forEach(el=>{const r=el.getBoundingClientRect();if(r.width&&r.height)hudBounds.push({left:r.left-5,right:r.right+5,top:r.top-5,bottom:r.bottom+5});});}
 const fogDay=new THREE.Color(palette.sky.horizon),fogNight=new THREE.Color(palette.sky.nightHorizon),sunDay=new THREE.Color(palette.sun),sunNight=new THREE.Color(palette.moon);
-function visual(dt){const p=g.p,night=g.night,lum=night?.12:1;scene.background=night?skyNightTexture:skyDayTexture;scene.fog.color.copy(night?fogNight:fogDay);skyFill.intensity=night?.2:1.2;hemi.intensity=night?1.0:palette.hemi;sun.intensity=night?.7:palette.direct;sun.color.copy(night?sunNight:sunDay);clouds.visible=!night;sunDisc.visible=!night;waterMaterial.color.set(night?palette.nightWater:'#ffffff');water.position.x=p.x;water.position.z=p.z;ripples.position.set(Math.floor(p.x/126)*126,0,Math.floor(p.z/126)*126);
+function visual(dt){const p=g.p,night=g.night,lum=night?.12:1;scene.background=night?skyNightTexture:skyDayTexture;scene.fog.color.copy(night?fogNight:fogDay);skyFill.intensity=night?.2:.7;hemi.intensity=night?1.0:palette.hemi;sun.intensity=night?.7:palette.direct;sun.color.copy(night?sunNight:sunDay);clouds.visible=!night;sunDisc.visible=!night;waterMaterial.color.set(night?palette.nightWater:'#ffffff');water.position.x=p.x;water.position.z=p.z;ripples.position.set(Math.floor(p.x/126)*126,0,Math.floor(p.z/126)*126);
  lamp.intensity=g.headlamp?14:0;lamp.visible=g.headlamp;trauma=Math.max(0,trauma-dt*1.8);recoil=Math.max(0,recoil-dt*.2);flashTime-=dt;hitTime-=dt;damageTime=Math.max(0,damageTime-dt);flash.visible=flashTime>0;muzzle.intensity=flash.visible?3:0;const shake=trauma*trauma*.008;
  if(view==='hero'){camera.position.set(-12.5,29,-12);camera.rotation.set(-.262,-1.72,0);gun.visible=true;}else if(view==='wide'){camera.position.set(p.x+28,p.y+30,p.z+26);camera.lookAt(p.x+2,p.y-4,p.z-10);gun.visible=false;lamp.visible=false;}else{camera.position.set(p.x,p.y+1.65,p.z);camera.rotation.set(p.pitch+Math.sin(g.time*29)*shake,p.yaw+Math.cos(g.time*31)*shake,0);gun.visible=true;}
  if(capturePose){camera.position.fromArray(capturePose.position);camera.rotation.set(...capturePose.rotation);}

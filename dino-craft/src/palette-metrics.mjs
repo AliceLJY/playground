@@ -22,7 +22,9 @@ export function summarizePixels(full,isolated,mask,width,height,dpr,leafMask,fac
   for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
     const n=y*w+x,i=((y*stride+1)*width+x*stride+1)*4;
     const rgb=[full[i],full[i+1],full[i+2]], [hue,s,v]=hsv(rgb);
-    if(hue>=70&&hue<=110&&s>=.15&&v>=.1)yellowGreen++;
+    // Vivid yellow-green only: a muted sage lawn (S about .35) is the same hue but is not the neon this guards against.
+    // The stored round-2 frame was measured with S>=.15; its grass sat above S .65, so its count is unchanged in substance.
+    if(hue>=70&&hue<=110&&s>=.45&&v>=.1)yellowGreen++;
     if(s>.65&&v>.2)highSat++;
     if(y*stride+1>=height*.85){topSaturation+=s;topCount++;}
     const code=classify(i);
