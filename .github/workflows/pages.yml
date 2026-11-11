@@ -485,6 +485,14 @@ jobs:
           npm ci
           node tools/build.mjs
 
+      - name: Check and bundle Sacred Heart Cathedral
+        working-directory: sacred-heart-cathedral
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+
       - name: Check and bundle Huacheng Autumn Riverside
         working-directory: huacheng-autumn
         run: |
@@ -517,6 +525,9 @@ jobs:
           # 圣家堂：纯代码搭的建筑导览，可环绕、可走进去；上面已打成单文件（Three.js 许可在文件开头注释里）
           mkdir -p _site/sagrada-familia
           cp sagrada-familia/dist/index.html _site/sagrada-familia/index.html
+          # 石室圣心大教堂：纯代码搭的建筑导览，可环绕、可走进去；上面已打成单文件（Three.js 许可在文件开头注释里）
+          mkdir -p _site/sacred-heart-cathedral
+          cp sacred-heart-cathedral/dist/index.html _site/sacred-heart-cathedral/index.html
           # 凸透镜成像：光具座课件；上面已打成单文件（Three.js 许可在文件开头注释里）
           mkdir -p _site/lens-lab
           cp lens-lab/dist/index.html _site/lens-lab/index.html

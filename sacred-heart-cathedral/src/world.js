@@ -89,11 +89,12 @@ float bayQ(float z){
   if (z < ${f(C.Z_CROSS1)} && z > ${f(C.Z_APSE)}) return (fract((${f(C.Z_CROSS1)} - z) / ${f(C.CH_BAY)}) - .5) * ${f(C.CH_BAY)};
   return 99.;
 }
+// 高窗的光到对面的高墙为止，不穿过去照到侧廊里。
 // 侧面的窗（s=1 东，s=-1 西）：高侧窗、小礼拜堂的窗、横厅尽端的玫瑰窗。返回 rgb=颜色，a=光走了多远
 vec4 sideHit(vec3 wp, float s){
   vec3 L = normalize(vec3(-s, uGL.x, uGL.y)); vec4 best = vec4(0.);
   float t = (wp.x - s * ${f(C.AX - 0.3)}) / L.x;
-  if (t > 0.) { vec3 h = wp - L * t; float q = bayQ(h.z);
+  if (t > 0. && s * wp.x > -${f(C.AX + 0.6)}) { vec3 h = wp - L * t; float q = bayQ(h.z);
     float m = max(lancet(vec2(abs(q) - ${f(W.clere.off)}, h.y - ${f(W.clere.sill)}), ${f(W.clere.w)}, ${f(W.clere.h)}), step(length(vec2(q, h.y - ${f(W.clere.ocY)})), ${f(W.clere.ocR)}));
     if (m > 0.) best = vec4(gcol(floor(vec2(h.z * 3.1, h.y * 2.2))) * .3, t); }
   t = (wp.x - s * ${f(C.CHAP)}) / L.x;
@@ -152,20 +153,20 @@ export function graniteTexture(base, seed, { course = 48, block = 110, joint = 0
     const r = rng(seed); g.fillStyle = base; g.fillRect(0, 0, w, h);
     for (let y = 0, row = 0; y < h; y += course, row++) for (let x = -block + (row % 2) * block / 2 + (r() - .5) * 20; x < w; ) {
       const bw = block * (0.7 + r() * 0.6), t = r();
-      g.fillStyle = t < 0.5 ? `rgba(60,45,25,${0.015 + r() * 0.05})` : `rgba(255,246,225,${0.015 + r() * 0.05})`; g.fillRect(x, y, bw, course);
+      g.fillStyle = t < 0.5 ? `rgba(60,45,25,${0.01 + r() * 0.03})` : `rgba(255,246,225,${0.01 + r() * 0.03})`; g.fillRect(x, y, bw, course);
       g.fillStyle = `rgba(35,26,15,${joint})`; g.fillRect(x, y, 2, course); x += bw;
     }
     for (let y = 0; y < h; y += course) { g.fillStyle = `rgba(35,26,15,${joint + 0.06})`; g.fillRect(0, y, w, 2); g.fillStyle = 'rgba(255,250,235,.12)'; g.fillRect(0, y + 2, w, 1.5); }
     for (let i = 0; i < 16000; i++) { const t = r(); g.fillStyle = t < 0.45 ? 'rgba(40,30,20,.10)' : t < 0.8 ? 'rgba(255,255,255,.10)' : 'rgba(120,95,70,.14)'; g.fillRect(r() * w, r() * h, 1 + r() * 1.6, 1 + r() * 1.6); }
-    for (let i = 0; i < 26; i++) { const x = r() * w, y = r() * h, rad = 40 + r() * 90, gr = g.createRadialGradient(x, y, 2, x, y, rad); gr.addColorStop(0, r() < 0.6 ? 'rgba(60,45,30,.10)' : 'rgba(255,255,255,.07)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
+    for (let i = 0; i < 26; i++) { const x = r() * w, y = r() * h, rad = 40 + r() * 90, gr = g.createRadialGradient(x, y, 2, x, y, rad); gr.addColorStop(0, r() < 0.6 ? 'rgba(60,45,30,.06)' : 'rgba(255,255,255,.04)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
   });
 }
 // 一扇尖窗的彩色玻璃：边上一圈红白格，顶上金色华盖，中间一个带光环的人物，底下一条字带。题材是示意。
-export function lightTexture(seed) {
+export function lightTexture(seed, pale = false) {
   return canvasTex(128, 512, (g, w, h) => {
     const r = rng(seed), pick = a => a[Math.floor(r() * a.length)];
-    g.fillStyle = pick(['#1a3fb8', '#1d57c8', '#16308f']); g.fillRect(0, 0, w, h);
-    for (let y = -w; y < h; y += 22) for (let x = -22; x < w; x += 22) { g.fillStyle = `rgba(${r() < 0.5 ? '90,150,255' : '20,40,140'},${0.25 + r() * 0.3})`; g.beginPath(); g.moveTo(x + 11, y); g.lineTo(x + 22, y + 11); g.lineTo(x + 11, y + 22); g.lineTo(x, y + 11); g.closePath(); g.fill(); }
+    g.fillStyle = pale ? pick(['#e9e2c4', '#dfe8ee', '#efe6cf']) : pick(['#1a3fb8', '#1d57c8', '#16308f']); g.fillRect(0, 0, w, h);
+    for (let y = -w; y < h; y += 22) for (let x = -22; x < w; x += 22) { g.fillStyle = pale ? `rgba(${r() < 0.5 ? '70,130,230' : '240,190,60'},${0.12 + r() * 0.25})` : `rgba(${r() < 0.5 ? '90,150,255' : '20,40,140'},${0.25 + r() * 0.3})`; g.beginPath(); g.moveTo(x + 11, y); g.lineTo(x + 22, y + 11); g.lineTo(x + 11, y + 22); g.lineTo(x, y + 11); g.closePath(); g.fill(); }
     g.fillStyle = '#f2b21e'; g.fillRect(12, 40, w - 24, 46); g.fillStyle = '#ffe17a'; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(18 + k * 25, 86); g.lineTo(30 + k * 25, 44); g.lineTo(42 + k * 25, 86); g.fill(); }
     const robe = pick(['#d21f1f', '#f4f1e6', '#1e9a4a', '#7a2bb0', '#e8a41a', '#c2185b']), robe2 = pick(['#1c3fae', '#f4f1e6', '#b01818', '#e0b020']), cx = w / 2 + (r() - .5) * 14, top = 150 + r() * 40;
     g.fillStyle = '#ffd95a'; g.beginPath(); g.arc(cx, top, 24, 0, 7); g.fill(); g.fillStyle = '#f1c9a0'; g.beginPath(); g.arc(cx, top + 2, 14, 0, 7); g.fill();
@@ -199,8 +200,8 @@ export function roundTexture(seed, kind, { stone = null, dark = false } = {}) {
 }
 function brickTexture() {
   return canvasTex(256, 256, (g, w, h) => {
-    const r = rng(9); g.fillStyle = '#b39a7e'; g.fillRect(0, 0, w, h);
-    for (let y = 0, row = 0; y < h; y += 16, row++) for (let x = -32 + (row % 2) * 16; x < w; x += 32) { const t = r(); g.fillStyle = `hsl(${20 + t * 10} ${34 + r() * 12}% ${50 + r() * 10}%)`; g.fillRect(x + 1.5, y + 1.5, 29, 13); }
+    const r = rng(9); g.fillStyle = '#9c8670'; g.fillRect(0, 0, w, h);
+    for (let y = 0, row = 0; y < h; y += 16, row++) for (let x = -32 + (row % 2) * 16; x < w; x += 32) { const t = r(); g.fillStyle = `hsl(${13 + t * 9} ${30 + r() * 10}% ${40 + r() * 8}%)`; g.fillRect(x + 1.5, y + 1.5, 29, 13); }
   });
 }
 function floorTexture() {
@@ -242,7 +243,7 @@ export function buildWorld(scene, { coarse = false } = {}) {
     for (const b of bays) {
       const z1 = b.z0 - b.len, u = b.len / 2;
       // 中殿高墙：下面一个通侧廊的大尖券，上面高侧窗
-      slab(int, stone, { a: [s * C.AX, b.z0], b: [s * C.AX, z1], y1: TOP, thick: 0.9, holes: [{ u, y: 0, w: b.len - 1.9, spring: C.H.arcadeSpring, rise: C.H.arcadeApex - C.H.arcadeSpring }, ...clereHoles(u)], ...wallOpt });
+      slab(int, stone, { a: [s * C.AX, b.z0], b: [s * C.AX, z1], y1: TOP, thick: 0.9, holes: [{ u, y: 0, w: b.len - 1.25, spring: C.H.arcadeSpring, rise: C.H.arcadeApex - C.H.arcadeSpring + 0.4 }, ...clereHoles(u)], ...wallOpt });
       // 侧廊与小礼拜堂之间的券
       slab(int, stone, { a: [s * C.AISLE, b.z0], b: [s * C.AISLE, z1], y1: C.H.aisle + 0.6, thick: 0.8, holes: [{ u, y: 0, w: b.len - 1.6, spring: 4.6, rise: 2.7 }], ...wallOpt });
       // 小礼拜堂外墙：双尖窗加四叶圆窗；有边门的那一间开门
@@ -273,17 +274,17 @@ export function buildWorld(scene, { coarse = false } = {}) {
   // ---- 肋拱顶 ----
   const brick = brickTexture(); brick.repeat.set(1, 1);
   const vaultMat = new THREE.MeshBasicMaterial({ color: '#ffffff', vertexColors: true, side: THREE.DoubleSide, map: brick });
-  const ribMat = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#6f6452' }), RB = batcher(int, ribMat, { cast: false, receive: false });
+  const ribMat = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#4c4438' }), RB = batcher(int, ribMat, { cast: false, receive: false });
   const P = t => Math.pow(Math.max(0, 1 - Math.abs(t)), 0.56);
   const vPos = [], vCol = [], vUv = [], vIdx = []; let ribCount = 0;
-  const RIB = '#ddd0b8';
+  const RIB = '#c2b59e';
   function crossVault(x0, x1, z0, z1, spring, apex, { n = 10, ribR = 0.15 } = {}) {
     const base = vPos.length / 3, rise = apex - spring, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, hx = (x1 - x0) / 2, hz = (z1 - z0) / 2;
     const Y = (u, v) => spring + rise * Math.max(P(u), P(v));
     for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
       const u = i / n * 2 - 1, v = j / n * 2 - 1, y = Y(u, v), k = (y - spring) / rise, groin = Math.abs(Math.abs(u) - Math.abs(v));
-      vPos.push(cx + u * hx, y, cz + v * hz); vUv.push((cx + u * hx) * 0.55, (cz + v * hz) * 0.55 + y * 0.3);
-      const sh = (0.34 + 0.5 * k) * (0.82 + 0.18 * Math.min(1, groin * 4)); vCol.push(sh * 1.06, sh * 0.9, sh * 0.8);
+      vPos.push(cx + u * hx, y, cz + v * hz); vUv.push((cx + u * hx) * 0.9, (cz + v * hz) * 0.9 + y * 0.5);
+      const sh = (0.3 + 0.42 * k) * (0.8 + 0.2 * Math.min(1, groin * 4)); vCol.push(sh * 1.04, sh * 0.9, sh * 0.82);
     }
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = base + j * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; vIdx.push(a, c, b, b, c, d); }
     const m = 14, line = (fn, r) => { let prev = fn(-1); for (let i = 1; i <= m; i++) { const q = fn(i / m * 2 - 1); RB.rod(prev, q, r, RIB); prev = q; ribCount++; } };
@@ -313,7 +314,7 @@ export function buildWorld(scene, { coarse = false } = {}) {
   // 截面是一个圆芯外面抱八根细柱；到拱廊起脚处一圈卷叶柱头，朝中殿的那三根细柱继续升到拱顶起脚。
   function pierGeo(r, h) {
     const seg = 48, rings = 2, pos = [], idx = [];
-    for (let j = 0; j <= rings; j++) for (let i = 0; i <= seg; i++) { const th = i / seg * Math.PI * 2, lobe = Math.pow(Math.abs(Math.cos(4 * th)), 0.55), rr = r * (0.74 + 0.26 * lobe); pos.push(Math.cos(th) * rr, h * j / rings, Math.sin(th) * rr); }
+    for (let j = 0; j <= rings; j++) for (let i = 0; i <= seg; i++) { const th = i / seg * Math.PI * 2, rr = r * 0.74; pos.push(Math.cos(th) * rr, h * j / rings, Math.sin(th) * rr); }
     for (let j = 0; j < rings; j++) for (let i = 0; i < seg; i++) { const a = j * (seg + 1) + i, b = a + seg + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
   }
@@ -325,9 +326,9 @@ export function buildWorld(scene, { coarse = false } = {}) {
   for (const p of C.PIERS) {
     const s = Math.sign(p.x), r = p.r, y = C.H.arcadeSpring;
     S.cyl(p.x, 0, p.z, r * 1.32, 0.5, ST2, 'oct'); S.cyl(p.x, 0.5, p.z, r * 1.14, 0.4, ST, 'oct');                                 // 柱础
-    S.cyl(p.x, y - 0.75, p.z, r * 1.02, 0.14, ST3, 'oct');                                                                          // 柱颈一圈线脚
-    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + Math.PI / 8; S.ball(p.x + Math.cos(a) * r * 1.08, y - 0.16, p.z + Math.sin(a) * r * 1.08, 0.1, ST3, 1.2); }   // 卷叶
-    S.cyl(p.x, y - 0.6, p.z, r * 1.2, 0.6, ST, 'flare'); S.cyl(p.x, y, p.z, r * 1.3, 0.24, ST3, 'oct');                           // 柱头与顶板
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, big = k % 2 === 0, rr = big ? r * 0.36 : r * 0.22, d = big ? r * 0.72 : r * 0.78; S.cyl(p.x + Math.cos(a) * d, 0.9, p.z + Math.sin(a) * d, rr, y - 1.5, ST); S.cyl(p.x + Math.cos(a) * d, y - 0.6, p.z + Math.sin(a) * d, rr * 1.5, 0.5, ST3, 'flare'); S.cyl(p.x + Math.cos(a) * d, 0.75, p.z + Math.sin(a) * d, rr * 1.35, 0.22, ST2); }
+    S.cyl(p.x, y - 0.75, p.z, r * 0.8, 0.14, ST3, 'oct');                                                                          // 柱颈一圈线脚
+    S.cyl(p.x, y - 0.1, p.z, r * 1.32, 0.2, ST3, 'oct');                           // 柱头与顶板
     // 朝中殿那一面的三根附柱，一直升到拱顶起脚
     for (const [o, rr] of [[0, 0.2], [-0.3, 0.13], [0.3, 0.13]]) S.cyl(p.x - s * (0.5 + (o ? -0.07 : 0.06)), y + 0.24, p.z + o, rr, C.H.spring - y - 0.24, ST);
     S.cyl(p.x - s * 0.5, C.H.spring - 0.5, p.z, 0.56, 0.5, ST, 'flare'); S.cyl(p.x - s * 0.5, C.H.spring, p.z, 0.62, 0.2, ST3, 'oct');
@@ -339,7 +340,7 @@ export function buildWorld(scene, { coarse = false } = {}) {
 
   // ---- 彩窗（自发光的玻璃面片）----
   const mkLight = seed => new THREE.MeshBasicMaterial({ map: lightTexture(seed), toneMapped: false }), mkRound = (seed, kind) => new THREE.MeshBasicMaterial({ map: roundTexture(seed, kind), transparent: true, alphaTest: 0.5, toneMapped: false });
-  const eastL = [1, 2, 3, 4].map(mkLight), westL = [5, 6, 7, 8].map(mkLight), apseL = [9, 10, 11].map(mkLight);
+  const eastL = [1, 2, 3, 4].map(mkLight), westL = [5, 6, 7, 8].map(mkLight), apseL = [9, 10, 11].map(k => new THREE.MeshBasicMaterial({ map: lightTexture(k, true), toneMapped: false }));
   const eastQ = mkRound(12, 'quatre'), westQ = mkRound(13, 'quatre'), eastRose = mkRound(14, 'rose'), westRose = mkRound(15, 'rose'), southRose = mkRound(16, 'rose');
   const winGroups = new Map(); let wi = 0;
   const win = (mat, x, y, z, w, h, ry) => { (winGroups.get(mat) || winGroups.set(mat, []).get(mat)).push([x, y, z, w, h, ry]); };
@@ -414,7 +415,7 @@ export function buildWorld(scene, { coarse = false } = {}) {
   }
   // 吊灯：中殿每个开间一盏，黑铁的两圈枝灯
   const chand = (x, y, z, r, drop) => { I.rod([x, y, z], [x, y + drop, z], 0.02, '#2a2622'); I.cyl(x, y + 0.2, z, 0.06, 1.3, '#1f1c19'); for (const [rr, yy, n] of [[r, 0, 12], [r * 0.6, 0.6, 8]]) { for (let k = 0; k < n; k++) { const a = k * Math.PI * 2 / n; I.rod([x, y + yy + 0.7, z], [x + Math.cos(a) * rr, y + yy + 0.25, z + Math.sin(a) * rr], 0.018, '#1f1c19'); IG.ball(x + Math.cos(a) * rr, y + yy + 0.42, z + Math.sin(a) * rr, 0.05, '#ffe2a0', 1.5); } } };
-  keys.forEach((k, i) => { if (i === 0 || i % 2 || k.cz < C.Z_CROSS1 - 6) return; chand(0, 12.5, k.cz, 0.95, k.apex - 12.9); });
+  keys.forEach((k, i) => { if (i === 0 || i % 2 || k.cz < C.Z_CROSS1 - 6) return; chand(0, 12.0, k.cz, 1.2, k.apex - 12.4); });
   chand(0, 9.5, C.Z_CROSS1 - 7.5, 1.1, C.H.vault - 10.2);
   for (const s of [-1, 1]) bays.forEach((b, i) => { if (!b.chancel && i % 2 === 1) chand(s * 7.7, 7.6, b.z0 - b.len / 2, 0.45, 2.9); });
   // 侧廊墩上的苦路浮雕（白色小龛，示意）
@@ -423,6 +424,8 @@ export function buildWorld(scene, { coarse = false } = {}) {
   for (const d of C.DOORS) if (d.axis === 'x') for (const e of [-1, 1]) I.box(d.x + e * (d.half + 0.05), 0, C.Z_FRONT - 0.5, 0.1, d.half > 1.2 ? 4.4 : 3.4, d.half * 1.0, '#5e1f1c');
   I.build(); IG.build(); S.build(); RB.build();
 
+  // 圣所的暖光：祭台周围点着灯，照片里这一块是金色的
+  const altarLight = new THREE.PointLight('#ffc070', 22, 26, 1.4); altarLight.position.set(0, 6.5, C.Z_APSE + 1.5); int.add(altarLight);
   // 天穹
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1900, 24, 12), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
@@ -438,7 +441,7 @@ export function buildWorld(scene, { coarse = false } = {}) {
   scene.add(sky);
 
   return {
-    ext, int, sky, noPre, rays: { vol: volMat, mesh: vol }, vaultMat, eastMats, westMats, southMats, apseMats,
+    ext, int, sky, noPre, city: extInfo.city, rays: { vol: volMat, mesh: vol }, vaultMat, eastMats, westMats, southMats, apseMats,
     counts: { piers: C.PIERS.length, ribs: ribCount, windows: [...winGroups.values()].reduce((a, b) => a + b.length, 0), pews: C.PEWS.length, ...extInfo.counts },
   };
 }

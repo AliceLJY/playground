@@ -49,6 +49,7 @@ test('视点：不少于 14 个，位置都站得住，里外标得对', async (
     assert.equal(isIn ? 'in' : 'out', v.zone, `${v.id} 标的是 ${v.zone}，位置实际在${isIn ? '里' : '外'}`);
     assert.ok(v.text.length > 15 && v.cn && v.en, `${v.id} 要有说明文字`);
     if (v.mode === 'walk') { assert.equal(C.blocked(x, z), null, `${v.id} 的落脚点被 ${C.blocked(x, z)} 挡住`); assert.ok(Math.abs(y - C.groundY(x, z) - C.EYE) < 1e-9, `${v.id} 的高度应当是脚下地面加眼高`); }
+    if (v.zone === 'out') assert.ok(y > 45 || (z < C.YARD.z1 + 14 && z > C.YARD.z0 - 16 && Math.abs(x) < 66), `${v.id} 的机位 (${x},${y},${z}) 落进了院外的楼里`);
     if (v.zone === 'out') assert.ok(!C.BUILDINGS.some(b => Math.abs(x - b.x) < b.hx && Math.abs(z - b.z) < b.hz && y < b.h), `${v.id} 的机位埋在房子里`);
   }
 });
