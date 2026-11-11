@@ -26,7 +26,7 @@ sun.shadow.mapSize.set(coarse ? 2048 : 4096, coarse ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -27, right: 27, top: 27, bottom: -27, near: 5, far: 140 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.05;
 scene.add(sun, sun.target);
 
-const world = buildWorld(scene, { coarse, sunDir: SUN });
+const world = buildWorld(scene, { coarse, sunDir: SUN, flatWater: Q.has('flatwater'), still: Q.has('still') });
 const audio = createAudio();
 renderer.shadowMap.needsUpdate = true;
 
@@ -135,7 +135,7 @@ let last = performance.now(), T = 0, shadowTick = 0;
 function step(real) {
   T += real; world.update(T, real); updateCamera(real);
   world.sky.position.copy(camera.position);
-  if (++shadowTick % (coarse ? 20 : 4) === 0) renderer.shadowMap.needsUpdate = true;
+  if (Q.has('shadow1') || ++shadowTick % (coarse ? 20 : 4) === 0) renderer.shadowMap.needsUpdate = true;   // 诊断开关 ?shadow1：阴影每帧更新
   const nearWater = S.mode === 'walk' ? Math.max(clamp(1 - (Math.hypot(S.walk.x + 0.5, S.walk.z - 3.2) - 4) / 7, 0, 1), clamp(1 - (Math.hypot(S.walk.x - C.FALL.x, S.walk.z + 1.5) - 2) / 7, 0, 1)) : 0.6;
   audio.update(real, nearWater);
   renderer.info.reset(); renderer.render(scene, camera);

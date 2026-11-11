@@ -52,19 +52,24 @@ function buildHills(scene) {
   }
 }
 
-export function buildWorld(scene, { coarse, sunDir }) {
+export function buildWorld(scene, { coarse, sunDir, flatWater = false, still = false }) {
   const prof = [], tick = n => prof.push([n, Math.round(performance.now())]); tick('start');
   const T = makeTextures(), M = makeMaterials(T), anim = []; tick('tex');
   buildGround(scene, M, T); tick('ground');
   // 水面：一张带倒影的水，盖住长方池、水道和八角池
   const ws = new THREE.Shape(); C.POND.forEach((p, i) => i ? ws.lineTo(p.x, -p.z) : ws.moveTo(p.x, -p.z)); ws.closePath();
-  const water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 512 : 768, textureHeight: coarse ? 512 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x1d5a48, distortionScale: 0.5, alpha: 1, fog: false });
+  // 诊断开关 ?flatwater：不要倒影，换成一张平静的纯色水面，用来判断画面问题是不是出在倒影上
+  let water;
+  if (flatWater) { water = new THREE.Mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({ color: 0x2c6b58, roughness: 0.25, metalness: 0.1 })); water.rotation.x = -Math.PI / 2; water.position.y = C.WATER_Y; water.receiveShadow = true; scene.add(water); }
+  else {
+  water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 512 : 768, textureHeight: coarse ? 512 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x1d5a48, distortionScale: 0.5, alpha: 1, fog: false });
   water.rotation.x = -Math.PI / 2; water.position.y = C.WATER_Y; water.material.uniforms.size.value = 0.55; scene.add(water);
   anim.push((t) => { water.material.uniforms.time.value = t * 0.28; });
+  }
   buildWalls(scene, M); tick('walls');
   buildHall(scene, M); tick('hall');
   buildCorridorBridge(scene, M); buildOctPavilion(scene, M); buildPondEdge(scene, M); tick('bridge');
-  buildLotus(scene, M, anim); buildKoi(scene, M, anim); tick('lotus');
+  buildLotus(scene, M, still ? [] : anim); buildKoi(scene, M, anim);   // 诊断开关 ?still：荷叶荷花不摇 tick('lotus');
   buildKapok(scene, M, anim); buildLychee(scene, M); buildJack(scene, M); buildBamboo(scene, M); buildBanana(scene, M, anim); buildVine(scene, M); tick('trees');
   buildBonsai(scene, M); buildProps(scene, M); buildYing(scene, M, T, anim); buildOutside(scene, M); tick('props');
   buildFar(scene, M); buildHills(scene); tick('far');
