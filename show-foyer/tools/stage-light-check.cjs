@@ -26,6 +26,8 @@ function sampleRegions(g) {
   for (const [name, b] of Object.entries(regions)) {
     if (![b.x, b.y, b.width, b.height].every(Number.isFinite) || b.width <= 0 || b.height <= 0 || b.x < g.stage.x || b.y < g.stage.y || b.x + b.width > g.stage.x + g.stage.width || b.y + b.height > g.stage.y + g.stage.height) throw new Error(`${name}: 取样框不在页面回报的舞台内`);
   }
+  const seat = g.seats[0];
+  regions.frontRow = { x: seat.x - seat.width * 0.22, y: seat.y + seat.height * 0.3, width: seat.width * 0.44, height: seat.height * 0.25 };
   return regions;
 }
 
@@ -133,6 +135,9 @@ async function main(url, out) {
           checks[`wholeStage.${zone}.eachStep`] = values.slice(1).every((v, i) => v - values[i] >= 3);
           checks[`wholeStage.${zone}.span`] = values[3] - values[0] >= 25;
         }
+        const seatLight = [0, 1, 3, 5].map(n => read[n].frontRow.luma);
+        checks.frontRowFollowsLamps = seatLight.slice(1).every((v, i) => v > seatLight[i]);
+        checks.frontRowVisibleChange = seatLight[3] - seatLight[0] >= 3;
         const fade = {};
         for (const zone of FRAMES) {
           const values = Object.fromEntries(TIMES.map(t => [t, transition[t][zone].luma]));
