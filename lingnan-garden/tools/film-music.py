@@ -71,11 +71,19 @@ PHRASES = [
     [(13, 3), (12, 1), (10, 2), (11, 3)],                            # 壁山
     [(8, 1), (10, 2), (12, 3), (10, 1), (8, 2), (5, 3)],             # 回望，落回主音
 ]
+# 剪短的版本（tools/cut40.py 生成的 timeline 带 shots 名字和 phraseTail）：句子按镜头名字取，
+# 并在下一镜起点之后 phraseTail 秒内收住，免得长句子拖进后面几镜叠成三条吹管。整片版不带 phraseTail，行为不变。
+NAMES = ["card", "pond", "hall", "inside", "bridge", "rock", "finale"]
+BY_NAME = dict(zip(NAMES, PHRASES))
+shot_names = [s.get("name") for s in tl.get("shots", [])]
+tail = tl.get("phraseTail")
 for si, cut in enumerate(tl["cuts"][:len(PHRASES)]):
     if tl["endcardAt"] is not None and cut >= tl["endcardAt"]: break
+    phrase = BY_NAME.get(shot_names[si], PHRASES[si]) if tail is not None and si < len(shot_names) else PHRASES[si]
+    stop = (tl["cuts"][si + 1] + tail) if tail is not None and si + 1 < len(tl["cuts"]) else end
     t = cut + (2.6 if si == 0 else 0.9)
-    for deg, beats in PHRASES[si]:
-        if t > end - 0.4: break
+    for deg, beats in phrase:
+        if t > end - 0.4 or (tail is not None and t + beat * beats > stop + beat): break
         d = beat * beats
         place(flute(SC[deg], d * 0.94, bend=-0.03), t, 0.1 if si % 2 else -0.1, 0.11)
         t += d
