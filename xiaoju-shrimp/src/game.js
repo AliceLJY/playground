@@ -229,7 +229,7 @@ function draw(f){
   // the coffee table top goes over the cat: see-through while 小橘 is under it, so you can tell where it is
   if(L.def.id==='living'){const under=L.kind[S.catOcc()]==='T';A.coffeeTableTop(ctx,ox+2*cell,oy+4*cell,cell*3,cell*2,cell,under?.5:1);
     A.label(ctx,under?'藏好了':'茶几 · 底下能藏',ox+3.5*cell,oy+5.62*cell,Math.max(10,cell*.17),'#fff8e8','rgba(40,22,10,.62)');}
-  if(S.time()<3&&S.phase==='play'){tag('你 · 小橘',cp[0],cp[1]-cell*.58,'#ffcf8e');if(sp)tag('三花',sp[0],sp[1]-cell*.55,'#f6f1e6');}
+  if(S.time()<3&&S.phase==='play'){tag('你 · 小橘',cp[0],cp[1]-cell*.8,'#ffcf8e');if(sp)tag('三花',sp[0],sp[1]-cell*.8,'#f6f1e6');}
   if(sp&&S.phase==='hiss')bubble('哈！',sp[0],sp[1]-cell*.75,cell*.5,COL.alert);
   if(S.phase==='play'||S.phase==='hiss'||S.phase==='dash'){ // goal pointer: tells a first-time player where to go next
     const goal=L.type==='still'&&!S.carry?L.shrimp:L.door,text=L.type==='still'?(S.carry?'叼着虾跳下去':'先来叼虾'):'走进这里过关';
