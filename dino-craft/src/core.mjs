@@ -138,6 +138,30 @@ export function direction(p){const c=Math.cos(p.pitch);return [-Math.sin(p.yaw)*
 export function craft(g,i){const r=RECIPES[i];if(!r||g.dead)return false;for(const [key,n] of Object.entries(r.cost))if((g.inventory[key]||0)<n)return false;for(const [key,n] of Object.entries(r.cost))g.inventory[key]-=n;for(const [key,n] of Object.entries(r.give)){if(key==='battery')g.p.battery=Math.min(160,g.p.battery+n);else g.inventory[key]=(g.inventory[key]||0)+n;}g.stats.crafted++;g.events.push({type:'craft',name:r.name});return true;}
 export function eat(g){const key=g.inventory.food?'food':g.inventory.meat?'meat':null;if(!key||g.dead)return false;g.inventory[key]--;g.p.hunger=Math.min(100,g.p.hunger+(key==='food'?45:24));g.p.hp=Math.min(100,g.p.hp+(key==='food'?15:5));return true;}
 export function shelter(g){const p=g.p,x=Math.floor(p.x),y=Math.floor(p.y),z=Math.floor(p.z);let roof=false,walls=0;for(let h=2;h<=4;h++)if(g.block(x,y+h,z))roof=true;for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){for(let a=1;a<=2;a++)if(g.block(x+dx*a,y+1,z+dz*a)){walls++;break;}}return roof&&walls>=2;}
+// Ground creatures are solid to the player. A dinosaur is long, so its body is a capsule along its heading
+// (model extents: rex head +3.65, tail -5.99, half-width 1.32; grazer +2.27, -4.03, .78), not a circle.
+// A move is refused only when it ends inside a body AND brings the two closer, so anything already
+// overlapping can always separate.
+const BODY={rex:{front:2.9,back:-5.2,r:.75,h:3.8},grazer:{front:1.7,back:-3.4,r:.6,h:2.5}};
+// Horizontal gap between a point and the body; Infinity when a player standing at height y is above or below it.
+export function bodyDistance(e,x,z,y){const b=BODY[e.type];if(y!==undefined&&(y>=e.y+b.h||y+1.8<=e.y))return Infinity;const fx=Math.sin(e.yaw),fz=Math.cos(e.yaw),dx=x-e.x,dz=z-e.z,t=Math.max(b.back,Math.min(b.front,dx*fx+dz*fz));return Math.hypot(dx-fx*t,dz-fz*t)-b.r;}
+function crowded(g,x,z){const p=g.p;for(const e of g.creatures){if(!BODY[e.type]||e.dead)continue;const d=bodyDistance(e,x,z,p.y);if(d<.3&&d<bodyDistance(e,p.x,p.z,p.y))return true;}return false;}
+// Trunks and player-built blocks stand above the natural surface; hills are not obstacles, creatures climb them.
+// Leaves do not stop a dinosaur: with fern clumps every few blocks a rex-sized body would be boxed in, and
+// brushing through foliage reads as natural. Trunks and walls do stop it.
+function obstacle(g,x,y,z){const b=g.block(x,y,z);return b&&b!==6&&Math.floor(y)>g.k.height(x,z);}
+// A creature is a circle on the ground; tree and built cells push it out along the nearest face or corner,
+// so it slides round a trunk instead of stopping at it or passing through. Returns the corrected spot.
+function pushOut(g,e,x,z){const R=e.type==='rex'?.8:.5,top=e.type==='rex'?3:2,y=g.k.height(x,z)+1;
+ for(let pass=0;pass<2;pass++)for(let cx=Math.floor(x-R);cx<=Math.floor(x+R);cx++)for(let cz=Math.floor(z-R);cz<=Math.floor(z+R);cz++){
+  let solid=false;for(let h=.5;h<top;h++)if(obstacle(g,cx+.5,y+h,cz+.5)){solid=true;break;}
+  if(!solid)continue;
+  const px=Math.max(cx,Math.min(x,cx+1)),pz=Math.max(cz,Math.min(z,cz+1)),dx=x-px,dz=z-pz,d=Math.hypot(dx,dz);
+  if(d>=R)continue;
+  if(d<1e-6){const l=x-cx,r=cx+1-x,b=z-cz,f=cz+1-z,m=Math.min(l,r,b,f);if(m===l)x=cx-R;else if(m===r)x=cx+1+R;else if(m===b)z=cz-R;else z=cz+1+R;}
+  else{x=px+dx/d*R;z=pz+dz/d*R;}
+ }
+ return [x,z];}
 function blocked(g,x,y,z){for(const xx of [x-.27,x+.27])for(const zz of [z-.27,z+.27])for(const yy of [y+.001,y+1,y+1.7])if(g.block(xx,yy,zz))return true;return false;}
 function damagePlayer(g,n){if(g.dead)return;g.p.hp=Math.max(0,g.p.hp-n);g.stats.bites++;g.events.push({type:'hurt',n});if(g.p.hp<=0){g.dead=true;g.events.push({type:'death'});}}
 function shot(g,dx,dy,dz){const p=g.p,wall=rayBlock(g,p.x,p.y+1.62,p.z,dx,dy,dz,55);let best=null,dist=wall?wall.d:55;for(const e of g.creatures){if(e.dead)continue;const ey=e.y+(e.type==='rex'?2.0:e.type==='grazer'?.9:0),vx=e.x-p.x,vy=ey-p.y-1.62,vz=e.z-p.z,t=vx*dx+vy*dy+vz*dz,r=e.type==='rex'?1.65:e.type==='grazer'?1:.95;if(t<0||t>dist)continue;if(vx*vx+vy*vy+vz*vz-t*t<r*r){best=e;dist=t;}}
@@ -145,7 +169,7 @@ function shot(g,dx,dy,dz){const p=g.p,wall=rayBlock(g,p.x,p.y+1.62,p.z,dx,dy,dz,
 export function update(g,input,dt){if(!Number.isFinite(dt)||dt<=0)return;dt=Math.min(dt,.05);g.events.length=0;if(g.dead)return;const p=g.p;g.time+=dt;g.phase=(.26+g.time/180)%1;g.day=1+Math.floor(g.time/180);g.night=g.phase>.72||g.phase<.17;if(g.time>=180&&!g.won){g.won=true;g.events.push({type:'survived'});}
  const mx=Math.max(-1,Math.min(1,input.moveX||0)),mz=Math.max(-1,Math.min(1,input.moveZ||0)),norm=Math.max(1,Math.hypot(mx,mz)),sprint=input.sprint&&p.stamina>1&&Math.hypot(mx,mz)>.1,speed=(sprint?6.8:4.1)*(p.y<10?.65:1),vx=(mx*Math.cos(p.yaw)-mz*Math.sin(p.yaw))/norm*speed,vz=(-mx*Math.sin(p.yaw)-mz*Math.cos(p.yaw))/norm*speed;
  p.stamina=Math.max(0,Math.min(100,p.stamina+dt*(sprint?-15:12)));const oldX=p.x,oldZ=p.z;
- for(const axis of ['x','z']){const v=axis==='x'?vx:vz,n=p[axis]+v*dt,tx=axis==='x'?n:p.x,tz=axis==='z'?n:p.z;if(!blocked(g,tx,p.y,tz))p[axis]=n;else if(p.ground&&!blocked(g,tx,p.y+1.02,tz)){p[axis]=n;p.y+=1.02;}}
+ for(const axis of ['x','z']){const v=axis==='x'?vx:vz,n=p[axis]+v*dt,tx=axis==='x'?n:p.x,tz=axis==='z'?n:p.z;if(crowded(g,tx,tz))continue;if(!blocked(g,tx,p.y,tz))p[axis]=n;else if(p.ground&&!blocked(g,tx,p.y+1.02,tz)){p[axis]=n;p.y+=1.02;}}
  if(input.jump&&p.ground){p.vy=7.6;p.ground=false;}p.vy-=22*dt;const ny=p.y+p.vy*dt;if(!blocked(g,p.x,ny,p.z)){p.y=ny;p.ground=false;}else{if(p.vy<0){p.y=Math.floor(p.y+.06);p.ground=true;}p.vy=0;}if(p.y<1){p.y=g.k.height(p.x,p.z)+1;p.vy=0;damagePlayer(g,15);}g.stats.distance+=Math.hypot(p.x-oldX,p.z-oldZ);
  p.hunger=Math.max(0,p.hunger-dt*(sprint?.45:.22));if(p.hunger<=0)damagePlayer(g,dt*3);if(g.headlamp){p.battery=Math.max(0,p.battery-dt*.75);if(!p.battery)g.headlamp=false;}
  g.sheltered=shelter(g);if(g.sheltered){g.stats.shelterSeconds+=dt;if(p.hunger>15)p.hp=Math.min(100,p.hp+dt*1.8);}
@@ -154,10 +178,29 @@ export function update(g,input,dt){if(!Number.isFinite(dt)||dt<=0)return;dt=Math
  g.mineTimer-=dt;if(input.mine&&g.mineTimer<=0){g.mineTimer=.28;const r=rayBlock(g,p.x,p.y+1.62,p.z,dx,dy,dz);if(r&&r.y>0){g.setBlock(r.x,r.y,r.z,0);const key=BLOCKS[r.b][2];g.inventory[key]=(g.inventory[key]||0)+1;g.stats.mined++;g.events.push({type:'mine',x:r.x+.5,y:r.y+.5,z:r.z+.5,b:r.b});}}
  g.placeTimer-=dt;if(input.place&&g.placeTimer<=0){g.placeTimer=.23;const r=rayBlock(g,p.x,p.y+1.62,p.z,dx,dy,dz),b=SLOTS[g.selected],key=BLOCKS[b][2];if(r&&g.inventory[key]>0){const x=r.px,y=r.py,z=r.pz,overlap=Math.abs(x+.5-p.x)<.79&&Math.abs(z+.5-p.z)<.79&&y<p.y+1.8&&y+1>p.y;if(!overlap&&!g.block(x,y,z)&&g.setBlock(x,y,z,b)){g.inventory[key]--;g.stats.placed++;g.events.push({type:'place',x,y,z,b});}}}
  for(const e of g.creatures){e.age+=dt;e.hit=Math.max(0,e.hit-dt);if(e.dead){e.dead+=dt;continue;}const rx=p.x-e.x,rz=p.z-e.z,d=Math.hypot(rx,rz),safe=Math.max(.01,d),oldx=e.x,oldz=e.z;e.cool-=dt;e.flee=Math.max(0,e.flee-dt);
-  if(e.type==='rex'){const aggro=d<(g.sheltered?7:g.night?36:25)||input.fire&&d<40;if(aggro){e.yaw=Math.atan2(rx,rz);if(e.warning>0){e.warning-=dt;if(e.warning<=0){if(d<3.1){const vy=p.y+1.2-e.y-1.4,len=Math.hypot(rx,rz,vy),wall=rayBlock(g,e.x,e.y+1.4,e.z,rx/len,vy/len,rz/len,len);if(!wall)damagePlayer(g,g.night?36:29);}e.cool=1.6;}}else if(d<4&&e.cool<=0){e.warning=.85;g.stats.warnings++;g.events.push({type:'warning',id:e.id,seconds:.85});}else if(d>2.7){const speed=g.night?4.4:2.9;e.x+=rx/safe*speed*dt;e.z+=rz/safe*speed*dt;}}else{e.x+=Math.sin(e.age*.2+e.id)*dt*.4;e.z+=Math.cos(e.age*.2+e.id)*dt*.4;}}
+  if(e.type==='rex'){const aggro=d<(g.sheltered?7:g.night?36:25)||input.fire&&d<40;if(aggro){e.yaw=Math.atan2(rx,rz);if(e.warning>0){e.warning-=dt;if(e.warning<=0){if(d<4.8){const vy=p.y+1.2-e.y-1.4,len=Math.hypot(rx,rz,vy),wall=rayBlock(g,e.x,e.y+1.4,e.z,rx/len,vy/len,rz/len,len);if(!wall)damagePlayer(g,g.night?36:29);}e.cool=1.6;}}else if(d<5.7&&e.cool<=0){e.warning=.85;g.stats.warnings++;g.events.push({type:'warning',id:e.id,seconds:.85});}else if(d>4.4){const speed=g.night?4.8:3.3;e.x+=rx/safe*speed*dt;e.z+=rz/safe*speed*dt;}}else{e.x+=Math.sin(e.age*.2+e.id)*dt*.4;e.z+=Math.cos(e.age*.2+e.id)*dt*.4;}}
   else if(e.type==='grazer'){if(d<7||input.fire&&d<25)e.flee=3;const speed=e.flee?5: .6,ang=e.flee?Math.atan2(-rx,-rz):e.age*.2+e.id;e.yaw=ang;e.x+=Math.sin(ang)*speed*dt;e.z+=Math.cos(ang)*speed*dt;}
   else{if(!e.dive&&e.cool<=0&&d<28){e.dive=true;e.warning=1.1;e.diveX=p.x;e.diveZ=p.z;e.diveY=p.y+1;e.fromY=e.y;g.stats.warnings++;g.events.push({type:'warning',id:e.id,seconds:1.1});}if(e.dive){e.warning-=dt;if(e.warning<0){const dx=e.diveX-e.x,dz=e.diveZ-e.z,ds=Math.max(.01,Math.hypot(dx,dz));e.x+=dx/ds*8*dt;e.z+=dz/ds*8*dt;e.y+=(e.diveY-e.y)*dt*5;if(d<2&&Math.abs(e.y-p.y-1)<2){damagePlayer(g,14);e.dive=false;e.cool=12+g.random()*6;}else if(e.warning< -1.3){e.dive=false;e.cool=12+g.random()*6;}}}else{e.x=e.anchorX+Math.sin(e.age*.32)*9;e.z=e.anchorZ+Math.cos(e.age*.32)*9;e.y+=(g.k.height(e.x,e.z)+13-e.y)*dt;}e.yaw=Math.atan2(e.x-oldx,e.z-oldz);}
-  if(e.type!=='ptero'){const target=g.k.height(e.x,e.z)+1,ex=Math.floor(e.x),ez=Math.floor(e.z);if(g.edits.get(`${ex},${Math.floor(target+.5)},${ez}`)||g.edits.get(`${ex},${Math.floor(target+1.5)},${ez}`)){e.x=oldx;e.z=oldz;}e.y+=(target-e.y)*Math.min(1,dt*12);}if(e.type!=='ptero'&&Math.hypot(e.x-oldx,e.z-oldz)>.00001)e.yaw=Math.atan2(e.x-oldx,e.z-oldz);if(d>72){e.x=p.x+(g.random()-.5)*60;e.z=p.z-30-g.random()*10;e.anchorX=e.x;e.anchorZ=e.z;}
+  if(e.type!=='ptero'){const nx=e.x,nz=e.z,mx=nx-oldx,mz=nz-oldz;e.x=oldx;e.z=oldz;
+   e.avoidT=Math.max(0,(e.avoidT||0)-dt);const len=Math.hypot(mx,mz);
+   if(len>1e-6){
+    let [x,z]=pushOut(g,e,nx,nz);
+    // Pushed almost straight back (dead ahead of a trunk, or along a flat face): step sideways instead,
+    // and keep to that side for a while so the creature does not shuffle left and right.
+    if(((x-oldx)*mx+(z-oldz)*mz)/(len*len)<.25){
+     if(!e.avoidT)e.avoid=e.id%2?1:-1;e.avoidT=1.5;
+     [x,z]=pushOut(g,e,oldx-mz*e.avoid,oldz+mx*e.avoid);
+     if(Math.hypot(x-oldx,z-oldz)<len*.25)e.avoid=-e.avoid;
+    }
+    // Never step into the player's body.
+    const p=g.p,was=bodyDistance(e,p.x,p.z,p.y);e.x=x;e.z=z;
+    {const now=bodyDistance(e,p.x,p.z,p.y);if(now<.3&&now<was){e.x=oldx;e.z=oldz;}}
+   }
+   const target=g.k.height(e.x,e.z)+1;e.y+=(target-e.y)*Math.min(1,dt*12);}if(e.type!=='ptero'&&Math.hypot(e.x-oldx,e.z-oldz)>.00001)e.yaw=Math.atan2(e.x-oldx,e.z-oldz);
+  // A dinosaur turns on the spot, and a long tail can swing through where the player stands. After every
+  // move and turn, slide the animal away until its body is clear of the player.
+  if(BODY[e.type]&&bodyDistance(e,p.x,p.z,p.y)<.3){const b=BODY[e.type],fx=Math.sin(e.yaw),fz=Math.cos(e.yaw),dx=p.x-e.x,dz=p.z-e.z,along=Math.max(b.back,Math.min(b.front,dx*fx+dz*fz));let ax=dx-fx*along,az=dz-fz*along,off=Math.hypot(ax,az);if(off-b.r<.3){const push=.3-(off-b.r);if(off<1e-4){ax=fz;az=-fx;off=1;}[e.x,e.z]=pushOut(g,e,e.x-ax/off*push,e.z-az/off*push);}}
+  if(d>72){e.x=p.x+(g.random()-.5)*60;e.z=p.z-30-g.random()*10;e.anchorX=e.x;e.anchorZ=e.z;}
  }
  for(let i=g.creatures.length-1;i>=0;i--)if(g.creatures[i].dead>1.4)g.creatures.splice(i,1);
  g.respawn+=dt;if(g.respawn>12){g.respawn=0;const rex=g.creatures.filter(e=>e.type==='rex'&&!e.dead).length;if(g.night){for(let n=rex;n<3;n++){const a=g.random()*Math.PI*2,r=16+g.random()*9;g.spawn('rex',p.x+Math.sin(a)*r,p.z+Math.cos(a)*r);}}else if(rex<2)g.spawn('rex',p.x+(g.random()-.5)*32,p.z-28-g.random()*8);if(g.creatures.length<14)g.spawn('grazer',p.x+15,p.z-15);}
