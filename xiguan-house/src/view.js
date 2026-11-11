@@ -242,18 +242,49 @@
     b.addEventListener('click', (e) => { e.stopPropagation(); openDetail(i); });
     document.getElementById('landmarks').appendChild(b);
   });
+  // Labels keep off the furniture and the opened doors. Each one tries the offset it was given; if its box would reach
+  // into a piece (or another label) it steps outward from that spot, nearest free place first. Floor, walls and the
+  // folded-back roof may be covered. tools/b3-check.cjs measures the result with its own copy of the geometry test.
+  const CLEAR = /^(鱼缸|花盆|盆栽|神台|香炉|神楼|八仙桌|桌脚|桌牙|椅|书桌|书$|茶几|茶壶|门官|满洲窗|大门|脚门|趟栊)/;
+  function outline(pts) { // convex hull of the projected corners
+    pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+    for (const q of pts) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+    for (const q of pts.reverse()) { while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  function reach(poly, r) { // how far box r reaches into convex poly, 0 when they are apart (separating axes)
+    const box = [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]], axes = [[1, 0], [0, 1]];
+    for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length], n = Math.hypot(b[0] - a[0], b[1] - a[1]); if (n > 1e-6) axes.push([-(b[1] - a[1]) / n, (b[0] - a[0]) / n]); }
+    let least = Infinity;
+    for (const [ax, ay] of axes) {
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const v of poly) { const t = v[0] * ax + v[1] * ay; if (t < a0) a0 = t; if (t > a1) a1 = t; }
+      for (const v of box) { const t = v[0] * ax + v[1] * ay; if (t < b0) b0 = t; if (t > b1) b1 = t; }
+      const o = Math.min(a1, b1) - Math.max(a0, b0); if (o <= 0) return 0; if (o < least) least = o;
+    }
+    return least;
+  }
+  const STEPS = []; // offsets from the given spot, nearest first
+  for (const d of [24, 48, 72, 96, 128, 160, 200, 240]) for (let k = 0; k < 12; k++) STEPS.push([Math.cos(k * Math.PI / 6) * d, Math.sin(k * Math.PI / 6) * d]);
   function drawLandmarks() {
     const show = !anim && s >= T;
     const top = document.querySelector('.note').getBoundingClientRect().bottom + 8;
     const bottom = document.querySelector('.bar').getBoundingClientRect().top - 8;
+    let pieces = null; const placed = [];
     details.forEach((d) => {
       const b = d.button; b.hidden = !show; if (!show) return;
-      const [x,y] = P(d.at);
-      const left = Math.max(12, Math.min(W-b.offsetWidth-12,x+d.dx));
-      const bt = Math.max(top, Math.min(bottom-b.offsetHeight,y+d.dy));
+      if (!pieces) { const V = XG.worldVerts(s); pieces = XG.SOLIDS.map((sd, i) => CLEAR.test(sd.name) ? outline(V[i].map(P)) : null).filter(Boolean); }
+      const [x,y] = P(d.at), w = b.offsetWidth, h = b.offsetHeight;
+      const at = (dx, dy) => { const left = Math.max(12, Math.min(W-w-12,x+dx)), t = Math.max(top, Math.min(bottom-h,y+dy)); return { left, top: t, right: left+w, bottom: t+h }; };
+      const busy = (r) => placed.some((q) => r.left < q.right+6 && q.left < r.right+6 && r.top < q.bottom+6 && q.top < r.bottom+6) || pieces.some((poly) => reach(poly, r) > .5);
+      let r = at(d.dx, d.dy);
+      if (busy(r)) for (const [ex, ey] of STEPS) { const c = at(d.dx+ex, d.dy+ey); if (!busy(c)) { r = c; break; } }
+      placed.push(r);
+      const left = r.left, bt = r.top;
       b.style.left = left+'px'; b.style.top = bt+'px';
       ctx.strokeStyle = PAL.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x,y);
-      ctx.lineTo(Math.max(left,Math.min(left+b.offsetWidth,x)),Math.max(bt,Math.min(bt+b.offsetHeight,y)));ctx.stroke();
+      ctx.lineTo(Math.max(left,Math.min(left+w,x)),Math.max(bt,Math.min(bt+h,y)));ctx.stroke();
       ctx.fillStyle = PAL.ink; ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
     });
   }
