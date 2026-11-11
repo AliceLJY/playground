@@ -75,7 +75,7 @@
 
 ### 先红后绿
 
-先核实旧平衡档为 864×540 光线目标、512² 密度图，而桌面 drawing buffer 是 2160×1350。先增加同帧捕获钩子和 A9 检查，不改变渲染画质，再运行旧版：`node tools/clarity-check.cjs --label=old` 退出 1，`node --test tests/clarity.test.cjs` 同样失败，原始失败日志为 [r3-red.log](shots/r3-red.log)。然后才修改画质。
+先核实旧平衡档为 864×540 光线目标、512² 密度图，而桌面 drawing buffer 是 2160×1350。先增加同帧捕获钩子和 A9 检查，不改变渲染画质，再运行旧版：`node tools/clarity-check.cjs --label=old` 退出 1，`node --test tests/clarity.browser.cjs` 同样失败，原始失败日志为 [r3-red.log](shots/r3-red.log)。然后才修改画质。
 
 固定 hero / edge、82 秒、种子 19，1440×900 CSS、实际 DPR 1.5，读取最终 sRGB 画布。每张默认图都立即与同一时刻、同一机位、同样 144 步和 9216 粒子的全分辨率光线 / 1024² 密度图比较。梯度能量定义、ROI 边界与 ≥0.65 阈值见 SPEC A9；前后不改 ROI 或阈值。全分辨率参考图的新旧 SHA-256 分别逐字节一致，两机位都一致。
 
@@ -119,3 +119,5 @@
 - 改动的 JS / CJS 入口经 `node --check`，`git diff --check` 无空白错误。最终 `dist/index.html` 为 570249 字节，SHA-256 为 `099857a523341eab2f112ac6110189ff71075980268233d29cffa5405f5dc3c3`。
 - 手机仍用桌面 Chrome 触屏模拟，390×664 的实际 DPR 为 1.25，drawing buffer 487×830；另验 412×700、700×390。未测真实手机 / Safari、持续温升、整机功耗、独占 GPU 的性能以及长期自动升到精细档后的热稳定性。
 - 本轮未重录开局 30 秒操作录像；没有改操作或镜头逻辑，沿用本轮真实输入回归。未部署或复验线上链接。清晰度门槛只覆盖固定的两个成盘机位与四个 ROI，不能代替任意机位、任意时刻的人眼判断。
+
+清晰度检查要开真浏览器与 GPU，CI 的 Linux 机器上没有，故文件名为 `tests/clarity.browser.cjs`，不在 `node --test tests/*.test.cjs` 的范围内；本地手动跑：`NODE_PATH="$(npm root -g)" node --test tests/clarity.browser.cjs`（AGENTS.md 第 2 节：依赖像素或 GPU 的检查保留浏览器入口）。
