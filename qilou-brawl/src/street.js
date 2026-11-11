@@ -85,6 +85,20 @@ const LANTERN = [[.02, -.2, .6], [.09, -.195, .7], [.15, -.15, .85], [.195, -.08
 // 阳光走的方向：从街口右后方低低地照过来，右排骑楼的影子压住半条街，左排立面和迎面的招牌吃到暖光
 export const SUN = (() => { const v = [.2, -.5, .84], l = Math.hypot(...v); return v.map((x) => x / l); })();
 
+// 按台边切开软影多边形；顶点是 [x, z, alpha]，交点插值保留原来的软边。
+function splitBlob(poly, axis, edge, sign) {
+  const inside = [], outside = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], da = (a[axis] - edge) * sign, db = (b[axis] - edge) * sign;
+    (da >= 0 ? inside : outside).push(a);
+    if ((da >= 0) !== (db >= 0)) {
+      const t = da / (da - db), p = a.map((v, k) => v + (b[k] - v) * t);
+      p[axis] = edge; inside.push(p); outside.push(p);
+    }
+  }
+  return [inside, outside];
+}
+
 export function buildStreet(app, { halfW = 3.6, z0 = -8, z1 = 58, seed = 3, small = false, shadows = true } = {}) {
   let s = seed; const rand = () => (s = (s * 16807) % 2147483647) / 2147483647, pick = (a) => a[Math.floor(rand() * a.length)];
   const T = makeTextures(app.graphicsDevice, { small });
@@ -296,13 +310,49 @@ export function buildStreet(app, { halfW = 3.6, z0 = -8, z1 = 58, seed = 3, smal
   for (const k of Object.keys(B)) if (B[k].i.length) root.addChild(B[k].entity(app, 'street-' + k, M[k], shadows && k !== 'glow' && k !== 'lit'));
   // 脚下软影：一圈圈顶点、透明度由里到外淡出（材质要开着光照，关掉的话引擎会把顶点色丢掉）。站在背阴里也有这一团，人才踩在地上
   const blobMat = new pc.StandardMaterial(); blobMat.diffuse = new pc.Color(0, 0, 0); blobMat.specular = new pc.Color(0, 0, 0); blobMat.gloss = 0; blobMat.opacityVertexColor = true; blobMat.opacity = 1; blobMat.blendType = pc.BLEND_NORMAL; blobMat.depthWrite = false; blobMat.cull = pc.CULLFACE_NONE; blobMat.update();
-  const blobMesh = (() => {
+  const blobData = (() => {
     const p = [], c = [], n = [], idx = [], SEG = 22, rings = [[0, .78], [.3, .7], [.55, .46], [.8, .16], [1, 0]]; // [半径比例, 不透明度]
     rings.forEach(([rr, a]) => { for (let q = 0; q < SEG; q++) { const th = q / SEG * 6.283; p.push(Math.cos(th) * .5 * rr, 0, Math.sin(th) * .5 * rr); n.push(0, 1, 0); c.push(0, 0, 0, Math.round(255 * a)); } });
     for (let j = 0; j < rings.length - 1; j++) for (let q = 0; q < SEG; q++) { const a = j * SEG + q, b = j * SEG + (q + 1) % SEG; idx.push(a, a + SEG, b, b, a + SEG, b + SEG); }
-    const mesh = new pc.Mesh(app.graphicsDevice); mesh.setPositions(p); mesh.setNormals(n); mesh.setColors32(c); mesh.setIndices(idx); mesh.update(); return mesh;
+    const mesh = new pc.Mesh(app.graphicsDevice); mesh.setPositions(p); mesh.setNormals(n); mesh.setColors32(c); mesh.setIndices(idx); mesh.update();
+    return { mesh, idx, vertices: c.filter((_, i) => i % 4 === 3).map((a, i) => [p[i * 3], p[i * 3 + 2], a]) };
   })();
-  const blob = () => { const e = new pc.Entity('blob'); e.addComponent('render', { meshInstances: [new pc.MeshInstance(blobMesh, blobMat)], castShadows: false, receiveShadows: false }); root.addChild(e); return e; };
+  const blob = () => {
+    const e = new pc.Entity('blob'), mi = new pc.MeshInstance(blobData.mesh, blobMat);
+    e.addComponent('render', { meshInstances: [mi], castShadows: false, receiveShadows: false }); root.addChild(e);
+    let clippedMesh, lastX, lastZ, lastSize;
+    e.place = (x, z, size) => {
+      if (x === lastX && z === lastZ && size === lastSize) return;
+      lastX = x; lastZ = z; lastSize = size;
+      // 底板比地毯每侧多 0.1 m，横向半宽 halfW - 0.15；裁剪跟底板实际外沿走。
+      const x0 = (-halfW + .15 - x) / size, x1 = (halfW - .15 - x) / size, z0 = (R0 - .1 - z) / size, z1 = (R1 + .1 - z) / size;
+      e.setLocalScale(size, 1, size);
+      const onRing = x0 <= -.5 && x1 >= .5 && z0 <= -.5 && z1 >= .5;
+      if (onRing || x0 >= .5 || x1 <= -.5 || z0 >= .5 || z1 <= -.5) {
+        mi.mesh = blobData.mesh; e.setPosition(x, onRing ? .075 : .014, z); return;
+      }
+      // 仅跨台边时上传各自的网格；其余仍共用原网格。没有每帧向上追赶，停住也不会穿台。
+      const p = [], n = [], c = [], idx = [];
+      const emit = (poly, y) => {
+        if (poly.length < 3) return;
+        const base = p.length / 3;
+        for (const [vx, vz, a] of poly) { p.push(vx, y, vz); n.push(0, 1, 0); c.push(0, 0, 0, Math.round(a)); }
+        for (let k = 1; k < poly.length - 1; k++) idx.push(base, base + k, base + k + 1);
+      };
+      for (let i = 0; i < blobData.idx.length; i += 3) {
+        let poly = blobData.idx.slice(i, i + 3).map(k => blobData.vertices[k]);
+        for (const [axis, edge, sign] of [[0, x0, 1], [0, x1, -1], [1, z0, 1], [1, z1, -1]]) {
+          const [inside, outside] = splitBlob(poly, axis, edge, sign);
+          emit(outside, .014); poly = inside;
+        }
+        emit(poly, .075);
+      }
+      clippedMesh ||= new pc.Mesh(app.graphicsDevice);
+      clippedMesh.setPositions(p); clippedMesh.setNormals(n); clippedMesh.setColors32(c); clippedMesh.setIndices(idx); clippedMesh.update();
+      mi.mesh = clippedMesh; e.setPosition(x, 0, z);
+    };
+    return e;
+  };
   // 投影替身：一个人形的旋转体，只进阳光的阴影贴图、镜头不画它，阳光下的人就有一条顺着光拉长的真影子
   const proxyLayer = new pc.Layer({ name: 'ShadowProxy' }); app.scene.layers.push(proxyLayer);
   const proxyMesh = (() => { const b = new Builder(1); b.lathe(0, 0, 0, [[.02, 0], [.17, .04], [.2, .5], [.25, .95], [.23, 1.3], [.1, 1.46], [.13, 1.58], [.12, 1.72], [.02, 1.8]], 10, '#000000'); const mesh = new pc.Mesh(app.graphicsDevice); mesh.setPositions(b.p); mesh.setNormals(b.n); mesh.setIndices(b.i); mesh.update(); return mesh; })();

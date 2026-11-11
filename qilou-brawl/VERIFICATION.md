@@ -1,5 +1,63 @@
 # 骑楼擂台 · 验收记录
 
+## 2026-11-11 台边软影回归（Node 已验，浏览器待测）
+
+对应冷读发现④：`src/main.js` 原先按角色中心是否进入擂台，在 0.014 / 0.075 m 间切换整块软影。实际底板从 z=40.9 开始，顶面 0.05 m，地毯 0.056 m；站在 z=40.5 时，影子前部已进入台面但仍在其下方，中心跨边后又整体抬高。代码与新增检查确认该问题存在。
+
+改动：`src/main.js` 将原有位置、体型与倒地尺寸交给软影的 `place()`；`src/street.js` 沿底板四边裁开原三角形，并插值保留透明度，街面部分留在 0.014 m，台面部分留在 0.075 m。跨边时各角色使用自己的裁剪网格，完全在街面或台面时继续共用原网格；位置与尺寸不变时不再上传。没有新增依赖、着色器、绘制层或额外 draw call。中英文 README 各补一句对应说明。依赖核对为 PlayCanvas 2.18.0、splat-engine 0.2.0，未升级。
+
+`tests/shadow.test.cjs` 用内存中的 PlayCanvas 存储替身执行真实 `street.js` 几何构建和 `main.js` 的软影放置路径，采集传给 Mesh 的坐标、索引与透明度；仅替换 GPU 存储、贴图生成、角色动画、镜头和 HUD。台边范围从实际构建的底板顶面提取。检查覆盖四种角色、站立／倒地／死亡、入口／出口／侧边／台角；跨边采样必须确实落在街面和台面两侧。另检查 0.00002 m 位移的高度矩变化小于 0.0001 m、足印面积守恒、透明度总量误差小于 1%，以及同屏角色与影子池重用互不影响。这是 CPU 几何检查，未验证 GPU 像素。
+
+先只新增测试、未改实现时运行 `node --test tests/shadow.test.cjs`，退出码 **1**，真实输出摘录：
+
+```text
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+```
+
+```text
+AssertionError [ERR_ASSERTION]: player/idle centre=(0,40.5): shadow y=0.014 at (0.392,40.926), receiver requires 0.075
+AssertionError [ERR_ASSERTION]: player/idle at z=40.9: 0.00002 m movement jumps shadow by 0.061000 m
+```
+
+修改实现后，相同命令退出码 **0**，真实输出末尾：
+
+```text
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1372.01075
+```
+
+在本目录运行 `node --test tests/*.test.cjs`，退出码 **0**，真实输出末尾：
+
+```text
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1875.943125
+```
+
+`node --check src/main.js`、`node --check src/street.js`、`node --check tests/shadow.test.cjs` 均退出 **0**、无输出；`git diff --check` 同样通过。
+
+**需派活方构建后浏览器实测（本轮未做）：**
+
+1. 打开构建产物 `?view=boss&seed=5`，等待 `window.__qilou.ready`。控制台执行 `const h = window.__qilou; h.setPaused(true); const p = h.sim().player; Object.assign(p, { x: 0, z: 40.5, state: 'idle' });`，等镜头稳定后近看脚下。将 `p.z` 依次设为 40.89、40.9、40.91、41.7，再反向经过这些点；必要时用滚轮拉近。判据：跨台部分没有被底板吞掉，影子渐变边缘不断裂，中心跨界没有整团跳高或突然变浓。
+2. 在同一暂停场景测试 `Object.assign(p, { x: 3.3, z: 40.9, state: 'down', st: 0 });`，再试 x=-3.3、z=52.1，并恢复站立；检查较大的倒地影子与台角裁剪，街面部分没有整体悬浮。观察其他角色软影，确认没有跟着玩家移动或改变尺寸。
+3. 正常入口 `?intro=skip` 走到擂台入口，以实际 Shift+W / Shift+S 缓慢往返，随后翻滚、倒地再起身；另在 390×664、DPR 2 的默认画质下重复。检查页面／控制台错误、裁剪闪烁、透明混合或深度接缝，以及跨边时是否出现新的顿帧。固定机位钩子只用于定位，不能替代这段真实输入。
+
+范围遵守：仅修改本作品；未联网、fetch、安装依赖、创建或链接 node_modules、构建、提交、推送或测试浏览器。冷读发现①②③不在本任务范围，未改。
+
 ## 2026-11-03 · 可选「街口讨教」
 
 菜单新增一分钟练挡与还脚。只生成一位阿婆；连挡三掌后提示「借过喇」，实际踢中才完成。漏挡保留受击反馈，只清零连挡，不扣血、不重开；超时可重练，结尾可进正式擂台或回菜单。复用已有角色、动作、格挡输入和暂停流程，未增加依赖。默认开锣、四段难度、上午的 held 格挡与失焦保护保留。
