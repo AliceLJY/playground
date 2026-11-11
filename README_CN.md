@@ -24,6 +24,7 @@
 | [凉拖拍蟑螂](slipper-smash/) · [玩](https://aliceljy.github.io/playground/slipper-smash/) | 广州雨夜小巷里划屏拍蟑螂，别碰奶茶，最后拍服肌肉蟑螂 Boss | 二维画布，合成音效，触屏与鼠标，竖屏横屏都行 |
 | [天台水枪大战](rooftop-splash/) · [玩](https://aliceljy.github.io/playground/rooftop-splash/) | 夏日天台的第一人称水枪对战，蓝橙电脑团队、三把水枪、水球与复活 | 三维程序化场景，键鼠与触屏，单文件离线可玩 |
 | [小橘飞车 · 珠江杯](xiaoju-racing/) · [玩](https://aliceljy.github.io/playground/xiaoju-racing/) | 毛茸茸的小橘与五只猫同场竞速，漂移蓄气、氮气冲线 | Three.js，程序化毛发，单文件离线可玩 |
+| [方块侏罗纪](dino-craft/) · [玩](https://aliceljy.github.io/playground/dino-craft/) | 第一人称方块生存沙盒：史前群岛走到哪生成到哪，挖方块、搭庇护所、简单合成；霸王龙追咬、草食恐龙成群逃跑、翼龙盘旋；无限子弹的转管机枪，夜里开头灯，活过第一夜 | Three.js 纯代码，代码生成的像素纹理图集，区块随走随生成与卸载，键鼠与触屏，单文件离线可玩 |
 | [阿橘的广州骑游](aju-guangzhou-ride/) · [玩](https://aliceljy.github.io/playground/aju/) | 橘猫骑车穿过广州，三花挑战与风格街区探索 | Three.js，打包成单个离线 HTML |
 
 ## 3D 展页
