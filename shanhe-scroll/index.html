@@ -486,7 +486,17 @@ function markVisited(){
       360° 等距柱状全景图 → 贴在球体内壁 → 相机置于球心旋转
    ============================================================ */
 // preserveDrawingBuffer: 让画面可被 toDataURL 截取（分享场景截图用）
-const renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias:true, preserveDrawingBuffer:true });
+// 浏览器打不开 WebGL 时盖一层看得清的说明，别让页面空着卡住
+function noWebGL() {
+  if (document.getElementById('nogl')) return;
+  const d = document.createElement('div'); d.id = 'nogl'; d.setAttribute('role', 'alert');
+  d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:28px;box-sizing:border-box;background:#17202b;color:#f6ecdc;font:15px/1.9 system-ui,-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;text-align:center';
+  d.textContent = '这个页面要用 WebGL 画三维画面，这台设备的浏览器打不开。换一个浏览器，或者打开硬件加速后再试。';
+  document.body.append(d);
+}
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias:true, preserveDrawingBuffer:true }); }
+catch (e) { noWebGL(); throw e; }
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene3d = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 1100);

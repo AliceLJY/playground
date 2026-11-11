@@ -1,18 +1,22 @@
 // 渲染后端（WebGPU 版）：three 的 WebGPURenderer，着色用 TSL 节点写，和 gfx.js 的 GLSL 版逐项对应。
 // 浏览器没有 WebGPU 时，WebGPURenderer 会自己退回 WebGL2 后端，HUD 上会写明。
 import * as THREE from 'three';
+import { noWebGL } from './nogl.js';
 import { Fn, float, vec2, vec3, floor, fract, abs, sin, dot, mix, smoothstep, step, select, mod, max, pow, clamp, normalize, reflect, length, attribute, positionLocal, normalLocal, positionWorld, cameraPosition, uniform, texture, screenUV } from 'three/tsl';
 
 export let backend = 'WebGPU';
 let adapterName = 'unknown';
 export function createRenderer(canvas, coarse) {
-  const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  let renderer;
+  try { renderer = new THREE.WebGPURenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+  catch (e) { noWebGL(); throw e; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   return renderer;
 }
 export async function ready(renderer) {
-  await renderer.init();
+  try { await renderer.init(); }
+  catch (e) { noWebGL(); throw e; }   // WebGPU 和 WebGL2 回退都起不来
   const gpu = !!renderer.backend.isWebGPUBackend;
   backend = gpu ? 'WebGPU' : 'WebGL2 回退';
   try {

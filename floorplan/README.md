@@ -24,6 +24,8 @@ On 2026-11-03, two changes were made directly to this publishing copy:
 1. The CAD thumbnail and an explicit enlarge control now open the original image for reading dimensions.
 2. Visitor-facing copy describes rooms and controls; data filenames moved to the footer. A link leads to the existing furniture editor and walk-in page. Room cards only list areas, so the text does not promise click-to-locate and no such feature was added.
 
+On 2026-11-11, one more change was made directly in `share.js`: when the 3D renderer cannot be created (the browser has no WebGL), the page now covers itself with a short explanation instead of stopping silently. The source in the original project does not have this, so it must be re-applied if the bundle is rebuilt from there.
+
 ## Sources
 
 - Floor plan: [Sample Floorplan.jpg](https://commons.wikimedia.org/wiki/File:Sample_Floorplan.jpg) by Boereck on Wikimedia Commons, public domain.

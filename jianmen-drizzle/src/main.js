@@ -75,10 +75,18 @@ void modifySplatColor(vec3 center, inout vec4 color) {
 
 // ---------- app ----------
 const canvas = $('game');
-const app = new pc.Application(canvas, {
-  graphicsDeviceOptions: { antialias: false, alpha: false, preserveDrawingBuffer: TESTING },
-  mouse: null, touch: null, keyboard: null
-});
+let app;
+try {
+  app = new pc.Application(canvas, {
+    graphicsDeviceOptions: { antialias: false, alpha: false, preserveDrawingBuffer: TESTING },
+    mouse: null, touch: null, keyboard: null
+  });
+} catch (e) {
+  // 浏览器打不开 WebGL：开场页还停在「研墨中…」，把原因写在那一行，别让人干等
+  const line = $('loadline'); line.textContent = '这个页面要用 WebGL 画三维画面，这台设备的浏览器打不开。换一个浏览器，或者打开硬件加速后再试。'; line.style.opacity = '1';
+  window.__jianmen = { ready: false, error: String(e && e.stack || e) };
+  throw e;
+}
 app.graphicsDevice.maxPixelRatio = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
 app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
 app.setCanvasResolution(pc.RESOLUTION_AUTO);
@@ -320,9 +328,16 @@ window.__jianmen = {
 };
 
 app.start();
+// 加载看门狗：连续 20 秒没有任何进度就明说失败；进度一恢复，上面的回调会把这行改回去
+let loadTick = performance.now();
+const loadDog = setInterval(() => {
+  if (performance.now() - loadTick < 20000) return;
+  clearInterval(loadDog); $('loadline').textContent = '加载失败，请刷新或换浏览器';
+}, 1000);
 (async () => {
   try {
-    await loadScene((p) => { $('loadline').textContent = p ? `研墨中… ${Math.round(p * 100)}%` : '研墨中…'; });
+    await loadScene((p) => { loadTick = performance.now(); $('loadline').textContent = p ? `研墨中… ${Math.round(p * 100)}%` : '研墨中…'; });
+    clearInterval(loadDog);
     $('loadline').textContent = ''; $('enter').disabled = false;
     if (VIEW || AUTO) {
       const p = PRESETS[VIEW] || PRESETS.hero; Object.assign(aim, p); Object.assign(look, p); placeCamera();
@@ -330,6 +345,7 @@ app.start();
     }
     window.__jianmen.ready = true;
   } catch (err) {
+    clearInterval(loadDog);
     window.__jianmen.error = String(err && err.stack || err); $('loadline').textContent = '加载失败：' + err.message;
   }
 })();

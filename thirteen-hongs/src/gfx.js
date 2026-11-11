@@ -1,9 +1,12 @@
 // 渲染后端（WebGL 版）：渲染器、天穹、江水和程序纹理。WebGPU 版在 gfx-webgpu.js，接口相同，打包时二选一。
 import * as THREE from 'three';
+import { noWebGL } from './nogl.js';
 
 export const backend = 'WebGL';
 export function createRenderer(canvas, coarse) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+  catch (e) { noWebGL(); throw e; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.info.autoReset = false;            // 一帧里有阴影、倒影、主画面三遍，合起来计数

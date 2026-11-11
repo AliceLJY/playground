@@ -24,6 +24,8 @@
 1. CAD 缩略图与「放大看尺寸」都链接原图，手机上可打开大图读尺寸。
 2. 顶部与三维提示改成房间和操作信息，数据文件名移到页尾；增加「去布置家具、走进去」链接。房间卡片原本只列面积，因此没有写成可点击定位，也没有新增定位功能。
 
+2026-11-11 直接在 `share.js` 里补了一处：创建三维渲染器失败（浏览器打不开 WebGL）时盖一层说明文字；出片工程那边的源码没有这一段，下次从工程重新打包要补回来。
+
 ## 素材
 
 - 户型图：Wikimedia Commons 的 [Sample Floorplan.jpg](https://commons.wikimedia.org/wiki/File:Sample_Floorplan.jpg)，Boereck 绘，公有领域。

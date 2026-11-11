@@ -94,6 +94,8 @@
             .button-label-long { display: none; }
             .button-label-short { display: inline; }
         }
+        /* 标签靠动画循环定位；循环还没跑（或跑不起来）时先藏着，免得三个堆在左上角 */
+        #labels-container { visibility: hidden; }
         /* 图上对应的 3D 浮动标签 */
         .gear-label {
             position: absolute;
@@ -176,7 +178,17 @@ scene.background = new THREE.Color(0xf2f2eb);
 const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(-14, 4, 48);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// 浏览器打不开 WebGL 时盖一层看得清的说明，别让页面空着卡住
+function noWebGL() {
+  if (document.getElementById('nogl')) return;
+  const d = document.createElement('div'); d.id = 'nogl'; d.setAttribute('role', 'alert');
+  d.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:28px;box-sizing:border-box;background:#17202b;color:#f6ecdc;font:15px/1.9 system-ui,-apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;text-align:center';
+  d.textContent = '这个页面要用 WebGL 画三维画面，这台设备的浏览器打不开。换一个浏览器，或者打开硬件加速后再试。';
+  document.body.append(d);
+}
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+catch (e) { noWebGL(); throw e; }
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
@@ -746,6 +758,7 @@ function updateLabels() {
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
     });
+    labelsContainer.style.visibility = 'visible';   // 位置算好了才露面
 }
 
 // ==================== 9. 严格按齿数比的动画主循环 ====================

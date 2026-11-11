@@ -47,7 +47,20 @@ const keys = new Set(), stick = { x: 0, y: 0 }, pressed = {}, held = { block: fa
 let clearInput = () => {};
 window.__qilou = { ready: false };
 
+// 引擎在没有 WebGL 的浏览器里既不成功也不报错，先自己探一下
+function canDraw3D() {
+  try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
+}
+// 加载看门狗：连续 20 秒没有任何进度就明说失败；进度一恢复，setLoad 会把这行改回去
+let loadTick = performance.now();
+const loadDog = setInterval(() => {
+  if (window.__qilou.ready || window.__qilou.error) return clearInterval(loadDog);
+  if (performance.now() - loadTick < 20000) return;
+  clearInterval(loadDog); $('load-label').textContent = '加载失败，请刷新或换浏览器';
+}, 1000);
+
 async function boot() {
+  if (!canDraw3D()) throw new Error('这台设备的浏览器打不开 WebGL，换一个浏览器或打开硬件加速后再试');
   const canvas = $('game');
   scene = await Scene.create(canvas, { fov: 52, depth: true, far: 220, antialias: true, maxPixelRatio: VIEW ? 1 : 2, preserveDrawingBuffer: !!VIEW });
   scene.start();
@@ -76,7 +89,7 @@ async function boot() {
     renderAudio: (t0, seconds) => renderOffline(window.__qilouRec || [], t0, seconds), recStart: () => { recT = 0; } };
   if (VIEW) setupView(VIEW); else if (REC) $('title').classList.remove('hidden'); else if (AUTO) startGame();
 }
-function setLoad(f, label) { $('load-fill').style.width = (f * 100).toFixed(0) + '%'; if (label) $('load-label').textContent = label; }
+function setLoad(f, label) { loadTick = performance.now(); $('load-fill').style.width = (f * 100).toFixed(0) + '%'; if (label) $('load-label').textContent = label; }
 
 async function ensureChar(o) {
   if (chars.has(o.id)) return chars.get(o.id);
