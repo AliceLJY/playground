@@ -203,6 +203,12 @@ jobs:
           for f in server/*.mjs; do node --input-type=module --check < "$f"; done
           node --test tests/*.test.cjs
 
+      - name: Check Clockwork
+        working-directory: clockwork
+        run: |
+          # 机械钟：发条盒端面圆纹的贴图映射（读页面里的真实几何和内置 three r160）
+          node --test tests/*.test.cjs
+
       - name: Check Gear Repair
         working-directory: gear-repair
         run: |
