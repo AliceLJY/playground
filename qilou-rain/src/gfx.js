@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 export const FOG = new THREE.Color('#0e1626');
 const NOISE = `
@@ -35,6 +36,18 @@ export function createPipeline(renderer, scene, camera, quality) {
     composer.addPass(new RenderPass(scene, camera));
     bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.5, 0.7, 0.92);
     composer.addPass(bloom);
+    composer.addPass(new ShaderPass({
+      uniforms: { tDiffuse: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+      fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+        void main(){ vec3 c = texture2D(tDiffuse, vUv).rgb; if (!(c.r >= 0. && c.g >= 0. && c.b >= 0.)) c = vec3(0.); c = min(c, vec3(60.)); float l = dot(c, vec3(.2126, .7152, .0722));
+          c = mix(c, c * vec3(.86, .98, 1.12), (1. - smoothstep(.0, .35, l)) * .55);
+          c = mix(c, c * vec3(1.08, 1.0, .9), smoothstep(.4, 1.4, l) * .5);
+          c = mix(vec3(l), c, 1.08);
+          c *= 1.12;
+          vec2 d = vUv - .5; c *= 1. - smoothstep(.4, .98, length(d * vec2(1., .8))) * .36;
+          gl_FragColor = vec4(c, 1.); }`,
+    }));
     composer.addPass(new OutputPass());
   }
   build();
@@ -45,7 +58,8 @@ export function createPipeline(renderer, scene, camera, quality) {
   };
 }
 
-// 世界材质：顶点色 + 按材质号加纹路 + 烘在顶点上的霓虹光 + （地面）倒影
+// 世界材质：顶点色 + 按材质号算出磨损、水渍、砖缝、石板缝、锈迹（反照率、凹凸、粗糙度三样一起变）+ 烘在顶点上的霓虹光 + （地面）倒影
+// 材质号：0 灰泥墙 1 青砖 2 木 3 卷闸 4 麻石板 5 柏油 6 广场石 7 金属与杂件 8 瓦
 export function worldMaterial(shared, opts = {}) {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: opts.wet ? 0.5 : 0.86, metalness: 0 });
   mat.onBeforeCompile = sh => {
@@ -54,34 +68,91 @@ export function worldMaterial(shared, opts = {}) {
       .replace('#include <common>', '#include <common>\nattribute float aMat; attribute vec3 aGlow; varying float vMat; varying vec3 vGlow; varying vec3 vWp; varying vec3 vWn;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMat = aMat; vGlow = aGlow; vWp = position; vWn = normal;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vMat; varying vec3 vGlow; varying vec3 vWp; varying vec3 vWn; uniform float uT, uUse; uniform sampler2D uRefl; uniform vec2 uRes;' + NOISE)
+      .replace('#include <common>', '#include <common>\nvarying float vMat; varying vec3 vGlow; varying vec3 vWp; varying vec3 vWn; uniform float uT, uUse; uniform sampler2D uRefl; uniform vec2 uRes;' + NOISE + `
+      float gF(vec2 p){ return gN(p) * .55 + gN(p * 2.1 + 5.) * .3 + gN(p * 4.3 + 11.) * .15; }
+      float gCrack(vec2 p){ return smoothstep(.0, .018, abs(gN(p) - .5)) * smoothstep(.0, .02, abs(gN(p * 1.9 + 7.) - .5)); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-      float mId = floor(vMat + .5), kD = 1.; vec3 an = abs(vWn);
-      float uu = an.x > an.z ? vWp.z : vWp.x;
+      float mId = floor(vMat + .5), kD = 1., hB = 0., kR = 1.; vec3 kT = vec3(1.); vec3 an = abs(vWn);
+      float uu = an.x > an.z ? vWp.z : vWp.x; float wall = 1. - step(.6, an.y);
       float grain = gN(vWp.xz * 2.3 + vWp.y * 1.9);
-      float streak = gN(vec2(uu * 1.7, vWp.y * .22));
-      if (mId == 0.) { kD = (.84 + .2 * grain) * (.7 + .4 * streak) * (.9 + .1 * gN(vec2(uu * 14., vWp.y * 14.))); }
-      else if (mId == 1.) { float row = floor(vWp.y * 9.); kD = (.8 + .2 * smoothstep(0., .1, abs(fract(vWp.y * 9.) - .5)) * smoothstep(0., .04, abs(fract(uu * 3.6 + mod(row, 2.) * .5) - .5))) * (.86 + .2 * grain) * (.82 + .24 * streak); }
-      else if (mId == 2.) { kD = (.8 + .2 * smoothstep(0., .08, abs(fract(uu * 4.) - .5))) * (.9 + .16 * gN(vec2(uu * 4., vWp.y * 16.))); }
-      else if (mId == 3.) { kD = .72 + .28 * abs(sin(vWp.y * 34.)); }
-      else if (mId == 4.) { float rz = floor(vWp.z * 1.25); kD = (.78 + .22 * smoothstep(0., .03, abs(fract(vWp.z * 1.25) - .5)) * smoothstep(0., .02, abs(fract(vWp.x * .8 + mod(rz, 2.) * .5) - .5))) * (.88 + .2 * grain); }
-      else if (mId == 5.) { kD = .8 + .3 * gN(vWp.xz * 9.) * gN(vWp.xz * 1.1 + 3.); }
-      else if (mId == 6.) { kD = (.8 + .2 * smoothstep(0., .03, abs(fract(vWp.x * .5) - .5)) * smoothstep(0., .03, abs(fract(vWp.z * .5) - .5))) * (.88 + .2 * grain); }
-      diffuseColor.rgb *= kD;`)
+      float blotch = gF(vec2(uu * .45, vWp.y * .45));
+      float drip = gN(vec2(uu * 2.6, vWp.y * .16)) * gN(vec2(uu * 7.3 + 3., vWp.y * .5));
+      float low = wall * smoothstep(1.3, 0., vWp.y);
+      if (mId == 0.) {
+        float peel = smoothstep(.56, .64, gF(vec2(uu * 1.3 + 9., vWp.y * 1.3)));
+        float cr = gCrack(vec2(uu * .9, vWp.y * .9));
+        kD = (.8 + .22 * grain) * (.7 + .5 * blotch) * (1. - .34 * smoothstep(.2, .6, drip)) * (1. - .22 * peel) * (.9 + .1 * cr);
+        kT = mix(vec3(1.), vec3(.74, .86, .7), low * .65 * blotch + .25 * smoothstep(.45, .7, drip));
+        kD *= 1. - .4 * low;
+        hB = .4 * grain - .6 * peel + .2 * cr; kR = 1.05 - .35 * smoothstep(.3, .6, drip);
+      } else if (mId == 1.) {
+        float row = floor(vWp.y * 9.), bx = uu * 3.6 + mod(row, 2.) * .5;
+        float mortar = smoothstep(0., .1, abs(fract(vWp.y * 9.) - .5)) * smoothstep(0., .045, abs(fract(bx) - .5));
+        float id = gH(vec2(floor(bx), row));
+        kD = (.5 + .5 * mortar) * (.72 + .5 * id) * (.82 + .26 * grain) * (.75 + .4 * blotch) * (1. - .3 * smoothstep(.25, .6, drip));
+        kT = mix(vec3(1.), vec3(.7, .9, .66), low * .7 + .3 * step(.82, id));
+        kD *= 1. - .35 * low; hB = mortar * .9 + id * .2; kR = 1.1 - .3 * id;
+      } else if (mId == 2.) {
+        float pl = smoothstep(0., .08, abs(fract(uu * 4.) - .5));
+        float gr = gN(vec2(uu * 5., vWp.y * 26.)) * .6 + gN(vec2(uu * 11., vWp.y * 60.)) * .4;
+        kD = (.72 + .28 * pl) * (.74 + .4 * gr) * (.8 + .3 * blotch); hB = pl * .6 + gr * .4; kR = .9;
+      } else if (mId == 3.) {
+        float cor = abs(sin(vWp.y * 34.));
+        float rust = smoothstep(.5, .72, gF(vec2(uu * 1.6, vWp.y * 1.2 + 4.))) + .7 * smoothstep(.3, .6, drip);
+        float scr = smoothstep(.93, 1., gN(vec2(uu * 1.4 + vWp.y * 9., vWp.y * 2.2)));
+        kD = (.62 + .38 * cor) * (.8 + .25 * grain) * (1. - .3 * low) + scr * .25;
+        kT = mix(vec3(1.), vec3(1.25, .62, .34), clamp(rust, 0., 1.) * .6);
+        hB = cor * .8 + scr; kR = .55 + .5 * clamp(rust, 0., 1.);
+      } else if (mId == 4.) {
+        vec2 g2 = vec2(vWp.x * .8 + mod(floor(vWp.z * 1.25), 2.) * .5, vWp.z * 1.25);
+        float joint = smoothstep(0., .035, abs(fract(g2.y) - .5)) * smoothstep(0., .022, abs(fract(g2.x) - .5));
+        float id = gH(floor(g2 + .5));
+        float spk = mix(.25, gN(vWp.xz * 19.) * gN(vWp.xz * 9. + 3.), smoothstep(22., 4., length(vViewPosition)));
+        kD = (.55 + .45 * joint) * (.78 + .34 * id) * (.8 + .5 * spk) * (.8 + .3 * gF(vWp.xz * .5));
+        kT = mix(vec3(1.), vec3(.86, .93, 1.04), id * .5);
+        hB = joint * .9 + spk * .3; kR = .75 + .3 * id;
+      } else if (mId == 5.) {
+        float lod = smoothstep(26., 5., length(vViewPosition));
+        float agg = mix(.5, gN(vWp.xz * 11.) * .6 + gN(vWp.xz * 23.) * .4, lod);
+        float cr = gCrack(vWp.xz * .55);
+        float patchK = step(.72, gN(floor(vWp.xz * vec2(.22, .13)) + 3.)) * step(.08, fract(vWp.x * .22)) * step(.05, fract(vWp.z * .13));
+        float oil = smoothstep(.62, .75, gF(vWp.xz * .7 + 20.));
+        kD = (.82 + .3 * agg) * (.84 + .16 * cr) * (1. - .2 * patchK) * (.8 + .3 * gF(vWp.xz * .3)) * (1. - .3 * oil);
+        hB = agg * .12 + cr * .5 - patchK * .15; kR = 1. - .5 * oil;
+      } else if (mId == 6.) {
+        vec2 g2 = vWp.xz * .5; float joint = smoothstep(0., .03, abs(fract(g2.x) - .5)) * smoothstep(0., .03, abs(fract(g2.y) - .5));
+        float id = gH(floor(g2 + .5));
+        kD = (.55 + .45 * joint) * (.8 + .3 * id) * (.82 + .3 * grain) * (.8 + .3 * gF(vWp.xz * .4)); hB = joint + grain * .3; kR = .8 + .25 * id;
+      } else if (mId == 8.) {
+        float til = abs(sin(uu * 14.)) * smoothstep(0., .2, fract(vWp.y * 5. + vWp.x * 2.));
+        kD = (.6 + .4 * til) * (.8 + .3 * blotch); hB = til; kR = .7;
+      } else {
+        float scr = smoothstep(.9, 1., gN(vec2(uu * 3. + vWp.y * 14., vWp.y * 3.)));
+        kD = (.84 + .2 * grain) * (.8 + .3 * blotch) * (1. - .25 * smoothstep(.3, .6, drip) * wall) + scr * .12;
+        kT = mix(vec3(1.), vec3(1.2, .7, .45), smoothstep(.62, .8, blotch) * .35 * wall);
+        hB = grain * .3 + scr; kR = .7 + .4 * blotch;
+      }
+      diffuseColor.rgb *= kD * kT;`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor * kR, .08, 1.);')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-      { vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition); float dhx = dFdx(kD), dhy = dFdy(kD);
+      { vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition); float dhx = dFdx(hB), dhy = dFdy(hB);
         vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx); float det = dot(dpx, r1);
-        normal = normalize(abs(det) * normal - sign(det) * (dhx * r1 + dhy * r2) * .22); }`)
+        vec3 nb = abs(det) * normal - sign(det) * (dhx * r1 + dhy * r2) * .16;
+        if (dot(nb, nb) > 1e-14) normal = normalize(nb); }`)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vGlow * diffuseColor.rgb;');
     if (opts.wet) {
       sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
       { float pud = smoothstep(.34, .6, gN(vWp.xz * .33) * .62 + gN(vWp.xz * 1.4 + 9.) * .38);
-        float dry = mId == 4. ? .42 : 1.;
-        float wet = (.5 + .5 * pud) * dry;
+        float edge = smoothstep(.0, .5, pud) * (1. - smoothstep(.5, 1., pud));
+        float dry = mId == 4. ? .5 : 1.;
+        float wet = (.45 + .55 * pud) * dry;
         vec2 rp = vWp.xz * (5. + 6. * pud);
-        vec2 rip = (vec2(gN(rp + uT * 1.7), gN(rp + 7. - uT * 1.4)) - .5) * (.02 - .013 * pud);
-        float ring = sin(length(fract(vWp.xz * .9 + gH(floor(vWp.xz * .9) + floor(uT * 1.6))) - .5) * 60. - uT * 16.);
-        rip += ring * .003 * pud;
+        vec2 rip = (vec2(gN(rp + uT * 1.7), gN(rp + 7. - uT * 1.4)) - .5) * (.02 - .013 * pud) + dFdx(hB) * .02 * (1. - pud);
+        vec2 cell = floor(vWp.xz * 1.6), fc = fract(vWp.xz * 1.6) - .5;
+        float ph = fract(uT * 1.9 + gH(cell) * 7.), born = step(.72, gH(cell + floor(uT * 1.9 + gH(cell) * 7.)));
+        vec2 off = vec2(gH(cell + 3.), gH(cell + 9.)) * .5 - .25; float rr = length(fc - off);
+        float ringW = born * smoothstep(.05, .0, abs(rr - ph * .42)) * (1. - ph);
+        rip += (fc - off) / (rr + .01) * ringW * .03;
         vec2 suv = gl_FragCoord.xy / uRes; vec2 q = vec2(suv.x, 1. - suv.y) + rip;
         vec3 rf = texture2D(uRefl, clamp(q, .002, .998)).rgb * .4;
         rf += texture2D(uRefl, clamp(q + vec2(0., .018), .002, .998)).rgb * .22;
@@ -89,11 +160,13 @@ export function worldMaterial(shared, opts = {}) {
         rf += texture2D(uRefl, clamp(q + vec2(0., .05), .002, .998)).rgb * .1;
         rf += texture2D(uRefl, clamp(q - vec2(0., .06), .002, .998)).rgb * .08;
         float fr = .1 + .9 * pow(1. - max(dot(normalize(vViewPosition), normal), 0.), 3.);
-        outgoingLight = outgoingLight * (1. - .35 * wet) + rf * fr * wet * 1.5 * uUse; }
+        outgoingLight = outgoingLight * (1. - .4 * wet - .12 * edge) + rf * fr * wet * 1.5 * uUse;
+        float splash = born * smoothstep(.06, .0, rr) * smoothstep(.25, .0, ph);
+        outgoingLight += vec3(.5, .56, .66) * (splash * .5 + ringW * .12) * smoothstep(40., 4., length(vViewPosition)); }
       #include <opaque_fragment>`);
     }
   };
-  mat.customProgramCacheKey = () => 'qilou-world-' + (opts.wet ? 'wet' : 'dry');
+  mat.customProgramCacheKey = () => 'qilou-world-2-' + (opts.wet ? 'wet' : 'dry');
   return mat;
 }
 

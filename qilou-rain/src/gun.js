@@ -18,6 +18,22 @@ export function createGun(camera, quality) {
   const tank = cyl(0.062, 0.056, 0.2, new THREE.MeshStandardMaterial({ color: '#dfe8e0', transparent: true, opacity: 0.32, roughness: 0.1, depthWrite: false }), 0, -0.21, -0.08, gun);
   const liquid = cyl(0.052, 0.048, 0.18, new THREE.MeshStandardMaterial({ color: '#c8d840', emissive: '#5a6a10', roughness: 0.3, transparent: true, opacity: 0.85 }), 0, -0.21, -0.08, gun);
   box(0.085, 0.1, 0.11, glove, 0, -0.13, 0.13, gun).rotation.x = 0.28; box(0.09, 0.09, 0.4, sleeve, 0.02, -0.2, 0.36, gun).rotation.x = -0.3;
+  // 细节：压力表、软管、喷管接头与散热片、铆钉、警示标、磨损条、手套指节
+  const brass = M('#b08a3a', { roughness: 0.35, metalness: 0.9 }), red = M('#b8281c', { roughness: 0.5 }), white = M('#e8e4d8', { roughness: 0.6 }), worn = M('#8a6a10', { roughness: 0.8 });
+  const zc = (r0, r1, h, m, x, y, z, rz = Math.PI / 2) => { const o = cyl(r0, r1, h, m, x, y, z, gun); o.rotation.set(0, 0, rz); return o; };
+  cyl(0.034, 0.034, 0.03, dark, 0, 0.085, 0.13, gun); cyl(0.026, 0.026, 0.006, M('#a8a498', { roughness: 0.4 }), 0, 0.101, 0.13, gun); box(0.004, 0.004, 0.024, red, 0.006, 0.105, 0.124, gun).rotation.y = 0.7; cyl(0.008, 0.008, 0.03, brass, 0, 0.07, 0.13, gun);
+  for (let k = 0; k < 4; k++) cyl(0.03 - k * 0.001, 0.03 - k * 0.001, 0.008, dark, 0, 0.012, -0.27 - k * 0.022, gun, Math.PI / 2);
+  cyl(0.03, 0.03, 0.03, brass, 0, 0.012, -0.215, gun, Math.PI / 2); cyl(0.027, 0.027, 0.02, brass, 0, 0.012, -0.5, gun, Math.PI / 2);
+  for (const [x, y, z] of [[0.057, 0.03, -0.1], [0.057, 0.03, 0.1], [0.057, -0.03, -0.1], [0.057, -0.03, 0.1]]) zc(0.008, 0.008, 0.008, metal, x, y, z);
+  zc(0.034, 0.034, 0.004, red, 0.056, 0.0, 0.0); box(0.003, 0.05, 0.008, white, 0.059, 0.0, 0.0, gun).rotation.x = 0.8;
+  box(0.004, 0.02, 0.16, white, 0.056, -0.045, 0.0, gun); box(0.004, 0.012, 0.09, worn, 0.055, 0.045, -0.06, gun); box(0.004, 0.008, 0.05, worn, 0.055, -0.02, 0.12, gun);
+  const hosePts = [[0.03, -0.3, -0.08], [0.07, -0.33, -0.02], [0.085, -0.26, 0.06], [0.07, -0.14, 0.12], [0.045, -0.05, 0.16]];
+  for (let k = 0; k < hosePts.length - 1; k++) { const A = new THREE.Vector3(...hosePts[k]), B2 = new THREE.Vector3(...hosePts[k + 1]), o = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, A.distanceTo(B2) + 0.012, 8), dark); o.position.copy(A).add(B2).multiplyScalar(0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B2.clone().sub(A).normalize()); gun.add(o); }
+  cyl(0.064, 0.064, 0.012, metal, 0, -0.115, -0.08, gun); cyl(0.058, 0.058, 0.01, dark, 0, -0.312, -0.08, gun);
+  for (let k = 0; k < 4; k++) box(0.012, 0.004, 0.11, white, 0, -0.15 - k * 0.04, -0.08, gun).rotation.y = Math.PI / 2;
+  box(0.02, 0.006, 0.05, dark, 0, -0.07, 0.03, gun); box(0.006, 0.04, 0.006, dark, 0, -0.09, 0.005, gun);
+  for (let k = 0; k < 4; k++) box(0.09, 0.022, 0.02, glove, 0, -0.085 - k * 0.001, 0.09 + k * 0.024, gun).rotation.x = 0.28;
+  box(0.1, 0.1, 0.03, dark, 0.02, -0.165, 0.2, gun).rotation.x = -0.3;
   const tip = new THREE.Object3D(); tip.position.set(0, 0.012, -0.56); gun.add(tip);
   const mist = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.8, 2.6), transparent: true, opacity: 0.7 })); mist.position.copy(tip.position); gun.add(mist);
   // 凉拖
@@ -25,6 +41,8 @@ export function createGun(camera, quality) {
   const sole = M('#c8281c', { roughness: 0.6 }), strap = M('#f2efe6', { roughness: 0.6 });
   box(0.12, 0.028, 0.3, sole, 0, 0, 0, slip); box(0.1, 0.03, 0.08, sole, 0, 0, -0.17, slip);
   box(0.018, 0.02, 0.17, strap, 0.03, 0.04, -0.07, slip).rotation.y = 0.33; box(0.018, 0.02, 0.17, strap, -0.03, 0.04, -0.07, slip).rotation.y = -0.33;
+  for (let k = 0; k < 6; k++) box(0.1, 0.004, 0.012, M('#8a1c14'), 0, -0.016, -0.12 + k * 0.045, slip);
+  box(0.02, 0.03, 0.02, strap, 0, 0.03, -0.14, slip); box(0.122, 0.006, 0.302, M('#e8d8c0', { roughness: 0.7 }), 0, 0.016, 0, slip);
   box(0.09, 0.09, 0.11, glove, 0, -0.04, 0.16, slip); box(0.09, 0.09, 0.4, sleeve, 0, -0.07, 0.42, slip).rotation.x = -0.15;
   root.traverse(o => { o.layers.set(1); if (o.isMesh) o.castShadow = false; });
   const st = { bob: 0, swayX: 0, swayY: 0, fire: 0, kick: 0, lower: 0 };
