@@ -114,7 +114,7 @@ function bind() {
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
     if (e.repeat) return;
     keys.add(e.code);
-    if (e.code === 'KeyF') inp.slap = true;
+    if (e.code === 'KeyK') inp.slap = true;
     if (e.code === 'KeyR') inp.reload = true;
     if (e.code === 'Space') inp.jump = true;
   });
@@ -175,9 +175,9 @@ function readInput(dt) {
   const k = c => keys.has(c);
   let mx = inp.mx, mz = inp.mz;
   if (k('KeyW')) mz += 1; if (k('KeyS')) mz -= 1; if (k('KeyD')) mx += 1; if (k('KeyA')) mx -= 1;
-  const ty = (k('ArrowLeft') || k('KeyJ') ? 1 : 0) - (k('ArrowRight') || k('KeyL') ? 1 : 0), tp = (k('ArrowUp') || k('KeyI') ? 1 : 0) - (k('ArrowDown') || k('KeyK') ? 1 : 0);
+  const ty = (k('ArrowLeft') ? 1 : 0) - (k('ArrowRight') ? 1 : 0), tp = (k('ArrowUp') ? 1 : 0) - (k('ArrowDown') ? 1 : 0);
   look.yaw += ty * 2.4 * dt; look.pitch = C.clamp(look.pitch + tp * 1.5 * dt, -1.45, 1.45);
-  const out = { mx, mz, yaw: look.yaw, pitch: look.pitch, fire: inp.fire || inp.tFire || k('Enter'), slap: inp.slap, use: k('KeyE') || inp.tUse, reload: inp.reload, jump: inp.jump, sprint: k('ShiftLeft') || k('ShiftRight') || Math.hypot(inp.mx, inp.mz) > 0.92 };
+  const out = { mx, mz, yaw: look.yaw, pitch: look.pitch, fire: inp.fire || inp.tFire || k('KeyJ') || k('Enter'), slap: inp.slap, use: k('KeyE') || k('KeyL') || inp.tUse, reload: inp.reload, jump: inp.jump, sprint: k('ShiftLeft') || k('ShiftRight') || Math.hypot(inp.mx, inp.mz) > 0.92 };
   inp.slap = inp.reload = inp.jump = false;
   return out;
 }

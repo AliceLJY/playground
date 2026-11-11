@@ -43,7 +43,7 @@ export function createAudio() {
     slapHit() { noise(0.16, 'lowpass', 2600, 0.9, 0.6, 0.2); tone(150, 0.16, 'sine', 0.6, 0.4); },
     kill() { noise(0.22, 'lowpass', 1200, 0.5, 0.8, 0.3); tone(520, 0.09, 'square', 0.07, 0.4); },
     hurt() { tone(90, 0.3, 'sawtooth', 0.4, 0.5); noise(0.2, 'lowpass', 700, 0.5); },
-    telegraph(kind) { if (kind === 'charger') { tone(60, 0.9, 'sawtooth', 0.35, 1.8); noise(0.9, 'bandpass', 500, 0.3, 2, 2.4); } else if (kind === 'flyer') tone(180, 0.6, 'sawtooth', 0.14, 2.2); else tone(1900, 0.1, 'square', 0.05, 1.5); },
+    telegraph(kind) { if (kind === 'charger') { tone(60, 0.9, 'sawtooth', 0.35, 1.8); noise(0.9, 'bandpass', 500, 0.3, 2, 2.4); } else if (kind === 'flyer') tone(180, 0.6, 'sawtooth', 0.14, 2.2); else { noise(0.32, 'highpass', 5200, 0.34, 0.7, 1.4); tone(1900, 0.1, 'square', 0.04, 1.5); } },
     charge() { noise(0.9, 'lowpass', 500, 0.6, 0.7, 0.6); },
     stun() { tone(220, 0.5, 'triangle', 0.5, 0.5); noise(0.35, 'bandpass', 2200, 0.7, 3, 0.4); tone(70, 0.4, 'sine', 0.7, 0.5); },
     reload() { noise(0.08, 'highpass', 3000, 0.3); tone(300, 0.06, 'square', 0.1, 0.7, 0.25); tone(620, 0.06, 'square', 0.1, 1, 1.05); },

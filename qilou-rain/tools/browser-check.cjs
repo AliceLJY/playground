@@ -45,8 +45,14 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('喷的时候药量在掉', f1.tank < 100, 'tank ' + f1.tank);
   await page.mouse.up(); await page.waitForTimeout(100);
   check('松开就停', !(await snap(page)).firing);
-  const s0 = await page.evaluate(() => window.__qilou.sim.stats.slaps); await page.keyboard.press('f'); await page.waitForTimeout(120);
-  check('按 F 拍一下', await page.evaluate(() => window.__qilou.sim.stats.slaps) === s0 + 1);
+  const s0 = await page.evaluate(() => window.__qilou.sim.stats.slaps); await page.keyboard.press('k'); await page.waitForTimeout(120);
+  check('按 K 拍一下', await page.evaluate(() => window.__qilou.sim.stats.slaps) === s0 + 1);
+  await page.keyboard.press('f'); await page.waitForTimeout(120);
+  check('F 不再是拍（它紧挨着走路键，容易按错）', await page.evaluate(() => window.__qilou.sim.stats.slaps) === s0 + 1);
+  await page.keyboard.down('j'); await page.waitForTimeout(200); const kj = await snap(page); await page.keyboard.up('j'); await page.waitForTimeout(100);
+  check('按住 J 喷、松开停', kj.firing && !(await snap(page)).firing);
+  const y0 = (await snap(page)).yaw; await page.keyboard.down('ArrowLeft'); await page.waitForTimeout(300); await page.keyboard.up('ArrowLeft');
+  check('方向键转头', Math.abs((await snap(page)).yaw - y0) > 0.3);
   await page.keyboard.press('Escape'); await page.waitForTimeout(200);
   check('Esc 暂停，时间不走', (await snap(page)).mode === 'paused');
   const p0 = (await snap(page)).t; await page.waitForTimeout(500); const p1 = (await snap(page)).t;
