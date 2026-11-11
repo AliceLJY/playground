@@ -158,6 +158,35 @@ dl.stats dd { margin: 2px 0 0; font-size: 24px; font-weight: 800; font-variant-n
   #b-fire { bottom: calc(60px + var(--sab)); } #b-slap { bottom: calc(40px + var(--sab)); } #b-jump { bottom: calc(154px + var(--sab)); } #b-reload { bottom: calc(150px + var(--sab)); } #b-use { bottom: calc(70px + var(--sab)); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
+
+/* ---------- HUD 二层：封锁区终端的样子（切角面板、分段条、角标、扫描线），只改外观不改结构 ---------- */
+#hud::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(120, 220, 255, .028) 0 1px, transparent 1px 3px); mix-blend-mode: screen; }
+#hud::after { content: ""; position: absolute; inset: calc(8px + var(--sat)) 8px calc(8px + var(--sab)) 8px; --c: rgba(39, 224, 208, .55);
+  background: linear-gradient(var(--c), var(--c)) left top / 18px 2px, linear-gradient(var(--c), var(--c)) left top / 2px 18px, linear-gradient(var(--c), var(--c)) right top / 18px 2px, linear-gradient(var(--c), var(--c)) right top / 2px 18px,
+    linear-gradient(var(--c), var(--c)) left bottom / 18px 2px, linear-gradient(var(--c), var(--c)) left bottom / 2px 18px, linear-gradient(var(--c), var(--c)) right bottom / 18px 2px, linear-gradient(var(--c), var(--c)) right bottom / 2px 18px; background-repeat: no-repeat; opacity: .7; }
+.obj { padding: 8px 18px 9px 13px; border-left: 3px solid var(--amber); background: linear-gradient(90deg, rgba(9, 11, 16, .78), rgba(9, 11, 16, .34)); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); }
+.obj small { color: var(--teal); letter-spacing: .3em; }
+.obj small::after { content: " // 封锁区 07"; color: var(--dim); letter-spacing: .12em; }
+.obj .pips i { width: 15px; height: 13px; border: 0; border-radius: 0; background: rgba(241, 234, 219, .2); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.obj .pips i.on { background: var(--green); box-shadow: none; filter: drop-shadow(0 0 5px var(--green)); }
+.hp, .ammo { padding: 7px 11px 9px; background: linear-gradient(0deg, rgba(9, 11, 16, .74), rgba(9, 11, 16, .3)); }
+.hp { border-left: 2px solid var(--teal); clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); }
+.ammo { border-right: 2px solid var(--amber); clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
+.hp small::before { content: "✚ "; color: var(--teal); }
+.bar { height: 10px; border: 0; background: rgba(241, 234, 219, .1); -webkit-mask: repeating-linear-gradient(90deg, #000 0 7px, transparent 7px 9px); mask: repeating-linear-gradient(90deg, #000 0 7px, transparent 7px 9px); }
+.hp .bar i { background: linear-gradient(90deg, var(--teal), #bff7ee); }
+.hp.low .bar i { background: var(--alarm); }
+.ammo b { text-shadow: 0 0 14px rgba(216, 224, 74, .45), var(--sh); }
+.ammo b.low { text-shadow: 0 0 14px rgba(255, 69, 48, .6), var(--sh); }
+.ammo .bar i { background: linear-gradient(270deg, #d8e04a, #f2f7a8); }
+.cans i { width: 9px; height: 17px; border-radius: 3px 3px 1px 1px; background: linear-gradient(180deg, #8a8f8c 0 22%, var(--amber) 22%); }
+.cross { background: linear-gradient(rgba(241, 234, 219, .7), rgba(241, 234, 219, .7)) 50% 0 / 1.5px 7px no-repeat, linear-gradient(rgba(241, 234, 219, .7), rgba(241, 234, 219, .7)) 50% 100% / 1.5px 7px no-repeat, linear-gradient(rgba(241, 234, 219, .7), rgba(241, 234, 219, .7)) 0 50% / 7px 1.5px no-repeat, linear-gradient(rgba(241, 234, 219, .7), rgba(241, 234, 219, .7)) 100% 50% / 7px 1.5px no-repeat; }
+.cross::after { inset: 8px; }
+.mark i { background: rgba(9, 11, 16, .6); box-shadow: 0 0 8px currentColor; }
+.radio { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+.prompt { border: 0; border-top: 2px solid var(--green); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 9px 100%, 0 calc(100% - 9px)); }
+#touch::before { content: "拖动 · 走"; position: absolute; left: 9vw; top: 58%; width: 104px; height: 104px; border: 2px dashed rgba(241, 234, 219, .38); border-radius: 50%; display: grid; place-items: center; font-size: 12px; letter-spacing: .12em; color: var(--dim); pointer-events: none; transition: opacity .4s; }
+#touch.used::before { opacity: 0; }
 </style>
 </head>
 <body>
