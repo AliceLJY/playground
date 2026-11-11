@@ -25,9 +25,9 @@ export function createFx(scene, quality) {
   }
   const jit = k => (r() - 0.5) * 2 * k;
   function spray(o, d, vx, vz) {
-    for (let k = 0; k < 4; k++) {
+    for (let k = 0; k < 5; k++) {
       const sp = 20 + r() * 6, t = r() * 0.03;
-      emit(o.x + d.x * t * sp, o.y + d.y * t * sp, o.z + d.z * t * sp, d.x * sp + jit(0.9) + vx, d.y * sp + jit(0.9), d.z * sp + jit(0.9) + vz, 0.38 + r() * 0.2, 0.03, 0.55 + r() * 0.3, 0.86, 0.96, 0.9, 0.34, 3.2, -1.5);
+      emit(o.x + d.x * t * sp, o.y + d.y * t * sp, o.z + d.z * t * sp, d.x * sp + jit(1.7) + vx, d.y * sp + jit(1.7), d.z * sp + jit(1.7) + vz, 0.4 + r() * 0.22, 0.04, 0.8 + r() * 0.4, 0.86, 0.96, 0.9, 0.34, 3.2, -1.5);
     }
   }
   function burst(x, y, z, kind, n = 26) {

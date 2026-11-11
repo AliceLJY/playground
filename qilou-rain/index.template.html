@@ -52,11 +52,13 @@ button { font: inherit; color: inherit; }
 .cans { display: flex; gap: 4px; justify-content: flex-end; margin-top: 6px; height: 16px; }
 .cans i { width: 8px; height: 16px; border-radius: 2px 2px 1px 1px; background: var(--amber); box-shadow: 0 0 6px rgba(255, 176, 32, .6); }
 .ammo .state { font-size: 12px; letter-spacing: .14em; color: var(--amber); min-height: 17px; }
-.cross { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px; }
+.cross { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px; }
 .cross::before, .cross::after { content: ""; position: absolute; background: var(--bone); opacity: .85; box-shadow: 0 0 3px #000; }
-.cross::before { left: 12px; top: 12px; width: 2px; height: 2px; }
+.cross::before { left: 20px; top: 20px; width: 4px; height: 4px; border-radius: 50%; }
 .cross::after { inset: 0; background: none; border: 1.5px solid rgba(241, 234, 219, .5); border-radius: 50%; }
-.cross.hit::after { border-color: var(--green); transform: scale(1.25); }
+.cross.on::after { border-color: var(--amber); border-width: 2.5px; box-shadow: 0 0 10px rgba(255, 176, 32, .7); }
+.cross.on::before { background: var(--amber); }
+.cross.hit::after { border-color: var(--green); border-width: 3px; transform: scale(1.15); }
 .cross.kill::after { border-color: var(--hot); transform: scale(1.6); border-width: 3px; }
 .mark { position: absolute; left: 0; top: 0; display: grid; justify-items: center; gap: 1px; font-size: 11px; color: var(--green); will-change: transform; }
 .mark i { width: 22px; height: 22px; border: 2px solid currentColor; transform: rotate(45deg); display: grid; place-items: center; background: rgba(0, 0, 0, .35); }

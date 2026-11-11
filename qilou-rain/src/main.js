@@ -293,7 +293,7 @@ function draw(dt) {
   roaches.update(sim, app.frozen || app.mode === 'paused' ? 0 : dt, time);
   const tip = gun.update(p, dt, time, look, app.mode === 'title' ? 'title' : 'play');
   look.dx *= Math.max(0, 1 - dt * 12); look.dy *= Math.max(0, 1 - dt * 12);
-  if (p.firing && app.mode === 'play') { camera.getWorldDirection(_dir); _tmp.copy(camera.position).addScaledVector(_dir, 9).sub(tip).normalize(); fx.spray(tip, _tmp, p.vx, p.vz); }
+  if (p.firing && app.mode === 'play') { camera.getWorldDirection(_dir); _tmp.copy(camera.position).addScaledVector(_dir, Math.max(2.5, p.aimDist || 9)).sub(tip).normalize(); fx.spray(tip, _tmp, p.vx, p.vz); }
   fx.update(sim, app.mode === 'paused' ? 0 : dt, time);
   rain.update(time, camera.position);
   flash.visible = app.mode !== 'title';
