@@ -33,4 +33,5 @@ Current regression results and commands: [VERIFICATION.md](VERIFICATION.md).
 ## Who it's for, AI assets
 
 - Who it's for: People who want to see what an AI writes in one pass from a single diagram.
+- 2026-11-11: the gears changed from flat pastels to metals — a brass great wheel, nickel-steel centre wheel, gilt third wheel, rose-copper escape and motion-work wheels, polished steel pinions and blued steel hands, with circular graining. The studio environment they reflect is built in code; no image files. `tools/shots.cjs` takes the before/after shots from fixed views.
 - AI assets: Gemini 4 Argon generated the initial page in one pass; the publishing adaptations and observation controls above were later changed with AI assistance; the input is the clock diagram `source.jpg` described above.

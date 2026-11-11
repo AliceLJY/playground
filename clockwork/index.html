@@ -193,6 +193,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.92;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -212,10 +214,10 @@ function setHomeView() {
 setHomeView();
 
 // 灯光配置
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.35);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xfffdf8, 1.2);
+const dirLight = new THREE.DirectionalLight(0xfff4e2, 2.4);
 dirLight.position.set(18, 28, 35);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
@@ -236,19 +238,66 @@ scene.add(backLight);
 
 // ==================== 2. 配色与材质工具函数 ====================
 const COLORS = {
-    green:   0xd8ebd0, // 第一级：发条主轮（浅绿）
-    drum:    0xc8bca6, // 发条盒（米棕）
-    blue:    0xc7dff0, // 第二级：中心轮（浅蓝）
-    orange:  0xf3b530, // 第三级：三轮（明黄/橙）
-    pink:    0xf7d6dc, // 擒纵轮 & 走针系跨轮（浅粉）
-    balance: 0xf2f2ec, // 摆轮 & 表圈（米白）
-    pinion:  0xd5d5ce, // 小齿轮轴齿（浅灰白）
-    metal:   0x7a7a75, // 转轴金属
-    minHand: 0xd8ebd0, // 分针（浅绿）
-    hrHand:  0xc5cae0  // 时针（淡紫蓝）
+    green:   0xb8892f, // 第一级：发条主轮（黄铜；键名沿用原示意图的色名）
+    drum:    0x8a6a3c, // 发条盒（深青铜）
+    blue:    0x9fb0c0, // 第二级：中心轮（镍钢，偏冷）
+    orange:  0xe0a024, // 第三级：三轮（镀金黄铜，最亮）
+    pink:    0xc97f60, // 擒纵轮 & 走针系跨轮（玫瑰铜）
+    balance: 0xe6dcc0, // 摆轮（淡金）
+    ring:    0xf2f2ec, // 表圈（米白珐琅，不是金属）
+    pinion:  0xdde2e6, // 小齿轮轴齿（抛光钢）
+    metal:   0x9aa0a6, // 转轴（钢）
+    minHand: 0x345aa8, // 分针（烤蓝钢）
+    hrHand:  0x2c4f9c  // 时针（烤蓝钢）
 };
 
-const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x3a3a38, transparent: true, opacity: 0.75 });
+const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x2a2622, transparent: true, opacity: 0.32 });
+
+// 金属质感：齿轮是黄铜、镍钢、镀金黄铜、玫瑰铜，轴齿是抛光钢，指针是烤蓝钢。
+// 金属要有东西可反射，这里用代码搭一个小摄影棚（几块柔光板）烘成环境贴图，不带图片文件。
+const envScene = new THREE.Scene();
+{
+    const panel = (w, h, color, intensity, x, y, z) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }));
+        m.position.set(x, y, z); m.lookAt(0, 0, 0); envScene.add(m);
+    };
+    envScene.add(new THREE.Mesh(new THREE.SphereGeometry(60, 24, 12), new THREE.MeshBasicMaterial({ color: 0x3a3632, side: THREE.BackSide })));
+    panel(30, 16, 0xfff1dc, 7, 18, 30, 34);    // 主柔光箱：右上前
+    panel(26, 40, 0xdfe9f5, 2.6, -40, 6, 18);  // 左侧冷色补光板
+    panel(50, 5, 0xffffff, 3, 0, -4, 46);      // 正前一条长灯带，给齿面一道高光
+    panel(60, 60, 0x8a7f72, 1.2, 0, -45, 0);   // 桌面反光
+    panel(30, 14, 0xffd9a8, 3, -10, 34, -30);  // 后上方暖色轮廓光
+}
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(envScene, 0.03).texture;
+pmrem.dispose();
+
+// 圆纹打磨：钟表轮片上一圈圈的车纹，写进粗糙度和凹凸。贴图以轮心为圆心，每个轮按自己的半径取一份。
+const grainCanvas = (() => {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d'), im = g.createImageData(S, S), d = im.data;
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const ring = new Float32Array(400); for (let i = 0; i < 400; i++) ring[i] = rnd();
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const dx = x - S / 2 + .5, dy = y - S / 2 + .5, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+        const f = r * 3.2, i0 = Math.floor(f) % 400, t = f - Math.floor(f);
+        const v = ring[i0] * (1 - t) + ring[(i0 + 1) % 400] * t;
+        const streak = .5 + .5 * Math.sin(a * 3 + ring[Math.floor(r * .2) % 400] * 6.283); // 沿圈方向明暗慢慢变
+        const k = 150 + 52 * (v - .5) + 30 * (streak - .5) + 12 * (rnd() - .5);
+        const i = (y * S + x) * 4; d[i] = d[i + 1] = d[i + 2] = Math.max(0, Math.min(255, k)); d[i + 3] = 255;
+    }
+    g.putImageData(im, 0, 0); return c;
+})();
+function grainFor(radius) {
+    const t = new THREE.CanvasTexture(grainCanvas);
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.anisotropy = 8;
+    t.repeat.set(1 / (radius * 2.3), 1 / (radius * 2.3)); t.offset.set(.5, .5);
+    return t;
+}
+function metal(color, radius, roughness = 0.34) {
+    const g = grainFor(radius);
+    return new THREE.MeshStandardMaterial({ color, metalness: 1, roughness: roughness * 1.5, roughnessMap: g, bumpMap: g, bumpScale: 0.22, envMapIntensity: 0.85 });
+}
 
 // 为网格添加卡通插画风格轮廓线
 function addOutline(mesh, threshold = 22) {
@@ -338,11 +387,7 @@ function createGearMesh({
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
     geometry.translate(0, 0, -thickness / 2);
 
-    const material = new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.55,
-        metalness: 0.08
-    });
+    const material = metal(color, teeth * MODULE / 2 + 0.4);
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
@@ -405,7 +450,7 @@ function createEscapementWheelMesh({
 
     const mesh = new THREE.Mesh(
         geometry,
-        new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.08 })
+        metal(color, pitchRadius + 0.6, 0.3)
     );
     mesh.castShadow = true;
     addOutline(mesh, 20);
@@ -458,7 +503,7 @@ scene.add(clockRoot);
 
 // 矩形背板（还原图中的白色立板）
 const backplateGeo = new THREE.BoxGeometry(24, 34, 0.6);
-const backplateMat = new THREE.MeshStandardMaterial({ color: 0xf7f7f2, roughness: 0.8 });
+const backplateMat = new THREE.MeshStandardMaterial({ color: 0xf1ede2, roughness: 0.62, envMapIntensity: 0.35 });
 const backplate = new THREE.Mesh(backplateGeo, backplateMat);
 backplate.position.set(0, 0.5, -3.2);
 backplate.receiveShadow = true;
@@ -480,7 +525,7 @@ function createClockDialRing() {
     const ringGeo = new THREE.ExtrudeGeometry(ringShape, { depth: 0.35, bevelEnabled: false });
     ringGeo.translate(0, 0, -0.175);
     const ringMat = new THREE.MeshStandardMaterial({
-        color: COLORS.balance,
+        color: COLORS.ring,
         roughness: 0.6,
         transparent: true,
         opacity: 0.92
@@ -514,7 +559,7 @@ function addSupportAxle(x, y, zFront) {
     const length = zFront - (-3.0);
     const geo = new THREE.CylinderGeometry(0.18, 0.18, length, 20);
     geo.rotateX(Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({ color: COLORS.metal, metalness: 0.5, roughness: 0.3 });
+    const mat = new THREE.MeshStandardMaterial({ color: COLORS.metal, metalness: 1, roughness: 0.22 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, (-3.0 + zFront) / 2);
     clockRoot.add(mesh);
@@ -530,7 +575,7 @@ clockRoot.add(shaftGreat);
 // 后方棕色发条盒鼓轮
 const drumGeo = new THREE.CylinderGeometry(2.6, 2.6, 1.4, 36);
 drumGeo.rotateX(Math.PI / 2);
-const drumMesh = new THREE.Mesh(drumGeo, new THREE.MeshStandardMaterial({ color: COLORS.drum, roughness: 0.6 }));
+const drumMesh = new THREE.Mesh(drumGeo, metal(COLORS.drum, 2.6, 0.38));
 drumMesh.position.z = -2.0;
 addOutline(drumMesh, 25);
 shaftGreat.add(drumMesh);
@@ -618,7 +663,7 @@ function createBalanceWheel() {
 
     const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.35, bevelEnabled: false });
     geo.translate(0, 0, -0.175);
-    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: COLORS.balance, roughness: 0.5 }));
+    const mesh = new THREE.Mesh(geo, metal(COLORS.balance, 4, 0.28));
     mesh.castShadow = true;
     addOutline(mesh, 25);
     return mesh;
@@ -663,7 +708,7 @@ function createPointerHand(length, tail, width, color, zOffset) {
 
     const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.16, bevelEnabled: false });
     geo.translate(0, 0, zOffset);
-    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.4 }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, metalness: 1, roughness: 0.26, envMapIntensity: 1.3 }));
     mesh.castShadow = true;
     addOutline(mesh, 20);
     return mesh;
