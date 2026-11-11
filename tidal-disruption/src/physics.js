@@ -9,8 +9,8 @@ export const STAGES = [
 ];
 export const QUALITIES = [
   { name: '节能', scale: 0.30, steps: 96, side: 64, atlas: 384 },
-  { name: '平衡', scale: 0.40, steps: 144, side: 96, atlas: 512 },
-  { name: '精细', scale: 0.50, steps: 192, side: 128, atlas: 768 }
+  { name: '平衡', scale: 0.75, steps: 144, side: 96, atlas: 1024 },
+  { name: '精细', scale: 1.00, steps: 192, side: 128, atlas: 1024 }
 ];
 export const VIEWS = {
   wide: { time: 8, yaw: 0.12, elevation: 0.29, distance: 37 },

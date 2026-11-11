@@ -30,15 +30,20 @@ The star size and event duration are adjusted for visibility. Debris is collapse
 
 ## Power budget and checks
 
-Rendering is capped at 30 fps. Desktop pixel ratio is capped at 1.5 and mobile at 1.25. The three tiers use 0.30/0.40/0.50 ray-target scale, 96/144/192 maximum steps, and 4,096/9,216/16,384 GPU particles. Every frame uses four draw calls. Sustained overload lowers quality, with slower recovery and an eight-second cooldown. Hidden or offscreen scenes stop rendering. A paused, untouched scene also stops completely.
+Rendering is capped at 30 fps. Desktop pixel ratio is capped at 1.5 and mobile at 1.25. The three tiers use 0.30/0.75/1.00 ray-target scale, 384²/1024²/1024² density atlases, 96/144/192 maximum steps, and 4,096/9,216/16,384 GPU particles. The default balanced tier targets a GPU median at or below 20 ms on the M4 desktop. Every frame uses four draw calls. Sustained overload lowers quality, with slower recovery and an eight-second cooldown. Hidden or offscreen scenes stop rendering. A paused, untouched scene also stops completely.
 
 ```sh
 node --test tests/*.test.cjs
 node tools/browser-check.cjs
 node tools/browser-check.cjs --record
+node tools/clarity-check.cjs
+node tools/r3-compare.cjs
+node tools/performance-check.cjs
 ```
 
 The checker finds the locally installed Playwright, uses Chrome and a temporary local server, and writes screenshots plus `shots/browser-report.json`. An optional page URL can target a mounted build. `--record` also captures 30 seconds of normal-entry interaction. All browser GPU work runs sequentially. `?test` enables measurement-only controls. The public `window.__PLAYTEST__` reports actual rendering metrics and provides reset, seed and step operations.
+
+The clarity test renders real final-frame pixels at 82 seconds in both hero and edge views, comparing each default image against a same-frame full-resolution reference with a 1024² density atlas. Ring and inner-disk gradient energy must each retain at least 65% of the reference. The Node suite runs this GPU check too. `r3-compare.cjs` requires the retained old/new captures in `shots/` and produces side-by-side images with 3× crops. Run the performance pass separately after other GPU checks finish; it records Chrome process load alongside actual timer-query samples.
 
 Measured results and remaining coverage are in [VERIFICATION.md](VERIFICATION.md). Performance controls reduce rendering duty cycle. Device temperature and long-duration thermal behavior require direct hardware measurement.
 

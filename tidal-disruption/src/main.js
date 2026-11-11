@@ -25,6 +25,8 @@ const timerExtension = gl.getExtension('EXT_disjoint_timer_query_webgl2');
 const timerSlots = timerExtension ? Array.from({ length: 4 }, () => ({ query: gl.createQuery(), pending: false })) : [];
 let activeQuery = null;
 let gpuMs = 0;
+const gpuSamples = new Float32Array(180);
+let gpuSampleIndex = 0;
 const screenGeometry = new THREE.BufferGeometry();
 screenGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1,-1,0, 3,-1,0, -1,3,0],3));
 const camera = new THREE.Camera();
@@ -150,7 +152,10 @@ function pollGpu() {
   if (!timerExtension) return;
   for (const slot of timerSlots) {
     if (slot.pending && gl.getQueryParameter(slot.query, gl.QUERY_RESULT_AVAILABLE)) {
-      if (!gl.getParameter(timerExtension.GPU_DISJOINT_EXT)) gpuMs = gl.getQueryParameter(slot.query, gl.QUERY_RESULT) / 1e6;
+      if (!gl.getParameter(timerExtension.GPU_DISJOINT_EXT)) {
+        gpuMs = gl.getQueryParameter(slot.query, gl.QUERY_RESULT) / 1e6;
+        gpuSamples[gpuSampleIndex++ % gpuSamples.length] = gpuMs;
+      }
       slot.pending = false;
     }
   }
@@ -348,15 +353,18 @@ window.__PLAYTEST__ = {
   ready: true,
   snapshot() {
     const samples = Array.from(jsSamples.subarray(0, Math.min(sampleIndex, jsSamples.length))).sort((a,b) => a-b);
+    const gpu = Array.from(gpuSamples.subarray(0, Math.min(gpuSampleIndex, gpuSamples.length))).sort((a,b) => a-b);
     return {
       time, duration: DURATION, stage: stageAt(time) + 1, stageName: STAGES[stageAt(time)][0], playing, speed,
       view: actualView, camera: { ...orbit }, seed: uniforms.uSeed.value,
       quality: QUALITIES[adaptive.tier].name, tier: adaptive.tier, qualityMode, qualityChanges,
-      resolutionScale: QUALITIES[adaptive.tier].scale, raySteps: uniforms.uSteps.value,
+      resolutionScale: rayTarget.width / canvas.width, raySteps: uniforms.uSteps.value,
       rayResolution: [rayTarget.width, rayTarget.height], drawingBuffer: [canvas.width, canvas.height],
       dpr: renderer.getPixelRatio(), particleCount: points, atlasSize: atlasTarget.width,
       drawCalls: draws, triangles, frames, fps, jsMs: lastJsMs,
       jsP95: samples[Math.floor(samples.length * .95)] || 0, gpuMs: timerExtension ? gpuMs : null,
+      gpuSampleCount: gpuSampleIndex, gpuSamplesMs: gpu,
+      gpuMedianMs: gpu.length ? (gpu[Math.floor((gpu.length - 1) / 2)] + gpu[Math.floor(gpu.length / 2)]) * .5 : null,
       renderer: rendererName, softwareRenderer: /swiftshader|llvmpipe/i.test(rendererName),
       visible: visible && inViewport && !document.hidden, scheduled: Boolean(raf),
       lensing: uniforms.uBending.value === 1, star: { ...star }
@@ -369,6 +377,32 @@ window.__PLAYTEST__ = {
 // Extra measurement controls exist only behind the explicit acceptance URL flag.
 if (diagnostics) {
   window.__TDE_TEST__ = {
+    capture(reference = false) {
+      if (playing) throw new Error('Pause before capturing a same-frame reference.');
+      const savedRay = rayTarget, savedAtlas = atlasTarget;
+      try {
+        if (reference) {
+          rayTarget = new THREE.WebGLRenderTarget(canvas.width, canvas.height, { type: THREE.HalfFloatType, depthBuffer: false });
+          atlasTarget = new THREE.WebGLRenderTarget(Math.max(1024, savedAtlas.width), Math.max(1024, savedAtlas.height), { count: 2, type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+          uniforms.uAtlas.value = atlasTarget.width;
+          uniforms.uDensity.value = atlasTarget.textures[0];
+          uniforms.uMoments.value = atlasTarget.textures[1];
+          composite.material.uniforms.uScene.value = rayTarget.texture;
+          composite.material.uniforms.uTexel.value.set(1 / rayTarget.width, 1 / rayTarget.height);
+        }
+        render();
+        return { image: canvas.toDataURL('image/png'), state: window.__PLAYTEST__.snapshot() };
+      } finally {
+        if (reference) { rayTarget.dispose(); atlasTarget.dispose(); }
+        rayTarget = savedRay; atlasTarget = savedAtlas;
+        uniforms.uAtlas.value = atlasTarget.width;
+        uniforms.uDensity.value = atlasTarget.textures[0];
+        uniforms.uMoments.value = atlasTarget.textures[1];
+        composite.material.uniforms.uScene.value = rayTarget.texture;
+        composite.material.uniforms.uTexel.value.set(1 / rayTarget.width, 1 / rayTarget.height);
+        if (reference) render();
+      }
+    },
     seek(value) { playing = false; seek(value); render(); },
     view(name) { chooseView(name, true); render(); },
     lensing(enabled) { uniforms.uBending.value = enabled ? 1 : 0; render(); },
