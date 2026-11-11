@@ -180,16 +180,27 @@ export function buildWorld(scene, sim, opts = {}) {
   const TILE = ['#6e6b63', '#7a7468', '#67645e', '#85705f'];
 
   // ---- 地面、驳岸、石阶、栈桥 ----
-  const paving = canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#c9bc9f'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2600; i++) { const v = 150 + Math.floor(R() * 70); g.fillStyle = `rgba(${v},${v - 10},${v - 34},0.16)`; g.fillRect(R() * w, R() * h, 1 + R() * 5, 1 + R() * 3); }
-    g.strokeStyle = 'rgba(90,80,60,0.14)'; for (let i = 0; i <= 8; i++) { g.beginPath(); g.moveTo(0, i * 32); g.lineTo(w, i * 32); g.moveTo(i * 32 + (i % 2) * 9, 0); g.lineTo(i * 32 + (i % 2) * 9, h); g.stroke(); }
+  // 地面：夯实的沙土，带颗粒、碎石和踩出来的深浅，现画的画布贴图（可平铺）；大块的明暗交给顶点色，免得看出平铺的格子
+  const paving = canvasTex(512, 512, (g, w, h) => {
+    const img = g.createImageData(w, h), d = img.data, lat = (n, s) => { const a = []; for (let i = 0; i < n * n; i++) a.push(R()); return (x, y) => { const fx = x / s, fy = y / s, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty), at = (i, j) => a[(j % n) * n + (i % n)]; return (at(ix, iy) * (1 - sx) + at(ix + 1, iy) * sx) * (1 - sy) + (at(ix, iy + 1) * (1 - sx) + at(ix + 1, iy + 1) * sx) * sy; }; };
+    const n1 = lat(8, 64), n2 = lat(32, 16), n3 = lat(128, 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const k = 0.80 + 0.16 * n1(x, y) + 0.12 * n2(x, y) + 0.10 * n3(x, y) + 0.10 * (R() - 0.5), i = (y * w + x) * 4;
+      d[i] = Math.min(255, 205 * k); d[i + 1] = Math.min(255, 180 * k); d[i + 2] = Math.min(255, 136 * k); d[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    for (let i = 0; i < 420; i++) { const x = R() * w, y = R() * h, s = 0.8 + R() * 2.2, v = R() < 0.5 ? 235 : 70; g.fillStyle = `rgba(${v},${v - 12},${v - 30},${0.25 + R() * 0.3})`; g.beginPath(); g.ellipse(x, y, s, s * (0.6 + R() * 0.4), R() * 3, 0, 6.3); g.fill(); }
   });
-  paving.wrapS = paving.wrapT = THREE.RepeatWrapping; paving.repeat.set(60, 36);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 260), new THREE.MeshLambertMaterial({ map: paving }));
+  paving.wrapS = paving.wrapT = THREE.RepeatWrapping; paving.repeat.set(52, 34);
+  const groundGeo = new THREE.PlaneGeometry(400, 260, 100, 65);
+  { const gp = groundGeo.attributes.position, col = [], hsh = (x, y) => { const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return v - Math.floor(v); }, vn = (x, y) => { const ix = Math.floor(x), iy = Math.floor(y), tx = x - ix, ty = y - iy, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty); return (hsh(ix, iy) * (1 - sx) + hsh(ix + 1, iy) * sx) * (1 - sy) + (hsh(ix, iy + 1) * (1 - sx) + hsh(ix + 1, iy + 1) * sx) * sy; };
+    for (let i = 0; i < gp.count; i++) { const x = gp.getX(i) - 51, z = -gp.getY(i) - 130; let k = 0.86 + 0.16 * vn(x / 23, z / 23) + 0.1 * vn(x / 7 + 9, z / 7 + 4); if (z > -9 && z < 0) k *= 0.9 + 0.1 * (-z / 9); col.push(k, k * 0.985, k * 0.96); }   // 靠岸一带潮一点、暗一点
+    groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); }
+  const ground = new THREE.Mesh(groundGeo, new THREE.MeshLambertMaterial({ map: paving, vertexColors: true }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(-51, 0, -130); ground.receiveShadow = true; scene.add(ground);
+  const groundPlain = new THREE.MeshLambertMaterial({ map: paving, color: '#f2f0ea' });   // 边上两块补地不带顶点色
   // 陆地铺满北岸（小溪留一道口），铺石只在商馆区
-  const landMat = new THREE.MeshLambertMaterial({ color: '#b9b190' });
+  const landMat = new THREE.MeshLambertMaterial({ color: '#bba783' });
   B.mat = 4;
   for (const [x0, x1] of [[-2600, 152.5], [158, 2600]]) {
     const land = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 2600), landMat);
@@ -213,9 +224,10 @@ export function buildWorld(scene, sim, opts = {}) {
   // 小溪与石桥（东端）
   B.box(152.5, -4.5, -115, 0.9, 4.5, 230, STONE); B.box(158, -4.5, -115, 0.9, 4.5, 230, STONE);
   B.box(155.3, 0.1, -30, 7.6, 0.4, 3.4, '#aaa18c'); for (const z of [-31.6, -28.4]) B.box(155.3, 0.5, z, 7.6, 0.7, 0.25, STONE);
-  const eastGround = new THREE.Mesh(new THREE.PlaneGeometry(380, 70), ground.material);
+  const eastGround = new THREE.Mesh(new THREE.PlaneGeometry(380, 70), groundPlain);
+  { const u = eastGround.geometry.attributes.uv; for (let i = 0; i < u.count; i++) u.setXY(i, u.getX(i) * 0.95, u.getY(i) * 0.27); }   // 贴图密度和主地面对齐
   eastGround.rotation.x = -Math.PI / 2; eastGround.position.set(348, 0, -35); eastGround.receiveShadow = true; scene.add(eastGround);
-  const creekCover = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 260), ground.material); // 铺石平面只到 x=149，补到小溪西岸
+  const creekCover = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 260), groundPlain); // 铺石平面只到 x=149，补到小溪西岸
   creekCover.rotation.x = -Math.PI / 2; creekCover.position.set(150.7, 0, -130); scene.add(creekCover);
 
   B.mat = 0;

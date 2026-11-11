@@ -14,13 +14,14 @@ const renderer = G.createRenderer(canvas, coarse);
 
 const scene = new THREE.Scene();
 const FOG = new THREE.Color('#d6d0bc');
-scene.fog = new THREE.Fog(FOG, 140, 1500);
+const HAZE = 0.0015;   // 薄雾：指数平方，两三百米外开始发淡，对岸半隐
+scene.fog = new THREE.FogExp2(FOG, HAZE);
 const camera = new THREE.PerspectiveCamera(55, 1, 0.25, 5000);
 camera.rotation.order = 'YXZ';
 
 const SUN = new THREE.Vector3(-0.52, 0.62, 0.59).normalize();
-const hemi = new THREE.HemisphereLight('#e6eef2', '#b3a17c', 1.5); scene.add(hemi);
-const sun = new THREE.DirectionalLight('#fff0d2', 2.5);
+const hemi = new THREE.HemisphereLight('#e6eef2', '#b3a17c', 1.3); scene.add(hemi);
+const sun = new THREE.DirectionalLight('#fff0d2', 2.75);
 sun.position.copy(SUN).multiplyScalar(300).add(new THREE.Vector3(0, 0, -40)); sun.target.position.set(0, 0, -40);
 sun.castShadow = true; sun.shadow.mapSize.set(coarse ? 2048 : 4096, coarse ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -215, right: 215, top: 130, bottom: -130, near: 10, far: 700 }); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.25;
@@ -32,7 +33,7 @@ const sky = G.makeSky(SUN, FOG);
 scene.add(sky);
 
 // 江水
-const water = G.makeWater(SUN, FOG, C.WATER_Y); scene.add(water.mesh);
+const water = G.makeWater(SUN, FOG, C.WATER_Y, HAZE); scene.add(water.mesh);
 
 // ---- 模拟与场景 ----
 const sim = C.createSim(Number(Q.get('seed')) || 1805, Number(Q.get('crowd')) || (coarse ? 0.25 : 1));
@@ -49,11 +50,11 @@ for (const l of labels) { l.el = document.createElement('div'); l.el.textContent
 
 // ---- 天色：午后 / 黄昏 / 入夜 ----
 const TOD = {
-  day: { cn: '午后', hs: '#e6eef2', hg: '#b3a17c', hi: 1.5, sc: '#fff0d2', si: 2.5, fog: '#d6d0bc', zen: '#86a9c2', deep: '#77845f', wsky: '#cdd6d2', glow: 0 },
+  day: { cn: '午后', hs: '#e6eef2', hg: '#b3a17c', hi: 1.3, sc: '#fff0d2', si: 2.75, fog: '#d6d0bc', zen: '#86a9c2', deep: '#77845f', wsky: '#cdd6d2', glow: 0 },
   dusk: { cn: '黄昏', hs: '#e9c7a6', hg: '#7d6a58', hi: 1.0, sc: '#ffb070', si: 1.7, fog: '#dcb48e', zen: '#6f7fa8', deep: '#6b6a58', wsky: '#e8c6a2', glow: 0.75 },
   night: { cn: '入夜', hs: '#5f7096', hg: '#2c2c36', hi: 0.62, sc: '#93aadb', si: 0.55, fog: '#27304a', zen: '#0d1322', deep: '#131b26', wsky: '#3b4c6a', glow: 1 },
 };
-const todNow = { key: 'day', hi: 1.5, si: 2.5, glow: 0, zen: new THREE.Color('#86a9c2'), deep: new THREE.Color('#77845f'), wsky: new THREE.Color('#cdd6d2') };
+const todNow = { key: 'day', hi: 1.3, si: 2.75, glow: 0, zen: new THREE.Color('#86a9c2'), deep: new THREE.Color('#77845f'), wsky: new THREE.Color('#cdd6d2') };
 const _tc = new THREE.Color();
 function setTod(key) { todNow.key = key; $('tod').textContent = TOD[key].cn; $('tod').classList.toggle('on', key !== 'day'); }
 function updateTod(dt, snap) {
@@ -215,7 +216,7 @@ function guard() {
   if (++quality.low < 4) return;
   quality.low = 0;
   if (quality.reflect) { quality.reflect = false; water.noReflect(); }
-  else if (quality.shadows) { quality.shadows = false; for (const k in people.meshes) people.meshes[k].castShadow = false; people.meshes.blob.visible = true; sun.shadow.needsUpdate = true; }
+  else if (quality.shadows) { quality.shadows = false; for (const k in people.meshes) people.meshes[k].castShadow = false; if (people.headNear) people.headNear.castShadow = false; people.meshes.blob.visible = true; sun.shadow.needsUpdate = true; }
 }
 
 // ---- 主循环 ----
@@ -233,7 +234,7 @@ function step(real) {
   const n = Math.max(1, Math.round(S.speed));
   for (let i = 0; i < n; i++) C.stepSim(sim, Math.min(0.05, real));
   T += real;
-  world.update(T); people.update(T); updateCamera(real); updateTod(real);
+  world.update(T); updateCamera(real); people.update(T, camera.position); updateTod(real);
   water.update(T, camera.position); sky.position.copy(camera.position);
   audio.update(real, sim, { x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw: camera.rotation.y }, S.mode === 'walk' ? S.walk.v : 0);
   if (quality.shadows) sun.shadow.needsUpdate = true;
@@ -280,10 +281,14 @@ window.__hong = {
   setView(v) { if (!VIEWS[v]) return null; VIEWS[v](); step(0.016); step(0.016); hud(); return { mode: S.mode, follow: S.follow }; },
   skip(sec) { skip(sec); step(0.016); hud(); return sim.event.stage; },
   gpu() { return G.gpuName(renderer); }, backend: G.backend,
-  uncoloured: () => people.uncoloured(),
+  uncoloured: () => people.uncoloured(), variety: () => people.variety(), people,
   // 录片钩子：自由机位、天色、声音、跟随对象的位置
   free(o) { S.mode = 'free'; S.free = o; }, setTod(k) { setTod(k); }, audio,
-  where(key) { const h = followTarget(_t.set(0, 0, 0), key); return { x: _t.x, y: _t.y, z: _t.z, h }; },
+  where(key) {   // 跟随键，或「kind:序号」指某一类里的第几个人（贴近检查用）
+    if (sim.follow[key]) { const f = sim.follow[key], h = followTarget(_t.set(0, 0, 0), key), a = f.agent != null ? sim.agents[f.agent] : null; return { x: _t.x, y: _t.y, z: _t.z, h, scale: a ? a.scale : 1, kind: a ? a.kind : 'boat', pose: a ? a.pose : '' }; }
+    const [kind, n] = String(key).split(':'), all = sim.agents.filter(q => q.kind === kind), a = (all.filter(q => q.role === 'walker')[Number(n) || 0]) || all[Number(n) || 0]; if (!a) return null;
+    const w = C.agentWorld(sim, a); return { x: w.x, y: w.y + 1.5 * a.scale, z: w.z, h: w.h, scale: a.scale, kind: a.kind, pose: a.pose };
+  },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
 };
 window.__PLAYTEST__ = {

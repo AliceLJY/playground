@@ -48,11 +48,11 @@ export function makeSky(SUN, FOG) {
   return sky;
 }
 
-export function makeWater(SUN, FOG, y) {
+export function makeWater(SUN, FOG, y, DEN) {
 const waterMat = new THREE.ShaderMaterial({
-  uniforms: { uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uFog: { value: FOG }, uDeep: { value: new THREE.Color('#77845f') }, uSky: { value: new THREE.Color('#cdd6d2') }, uNear: { value: 140 }, uFar: { value: 1500 }, uRefl: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uUse: { value: 0 } },
+  uniforms: { uT: { value: 0 }, uCam: { value: new THREE.Vector3() }, uSun: { value: SUN }, uFog: { value: FOG }, uDeep: { value: new THREE.Color('#77845f') }, uSky: { value: new THREE.Color('#cdd6d2') }, uDen: { value: 0.0019 }, uRefl: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uUse: { value: 0 } },
   vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-  fragmentShader: `varying vec3 vW; uniform float uT, uNear, uFar, uUse; uniform vec3 uCam, uSun, uFog, uDeep, uSky; uniform sampler2D uRefl; uniform vec2 uRes;
+  fragmentShader: `varying vec3 vW; uniform float uT, uDen, uUse; uniform vec3 uCam, uSun, uFog, uDeep, uSky; uniform sampler2D uRefl; uniform vec2 uRes;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
     float fbm(vec2 p){ return vn(p) * .5 + vn(p * 2.03 + 7.) * .25 + vn(p * 4.1 + 13.) * .125; }
@@ -67,11 +67,12 @@ float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); 
       vec3 c = mix(uDeep, mix(uSky, refl, uUse), clamp(.16 + uUse * .1 + fr * .85, 0., 1.));
       float sp = max(dot(reflect(-v, n), uSun), 0.); c += vec3(1., .94, .78) * (pow(sp, 160.) * 1.6 + pow(sp, 24.) * .18);
       c += (hx + hz) * .02 * amp;
-      c = mix(c, uFog, smoothstep(uNear, uFar, dist));
+      c = mix(c, uFog, 1. - exp(-dist * dist * uDen * uDen));
       gl_FragColor = vec4(c, 1.);
       #include <colorspace_fragment>
     }`,
 });
+  waterMat.uniforms.uDen.value = DEN;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(9000, 5200), waterMat);
   mesh.rotation.x = -Math.PI / 2; mesh.position.set(0, y, 900);
   let rt = null; const rc = new THREE.PerspectiveCamera(), _d = new THREE.Vector3(), _sz = new THREE.Vector2();
@@ -108,3 +109,17 @@ export function detail(mat) {
   return mat;
 }
 
+
+// 图集材质：脸和衣服都画在一张分格的画布上，每个人用实例属性 aCell 选格、aTint 染色。
+// mask 是同样分格的灰度图：白处乘上 aTint（皮肤、布料），黑处保持画上去的原色（眼白、头发、纽扣）。
+export function atlasMat(tex, mask, cols, rows) {
+  const mat = new THREE.MeshLambertMaterial({ map: tex });
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uMask = { value: mask }; sh.uniforms.uCell = { value: new THREE.Vector2(1 / cols, 1 / rows) };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 aCell; attribute vec3 aTint; uniform vec2 uCell; varying vec3 vTint;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvMapUv = (uv + aCell) * uCell; vTint = aTint;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uMask; varying vec3 vTint;')
+      .replace('#include <map_fragment>', 'diffuseColor.rgb *= texture2D(map, vMapUv).rgb * mix(vec3(1.), vTint, texture2D(uMask, vMapUv).r);');
+  };
+  return mat;
+}

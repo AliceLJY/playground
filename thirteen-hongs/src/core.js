@@ -199,7 +199,14 @@ export function legIK(f, h) {
   return { a: -(g + al), b: Math.PI - k };
 }
 
+// 换动作的过渡：姿势参数每帧按指数向目标靠（与帧率无关），停步、起步、放下箱子不再一帧跳过去
+export const POSE_RATE = 11;
+export function ease(cur, target, dt, rate = POSE_RATE) { return cur + (target - cur) * (1 - Math.exp(-dt * rate)); }
+
 // ---------- 人物长相 ----------
+// 脸图集的八格：0 青年 1 八字胡 2 花白长须 3 僧 4 深发洋人 5 浅发洋人 6 妇人 7 日晒胡茬；衣服图集的八格见 skins.js
+const FACE = { official: [1, 2, 1], merchant: [0, 1, 1, 2], linguist: [0, 1], clerk: [0, 1, 2], coolie: [0, 7, 7], hawker: [7, 1, 2], monk: [3], foreigner: [4, 5], sailor: [4, 5, 5], boatwoman: [6] };
+const CLOTH = { linguist: 0, clerk: 0, merchant: 1, coolie: 2, hawker: 2, foreigner: 3, sailor: 4, monk: 5, official: 6, boatwoman: 7 };
 const SKIN = ['#c99a6b', '#b98558', '#d2a877', '#a9774c'], PALE = ['#e2b998', '#d9ad8c'];
 const HAIRF = ['#3a2a1c', '#6b4a2a', '#8a6a3a', '#2a2622', '#a08a6a'];
 const LOOKS = {
@@ -224,6 +231,8 @@ function makeAgent(sim, kind, o = {}) {
   const L = a.look;
   if (!L.hairStyle) L.hairStyle = L.queue ? 'queue' : kind === 'boatwoman' ? 'bun' : 'short';
   if (kind === 'foreigner' || kind === 'sailor') L.hair = pick(r, HAIRF);
+  L.face = pick(r, FACE[kind]); L.cloth = CLOTH[kind];
+  if (L.face === 2) L.hair = '#8a867e';
   if (a.pose === 'write') { L.prop = 'book'; L.propColor = '#e8e0cc'; }
   sim.agents.push(a);
   return a;
@@ -453,7 +462,7 @@ export function stepSim(sim, dt) {
   for (const b of sim.boats) if (b.path) { b.d += b.speed * dt; Object.assign(b, b.path.at(b.d)); }
   stepEvent(sim, dt);
   for (const a of sim.walkers) {
-    if (a.pause > 0) { a.pause -= dt; a.pose = a.carry ? 'carry-stand' : 'stand'; continue; }
+    if (a.pause > 0) { a.pause -= dt; a.pose = a.carry === 'chest' ? 'carry-stand' : a.carry === 'pole' ? 'pole-stand' : 'stand'; continue; }
     const n = sim.graph[a.target];
     a.pose = a.carry === 'chest' ? 'carry' : a.carry === 'pole' ? 'pole' : 'walk';
     if (walkTo(a, n.x + a.ox * n.off, n.z + a.oz * n.off, a.speed, dt)) {

@@ -153,6 +153,29 @@ test('步子的大小像人：一步 0.5–0.75 米，膝盖不反折、不过�
   assert.ok(bobMax - bobMin > 0.02 && bobMax - bobMin < 0.08, `身体起伏应在 2–8 厘米，实际 ${((bobMax - bobMin) * 100).toFixed(1)}`);
 });
 
+test('换动作有过渡：姿势参数不一帧跳到位，半秒内到位，快慢帧率走出同一条曲线', async () => {
+  const C = await load();
+  let v = 0; v = C.ease(v, 1, 1 / 60);
+  assert.ok(v > 0.05 && v < 0.25, `第一帧只该走一小段，实际 ${v.toFixed(3)}`);
+  let a = 0, b = 0; for (let i = 0; i < 30; i++) a = C.ease(a, 1, 1 / 60); for (let i = 0; i < 15; i++) b = C.ease(b, 1, 1 / 30);
+  assert.ok(a > 0.99, `半秒后应到位，实际 ${a.toFixed(3)}`);
+  assert.ok(Math.abs(a - b) < 1e-9, '60 帧和 30 帧应走到同一处');
+  assert.strictEqual(C.ease(0.3, 0.3, 0.016), 0.3, '到了目标就不动');
+});
+
+test('歇脚的人手上的姿势跟着拿的东西：扛箱的托着箱，挑担的扶着扁担，都不是举手过头', async () => {
+  const C = await load(); const sim = C.createSim(); const seen = new Set();
+  for (let i = 0; i < 1200; i++) { const was = sim.walkers.map(a => a.pause > 0); C.stepSim(sim, 0.1); for (const [j, a] of sim.walkers.entries()) if (was[j]) { seen.add(a.pose); assert.strictEqual(a.pose, a.carry === 'chest' ? 'carry-stand' : a.carry === 'pole' ? 'pole-stand' : 'stand'); } }
+  assert.ok(seen.has('pole-stand') && seen.has('carry-stand') && seen.has('stand'), '样本里三种歇脚的人都出现过：' + [...seen]);
+});
+
+test('每个人都分到一张脸和一种衣型：八张脸、八种衣型都有人用，洋人不用辫发的脸', async () => {
+  const C = await load(); const sim = C.createSim();
+  assert.strictEqual(new Set(sim.agents.map(a => a.look.face)).size, 8);
+  assert.strictEqual(new Set(sim.agents.map(a => a.look.cloth)).size, 8);
+  for (const a of sim.agents) { assert.ok(Number.isInteger(a.look.face) && a.look.face >= 0 && a.look.face < 8); if (a.kind === 'foreigner' || a.kind === 'sailor') assert.ok(a.look.face === 4 || a.look.face === 5); if (a.kind === 'monk') assert.strictEqual(a.look.face, 3); }
+});
+
 test('源码里行尾注释后面不跟着代码（注释会把同一行后半截吞掉）', () => {
   const fs = require('fs'), path = require('path');
   for (const f of fs.readdirSync(path.join(__dirname, '..', 'src'))) {
