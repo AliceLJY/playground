@@ -577,6 +577,17 @@ jobs:
           cp xiguan-house/index.html _site/xiguan-house/
           cp xiguan-house/src/model.js xiguan-house/src/view.js _site/xiguan-house/src/
 
+      - name: Check, bundle and assemble Tidal Disruption
+        working-directory: tidal-disruption
+        run: |
+          # 潮汐之下：黑洞撕裂一颗恒星的 108 秒实时模拟，光线弯折与碎屑都在 GPU 上算；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+          npm ci
+          node tools/build.mjs
+          mkdir -p ../_site/tidal-disruption
+          cp dist/index.html ../_site/tidal-disruption/index.html
+
       - name: Show what will be published
         run: find _site -type f | sort
 
