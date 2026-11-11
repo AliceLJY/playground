@@ -74,12 +74,18 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('自动逛一圈走完并回到起点附近', ended && Math.hypot(s.x - ST.x, s.z - ST.z) < 0.6, `(${s.x}, ${s.z})`);
   check('一圈经过窄巷、屋后、廊子、檐廊、屋内、廊桥、八角亭', ['窄巷', '屋后', '廊子', '敞厅 · 檐廊', '敞厅 · 屋内', '廊桥', '八角亭', '八角池畔'].every(p => places.has(p)), [...places].join('、'));
   check('过桥时脚下到过桥顶高度', maxY > 1.0, maxY.toFixed(2));
-  // 自动走的时候拖动只改视线、不打断；按方向键才接手
+  // 自动走的时候一拖动就停下来，视线完全交给人（Alice 11-11：「进去房间以后我不能360度自己转身么？」）；点「继续逛」接着走；按方向键接手
   await page.click('#bTour'); await page.waitForTimeout(600); const ty0 = await snap(page);
-  await page.mouse.move(700, 400); await page.mouse.down(); await page.mouse.move(520, 400, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(700); const ty1 = await snap(page);
-  check('自动走时拖动只改视线，人还在往前走', ty1.tour === true && Math.abs(ty1.yaw - ty0.yaw) > 0.4 && Math.hypot(ty1.x - ty0.x, ty1.z - ty0.z) > 0.8, `yaw ${(ty1.yaw - ty0.yaw).toFixed(2)} rad，走了 ${Math.hypot(ty1.x - ty0.x, ty1.z - ty0.z).toFixed(2)} m`);
+  await page.mouse.move(700, 400); await page.mouse.down(); await page.mouse.move(520, 400, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(300); const ty1 = await snap(page);
+  check('自动走时一拖动就停下', ty1.tour === true && ty1.paused === true && Math.abs(ty1.yaw - ty0.yaw) > 0.4, `yaw ${(ty1.yaw - ty0.yaw).toFixed(2)} rad`);
   await page.waitForTimeout(4200); const ty2 = await snap(page);
-  check('放手三秒后视线转回前进方向', ty2.tour === true && Math.abs(ty2.yaw - ty1.yaw) > 0.25, `yaw 又变了 ${(ty2.yaw - ty1.yaw).toFixed(2)} rad`);
+  check('停下后过四秒：人没动，视线也没被拉回去', Math.hypot(ty2.x - ty1.x, ty2.z - ty1.z) < 0.02 && Math.abs(ty2.yaw - ty1.yaw) < 0.001, `走了 ${Math.hypot(ty2.x - ty1.x, ty2.z - ty1.z).toFixed(3)} m，yaw 变了 ${(ty2.yaw - ty1.yaw).toFixed(4)} rad`);
+  for (let k = 0; k < 4; k++) { await page.mouse.move(900, 400); await page.mouse.down(); await page.mouse.move(500, 400, { steps: 8 }); await page.mouse.up(); }
+  const ty3 = await snap(page);
+  check('停下后能连着拖着转过一整圈', Math.abs(ty3.yaw - ty2.yaw) > 6.283 && Math.hypot(ty3.x - ty2.x, ty3.z - ty2.z) < 0.02, `共转 ${Math.abs(ty3.yaw - ty2.yaw).toFixed(2)} rad`);
+  check('停下时按钮写着「继续逛」', (await page.textContent('#bTour')) === '继续逛');
+  await page.click('#bTour'); await page.waitForTimeout(1500); const ty4 = await snap(page);
+  check('点「继续逛」接着往前走', ty4.tour === true && ty4.paused === false && Math.hypot(ty4.x - ty3.x, ty4.z - ty3.z) > 0.8, `走了 ${Math.hypot(ty4.x - ty3.x, ty4.z - ty3.z).toFixed(2)} m`);
   await hold(page, 's', 300);
   check('自动走时按方向键就接手', (await snap(page)).tour === false);
   await page.click('#bTop'); await page.waitForTimeout(1600); s = await snap(page);

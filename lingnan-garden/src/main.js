@@ -41,7 +41,7 @@ const audio = createAudio();
 renderer.shadowMap.needsUpdate = true;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const S = { mode: 'card', started: false, walk: { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.04, bob: 0, v: 0, y: 0 }, tour: { on: false, i: 1, hold: 0 }, top: { az: -0.68, pol: 0.86, dist: 46 } };
+const S = { mode: 'card', started: false, walk: { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.04, bob: 0, v: 0, y: 0 }, tour: { on: false, i: 1, hold: 0, paused: false }, top: { az: -0.68, pol: 0.86, dist: 46 } };
 const keys = new Set();
 let hintTimer = 0;
 function hint(text) { const h = $('hint'); h.textContent = text; h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 4200); }
@@ -52,8 +52,8 @@ function setMode(mode) {
   if (mode === 'top') hint('拖动旋转 · 滚轮或双指缩放');
   refreshButtons(); resize();
 }
-function startTour() { S.mode = 'walk'; S.tour.on = true; S.tour.i = 1; S.tour.hold = 0; Object.assign(S.walk, { x: C.TOUR[0].x, z: C.TOUR[0].z }); hint('自动逛一圈 · 拖动可以随便看 · 推摇杆或按方向键就接手'); refreshButtons(); resize(); }
-function refreshButtons() { $('bCard').classList.toggle('on', S.mode === 'card'); $('bWalk').classList.toggle('on', S.mode === 'walk' && !S.tour.on); $('bTour').classList.toggle('on', S.tour.on); $('bTop').classList.toggle('on', S.mode === 'top'); }
+function startTour() { S.mode = 'walk'; S.tour.on = true; S.tour.paused = false; S.tour.i = 1; S.tour.hold = 0; Object.assign(S.walk, { x: C.TOUR[0].x, z: C.TOUR[0].z }); hint('自动逛一圈 · 拖动就停下来随便看 · 推摇杆或按方向键就接手'); refreshButtons(); resize(); }
+function refreshButtons() { $('bCard').classList.toggle('on', S.mode === 'card'); $('bWalk').classList.toggle('on', S.mode === 'walk' && !S.tour.on); $('bTour').classList.toggle('on', S.tour.on); $('bTour').textContent = S.tour.on && S.tour.paused ? '继续逛' : '带我逛一圈'; $('bTop').classList.toggle('on', S.mode === 'top'); }
 
 const joy = { x: 0, y: 0, id: -1, ox: 0, oy: 0 };
 function updateCamera(dt) {
@@ -64,7 +64,8 @@ function updateCamera(dt) {
   let iy = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0) + joy.y;
   if (S.tour.on && (ix || iy)) { S.tour.on = false; refreshButtons(); }
   let nx = W.x, nz = W.z;
-  if (S.tour.on) {
+  if (S.tour.on && S.tour.paused) { /* 停在原地，视线完全交给人 */ }
+  else if (S.tour.on) {
     const t = C.TOUR[S.tour.i], d = Math.hypot(t.x - W.x, t.z - W.z);
     if (d < 0.25) { S.tour.i++; if (S.tour.i >= C.TOUR.length) { S.tour.on = false; refreshButtons(); hint('逛完一圈了'); } }
     else { const r = C.walkToward(W.x, W.z, t.x, t.z, dt, 1.7, dt); nx = r.x; nz = r.z; const want = Math.atan2(-(t.x - W.x), -(t.z - W.z)); let dy = want - W.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; S.tour.hold = Math.max(0, S.tour.hold - dt); if (S.tour.hold <= 0 && ![...ptrs.values()].some(q => q.role === 'look')) { W.yaw += dy * (1 - Math.exp(-dt * 2.2)); W.pitch += (-0.03 - W.pitch) * (1 - Math.exp(-dt * 2)); } }
@@ -84,7 +85,7 @@ const ptrs = new Map(); let pinch = 0;
 function look(dx, dy) {
   if (S.mode === 'card') return;
   if (S.mode === 'top') { S.top.az -= dx * 0.006; S.top.pol = clamp(S.top.pol - dy * 0.004, 0.15, 1.45); return; }
-  if (S.tour.on) S.tour.hold = 3;
+  if (S.tour.on && !S.tour.paused) { S.tour.paused = true; refreshButtons(); hint('停下了，随便转着看 · 点「继续逛」接着走'); }
   S.walk.yaw -= dx * (coarse ? 0.0065 : 0.0045); S.walk.pitch = clamp(S.walk.pitch - dy * 0.004, -1.1, 1.1);
 }
 canvas.addEventListener('pointerdown', e => {
@@ -118,7 +119,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { key
 function begin(mode) { S.started = true; $('intro').style.display = 'none'; audio.start(); mode === 'tour' ? startTour() : setMode(mode); }
 $('bCard').addEventListener('click', () => begin('card'));
 $('bWalk').addEventListener('click', () => begin('walk'));
-$('bTour').addEventListener('click', () => begin('tour'));
+$('bTour').addEventListener('click', () => { if (S.tour.on && S.tour.paused) { S.tour.paused = false; S.tour.hold = 0; refreshButtons(); hint('接着逛'); } else begin('tour'); });
 $('bTop').addEventListener('click', () => begin('top'));
 $('bRef').addEventListener('click', () => { const r = $('ref'); const on = r.style.display !== 'block'; r.style.display = on ? 'block' : 'none'; $('bRef').classList.toggle('on', on); if (on && S.mode !== 'card') setMode('card'); });
 $('ref').addEventListener('click', () => { const r = $('ref'); r.classList.toggle('big'); });
@@ -188,7 +189,7 @@ window.__garden = {
   setView(v) { if (!VIEWS[v]) return null; VIEWS[v](); step(0.016); step(0.016); hud(); return S.mode; },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
   gpu() { const gl = renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); return x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : 'unknown'; },
-  snapshot: () => ({ mode: S.mode, tour: S.tour.on, x: +S.walk.x.toFixed(3), z: +S.walk.z.toFixed(3), y: +S.walk.y.toFixed(3), yaw: +S.walk.yaw.toFixed(3), place: C.placeName(S.walk.x, S.walk.z), fps: stat.fps, calls: stat.calls, tris: stat.tris, cam: camera.position.toArray().map(v => +v.toFixed(2)), fov: +camera.fov.toFixed(1) }),
+  snapshot: () => ({ mode: S.mode, tour: S.tour.on, paused: S.tour.paused, x: +S.walk.x.toFixed(3), z: +S.walk.z.toFixed(3), y: +S.walk.y.toFixed(3), yaw: +S.walk.yaw.toFixed(3), place: C.placeName(S.walk.x, S.walk.z), fps: stat.fps, calls: stat.calls, tris: stat.tris, cam: camera.position.toArray().map(v => +v.toFixed(2)), fov: +camera.fov.toFixed(1) }),
   step(ms) { for (let t = 0; t < ms; t += 16) step(0.016); hud(); },
 };
 resize(); refreshButtons();
