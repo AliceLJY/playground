@@ -70,10 +70,12 @@ v1（2026-10-20）：招式时长按 PINOC 片段逐帧截图量出的出手帧�
 | 6 | 构图：玩家位置与屏占 | `?view=hero` 截图读包围盒 | 见第 5 节 |
 | 7 | 首屏下载量 | Playwright 统计网络字节 | ≤ 25 MB |
 | 8 | 页面零报错 | 控制台 error | 0 条 |
-| 9 | 桌面帧率 | `?view=stress`（擂台前 2 包租公 + 玩家）采 10 s | 中位数 ≥ 55 帧 |
+| 9 | 默认档压力帧率 | `tools/default-perf.cjs`，正常入口复现 stress，手机 390×664 / DPR 2 / 触屏、桌面 1365×900 / DPR 1，分别连续采 10 s | 中位数：手机 ≥ 30、桌面 ≥ 55 帧；页面错误 0 条 |
 | 10 | 手机试玩 | Alice 真机 | 人工判断：顺不顺、好不好玩 |
 
 固定机位：`?view=hero`（街口开局）、`?view=wide`（骑楼全景）、`?view=stress`（第③场混战）、`?view=boss`（擂台）。`?auto` 自动驾驶打，`&fast=4` 快进。钩子 `window.__qilou`（`info()`、`snapshot()`、`sim()`）。
+
+默认档性能入口：`NODE_PATH="$(npm root -g)" node tools/default-perf.cjs <无参数页面地址> <report.json>`。沿用 `setupView('stress')` 的实际 core 模拟：种子 5、第③场、玩家从 z=30 出发，精准自动驾驶推进到模拟 6 秒；此时玩家、2 包租公、2 阿婆均在场。复用 `__qilou.start/sim/setPaused` 准备状态，与旧 stress 机位一样暂停玩法模拟，渲染循环继续；不带 `view/auto/fast`，不改默认像素比、抗锯齿或后端。加载五个角色并预热 3 秒后，按真实 rAF 时间戳连续采 10 秒，不用游戏内经 dt 截断的 `info().fps`。JSON 保留实际画布像素/CSS 尺寸、渲染比例、渲染器字符串、原始帧时间、中位帧率、p99 帧时间、最慢 1% 帧时间均值及页面错误。WebGL 读取实际上下文的 unmasked renderer；WebGPU 记录游戏实际请求的 adapter.info。SwiftShader、回退适配器或身份不可读时标记帧率无效并非零退出，不能作为性能通过。手机模拟不替代第 10 条真机试玩。
 
 ## 可选练招：街口讨教（2026-11-03）
 

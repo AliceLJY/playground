@@ -186,3 +186,93 @@ NODE_PATH="$(npm root -g)" node tools/facing-check.cjs "$BASE"
 - 三角形约 12.4 万，街景 10 个网格，另有每人一块软影和一个只进阴影贴图的替身。无头 Chrome 里 1440×810 约 57–60 帧，2560×1440 约 45 帧；测的时候机器上还有别的任务在用显卡，这两个数只能当下限参考。
 - 没做：真手机没试；演示片没重录；`browser-check.cjs` 的 25 秒自动驾驶机位这轮没重跑；色调映射没动。
 - 踩到的三处：泼溅引擎在世界层的透明位上插了自己的层，放在 IMMEDIATE 层的东西会盖住角色，软影要留在世界层；材质关掉光照后顶点色的透明通道不生效；一层的阳台和挑出的灯箱会怼到 5.6 米高的镜头上，所以阳台只放二层以上、灯箱底边不低于 4.75 米。
+
+## 2026-11-11 · 第二轮：默认档性能工具（浏览器待派活方实测）
+
+对应冷读报告第②条。新增 `tools/default-perf.cjs`、`tests/default-perf.test.cjs`，同步 SPEC 第 9 条与复现方式；未改游戏逻辑、画面、依赖或第一轮修复。复用现有 Chrome/Playwright 启动方式与 `__qilou` 钩子，统计、文件输出用 Node 标准库，无新依赖和通用框架。
+
+- 手机 390×664、DPR 2、触屏，桌面 1365×900、DPR 1，顺序跑；页面地址拒绝所有查询参数和 fragment，保留默认渲染路径。
+- 复现现有 `setupView('stress')` 的第③场 6 秒状态：临时注入本仓纯逻辑 `src/core.js`，用真实自动驾驶推进模拟，通过原钩子交给现有角色渲染循环。玩家对象引用不变，开局第①场角色不会先进入渲染。加载完成后检查 5 个角色与 5 块影子；采样前后检查实际波次、敌人种类/人数、模拟状态和画布尺寸，防止拍错状态或空验。
+- rAF 真实时间戳连续采至少 10000 ms，长帧不截断，不接管页面时钟。记录每帧毫秒值，`medianFps = 1000 / medianFrameMs`；`p99FrameMs` 为 nearest-rank 第 99 百分位，`worst1PctMeanFrameMs` 为最慢 ceil(帧数×1%) 帧的均值。SPEC 只对中位帧率定阈值，后两项原样报告，不另编上限。
+- 捕获游戏实际选择的 WebGL 上下文或 WebGPU 适配器，不另开探针设备、不强制换后端。SwiftShader、回退适配器或身份不可读时 `fpsValid: false`，结果不能通过；低于手机 30 / 桌面 55 帧、页面/控制台 error、加载失败、压力状态不符或采样不足均退出 1。有效硬件、两档全部符合才退出 0。实际画布像素尺寸直接读 canvas，不把 DPR 2 当成已经测到 780×1328。
+
+本轮实际运行（没有启动浏览器）：
+
+```text
+node --check tools/default-perf.cjs       # exit 0，无输出
+node --check tests/default-perf.test.cjs  # exit 0，无输出
+node --test tests/*.test.cjs
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+```
+
+新增 7 条 Node 检查覆盖：准备状态与源码中现有 setupView 的真实 core 模拟逐字段一致、玩家引用保留；完整 10 秒计时及长帧；帧时间统计；两侧阈值及边界；报错/软件渲染判据；错误视口、机位与空验/漂移；后端探针不替换原调用参数或返回对象。帧时间与渲染器在这些测试里是合成数据/替身，不能说明 GPU 性能通过。
+
+坏版本校准实际做过两种，均只在 Node 内存编译副本中替换，未改磁盘上的工具：
+
+1. 将 `if (!sample || !(sample.medianFrameMs <= 1000 / profile.minFps))` 临时替换为 `if (false)`，运行新增测试：
+
+   ```text
+   ✖ SPEC 两档阈值：手机 30、桌面 55，中位帧率不达标必须失败
+   AssertionError [ERR_ASSERTION]: phone: below-threshold FPS must fail
+   ℹ tests 7
+   ℹ pass 6
+   ℹ fail 1
+   exit 1
+   ```
+
+2. 将 `const failures = [...result.errors];` 临时替换为 `const failures = [];`，运行新增测试：
+
+   ```text
+   ✖ 页面错误、SwiftShader/回退适配器和未知设备身份均不能报性能通过
+   ℹ tests 7
+   ℹ pass 6
+   ℹ fail 1
+   exit 1
+   ```
+
+恢复原模块后为上面的 23/23 通过；这证明 Node 断言能抓住判据被移除，不代表浏览器低帧率版本已实测。若要复做磁盘坏版本校准，在临时副本只做上述一项替换后运行 `node --test tests/default-perf.test.cjs`，结束后恢复。
+
+派活方完整复跑命令（已有依赖，不执行安装；从本 worktree）：
+
+```sh
+cd /Users/anxianjingya/Projects/pg-wt/coldfix2/qilou-brawl
+node tools/build.mjs
+python3 -m http.server 8961 --bind 127.0.0.1 --directory dist
+```
+
+另一个终端：
+
+```sh
+cd /Users/anxianjingya/Projects/pg-wt/coldfix2/qilou-brawl
+NODE_PATH="$(npm root -g)" node tools/default-perf.cjs http://127.0.0.1:8961/ /tmp/qilou-default-perf/report.json
+echo $?
+```
+
+预期 stdout 与文件均为 JSON，`results` 顺序为 phone、desktop；逐档看 `before/after.canvas` 的实际像素/CSS 尺寸与渲染比例、`renderer` 的后端和设备身份、`simulation.wave: 2`、2 包租公 + 2 阿婆、`info.chars/blobs: 5`、`sample.elapsedMs >= 10000`、`sample.medianFps`、`sample.p99FrameMs`、`sample.worst1PctMeanFrameMs`、`errors/failures`。有效硬件且手机 ≥30 / 桌面 ≥55、错误为空时顶层 `pass: true`、退出 0；否则 `pass: false`、退出 1，保留诊断与已取得的样本。SwiftShader 即便数字很高也不能算通过。
+
+浏览器端坏版本复现供派活方选择（本轮未跑）：在临时工具副本中、`await page.goto(url);` 后插入以下代码，再用同一命令跑。它持续阻塞真实帧回调，预期两档中位帧率均低于阈值、JSON 写入且退出 1；删除注入后重跑作对照。不要把注入提交到游戏源码。
+
+```js
+await page.evaluate(() => {
+  function slowFrame() {
+    const end = performance.now() + 80;
+    while (performance.now() < end) {}
+    requestAnimationFrame(slowFrame);
+  }
+  requestAnimationFrame(slowFrame);
+});
+```
+
+未做：构建、浏览器/GPU/真机实测、截图或声画判断、提交、推送、联网和安装依赖，均按任务边界留给派活方。浏览器数字与实际画布尺寸尚无本轮实测结论。
+
+### 默认档实测（2026-11-11，Chrome 157，WebGPU，Apple Metal 3）
+
+`tools/default-perf.cjs` 在本机跑通，退出 0。压力场景（种子 5，推进到 6 秒，4 个对手）连续 10 秒：手机 390×664／DPR 2／触屏中位 59.9 fps、最慢 1% 帧 16.8 ms；桌面 1365×900 中位 59.9 fps、最慢 1% 帧 16.8 ms；页面错误 0。帧率被显示器的 60 Hz 封顶，余量没量出来。
+
+**没量到想量的东西**：手机档画布实际是 390×664，像素比 1，不是预期的 2（另用独立脚本复核：正常入口 390×664，`?view=hero` 是 195×332）。引擎按 `devicePixelContentBoxSize × (上限 ÷ DPR)` 定画布，在 Playwright 的手机模拟里这个值看来是 CSS 像素，于是又被除了一次。真手机上是不是也只有 1 倍没有证据，所以「默认档 2 倍像素的开销」仍然没测到，要拿真机读 `canvas.width` 才能定。
