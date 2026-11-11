@@ -8,7 +8,7 @@ A playtest build with all three levels: slip past Sanhua in the living room, sli
 
 ## How to play (level 1)
 
-Tap a cell and Xiaoju walks there by the shortest way; tap Xiaoju and it stops after the cell it is on. On a computer, arrow keys or WASD step one cell, Space stops, Esc pauses. Sanhua walks a loop round the fish tank and the coffee table; the yellow floor is what she can see, and stepping into it gets you hissed back to your bed. At each corner she first looks back the way she came, then turns. You can hide under the coffee table, where she cannot see you. The cat treat sits on the bottom-right corner of her loop, off every short way to the door.
+Tap a cell and Xiaoju walks there by the shortest way; tap any drawn part of Xiaoju, including the tail outside its cell, and it stops after the cell it is on. On a computer, arrow keys or WASD step one cell, Space stops, Esc pauses. Sanhua walks a loop round the fish tank and the coffee table; the yellow floor is what she can see, and stepping into it gets you hissed back to your bed. At each corner she first looks back the way she came, then turns. You can hide under the coffee table, where she cannot see you. The cat treat sits on the bottom-right corner of her loop, off every short way to the door.
 
 ## How to play (level 2)
 

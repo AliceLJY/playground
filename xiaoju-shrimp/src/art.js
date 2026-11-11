@@ -332,7 +332,7 @@ const CALICO={body:'#f6f1e6',light:'#ffffff',dark:'#cfc6b4',line:'#5a4a3a',ear:'
 function cat(ctx,x,y,s,ang,o){
   const P=o.kind==='calico'?CALICO:ORANGE,walking=o.walk>=0,ph=walking?o.walk*TAU:0,bob=walking?Math.abs(Math.sin(ph))*s*.02:0,puff=o.puff?1.12:1;
   ctx.save();ctx.translate(x,y);
-  ctx.fillStyle='rgba(30,12,2,.32)';ell(ctx,s*.05,s*.08,s*.42,s*.27,ang);ctx.fill();
+  if(!o.hitMask){ctx.fillStyle='rgba(30,12,2,.32)';ell(ctx,s*.05,s*.08,s*.42,s*.27,ang);ctx.fill();}
   ctx.rotate(ang);ctx.translate(bob,0);
   // tail
   const sway=Math.sin(o.t*(walking?6:2)+(o.seed||0))*(o.puff?.15:walking?.3:.55);
@@ -476,7 +476,7 @@ function paintRoom(ctx,L,G,labels){
     for(let i=0;i<L.N;i++){const c=i%L.cols,r=(i/L.cols)|0,k=L.kind[i];
       if(k==='~')rug(ctx,X(c)+s*.08,Y(r)+s*.1,s*.84,s*.8,s,'#4f8296','#e9dcc0','#cfe3ea',i,true);}
     gridLines(ctx,G,L.cols,L.rows,L.walk);
-    for(let i=0;i<L.N;i++)if(L.kind[i]==='#'&&i%L.cols<4)wallMass(ctx,X(i%L.cols),Y((i/L.cols)|0),s,s);
+    for(let i=0;i<L.N;i++)if(L.kind[i]==='#'&&i%L.cols<4)wallMass(ctx,X(i%L.cols),Y((i/L.cols)|0),s,s,s);
     bathroom(ctx,X(5),Y(0),s*2,H,s);
     shoeCabinet(ctx,X(4),Y(3),s);shoeCabinet(ctx,X(4),Y(5),s);
     playMat(ctx,X(0),Y(4),s);
