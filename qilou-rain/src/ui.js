@@ -59,6 +59,7 @@ export function createUI(settings, quality) {
       el.num.textContent = Math.round(p.tank); el.num.classList.toggle('low', p.tank < 20);
       el.tank.style.transform = `scaleX(${p.tank / P.tank})`;
       if (p.cans !== lastCans) { lastCans = p.cans; el.cans.innerHTML = '<i></i>'.repeat(p.cans); }
+      el.cross.classList.toggle('on', !!p.aimOn);
       el.state.textContent = p.reloadT > 0 ? '换罐中' : p.tank <= 0 ? (p.cans > 0 ? (touch ? '点「换罐」' : '按 R 换罐') : '没药了 · 用凉拖') : '';
       // 目标标记：投到屏幕上，出了画面就贴边
       const targets = sim.drains.filter(d => !d.sealed).map(d => [d.id, d.x, d.z]);

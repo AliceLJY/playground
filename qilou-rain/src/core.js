@@ -155,7 +155,7 @@ export const P = {
   r: 0.36, eye: 1.62, walk: 4.3, sprint: 6.6, accel: 14, jump: 5.2, grav: 15,
   hp: 100, regenDelay: 4.5, regen: 7,
   tank: 100, drain: 10.5, cans: 3, maxCans: 6, reload: 1.4,
-  range: 13, cone: 0.05, dps: 78,
+  range: 13, cone: 0.1, coneNear: 0.07, dps: 78,
   slapCd: 0.62, slapAt: 0.13, slapRange: 2.5, slapArc: 1.05, slapDmg: 75,
   sealTime: 4.6, sealR: 2.3, pickR: 1.3, sealLock: 0.9, sealLoss: 0.3, guardR: 19,
 };
@@ -261,7 +261,7 @@ function stepEnemy(sim, e, dt) {
   }
   const dx = p.x - e.x, dz = p.z - e.z, dist = Math.hypot(dx, dz) || 1e-3;
   const face = (tx, tz, rate) => { const want = Math.atan2(-tx, -tz); e.yaw += clamp(wrap(want - e.yaw), -rate * dt, rate * dt); };
-  const slowK = e.slow > 0 ? 0.55 : 1;
+  const slowK = e.slow > 0 ? 0.45 : 1;
   let vx = 0, vz = 0;
   if (e.state === 'emerge') {
     if (e.t > 0.7) { e.state = e.type === 'flyer' ? 'fly' : e.type === 'charger' ? 'stalk' : 'chase'; e.t = 0; }
@@ -275,7 +275,7 @@ function stepEnemy(sim, e, dt) {
       const seen = dist < 7 && los(e.x, e.z, p.x, p.z);
       if (seen) { _f.x = dx / dist; _f.z = dz / dist; } else flow(sim.field, e.x, e.z, _f);
       const sp = e.burst > 0 ? T.speed * slowK : 0.6;
-      const zk = seen && dist > 2.5 ? 0.45 * e.zig : 0;
+      const zk = seen && dist > 2.5 ? 0.25 * e.zig : 0;
       vx = (_f.x - _f.z * zk) * sp; vz = (_f.z + _f.x * zk) * sp;
       face(vx, vz, 9);
       if (dist < 1.75 && Math.abs(p.y - e.y) < 1.6) { e.state = 'windup'; e.t = 0; ev(sim, 'telegraph', { id: e.id, kind: e.type, x: e.x, z: e.z }); }
@@ -417,9 +417,9 @@ export function stepSim(sim, dt, input = {}) {
   const eyeY = p.y + P.eye, cp = Math.cos(p.pitch), ax = fx * cp, ay = Math.sin(p.pitch), az = fz * cp;
   p.firing = !!input.fire && p.tank > 0 && p.reloadT <= 0 && p.slapT > 0.3;
   if (input.fire && p.tank <= 0 && p.cans <= 0 && sim.t - sim.emptySaid > 20) { sim.emptySaid = sim.t; ev(sim, 'radio', { key: 'empty' }); }
-  if (p.firing) {
-    p.tank = Math.max(0, p.tank - P.drain * dt);
-    sim.stats.sprayT += dt;
+  p.aimOn = false; p.aimDist = 9;
+  {
+    if (p.firing) { p.tank = Math.max(0, p.tank - P.drain * dt); sim.stats.sprayT += dt; }
     let any = false;
     for (const e of sim.enemies) {
       if (e.dead) continue;
@@ -429,13 +429,16 @@ export function stepSim(sim, dt, input = {}) {
       const dot = (vx * ax + vy * ay + vz * az) / d;
       if (dot <= 0) continue;
       const ang = Math.acos(Math.min(1, dot));
-      if (ang > P.cone + Math.atan2(T.r * 0.8, d)) continue;
+      if (ang > P.cone + P.coneNear * Math.max(0, 1 - d / 5) + Math.atan2(T.r, d)) continue;
       if (!los(p.x, p.z, e.x, e.z)) continue;
+      if (!p.aimOn || d < p.aimDist) p.aimDist = d;
+      p.aimOn = true;
+      if (!p.firing) continue;
       const got = damage(sim, e, P.dps * dt * (1 - 0.45 * Math.min(1, d / P.range)), 'spray');
       if (got > 0) { any = true; if (e.type === 'runner') e.slow = 0.3; }
     }
     if (any) sim.stats.hitT += dt;
-    if (p.tank <= 0) ev(sim, 'empty', {});
+    if (p.firing && p.tank <= 0) ev(sim, 'empty', {});
   }
   // ---- 凉拖 ----
   const before = p.slapT;

@@ -94,6 +94,23 @@ test('喷雾：隔着柱子喷不到；带壳的正面只吃三成，翻肚后�
   assert.ok(Math.abs(belly / back - 2) < 0.1, `翻肚/背面 = ${(belly / back).toFixed(2)}，应约 2`);
 });
 
+test('喷雾好瞄：准星偏 6 度以内算喷中并亮起「对准了」，偏 20 度不算；近处更宽', async () => {
+  const C = await load();
+  const run = (dist, off) => { const sim = C.createSim(1, { god: true }); sim.spawnT = 1e9; sim.waveLeft = 0; const e = C.spawnAt(sim, 'runner', 0, -54 + dist); e.x = 0; e.z = -54 + dist; e.state = 'stun'; e.t = -99;
+    const pitch = Math.atan2(0.35 - C.P.eye, dist); let on = 0;
+    for (let i = 0; i < 20; i++) { C.stepSim(sim, 1 / 60, { fire: true, yaw: Math.PI + off, pitch }); if (sim.player.aimOn) on++; }
+    return { lost: C.TYPES.runner.hp - e.hp, on }; };
+  for (const d of [3, 6, 10]) {
+    const hit = run(d, 6 * Math.PI / 180), miss = run(d, 20 * Math.PI / 180);
+    assert.ok(hit.lost > 5 && hit.on === 20, `${d} 米处偏 6 度应喷中，实际掉血 ${hit.lost.toFixed(1)}`);
+    assert.ok(miss.lost === 0 && miss.on === 0, `${d} 米处偏 20 度不该喷中，实际掉血 ${miss.lost.toFixed(1)}`);
+  }
+  assert.ok(run(2.5, 11 * Math.PI / 180).lost > 0, '贴近时偏 11 度也喷得到');
+  const idle = C.createSim(1, { god: true }); idle.spawnT = 1e9; idle.waveLeft = 0; const e = C.spawnAt(idle, 'runner', 0, -48); e.x = 0; e.z = -48; e.state = 'stun'; e.t = -99;
+  C.stepSim(idle, 1 / 60, { yaw: Math.PI, pitch: Math.atan2(0.35 - C.P.eye, 6) });
+  assert.ok(idle.player.aimOn && e.hp === C.TYPES.runner.hp, '没按喷的时候准星也会提示对准了，但不掉血');
+});
+
 test('封盖：按住 4.6 秒盖上；被咬会打断并倒退；盖上后回血加一罐，出虫口少一个', async () => {
   const C = await load();
   const sim = C.createSim(2, { god: false }); sim.spawnT = 1e9; sim.waveLeft = 0; sim.drains.forEach(d => { d.woke = true; });
