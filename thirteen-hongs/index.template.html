@@ -21,9 +21,13 @@ button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 #labels{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
 #labels div{position:absolute;transform:translate(-50%,-100%);font:12px var(--serif);background:#f3ecd9cc;border:1px solid var(--line);border-radius:3px;padding:1px 5px;white-space:nowrap}
 #labels div.lane{background:#2c2620bb;color:var(--paper)}
-body.capture .hud,body.capture #labels,body.capture #intro,body.capture #joy{display:none!important}
+body.capture .hud,body.capture #labels,body.capture #intro,body.capture #joy,body.capture #joyHint{display:none!important}
 #joy{position:fixed;width:110px;height:110px;border-radius:50%;border:2px solid #2c262055;background:#f3ecd944;display:none;z-index:4;pointer-events:none}
 #joy b{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:#2c2620aa}
+/* Where the walking stick is, on a touch screen: a resting ring in the corner where a press starts it. It carries its
+   two words until the stick has been used once, then stays as a faint ring; while a finger is down the real stick shows instead. */
+#joyHint{position:fixed;left:max(18px,7vw);bottom:calc(150px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;border:2px dashed #2c262088;background:#f3ecd955;display:none;place-items:center;font:12px var(--sans);letter-spacing:.12em;color:var(--ink);z-index:3;pointer-events:none;transition:opacity .4s,color .4s}
+#joyHint.used{opacity:.45;color:transparent}#joyHint.held{opacity:0;transition:none}
 #hint{left:50%;bottom:118px;transform:translateX(-50%);font-size:12px;background:var(--glass);border-radius:12px;padding:5px 12px;border:1px solid var(--line);opacity:0;transition:opacity .4s;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 #hint.show{opacity:1}
 #info{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:80vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;font-size:13px;line-height:1.8;display:none;box-shadow:0 10px 40px #0004;user-select:text;-webkit-user-select:text}
@@ -42,6 +46,7 @@ body.capture .hud,body.capture #labels,body.capture #intro,body.capture #joy{dis
 <div class="hud" id="where"></div>
 <div class="hud" id="hint"></div>
 <div id="joy"><b></b></div>
+<div id="joyHint" aria-hidden="true">拖动 · 走</div>
 <div class="hud" id="bar">
   <div class="row" id="views">
     <button data-mode="top">俯瞰</button><button data-mode="walk">步行</button><button id="tod">午后</button><span class="sep"></span>

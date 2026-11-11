@@ -15,7 +15,7 @@ The foreign factories of Canton on the north bank of the Pearl River, around 180
 
 ## Controls
 
-Desktop: drag to look, WASD to walk, Shift to hurry, wheel to zoom. Phone: joystick at lower left, drag elsewhere to look, pinch to zoom.
+Desktop: drag to look, WASD to walk, Shift to hurry, wheel to zoom. Phone: joystick at lower left, drag elsewhere to look, pinch to zoom; while walking, a dashed ring in the lower left marks where the joystick is, and it appears under the finger on press.
 
 ## What is documented and what is not
 
