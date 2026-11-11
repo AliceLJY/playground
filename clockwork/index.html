@@ -815,13 +815,10 @@ function updateLabels() {
 const clock = new THREE.Clock();
 let centerWheelAngle = 0; // 中心轮累计旋转角 (弧度)
 let balancePhase = 0;
+let simulationSeconds = 0;
 
-function animate() {
-    requestAnimationFrame(animate);
-
-    const delta = clock.getDelta();
-    const simulationDelta = paused ? pendingStep : delta * timeScale + pendingStep;
-    pendingStep = 0;
+function advanceSimulation(simulationDelta) {
+    simulationSeconds += simulationDelta;
     // 真实机械钟：中心轮每小时 (3600秒) 顺时针旋转 1 圈 (-2π 弧度)
     const centerOmega = -(Math.PI * 2) / 3600;
     centerWheelAngle += centerOmega * simulationDelta;
@@ -846,6 +843,15 @@ function animate() {
     const oscFreq = Math.min(28, 3.5 * Math.sqrt(timeScale));
     balancePhase += simulationDelta / timeScale * oscFreq;
     shaftBalance.rotation.z = Math.sin(balancePhase) * 0.45;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+    const simulationDelta = paused ? pendingStep : delta * timeScale + pendingStep;
+    pendingStep = 0;
+    advanceSimulation(simulationDelta);
 
     controls.update();
     updateLabels();
@@ -854,12 +860,127 @@ function animate() {
 
 animate();
 
-// Read-only acceptance probe, absent from the normal visitor entry.
-if (new URLSearchParams(location.search).has('debug')) window.__clockwork = {
-    snapshot: () => ({ paused, speed: timeScale, camera: camera.position.toArray(),
+// Acceptance probes are absent from the normal visitor entry. Read pixels
+// synchronously after rendering, so preserveDrawingBuffer is unnecessary.
+if (new URLSearchParams(location.search).get('debug') === '1') {
+    const snapshot = () => ({ paused, speed: timeScale, simulationSeconds, pendingStep,
+        camera: camera.position.toArray(), target: controls.target.toArray(),
+        direction: camera.getWorldDirection(new THREE.Vector3()).toArray(),
         angles: { center: shaftCenter.rotation.z, great: shaftGreat.rotation.z, third: shaftThird.rotation.z,
-            escape: shaftEscape.rotation.z, minute: shaftMinuteWork.rotation.z, hour: shaftHour.rotation.z, balance: shaftBalance.rotation.z } })
-};
+            escape: shaftEscape.rotation.z, minute: shaftMinuteWork.rotation.z, hour: shaftHour.rotation.z, balance: shaftBalance.rotation.z } });
+
+    function freeze({ seconds, speed, camera: position, target }) {
+        if (!Number.isFinite(seconds) || seconds < 0 || !Number.isFinite(speed) || speed < 1 || speed > 600 ||
+            [position, target].some(v => !Array.isArray(v) || v.length !== 3 || !v.every(Number.isFinite)) ||
+            Math.hypot(...position.map((v, i) => v - target[i])) < .1) throw Error('Invalid freeze request');
+        paused = true;
+        pendingStep = 0;
+        timeScale = speed;
+        slider.value = String(speed);
+        speedVal.textContent = `${speed}x`;
+        pauseButton.textContent = '继续';
+        pauseButton.setAttribute('aria-pressed', 'true');
+        stepButton.disabled = false;
+        simulationSeconds = centerWheelAngle = balancePhase = 0;
+        // Replay the same shaft update used by playback and the step button.
+        advanceSimulation(seconds);
+        clock.getDelta();
+        const damping = controls.enableDamping;
+        controls.enableDamping = false;
+        controls.update(); // Flush residual orbit/pan deltas before setting the view.
+        camera.position.fromArray(position);
+        controls.target.fromArray(target);
+        controls.update();
+        controls.enableDamping = damping;
+        updateLabels();
+        renderer.render(scene, camera);
+        return snapshot();
+    }
+
+    // sRGB framebuffer luma, 0–255 (not linear light). Erode the true silhouette
+    // by one framebuffer pixel; require a subject/background difference as well.
+    function pixelStats(subject, background, mask, width, height) {
+        if (!Number.isInteger(width) || !Number.isInteger(height) || width < 3 || height < 3 ||
+            [subject, background, mask].some(a => a.length !== width * height * 4)) throw Error('Invalid pixel buffers');
+        const values = [];
+        for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+            let inside = true;
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+                if (mask[((y + dy) * width + x + dx) * 4] < 254) inside = false;
+            const i = (y * width + x) * 4;
+            if (!inside || Math.max(...[0, 1, 2].map(c => Math.abs(subject[i + c] - background[i + c]))) <= 2) continue;
+            values.push(.2126 * subject[i] + .7152 * subject[i + 1] + .0722 * subject[i + 2]);
+        }
+        values.sort((a, b) => a - b);
+        const percentile = p => values.length ? values[Math.floor((values.length - 1) * p)] : 0;
+        const p05 = percentile(.05), p95 = percentile(.95), highlightLuma = 190;
+        return { samples: values.length, p05, p95, range: p95 - p05,
+            highlightLuma, highlightFraction: values.length ? values.filter(v => v >= highlightLuma).length / values.length : 0 };
+    }
+
+    function sampleMaterials(variant = 'current') {
+        if (!paused || pendingStep) throw Error('Freeze before sampling materials');
+        if (!['current', 'basic', 'no-environment'].includes(variant)) throw Error('Unknown material variant');
+        const gl = renderer.getContext();
+        const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
+        const results = {};
+        for (const [name, mesh] of [['great', gear96], ['center', gear64]]) {
+            const visibility = [];
+            clockRoot.traverse(o => { if (o.isMesh || o.isLine) visibility.push([o, o.visible]); });
+            const material = mesh.material, environment = scene.environment, background = scene.background;
+            const basic = new THREE.MeshBasicMaterial({ color: material.color });
+            const white = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+            try {
+                // Same camera, geometry, tone mapping, AA and DPR as the shot.
+                // Other moving parts and outlines are hidden in BOTH renders.
+                for (const [o] of visibility) o.visible = o === mesh || o === backplate;
+                if (variant === 'basic') mesh.material = basic;
+                if (variant === 'no-environment') scene.environment = null;
+                scene.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(mesh);
+                const corners = [];
+                for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z])
+                    corners.push(new THREE.Vector3(x, y, z).project(camera));
+                // The great wheel runs past the bottom of the frame in the wide view: sample the part that is on screen.
+                const left = Math.max(0, Math.floor(Math.min(...corners.map(v => (v.x + 1) * width / 2))));
+                const right = Math.min(width, Math.ceil(Math.max(...corners.map(v => (v.x + 1) * width / 2))));
+                const bottom = Math.max(0, Math.floor(Math.min(...corners.map(v => (v.y + 1) * height / 2))));
+                const top = Math.min(height, Math.ceil(Math.max(...corners.map(v => (v.y + 1) * height / 2))));
+                if (right - left < 40 || top - bottom < 40) throw Error(`${name} sample region is off screen`);
+                const w = right - left, h = top - bottom;
+                const read = () => {
+                    renderer.render(scene, camera);
+                    const pixels = new Uint8Array(w * h * 4);
+                    gl.readPixels(left, bottom, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                    if (gl.getError() !== gl.NO_ERROR) throw Error('WebGL readPixels failed');
+                    return pixels;
+                };
+                const subject = read();
+                const preview = document.createElement('canvas'); preview.width = w; preview.height = h;
+                preview.getContext('2d').drawImage(renderer.domElement, left, height - top, w, h, 0, 0, w, h);
+                mesh.visible = false;
+                const without = read();
+                mesh.visible = true;
+                backplate.visible = false;
+                mesh.material = white;
+                scene.background = new THREE.Color(0x000000);
+                const mask = read();
+                results[name] = { ...pixelStats(subject, without, mask, w, h),
+                    rect: { x: left, y: height - top, width: w, height: h },
+                    preview: preview.toDataURL('image/png') };
+            } finally {
+                mesh.material = material;
+                scene.environment = environment;
+                scene.background = background;
+                for (const [o, visible] of visibility) o.visible = visible;
+                basic.dispose(); white.dispose();
+                renderer.render(scene, camera);
+            }
+        }
+        return { variant, state: snapshot(), drawingBuffer: { width, height }, gears: results };
+    }
+    window.__clockwork = { snapshot, freeze, sampleMaterials };
+}
 
 // 窗口尺寸自适应
 window.addEventListener('resize', () => {
