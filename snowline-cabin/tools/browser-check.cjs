@@ -91,6 +91,15 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
     for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++) if (hit(s.ui[k[i]], s.ui[k[j]])) clashes.push(k[i] + ' x ' + k[j]);
     check('B8', 'phone 390x844: no two pieces of text or controls overlap; the lodge sits above the copy', clashes.length === 0 && s.hero.y1 <= s.ui['.copy'].y0 && s.hero.x0 >= 0 && s.hero.x1 <= 1, `overlaps: ${clashes.join(', ') || 'none'}; lodge bottom ${s.hero.y1.toFixed(3)}, copy top ${s.ui['.copy'].y0.toFixed(3)}`); await ctx.close(); }
 
+  // B8b phone header (2026-11-11 review: at 390 wide the title broke onto two lines, 37 px tall, its tail 5 px from the badge)
+  for (const [w, h] of [[390, 664], [412, 700], [360, 600], [320, 568]]) {
+    const { ctx, page } = await open('?view=hero', w, h, 2); await page.waitForTimeout(300);
+    if (w === 390) await page.screenshot({ path: path.join(out, 'phone-header.png'), clip: { x: 0, y: 0, width: w, height: 120 } });
+    const m = await page.evaluate(() => { const b = document.querySelector('.brand b'), badge = document.querySelector('.badge').getBoundingClientRect(), r = document.createRange(); r.selectNodeContents(b);
+      const lines = new Set([...r.getClientRects()].filter((q) => q.width > 0).map((q) => Math.round(q.top))).size, box = r.getBoundingClientRect();
+      return { lines, height: box.height, gap: badge.left - box.right, badgeLines: Math.round(badge.height / parseFloat(getComputedStyle(document.querySelector('.badge')).lineHeight) || 1), text: b.innerText, right: badge.right, width: innerWidth }; });
+    check('B8b', `phone ${w}x${h}: the title is one line, at least 12 px clear of the badge, both inside the page`, m.lines === 1 && m.gap >= 12 && m.right <= m.width && m.text.includes('雪线小木屋'), `"${m.text}" on ${m.lines} line(s), ${m.height.toFixed(0)} px tall, ${m.gap.toFixed(0)} px to the badge`); await ctx.close(); }
+
   // B9 lighting one lamp with a real click, then going back
   { const { ctx, page } = await open('', 1280, 720);
     const s0 = await page.evaluate(() => ({ lit: window.__cabin.state().lit.length, at: window.__cabin.summitOnScreen('beacon') }));
