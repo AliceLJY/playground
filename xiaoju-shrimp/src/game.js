@@ -1,10 +1,10 @@
 // 小橘偷虾记 · page: drawing, input, cards, fixed views and the playtest hook. Rules live in core.js.
 (function(){
 'use strict';
-const C=window.SneakCore,CFG=C.CFG;
+const C=window.SneakCore,CFG=C.CFG,A=window.SneakArt;
 const canvas=document.getElementById('board'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
-const COL={bg:'#1b1d29',floor:'#2a2d3e',wood:'#4a3c30',woodLine:'#3d3127',rug:'#3f6170',rugEdge:'#5d8796',line:'#353a52',wall:'#5a5f7a',table:'#7a6a4f',
+const COL={bg:'#1e1915',floor:'#2a2d3e',wood:'#4a3c30',woodLine:'#3d3127',rug:'#4f8296',rugEdge:'#5d8796',line:'#353a52',wall:'#5a5f7a',table:'#9a6a3e',
   cone:'#ffd75e',ear:'#7fc8ff',alert:'#ff5d5d',cat:'#ff9d2e',catDark:'#c46a14',sanW:'#f4efe6',sanK:'#2b2b2b',sanO:'#e08a3c',
   kid:'#9fd3ff',kidDark:'#3d6f93',top:'#5c4634',topLine:'#4c3a2b',owner:'#e9c9a8',ownerDark:'#7a5235',shrimp:'#ff8a6b',plate:'#e8e4da',toy:'#7ee08a',nest:'#3fb8a0',door:'#9fe3c8',treat:'#ffcf5a',text:'#f4ecd8',dim:'#c9c2b2'};
 // words that change between levels; the rules behind them live in core.js
@@ -19,7 +19,7 @@ let S=null,L=C.level(LV),seed=1,acc=0,last=0,paused=true,frozen=false,flash=0,ce
 
 function start(sd,lv){
   if(lv!=null&&lv!==LV){LV=lv;L=C.level(LV);layout();}
-  seed=sd;S=C.create({level:LV,seed});acc=0;flash=0;
+  seed=sd;S=C.create({level:LV,seed});acc=0;flash=0;catAng=LV===2?Math.PI:-Math.PI/2;kidAng=0;
   $('title').textContent=L.def.title;
   $('legend').innerHTML=LEGEND[LV];
   say(LV===2?'先去叼虾：虾盘在主人跟前。她低头吃饭时走，筷子一停就站住别动。':LV===1?'先别急：等孩子的玩具响了（头上变绿）再过蓝色木地板，地毯上随时能停下躲。':'目标：溜到右上角闪光的「出口」。点一格小橘就走过去，点小橘它停下。');
@@ -46,7 +46,7 @@ const LEGEND=[
 const BLURB=['三花绕着茶几巡逻，别被她看见','孩子在玩玩具，别被她听见','主人在吃饭，趁她不看把虾拖走'];
 function startCard(lv){
   const levels=C.LEVELS.map((d,i)=>`<button class="${i===lv?'main':'ghost'} lv" data-lv="${i}">${d.title}<small>${BLURB[i]||''}</small></button>`).join('');
-  card(`<h1>小橘偷虾记</h1><p class="tag">灰盒试玩版 · 方块代替猫和家具</p>
+  card(`<h1>小橘偷虾记</h1><p class="tag">试玩版 · 边玩边改</p>
   <p class="big">点一关就开始。跟着画面上闪光的<b style="color:${COL.door}">出口</b>走</p>
   ${levels}
   <p class="small">玩法看画面：顶上有图例，边走边有提示。</p>`);
@@ -71,79 +71,103 @@ function pauseCard(){
   $('cont').onclick=()=>{hideCard();paused=false;last=performance.now();};
 }
 
-// ---- layout & drawing
+// ---- layout & drawing (pictures in art.js; the room is painted once per layout into bgLayer)
+let bgLayer=null,catAng=-Math.PI/2,kidAng=0;
+const ANG=[-Math.PI/2,0,Math.PI/2,Math.PI];   // facing 0 N, 1 E, 2 S, 3 W → canvas angle
 function layout(){
   const wide=innerWidth/innerHeight>1.1;document.body.classList.toggle('wide',wide);
   const r=canvas.getBoundingClientRect();dpr=Math.min(2,devicePixelRatio||1);
   canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
   cell=Math.floor(Math.min(r.width/L.cols,r.height/L.rows,80));
   ox=Math.floor((r.width-cell*L.cols)/2);oy=Math.floor((r.height-cell*L.rows)/2);
+  buildBg();
+}
+function buildBg(){
+  if(!canvas.width||!canvas.height)return;
+  bgLayer=document.createElement('canvas');bgLayer.width=canvas.width;bgLayer.height=canvas.height;
+  const b=bgLayer.getContext('2d');b.setTransform(dpr,0,0,dpr,0,0);
+  A.paintRoom(b,L,{ox,oy,s:cell},true);
+  if(L.type==='sound')for(let i=0;i<L.N;i++)   // the wood she can hear from her spot says so
+    if(L.wood(i)&&L.man(i,L.kid)<=CFG.hear&&i!==L.kid&&i!==L.treat&&i!==L.door&&i!==L.nest)A.label(b,'响',ox+(cx(i)+.5)*cell,oy+(cy(i)+.5)*cell,Math.max(11,cell*.22),'#eaf6ff','rgba(30,50,80,.5)');
+  A.vignette(b,ox,oy,cell*L.cols,cell*L.rows);
 }
 const cx=i=>i%L.cols,cy=i=>(i/L.cols)|0;
 function rect(c,r,w,h,col){ctx.fillStyle=col;ctx.fillRect(ox+c*cell,oy+r*cell,w*cell,h*cell);}
 function label(text,x,y,size,col){ctx.fillStyle=col;ctx.font=`700 ${size}px -apple-system,"PingFang SC",sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,x,y);}
-function bubble(text,x,y,size,col){ctx.font=`700 ${size}px -apple-system,"PingFang SC",sans-serif`;const w=ctx.measureText(text).width+size*.8;ctx.fillStyle='#1b1d29e0';ctx.beginPath();ctx.roundRect(x-w/2,y-size*.75,w,size*1.5,size*.4);ctx.fill();label(text,x,y,size,col);}
+function bubble(text,x,y,size,col){ctx.font=`700 ${size}px -apple-system,"PingFang SC",sans-serif`;const w=ctx.measureText(text).width+size*.8;ctx.fillStyle='#1e1915e6';ctx.beginPath();ctx.roundRect(x-w/2,y-size*.75,w,size*1.5,size*.4);ctx.fill();label(text,x,y,size,col);}
 function lerp(a,b,t){return a+(b-a)*t;}
-function moverPos(at,m,n,f){if(!m)return [cx(at),cy(at)];const t=Math.min(1,(m.k+f)/n);return [lerp(cx(m.from),cx(m.to),t),lerp(cy(m.from),cy(m.to),t)];}
+function moverPos(at,m,n,f){if(!m)return [cx(at),cy(at)];const t=Math.min(1,(m.k+f)/(m.n||n));return [lerp(cx(m.from),cx(m.to),t),lerp(cy(m.from),cy(m.to),t)];}
+function moveAng(m){return Math.atan2(cy(m.to)-cy(m.from),cx(m.to)-cx(m.from));}
 function sanPos(f){
   const e=L.tl[S.san.p];if(S.phase==='hiss'||e.from===e.to)return [cx(e.to),cy(e.to),e.face];
   const t=Math.min(1,e.prog+f/CFG.sanMove);return [lerp(cx(e.from),cx(e.to),t),lerp(cy(e.from),cy(e.to),t),e.face];
 }
 function exitK(f){if(!S||(S.phase!=='exit'&&S.phase!=='cleared'))return 0;if(S.phase==='cleared')return 1;return Math.min(1,(S.exitT+f)/CFG.exit);}
-function drawTile(i){
-  const c=cx(i),r=cy(i),k=L.kind[i],sound=L.type==='sound',still=L.type==='still';
-  if(k==='#')rect(c,r,1,1,COL.wall);
-  else if(still){rect(c,r,1,1,COL.top);ctx.strokeStyle=COL.topLine;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ox+c*cell,oy+(r+.5)*cell);ctx.lineTo(ox+(c+1)*cell,oy+(r+.5)*cell);ctx.stroke();}
-  else if(k==='T')rect(c,r,1,1,COL.table);
-  else if(k==='~'){rect(c,r,1,1,COL.rug);ctx.strokeStyle=COL.rugEdge;ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.strokeRect(ox+c*cell+4,oy+r*cell+4,cell-8,cell-8);ctx.setLineDash([]);}
-  else if(sound){rect(c,r,1,1,COL.wood);ctx.strokeStyle=COL.woodLine;ctx.lineWidth=1;for(let y=1;y<4;y++){ctx.beginPath();ctx.moveTo(ox+c*cell,oy+(r+y/4)*cell);ctx.lineTo(ox+(c+1)*cell,oy+(r+y/4)*cell);ctx.stroke();}}
-  else rect(c,r,1,1,COL.floor);
-  ctx.strokeStyle=COL.line;ctx.lineWidth=1;ctx.strokeRect(ox+c*cell+.5,oy+r*cell+.5,cell-1,cell-1);
-  if(k==='T'){ctx.save();ctx.beginPath();ctx.rect(ox+c*cell,oy+r*cell,cell,cell);ctx.clip();ctx.strokeStyle='#00000033';ctx.lineWidth=2;
-    for(let s=-cell;s<cell*2;s+=cell/4){ctx.beginPath();ctx.moveTo(ox+c*cell+s,oy+r*cell);ctx.lineTo(ox+c*cell+s-cell,oy+r*cell+cell);ctx.stroke();}ctx.restore();}
-  if(sound&&k==='~')label('可躲',ox+(c+.5)*cell,oy+(r+.5)*cell,Math.max(10,cell*.2),'#cfe8f2');
-  if(sound&&L.wood(i)&&L.man(i,L.kid)<=CFG.hear&&i!==L.kid&&i!==L.treat&&i!==L.door&&i!==L.nest)label('响',ox+(c+.5)*cell,oy+(r+.5)*cell,Math.max(11,cell*.24),'#e8f5ff');
-  if(i===L.nest){rect(c+.1,r+.1,.8,.8,COL.nest+'55');label(L.def.startName,ox+(c+.5)*cell,oy+(r+.5)*cell,cell*(L.def.startName.length>1?.24:.34),COL.nest);}
-  if(i===L.door){const pulse=.5+.5*Math.sin(performance.now()/260);rect(c,r,1,1,COL.door+'40');
-    ctx.strokeStyle=COL.door;ctx.lineWidth=2+pulse*3;ctx.globalAlpha=.5+.5*pulse;ctx.strokeRect(ox+c*cell+3,oy+r*cell+3,cell-6,cell-6);ctx.globalAlpha=1;
-    label('出口',ox+(c+.5)*cell,oy+(r+.42)*cell,cell*.3,COL.door);label(TXT[LV].sub,ox+(c+.5)*cell,oy+(r+.76)*cell,cell*.19,COL.door);}
-  if(i===L.treat&&!S.treat){ctx.save();ctx.translate(ox+(c+.5)*cell,oy+(r+.5)*cell);ctx.rotate(-.5);ctx.fillStyle=COL.treat;ctx.fillRect(-cell*.28,-cell*.08,cell*.56,cell*.16);ctx.restore();label('猫条',ox+(c+.5)*cell,oy+(r+.82)*cell,cell*.18,COL.treat);}
+// the goal cell: warm light through the doorway (or a glow at the table edge), a pulsing frame and a small sign
+function drawDoor(now){
+  const c=cx(L.door),r=cy(L.door),x=ox+c*cell,y=oy+r*cell,pulse=.5+.5*Math.sin(now*3.8);
+  if(L.type==='still'){ // the table edge: light from the floor below, and a drop arrow
+    ctx.save();ctx.beginPath();ctx.rect(ox,oy,L.cols*cell,L.rows*cell);ctx.clip();
+    const g=ctx.createRadialGradient(x,y+cell*.5,0,x,y+cell*.5,cell*1.2);g.addColorStop(0,`rgba(159,227,200,${.5+.25*pulse})`);g.addColorStop(1,'rgba(159,227,200,0)');
+    ctx.fillStyle=g;ctx.fillRect(x,y-cell*.7,cell*1.2,cell*2.4);
+    ctx.fillStyle=COL.door;ctx.beginPath();const ay=y+cell*.5;ctx.moveTo(x+cell*.06,ay);ctx.lineTo(x+cell*.2,ay-cell*.1);ctx.lineTo(x+cell*.2,ay+cell*.1);ctx.fill();ctx.restore();}
+  else A.doorLight(ctx,x,y,cell,pulse,'#ffd48a');
+  ctx.save();ctx.strokeStyle=COL.door;ctx.lineWidth=1.5+pulse*2.5;ctx.globalAlpha=.45+.45*pulse;ctx.setLineDash([cell*.12,cell*.08]);ctx.strokeRect(x+3,y+3,cell-6,cell-6);ctx.restore();
+  A.label(ctx,'出口',x+cell*.5,y+cell*.46,Math.max(11,cell*.22),'#103a30','#9fe3c8e8');
+  label(TXT[LV].sub,x+cell*.5,y+cell*.8,Math.max(9,cell*.16),COL.door);
 }
-function drawSan(f){
+function drawTreat(){
+  if(S.treat)return;const c=cx(L.treat),r=cy(L.treat),x=ox+(c+.5)*cell,y=oy+(r+.45)*cell;
+  ctx.save();ctx.translate(x,y);ctx.rotate(-.5);
+  ctx.fillStyle='rgba(30,12,2,.3)';ctx.fillRect(-cell*.27,-cell*.05,cell*.58,cell*.17);
+  ctx.fillStyle=COL.treat;ctx.beginPath();ctx.roundRect(-cell*.3,-cell*.09,cell*.6,cell*.18,cell*.04);ctx.fill();
+  ctx.fillStyle='#e0622a';ctx.fillRect(-cell*.1,-cell*.09,cell*.2,cell*.18);ctx.fillStyle='#fff3d0';ctx.fillRect(-cell*.3,-cell*.09,cell*.07,cell*.18);ctx.fillRect(cell*.23,-cell*.09,cell*.07,cell*.18);
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-cell*.02,0,cell*.035,0,Math.PI*2);ctx.fill();
+  ctx.restore();label('猫条',x,y+cell*.33,Math.max(9,cell*.16),COL.treat);
+}
+function drawCone(seen,hot){
+  ctx.save();ctx.fillStyle=hot?COL.alert:COL.cone;ctx.globalAlpha=hot?.6:.55;
+  ctx.beginPath();for(let i=0;i<L.N;i++)if(seen[i])ctx.rect(ox+cx(i)*cell,oy+cy(i)*cell,cell,cell);ctx.fill();
+  ctx.save();ctx.clip();ctx.globalAlpha=.45;ctx.strokeStyle=hot?'#ffe0dc':'#fffbe0';ctx.lineWidth=Math.max(1.5,cell*.035);ctx.beginPath();
+  const W=L.cols*cell,H=L.rows*cell,st=cell*.2,ph=(performance.now()/1000*cell*.25)%st;
+  for(let d=-H+ph;d<W;d+=st){ctx.moveTo(ox+d,oy+H);ctx.lineTo(ox+d+H,oy);}ctx.stroke();ctx.restore();
+  ctx.globalAlpha=.95;ctx.strokeStyle=hot?'#ffb0a8':'#fff3b0';ctx.lineWidth=Math.max(2,cell*.04);ctx.beginPath();
+  for(let i=0;i<L.N;i++)if(seen[i]){const c=cx(i),r=cy(i),x=ox+c*cell,y=oy+r*cell;
+    const off=(dc,dr)=>{const cc=c+dc,r2=r+dr;return cc<0||r2<0||cc>=L.cols||r2>=L.rows||!seen[r2*L.cols+cc];};
+    if(off(0,-1)){ctx.moveTo(x,y);ctx.lineTo(x+cell,y);}if(off(0,1)){ctx.moveTo(x,y+cell);ctx.lineTo(x+cell,y+cell);}
+    if(off(-1,0)){ctx.moveTo(x,y);ctx.lineTo(x,y+cell);}if(off(1,0)){ctx.moveTo(x+cell,y);ctx.lineTo(x+cell,y+cell);}}
+  ctx.stroke();ctx.restore();
+}
+function tag(text,x,y,col){A.label(ctx,text,x,y,Math.max(10,cell*.19),'#1e1915',col);}
+function drawSan(f,now){
   const seen=L.seen[S.san.p],hot=S.phase==='hiss';
-  ctx.globalAlpha=hot?.55:.35;
-  for(let i=0;i<L.N;i++)if(seen[i])rect(cx(i),cy(i),1,1,hot?COL.alert:COL.cone);
-  ctx.globalAlpha=1;
-  const [sx,sy,face]=sanPos(f),sxp=ox+(sx+.5)*cell,syp=oy+(sy+.5)*cell,sz=cell*.7;
-  ctx.fillStyle=COL.sanW;ctx.fillRect(sxp-sz/2,syp-sz/2,sz,sz);
-  ctx.fillStyle=COL.sanK;ctx.fillRect(sxp-sz/2,syp-sz/2,sz*.45,sz*.4);
-  ctx.fillStyle=COL.sanO;ctx.fillRect(sxp+sz*.05,syp+sz*.1,sz*.45,sz*.4);
-  const fx=C.DC[face],fy=C.DR[face];ctx.fillStyle=COL.sanK;ctx.beginPath();
-  ctx.moveTo(sxp+fx*sz*.62,syp+fy*sz*.62);ctx.lineTo(sxp+fx*sz*.36-fy*sz*.18,syp+fy*sz*.36+fx*sz*.18);ctx.lineTo(sxp+fx*sz*.36+fy*sz*.18,syp+fy*sz*.36-fx*sz*.18);ctx.fill();
-  label('花',sxp,syp,cell*.3,'#7a3d12');
+  drawCone(seen,hot);
+  const e=L.tl[S.san.p],[sx,sy,face]=sanPos(f),sxp=ox+(sx+.5)*cell,syp=oy+(sy+.5)*cell;
+  const walking=!hot&&e.from!==e.to;
+  A.cat(ctx,sxp,syp,cell*.92,ANG[face],{kind:'calico',walk:walking?(e.prog+f/CFG.sanMove)%1:-1,t:now,seed:3,puff:hot});
   return [sxp,syp];
 }
-function drawKid(f){
+function drawKid(f,now){
   const k=S.kid,home=k.state==='play'&&!k.move,on=L.toyOn(S.san.p);
   // what she can hear: wood within earshot of where she is now; faint while the toy plays and she sits with it
   const at=S.kidOcc(),quiet=!(home&&on),hot=S.phase==='hiss';
   ctx.globalAlpha=hot?.5:quiet?.42:.12;
   for(let i=0;i<L.N;i++)if(L.wood(i)&&i!==at&&L.man(i,at)<=CFG.hear)rect(cx(i),cy(i),1,1,hot?COL.alert:COL.ear);
   ctx.globalAlpha=1;
-  // her toy, at her spot
-  const tc=cx(L.kid),tr=cy(L.kid);rect(tc+.15,tr+.6,.7,.3,'#2f3a2f');
   // the step that made a sound
   if(S.noise&&S.tick-S.noise.tick<6){const a=(S.tick-S.noise.tick+f)/6,nx=ox+(cx(S.noise.cell)+.5)*cell,ny=oy+(cy(S.noise.cell)+.5)*cell;
     ctx.globalAlpha=1-a;ctx.strokeStyle=COL.text;ctx.lineWidth=2;ctx.beginPath();ctx.arc(nx,ny,cell*(.3+.5*a),0,Math.PI*2);ctx.stroke();label('嗒',nx,ny-cell*.55,cell*.26,COL.text);ctx.globalAlpha=1;}
-  const [kx,ky]=moverPos(k.at,k.move,CFG.kidMove,f),kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell,kz=cell*.7;
-  ctx.fillStyle=COL.kid;ctx.beginPath();ctx.roundRect(kxp-kz/2,kyp-kz/2,kz,kz,kz*.3);ctx.fill();ctx.strokeStyle=COL.kidDark;ctx.lineWidth=2;ctx.stroke();
-  label('孩',kxp,kyp,cell*.32,COL.kidDark);
-  // toy timer above her while she sits: green and filling down while it plays, grey and filling up while quiet
+  // her toy stays at her spot
+  A.toy(ctx,ox+(cx(L.kid)+.78)*cell,oy+(cy(L.kid)+.72)*cell,cell*.62,home&&on,now);
+  const [kx,ky]=moverPos(k.at,k.move,CFG.kidMove,f),kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell;
+  if(k.move)kidAng=moveAng(k.move);else if(home)kidAng=0;else if(k.state==='look')kidAng+=Math.sin(now*4)*.02;
+  A.kid(ctx,kxp,kyp,cell*1.15,kidAng,{sit:home,walk:k.move?(k.move.k+f)/CFG.kidMove%1:-1});
+  // toy timer above her while she sits: green and filling down while it plays, grey while quiet
   if(home&&S.phase!=='hiss'){
     const p=((S.san.p%L.P)+L.P)%L.P,bw=cell*1.3,bx=kxp-bw/2+cell*.35,by=kyp-cell*.78;
     const frac=on?L.toyLeft(p)/L.toyLen(p):0; // while quiet there is no countdown: you cannot tell when it starts again
-    ctx.fillStyle='#1b1d29e0';ctx.fillRect(bx-2,by-cell*.36,bw+4,cell*.52);
-    ctx.fillStyle='#353a52';ctx.fillRect(bx,by,bw,cell*.12);ctx.fillStyle=on?COL.toy:'#8a90aa';ctx.fillRect(bx,by,bw*frac,cell*.12);
+    ctx.fillStyle='#1e1915e0';ctx.fillRect(bx-2,by-cell*.36,bw+4,cell*.52);
+    ctx.fillStyle='#4a3a30';ctx.fillRect(bx,by,bw,cell*.12);ctx.fillStyle=on?COL.toy:'#8a90aa';ctx.fillRect(bx,by,bw*frac,cell*.12);
     label(on?'♪ 玩具响 · 听不见':'安静 · 她在听',bx+bw/2,by-cell*.15,Math.max(10,cell*.17),on?COL.toy:COL.dim);
   }
   if(S.phase==='hiss')bubble('抱住啦！',kxp,kyp-cell*.75,cell*.34,COL.alert);
@@ -151,58 +175,69 @@ function drawKid(f){
   else if(k.state==='walk')bubble('在哪？',kxp,kyp-cell*.72,cell*.26,COL.kid);
   else if(k.state==='look')bubble('？？',kxp,kyp-cell*.72,cell*.3,COL.kid);
 }
-function drawOwner(){
+function drawOwner(now){
   const st=L.owner(S.san.p),dash=S.phase==='dash',hot=st===2||dash;
   if(hot){ctx.globalAlpha=.16;rect(0,0,L.cols,L.rows-1,COL.alert);ctx.globalAlpha=1;}
-  // the plate and the shrimp
-  const pc=cx(L.shrimp),pr=cy(L.shrimp);
-  ctx.fillStyle=COL.plate;ctx.beginPath();ctx.ellipse(ox+(pc+.5)*cell,oy+(pr+.5)*cell,cell*.42,cell*.32,0,0,Math.PI*2);ctx.fill();
-  if(!S.carry){label('🦐',ox+(pc+.5)*cell,oy+(pr+.48)*cell,cell*.42,COL.shrimp);label('虾',ox+(pc+.5)*cell,oy+(pr+.86)*cell,cell*.18,COL.shrimp);}
+  A.steam(ctx,ox+2*cell,oy+1.5*cell,cell,now);
+  // the shrimp on the plate
+  const pc=cx(L.shrimp),pr=cy(L.shrimp),px=ox+(pc+.5)*cell,py=oy+(pr+.5)*cell;
+  if(!S.carry){A.shrimp(ctx,px-cell*.12,py-cell*.02,cell*.42,.4);A.shrimp(ctx,px+cell*.14,py+cell*.06,cell*.4,-2.3);A.shrimp(ctx,px+cell*.02,py-cell*.12,cell*.36,1.6);}
+  else{ctx.fillStyle='rgba(200,90,40,.35)';ctx.beginPath();ctx.ellipse(px,py,cell*.18,cell*.08,.3,0,Math.PI*2);ctx.fill();}
   // the owner at her seat, below the table edge
-  const o=L.def.owner,x=ox+(o.c+.5)*cell,y=oy+(o.r+.5)*cell,w=cell*1.6,h=cell*.8;
-  ctx.fillStyle=COL.owner;ctx.beginPath();ctx.roundRect(x-w/2,y-h/2,w,h,cell*.2);ctx.fill();ctx.strokeStyle=COL.ownerDark;ctx.lineWidth=2;ctx.stroke();
-  label(st===2||dash?'主人 👀':'主人',x,y,cell*.28,COL.ownerDark);
-  if(dash)bubble('住手！',x,y-cell*.9,cell*.4,COL.alert);
-  else if(st===0)bubble('低头吃饭',x,y-cell*.85,cell*.22,COL.dim);
-  else if(st===1)bubble('筷子停了…要转头！',x,y-cell*.85,cell*.24,COL.cone);
-  else bubble('看！别动！',x,y-cell*.85,cell*.3,COL.alert);
+  const o=L.def.owner,x=ox+(o.c+.5)*cell,y=oy+(o.r+.5)*cell;
+  A.owner(ctx,x,y+cell*.05,cell*1.2,{state:st,dash,t:now});
+  const bx=x+cell*1.95,by=y-cell*.18;   // beside her, so her face stays in view
+  if(dash)bubble('住手！',bx,by,cell*.4,COL.alert);
+  else if(st===0)bubble('低头吃饭',bx,by,cell*.2,COL.dim);
+  else if(st===1)bubble('筷子停了…要转头！',bx,by,cell*.24,COL.cone);
+  else bubble('看！别动！',bx,by,cell*.3,COL.alert);
+}
+function drawCat(f,now,k){
+  let [kx,ky]=moverPos(S.cat.at,S.cat.move,CFG.catMove,f);ky-=k*.9;
+  const m=S.cat.move;if(m)catAng=moveAng(m);
+  const kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell;
+  if(S.phase==='hiss'&&Math.floor(flash*10)%2)return [kxp,kyp];
+  ctx.globalAlpha=1-k*.85;
+  A.cat(ctx,kxp,kyp,cell*.95,k>0?-Math.PI/2:catAng,{kind:'orange',walk:m?((m.k+f)/(m.n||CFG.catMove))%1:k>0?(now*2)%1:-1,t:now,seed:0,carry:S.carry});
+  ctx.globalAlpha=1;
+  return [kxp,kyp];
 }
 function draw(f){
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.fillStyle=COL.bg;ctx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);
+  const W=canvas.width/dpr,H=canvas.height/dpr;
+  ctx.fillStyle=COL.bg;ctx.fillRect(0,0,W,H);
   if(!S)return;
+  const now=performance.now()/1000;
   const k=exitK(f),ease=k*k*(3-2*k),zoom=1+1.2*ease;
   if(k>0){ // push the camera in on the door
-    const dx=ox+(cx(L.door)+.5)*cell,dy=oy+(cy(L.door)+.5)*cell,W=canvas.width/dpr,H=canvas.height/dpr;
+    const dx=ox+(cx(L.door)+.5)*cell,dy=oy+(cy(L.door)+.5)*cell;
     const tx=lerp(dx,W/2,ease),ty=lerp(dy,H/2,ease);
     ctx.setTransform(dpr*zoom,0,0,dpr*zoom,dpr*(tx-dx*zoom),dpr*(ty-dy*zoom));
   }
-  for(let i=0;i<L.N;i++)drawTile(i);
-  for(const lb of L.def.labels)label(lb.text,ox+(lb.c+lb.w/2)*cell,oy+(lb.r+lb.h/2)*cell,Math.min(cell*.3,18),'#ffffffaa');
-  if(S.cat.target>=0){const c=cx(S.cat.target),r=cy(S.cat.target);ctx.strokeStyle=COL.cat;ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeRect(ox+(c+.15)*cell,oy+(r+.15)*cell,cell*.7,cell*.7);ctx.setLineDash([]);}
+  if(bgLayer)ctx.drawImage(bgLayer,0,0,W,H);
+  if(L.def.id==='living')A.tankDynamic(ctx,ox+2*cell,oy+2*cell,cell*3,cell*2,cell,now);
+  drawDoor(now);drawTreat();
+  if(S.cat.target>=0){const c=cx(S.cat.target),r=cy(S.cat.target);ctx.strokeStyle=COL.cat;ctx.lineWidth=2.5;ctx.setLineDash([5,4]);ctx.strokeRect(ox+(c+.12)*cell,oy+(r+.12)*cell,cell*.76,cell*.76);ctx.setLineDash([]);}
   let sp=null;
-  if(L.type==='sound')drawKid(f);else if(L.type==='still')drawOwner();else sp=drawSan(f);
-  // 小橘 (dimmed when hidden under the table)
-  let [kx,ky]=moverPos(S.cat.at,S.cat.move,CFG.catMove,f);ky-=k*.9;
-  const kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell,kz=cell*.66,under=L.kind[S.catOcc()]==='T';
-  if(!(S.phase==='hiss'&&Math.floor(flash*10)%2)){
-    ctx.globalAlpha=(under?.5:1)*(1-k*.85);ctx.fillStyle=COL.cat;ctx.beginPath();ctx.roundRect(kxp-kz/2,kyp-kz/2,kz,kz,kz*.22);ctx.fill();
-    ctx.strokeStyle=COL.catDark;ctx.lineWidth=2;ctx.stroke();label('橘',kxp,kyp,cell*.32,'#4a2400');
-    if(S.carry)label('🦐',kxp+kz*.42,kyp-kz*.38,cell*.3,COL.shrimp);ctx.globalAlpha=1;
-  }
-  if(sp&&S.phase==='hiss')label('哈！',sp[0],sp[1]-cell*.75,cell*.62,COL.alert);
+  if(L.type==='sound')drawKid(f,now);else if(L.type==='still')drawOwner(now);else sp=drawSan(f,now);
+  const cp=drawCat(f,now,k);
+  // the coffee table top goes over the cat: see-through while 小橘 is under it, so you can tell where it is
+  if(L.def.id==='living'){const under=L.kind[S.catOcc()]==='T';A.coffeeTableTop(ctx,ox+2*cell,oy+4*cell,cell*3,cell*2,cell,under?.5:1);
+    A.label(ctx,under?'藏好了':'茶几 · 底下能藏',ox+3.5*cell,oy+5.62*cell,Math.max(10,cell*.17),'#fff8e8','rgba(40,22,10,.62)');}
+  if(S.time()<3&&S.phase==='play'){tag('你 · 小橘',cp[0],cp[1]-cell*.58,'#ffcf8e');if(sp)tag('三花',sp[0],sp[1]-cell*.55,'#f6f1e6');}
+  if(sp&&S.phase==='hiss')bubble('哈！',sp[0],sp[1]-cell*.75,cell*.5,COL.alert);
   if(S.phase==='play'||S.phase==='hiss'||S.phase==='dash'){ // goal pointer: tells a first-time player where to go next
     const goal=L.type==='still'&&!S.carry?L.shrimp:L.door,text=L.type==='still'?(S.carry?'叼着虾跳下去':'先来叼虾'):'走进这里过关';
-    const gc=cx(goal),fromRight=gc<=1,bob=Math.sin(performance.now()/220)*cell*.08*(fromRight?-1:1);
+    const gc=cx(goal),fromRight=gc<=1,bob=Math.sin(now*4.5)*cell*.08*(fromRight?-1:1);
     const tip=ox+(fromRight?gc+1.05:gc-.05)*cell+bob,dyp=oy+(cy(goal)+.5)*cell,dir=fromRight?1:-1;
     ctx.fillStyle=COL.door;ctx.beginPath();ctx.moveTo(tip,dyp);ctx.lineTo(tip+dir*cell*.28,dyp-cell*.18);ctx.lineTo(tip+dir*cell*.28,dyp+cell*.18);ctx.fill();
     const bx=fromRight?tip+cell*.3:tip-cell*1.75;
-    ctx.fillStyle='#1b1d29d8';ctx.fillRect(bx,dyp-cell*.2,cell*1.45,cell*.4);
+    ctx.fillStyle='#1e1915e0';ctx.beginPath();ctx.roundRect(bx,dyp-cell*.2,cell*1.45,cell*.4,cell*.1);ctx.fill();
     label(text,bx+cell*.72,dyp,Math.max(11,cell*.22),COL.door);
   }
   if(k>0){ // title over the shot, in screen space
-    ctx.setTransform(dpr,0,0,dpr,0,0);const W=canvas.width/dpr,H=canvas.height/dpr;
-    ctx.globalAlpha=Math.min(1,k*2);ctx.fillStyle='#1b1d29b0';ctx.fillRect(0,H*.38,W,H*.2);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.globalAlpha=Math.min(1,k*2);ctx.fillStyle='#1e1915b0';ctx.fillRect(0,H*.38,W,H*.2);
     label(L.def.exitText,W/2,H*.46,Math.min(W*.11,46),COL.cat);label(`第 ${LV+1} 关完成`,W/2,H*.53,Math.min(W*.05,20),COL.text);ctx.globalAlpha=1;
   }
 }
