@@ -29,6 +29,7 @@ A single diagram of a mechanical clock (`source.jpg`) was handed to Gemini 4 Arg
 Checked on 2026-10-15 on a Mac mini (Apple M4, Chrome WebGL on Metal) with Playwright against a local server: 1440×900 and 390×844 viewports at pixel ratio 1, about 60 fps, no requests outside this page's own files, no horizontal overflow at phone width, all three controls on screen. The only console message is a favicon 404. Not yet tried on a real phone.
 
 Current regression results and commands: [VERIFICATION.md](VERIFICATION.md).
+`tools/shots.cjs` freezes all three views at simulated second 48 and 60x speed, records shaft angles and camera state, and fails on page errors or a mismatched pose. `tools/browser-check.cjs` also samples rendered great-wheel and centre-wheel pixels, with flat-material and environment-removal negative controls. The new pixel limits still need browser calibration; see the verification record.
 
 ## Who it's for, AI assets
 
