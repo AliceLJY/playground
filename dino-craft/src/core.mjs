@@ -65,13 +65,27 @@ export function createVoxelKernel(seed=731) {
      }
      const o=[0,0,0],du=[0,0,0],dv=[0,0,0];o[d]=pos[d]+1;o[u]=i;o[v]=j;du[u]=w;dv[v]=h;
      const base=p.length/3,sgn=val>0?1:-1,b=Math.abs(val)&15,shade=d===1?(sgn>0?1:.65):d===0?.88:.78;
+     const fx=cx*N+o[0]+(du[0]+dv[0])*.5-(d===0&&sgn>0?.01:0),fz=cz*N+o[2]+(du[2]+dv[2])*.5-(d===2&&sgn>0?.01:0),fy=o[1]+(du[1]+dv[1])*.5-(d===1&&sgn>0?.01:0);
+     let tile=atlasTile(b,d,sgn);
+     if(b===6){
+      tile=13;
+      if(fy>height(fx,fz)+1.5){
+       tile=8;
+       const gx=Math.floor(fx/8),gz=Math.floor(fz/8);
+       for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){
+        const t=tree(gx+i,gz+j);
+        if(t&&t.kind===0&&plant(t,Math.floor(fx),Math.floor(fy),Math.floor(fz))===6)tile=15;
+       }
+      }
+     }
      let corner=0;
      for(const [s,t] of [[0,0],[1,0],[1,1],[0,1]]){
       const xyz=[o[0]+du[0]*s+dv[0]*t+cx*N,o[1]+du[1]*s+dv[1]*t,o[2]+du[2]*s+dv[2]*t+cz*N];
       p.push(...xyz);n.push(d===0?sgn:0,d===1?sgn:0,d===2?sgn:0);
-      const brightness=shade*(.46+ao[corner++]*.18);c.push(brightness,brightness,brightness);
+      const occlusion=ao[corner++];
+      const brightness=shade*(b===6?.72+occlusion*.0933333333:.46+occlusion*.18);c.push(brightness,brightness,brightness);
       // Vertical faces keep +Y up, including the grass fringe and bark grain.
-      uv.push(d===0?xyz[2]:xyz[0],d===1?xyz[2]:xyz[1]);tiles.push(atlasTile(b,d,sgn));
+      uv.push(d===0?xyz[2]:xyz[0],d===1?xyz[2]:xyz[1]);tiles.push(tile);
      }
      const diagonal=ao[0]+ao[2]>ao[1]+ao[3];
      const tri=diagonal?[0,1,3,1,2,3]:[0,1,2,0,2,3];

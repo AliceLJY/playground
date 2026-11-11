@@ -1,0 +1,273 @@
+{
+  "source": "Actual default C, Chromium Metal framebuffer before R4 recoloring, 2026-11-11",
+  "scenes": [
+    {
+      "view": "hero",
+      "metrics": {
+        "sampledPixels": 324000,
+        "yellowGreen": 0.046425925925925926,
+        "highSat": 0.002777777777777778,
+        "topSkySaturation": 0.14365115096614783,
+        "leaves": {
+          "pixels": 49244,
+          "brightness": 0.27293372265512483,
+          "lowSaturationBrightFraction": 0.11635935342376737
+        },
+        "sunlight": {
+          "blocks": 71,
+          "topBackRatio": 4.567400346162213
+        },
+        "skyRgb": [
+          179.73067825454078,
+          197.2262632316897,
+          205.78354079481113
+        ],
+        "groundRgb": [
+          70.23087817776651,
+          97.42582233743283,
+          75.35459748832193
+        ],
+        "skyPixels": 93431,
+        "groundPixels": 153921,
+        "skyHue": 199.70749482877966,
+        "groundHue": 131.30442323500978,
+        "skyGroundHueGap": 68.40307159376988,
+        "creatures": {
+          "rex": {
+            "pixels": 8896,
+            "groundPixels": 4782,
+            "rgb": [
+              123.65726169064749,
+              67.96605215827338,
+              52.15894784172662
+            ],
+            "groundRgb": [
+              79.47825177749895,
+              105.55897114178168,
+              83.14387285654537
+            ],
+            "deltaE": 38.928268373542544,
+            "deltaL": 6.759127109799159,
+            "skyPixels": 0,
+            "skyRgb": null,
+            "skyDeltaE": null
+          },
+          "grazer": {
+            "pixels": 4606,
+            "groundPixels": 5753,
+            "rgb": [
+              111.14177160225792,
+              116.7147199305254,
+              110.3315240990013
+            ],
+            "groundRgb": [
+              59.67686424474187,
+              78.99739266469668,
+              63.05805666608726
+            ],
+            "deltaE": 19.101294098944038,
+            "deltaL": 16.90158394225135,
+            "skyPixels": 0,
+            "skyRgb": null,
+            "skyDeltaE": null
+          },
+          "ptero": {
+            "pixels": 5106,
+            "groundPixels": 0,
+            "rgb": [
+              48.62064238151195,
+              39.408930669800235,
+              37.15589502546024
+            ],
+            "groundRgb": null,
+            "deltaE": null,
+            "deltaL": null,
+            "skyPixels": 8844,
+            "skyRgb": [
+              177.28369516056082,
+              195.47670737222975,
+              204.30076888285845
+            ],
+            "skyDeltaE": 62.39038790798019
+          }
+        }
+      }
+    },
+    {
+      "view": "wide",
+      "metrics": {
+        "sampledPixels": 324000,
+        "yellowGreen": 0.006598765432098765,
+        "highSat": 0.0027901234567901233,
+        "topSkySaturation": 0.11330281141619823,
+        "leaves": {
+          "pixels": 105542,
+          "brightness": 0.35394133844323544,
+          "lowSaturationBrightFraction": 0.13061151010971936
+        },
+        "sunlight": {
+          "blocks": 205,
+          "topBackRatio": 1.7983411354804228
+        },
+        "skyRgb": [
+          185,
+          201,
+          209
+        ],
+        "groundRgb": [
+          120.63895448175238,
+          143.02105050970454,
+          132.37985947128954
+        ],
+        "skyPixels": 89975,
+        "groundPixels": 104178,
+        "skyHue": 200,
+        "groundHue": 151.47400933730523,
+        "skyGroundHueGap": 48.52599066269477,
+        "creatures": {
+          "rex": {
+            "pixels": 654,
+            "groundPixels": 2158,
+            "rgb": [
+              180.23547400611622,
+              191.89449541284404,
+              198.2584097859327
+            ],
+            "groundRgb": [
+              182.532437442076,
+              198.5639481000927,
+              206.06209453197405
+            ],
+            "deltaE": 2.6638980509461065,
+            "deltaL": 2.142714570536768,
+            "skyPixels": 0,
+            "skyRgb": null,
+            "skyDeltaE": null
+          },
+          "grazer": {
+            "pixels": 1164,
+            "groundPixels": 2352,
+            "rgb": [
+              157.41580756013747,
+              162.89518900343643,
+              158.32474226804123
+            ],
+            "groundRgb": [
+              137.61607142857142,
+              155.40391156462584,
+              148.3469387755102
+            ],
+            "deltaE": 6.211547787641824,
+            "deltaL": 3.813663730370493,
+            "skyPixels": 2,
+            "skyRgb": [
+              185,
+              201,
+              209
+            ],
+            "skyDeltaE": 15.578842243372291
+          },
+          "ptero": {
+            "pixels": 2171,
+            "groundPixels": 3086,
+            "rgb": [
+              164.16029479502532,
+              128.81621372639336,
+              113.3459235375403
+            ],
+            "groundRgb": [
+              161.4348671419313,
+              180.9053791315619,
+              184.05184705119896
+            ],
+            "deltaE": 29.057353145932318,
+            "deltaL": 15.447272307375357,
+            "skyPixels": 0,
+            "skyRgb": null,
+            "skyDeltaE": null
+          }
+        }
+      }
+    },
+    {
+      "view": "night",
+      "metrics": {
+        "sampledPixels": 324000,
+        "yellowGreen": 0.03818518518518518,
+        "highSat": 0.0022222222222222222,
+        "topSkySaturation": 0.7442535430348154,
+        "leaves": {
+          "pixels": 63865,
+          "brightness": 0.011565902622416495,
+          "lowSaturationBrightFraction": 0
+        },
+        "sunlight": {
+          "blocks": 19,
+          "topBackRatio": 6.482857471813685
+        },
+        "skyRgb": [
+          54.83732554365466,
+          72.75001622849724,
+          86.8453099642973
+        ],
+        "groundRgb": [
+          37.50114340360068,
+          35.53259323936635,
+          26.43630202486383
+        ],
+        "skyPixels": 15405,
+        "groundPixels": 240510,
+        "skyHue": 206.42208309757177,
+        "groundHue": 49.32537703784567,
+        "skyGroundHueGap": 157.0967060597261,
+        "creatures": {
+          "rex": {
+            "pixels": 979,
+            "groundPixels": 907,
+            "rgb": [
+              60.53524004085802,
+              32.13278855975485,
+              22.185903983656793
+            ],
+            "groundRgb": [
+              45.85446527012128,
+              43.681367144432194,
+              29.482910694597575
+            ],
+            "deltaE": 14.786746194081699,
+            "deltaL": 1.7905240632654795,
+            "skyPixels": 1291,
+            "skyRgb": [
+              56,
+              74,
+              88
+            ],
+            "skyDeltaE": 31.54842389439567
+          },
+          "grazer": {
+            "pixels": 0,
+            "groundPixels": 0,
+            "rgb": null,
+            "groundRgb": null,
+            "deltaE": null,
+            "deltaL": null,
+            "skyPixels": 0,
+            "skyRgb": null,
+            "skyDeltaE": null
+          },
+          "ptero": {
+            "pixels": 0,
+            "groundPixels": 0,
+            "rgb": null,
+            "groundRgb": null,
+            "deltaE": null,
+            "deltaL": null,
+            "skyPixels": 0,
+            "skyRgb": null,
+            "skyDeltaE": null
+          }
+        }
+      }
+    }
+  ]
+}
