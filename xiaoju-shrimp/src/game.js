@@ -74,7 +74,7 @@ function pauseCard(){
 }
 
 // ---- layout & drawing (pictures in art.js; the room is painted once per layout into bgLayer)
-let bgLayer=null,catPose=null,catAng=-Math.PI/2,kidAng=0;
+let bgLayer=null,tableLayer=null,catPose=null,catAng=-Math.PI/2,kidAng=0;
 const ANG=[-Math.PI/2,0,Math.PI/2,Math.PI];   // facing 0 N, 1 E, 2 S, 3 W → canvas angle
 function layout(){
   catPose=null;
@@ -91,8 +91,14 @@ function buildBg(){
   const b=bgLayer.getContext('2d');b.setTransform(dpr,0,0,dpr,0,0);
   A.paintRoom(b,L,{ox,oy,s:cell},true);
   if(L.type==='sound')for(let i=0;i<L.N;i++)   // the wood she can hear from her spot says so
-    if(L.wood(i)&&L.man(i,L.kid)<=CFG.hear&&i!==L.kid&&i!==L.treat&&i!==L.door&&i!==L.nest)A.label(b,'响',ox+(cx(i)+.5)*cell,oy+(cy(i)+.5)*cell,Math.max(11,cell*.22),'#eaf6ff','rgba(30,50,80,.5)');
+    if(L.wood(i)&&L.man(i,L.kid)<=CFG.hear&&i!==L.kid&&i!==L.treat&&i!==L.door&&i!==L.nest)A.label(b,'响',ox+(cx(i)+.78)*cell,oy+(cy(i)+.2)*cell,Math.max(10,cell*.17),'#eaf6ff','rgba(30,50,80,.38)');
   A.vignette(b,ox,oy,cell*L.cols,cell*L.rows);
+  tableLayer=null;
+  if(L.def.id==='living'){
+    tableLayer=document.createElement('canvas');tableLayer.width=canvas.width;tableLayer.height=canvas.height;
+    const top=tableLayer.getContext('2d');top.setTransform(dpr,0,0,dpr,0,0);
+    A.coffeeTableTop(top,ox+2*cell,oy+4*cell,cell*3,cell*2,cell,1);
+  }
 }
 const cx=i=>i%L.cols,cy=i=>(i/L.cols)|0;
 function rect(c,r,w,h,col){ctx.fillStyle=col;ctx.fillRect(ox+c*cell,oy+r*cell,w*cell,h*cell);}
@@ -167,11 +173,14 @@ function drawKid(f,now){
   A.kid(ctx,kxp,kyp,cell*1.15,angle,{sit:home,walk:k.move?(k.move.k+f)/CFG.kidMove%1:-1});
   // toy timer above her while she sits: green and filling down while it plays, grey while quiet
   if(home&&S.phase!=='hiss'){
-    const p=((S.san.p%L.P)+L.P)%L.P,bw=cell*1.3,bx=kxp-bw/2+cell*.35,by=kyp-cell*.78;
+    const p=((S.san.p%L.P)+L.P)%L.P,bw=cell*.9,bx=ox+cell*.05,by=kyp-cell*.83;
     const frac=on?L.toyLeft(p)/L.toyLen(p):0; // while quiet there is no countdown: you cannot tell when it starts again
-    ctx.fillStyle='#1e1915e0';ctx.fillRect(bx-2,by-cell*.36,bw+4,cell*.52);
-    ctx.fillStyle='#4a3a30';ctx.fillRect(bx,by,bw,cell*.12);ctx.fillStyle=on?COL.toy:'#8a90aa';ctx.fillRect(bx,by,bw*frac,cell*.12);
-    label(on?'♪ 玩具响 · 听不见':'安静 · 她在听',bx+bw/2,by-cell*.15,Math.max(10,cell*.17),on?COL.toy:COL.dim);
+    // Same words in two lines, contained in the wall cell instead of covering the adjacent safe rug.
+    ctx.fillStyle='#1e1915d0';ctx.fillRect(bx,by-cell*.52,bw,cell*.73);
+    ctx.fillStyle='#4a3a30';ctx.fillRect(bx+cell*.05,by+cell*.06,bw-cell*.1,cell*.1);ctx.fillStyle=on?COL.toy:'#8a90aa';ctx.fillRect(bx+cell*.05,by+cell*.06,(bw-cell*.1)*frac,cell*.1);
+    const size=Math.max(10,cell*.14),colour=on?COL.toy:COL.dim;
+    label(on?'♪ 玩具响':'安静 ·',bx+bw/2,by-cell*.35,size,colour);
+    label(on?' · 听不见':'她在听',bx+bw/2,by-cell*.1,size,colour);
   }
   if(S.phase==='hiss')bubble('抱住啦！',kxp,kyp-cell*.75,cell*.34,COL.alert);
   else if(k.state==='huh')bubble('咦？',kxp,kyp-cell*.72,cell*.34,COL.kid);
@@ -227,7 +236,7 @@ function draw(f){
   if(L.type==='sound')drawKid(f,now);else if(L.type==='still')drawOwner(now);else sp=drawSan(f,now);
   const cp=drawCat(f,now,k);
   // the coffee table top goes over the cat: see-through while 小橘 is under it, so you can tell where it is
-  if(L.def.id==='living'){const under=L.kind[S.catOcc()]==='T';A.coffeeTableTop(ctx,ox+2*cell,oy+4*cell,cell*3,cell*2,cell,under?.5:1);
+  if(L.def.id==='living'){const under=L.kind[S.catOcc()]==='T';ctx.save();ctx.globalAlpha=under?.5:1;ctx.drawImage(tableLayer,0,0,W,H);ctx.restore();
     A.label(ctx,under?'藏好了':'茶几 · 底下能藏',ox+3.5*cell,oy+5.62*cell,Math.max(10,cell*.17),'#fff8e8','rgba(40,22,10,.62)');}
   if(S.time()<3&&S.phase==='play'){tag('你 · 小橘',cp[0],cp[1]-cell*.8,'#ffcf8e');if(sp)tag('三花',sp[0],sp[1]-cell*.8,'#f6f1e6');}
   if(sp&&S.phase==='hiss')bubble('哈！',sp[0],sp[1]-cell*.75,cell*.5,COL.alert);
