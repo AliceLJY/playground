@@ -33,7 +33,8 @@ function measureSky({data, screen, background, rawSky, width, height}) {
         cloudPixels++;
         const cloud = hsv([background[i], background[i + 1], background[i + 2]]);
         // Warm-white cloud highlights (#FFF2DE) are intentionally allowed.
-        if (cloud.h >= 25 && cloud.h <= 60 && cloud.s < .40 && cloud.v > .45 && cloud.v < .90) brownCloudPixels++;
+        // Brown means visibly coloured and not light: cream-lit cloud sides (S under .16) are not brown.
+        if (cloud.h >= 25 && cloud.h <= 60 && cloud.s > .16 && cloud.s < .50 && cloud.v > .35 && cloud.v < .82) brownCloudPixels++;
       }
     }
     for (let k = 0; k < 3; k++) rgb[k] /= width;

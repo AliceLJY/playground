@@ -78,7 +78,45 @@ function pointField(count,kind){
  }`});
  const pts=new THREE.Points(geo,mat);pts.frustumCulled=false;scene.add(pts);return pts;
 }
-const clouds=pointField(86,0),stars=pointField(500,1);const pointFields=[clouds,stars];
+const clouds=pointField(0,0),stars=pointField(500,1);const pointFields=[clouds,stars];
+// Voxel cumulus: flat-bottomed heightfields of small columns with rounded, stepped tops.
+// One instanced draw call replaces the old soft sprites; nothing is rebuilt after start-up.
+// Faces are shaded by direction only (top lit, sun side warm, far side and base cool), and
+// distance dissolves a cloud into the backdrop behind it, so no cloud ever reads as a fog-coloured cut-out.
+function voxelClouds(){
+ const cols=[];
+ const cloud=(cx,cy,cz,cell,w,d,hMax,id)=>{
+  const n=2+Math.floor(hash(id,0,10)*3),bumps=[];for(let j=0;j<n;j++)bumps.push([(j+.5)/n*1.5-.75+(hash(id,j,11)-.5)*.3,.5+hash(id,j,12)*.5,.2+hash(id,j,13)*.16,(hash(id,j,14)-.5)*.5]);
+  for(let i=0;i<w;i++)for(let k=0;k<d;k++){
+   const u=(i+.5)/w*2-1,v=(k+.5)/d*2-1,env=1-(Math.abs(u)**2.6+Math.abs(v)**2.2);if(env<=0)continue;
+   let top=0;for(const[bu,amp,sig,bv]of bumps)top=Math.max(top,amp*Math.exp(-((u-bu)**2)/(sig*sig)-((v-bv)**2)/.42));
+   const h=Math.max(1,Math.round(hMax*(.14+.86*top)*Math.min(1,env*2.6)));
+   cols.push(cx+(i-w/2+.5)*cell,cy+h*cell/2,cz+(k-d/2+.5)*cell,cell,h*cell,h/hMax);
+  }
+ };
+ // Cloud sea below the islands: broken, never a solid deck, and clear of the rock roots.
+ for(let i=0;i<30;i++){const a=hash(i,1,21)*Math.PI*2,r=32+hash(i,2,21)**.8*96,cell=.95+hash(i,3,21)*.55,wide=11+Math.floor(hash(i,4,21)*12),deep=6+Math.floor(hash(i,5,21)*5),flip=hash(i,6,21)>.5;
+  cloud(Math.cos(a)*r,-30+hash(i,7,21)*8-(r<48?5:0),Math.sin(a)*r,cell,flip?deep:wide,flip?wide:deep,3+Math.floor(hash(i,8,21)*4),i);}
+ // A ring of larger, distant banks just below island height: they dissolve into the backdrop and give depth.
+ for(let i=0;i<9;i++){const a=(i+hash(i,1,22)*.7)/9*Math.PI*2,r=104+hash(i,2,22)*30,cell=1.7+hash(i,3,22)*.6,flip=Math.abs(Math.cos(a))>.7,wide=16+Math.floor(hash(i,5,22)*8);
+  cloud(Math.cos(a)*r,-24+hash(i,4,22)*16,Math.sin(a)*r,cell,flip?7:wide,flip?wide:7,4+Math.floor(hash(i,6,22)*3),100+i);}
+ const count=cols.length/6,tiers=new Float32Array(count),mat=new THREE.ShaderMaterial({toneMapped:false,uniforms:{uSky:{value:skyTexture},uHeight:{value:1},uColor:{value:new THREE.Color('#ffffff')},uShade:{value:new THREE.Color('#8090b0')},uHaze:{value:new THREE.Color('#a6c6d8')},uSun:{value:new THREE.Vector3(-.5,.75,.4)},uNear:{value:64},uFar:{value:236}},
+ vertexShader:`attribute float aTier;uniform vec3 uSun;varying float vLight;varying float vDepth;
+ void main(){vec4 wp=modelMatrix*instanceMatrix*vec4(position,1.);vec3 n=normalize(mat3(modelMatrix)*normal);float side=dot(normalize(n.xz+1e-5),normalize(uSun.xz));
+ vLight=n.y>.5?.8+.2*aTier:n.y<-.5?0.:(.3+.42*max(side,0.)+.07*side)*(.86+.14*aTier);
+ vec4 mv=viewMatrix*wp;vDepth=-mv.z;gl_Position=projectionMatrix*mv;}`,
+ fragmentShader:`uniform sampler2D uSky;uniform float uHeight;uniform vec3 uColor;uniform vec3 uShade;uniform vec3 uHaze;uniform float uNear;uniform float uFar;varying float vLight;varying float vDepth;
+ void main(){float f=smoothstep(uNear,uFar,vDepth);vec3 back=texture2D(uSky,vec2(.5,gl_FragCoord.y/uHeight)).rgb;
+ // Opaque dissolve into the exact backdrop row behind this pixel: no blending, so no interior faces show through.
+ vec3 c=mix(mix(mix(uShade,uColor,vLight),uHaze,f*.35),back,f);
+ gl_FragColor=vec4(c,1.);
+ #include <colorspace_fragment>
+ }`}),mesh=new THREE.InstancedMesh(cube,mat,count);
+ for(let i=0;i<count;i++){dummy.position.set(cols[i*6],cols[i*6+1],cols[i*6+2]);dummy.scale.set(cols[i*6+3],cols[i*6+4],cols[i*6+3]);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);tiers[i]=cols[i*6+5];}
+ mesh.geometry=cube.clone();mesh.geometry.setAttribute('aTier',new THREE.InstancedBufferAttribute(tiers,1));
+ mesh.frustumCulled=false;mesh.name='voxel-clouds';mesh.userData.columns=count;scene.add(mesh);return mesh;
+}
+const cloudMesh=voxelClouds();
 const dropMat=new THREE.MeshStandardMaterial({color:'#c5f4ee',transparent:true,opacity:.64,roughness:.4,emissive:'#55929b',emissiveIntensity:.15});
 const drops=new THREE.InstancedMesh(cube,dropMat,220);drops.instanceMatrix.setUsage(THREE.DynamicDrawUsage);drops.frustumCulled=false;scene.add(drops);
 const smoke=new THREE.InstancedMesh(cube,new THREE.MeshLambertMaterial({color:'#e5d8cb',transparent:true,opacity:.34,depthWrite:false}),48);smoke.instanceMatrix.setUsage(THREE.DynamicDrawUsage);smoke.frustumCulled=false;scene.add(smoke);
@@ -89,7 +127,7 @@ const buildMs=performance.now()-worldStart;
 const quality=new Quality();let uiTime=0;let hour=view==='night'?3:2,simTime=fixed?12:0,paused=fixed,follow=false,focused='',manualAt=-100,flightTween=null,shadowUpdates=0,lastShadow=-100,shadowDirty=true,visible=true,intersecting=true,raf=0,lastFrame=0,lastRaf=0,frames=0,renderCount=0,lastJs=0;
 const perf={js:[],interval:[],drawMax:0,triangleMax:0};const boundMin=new THREE.Vector3(-20,-6,-15),boundMax=new THREE.Vector3(20,15,15);const camHome=new THREE.Vector3(),homeTarget=new THREE.Vector3(0,2,0),savedCam=new THREE.Vector3(),savedTarget=new THREE.Vector3();
 function home(){const aspect=innerWidth/innerHeight,isPhone=aspect<1;let dist=view==='wide'?89:view==='night'?57:69;const angle=view==='night'?1.12:.80;if(isPhone)dist*=1.45;homeTarget.set(0,isPhone?-6:view==='night'?6:3,0);camHome.set(Math.sin(angle)*dist,homeTarget.y+dist*.47,Math.cos(angle)*dist);camera.position.copy(camHome);controls.target.copy(homeTarget);controls.update();}
-function resize(){renderer.setPixelRatio(Math.min(devicePixelRatio,mobile()?1.25:1.5)*quality.scale);renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<1?(view==='wide'?70:60):38;camera.filmOffset=innerHeight<480&&camera.aspect>1?8:0;camera.updateProjectionMatrix();for(const p of pointFields)p.material.uniforms.uDpr.value=renderer.getPixelRatio();}
+function resize(){renderer.setPixelRatio(Math.min(devicePixelRatio,mobile()?1.25:1.5)*quality.scale);renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<1?(view==='wide'?70:60):38;camera.filmOffset=innerHeight<480&&camera.aspect>1?8:0;camera.updateProjectionMatrix();for(const p of pointFields)p.material.uniforms.uDpr.value=renderer.getPixelRatio();cloudMesh.material.uniforms.uHeight.value=renderer.domElement.height;}
 home();resize();addEventListener('resize',()=>{resize();if(fixed&&!focused&&!follow)home();});
 const hourInput=document.querySelector('#hour'),timeValue=document.querySelector('#timeValue'),flightButton=document.querySelector('#flight'),motionButton=document.querySelector('#motion');
 const tintA=new THREE.Color();
@@ -101,8 +139,9 @@ function setHour(v){
  lampMaterial.emissiveIntensity=.1+t.night*2.8;warmA.intensity=18*t.night;warmB.intensity=13*t.night;
  stars.material.uniforms.uAlpha.value=clamp((t.night-.45)/.55,0,1);stars.visible=stars.material.uniforms.uAlpha.value>0;
  for(const [key,uniform]of [['cloudLight','uColor'],['cloudShade','uShade']])clouds.material.uniforms[uniform].value.setRGB(...atmosphereColor(t.a[key],t.b[key],t.t),THREE.SRGBColorSpace);
+ {const u=cloudMesh.material.uniforms;u.uColor.value.setRGB(...atmosphereColor(t.a.cloudLight,t.b.cloudLight,t.t),THREE.SRGBColorSpace);u.uShade.value.setRGB(...atmosphereColor(t.a.cloudShade,t.b.cloudShade,t.t),THREE.SRGBColorSpace);u.uHaze.value.copy(scene.fog.color);u.uSun.value.copy(sun.position).normalize();}
  clouds.material.uniforms.uAlpha.value=lerp('cloudAlpha');clouds.material.uniforms.uMistColor.value.copy(scene.fog.color);
- hourInput.value=hour;const names=['黎明','正午','黄昏','深夜'];const j=Math.round(hour),minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=names[j]+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;
+ hourInput.value=hour;const names=['黎明','正午','黄昏','深夜'];const j=Math.round(hour),minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=(hour>2.2&&hour<2.8?'余晖':names[j])+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;
 }
 setHour(hour);hourInput.addEventListener('input',()=>{setHour(hourInput.value);interact();});document.querySelectorAll('[data-time]').forEach(el=>el.addEventListener('click',()=>{setHour(el.dataset.time);interact();}));
 function interact(){manualAt=uiTime;flightTween=null;}
@@ -129,12 +168,12 @@ function update(dt){uiTime+=dt;if(!paused)simTime+=dt;const animated=!paused?dt:
  for(let i=0;i<48;i++){const age=((i/48+simTime*.18)%1),back=-2.9-age*5;dummy.position.set(shipState.x+ss*back+Math.sin(i*1.1)*age*.4,shipState.y-1+age*2,shipState.z+cs*back);dummy.scale.setScalar(Math.sin(age*Math.PI)*(.18+age*.48));dummy.rotation.set(age,age*.6,age);dummy.updateMatrix();smoke.setMatrixAt(i,dummy.matrix);}smoke.count=quality.level===2?24:48;smoke.instanceMatrix.needsUpdate=true;
  for(let i=0;i<220;i++){const t=(hash(i,2,4)+simTime*(.19+hash(i,3,4)*.06))%1,spread=t*t*.7;dummy.position.set(6.1+(hash(i,4,2)-.5)*1.1+Math.sin(i*2)*spread, .55-t*13.3,9.65+Math.cos(i*3)*(.12+spread));dummy.scale.set(.04+hash(i,4,5)*.055,.13+hash(i,3,6)*.35,.045);dummy.rotation.set(0,0,0);dummy.updateMatrix();drops.setMatrixAt(i,dummy.matrix);}drops.count=quality.level===2?120:220;drops.instanceMatrix.needsUpdate=true;
  for(let i=0;i<4;i++){dummy.position.set(0,-1,-2.4);dummy.rotation.set(0,0,simTime*14+i*Math.PI/2);dummy.scale.set(.10,.9,.09);dummy.updateMatrix();propeller.setMatrixAt(i,dummy.matrix);}propeller.instanceMatrix.needsUpdate=true;
- for(const p of pointFields)p.material.uniforms.uTime.value=simTime;
+ for(const p of pointFields)p.material.uniforms.uTime.value=simTime;cloudMesh.rotation.y=simTime*.005;
  if(follow){vec.set(-8,4,10).applyAxisAngle(THREE.Object3D.DEFAULT_UP,shipState.heading).add(airship.position);camera.position.lerp(vec,.065);controls.target.lerp(airship.position,.1);camera.lookAt(controls.target);}else if(flightTween){const t=clamp((uiTime-flightTween.start)/1.5,0,1),u=t*t*(3-2*t);camera.position.lerpVectors(flightTween.from,flightTween.to,u);controls.target.lerpVectors(flightTween.targetFrom,flightTween.target,u);if(t===1)flightTween=null;controls.update();}else{if(!fixed&&!paused&&uiTime-manualAt>12&&!pointers.size){autoAngle=.035*animated;vec.copy(camera.position).sub(controls.target).applyAxisAngle(THREE.Object3D.DEFAULT_UP,autoAngle);camera.position.copy(controls.target).add(vec);}targetClamp.copy(controls.target).clamp(boundMin,boundMax);vec.subVectors(targetClamp,controls.target);camera.position.add(vec);controls.target.copy(targetClamp);controls.update();}
 }
 function draw(now,frameStart){const start=frameStart??performance.now();renderer.info.reset();if(shadowDirty&&(now-lastShadow>500||lastShadow<0)){renderer.shadowMap.needsUpdate=true;lastShadow=now;shadowDirty=false;shadowUpdates++;}renderer.render(scene,camera);renderCount++;lastJs=performance.now()-start;perf.drawMax=Math.max(perf.drawMax,renderer.info.render.calls);perf.triangleMax=Math.max(perf.triangleMax,renderer.info.render.triangles);if(perf.js.length>=180)perf.js.shift();perf.js.push(lastJs);}
 function loop(now){raf=0;if(!visible||!intersecting)return;const interval=now-lastFrame,minFrame=paused&&!follow&&!pointers.size?100:1000/30;
- if(interval>=minFrame-.4){const raw=lastFrame?interval:33.33;lastFrame=now;const frameStart=performance.now();update(Math.min(raw/1000,.1));draw(now,frameStart);frames++;if(lastRaf&&perf.interval.length<240)perf.interval.push(raw);if(perf.interval.length>=240){perf.interval.shift();perf.interval.push(raw);}if(quality.sample(lastJs+Math.max(0,raw-minFrame-3))){resize();}lastRaf=now;}
+ if(interval>=minFrame-.4){const raw=lastFrame?interval:33.33;lastFrame=now;const frameStart=performance.now();update(Math.min(raw/1000,.1));draw(now,frameStart);frames++;if(lastRaf&&perf.interval.length<240)perf.interval.push(raw);if(perf.interval.length>=240){perf.interval.shift();perf.interval.push(raw);}if(quality.sample(lastJs+Math.max(0,raw-minFrame-3))){resize();draw(now);}lastRaf=now;}
  raf=requestAnimationFrame(loop);
 }
 function wake(){if(visible&&intersecting&&!raf){lastFrame=0;raf=requestAnimationFrame(loop);}}
@@ -153,7 +192,7 @@ function capturePalette(){
  try{
   const full=read();
   for(const o of [airship,flagMesh,drops,smoke,falls,stars])o.visible=false;
-  clouds.material.uniforms.uHideMist.value=1;const subject=read();citadel.visible=false;const backgroundFrame=read();clouds.visible=false;const sky=read();
+  clouds.material.uniforms.uHideMist.value=1;const subject=read();citadel.visible=false;const backgroundFrame=read();clouds.visible=false;cloudMesh.visible=false;const sky=read();
   citadel.visible=true;scene.background=new THREE.Color(0);scene.fog=null;scene.overrideMaterial=maskMaterial;
   const mask=read();return{full,subject,background:backgroundFrame,sky,mask};
  }finally{clouds.material.uniforms.uHideMist.value=0;scene.children.forEach((o,i)=>o.visible=vis[i]);scene.background=background;scene.fog=fog;scene.overrideMaterial=override;maskMaterial.dispose();renderer.info.reset();renderer.render(scene,camera);}

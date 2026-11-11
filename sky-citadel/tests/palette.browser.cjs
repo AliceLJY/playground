@@ -26,21 +26,13 @@ for(const view of ['hero','night','wide'])test('A11 '+view+': contrast, city/sky
 // Kept in this browser file so `node --test tests/*.browser.cjs` runs a single
 // sequential GPU workload. CPU/CI tests never load browser or screenshot code.
 for(const name of ['default','hero','wide','dawn','noon','night']) {
- test('A12 '+name+': sky row saturation',()=>{
+ test('A12 '+name+': rendered sky rows pass the sky rules',async()=>{
+  // Same rules as tests/sky-colors.test.cjs, here on pixels read back from the GPU.
+  const {skyRuleFailures}=await import('../src/sky-colors.js');
   const m=skyReport.scenarios.find(s=>s.name===name).metrics;
-  // #CDE6FA is intentionally pale blue (HSV S=.18) at the noon horizon.
-  const minimum=name==='noon'?.16:.25;
   assert.equal(m.height,900);assert.equal(m.skyPixels,1440*900);
   assert.ok(m.screenSkyMaxError<=3,`normal frame differs from measured sky by ${m.screenSkyMaxError}/255`);
-  assert.ok(m.minSaturation>=minimum,`row ${m.minimumRow}: HSV saturation ${m.minSaturation.toFixed(4)} < ${minimum}`);
- });
- test('A12 '+name+': khaki sky coverage',()=>{
-  const m=skyReport.scenarios.find(s=>s.name===name).metrics;
-  assert.ok(m.khakiFraction<.03,`khaki/beige ${(m.khakiFraction*100).toFixed(2)}% >= 3%`);
- });
- test('A12 '+name+': OKLab grey valley',()=>{
-  const m=skyReport.scenarios.find(s=>s.name===name).metrics;
-  assert.equal(m.greyValleyRows,0,JSON.stringify(m.worstValley));
+  assert.deepEqual(skyRuleFailures(m.rows.map(r=>r.hex)),[]);
  });
  test('A12 '+name+': lower cloud sea colour',()=>{
   const m=skyReport.scenarios.find(s=>s.name===name).metrics;

@@ -21,6 +21,15 @@ export function mixOklch(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + hueDelta * t];
 }
 
+// Straight line in OKLab: a blue-to-warm blend crosses a pale, luminous neutral instead of
+// swinging through pink or green on a hue arc. Used for the sky ramp and for time-of-day blends.
+export function mixOklab(a, b, t) {
+  const ax = a[1] * Math.cos(a[2]), ay = a[1] * Math.sin(a[2]);
+  const bx = b[1] * Math.cos(b[2]), by = b[1] * Math.sin(b[2]);
+  const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+  return [a[0] + (b[0] - a[0]) * t, Math.hypot(x, y), Math.atan2(y, x)];
+}
+
 function linearRgb([lightness, chroma, hue]) {
   const a = chroma * Math.cos(hue), b = chroma * Math.sin(hue);
   const l = (lightness + .3963377774 * a + .2158037573 * b) ** 3;
@@ -52,22 +61,47 @@ export function toSrgb(lch) {
 }
 
 export function atmosphereColor(a, b, t) {
-  return toSrgb(mixOklch(toOklch(a), toOklch(b), t));
+  return toSrgb(mixOklab(toOklch(a), toOklch(b), t));
 }
 
 export function fillSkyRamp(state, data) {
-  const stops = state.a.sky.map((hex, i) => mixOklch(toOklch(hex), toOklch(state.b.sky[i]), state.t));
+  const stops = state.a.sky.map((hex, i) => mixOklab(toOklch(hex), toOklch(state.b.sky[i]), state.t));
   const height = data.length / 4;
   let segment = 0;
   for (let row = 0; row < height; row++) {
     const position = row / (height - 1);
     while (segment < POSITIONS.length - 2 && position > POSITIONS[segment + 1]) segment++;
     const fraction = (position - POSITIONS[segment]) / (POSITIONS[segment + 1] - POSITIONS[segment]);
-    const rgb = toSrgb(mixOklch(stops[segment], stops[segment + 1], fraction));
+    const rgb = toSrgb(mixOklab(stops[segment], stops[segment + 1], fraction));
     // DataTexture rows are bottom-up. Palette positions are top-down.
     const offset = (height - 1 - row) * 4;
     for (let k = 0; k < 3; k++) data[offset + k] = Math.round(rgb[k] * 255);
     data[offset + 3] = 255;
   }
-  return toSrgb(stops[4]);
+  // Fog takes the pale haze stop, so distant clouds fade lighter and bluer, not into the warm floor.
+  return toSrgb(stops[2]);
+}
+
+// What two rejected skies taught, as rules over a top-to-bottom list of row colours.
+// They are regression guards for those specific failures, not a proof that a sky looks good.
+// `strict` is for the five keyframes; the looser set is for the blends between them, where a
+// brief dusty rose or pale lavender is intended and was judged by eye.
+export function skyRuleFailures(hexRows, strict = true) {
+  const rows = hexRows.map(hex => { const [l, c, h] = toOklch(hex); return {hex, l, c, hue: (h * 180 / Math.PI + 360) % 360}; });
+  const failures = [], first = (name, test) => { const i = rows.findIndex(test); if (i >= 0) failures.push(`${name} at row ${i} ${rows[i].hex}`); };
+  // 1. Mud: a mid-lightness row with almost no colour. Pale neutrals are fine; they read as haze.
+  //    The rejected grey band measured chroma .018.
+  first('grey band', r => r.l >= .35 && r.l < .78 && r.c < (strict ? .024 : .02));
+  // 2. Dull warm: khaki, tan and beige. A weakly coloured warm row has to be light; a vivid one
+  //    (ember, burnt orange) may be dark. The rejected khaki measured chroma .040 at lightness .72.
+  first('dull warm', r => r.hue >= 30 && r.hue <= 110 && r.c >= .03 && r.c < (strict ? .07 : .05) && r.l < .77);
+  // 3. Pastel pink or magenta band between the blue and the warm floor. Dark plum at afterglow is not this.
+  //    The rejected pink measured chroma .107 at lightness .80.
+  first('pink band', r => (r.hue >= 300 || r.hue < 25) && r.c >= (strict ? .06 : .085) && r.l >= (strict ? .68 : .75));
+  // 4. Over-saturated primary blue. The rejected blues measured chroma .135 to .164.
+  first('loud blue', r => r.hue >= 200 && r.hue <= 290 && r.c > .125);
+  // 5. Lightness must not dip on the way down to the cream stop (84% of the height).
+  const until = Math.round((rows.length - 1) * .84);
+  if (strict) for (let i = 1; i <= until; i++) if (rows[i].l < rows[i - 1].l - .005) { failures.push(`lightness dips at row ${i} ${rows[i].hex}`); break; }
+  return failures;
 }
