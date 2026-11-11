@@ -1,0 +1,14 @@
+{
+  "name": "sacred-heart-cathedral",
+  "private": true,
+  "type": "module",
+  "description": "广州石室圣心大教堂：纯代码生成、可环绕可走进去的建筑导览",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
