@@ -1,10 +1,11 @@
-// 手机竖屏「手在屏幕上操作」的录屏（手动跑，不进 CI）。
+// 手机竖屏「手在屏幕上操作」的录屏（手动跑，不进 CI）。页面直接铺满 1080×1920 整个画幅，不套手机外框
+// （Alice 2026-11-11：「竖屏你不用套手机的那个屏幕啊，这样显得画面太小了」）：按 360×640 的手机视口打开，3 倍像素截图。
 // 做法照 video-director production-routing「网页互动页手机操作演示」：按手机视口打开页面（界面全在，不加 ?capture），
 // 手指动作用 CDP 的真实触摸事件发进页面，镜头和人怎么动全由页面自己的摇杆、拖动、按钮响应；脚本只接管时钟逐帧推进并截图。
 //   node tools/serve.cjs . 8993
 //   NODE_PATH="$(npm root -g)" node tools/handrec.cjs <输出目录> [--base http://127.0.0.1:8993/dist/index.html] [--dry]
-// 产物：<输出目录>/screen.mp4（786×1600 的手机屏幕内容）、ambience.wav（页面环境声，同钟离线渲染）、cues.json（每个手势的起止时刻）。
-// 套手机外框、配乐、接署名页见 tools/handrec-music.py。--dry 不截图，只打印每个手势开始时人在哪、朝哪，排手势时用。
+// 产物：<输出目录>/screen.mp4（1080×1920）、ambience.wav（页面环境声，同钟离线渲染）、cues.json（每个手势的起止时刻）。
+// 配乐、接署名页见 tools/handrec-music.py。--dry 不截图，只打印每个手势开始时人在哪、朝哪，排手势时用。
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const fs = require('fs'), path = require('path');
@@ -12,7 +13,7 @@ const fs = require('fs'), path = require('path');
 const args = process.argv.slice(2), flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; }, has = n => args.includes('--' + n);
 const out = args[0]; if (!out || out.startsWith('--')) { console.error('usage: handrec.cjs <输出目录>'); process.exit(2); }
 const base = flag('base', 'http://127.0.0.1:8993/dist/index.html'), DRY = has('dry');
-const W = 393, H = 800, DPR = 2, FPS = 30, SUB = 2, STEP = 1000 / (FPS * SUB);   // 每帧推进两步：页面按 60 帧跑（角标显示 60 fps），触摸采样也是 60 Hz
+const W = 360, H = 640, DPR = 3, FPS = 30, SUB = 2, STEP = 1000 / (FPS * SUB);   // 每帧推进两步：页面按 60 帧跑（角标显示 60 fps），触摸采样也是 60 Hz
 const SETTLE = 12;                 // 截图前等合成器把这一帧的网页文字层交上去（production-routing 记过的坑）
 const LOOK = 0.0065, PITCH = 0.004, JOY_R = 46;   // 与页面一致：触屏拖动每像素转多少、摇杆半径
 fs.mkdirSync(out, { recursive: true });
@@ -27,38 +28,38 @@ const tremor = (t, k) => [0.6 * Math.sin(2 * Math.PI * 1.7 * t + k) + 0.35 * Mat
 const PRE = { x: -6.75, z: 8.3, yaw: -0.3, pitch: -0.05 };
 // ---- 左手拇指：推摇杆沿这条路走。池西岸往北 → 檐廊西头的踏步 → 上檐廊 → 进门 → 屋里 ----
 const WP = [[-6.85, 2.6], [-6.95, -0.75], [-6.55, -1.5], [-4.6, -1.47], [-4.57, -3.35], [-2.2, -4.4]];
-const THUMB = [88, 600];
+const THUMB = [80, 486];
 // ---- 右手：手势按顺序做。t＝固定时刻；after＝等某件事发生（走起来、到某个路点、到屋里、开始逛、切俯瞰）；其余接在上一个手势后面 gap 秒 ----
 const G = [
-  { kind: 'drag', p0: [345, 773], p1: [262, 773], dur: 0.26, t: 0.4, settle: 220, name: '把底栏往左划一点，露出「对照原图」' },
+  { kind: 'drag', p0: [326, 613], p1: [222, 613], dur: 0.28, t: 0.4, settle: 220, name: '把底栏往左划一点，露出「对照原图」' },
   { kind: 'tap', el: 'bRef', gap: 0.22, expect: 'refOn', name: '点「对照原图」' },
   { kind: 'tap', el: 'ref', gap: 0.5, expect: 'refBig', name: '点小图放大' },
   { kind: 'tap', el: 'bRef', gap: 0.75, expect: 'refOff', name: '收起原图' },
   { kind: 'tap', el: 'bWalk', gap: 0.3, expect: 'walk', sets: 'walk', name: '点「走进去」' },
-  { kind: 'lookTo', yaw: -0.92, pitch: -0.16, dur: 0.40, after: 'walk', gap: 0.75, c: [290, 430], name: '转头看荷池和对岸的敞厅' },
-  { kind: 'lookTo', yaw: -1.28, pitch: -0.24, dur: 0.36, gap: 0.55, c: [285, 470], name: '低头看栏杆的陶瓶和荷花' },
-  { kind: 'lookTo', yaw: -0.2, pitch: 0.03, dur: 0.42, gap: 0.5, c: [290, 410], name: '回头看前面的山墙和炮仗花' },
-  { kind: 'lookTo', yaw: -1.5, pitch: -0.03, dur: 0.36, after: 'wp1', gap: -0.2, c: [288, 440], name: '转向踏步' },
-  { kind: 'lookTo', yaw: -0.8, pitch: -0.02, dur: 0.3, after: 'wp2', gap: 0.22, c: [286, 420], name: '上檐廊，先转一半' },
-  { kind: 'lookTo', yaw: -0.02, pitch: -0.02, dur: 0.32, after: 'wp3', gap: -0.12, c: [286, 430], name: '转向门' },
-  { kind: 'lookTo', yaw: -1.15, pitch: -0.03, dur: 0.36, after: 'wp4', gap: -0.05, c: [288, 450], name: '进屋往里看' },
+  { kind: 'lookTo', yaw: -0.92, pitch: -0.16, dur: 0.40, after: 'walk', gap: 0.75, c: [266, 344], name: '转头看荷池和对岸的敞厅' },
+  { kind: 'lookTo', yaw: -1.28, pitch: -0.24, dur: 0.36, gap: 0.55, c: [261, 376], name: '低头看栏杆的陶瓶和荷花' },
+  { kind: 'lookTo', yaw: -0.2, pitch: 0.03, dur: 0.42, gap: 0.5, c: [266, 328], name: '回头看前面的山墙和炮仗花' },
+  { kind: 'lookTo', yaw: -1.5, pitch: -0.03, dur: 0.36, after: 'wp1', gap: -0.2, c: [264, 352], name: '转向踏步' },
+  { kind: 'lookTo', yaw: -0.8, pitch: -0.02, dur: 0.3, after: 'wp2', gap: 0.22, c: [262, 336], name: '上檐廊，先转一半' },
+  { kind: 'lookTo', yaw: -0.02, pitch: -0.02, dur: 0.32, after: 'wp3', gap: -0.12, c: [262, 344], name: '转向门' },
+  { kind: 'lookTo', yaw: -1.15, pitch: -0.03, dur: 0.36, after: 'wp4', gap: -0.05, c: [264, 360], name: '进屋往里看' },
   // 屋里：手快速连甩五下，原地转一圈多（每划 225 像素约 84 度，五下约 420 度）。
   // 试过把扫过满洲窗那半圈放慢成两笔长拖（约每秒 75 度）：质检的频闪筛查报得更久（2.9 秒对 1.8 秒），手也不利索了，所以还是快甩
-  { kind: 'swipe', d: [-225, 14], dur: 0.25, after: 'arr', gap: 0.18, c: [262, 440], name: '屋里甩第一下' },
-  { kind: 'swipe', d: [-225, -10], dur: 0.24, gap: 0.17, c: [258, 470], name: '甩第二下' },
-  { kind: 'swipe', d: [-225, 8], dur: 0.24, gap: 0.16, c: [264, 425], name: '甩第三下' },
-  { kind: 'swipe', d: [-225, -12], dur: 0.24, gap: 0.16, c: [260, 480], name: '甩第四下' },
-  { kind: 'swipe', d: [-225, 10], dur: 0.25, gap: 0.17, c: [262, 445], name: '甩第五下' },
-  { kind: 'swipe', d: [118, -26], dur: 0.42, gap: 0.22, c: [250, 430], name: '往回带一点，抬头' },
+  { kind: 'swipe', d: [-225, 12], dur: 0.25, after: 'arr', gap: 0.18, c: [236, 352], name: '屋里甩第一下' },
+  { kind: 'swipe', d: [-225, -8], dur: 0.24, gap: 0.17, c: [234, 376], name: '甩第二下' },
+  { kind: 'swipe', d: [-225, 6], dur: 0.24, gap: 0.16, c: [238, 340], name: '甩第三下' },
+  { kind: 'swipe', d: [-225, -10], dur: 0.24, gap: 0.16, c: [236, 384], name: '甩第四下' },
+  { kind: 'swipe', d: [-225, 8], dur: 0.25, gap: 0.17, c: [236, 356], name: '甩第五下' },
+  { kind: 'swipe', d: [118, -22], dur: 0.42, gap: 0.22, c: [234, 344], name: '往回带一点，抬头' },
   { kind: 'tap', el: 'bTour', gap: 0.35, expect: 'tour', sets: 'tour', name: '点「带我逛一圈」' },
-  { kind: 'swipe', d: [125, -8], dur: 0.34, after: 'tour', gap: 1.4, c: [272, 430], expect: 'paused', name: '逛着的时候一拖：停下' },
-  { kind: 'swipe', d: [-160, 12], dur: 0.4, gap: 0.3, c: [255, 455], name: '停着随便看' },
+  { kind: 'swipe', d: [125, -8], dur: 0.34, after: 'tour', gap: 1.4, c: [252, 344], expect: 'paused', name: '逛着的时候一拖：停下' },
+  { kind: 'swipe', d: [-160, 10], dur: 0.4, gap: 0.3, c: [240, 364], name: '停着随便看' },
   { kind: 'tap', el: 'bTour', gap: 0.35, expect: 'resumed', name: '点「继续逛」' },
   { kind: 'tap', el: 'bTop', gap: 1.05, expect: 'top', sets: 'top', name: '点「俯瞰」' },
-  { kind: 'drag', p0: [318, 420], p1: [118, 468], dur: 0.75, after: 'top', gap: 0.42, bulge: 14, name: '拖着转' },
-  { kind: 'pinch', c: [200, 430], d0: 100, d1: 190, a0: -0.62, a1: -0.48, dur: 0.6, gap: 0.2, name: '双指张开放大' },
-  { kind: 'drag', p0: [118, 505], p1: [332, 412], dur: 0.9, gap: 0.2, bulge: -16, name: '放大了再转半圈' },
-  { kind: 'pinch', c: [202, 440], d0: 200, d1: 140, a0: -0.55, a1: -0.7, dur: 0.55, gap: 0.2, name: '捏回一点' },
+  { kind: 'drag', p0: [296, 336], p1: [108, 374], dur: 0.75, after: 'top', gap: 0.42, bulge: 14, name: '拖着转' },
+  { kind: 'pinch', c: [183, 344], d0: 100, d1: 190, a0: -0.62, a1: -0.48, dur: 0.6, gap: 0.2, name: '双指张开放大' },
+  { kind: 'drag', p0: [108, 404], p1: [306, 330], dur: 0.9, gap: 0.2, bulge: -16, name: '放大了再转半圈' },
+  { kind: 'pinch', c: [185, 352], d0: 200, d1: 140, a0: -0.55, a1: -0.7, dur: 0.55, gap: 0.2, name: '捏回一点' },
 ];
 const TAIL = 0.7;   // 最后一个手势后停多久
 
@@ -115,9 +116,9 @@ const encoder = file => {   // 截图是全范围 BT.601 的 JPEG，转成有限
   // 手指：半透明白圆点，按下浮现、抬起扩散淡出（照齿轮录屏的画法；这页底色浅，加一圈深色描边）
   await page.evaluate(() => {
     const css = document.createElement('style');
-    css.textContent = `.fdot{position:fixed;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;
+    css.textContent = `.fdot{position:fixed;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;
       background:radial-gradient(circle,rgba(255,255,255,.62) 0%,rgba(255,255,255,.36) 55%,rgba(255,255,255,.18) 100%);
-      border:2px solid rgba(255,255,255,.95);box-shadow:0 0 0 1.5px rgba(20,18,14,.42),0 3px 12px rgba(0,0,0,.45);pointer-events:none;z-index:99999;opacity:0}
+      border:1.5px solid rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(20,18,14,.42),0 2px 9px rgba(0,0,0,.45);pointer-events:none;z-index:99999;opacity:0}
       #bar .row{scroll-behavior:auto}`;
     document.head.appendChild(css);
     for (const i of [0, 1, 2]) { const d = document.createElement('div'); d.className = 'fdot'; d.id = 'fdot' + i; document.body.appendChild(d); }
@@ -139,11 +140,11 @@ const encoder = file => {   // 截图是全范围 BT.601 的 JPEG，转成有限
   let gi = 0, cur = null, prevEnd = 0;
   const startOf = g => g.t != null ? g.t : g.after ? (T[g.after] == null ? null : Math.max(T[g.after] + (g.gap || 0), prevEnd + 0.06)) : prevEnd + (g.gap || 0);
   async function plan(g, ts) {
-    if (g.kind === 'tap') { const r = await rectOf(g.el); g.p = [cl(r[0] + r[2] / 2, 12, W - 12), r[1] + r[3] / 2]; if (r[0] + r[2] / 2 > W - 6 || r[0] + r[2] / 2 < 6) console.log('OFF-SCREEN', g.el, r.map(v => v.toFixed(0)).join(',')); }
+    if (g.kind === 'tap') { const r = await rectOf(g.el); g.p = [cl(r[0] + r[2] / 2, 12, W - 12), r[1] + r[3] / 2]; if (r[0] < 2 || r[0] + r[2] > W - 2) console.log('CLIPPED', g.el, r.map(v => v.toFixed(0)).join(',')); }
     if (g.kind === 'lookTo' || g.kind === 'swipe') {
       let dx = g.kind === 'swipe' ? g.d[0] : cl(-wrap(g.yaw - st.yaw) / LOOK, -235, 235); const dy = g.kind === 'swipe' ? g.d[1] : cl(-(g.pitch - st.pitch) / PITCH, -160, 160);
       // 起点要落在屏幕里、摇杆区外面（左下那块按下去会被页面当成摇杆）；终点可以划进去
-      let x0 = g.c[0] - dx / 2; if (dx < 0) x0 = Math.min(378, x0); else { x0 = Math.max(188, x0); dx = Math.min(dx, 380 - x0); }
+      let x0 = g.c[0] - dx / 2; if (dx < 0) x0 = Math.min(W - 14, x0); else { x0 = Math.max(W * 0.45 + 10, x0); dx = Math.min(dx, W - 12 - x0); }
       g.p0 = [x0, g.c[1] - dy / 2]; g.p1 = [x0 + dx, g.c[1] + dy / 2];
     }
     if (g.p0 && st.mode === 'walk' && g.p0[0] < W * 0.45 + 6 && g.p0[1] > H * 0.35) console.log('IN-JOY-ZONE', g.name, g.p0.map(v => v.toFixed(0)).join(','));   // 起点落进摇杆区会被页面当成摇杆
@@ -245,11 +246,6 @@ const encoder = file => {   // 截图是全范围 BT.601 的 JPEG，转成有限
     console.log('环境声', (n / 48000).toFixed(2), '秒');
   }
   fs.writeFileSync(path.join(out, DRY ? 'cues-dry.json' : 'cues.json'), JSON.stringify({ fps: FPS, dur: +dur.toFixed(3), frames: f, events: T, cues, track, snap, fallbacks, fails, errors }, null, 1));
-  if (!DRY) {   // 手机外框两张图：底图和透明叠层
-    const c2 = await browser.newContext({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 }), p2 = await c2.newPage();
-    for (const [mode, file] of [['bg', 'frame-bg.png'], ['overlay', 'frame-phone.png']]) { await p2.goto('file://' + path.resolve(__dirname, 'handrec-frame.html') + '?mode=' + mode); await p2.waitForTimeout(300); await p2.screenshot({ path: path.join(out, file), omitBackground: mode === 'overlay' }); }
-    await c2.close();
-  }
   await browser.close();
   if (fails) process.exit(3);
 })().catch(e => { console.error(e); process.exit(1); });

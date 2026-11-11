@@ -1,9 +1,9 @@
 # /// script
 # dependencies = ["numpy"]
 # ///
-# 手机录屏版的配乐、套外框、接署名页、合轨。用法：
+# 手机录屏版的配乐、接署名页、合轨（画面铺满整幅，不套手机外框）。用法：
 #   uv run tools/handrec-music.py <handrec.cjs 的输出目录> <成片.mp4> [--endcard <署名页.mp4>]
-# 读 <目录>/cues.json、screen.mp4、ambience.wav、frame-bg.png、frame-phone.png。
+# 读 <目录>/cues.json、screen.mp4、ambience.wav。
 # 配乐跟着手走：点按钮有一声小铃；推摇杆走起来拍子才进；屋里每甩一下是一串上行的快音，甩完落一个长音；
 # 「带我逛一圈」时拖一下停住，音乐也跟着停到只剩长音，点「继续逛」再接上；俯瞰时上面再叠一层高音，收在主音上。
 # 和这支片的导览版（A 羽调、三拍子、每分钟 63 拍、洞箫）以及十三行那支（D 宫、四拍、拨弦加木鱼）有意不同：
@@ -153,20 +153,16 @@ measured = float(re.findall(r"I:\s+(-?[\d.]+) LUFS", m)[-1])
 gain = -12.0 - measured + 0.7        # 限幅器会吃掉约 0.7 dB，补回来
 af = f"volume={gain:.2f}dB,alimiter=limit=0.84:attack=3:release=60:level=false"
 print(f"混音实测 {measured:.1f} LUFS，整体提 {gain:.1f} dB")
-# 画面：底图 + 手机屏幕内容（缩到 640 宽，放在 220,200）+ 外框叠层；再叠化到署名页
+# 画面：页面录屏本身就是 1080×1920 铺满整幅，不套外框；只在结尾叠化到署名页
 BT = "bt709"
-fc = (f"[0:v]scale=out_color_matrix={BT}:out_range=tv,format=yuv444p[bg];"
-      f"[1:v]scale=640:1304:flags=lanczos,format=yuv444p[scr];"
-      f"[2:v]scale=out_color_matrix={BT}:out_range=tv,format=yuva444p[ph];"
-      f"[bg][scr]overlay=220:200:shortest=1[a];[a][ph]overlay=0:0,fps={FPS},format=yuv420p,setsar=1[main]")
-inputs = ["-loop", "1", "-framerate", str(FPS), "-t", f"{main:.3f}", "-i", str(out / "frame-bg.png"), "-i", str(out / "screen.mp4"),
-          "-loop", "1", "-framerate", str(FPS), "-t", f"{main:.3f}", "-i", str(out / "frame-phone.png")]
+fc = f"[0:v]fps={FPS},format=yuv420p,setsar=1[main]"
+inputs = ["-i", str(out / "screen.mp4")]
 if endcard:
     inputs += ["-i", endcard]
-    fc += f";[3:v]fps={FPS},format=yuv420p,setsar=1[end];[main][end]xfade=transition=fade:duration={XF}:offset={main - XF:.3f}[v]"
+    fc += f";[1:v]fps={FPS},format=yuv420p,setsar=1[end];[main][end]xfade=transition=fade:duration={XF}:offset={main - XF:.3f}[v]"
     vmap = "[v]"
 else: vmap = "[main]"
-subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *inputs, "-i", str(out / "mix.wav"), "-filter_complex", fc, "-map", vmap, "-map", f"{4 if endcard else 3}:a",
+subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *inputs, "-i", str(out / "mix.wav"), "-filter_complex", fc, "-map", vmap, "-map", f"{2 if endcard else 1}:a",
                 "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-color_range", "tv", "-colorspace", BT, "-color_primaries", BT, "-color_trc", BT, "-r", str(FPS),
                 "-af", af, "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-t", f"{total:.3f}", "-movflags", "+faststart", final], check=True)
 print("写出", final, f"正片 {main:.2f} 秒 + 署名页，共 {total:.2f} 秒")
