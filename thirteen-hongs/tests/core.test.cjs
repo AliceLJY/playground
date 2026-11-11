@@ -152,3 +152,14 @@ test('步子的大小像人：一步 0.5–0.75 米，膝盖不反折、不过�
   assert.ok(stanceMax < 0.4, `着地的腿应接近伸直（弯角小于 0.4），实际最大 ${stanceMax.toFixed(2)}：再大就是蹲着走`);
   assert.ok(bobMax - bobMin > 0.02 && bobMax - bobMin < 0.08, `身体起伏应在 2–8 厘米，实际 ${((bobMax - bobMin) * 100).toFixed(1)}`);
 });
+
+test('源码里行尾注释后面不跟着代码（注释会把同一行后半截吞掉）', () => {
+  const fs = require('fs'), path = require('path');
+  for (const f of fs.readdirSync(path.join(__dirname, '..', 'src'))) {
+    fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8').split('\n').forEach((line, i) => {
+      const at = line.search(/(^|[\s;{}])\/\/ ?[^\n]*/); if (at < 0 || /['"`]/.test(line.slice(0, at + 1)) && !/;\s*\/\//.test(line)) return;
+      const tail = line.slice(line.indexOf('//', at) + 2);
+      assert.ok(!/\b(col|put|hide|limb|[A-Za-z_.]+\.(box|cyl|ball|push|set|add))\(/.test(tail), `${f}:${i + 1} 注释后面像是还有代码：${tail.trim().slice(0, 60)}`);
+    });
+  }
+});

@@ -12,7 +12,8 @@ export function createPeople(scene, sim, opts = {}) {
   const N = sim.agents.length, lite = !!opts.lite;   // lite：手机档，少几圈面
   const mat = new THREE.MeshLambertMaterial();
   const seg = new THREE.CapsuleGeometry(0.5, 1, lite ? 1 : 2, lite ? 5 : 6).translate(0, -0.5, 0);             // 肢段：上关节在原点、下关节在 -1，两头是圆的，接缝被球面盖住
-  const lathe = pts => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), lite ? 8 : 10);
+  const lathe = pts => new THREE.LatheGeometry(pts.slice().reverse().map(([r, y]) => new THREE.Vector2(r, y)),   // 自下而上给点，面才朝外
+    lite ? 8 : 10);
   const box = new THREE.BoxGeometry(1, 1, 1);
   const mk = (geo, n = N, m = mat, shadow = true) => {
     const im = new THREE.InstancedMesh(geo, m, n); im.frustumCulled = false; im.castShadow = shadow && !!opts.shadows;
@@ -22,7 +23,7 @@ export function createPeople(scene, sim, opts = {}) {
   const M = {
     thigh: mk(seg, N * 2), shin: mk(seg, N * 2), foot: mk(box, N * 2),
     upper: mk(seg, N * 2), fore: mk(seg, N * 2), hand: mk(new THREE.SphereGeometry(1, 6, 5), N * 2),
-    torso: mk(lathe([[0, 1.08], [0.2, 1.06], [0.44, 0.92], [0.52, 0.7], [0.5, 0.2], [0.44, -0.45], [0.47, -0.9], [0.4, -1.02], [0, -1.02]])),
+    torso: mk(lathe([[0, 1.08], [0.2, 1.06], [0.44, 0.92], [0.52, 0.7], [0.5, 0.2], [0.47, -0.4], [0.58, -0.92], [0.57, -1.02], [0, -1.02]])),
     skirt: mk(lathe([[0, 0.02], [0.5, 0], [0.56, -0.2], [0.68, -0.5], [0.86, -0.8], [1, -1], [0.96, -1.02], [0, -1.02]])),
     pelvis: mk(new THREE.SphereGeometry(1, lite ? 8 : 10, lite ? 5 : 7)), neck: mk(seg), nose: mk(new THREE.SphereGeometry(1, 5, 4), N, mat, false), mouth: mk(box, N, mat, false),
     head: mk(new THREE.SphereGeometry(1, lite ? 8 : 10, lite ? 6 : 8)), hair: mk(new THREE.SphereGeometry(1.07, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.56)),
@@ -40,7 +41,9 @@ export function createPeople(scene, sim, opts = {}) {
       col(M.upper, i * 2 + j, L.gown || L.top, 0.95); col(M.fore, i * 2 + j, L.gown || L.top, 0.92); col(M.hand, i * 2 + j, L.skin);
       col(M.eye, i * 2 + j, '#1a1512'); col(M.basket, i * 2 + j, j ? '#a88c58' : '#b59a62');
     }
-    col(M.pelvis, i, L.gown || L.bottom, 0.98);   // 胯和裤腿同色，看上去是一条裤子 col(M.neck, i, L.skin, 0.96); col(M.nose, i, L.skin, 0.9); col(M.mouth, i, '#7a3b30');
+    // 胯和裤腿同色，看上去是一条裤子
+    col(M.pelvis, i, L.gown || L.bottom, 0.98);
+    col(M.neck, i, L.skin, 0.96); col(M.nose, i, L.skin, 0.9); col(M.mouth, i, '#7a3b30');
     col(M.torso, i, L.gown && a.kind !== 'merchant' ? L.gown : L.top); col(M.skirt, i, L.gown || L.top); col(M.head, i, L.skin);
     col(M.hair, i, L.hair || '#17140f'); col(M.bun, i, L.hair || '#17140f'); col(M.queue, i, '#17140f');
     col(M.cone, i, L.hatColor); col(M.cap, i, L.hatColor); col(M.top, i, L.hatColor); col(M.brim, i, L.hat === 'official' ? '#b23a2e' : L.hatColor, L.hat === 'straw' || L.hat === 'official' ? 1 : 0.9);
@@ -99,11 +102,12 @@ export function createPeople(scene, sim, opts = {}) {
       // 腿与脚
       for (const j of [0, 1]) {
         limb(M.thigh, M.shin, i * 2 + j, j ? -0.085 : 0.085, GAIT.hip, 0, j ? tB : tA, 0, j ? kB : kA, GAIT.thigh, GAIT.shin, 0.16, 0.125);
+        if (gown && pose !== 'sit') { hide(M.thigh, i * 2 + j); hide(M.shin, i * 2 + j); }   // 长袍底下只露出脚，腿不从袍子前面穿出来
         put(M.foot, i * 2 + j, _end.x, Math.max(0.035 - y, _end.y - 0.015), _end.z + 0.06, pose === 'sit' ? _q2 : ID, 0.095, 0.07, 0.24);
       }
       // 躯干与下摆
-      put(M.torso, i, 0, 1.15, 0, ID, 0.4 * girth, 0.3, 0.25 * girth);
-      put(M.pelvis, i, 0, 0.9, 0, ID, 0.178 * girth, 0.105, 0.105 * girth);   // 胯：把躯干和两条腿接起来
+      put(M.torso, i, 0, 1.125, 0, ID, 0.4 * girth, 0.335, 0.25 * girth);   // 上衣下摆盖过胯，腿从下摆里出来
+      put(M.pelvis, i, 0, 0.86, 0, ID, 0.16 * girth, 0.1, 0.092 * girth);   // 胯：把躯干和两条腿接起来
       if (gown) { _e.set(pose === 'sit' ? -0.9 : walking ? 0.03 : 0, 0, 0); _q.setFromEuler(_e); put(M.skirt, i, 0, 1.02, 0, _q, 0.37 * girth, pose === 'sit' ? 0.6 : 0.84, 0.31 * girth); }
       else hide(M.skirt, i);
       // 手臂与手
@@ -144,5 +148,7 @@ export function createPeople(scene, sim, opts = {}) {
     for (const k in M) M[k].instanceMatrix.needsUpdate = true;
   }
   M.blob.visible = !opts.shadows;
-  return { update, meshes: M };
+  // 验收用：哪些部件还停在默认的纯白（说明漏了上色）
+  const uncoloured = () => Object.keys(M).filter(k => { const c = M[k].instanceColor.array; return k !== 'blob' && c[0] === 1 && c[1] === 1 && c[2] === 1; });   // 圆片影用的是纯黑材质，不看它
+  return { update, meshes: M, uncoloured };
 }

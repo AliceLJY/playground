@@ -15,6 +15,8 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   page.on('pageerror', e => errs.push(String(e))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await page.goto(base + '?mute'); await ready(page);
   console.log('后端', await page.evaluate(() => window.__hong.backend));
+  const white = await page.evaluate(() => window.__hong.uncoloured());
+  check('人物没有漏上色的部件（都不是默认的纯白）', white.length === 0, white.join(',') || '全部上了色');
   check('桌面 GPU 不是软渲染', !/SwiftShader/i.test(await page.evaluate(() => window.__hong.gpu())), await page.evaluate(() => window.__hong.gpu()));
   await page.screenshot({ path: path.join(out, 'desk-intro.png') });
   await page.click('#goWalk'); await page.waitForTimeout(400);
