@@ -31,7 +31,7 @@ const audio = createAudio();
 renderer.shadowMap.needsUpdate = true;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const S = { mode: 'card', started: false, walk: { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.04, bob: 0, v: 0, y: 0 }, tour: { on: false, i: 1, hold: 0 }, top: { az: 0.5, pol: 0.95, dist: 46 } };
+const S = { mode: 'card', started: false, walk: { x: C.START.x, z: C.START.z, yaw: C.START.yaw, pitch: -0.04, bob: 0, v: 0, y: 0 }, tour: { on: false, i: 1, hold: 0 }, top: { az: -0.68, pol: 0.86, dist: 46 } };
 const keys = new Set();
 let hintTimer = 0;
 function hint(text) { const h = $('hint'); h.textContent = text; h.classList.add('show'); clearTimeout(hintTimer); hintTimer = setTimeout(() => h.classList.remove('show'), 4200); }
@@ -48,7 +48,7 @@ function refreshButtons() { $('bCard').classList.toggle('on', S.mode === 'card')
 const joy = { x: 0, y: 0, id: -1, ox: 0, oy: 0 };
 function updateCamera(dt) {
   if (S.mode === 'card') { const P = C.POSTCARD; camera.position.set(P.x, P.y, P.z); camera.rotation.set(P.pitch, P.yaw, 0); return; }
-  if (S.mode === 'top') { const T = S.top, sp = Math.sin(T.pol); camera.position.set(T.dist * sp * Math.sin(T.az), T.dist * Math.cos(T.pol), 1 + T.dist * sp * Math.cos(T.az)); camera.lookAt(0, 1, 1); return; }
+  if (S.mode === 'top') { const T = S.top, sp = Math.sin(T.pol); camera.position.set(1 + T.dist * sp * Math.sin(T.az), T.dist * Math.cos(T.pol), 2 + T.dist * sp * Math.cos(T.az)); camera.lookAt(1, 1, 2); return; }
   const W = S.walk;
   let ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x;
   let iy = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0) + joy.y;
@@ -136,7 +136,7 @@ function step(real) {
   T += real; world.update(T, real); updateCamera(real);
   world.sky.position.copy(camera.position);
   if (++shadowTick % (coarse ? 20 : 4) === 0) renderer.shadowMap.needsUpdate = true;
-  const nearWater = S.mode === 'walk' ? clamp(1 - (Math.hypot(S.walk.x - 4, S.walk.z - 4) - 4) / 8, 0, 1) : 0.6;
+  const nearWater = S.mode === 'walk' ? Math.max(clamp(1 - (Math.hypot(S.walk.x + 0.5, S.walk.z - 3.2) - 4) / 7, 0, 1), clamp(1 - (Math.hypot(S.walk.x - C.FALL.x, S.walk.z + 1.5) - 2) / 7, 0, 1)) : 0.6;
   audio.update(real, nearWater);
   renderer.info.reset(); renderer.render(scene, camera);
   stat.calls = renderer.info.render.calls; stat.tris = renderer.info.render.triangles;
@@ -154,22 +154,23 @@ renderer.info.autoReset = false;
 
 // ---- 验收钩子与固定机位 ----
 const at = (x, z, yaw, pitch = 0) => () => { begin('walk'); Object.assign(S.walk, { x, z, yaw, pitch, y: C.groundY(x, z) }); };
-const pv = (lx, lz) => C.pavToWorld(lx, lz);
 const VIEWS = {
   card: () => begin('card'), walk: () => begin('walk'), top: () => begin('top'),
-  pavilion: at(-0.8, 10.4, 0.42, 0.12),                                // 走近水榭
-  steps: at(pv(-3.27, 5.6).x, pv(-3.27, 5.6).z, 0.17, 0.1),
-  veranda: at(pv(-2.4, 1.5).x, pv(-2.4, 1.5).z, -1.4, -0.03),          // 前廊看过去
-  inside: at(pv(-2.6, -1.3).x, pv(-2.6, -1.3).z, -1.25, 0.02),         // 屋里看满洲窗
-  water: at(2.4, 10.95, 0.25, -0.2),                                     // 水边
-  back: at(pv(1.0, 1.4).x, pv(1.0, 1.4).z, Math.PI + 0.1, -0.1),       // 从前廊回望
-  islet: at(C.ISLET.x - 0.2, C.ISLET.z, -1.2, -0.02),                  // 石矶上
-  bridge: at(9.0, 3.72, 1.75, -0.08),                                 // 桥上回看水榭
-  far: at(1.6, 15.2, -0.6, 0.06),                                     // 远景：石桥、假山、亭、榕树
-  gate: at(-9.2, 5.0, 0.05, 0.02),                                     // 月洞门
-  court: at(-9.8, -2.8, Math.PI * 0.96, 0.05),                         // 竹院回看月洞门
-  east: at(12.5, 7.4, 0.95, -0.04),                                    // 东岸看水榭
-  north: at(3.0, -4.2, Math.PI - 0.6, 0.12),                           // 北岸看屋后
+  hall: at(-7.4, 3.6, -0.9, 0.12),                  // 走近敞厅：炮仗花、满洲窗、蚝壳横披
+  gable: at(-9.6, 1.6, -0.72, 0.36),                // 西山墙与屋脊的灰塑
+  veranda: at(-3.4, -1.1, -1.5, 0.0),               // 檐廊里往东看
+  inside: at(-2.2, -4.6, 2.2, 0.05),                // 屋里看满洲窗
+  pond: at(-6.7, 8.8, -0.85, -0.2),                 // 荷池西南角：石栏、黄蜡石
+  bridge: at(0.4, 8.4, -0.72, 0.08),                // 看廊桥和石拱
+  onbridge: at(5.9, 2.75, 1.35, -0.12),             // 桥顶回看敞厅
+  oct: at(6.4, 10.6, -0.62, 0.05),                  // 八角池、八角亭、英石壁山
+  pavilion: at(11.3, 5.9, -1.35, 0.06),             // 八角亭里看壁山跌水
+  rock: at(9.4, 0.6, -1.2, 0.28),                   // 壁山下
+  door: at(-8.6, 1.8, 0.1, 0.05),                   // 北墙的门
+  alley: at(-7.6, -3.4, 0.05, 0.14),                // 窄巷里往北看
+  back: at(-6.6, -7.9, -1.5, 0.14),                 // 屋后
+  court: at(5.6, 13.4, 0.85, 0.08),                 // 庭院东南角回望：荔枝、石桌、花基
+  bonsai: at(-7.4, 5.9, 1.5, -0.14),                // 花基上的盆景
   tour: () => begin('tour'),
 };
 window.__garden = {
