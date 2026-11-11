@@ -2,13 +2,18 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CELL,P,PALETTE,Grid,generateWorld,surfaceFaces,cornerAO,hash} from './world.js';
 import {clamp,timeState,Quality,airshipAt} from './core.js';
+import {PALETTES,paletteKey} from './palettes.js';
 const params=new URLSearchParams(location.search),fixed=['hero','wide','night'].includes(params.get('view')),view=fixed?params.get('view'):'default',debug=params.has('debug');
+const selectedPalette=paletteKey(params.get('palette')),scheme=PALETTES[selectedPalette];
 const canvas=document.querySelector('#scene'),mobile=()=>innerWidth<700||matchMedia('(pointer:coarse)').matches;
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'low-power'});
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.info.autoReset=false;
 const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info'),gpu=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
-const scene=new THREE.Scene();scene.background=new THREE.Color('#a19bac');scene.fog=new THREE.FogExp2('#c0b0bd',.0065);
+const scene=new THREE.Scene();scene.fog=new THREE.Fog('#b8d1da',110,235);
+// A tiny reusable sky ramp, uploaded only when the hour changes. No postprocessing.
+const skyData=new Uint8Array(256*4),skyTexture=new THREE.DataTexture(skyData,1,256,THREE.RGBAFormat);
+skyTexture.colorSpace=THREE.SRGBColorSpace;skyTexture.minFilter=skyTexture.magFilter=THREE.LinearFilter;scene.background=skyTexture;
 const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.2,250);
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=22;controls.maxDistance=100;controls.minPolarAngle=.43;controls.maxPolarAngle=1.48;controls.enablePan=true;controls.panSpeed=.55;controls.rotateSpeed=.55;
 const hemi=new THREE.HemisphereLight('#d7e2ed','#665875',1.7);scene.add(hemi);
@@ -18,7 +23,7 @@ const solidMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:
 const lampMaterial=new THREE.MeshStandardMaterial({vertexColors:true,emissive:'#ffc17a',emissiveIntensity:.5,roughness:.65});
 const waterMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.32,metalness:.15,transparent:true,opacity:.83});
 const crystalMaterial=new THREE.MeshStandardMaterial({vertexColors:true,emissive:'#7db3c7',emissiveIntensity:.24,roughness:.3,metalness:.15});
-const palette=PALETTE.map(c=>new THREE.Color(c));
+const palette=PALETTE.map((c,i)=>new THREE.Color(scheme.materials[i]||c));
 const corners=[[-1,-1],[1,-1],[1,1],[-1,1]];
 let aoCorners=0,faceCount=0;
 function meshGrid(grid,scale,group){const buckets=Array.from({length:4},()=>({p:[],n:[],c:[],idx:[]}));
@@ -45,11 +50,34 @@ const propeller=new THREE.InstancedMesh(cube,new THREE.MeshStandardMaterial({col
 const flagMat=new THREE.MeshStandardMaterial({color:'#a85b55',roughness:1,side:THREE.DoubleSide});let flagsUniform={value:0};flagMat.onBeforeCompile=s=>{s.uniforms.uTime=flagsUniform;s.vertexShader='uniform float uTime;\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.z += sin(position.x * 5. + uTime * 1.8) * .10;');};
 const flagMesh=new THREE.InstancedMesh(cube,flagMat,4*21);let fi=0;for(const f of world.meta.flags)for(let x=0;x<7;x++)for(let y=0;y<3;y++){dummy.position.set(f[0]+(x+1)*CELL,f[1]-y*CELL,f[2]);dummy.scale.set(CELL,CELL,CELL*.5);dummy.rotation.set(0,0,0);dummy.updateMatrix();flagMesh.setMatrixAt(fi++,dummy.matrix);}scene.add(flagMesh);
 // Shader point sprites use analytic falloff, never external textures or full-screen passes.
-function pointField(count,kind){const positions=new Float32Array(count*3),seeds=new Float32Array(count);for(let i=0;i<count;i++){seeds[i]=hash(i,3,kind,731);if(kind===0){positions[i*3]=(hash(i,0,0)-.5)*160;positions[i*3+1]=-17-hash(i,1,0)*8;positions[i*3+2]=(hash(i,2,0)-.5)*140;}else if(kind===1){const a=hash(i,1,2)*Math.PI*2,b=hash(i,2,3)*.8+.15;positions[i*3]=Math.cos(a)*100*Math.sin(b);positions[i*3+1]=8+hash(i,4,5)*75;positions[i*3+2]=Math.sin(a)*100*Math.sin(b);}else{positions[i*3]=0;positions[i*3+1]=0;positions[i*3+2]=0;}}
- const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('aSeed',new THREE.BufferAttribute(seeds,1));const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:kind===1?THREE.AdditiveBlending:THREE.NormalBlending,uniforms:{uTime:{value:0},uDpr:{value:1},uColor:{value:new THREE.Color('#e8d4d4')},uAlpha:{value:1}},vertexShader:`attribute float aSeed; uniform float uTime; uniform float uDpr; varying float vSeed; void main(){vSeed=aSeed;vec3 p=position;${kind===0?'p.x+=sin(uTime*.018+aSeed*8.)*4.;p.z+=cos(uTime*.015+aSeed*9.)*3.;':kind===2?'float t=fract(aSeed+uTime*.09);p=vec3(6.3+sin(aSeed*82.)*(.8+t*2.),-11.2-t*3.,9.5+cos(aSeed*62.)*(.3+t));':''} vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;gl_PointSize=${kind===0?'(13000.+aSeed*18000.)':kind===1?'(1.+aSeed*1.7)*(-mv.z)':'(40.+aSeed*70.)'}*uDpr/max(1.,-mv.z);}`,fragmentShader:`uniform vec3 uColor;uniform float uAlpha;varying float vSeed;void main(){vec2 uv=gl_PointCoord-.5;float r=length(uv);float a=${kind===1?'smoothstep(.5,.1,r)':kind===0?'max(max(exp(-dot(uv-vec2(-.18,.05),uv-vec2(-.18,.05))*32.),exp(-dot(uv-vec2(.06,-.08),uv-vec2(.06,-.08))*28.)),exp(-dot(uv-vec2(.2,.06),uv-vec2(.2,.06))*40.))*smoothstep(.5,.35,r)':'exp(-r*r*14.)*smoothstep(.5,.3,r)'};gl_FragColor=vec4(uColor,a*uAlpha*${kind===0?'.42':kind===1?'.85':'.28'});#include <tonemapping_fragment>\n#include <colorspace_fragment>}`.replace(';#include',';\n#include')});
+function pointField(count,kind){
+ // Clouds and 80 waterfall-mist points share one submission, paying for the sky ramp's draw call.
+ const total=count+(kind===0?80:0),positions=new Float32Array(total*3),seeds=new Float32Array(total),types=new Float32Array(total);
+ for(let i=0;i<total;i++){seeds[i]=hash(i,3,kind,731);types[i]=i>=count?1:0;
+  if(kind===0&&i<count){positions[i*3]=(hash(i,0,0)-.5)*160;positions[i*3+1]=-17-hash(i,1,0)*8;positions[i*3+2]=(hash(i,2,0)-.5)*140;}
+  else if(kind===1){const a=hash(i,1,2)*Math.PI*2,b=hash(i,2,3)*.8+.15;positions[i*3]=Math.cos(a)*100*Math.sin(b);positions[i*3+1]=8+hash(i,4,5)*75;positions[i*3+2]=Math.sin(a)*100*Math.sin(b);}
+ }
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('aSeed',new THREE.BufferAttribute(seeds,1));geo.setAttribute('aMist',new THREE.BufferAttribute(types,1));
+ const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:kind===1?THREE.AdditiveBlending:THREE.NormalBlending,uniforms:{uTime:{value:0},uDpr:{value:1},uColor:{value:new THREE.Color('#ffffff')},uShade:{value:new THREE.Color('#6088ac')},uMistColor:{value:new THREE.Color('#bce5ed')},uHideMist:{value:0},uAlpha:{value:1}},
+ vertexShader:`attribute float aSeed;attribute float aMist;uniform float uTime;uniform float uDpr;varying float vSeed;varying float vMist;
+ void main(){vSeed=aSeed;vMist=aMist;vec3 p=position;
+ ${kind===0?`if(aMist<.5){p.x+=sin(uTime*.018+aSeed*8.)*4.;p.z+=cos(uTime*.015+aSeed*9.)*3.;}else{float t=fract(aSeed+uTime*.09);p=vec3(6.3+sin(aSeed*82.)*(.8+t*2.),-11.2-t*3.,9.5+cos(aSeed*62.)*(.3+t));}`:''}
+ vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
+ gl_PointSize=${kind===0?'mix(13000.+aSeed*18000.,40.+aSeed*70.,aMist)':'(1.+aSeed*1.7)*(-mv.z)'}*uDpr/max(1.,-mv.z);}`,
+ fragmentShader:`uniform vec3 uColor;uniform vec3 uShade;uniform vec3 uMistColor;uniform float uAlpha;uniform float uHideMist;varying float vSeed;varying float vMist;
+ void main(){vec2 uv=gl_PointCoord-.5;float r=length(uv);float a;vec3 color=uColor;
+ ${kind===1?'a=smoothstep(.5,.1,r)*uAlpha*.85;':`if(vMist>.5){a=exp(-r*r*14.)*smoothstep(.5,.3,r)*.28*(1.-uHideMist);color=uMistColor;}else{
+ float lobes=max(max(exp(-dot(uv-vec2(-.18,.05),uv-vec2(-.18,.05))*32.),exp(-dot(uv-vec2(.06,-.08),uv-vec2(.06,-.08))*28.)),exp(-dot(uv-vec2(.2,.06),uv-vec2(.2,.06))*40.));
+ a=lobes*smoothstep(.5,.35,r)*uAlpha;
+ float light=clamp(.57-uv.y*1.5-uv.x*.35,0.,1.);color=mix(uShade,uColor,light);
+ }`}
+ gl_FragColor=vec4(color,a);
+ #include <tonemapping_fragment>
+ #include <colorspace_fragment>
+ }`});
  const pts=new THREE.Points(geo,mat);pts.frustumCulled=false;scene.add(pts);return pts;
 }
-const clouds=pointField(86,0),stars=pointField(500,1),mist=pointField(80,2);const pointFields=[clouds,stars,mist];
+const clouds=pointField(86,0),stars=pointField(500,1);const pointFields=[clouds,stars];
 const dropMat=new THREE.MeshStandardMaterial({color:'#c5f4ee',transparent:true,opacity:.64,roughness:.4,emissive:'#55929b',emissiveIntensity:.15});
 const drops=new THREE.InstancedMesh(cube,dropMat,220);drops.instanceMatrix.setUsage(THREE.DynamicDrawUsage);drops.frustumCulled=false;scene.add(drops);
 const smoke=new THREE.InstancedMesh(cube,new THREE.MeshLambertMaterial({color:'#e5d8cb',transparent:true,opacity:.34,depthWrite:false}),48);smoke.instanceMatrix.setUsage(THREE.DynamicDrawUsage);smoke.frustumCulled=false;scene.add(smoke);
@@ -63,8 +91,18 @@ function home(){const aspect=innerWidth/innerHeight,isPhone=aspect<1;let dist=vi
 function resize(){renderer.setPixelRatio(Math.min(devicePixelRatio,mobile()?1.25:1.5)*quality.scale);renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<1?(view==='wide'?70:60):38;camera.filmOffset=innerHeight<480&&camera.aspect>1?8:0;camera.updateProjectionMatrix();for(const p of pointFields)p.material.uniforms.uDpr.value=renderer.getPixelRatio();}
 home();resize();addEventListener('resize',()=>{resize();if(fixed&&!focused&&!follow)home();});
 const hourInput=document.querySelector('#hour'),timeValue=document.querySelector('#timeValue'),flightButton=document.querySelector('#flight'),motionButton=document.querySelector('#motion');
-const tintA=new THREE.Color(),tintB=new THREE.Color();
-function setHour(v){hour=clamp(Number(v)||0,0,3);const t=timeState(hour);scene.background.set(t.a.sky).lerp(tintA.set(t.b.sky),t.t);scene.fog.color.set(t.a.fog).lerp(tintA.set(t.b.fog),t.t);sun.color.set(t.a.sun).lerp(tintA.set(t.b.sun),t.t);sun.intensity=THREE.MathUtils.lerp(t.a.intensity,t.b.intensity,t.t);hemi.intensity=THREE.MathUtils.lerp(t.a.ambient,t.b.ambient,t.t);sun.position.set(-26+Math.sin(hour*.9)*8,32+Math.sin(hour*Math.PI/1.5)*8,18);lampMaterial.emissiveIntensity=.1+t.night*2.8;warmA.intensity=18*t.night;warmB.intensity=13*t.night;stars.material.uniforms.uAlpha.value=clamp((t.night-.45)/.55,0,1);stars.visible=stars.material.uniforms.uAlpha.value>0;clouds.material.uniforms.uColor.value.copy(scene.fog.color).lerp(tintB.set('#eef0e8'),.2);mist.material.uniforms.uColor.value.set(t.night>.7?'#7396b5':'#c8e7e7');hourInput.value=hour;const names=['黎明','正午','黄昏','深夜'];const j=Math.round(hour),minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=names[j]+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;}
+const tintA=new THREE.Color(),tintB=new THREE.Color(),skyStops=Array.from({length:4},()=>new THREE.Color()),skyRgb={r:0,g:0,b:0};
+function setHour(v){
+ hour=clamp(Number(v)||0,0,3);const t=timeState(hour,selectedPalette),mix=(key,color)=>color.set(t.a[key]).lerp(tintA.set(t.b[key]),t.t),lerp=key=>THREE.MathUtils.lerp(t.a[key],t.b[key],t.t);
+ for(let k=0;k<4;k++)skyStops[k].set(t.a.sky[k]).lerp(tintA.set(t.b.sky[k]),t.t);
+ const stops=[0,.48,.82,1];for(let y=0;y<256;y++){const v=1-y/255,k=v<stops[1]?0:v<stops[2]?1:2;tintB.copy(skyStops[k]).lerp(skyStops[k+1],(v-stops[k])/(stops[k+1]-stops[k])).getRGB(skyRgb,THREE.SRGBColorSpace);skyData[y*4]=Math.round(skyRgb.r*255);skyData[y*4+1]=Math.round(skyRgb.g*255);skyData[y*4+2]=Math.round(skyRgb.b*255);skyData[y*4+3]=255;}skyTexture.needsUpdate=true;
+ mix('fog',scene.fog.color);scene.fog.near=lerp('near');scene.fog.far=lerp('far');mix('sun',sun.color);sun.intensity=lerp('intensity');mix('hemi',hemi.color);mix('ground',hemi.groundColor);hemi.intensity=lerp('ambient');
+ sun.position.set(-26+Math.sin(hour*.9)*8,32+Math.sin(hour*Math.PI/1.5)*8,18);
+ lampMaterial.emissiveIntensity=.1+t.night*2.8;warmA.intensity=18*t.night;warmB.intensity=13*t.night;
+ stars.material.uniforms.uAlpha.value=clamp((t.night-.45)/.55,0,1);stars.visible=stars.material.uniforms.uAlpha.value>0;
+ mix('cloudLight',clouds.material.uniforms.uColor.value);mix('cloudShade',clouds.material.uniforms.uShade.value);clouds.material.uniforms.uAlpha.value=lerp('cloudAlpha');clouds.material.uniforms.uMistColor.value.set(t.night>.7?'#7396b5':'#c8e7e7');
+ hourInput.value=hour;const names=['黎明','正午','黄昏','深夜'];const j=Math.round(hour),minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=names[j]+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;
+}
 setHour(hour);hourInput.addEventListener('input',()=>{setHour(hourInput.value);interact();});document.querySelectorAll('[data-time]').forEach(el=>el.addEventListener('click',()=>{setHour(el.dataset.time);interact();}));
 function interact(){manualAt=uiTime;flightTween=null;}
 controls.addEventListener('start',()=>{interact();if(follow)toggleFollow(false);});
@@ -103,7 +141,21 @@ document.addEventListener('visibilitychange',()=>{visible=!document.hidden;point
 new IntersectionObserver(entries=>{intersecting=entries[0].isIntersecting;if(!intersecting){cancelAnimationFrame(raf);raf=0;}else wake();}).observe(canvas);
 function projectedBounds(){let left=1,right=0,top=1,bottom=0;camera.updateMatrixWorld();for(const mesh of citadel.children){const p=mesh.geometry.getAttribute('position');for(let i=0;i<p.count;i++){vec.fromBufferAttribute(p,i).project(camera);left=Math.min(left,vec.x*.5+.5);right=Math.max(right,vec.x*.5+.5);top=Math.min(top,-vec.y*.5+.5);bottom=Math.max(bottom,-vec.y*.5+.5);}}return{left,right,top,bottom};}
 const shipProjection=new THREE.Vector3();
-function snapshot(){const mean=a=>a.length?a.reduce((s,n)=>s+n,0)/a.length:0;shipProjection.copy(airship.position).project(camera);return{view,hour,seed:world.meta.seed,ready:true,voxelCount:world.meta.voxelCount+shipVoxels+84,staticVoxels:world.meta.voxelCount,shipVoxels,mainFaces,shipFaces,aoCorners,buildMs,drawCalls:renderer.info.render.calls,drawMax:perf.drawMax,triangles:renderer.info.render.triangles,triangleMax:perf.triangleMax,renderer:gpu,software:/SwiftShader/i.test(gpu),pixelRatio:renderer.getPixelRatio(),devicePixelRatio,quality:quality.level,resolutionScale:quality.scale,viewport:[innerWidth,innerHeight],fps:1000/mean(perf.interval),jsMs:mean(perf.js),lastJs,shadowMap:2048,shadowUpdates,renderCount,simTime,paused,visible,intersecting,follow,focused,mode:follow?'follow':uiTime-manualAt>12?'orbit':'manual',pointers:pointers.size,camera:camera.position.toArray(),target:controls.target.toArray(),distance:camera.position.distanceTo(controls.target),bounds:projectedBounds(),airship:{...shipState,screen:[(shipProjection.x*.5+.5)*innerWidth,(-shipProjection.y*.5+.5)*innerHeight]},cloudX:Math.sin(simTime*.018)*4,waterPhase:simTime*.19%1,stars:stars.visible?500:0,night:timeState(hour).night,particleCount:drops.count+smoke.count+80,landmarks:world.meta.landmarks,meshCount:scene.children.length};}
+function snapshot(){const mean=a=>a.length?a.reduce((s,n)=>s+n,0)/a.length:0;shipProjection.copy(airship.position).project(camera);return{view,hour,palette:selectedPalette,fogRange:[scene.fog.near,scene.fog.far],seed:world.meta.seed,ready:true,voxelCount:world.meta.voxelCount+shipVoxels+84,staticVoxels:world.meta.voxelCount,shipVoxels,mainFaces,shipFaces,aoCorners,buildMs,drawCalls:renderer.info.render.calls,drawMax:perf.drawMax,triangles:renderer.info.render.triangles,triangleMax:perf.triangleMax,renderer:gpu,software:/SwiftShader/i.test(gpu),pixelRatio:renderer.getPixelRatio(),devicePixelRatio,quality:quality.level,resolutionScale:quality.scale,viewport:[innerWidth,innerHeight],fps:1000/mean(perf.interval),jsMs:mean(perf.js),lastJs,shadowMap:2048,shadowUpdates,renderCount,simTime,paused,visible,intersecting,follow,focused,mode:follow?'follow':uiTime-manualAt>12?'orbit':'manual',pointers:pointers.size,camera:camera.position.toArray(),target:controls.target.toArray(),distance:camera.position.distanceTo(controls.target),bounds:projectedBounds(),airship:{...shipState,screen:[(shipProjection.x*.5+.5)*innerWidth,(-shipProjection.y*.5+.5)*innerHeight]},cloudX:Math.sin(simTime*.018)*4,waterPhase:simTime*.19%1,stars:stars.visible?500:0,night:timeState(hour,selectedPalette).night,particleCount:drops.count+smoke.count+80,landmarks:world.meta.landmarks,meshCount:scene.children.length};}
 window.__PLAYTEST__={ready:false,snapshot,reset,setSeed(n){if(!Number.isInteger(n)||n<0||n>2147483647)throw new RangeError('seed must be an integer 0–2147483647');if(n!==world.meta.seed){const next=generateWorld(n);for(const child of [...citadel.children]){child.geometry.dispose();citadel.remove(child);}faceCount=0;aoCorners=0;meshGrid(next.grid,CELL,citadel);mainFaces=faceCount;world.meta=next.meta;next.grid.cells.clear();worldBounds.setFromObject(citadel);shadowDirty=true;}reset();update(0);draw(performance.now());return snapshot();},step(ms){if(!Number.isFinite(ms)||ms<0||ms>120000)throw new RangeError('step expects 0–120000 ms');for(let remain=ms;remain>0;remain-=1000/30)update(Math.min(remain,1000/30)/1000);draw(performance.now());return snapshot();}};
-if(debug)window.__SKY_DEBUG__={setHour,focusLandmark,setPaused,toggleFollow,sampleQuality(ms,n){for(let i=0;i<n;i++)quality.sample(ms);resize();return quality.level;},clearPerformance(){perf.js.length=0;perf.interval.length=0;},resetQuality(){Object.assign(quality,new Quality());resize();},hide(v){visible=!v;if(v){cancelAnimationFrame(raf);raf=0;}else wake();},project(pos){vec.set(...pos).project(camera);return[(vec.x*.5+.5)*innerWidth,(-vec.y*.5+.5)*innerHeight];}};
+// Debug-only paired renders: identical camera/time, no HUD or moving foreground.
+// The white silhouette is eroded by the pixel checker, excluding antialiased edges.
+function capturePalette(){
+ const vis=scene.children.map(o=>o.visible),background=scene.background,fog=scene.fog,override=scene.overrideMaterial;
+ const maskMaterial=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
+ const read=()=>{renderer.info.reset();renderer.render(scene,camera);return canvas.toDataURL('image/png');};
+ try{
+  const full=read();
+  for(const o of [airship,flagMesh,drops,smoke,falls,stars])o.visible=false;
+  clouds.material.uniforms.uHideMist.value=1;const subject=read();citadel.visible=false;const backgroundFrame=read();clouds.visible=false;const sky=read();
+  citadel.visible=true;scene.background=new THREE.Color(0);scene.fog=null;scene.overrideMaterial=maskMaterial;
+  const mask=read();return{full,subject,background:backgroundFrame,sky,mask};
+ }finally{clouds.material.uniforms.uHideMist.value=0;scene.children.forEach((o,i)=>o.visible=vis[i]);scene.background=background;scene.fog=fog;scene.overrideMaterial=override;maskMaterial.dispose();renderer.info.reset();renderer.render(scene,camera);}
+}
+if(debug)window.__SKY_DEBUG__={capturePalette,setHour,focusLandmark,setPaused,toggleFollow,sampleQuality(ms,n){for(let i=0;i<n;i++)quality.sample(ms);resize();return quality.level;},clearPerformance(){perf.js.length=0;perf.interval.length=0;},resetQuality(){Object.assign(quality,new Quality());resize();},hide(v){visible=!v;if(v){cancelAnimationFrame(raf);raf=0;}else wake();},project(pos){vec.set(...pos).project(camera);return[(vec.x*.5+.5)*innerWidth,(-vec.y*.5+.5)*innerHeight];}};
 setPaused(paused);update(0);draw(performance.now());window.__PLAYTEST__.ready=true;document.querySelector('#loading').classList.add('done');wake();

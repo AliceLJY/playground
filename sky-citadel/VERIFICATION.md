@@ -73,3 +73,80 @@
 “好不好玩”八问按探索沙盘核对：开局可选时间、地点、登艇；目标通过界面直接可见，场地与视角影响能发现的细节。本作没有输赢、升级和通关进度，相应失败率、奖励与难度项不适用，没有硬套游戏通过率。复用仓库构建/服务脚本、OrbitControls 与原生 range；AO 在生成时计算，保持依赖只有指定两项。
 
 未测：真实 iPhone / Android、Safari / Firefox、低端 GPU、长时间功耗或机身温度、OS 真正遮挡/最小化、线上部署。帧率和调用预算只能证明本机这一轮的渲染负载，**不能保证“任何电脑开着不烫”**。画面质感、转动手感和是否值得停留，仍由 owner 与访客判断。
+
+
+## 第三轮：配色
+
+日期：2026-11-11。原话：「另外两个的配色不太行哈哈哈」。本轮默认采用 **C「碧空琥珀」**：深蓝天顶、碧蓝中空、低处琥珀色云光；象牙墙受暖光，青铜绿顶、蓝灰岩与植被各有自己的暗部。保留 A「暖金黄昏」与 B「清透晴空」为 `?palette=a|b|c`；无参数等于 C，不增加玩家界面。全部工作与产物在 sky-citadel 子目录，未提交、未推送、未上线。
+
+### 先检查旧症状，再改配色
+
+先在原实现中只加入诊断采样入口，保留原配色、指数雾、光源、材质、机位与动画时刻，生成 `shots/r3-baseline.html`。原始无采样版本为 `shots/r3-original.html`（601,990 bytes）。原版三机位截图在 `shots/r3-before/`；城市+背景、仅背景及向内收 1 px 的实际城市轮廓对应的原始 PNG 均保留。定义与阈值见 SPEC A11，执行在 `tests/palette.browser.cjs`，所有指标取自真实 GPU 渲染，不检查配置常量是否等于自己。
+
+同一测试在旧快照运行：**0/3 通过，三机位全红**，证据 `shots/r3-old-test.log` / `shots/r3-old-test/metrics.json`。hero 因跨度 .368 < .50、灰色 87.1% > 35% 失败；wide 因跨度 .194 < .45、灰色 93.1% > 35% 失败；night 因跨度 .279 < .34 失败。原版并非每项都坏：夜间原本灰色比例较低，城市/天空色相差也可读，报告不把它们说成失败。
+
+| 机位 / 版本 | p5 | p95 | 跨度 | 城市平均亮度 | 天空平均亮度 | 均亮度差 | 城市/天空色相（°） | 最短色相差 | 灰色占比 |
+|---|---:|---:|---:|---:|---:|---:|---|---:|---:|
+| hero / 旧版 | 0.331 | 0.698 | 0.368 | 0.451 | 0.618 | 0.168 | 140.4 / 261.2 | 120.8° | 87.1% |
+| hero / C 默认 | 0.167 | 0.793 | 0.627 | 0.317 | 0.511 | 0.195 | 148.7 / 200.2 | 51.5° | 12.2% |
+| night / 旧版 | 0.113 | 0.392 | 0.279 | 0.287 | 0.114 | 0.174 | 185.1 / 218.5 | 33.4° | 5.9% |
+| night / C 默认 | 0.032 | 0.521 | 0.489 | 0.290 | 0.083 | 0.207 | 166.3 / 219.2 | 52.9° | 3.3% |
+| wide / 旧版 | 0.501 | 0.695 | 0.194 | 0.485 | 0.618 | 0.133 | 104.8 / 261.2 | 156.5° | 93.1% |
+| wide / C 默认 | 0.224 | 0.792 | 0.567 | 0.313 | 0.523 | 0.210 | 150.2 / 199.5 | 49.3° | 13.6% |
+
+全部 Y′ 为 sRGB 显示亮度代理，不冒充线性光亮度。旧版天空虽然有可计算的紫色色相，饱和度很低；夜间与白墙的单个均值同样不能替代读图。最终 C 的三项跨度、均亮度差、色相差和灰色占比均通过 A11；相机、时间、种子、主体覆盖面积不变。完整原值见 `shots/r3-c/metrics.json` 与 `shots/r3-test/metrics.json`。
+
+### 三套完整方案与自选理由
+
+`src/palettes.js` 与 SPEC 的三张表列出 **12 组**天空渐变、云明暗、雾近远、主光近似色温与强度、半球天/地光强度，以及每套建筑/岩/草木/水/飞艇基色。没有只在黄昏换一个背景色。`tools/palette-shots.cjs` 对每套逐机位验证真实 palette/view 回报，真实点击四时段并验 hour、夜暗于正午、星星与暖窗；**A/B/C 三套均通过**，零页面错误。
+
+- **A 暖金黄昏**：金色外墙和蜜桃云海最浓，紫蓝夜空更有童话感；但日落时暖墙、金饰、铜艇都偏橙，主殿的石材与铜金层次较接近，夜间紫云的存在感也更强。
+- **B 清透晴空**：正午的白云、蓝空和象牙墙最干净，四时段偏明朗；hero 黄昏比 C 更冷，暖光与天空的区别较弱，夜景云海更亮。
+- **C 碧空琥珀（默认）**：黄昏保持饱和蓝空与低位暖云，暖石墙/青铜绿顶/冷岩体在同张图里分得开，金饰有光但不让全城泛橙；夜空压深后，用较柔的冷环境光保住岩层与侧墙，窗灯仍为视觉中心。相比 A/B，hero 与 night 两种观看距离都均衡，因此由我选为默认，最终审美仍由 Alice 试玩判断。
+
+已逐张打开 `shots/r3-palette-options.png`（三行两列、A/B/C、hero/night）和 `shots/r3-four-periods.png`（三套各四时段），并读过最终 `r3-compare-hero.png` / `r3-compare-night.png` / `r3-compare-wide.png`。hero 并排：灰紫背景变为分层蓝空与暖云，右侧石墙与屋顶阴面仍有格纹，岩根更深；night 并排：天空更深，窗与受光墙面更突出，岩根没有变成整块黑剪影；wide 并排：城市不再与远雾同灰，主岛、悬桥与卫星岛之间的轮廓更清楚。云仍是柔边解析点精灵，新增受光/背光着色，未声称变成体积光线追踪。
+
+### 实现与复现
+
+天空用 Three 自带 1×256 渐变纹理，只有改时间时更新；指数雾改为远端线性雾，C 的昼夜近端为 105–120，远端 235–250 个世界单位，不再从近处洗城市。云以同一 shader 的双色面区别受光/背光。复用已有 Three.js、Canvas 与 Playwright，不增加依赖或全屏后期。云和原有 80 粒水雾合并为同一批绘制，抵消渐变背景的一次提交，正常 calls 保持原值；天空只增加两个三角形。
+
+```sh
+npm install
+node tools/build.mjs
+node --test tests/*.test.cjs
+node tools/browser-check.cjs
+node tools/palette-shots.cjs
+# 源码入口（另开终端启动服务）
+node tools/serve.cjs . 8959
+node tools/browser-check.cjs http://127.0.0.1:8959/dev.html shots/r3-source
+# 旧配色必须变红
+SKY_PALETTE_BASE="file://$PWD/shots/r3-baseline.html" SKY_PALETTE_OUT=shots/r3-old-test node --test tests/palette.browser.cjs
+# 前后单独测性能，不和上述 GPU 检查并行
+node tools/palette-performance.cjs
+```
+
+### 最终回归
+
+- `npm install && node tools/build.mjs && node --test tests/*.test.cjs`：安装成功、审计 0 漏洞、构建成功、**9/9 通过**（含三机位真实像素检查），见 `shots/r3-node-tests.log`。使用原有 Three.js 0.186.1 与 esbuild 0.28.2。
+- `node tools/browser-check.cjs`：**38/38 通过**，零页面错误、零额外请求；`shots/r3-browser-check.log` / `shots/report.json`。新增三套 URL 参数状态回报检查；交互、四时段、暖窗、手机布局、画质、后台恢复均通过。
+- 源码入口：**38/38 通过**，零页面错误；`shots/r3-source-check.log` / `shots/r3-source/report.json`。
+- 最终旧版负例重新执行：仍是 **0/3 通过，三项全部失败**，`shots/r3-old-test.log`，不是沿用第一轮报告。
+- 最终单文件 605,867 bytes，SHA-256 `c380d8ff8e4fd803f4d2d25f9ccb089ccc3f8ce39b1e17dcfacaa960ce3ce7e1`；无外部 script/link。改动的 JS/CJS 均经 `node --check`，`git diff --check -- .` 通过。
+- 正常桌面/手机默认档 `shots/desktop-default.png` / `shots/mobile-default.png` 已打开检查，未锁像素比或自适应等级。首访录屏 `shots/opening-30s.webm` 为 1440×900、25 fps、30.88 秒；按 25 fps 输出六张逐帧接触表 `shots/r3-opening-frames/sheet-01…06.png` 并逐张看过：拖转与缩放连续，切入深夜无空白，登艇/退出、地标靠近、重置均正常；第六张余下黑区是拼图补位。此为验收录屏，不是高清发布演示片。
+
+### 收尾性能对比（独立顺序测量，仍有外部并发）
+
+功能/像素与源码回归全部结束后，运行 `tools/palette-performance.cjs`，本任务只开一个 Chrome，旧版/新版按 hero→night 顺序各热身 2 秒、采样 8 秒；动画开启、机位固定，1440×900 CSS、设备 DPR 2→实际 1.5，质量等级 0、渲染比例 1，无锁画质或额外后期。浏览器 157.0.8103.39；GPU `ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)`，非 SwiftShader。
+
+**测量时仍有并发负载来源**：最后一轮启动前/关闭后均检测到另外 1 个 headless Chrome；采样起止共 2–3 个 headless 主进程（其中 1 个属于本任务），未检测到其他名为 browser-check.cjs 的运行命令。其他浏览器的实际 GPU 占用未单独剖析，因此不能把这轮称为无并发基准；没有终止其他任务。此前两轮也有外部并发，原始证据保留 `shots/r3-performance-concurrent*.json/.log`。下表只证明这种负载下上限帧率和提交量维持，不据 JS 耗时的小幅波动作 GPU 耗时或性能提升结论。
+
+| 场景 / 版本 | fps | JS 更新+提交 / 帧 | calls 常规 / 峰值 | 三角形常规 / 峰值 | 实际 DPR / 比例 |
+|---|---:|---:|---|---|---|
+| hero / 旧版 | 30.001 | 0.273 ms | 13 / 14 | 299,368 / 575,352 | 1.5 / 1 |
+| hero / C 默认 | 30.001 | 0.334 ms | 13 / 14 | 299,370 / 575,354 | 1.5 / 1 |
+| night / 旧版 | 30.002 | 0.198 ms | 14 / 15 | 299,368 / 575,352 | 1.5 / 1 |
+| night / C 默认 | 30.001 | 0.222 ms | 14 / 15 | 299,370 / 575,354 | 1.5 / 1 |
+
+结果：hero **13 / 14 calls**、night **14 / 15 calls** 完全不变；所有收尾样本仍约 **30.00 fps**（程序主动限帧上限），未触发分辨率降档。天空背景只增加 **2 个三角形**，常规 299,368→299,370，峰值 575,352→575,354，远低于预算。新配色无需多盏灯、实时阴影更新或全屏效果。记录含错误列表为空，原值在 `shots/r3-performance.json` / `.log`。真实手机、Safari/Firefox、线上发布、长时间功耗仍未测；本轮没有上线。
+
+配色检查要开真浏览器与 GPU，CI 的 Linux 机器上没有，故文件名为 `tests/palette.browser.cjs`，不在 `node --test tests/*.test.cjs` 的范围内；本地先 `node tools/build.mjs` 再手动跑：`NODE_PATH="$(npm root -g)" node --test tests/palette.browser.cjs`（AGENTS.md 第 2 节：依赖像素或 GPU 的检查保留浏览器入口）。
