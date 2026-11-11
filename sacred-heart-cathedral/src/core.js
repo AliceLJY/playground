@@ -15,7 +15,7 @@ export const CH_BAY = 5.0, CH_BAYS = 3;
 export const Z_APSE = Z_CROSS1 - CH_BAY * CH_BAYS;         // -32.8 后殿多边形的圆心
 export const APSE_R = 5.2;
 export const TOWER = { cx: 10, half: 4.4, z0: Z_TOWER, z1: 38.6, h: 58.5, belfry: 39, cornice: 25 };
-export const H = { vault: 28.2, spring: 20.5, arcadeSpring: 6.6, arcadeApex: 10.2, aisle: 11.2, chapel: 8.6, ridge: 35.5, eave: 27.2 };
+export const H = { vault: 28.2, spring: 20.5, arcadeSpring: 6.6, arcadeApex: 10.2, aisle: 11.2, chapel: 8.6, ridge: 32.3, eave: 25.6 };
 export const WALL = 0.45;
 export const EYE = 1.62;
 export const GROUND = -0.75;      // 院子地面比堂内地面低：门前五级台阶
@@ -156,7 +156,7 @@ export const WIN = {
 const V = (id, cn, en, zone, pos, look, mode, text, light) => ({ id, cn, en, zone, pos, look, mode, text, light });
 export const VIEWS = [
   V('whole', '教堂全景', 'Whole cathedral', 'out', [62, 46, 96], [0, 22, 6], 'orbit', '坐北朝南，平面是一个拉丁十字：南北长 77 米多，最宽处近 33 米。墙、柱、塔全用花岗岩砌成，所以广州人叫它「石室」。1863 年奠基，1888 年落成。'),
-  V('facade', '正立面', 'South façade', 'out', [0, 9, 106], [0, 27.5, 38], 'orbit', '立面分三层：底层三座往里收的尖券门，中层正中一个直径约 7 米的玫瑰窗，上层是一对八角尖塔，从地面到塔尖 58.5 米。西塔（左）装钟面，东塔（右）是钟楼。'),
+  V('facade', '正立面', 'South façade', 'out', [0, 8, 96], [0, 28.5, 38], 'orbit', '立面分三层：底层三座往里收的尖券门，中层正中一个直径约 7 米的玫瑰窗，上层是一对八角尖塔，从地面到塔尖 58.5 米。西塔（左）装钟面，东塔（右）是钟楼。'),
   V('portals', '三座门', 'Three portals', 'out', [5, 4.2, 58], [0, 8.5, 38], 'orbit', '门洞一层一层往里退，每层一道券，券上盖一个尖山花，山花里是石刻的花格。中门最高，两边的门开在塔的底层。'),
   V('rose', '玫瑰窗与山花', 'Rose window', 'out', [-4, 22, 62], [0, 23, 38], 'orbit', '玫瑰窗的石花格从中心往外放射，外圈一环小圆。窗上面是一排小券托着的檐口，再上面是中殿屋顶的山花，顶上立着石十字架。'),
   V('towers', '双塔', 'Twin spires', 'out', [20, 49, 60], [-2, 44, 34], 'orbit', '塔身方形，到钟室这一层四面各开一对装着红色百叶的长窗，四角立小尖塔；再往上收成八角的石尖顶，八条棱上排着卷叶石钮，顶上是铁十字架。'),

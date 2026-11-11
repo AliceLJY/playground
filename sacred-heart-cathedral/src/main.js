@@ -55,7 +55,7 @@ composer.addPass(new OutputPass());
 // ---------- 状态 ----------
 const S = { mode: 'orbit', zone: 'out', view: 'whole', light: 'morning' };
 // 内部的亮度一处调：先暗，再一点点加
-const LV = { hemi: 1.3, bloom: 0.22, exp: 1.0, glass: 1.7, vault: 0.8, vol: 1.0 };
+const LV = { hemi: 0.95, bloom: 0.22, exp: 1.0, glass: 1.7, vault: 0.8, vol: 1.0 };
 for (const k of Object.keys(LV)) if (Q.get(k)) LV[k] = +Q.get(k);
 const orbit = { az: 0.6, pol: 1.15, dist: 120, target: new THREE.Vector3(0, 22, 6), idle: 0 };
 const fp = { x: 0, y: C.EYE + C.GROUND, z: 79, yaw: 0, pitch: 0.1, v: 0, bob: 0 };
@@ -349,7 +349,7 @@ window.__ss = window.__sf = {
   snapshot: () => ({ ...S, tween: !!tween, cam: camera.position.toArray().map(v => +v.toFixed(2)), fp: { x: +fp.x.toFixed(2), y: +fp.y.toFixed(2), z: +fp.z.toFixed(2), yaw: +fp.yaw.toFixed(3) }, orbit: { az: +orbit.az.toFixed(3), dist: +orbit.dist.toFixed(1) }, light: S.light, east: +light.east.toFixed(3), west: +light.west.toFixed(3), south: +light.south.toFixed(3), glass: GLASS.uGI.value.toArray().map(v => +v.toFixed(3)), extVisible: world.ext.visible, intVisible: world.int.visible, fps: stat.fps, calls: stat.calls, tris: stat.tris }),
   quality: () => quality, setQuality,
   // 任意机位（对照截图用）：临时加一个视点，飞过去再拿掉
-  shot(pos, look) { C.VIEWS.push({ id: '_shot', cn: '', en: '', zone: C.inside(pos[0], pos[2]) && pos[1] < 29.6 ? 'in' : 'out', pos, look, mode: 'fly', text: '' }); goView('_shot', true); C.VIEWS.pop(); },
+  shot(pos, look, fov) { if (fov) { camera.fov = fov; camera.updateProjectionMatrix(); } C.VIEWS.push({ id: '_shot', cn: '', en: '', zone: C.inside(pos[0], pos[2]) && pos[1] < 29.6 ? 'in' : 'out', pos, look, mode: 'fly', text: '' }); goView('_shot', true); C.VIEWS.pop(); },
   setView: (id, instant = true) => goView(id, instant), setLight: (id, instant = true) => { setLight(id, instant); updateLight(0); }, setMode,
   step(ms) { for (let t = 0; t < ms; t += 16) step(0.016); hud(); drawMap(); },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
