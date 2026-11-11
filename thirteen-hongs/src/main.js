@@ -90,6 +90,7 @@ function setMode(mode, follow = null) {
   if (mode === 'walk') hint(coarse ? '左下摇杆走动 · 其余地方拖动转头' : 'WASD 走动 · 拖动转头 · Shift 快走');
   if (mode === 'top') { S.top.idle = 0; hint('拖动旋转 · 滚轮或双指缩放'); }
   document.querySelectorAll('#views button[data-mode], #views button[data-follow]').forEach(b => b.classList.toggle('on', b.dataset.mode === mode || (mode === 'follow' && b.dataset.follow === follow)));
+  $('joyHint').style.display = coarse && mode === 'walk' ? 'grid' : 'none';
   $('where').style.display = mode === 'top' ? 'none' : 'block';
   $('labels').style.display = mode === 'top' ? 'block' : 'none';
   resize();
@@ -154,7 +155,7 @@ canvas.addEventListener('pointerdown', e => {
   const p = { x: e.clientX, y: e.clientY, role: 'look' };
   if (S.mode === 'walk' && e.pointerType === 'touch' && joy.id < 0 && e.clientX < innerWidth * 0.45 && e.clientY > innerHeight * 0.35) {
     p.role = 'joy'; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY;
-    const j = $('joy'); j.style.display = 'block'; j.style.left = e.clientX - 55 + 'px'; j.style.top = e.clientY - 55 + 'px'; j.firstElementChild.style.transform = '';
+    const j = $('joy'); j.style.display = 'block'; j.style.left = e.clientX - 55 + 'px'; j.style.top = e.clientY - 55 + 'px'; j.firstElementChild.style.transform = ''; $('joyHint').classList.add('held');
   }
   ptrs.set(e.pointerId, p); pinch = 0;
 });
@@ -162,7 +163,7 @@ canvas.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
   if (p.role === 'joy') {
     let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy; const m = Math.hypot(dx, dy), R = 46; if (m > R) { dx *= R / m; dy *= R / m; }
-    joy.x = dx / R; joy.y = -dy / R; $('joy').firstElementChild.style.transform = `translate(${dx}px,${dy}px)`;
+    joy.x = dx / R; joy.y = -dy / R; if (m > 12) $('joyHint').classList.add('used'); $('joy').firstElementChild.style.transform = `translate(${dx}px,${dy}px)`;
   } else {
     const looks = [...ptrs.values()].filter(q => q.role === 'look');
     if (looks.length >= 2) {
@@ -177,14 +178,14 @@ canvas.addEventListener('pointermove', e => {
 });
 const release = e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
-  if (p.role === 'joy') { joy.id = -1; joy.x = joy.y = 0; $('joy').style.display = 'none'; }
+  if (p.role === 'joy') { joy.id = -1; joy.x = joy.y = 0; $('joy').style.display = 'none'; $('joyHint').classList.remove('held'); }
   ptrs.delete(e.pointerId); pinch = 0;
 };
 for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(ev, release);
 canvas.addEventListener('wheel', e => { e.preventDefault(); zoom(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
 addEventListener('keydown', e => { const k = e.key.toLowerCase(); keys.add(k); if (k === '1') setMode('top'); if (k === '2') setMode('walk'); });
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
-addEventListener('blur', () => { keys.clear(); joy.x = joy.y = 0; joy.id = -1; $('joy').style.display = 'none'; ptrs.clear(); });
+addEventListener('blur', () => { keys.clear(); joy.x = joy.y = 0; joy.id = -1; $('joy').style.display = 'none'; $('joyHint').classList.remove('held'); ptrs.clear(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { keys.clear(); joy.x = joy.y = 0; } });
 
 // ---- 界面 ----

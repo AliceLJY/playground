@@ -27,6 +27,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   await page.click('#goWalk'); await page.waitForTimeout(400);
   const a = await snap(page);
   check('点「走进去」进入步行', a.mode === 'walk');
+  check('电脑步行时不显示触屏摇杆圈', await page.evaluate(() => { const e = document.querySelector('#joyHint'); return !e || getComputedStyle(e).display === 'none'; }));
   const nearWalk = await page.evaluate(() => window.__hong.variety().near);
   check('步行时身边的人换成细的头', nearWalk > 0 && nearWalk < 400, String(nearWalk));
   const tw = Date.now(); await page.keyboard.down('w');
@@ -82,10 +83,21 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   for (const id of ['goTop', 'goWalk']) { const r = await page.locator('#' + id).boundingBox(); check(`手机开场按钮 ${id} 完整在可视区且够大`, r && r.x >= 0 && r.y >= 0 && r.x + r.width <= 390 && r.y + r.height <= 664 && r.height >= 44, JSON.stringify(r)); }
   await page.tap('#goWalk'); await page.waitForTimeout(400);
   const m0 = await snap(page); check('手机点「走进去」进入步行', m0.mode === 'walk');
+  // 摇杆位置提示：步行时常驻在左下，文字提示条消失后还在；按住时让位给真摇杆，用过以后留一个淡圈
+  const ring = () => page.evaluate(() => { const e = document.querySelector('#joyHint'); if (!e) return null; const r = e.getBoundingClientRect(), cs = getComputedStyle(e), box = q => { const el = document.querySelector(q); if (!el || getComputedStyle(el).display === 'none') return null; const b = el.getBoundingClientRect(); return b.width ? b : null; };
+    const hit = b => b && r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom;
+    return { shown: cs.display !== 'none' && r.width > 0, opacity: +cs.opacity, textShown: cs.color !== 'rgba(0, 0, 0, 0)', text: e.textContent, cx: (r.left + r.right) / 2 / innerWidth, cy: (r.top + r.bottom) / 2 / innerHeight, left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: r.width, clash: ['#bar', '#hint', '#where', '#stats'].filter(q => hit(box(q))) }; });
+  const r0 = await ring(); await page.screenshot({ path: path.join(out, 'phone-walk-ring.png') });
+  check('手机步行：左下有摇杆位置圈，写着怎么用', r0 && r0.shown && r0.opacity >= 0.8 && r0.textShown && /走/.test(r0.text) && r0.w >= 88, JSON.stringify(r0));
+  check('摇杆位置圈落在摇杆起效的区域里（左 45%、上方 35% 以下）', r0 && r0.cx < 0.45 && r0.cy > 0.35 && r0.left >= 0 && r0.bottom <= 664, JSON.stringify(r0));
+  check('摇杆位置圈不压底栏、提示条和地名条', r0 && r0.clash.length === 0, r0 ? r0.clash.join(' ') : '');
+  await page.waitForTimeout(6000); const r1 = await ring(); await page.screenshot({ path: path.join(out, 'phone-walk-ring-6s.png') });
+  check('文字提示条消失后（6 秒）摇杆位置圈还在', r1 && r1.shown && r1.opacity >= 0.8 && await page.evaluate(() => getComputedStyle(document.querySelector('#hint')).opacity === '0'), JSON.stringify(r1));
   const cdp = await ctx.newCDPSession(page);
   const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y, id]) => ({ x, y, id })) });
   await touch('touchStart', [[90, 480, 1]]); for (let i = 1; i <= 6; i++) await touch('touchMove', [[90, 480 - i * 9, 1]]);
   await page.waitForTimeout(1500); await page.screenshot({ path: path.join(out, 'phone-joystick.png') });
+  { const r = await ring(), j = await page.evaluate(() => getComputedStyle(document.querySelector('#joy')).display); check('按住摇杆时位置圈让位给真摇杆', r && j === 'block' && r.opacity <= 0.05, JSON.stringify({ joy: j, opacity: r && r.opacity })); }
   // 摇杆按住的同时另一根手指拖动转头
   const y0 = await page.evaluate(() => window.__hong.S.walk.yaw);
   await touch('touchStart', [[90, 426, 1], [300, 300, 2]]); for (let i = 1; i <= 8; i++) await touch('touchMove', [[90, 426, 1], [300 - i * 12, 300, 2]]);
@@ -94,11 +106,13 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   check('手机摇杆走出 3 米以上', mv > 3, mv.toFixed(2) + ' m');
   check('手机边走边拖动转头', Math.abs(y1 - y0) > 0.3, (y1 - y0).toFixed(2) + ' rad');
   await page.waitForTimeout(500); const m2 = await snap(page), m3 = (await page.waitForTimeout(600), await snap(page));
+  { const r = await ring(); check('用过摇杆后留一个淡圈标位置（不再写字）', r && r.shown && r.opacity >= 0.3 && r.opacity <= 0.6 && !r.textShown, JSON.stringify(r && { opacity: r.opacity, textShown: r.textShown })); await page.screenshot({ path: path.join(out, 'phone-walk-ring-used.png') }); }
   check('松手后停下（不粘键）', Math.hypot(m3.walk.x - m2.walk.x, m3.walk.z - m2.walk.z) < 0.05);
   for (const sel of ['[data-mode=top]', '[data-mode=walk]', '#tod', '#event', '#speed', '#mute', '#infoBtn']) { const r = await page.locator(sel).boundingBox(); check('手机按钮在可视区 ' + sel, r && r.y + r.height <= 664 && r.x >= 0 && r.x + r.width <= 390 && r.height >= 38, JSON.stringify(r)); }
   const txt = await page.evaluate(() => { const b = document.querySelector('#event'), s = b.querySelector('span'); s.textContent = '名场面｜挑夫落货 15/15'; return { over: s.getBoundingClientRect().right > b.getBoundingClientRect().right - 4, t: s.textContent }; });
   check('手机名场面条文字不被截断', !txt.over, txt.t);
   await page.tap('[data-mode=top]'); await page.waitForTimeout(1500); await page.screenshot({ path: path.join(out, 'phone-top.png') });
+  check('回到俯瞰后摇杆位置圈收起', !(await ring()).shown);
   const pt = await snap(page); check('手机视口俯瞰帧率 ≥ 30', pt.fps >= 30, pt.fps + ' fps');
   check('手机全程无页面报错', errs2.length === 0, errs2[0] || '');
   await ctx.close(); await browser.close();
