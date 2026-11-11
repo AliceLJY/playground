@@ -229,6 +229,7 @@ jobs:
         run: |
           mkdir -p _site/aju _site/shanhe _site/xiaoju-racing _site/rooftop-splash
           cp index.html _site/index.html
+          cp roadmap.html _site/roadmap.html
 
           # 阿橘：build.py 把源码内联成一个离线 HTML
           cd aju-guangzhou-ride

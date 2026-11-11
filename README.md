@@ -63,6 +63,7 @@ Start with the [production and acceptance guide](AGENTS.md) and write a one-page
 1. Drop it in its own folder at the repo root.
 2. Add a build step to `.github/workflows/pages.yml` that copies its static output into `_site/<name>/`.
 3. Add a card to the matching shelf (games, 3D exhibits or behind the AI) in the root `index.html`.
+4. Check the root `roadmap.html`: the "shipped" list reads itself from the home page, but the "still polishing" and "up next" tables are written by hand, so move the new piece out of them if it was listed. The pixel office keeps its own arcade and showroom menus in `ai-office/index.html`; add a line there too.
 
 Static toys only need a copy step. Anything needing a build gets its build command in that same workflow — see how `aju-guangzhou-ride` inlines its sources via `build.py`.
 

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>playground · 做了什么，接下来做什么</title>
+<style>
+  :root {
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --card: #ffffff;
+    --bg: #faf9f7;
+    --accent: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8e6e3; --muted: #9ca3af; --line: #2d3138;
+      --card: #1c1f24; --bg: #141619; --accent: #f59e0b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 3rem 1.25rem 4rem;
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.7 -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { margin-bottom: 2.5rem; }
+  h1 { font-size: 1.75rem; margin: 0 0 .4rem; letter-spacing: .02em; }
+  .sub { color: var(--muted); font-size: .95rem; margin: 0; }
+  .shelf { margin: 2.75rem 0 1rem; font-size: 1rem; font-weight: 600; letter-spacing: .04em; }
+  .shelf:first-of-type { margin-top: 0; }
+  .shelf .note { margin-left: .6rem; font-weight: 400; color: var(--muted); font-size: .85rem; letter-spacing: 0; }
+  .grid { display: grid; gap: 1rem; }
+  a.card {
+    display: block; padding: 1.25rem 1.4rem;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    text-decoration: none; color: inherit;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  a.card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .name { font-size: 1.15rem; font-weight: 600; margin: 0 0 .35rem; }
+  .name .en { font-weight: 400; color: var(--muted); font-size: .9rem; margin-left: .5rem; }
+  .desc { margin: 0 0 .6rem; color: var(--ink); font-size: .95rem; }
+  .meta { margin: 0; color: var(--muted); font-size: .82rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
+  footer a { color: var(--accent); }
+
+  .back { font-size: .9rem; } .back a, .sub a { color: var(--accent); }
+  .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin: 0 0 1rem; }
+  .count { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .9rem 1rem; }
+  .count b { display: block; font-size: 1.6rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .count span { color: var(--muted); font-size: .85rem; }
+  details { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .7rem 1rem; margin-bottom: .6rem; }
+  summary { cursor: pointer; font-weight: 600; font-size: .95rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .7rem 0 .2rem; }
+  .chips a { font-size: .85rem; padding: .15rem .6rem; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: inherit; }
+  .chips a:hover { border-color: var(--accent); }
+  .tbl { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; min-width: 520px; }
+  th, td { text-align: left; padding: .65rem .9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: .82rem; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  td a { color: var(--accent); text-decoration: none; }
+  .tag { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+  @media (max-width: 560px) { table { min-width: 0; font-size: .86rem; } th, td { padding: .55rem .6rem; } td:first-child { white-space: normal; min-width: 4.6em; } .tag { white-space: normal; } }
+  .fine { color: var(--muted); font-size: .85rem; margin: .6rem 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="back"><a href="./">← 回玩具架</a></p>
+    <h1>做了什么，接下来做什么</h1>
+    <p class="sub">这个架子的进度表。做着玩的，顺序不保证，想到更好玩的会插队 · 最近更新 2026-11-11</p>
+  </header>
+
+  <h2 class="shelf">已经上架<span class="note">都能点开</span></h2>
+  <div class="counts" id="counts">
+    <div class="count"><b id="n0">–</b><span>小游戏 · 上手玩</span></div>
+    <div class="count"><b id="n1">–</b><span>3D 展页 · 转着看</span></div>
+    <div class="count"><b id="n2">–</b><span>AI 幕后 · 放着看</span></div>
+  </div>
+  <div id="done"><p class="fine">清单从<a href="./">玩具架首页</a>读取。</p></div>
+
+  <h2 class="shelf">还在打磨<span class="note">已经能玩，接着改</span></h2>
+  <div class="tbl"><table>
+    <tr><th>哪一个</th><th>现在到哪</th><th>下一步</th></tr>
+    <tr><td><a href="thirteen-hongs/">十三行江岸</a></td><td>六轮。六百多人有了现画的脸和衣服，换动作有过渡，地面和远处的薄雾重做过</td><td>让人有差事：摊前驻足、凭栏看船、扎堆说话；手真的握住橹和秤杆；加小孩和榕树</td></tr>
+    <tr><td><a href="qilou-rain/">骑楼雨夜</a></td><td>第一版上线，喷雾和拖鞋的手感调过两次</td><td>收试玩反馈，再调难度和节奏</td></tr>
+  </table></div>
+
+  <h2 class="shelf">接下来想做<span class="note">还没开工</span></h2>
+  <div class="tbl"><table>
+    <tr><th>哪一个</th><th>是什么</th><th>放哪排</th></tr>
+    <tr><td>龙舟划桨</td><td>跟着鼓点划桨的竞速</td><td class="tag">小游戏</td></tr>
+    <tr><td>早茶推车</td><td>点心车推过来，按单配对</td><td class="tag">小游戏</td></tr>
+    <tr><td>小螃蟹夜班</td><td>值夜班的小螃蟹打 bug</td><td class="tag">小游戏</td></tr>
+    <tr><td>打年兽</td><td>留到春节前做</td><td class="tag">小游戏</td></tr>
+    <tr><td>三维对打练习</td><td>两个人、一个场地、能打完并重开的一局，先看<a href="qilou-brawl/">骑楼擂台</a>能复用多少</td><td class="tag">小游戏</td></tr>
+    <tr><td>环形空间站</td><td>十个机位绕着看</td><td class="tag">3D 展页</td></tr>
+    <tr><td>软糖熊</td><td>能拉、能压、能扔</td><td class="tag">3D 展页</td></tr>
+    <tr><td>史前岛屿</td><td>带水下剖面</td><td class="tag">3D 展页</td></tr>
+    <tr><td>油彩孔雀</td><td>开屏之后把羽毛拾回来</td><td class="tag">3D 展页</td></tr>
+    <tr><td>有手感的按钮</td><td>给架上某一页的按钮做一套实体键帽：五个层级、五种状态</td><td class="tag">打磨</td></tr>
+  </table></div>
+  <p class="fine">做完一个就从这张表挪到上面；中途放弃的也会写明，不悄悄删掉。</p>
+
+  <footer>
+    源码在 <a href="https://github.com/AliceLJY/playground">GitHub</a>。
+  </footer>
+</div>
+<script>
+// 「已经上架」直接读首页的卡片，首页加了新玩意这里自动跟上
+fetch('./index.html').then(r => r.text()).then(html => {
+  const doc = new DOMParser().parseFromString(html, 'text/html'), box = document.getElementById('done'); box.textContent = '';
+  doc.querySelectorAll('h2.shelf').forEach((h, i) => {
+    const grid = h.nextElementSibling, cards = grid ? [...grid.querySelectorAll('a.card')] : [], n = document.getElementById('n' + i);
+    if (n) n.textContent = cards.length;
+    const d = document.createElement('details'), s = document.createElement('summary'), c = document.createElement('div');
+    s.textContent = h.firstChild.textContent.trim() + ' · ' + cards.length + ' 个'; c.className = 'chips';
+    for (const a of cards) { const l = document.createElement('a'); l.href = a.getAttribute('href'); l.textContent = a.querySelector('.name').firstChild.textContent.trim(); c.appendChild(l); }
+    d.append(s, c); box.appendChild(d);
+  });
+}).catch(() => {});
+</script>
+</body>
+</html>
