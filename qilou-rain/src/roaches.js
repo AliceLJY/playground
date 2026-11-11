@@ -49,9 +49,52 @@ function wingCoverGeo() {
   return g;
 }
 
+// 壳面细节：翅脉、毛孔、划痕、水珠都按部件自身坐标在着色器里算（反照率、凹凸、粗糙度一起变），不用贴图文件
+// kind 0 前翅盖 1 前胸背板 2 头、腹节、腿
+function detail(mat, kind) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vLp;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvLp = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+      varying vec3 vLp;
+      float rH(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float rN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(rH(i), rH(i + vec2(1., 0.)), f.x), mix(rH(i + vec2(0., 1.)), rH(i + vec2(1., 1.)), f.x), f.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      float rk = 1., rh = 0., rr = 1.; vec2 q = vLp.xz; float fwq = max(length(dFdx(vLp)), length(dFdy(vLp)));
+      float pore = (rN(q * 60.) - .5) * smoothstep(.5, .1, fwq * 60.) + (rN(q * 23. + 4.) - .5) * smoothstep(.5, .1, fwq * 23.);
+      float mott = rN(q * 3.3 + 7.) * .6 + rN(q * 8.1) * .4;
+      float drop = smoothstep(.83, .9, rN(vLp.xz * 15. + vLp.y * 9.)) * smoothstep(.5, .1, fwq * 15.);
+      ${kind === 0 ? `
+      float ax = abs(vLp.x), fan = ax * (10. - vLp.z * 3.) + (rN(q * 5.) - .5) * .5;
+      float vein = smoothstep(.0, .07, abs(fract(fan) - .5)) , xv = smoothstep(.0, .1, abs(fract(vLp.z * 8. + rN(vec2(floor(fan), 3.)) * 5.) - .5));
+      float vk = mix(1., min(vein, mix(1., xv, .4)), smoothstep(.6, .15, fwq * 17.));
+      float seam = smoothstep(.0, .035, ax);
+      rk = (.78 + .22 * vk) * (.55 + .45 * seam) * (.78 + .4 * mott) * (1. + .5 * pore * .3);
+      rk *= 1. + .5 * smoothstep(.55, .95, length(vLp.xz * vec2(1., .8)));
+      rh = vk * .3 + seam * .8 + pore * .04 + drop * .3; rr = 1.2 - .3 * vk + .6 * (1. - mott) - .6 * drop;` : kind === 1 ? `
+      float ring = .5 + .5 * sin(length(q) * 46. + rN(q * 4.) * 5.);
+      float scr = smoothstep(.93, .99, rN(vec2(q.x * 3. + q.y * 22., q.y * 2.)));
+      rk = (.8 + .34 * mott) * (.9 + .1 * ring * smoothstep(.5, .95, length(q))) * (1. - .25 * scr) * (1. + pore * .12);
+      rh = ring * .15 * smoothstep(.5, .95, length(q)) + pore * .04 - scr * .3 + drop * .3; rr = .9 + .5 * (1. - mott) + scr - .6 * drop;` : `
+      float band = .5 + .5 * sin(vLp.y * 26. + vLp.z * 9.);
+      rk = (.74 + .4 * mott) * (.85 + .15 * band) * (1. + pore * .2);
+      rh = band * .25 + pore * .05 + drop * .3; rr = 1.1 + .6 * (1. - mott) - .6 * drop;`}
+      diffuseColor.rgb *= rk;`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor * rr, .05, 1.);')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      { vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition); float dhx = dFdx(rh), dhy = dFdy(rh);
+        vec3 r1 = cross(dpy, normal), r2 = cross(normal, dpx); float det = dot(dpx, r1);
+        vec3 nb = abs(det) * normal - sign(det) * (dhx * r1 + dhy * r2) * .1;
+        if (dot(nb, nb) > 1e-14) normal = normalize(nb); }`);
+  };
+  mat.customProgramCacheKey = () => 'qilou-roach2-' + kind;
+  return mat;
+}
+
 export function createRoaches(scene, quality) {
-  const chitin = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.2, metalness: 0.05, clearcoat: 0.9, clearcoatRoughness: 0.16 });
-  const plain = new THREE.MeshPhysicalMaterial({ roughness: 0.3, metalness: 0.05, clearcoat: 0.6, clearcoatRoughness: 0.25 });
+  const cm = () => new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.2, metalness: 0.05, clearcoat: 0.9, clearcoatRoughness: 0.16 });
+  const chitinW = detail(cm(), 0), chitinS = detail(cm(), 1);
+  const plain = detail(new THREE.MeshPhysicalMaterial({ roughness: 0.3, metalness: 0.05, clearcoat: 0.6, clearcoatRoughness: 0.25 }), 2);
   const mk = (geo, mat, n) => {
     const im = new THREE.InstancedMesh(geo, mat, n);
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; im.castShadow = quality.shadow; im.receiveShadow = false; im.count = 0;
@@ -60,7 +103,7 @@ export function createRoaches(scene, quality) {
   };
   const rodG = new THREE.CylinderGeometry(0.5, 1, 1, 6, 1); rodG.translate(0, 0.5, 0);
   const wingG = new THREE.CircleGeometry(1, 14); wingG.rotateX(-Math.PI / 2); wingG.translate(1, 0, 0);
-  const abd = mk(wingCoverGeo(), chitin, MAX), shield = mk(shieldGeo(), chitin, MAX), head = mk(new THREE.SphereGeometry(1, 14, 10), plain, MAX);
+  const abd = mk(wingCoverGeo(), chitinW, MAX), shield = mk(shieldGeo(), chitinS, MAX), head = mk(new THREE.SphereGeometry(1, 14, 10), plain, MAX);
   const segs = mk(new THREE.SphereGeometry(1, 14, 8), plain, MAX * SEGS);
   const rods = mk(rodG, plain, MAX * RODS);
   const wings = mk(wingG, new THREE.MeshStandardMaterial({ color: '#e8b060', transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, roughness: 0.3, emissive: '#3a2408' }), MAX * 2);

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import * as C from './core.js';
 import { createRenderer, createPipeline, createReflection, makeSky, makeRain, gpuName, frameInfo, FOG } from './gfx.js';
 import { buildWorld } from './world.js';
+import { buildScifi } from './scifi.js';
 import { createRoaches } from './roaches.js';
 import { createFx } from './fx.js';
 import { createGun } from './gun.js';
@@ -31,7 +32,7 @@ let touchMode = coarse || params.has('touch');
 const audio = createAudio(); audio.setVolume(settings.vol);
 
 const app = { mode: 'boot', sim: null, seed: +(params.get('seed') || 0) || (Date.now() % 100000), frozen: false, auto: null, bot: null, view: null, fps: 60, frame: { calls: 0, tris: 0 }, retries: 0, ready: false };
-let renderer, pipeline, reflection, scene, camera, world, roaches, fx, gun, rain, flash, titleSim;
+let renderer, pipeline, reflection, scene, camera, world, scifi, roaches, fx, gun, rain, flash, titleSim;
 const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); blank.needsUpdate = true;
 const shared = { uT: { value: 0 }, uRefl: { value: blank }, uRes: { value: new THREE.Vector2(1, 1) }, uUse: { value: 0 } };
 const look = { yaw: C.START.yaw, pitch: 0, dx: 0, dy: 0 };
@@ -55,7 +56,7 @@ function boot() {
   setTimeout(() => {
     ui.boot('正在砌骑楼', 0.45);
     setTimeout(() => {
-      world = buildWorld(shared, quality); scene.add(world.group);
+      world = buildWorld(shared, quality); scene.add(world.group); scifi = buildScifi(shared, quality); scene.add(scifi.group);
       ui.boot('正在放蟑螂', 0.8);
       roaches = createRoaches(scene, quality); fx = createFx(scene, quality); gun = createGun(camera, quality);
       rain = makeRain(quality.rain); scene.add(rain.mesh);
@@ -144,7 +145,7 @@ function bind() {
     if (!touchMode) { touchMode = true; ui.setTouch(true); }
     if (app.mode !== 'play') return;
     e.preventDefault();
-    if (e.clientX < window.innerWidth * 0.45 && moveId < 0) { moveId = e.pointerId; ox = e.clientX; oy = e.clientY; stick.style.left = ox + 'px'; stick.style.top = oy + 'px'; stick.style.opacity = 1; nub.style.transform = ''; }
+    if (e.clientX < window.innerWidth * 0.45 && moveId < 0) { moveId = e.pointerId; ox = e.clientX; oy = e.clientY; stick.style.left = ox + 'px'; stick.style.top = oy + 'px'; stick.style.opacity = 1; stick.parentElement.classList.add('used'); nub.style.transform = ''; }
     else if (lookId < 0) { lookId = e.pointerId; lx = e.clientX; ly = e.clientY; }
   });
   const endTouch = e => {
@@ -292,7 +293,7 @@ function draw(dt) {
     camera.rotation.set(look.pitch + Math.sin(time * 37) * sh * 0.035, look.yaw + Math.sin(time * 43 + 1) * sh * 0.035, Math.sin(time * 31 + 2) * sh * 0.03 + dead * 0.6);
   }
   camera.updateMatrixWorld();
-  shared.uT.value = time;
+  shared.uT.value = time; if (scifi) scifi.update(time);
   roaches.update(sim, app.frozen || app.mode === 'paused' ? 0 : dt, time);
   const tip = gun.update(p, dt, time, look, app.mode === 'title' ? 'title' : 'play');
   look.dx *= Math.max(0, 1 - dt * 12); look.dy *= Math.max(0, 1 - dt * 12);
@@ -316,7 +317,7 @@ function degrade() {
 }
 
 window.__qilou = {
-  get sim() { return app.sim; }, get app() { return app; }, get scene() { return scene; }, get renderer() { return renderer; }, core: C, look,
+  get sim() { return app.sim; }, get app() { return app; }, get scene() { return scene; }, get gun() { return gun; }, get renderer() { return renderer; }, core: C, look,
   view: gotoView, start, setAuto, pause, resume,
   freeze(b) { app.frozen = !!b; },
   shot(x, y, z, yaw, pitch) { app.mode = 'play'; app.frozen = true; ui.show('none'); app.sim.player.x = x; app.sim.player.y = y - C.P.eye; app.sim.player.z = z; look.yaw = yaw; look.pitch = pitch; },
