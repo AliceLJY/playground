@@ -172,7 +172,7 @@ function frame(dt) {
     if (!v.c || v.gone || v.loading) continue;
     const b = blobs[nb] || (blobs[nb] = street.blob()), px = proxies[nb] || (proxies[nb] = SHADOWS ? street.proxy() : null), o = v.o, flat = o.state === 'down' || o.state === 'dead';
     const big = o.kind === 'baozugong' ? 1.35 : o.kind === 'lionhead' ? 1.2 : 1;
-    b.enabled = true; b.setPosition(o.x, o.z > street.ring.z0 - .1 && o.z < street.ring.z1 + .1 ? .075 : .014, o.z); b.setLocalScale(flat ? 2.6 * big : 1.5 * big, 1, flat ? 2.6 * big : 1.5 * big);
+    b.enabled = true; b.place(o.x, o.z, flat ? 2.6 * big : 1.5 * big);
     if (px) { px.enabled = true; px.setPosition(o.x, 0, o.z); px.setLocalScale(flat ? 3.4 : big, flat ? .22 : 1, flat ? 3.4 : big); }
     nb++;
   }
