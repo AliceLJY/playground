@@ -128,11 +128,11 @@ function drawTreat(){
   ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-cell*.02,0,cell*.035,0,Math.PI*2);ctx.fill();
   ctx.restore();label('猫条',x,y+cell*.33,Math.max(9,cell*.16),COL.treat);
 }
-function drawCone(seen,hot){
+function drawCone(seen,hot,now){
   ctx.save();ctx.fillStyle=hot?COL.alert:COL.cone;ctx.globalAlpha=hot?.6:.55;
   ctx.beginPath();for(let i=0;i<L.N;i++)if(seen[i])ctx.rect(ox+cx(i)*cell,oy+cy(i)*cell,cell,cell);ctx.fill();
   ctx.save();ctx.clip();ctx.globalAlpha=.45;ctx.strokeStyle=hot?'#ffe0dc':'#fffbe0';ctx.lineWidth=Math.max(1.5,cell*.035);ctx.beginPath();
-  const W=L.cols*cell,H=L.rows*cell,st=cell*.2,ph=(performance.now()/1000*cell*.25)%st;
+  const W=L.cols*cell,H=L.rows*cell,st=cell*.2,ph=(now*cell*.25)%st;
   for(let d=-H+ph;d<W;d+=st){ctx.moveTo(ox+d,oy+H);ctx.lineTo(ox+d+H,oy);}ctx.stroke();ctx.restore();
   ctx.globalAlpha=.95;ctx.strokeStyle=hot?'#ffb0a8':'#fff3b0';ctx.lineWidth=Math.max(2,cell*.04);ctx.beginPath();
   for(let i=0;i<L.N;i++)if(seen[i]){const c=cx(i),r=cy(i),x=ox+c*cell,y=oy+r*cell;
@@ -144,7 +144,7 @@ function drawCone(seen,hot){
 function tag(text,x,y,col){A.label(ctx,text,x,y,Math.max(10,cell*.19),'#1e1915',col);}
 function drawSan(f,now){
   const seen=L.seen[S.san.p],hot=S.phase==='hiss';
-  drawCone(seen,hot);
+  drawCone(seen,hot,now);
   const e=L.tl[S.san.p],[sx,sy,face]=sanPos(f),sxp=ox+(sx+.5)*cell,syp=oy+(sy+.5)*cell;
   const walking=!hot&&e.from!==e.to;
   A.cat(ctx,sxp,syp,cell*.92,ANG[face],{kind:'calico',walk:walking?(e.prog+f/CFG.sanMove)%1:-1,t:now,seed:3,puff:hot});
@@ -163,8 +163,8 @@ function drawKid(f,now){
   // her toy stays at her spot
   A.toy(ctx,ox+(cx(L.kid)+.78)*cell,oy+(cy(L.kid)+.72)*cell,cell*.62,home&&on,now);
   const [kx,ky]=moverPos(k.at,k.move,CFG.kidMove,f),kxp=ox+(kx+.5)*cell,kyp=oy+(ky+.5)*cell;
-  if(k.move)kidAng=moveAng(k.move);else if(home)kidAng=0;else if(k.state==='look')kidAng+=Math.sin(now*4)*.02;
-  A.kid(ctx,kxp,kyp,cell*1.15,kidAng,{sit:home,walk:k.move?(k.move.k+f)/CFG.kidMove%1:-1});
+  const angle=kidAng+(k.state==='look'?.3*(Math.cos(S.time()*4)-Math.cos(now*4)):0);
+  A.kid(ctx,kxp,kyp,cell*1.15,angle,{sit:home,walk:k.move?(k.move.k+f)/CFG.kidMove%1:-1});
   // toy timer above her while she sits: green and filling down while it plays, grey while quiet
   if(home&&S.phase!=='hiss'){
     const p=((S.san.p%L.P)+L.P)%L.P,bw=cell*1.3,bx=kxp-bw/2+cell*.35,by=kyp-cell*.78;
@@ -212,7 +212,7 @@ function draw(f){
   const W=canvas.width/dpr,H=canvas.height/dpr;
   ctx.fillStyle=COL.bg;ctx.fillRect(0,0,W,H);
   if(!S)return;
-  const now=performance.now()/1000;
+  const now=(S.tick+f)*CFG.tick;
   const k=exitK(f),ease=k*k*(3-2*k),zoom=1+1.2*ease;
   if(k>0){ // push the camera in on the door
     const dx=ox+(cx(L.door)+.5)*cell,dy=oy+(cy(L.door)+.5)*cell;
@@ -303,8 +303,19 @@ function onEvents(){
   }
 }
 function advanceTicks(n){
-  for(let k=0;k<n&&S.phase!=='cleared';k++){S.step();onEvents();}
+  for(let k=0;k<n&&S.phase!=='cleared';k++)stepTick();
   hud();
+}
+function stepTick(){
+  S.step();
+  if(S.kid){
+    const k=S.kid;
+    if(k.move)kidAng=moveAng(k.move);
+    else if(k.state==='play')kidAng=0;
+    // Integral of the old 60fps look-around speed (0.02 radians per frame), evaluated once per logic tick.
+    else if(k.state==='look')kidAng+=.3*(Math.cos((S.tick-1)*CFG.tick*4)-Math.cos(S.time()*4));
+  }
+  onEvents();
 }
 function frame(t){
   const dt=Math.min(.25,(t-last)/1000);last=t;
@@ -319,7 +330,7 @@ function frame(t){
 // ---- fixed views (spec 7): ?view=… for level 1, ?level=2&view=… for level 2
 function runView(v){
   frozen=true;paused=false;hideCard();
-  const go=(sd,pilotOf,until,max)=>{start(sd);hideCard();const p=pilotOf(S);for(let n=0;n<max;n++){if(until(S))return true;p();S.step();onEvents();if(S.phase==='cleared'&&!until(S))return false;}return until(S);};
+  const go=(sd,pilotOf,until,max)=>{start(sd);hideCard();const p=pilotOf(S);for(let n=0;n<max;n++){if(until(S))return true;p();stepTick();if(S.phase==='cleared'&&!until(S))return false;}return until(S);};
   let ok=false;
   if(v==='start')ok=go(1,s=>C.precise(s),s=>s.tick>=20,20);
   else if(v==='hiss'&&LV===0)ok=go(2,s=>C.reckless(s),s=>s.phase==='hiss',600);
@@ -336,7 +347,7 @@ function runView(v){
 }
 function snapshot(){return S?{view:viewOk,level:LV+1,seed,tick:S.tick,time:S.time(),phase:S.phase,stepsLeft:S.stepsLeft(),exitT:S.exitT,hissed:S.hissed,treat:S.treat,
   cat:S.cat.at,catOcc:S.catOcc(),under:L.kind[S.catOcc()]==='T',clock:S.san.p,kid:S.kid?S.kid.state:null,carry:S.carry,owner:L.owner?L.owner(S.san.p):null,cell,paused,frozen}:{view:viewOk};}
-window.__sneak={get state(){return S;},snapshot};
+window.__sneak={get state(){return S;},snapshot,paint(){draw(0);}};
 window.__PLAYTEST__={get ready(){return !!S;},snapshot,reset(){start(seed);hideCard();paused=false;},setSeed(n){start(n);hideCard();paused=false;},step(ms){advanceTicks(Math.round(ms/1000/CFG.tick));}};
 
 layout();
