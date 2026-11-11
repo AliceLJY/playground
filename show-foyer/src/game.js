@@ -468,6 +468,11 @@
     const k = Math.floor(i / LAMP_SLOTS.length), f = LAMP_SLOTS[i % LAMP_SLOTS.length] + (k ? 0.04 * k : 0);
     return { x: g.cx0 + (g.cx1 - g.cx0) * Math.min(0.97, f), y: g.stageH - 7 };
   }
+  function lampLightAt(i, g) {
+    const p = lampAt(i, g), ls = Math.max(0.5, Math.min(1.75, g.stageH / 150));
+    const spread = Math.max((g.cx1 - g.cx0) * 0.06, 34 * ls);
+    return { ...p, top: g.curtainH * 0.08, spread, baseY: p.y - 12 * ls, baseHalfWidth: 5 * ls, poolY: g.curtainH * 0.62, poolRadius: spread * 1.3 };
+  }
   function lantern(x, y, alpha, s) {                       // 落地的红纸灯笼：底在 y，里头一点暖火
     const flick = 0.88 + 0.12 * Math.sin(S.t * 5 + x);
     ctx.save(); ctx.globalAlpha = alpha;
@@ -520,11 +525,11 @@
     const ls = Math.max(0.5, Math.min(1.75, sh / 150)), seen = Math.min(S.lamps.length, 12);
     ctx.beginPath(); ctx.rect(g.cx0, 0, cw, sh); ctx.clip();
     for (let i = 0; i < seen; i++) {
-      const l = S.lamps[i], a = l.t < 0 ? 1 : Math.min(1, (S.t - l.t) / 0.6), k = a * (i < LIT_FULL ? 1 : 0.55), p = lampAt(i, g);
-      const top = ch * 0.08, spread = Math.max(cw * 0.06, 34 * ls);
+      const l = S.lamps[i], a = l.t < 0 ? 1 : Math.min(1, (S.t - l.t) / 0.6), k = a * (i < LIT_FULL ? 1 : 0.55), p = lampLightAt(i, g);
+      const { top, spread } = p;
       const cone = ctx.createLinearGradient(0, p.y - 10 * ls, 0, top); cone.addColorStop(0, 'rgba(255,190,110,' + (0.32 * k) + ')'); cone.addColorStop(1, 'rgba(255,150,70,0)');
-      ctx.fillStyle = cone; ctx.beginPath(); ctx.moveTo(p.x - 5 * ls, p.y - 12 * ls); ctx.lineTo(p.x - spread, top); ctx.lineTo(p.x + spread, top); ctx.lineTo(p.x + 5 * ls, p.y - 12 * ls); ctx.closePath(); ctx.fill();
-      const pool = ctx.createRadialGradient(p.x, ch * 0.62, 2, p.x, ch * 0.62, spread * 1.3); pool.addColorStop(0, 'rgba(255,140,70,' + (0.3 * k) + ')'); pool.addColorStop(1, 'rgba(255,120,60,0)');
+      ctx.fillStyle = cone; ctx.beginPath(); ctx.moveTo(p.x - p.baseHalfWidth, p.baseY); ctx.lineTo(p.x - spread, top); ctx.lineTo(p.x + spread, top); ctx.lineTo(p.x + p.baseHalfWidth, p.baseY); ctx.closePath(); ctx.fill();
+      const pool = ctx.createRadialGradient(p.x, p.poolY, 2, p.x, p.poolY, p.poolRadius); pool.addColorStop(0, 'rgba(255,140,70,' + (0.3 * k) + ')'); pool.addColorStop(1, 'rgba(255,120,60,0)');
       ctx.fillStyle = pool; ctx.fillRect(p.x - spread * 1.3, ch * 0.62 - spread * 1.3, spread * 2.6, spread * 2.6);
       const ref = ctx.createRadialGradient(p.x, p.y + 1, 1, p.x, p.y + 1, 22 * ls); ref.addColorStop(0, 'rgba(255,200,120,' + (0.4 * k) + ')'); ref.addColorStop(1, 'rgba(255,160,80,0)');
       ctx.fillStyle = ref; ctx.save(); ctx.translate(p.x, p.y + 1); ctx.scale(1.8, 0.4); ctx.translate(-p.x, -p.y - 1); ctx.fillRect(p.x - 22 * ls, p.y - 21 * ls, 44 * ls, 44 * ls); ctx.restore();
@@ -795,7 +800,21 @@
     };
   }
   window.__foyer = {
-    get geometry() { const g = geom(); return { curtain: { x: g.cx0, y: 0, width: g.cx1 - g.cx0, height: g.curtainH } }; },
+    // Logical Canvas coordinates; fresh objects only, so callers cannot change layout.
+    get geometry() {
+      const g = geom();
+      return {
+        canvas: { width: W, height: H },
+        stage: { x: g.px0, y: 0, width: g.px1 - g.px0, height: g.stageH },
+        curtain: { x: g.cx0, y: 0, width: g.cx1 - g.cx0, height: g.curtainH },
+        boards: { x: g.px0, y: g.curtainH, width: g.px1 - g.px0, height: g.stageH - 6 - g.curtainH },
+        frame: {
+          left: { x: g.px0, y: 0, width: g.col, height: g.stageH - 6 },
+          right: { x: g.cx1, y: 0, width: g.col, height: g.stageH - 6 },
+        },
+        firstLamp: lampLightAt(0, g),
+      };
+    },
     get ready() { return !!S; }, act, snapshot, canAct, gong, photo, openProgramme, flip, nextShow, clearVisits, get state() { return S; }, get visits() { return visits; }, get frameStamp() { return frameStamp; },
     pause(p) { paused = p; }, step(ms) { tick(ms / 1000); draw(); frameStamp++; },
     // 把开演时刻挪到「从现在起 sec 秒后」，用来在测试里快进到一铃 / 二铃 / 开演
