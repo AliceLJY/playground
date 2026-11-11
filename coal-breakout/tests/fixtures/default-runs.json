@@ -1,5 +1,5 @@
 {
-  "source": "texture-coal: default (no preference) simulation after props, larger hero and re-tuned speed/orbit/wall; precise driver, per-frame snapshots + RNG + auto notice. Earlier baseline 5de0485 is superseded because props change every default run by design.",
+  "source": "texture-coal: default (no preference) simulation after props, larger hero and re-tuned speed/orbit/wall; precise driver, per-frame snapshots + RNG + auto notice. Earlier baseline 5de0485 is superseded because props change every default run by design. L3 reset/zone timing updates only stage 3 (seeds 1 and 7); stage 1/2 rows remain byte-for-byte unchanged.",
   "runs": [
     {
       "stage": 0,
@@ -28,14 +28,14 @@
     {
       "stage": 2,
       "seed": 1,
-      "frames": 8762,
-      "digest": "f526a4b61b54cce1667a6e8d608d0d94a662bae13982913b53cc314d7d0b18d5"
+      "frames": 9955,
+      "digest": "cac169c2e0f9df11ec7ef5c6b1fdb39c83afa8fb3ca9f848042bd01fa59852d8"
     },
     {
       "stage": 2,
       "seed": 7,
-      "frames": 9991,
-      "digest": "4c8ffa3c8e5e4632d011fc52f53fd339a6167a345a01a5d2bb6f9cb6043d214c"
+      "frames": 9341,
+      "digest": "35b6ed8c75317c5fab87c1830bfcc9cb94ab163b90b43b7c5891dde5ee35128d"
     }
   ]
 }

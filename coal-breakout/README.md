@@ -14,7 +14,7 @@ A tiny coal creature and its orbiting AI helpers survive three original AI disas
 - The arena is a dim slate-and-circuit room. Each stage places four props from the run's seed: a server rack, token crates, a coal heap and an old terminal. They stop the coal and ordinary monsters, which walk around them; shots fly over them, and the huge boss and its clones drift over them. A warm light follows the coal, shrinking as it loses hearts.
 - Stage 1: some experience gems have a flickering pink core. They reveal a mouth before attacking. Only the boss with the white outline takes damage.
 - Stage 2: text walls squeeze the arena and swallow the props they reach. Defeating yellow compressors pushes them back; the boss pulls the player and gems toward the centre.
-- Stage 3: every 40 seconds, a three-second red countdown warns of four seconds without weapons, followed by five seconds of burst fire. Leave the boss's yellow zones before they turn red.
+- Stage 3 resets every 40 seconds. A three-second red countdown warns of four seconds without weapons, followed by five seconds of burst fire. Before the boss arrives, each outage starts with a pair of yellow rate zones, one at your position and one at random. Leave them within 1.2 seconds. They clear for the last 1.5 seconds of the outage. Once the boss arrives, it attacks with a pair every three seconds.
 
 Eight upgrades add helpers, piercing beams, extra projectiles, faster attacks, a wider pickup radius, a one-use revival, faster movement or critical hits. Each can be selected up to three times. Death immediately offers a same-stage restart. Only unlocked stages are stored locally; blocking storage does not prevent play.
 
@@ -48,6 +48,8 @@ NODE_PATH="$(npm root -g)" node tools/record.cjs http://127.0.0.1:8936/
 The recording tool also uses an existing `ffmpeg`. Optional independent PNG QR decoding on macOS uses `swift tools/qr-decode.swift tools/shots/phone390-poster.png`.
 
 Fixed views are `?view=hero`, `?view=levelup`, `?view=boss`, `?view=result` and `?view=stress`. They advance actual seeded games and freeze the result. Stress explicitly increases spawning; it does not grant invulnerability. `window.__PLAYTEST__` exposes readiness, snapshot, reset, seed and step. Additional diagnostic controls require `?test=1` or a fixed view. Screenshots, recordings and local publish copies are ignored by Git.
+
+Run `node tools/difficulty.cjs 2 48` to audit stage 3 with seeds 1–48. After the reset/zone timing change, human steering wins 44/48 rounds with 6 median hits, and precise steering wins 47/48 with 5 median hits. The fixed 12-seed human tests allow 8–11, 6–11 and 8–11 wins across the three stages, preserving both difficulty bounds. Human playtesting is still needed.
 
 See [SPEC.md](SPEC.md) for acceptance criteria and [VERIFICATION.md](VERIFICATION.md) for measured results and limits. Automated play is not evidence of human enjoyment or midrange-phone performance. Publication and a live-site recheck remain with the owner.
 
