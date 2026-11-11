@@ -22,6 +22,8 @@
 
 在仓库根目录起一个静态服务，比如 `python3 -m http.server 8811`，打开 `http://127.0.0.1:8811/xiaoju-shrimp/`。固定机位：`?view=start`、`?view=hiss`、`?view=table`、`?view=clear`。测试：在本目录跑 `node --test tests/*.test.cjs`。
 
+房间材质与茶几顶面均画入离屏缓存。材质像素、缓存复用及手机排版检查：`NODE_PATH="$(npm root -g)" node tools/room-check.cjs <输出目录> [页面地址]`（使用已装的 Playwright 和 Chrome）。
+
 ## 谁会点开、AI 素材
 
 - 谁会点开：家里养猫、被猫偷过吃的的人；想在手机上玩两分钟、看规律找空档的人。

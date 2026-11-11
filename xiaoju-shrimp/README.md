@@ -22,6 +22,8 @@ Xiaoju jumps onto the dinner table, picks up the shrimp from the plate in front 
 
 Serve the repository root, for example `python3 -m http.server 8811`, and open `http://127.0.0.1:8811/xiaoju-shrimp/`. Fixed views: `?view=start`, `?view=hiss`, `?view=table`, `?view=clear`. Tests: `node --test tests/*.test.cjs` in this folder.
 
+The room materials and coffee-table top are cached offscreen. Room pixel, cache and mobile-layout regressions: `NODE_PATH="$(npm root -g)" node tools/room-check.cjs <out-dir> [page-url]` (uses an existing Playwright installation and Chrome).
+
 ## Who opens this, AI material
 
 - Who opens this: people whose cat has stolen food off their plate; anyone after a two-minute phone game about reading a pattern and finding the gap.
