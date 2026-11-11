@@ -1,0 +1,8 @@
+{
+  "name": "sky-citadel",
+  "private": true,
+  "type": "module",
+  "description": "A tiny voxel city above the clouds",
+  "scripts": {"build": "node tools/build.mjs", "test": "node --test tests/*.test.cjs"},
+  "devDependencies": {"esbuild": "0.28.2", "three": "0.186.1"}
+}
