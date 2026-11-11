@@ -1,4 +1,4 @@
-// 骑楼擂台 · 程序化贴图：灰泥、青砖、麻石、花阶砖、木板、擂台地毯、招牌图集、脚下影子。
+// 骑楼擂台 · 程序化贴图：灰泥、青砖、麻石、花阶砖、木板、擂台地毯、招牌图集。
 // 全部在加载时用代码算出，没有图片文件；用贴图而不是着色器，是因为引擎会自己挑 WebGPU 或 WebGL，贴图两边都认。
 import * as pc from 'playcanvas';
 
@@ -207,12 +207,6 @@ function arenaAtlas(N) {
   g.font = `900 92px ${FONT}`; g.fillStyle = '#EBC25A'; ['西', '关', '擂', '台'].forEach((ch, k) => g.fillText(ch, qx + 82 + k * 116, qy + qh / 2 + 4));
   return g.getImageData(0, 0, c.width, c.height).data;
 }
-function blob() { // 脚下的软影：中间实、边缘虚
-  const S = 128, d = new Uint8Array(S * S * 4);
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const r = Math.hypot(x - 63.5, y - 63.5) / 64, a = Math.pow(Math.max(0, 1 - r), 1.6) * (1 - .25 * r); const i = (y * S + x) * 4; d[i] = d[i + 1] = d[i + 2] = 0; d[i + 3] = Math.min(255, a * 255); }
-  return d;
-}
-
 export function makeTextures(device, { small = false } = {}) {
   const S = small ? 512 : 1024, out = {};
   const surf = { plaster: [plaster, 11, 2.2], brick: [brick, 23, 3], granite: [granite, 37, 3.2], tile: [floorTile, 41, 2], wood: [wood, 53, 2.6] };
@@ -222,6 +216,5 @@ export function makeTextures(device, { small = false } = {}) {
   }
   out.signs = tex(device, new Uint8Array(signAtlas().buffer), ATLAS.W, ATLAS.H, true, false);
   out.arena = tex(device, new Uint8Array(arenaAtlas(mkNoise(67)).buffer), ARENA.W, ARENA.H, true, false);
-  out.blob = tex(device, blob(), 128, 128, true, false);
   return out;
 }
