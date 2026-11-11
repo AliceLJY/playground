@@ -227,8 +227,9 @@ jobs:
         working-directory: diorama-walk
         run: |
           for f in src/*.js; do node --check "$f"; done
-          node --test tests/*.test.cjs
+          # the look tests import three, so the dependencies go in before the tests
           npm ci
+          node --test tests/*.test.cjs
           node tools/build.mjs
 
       - name: Assemble _site
