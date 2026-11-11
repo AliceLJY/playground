@@ -271,7 +271,8 @@ function step(s, ix, iy, card) {
     enemy(s, 6, bound(s.ex[s.boss] - 74, 30, 330), bound(s.ey[s.boss] + 40, 40, 480));
     enemy(s, 6, bound(s.ex[s.boss] + 74, 30, 330), bound(s.ey[s.boss] - 40, 40, 480));
   }
-  if (s.boss >= 0 && mode === 3 && (s.tick - s.stage.duration) % 180 === 0) {
+  // Before the boss arrives, each reset pairs the weapon outage with its own rate-zone attack.
+  if (mode === 3 && (s.boss >= 0 && (s.tick - s.stage.duration) % 180 === 0 || s.boss < 0 && s.off && cycle === 0)) {
     zone(s, s.x, s.y); zone(s, 52 + random(s) * 256, 56 + random(s) * 408);
   }
   for (let i = 0; i < s.eOn.length; i++) {

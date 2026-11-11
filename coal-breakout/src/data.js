@@ -17,7 +17,7 @@
         wallRate: .04, wallMax: 84, elitePeriod: 2100, eliteOffset: 900, pull: 1.1, wavePeriod: 600, waveLength: 180,
         hint: '文字墙正在收紧 · 击败黄色压缩器推回墙', briefing: '文字墙会向内挤。优先靠近黄色压缩器，让助手打掉它腾出空间。首领会把你和宝石吸向中心，逆着引力走。' },
       { name: '额度重置', subtitle: '停火四秒，也要活下去。', duration: 7800, kind: 2, props: 4, boss: '429 限流大魔王', bossHP: 420, mechanism: 3,
-        hint: '每 40 秒停火 4 秒 · 红条预警时先找空地', briefing: '每 40 秒重置额度：提前 3 秒警报，停火 4 秒，随后爆发 5 秒。首领的黄框将在 1.2 秒后变红，别留在里面。' }
+        hint: '每 40 秒停火 4 秒 · 红条预警时先找空地', briefing: '每 40 秒重置额度，提前 3 秒警报，停火 4 秒，随后爆发 5 秒。首领出现前，每次停火落一组限流黄框，1.2 秒后变红，及时离开。首领每 3 秒放一组。' }
     ],
     enemies: [
       { hp: 2, speed: 30, radius: 9 }, { hp: 3, speed: 55, radius: 10 },

@@ -61,22 +61,59 @@ for (let level = 0; level < 3; level++) test(`A4/A6: stage ${level + 1} has boun
   assert.ok(blocked > 0 && enemySamples > 1000, `stage ${level + 1}: props must actually be met in the sampled runs`);
   const human = results.filter(r => r.mode === 'human'), hits = human.map(r => r.hits).sort((a, b) => a - b);
   const wins = human.filter(r => r.win).length, median = (hits[5] + hits[6]) / 2;
-  const minHits = [1, 2, 2][level], maxHits = [5, 8, 6][level], minWins = [8, 6, 8][level], maxWins = [12, 11, 12][level];
+  const minHits = [1, 2, 2][level], maxHits = [5, 8, 6][level], minWins = [8, 6, 8][level], maxWins = [11, 11, 11][level];
   assert.ok(median >= minHits && median <= maxHits, `human stage ${level + 1}: median hits ${median}, expected ${minHits}–${maxHits}`);
   assert.ok(wins >= minWins && wins <= maxWins, `human stage ${level + 1}: won ${wins}/12, expected ${minWins}–${maxWins}`);
   if (level === 1) assert.ok(walls > 1000, 'meaningful sampling of shrinking walls');
   if (level === 2) assert.ok(warnings > 1000 && zones > 1000, 'meaningful sampling of reset and rate zones');
 });
 
-test('A5: quota telegraphs exactly 180 ticks, stops all firing for 240, then boosts real shot rate', () => {
-  const s = C.create(1, 2), p = P.create('precise', 1); let warned = 0, off = 0, previousShots = 0, recoveryShots = 0, sawRecovery = false;
+test('A5: quota warns for 180 ticks, pairs zones with the 240-tick outage, then boosts real shot rate', () => {
+  const s = C.create(1, 2), p = P.create('precise', 1);
+  let warned = 0, off = 0, previousShots = 0, recoveryShots = 0, sawRecovery = false;
+  let activeZoneFrames = 0, clearOffFrames = 0;
   while (s.tick < 3600 && s.phase < 2) {
     previousShots = s.shots; H(s, ...p(s)); if (s.phase === 1) continue;
     if (s.warning) warned++;
+    if (s.tick < 2400) assert.equal(s.zones, 0, 'rate zones must wait for the reset');
+    if (s.tick === 2400) {
+      assert.equal(s.boss, -1, 'the reset attack must occur before the boss');
+      assert.equal(s.zones, 2, 'first reset must place a real pair of rate zones');
+      assert.equal(s.zBorn.filter((born, i) => s.zOn[i] && born === s.tick).length, 2);
+      assert.equal(s.zx[0], Math.max(52, Math.min(308, s.x)), 'first zone targets the current position');
+      assert.equal(s.zy[0], Math.max(56, Math.min(464, s.y)));
+    }
     if (s.off) { off++; assert.equal(s.shots, previousShots, 'a helper fired during reset'); assert.equal(s.bOn.some(v => v > 0), false, 'in-flight shots remain during reset'); }
+    if (s.off && s.tick >= 2472 && s.tick < 2550) {
+      assert.equal(s.zBorn[0], 2400);
+      assert.ok(s.zOn.slice(0, 2).every(on => on === 2549 - s.tick), 'the actual reset pair must last through the 78-tick danger window');
+      activeZoneFrames++;
+    }
+    if (s.off && s.tick >= 2550) {
+      assert.equal(s.zOn.some(v => v > 0), false, 'zones must leave room to recover before firing resumes');
+      clearOffFrames++;
+    }
     if (s.burst) { sawRecovery = true; recoveryShots += s.shots - previousShots; }
   }
-  assert.equal(warned, 180); assert.equal(off, 240); assert.ok(sawRecovery && recoveryShots >= 12);
+  assert.equal(warned, 180);
+  assert.equal(off, 240);
+  assert.equal(activeZoneFrames, 78);
+  assert.equal(clearOffFrames, 90);
+  assert.ok(sawRecovery && recoveryShots >= 12);
+});
+
+test('A5: all three pre-boss resets place exactly one pair of zones at the outage start', () => {
+  const s = C.create(1, 2), p = P.create('precise', 1), attacks = [];
+  while (s.tick < s.stage.duration && s.phase < 2) {
+    const previousZones = s.zones;
+    H(s, ...p(s));
+    if (s.boss < 0 && s.zones > previousZones) {
+      assert.equal(s.zones - previousZones, 2, 'a reset places one pair');
+      assert.equal(s.off, 240, 'the pair must begin with the weapon outage');
+      attacks.push(s.tick);
+    }
+  }
+  assert.deepEqual(attacks, [2400, 4800, 7200], 'the real run must encounter every pre-boss reset attack');
 });
 
 test('A5: fake gems reveal before biting; real gems never bite and upgrade can be skipped', () => {
