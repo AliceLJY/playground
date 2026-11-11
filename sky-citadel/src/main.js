@@ -3,7 +3,8 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {CELL,P,PALETTE,Grid,generateWorld,surfaceFaces,cornerAO,hash} from './world.js';
 import {clamp,timeState,Quality,airshipAt} from './core.js';
 import {PALETTES,paletteKey} from './palettes.js';
-const params=new URLSearchParams(location.search),fixed=['hero','wide','night'].includes(params.get('view')),view=fixed?params.get('view'):'default',debug=params.has('debug');
+import {fillSkyRamp,atmosphereColor} from './sky-colors.js';
+const params=new URLSearchParams(location.search),fixed=['hero','wide','night'].includes(params.get('view')),view=fixed?params.get('view'):'default',debug=params.has('debug')||globalThis.__SKY_TEST_CAPTURE__===true;
 const selectedPalette=paletteKey(params.get('palette')),scheme=PALETTES[selectedPalette];
 const canvas=document.querySelector('#scene'),mobile=()=>innerWidth<700||matchMedia('(pointer:coarse)').matches;
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'low-power'});
@@ -12,8 +13,8 @@ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;rende
 const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info'),gpu=ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
 const scene=new THREE.Scene();scene.fog=new THREE.Fog('#b8d1da',110,235);
 // A tiny reusable sky ramp, uploaded only when the hour changes. No postprocessing.
-const skyData=new Uint8Array(256*4),skyTexture=new THREE.DataTexture(skyData,1,256,THREE.RGBAFormat);
-skyTexture.colorSpace=THREE.SRGBColorSpace;skyTexture.minFilter=skyTexture.magFilter=THREE.LinearFilter;scene.background=skyTexture;
+const skyData=new Uint8Array(2048*4),skyTexture=new THREE.DataTexture(skyData,1,2048,THREE.RGBAFormat);
+skyTexture.colorSpace=THREE.SRGBColorSpace;skyTexture.minFilter=skyTexture.magFilter=THREE.NearestFilter;scene.background=skyTexture;
 const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.2,250);
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=22;controls.maxDistance=100;controls.minPolarAngle=.43;controls.maxPolarAngle=1.48;controls.enablePan=true;controls.panSpeed=.55;controls.rotateSpeed=.55;
 const hemi=new THREE.HemisphereLight('#d7e2ed','#665875',1.7);scene.add(hemi);
@@ -58,7 +59,7 @@ function pointField(count,kind){
   else if(kind===1){const a=hash(i,1,2)*Math.PI*2,b=hash(i,2,3)*.8+.15;positions[i*3]=Math.cos(a)*100*Math.sin(b);positions[i*3+1]=8+hash(i,4,5)*75;positions[i*3+2]=Math.sin(a)*100*Math.sin(b);}
  }
  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('aSeed',new THREE.BufferAttribute(seeds,1));geo.setAttribute('aMist',new THREE.BufferAttribute(types,1));
- const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:kind===1?THREE.AdditiveBlending:THREE.NormalBlending,uniforms:{uTime:{value:0},uDpr:{value:1},uColor:{value:new THREE.Color('#ffffff')},uShade:{value:new THREE.Color('#6088ac')},uMistColor:{value:new THREE.Color('#bce5ed')},uHideMist:{value:0},uAlpha:{value:1}},
+ const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,toneMapped:kind===1,blending:kind===1?THREE.AdditiveBlending:THREE.NormalBlending,uniforms:{uTime:{value:0},uDpr:{value:1},uColor:{value:new THREE.Color('#ffffff')},uShade:{value:new THREE.Color('#6088ac')},uMistColor:{value:new THREE.Color('#bce5ed')},uHideMist:{value:0},uAlpha:{value:1}},
  vertexShader:`attribute float aSeed;attribute float aMist;uniform float uTime;uniform float uDpr;varying float vSeed;varying float vMist;
  void main(){vSeed=aSeed;vMist=aMist;vec3 p=position;
  ${kind===0?`if(aMist<.5){p.x+=sin(uTime*.018+aSeed*8.)*4.;p.z+=cos(uTime*.015+aSeed*9.)*3.;}else{float t=fract(aSeed+uTime*.09);p=vec3(6.3+sin(aSeed*82.)*(.8+t*2.),-11.2-t*3.,9.5+cos(aSeed*62.)*(.3+t));}`:''}
@@ -91,16 +92,16 @@ function home(){const aspect=innerWidth/innerHeight,isPhone=aspect<1;let dist=vi
 function resize(){renderer.setPixelRatio(Math.min(devicePixelRatio,mobile()?1.25:1.5)*quality.scale);renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<1?(view==='wide'?70:60):38;camera.filmOffset=innerHeight<480&&camera.aspect>1?8:0;camera.updateProjectionMatrix();for(const p of pointFields)p.material.uniforms.uDpr.value=renderer.getPixelRatio();}
 home();resize();addEventListener('resize',()=>{resize();if(fixed&&!focused&&!follow)home();});
 const hourInput=document.querySelector('#hour'),timeValue=document.querySelector('#timeValue'),flightButton=document.querySelector('#flight'),motionButton=document.querySelector('#motion');
-const tintA=new THREE.Color(),tintB=new THREE.Color(),skyStops=Array.from({length:4},()=>new THREE.Color()),skyRgb={r:0,g:0,b:0};
+const tintA=new THREE.Color();
 function setHour(v){
  hour=clamp(Number(v)||0,0,3);const t=timeState(hour,selectedPalette),mix=(key,color)=>color.set(t.a[key]).lerp(tintA.set(t.b[key]),t.t),lerp=key=>THREE.MathUtils.lerp(t.a[key],t.b[key],t.t);
- for(let k=0;k<4;k++)skyStops[k].set(t.a.sky[k]).lerp(tintA.set(t.b.sky[k]),t.t);
- const stops=[0,.48,.82,1];for(let y=0;y<256;y++){const v=1-y/255,k=v<stops[1]?0:v<stops[2]?1:2;tintB.copy(skyStops[k]).lerp(skyStops[k+1],(v-stops[k])/(stops[k+1]-stops[k])).getRGB(skyRgb,THREE.SRGBColorSpace);skyData[y*4]=Math.round(skyRgb.r*255);skyData[y*4+1]=Math.round(skyRgb.g*255);skyData[y*4+2]=Math.round(skyRgb.b*255);skyData[y*4+3]=255;}skyTexture.needsUpdate=true;
- mix('fog',scene.fog.color);scene.fog.near=lerp('near');scene.fog.far=lerp('far');mix('sun',sun.color);sun.intensity=lerp('intensity');mix('hemi',hemi.color);mix('ground',hemi.groundColor);hemi.intensity=lerp('ambient');
+ const horizon=fillSkyRamp(t,skyData);skyTexture.needsUpdate=true;
+ scene.fog.color.setRGB(...horizon,THREE.SRGBColorSpace);scene.fog.near=lerp('near');scene.fog.far=lerp('far');mix('sun',sun.color);sun.intensity=lerp('intensity');mix('hemi',hemi.color);mix('ground',hemi.groundColor);hemi.intensity=lerp('ambient');
  sun.position.set(-26+Math.sin(hour*.9)*8,32+Math.sin(hour*Math.PI/1.5)*8,18);
  lampMaterial.emissiveIntensity=.1+t.night*2.8;warmA.intensity=18*t.night;warmB.intensity=13*t.night;
  stars.material.uniforms.uAlpha.value=clamp((t.night-.45)/.55,0,1);stars.visible=stars.material.uniforms.uAlpha.value>0;
- mix('cloudLight',clouds.material.uniforms.uColor.value);mix('cloudShade',clouds.material.uniforms.uShade.value);clouds.material.uniforms.uAlpha.value=lerp('cloudAlpha');clouds.material.uniforms.uMistColor.value.set(t.night>.7?'#7396b5':'#c8e7e7');
+ for(const [key,uniform]of [['cloudLight','uColor'],['cloudShade','uShade']])clouds.material.uniforms[uniform].value.setRGB(...atmosphereColor(t.a[key],t.b[key],t.t),THREE.SRGBColorSpace);
+ clouds.material.uniforms.uAlpha.value=lerp('cloudAlpha');clouds.material.uniforms.uMistColor.value.copy(scene.fog.color);
  hourInput.value=hour;const names=['黎明','正午','黄昏','深夜'];const j=Math.round(hour),minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=names[j]+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;
 }
 setHour(hour);hourInput.addEventListener('input',()=>{setHour(hourInput.value);interact();});document.querySelectorAll('[data-time]').forEach(el=>el.addEventListener('click',()=>{setHour(el.dataset.time);interact();}));

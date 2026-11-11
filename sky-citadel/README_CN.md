@@ -7,9 +7,10 @@
 ## 本地运行与检查
 
 ```sh
-npm install
+npm ci
 node tools/build.mjs
 node --test tests/*.test.cjs
+NODE_PATH="$(npm root -g)" node --test tests/*.browser.cjs
 node tools/browser-check.cjs
 ```
 
@@ -35,7 +36,7 @@ node tools/browser-check.cjs http://127.0.0.1:8947/dev.html shots/source
 
 `?view=hero`、`?view=wide`、`?view=night` 使用固定种子 731，在动画 12 秒时定格，沿用正常渲染路径与自适应画质。点击「继续流动」可恢复动画。夜景是建筑近景，允许部分远岛与根须在画面外；全岛完整轮廓见 hero 和 wide。
 
-`?palette=c` 为默认「碧空琥珀」，`?palette=a` 切暖金黄昏，`?palette=b` 切清透晴空。每套均包含四时段连续过渡，参数不进入玩家界面。运行 `node tools/palette-shots.cjs` 重出六宫格与四时段图；像素回归需先执行上面的构建，使用真实城市遮罩与背景渲染，定义见 SPEC A11。
+默认保留 C 的城市材质与照明，天空改为纯净蓝色、明亮蜜桃色地平线与冷色云影。天空的纵向渐变和时段过渡均用 OKLCH，越出显示色域时保留亮度与色相。旧配色参数统一回退到默认。运行 `node tools/palette-shots.cjs`，将第四轮保存的旧版与当前构建渲染成四张前后并排图，附逐行天空色带。像素回归同时检查独立 GPU 天空与最终 CSS 合成，并保留 SPEC A11 的城市遮罩检查；天空和云海阈值见 SPEC A12。
 
 ## 性能安排
 
@@ -43,7 +44,7 @@ node tools/browser-check.cjs http://127.0.0.1:8947/dev.html shots/source
 
 黄昏常规帧实测 13 次绘制、299,370 个三角形，更新阴影时 14 次；深夜增加星空后常规 14 次、更新阴影时 15 次。三角形峰值 575,354。烟、水花和水雾合计 348 粒子，另有 86 个解析云精灵与 500 个静态星点；云与水雾合并提交，抵消天空渐变的一次绘制。没有全屏后期，也没有每帧重建几何。没有测量机身温度，不能据此承诺任何设备都不发热。
 
-统一钩子 `window.__PLAYTEST__` 提供就绪、快照、重置、重生成种子与推进时间。快照含真实 draw calls、三角形、GPU 字符串、像素比、画质和 JS 更新与提交耗时；额外诊断仅在 `?debug=1` 开启。规格与证据见 [SPEC.md](SPEC.md)、[VERIFICATION.md](VERIFICATION.md)。Three.js 固定为 0.186.1，其 MIT 许可保留在生成页面内。
+统一钩子 `window.__PLAYTEST__` 提供就绪、快照、重置、重生成种子与推进时间。快照含真实 draw calls、三角形、GPU 字符串、像素比、画质和 JS 更新与提交耗时；额外诊断通过 `?debug=1` 或浏览器检查注入的开发开关开启。规格与证据见 [SPEC.md](SPEC.md)、[VERIFICATION.md](VERIFICATION.md)。Three.js 固定为 0.186.1，其 MIT 许可保留在生成页面内。
 
 ## 谁会点开、AI 素材
 
