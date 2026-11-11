@@ -58,7 +58,7 @@ export function buildWorld(scene, { coarse, sunDir }) {
   buildGround(scene, M, T); tick('ground');
   // 水面：一张带倒影的水，盖住长方池、水道和八角池
   const ws = new THREE.Shape(); C.POND.forEach((p, i) => i ? ws.lineTo(p.x, -p.z) : ws.moveTo(p.x, -p.z)); ws.closePath();
-  const water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 384 : 768, textureHeight: coarse ? 384 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x1d5a48, distortionScale: 0.5, alpha: 1, fog: false });
+  const water = new Water(new THREE.ShapeGeometry(ws), { textureWidth: coarse ? 512 : 768, textureHeight: coarse ? 512 : 768, waterNormals: T.waterNormal, sunDirection: sunDir.clone(), sunColor: 0xfff2d0, waterColor: 0x1d5a48, distortionScale: 0.5, alpha: 1, fog: false });
   water.rotation.x = -Math.PI / 2; water.position.y = C.WATER_Y; water.material.uniforms.size.value = 0.55; scene.add(water);
   anim.push((t) => { water.material.uniforms.time.value = t * 0.28; });
   buildWalls(scene, M); tick('walls');

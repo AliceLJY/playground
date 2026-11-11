@@ -181,6 +181,9 @@ export function buildYing(scene, M, T, anim) {
   scene.add(instanced(blob(105, 1, 0.2), M.leaf, sh));
 }
 
+// 荷叶、荷花、锦鲤不进水面倒影：它们贴着水面，倒影在手机的低分辨率反射贴图里是一块块锯齿状的暗色重影，转视角时像拖影。
+const noMirror = (m) => { m.layers.set(1); return m; };
+
 export function buildLotus(scene, M, anim) {
   const R = rng(121), pads = [], raised = [], stems = [], petals = [], cores = [], buds = [], A = C.RECT;
   const open = (x, z) => Math.hypot(x + 1.2, z - 4.6) < 1.6 || Math.hypot(x - 2.6, z - 2.2) < 1.2 || Math.hypot(x + 4.2, z - 1.6) < 1.0;   // 留两块开阔水面给锦鲤和倒影
@@ -192,9 +195,9 @@ export function buildLotus(scene, M, anim) {
   }
   for (let i = 0; i < 7; i++) { const a = R() * 6.28, u = 2.1 + R() * 0.8; pads.push({ x: C.OCT.x + Math.cos(a) * u, y: C.WATER_Y + 0.015, z: C.OCT.z + Math.sin(a) * u, s: 0.26 + R() * 0.2, ry: R() * 6, color: '#5fae3f' }); }
   const padG = new THREE.CircleGeometry(1, 20, 0.18, Math.PI * 2 - 0.36); padG.rotateX(-Math.PI / 2);
-  scene.add(instanced(padG, M.lotusLeaf, pads, { cast: false }));
+  scene.add(noMirror(instanced(padG, M.lotusLeaf, pads, { cast: false })));
   const leafG = new THREE.ConeGeometry(1, 0.22, 18, 1, true); leafG.rotateX(Math.PI); leafG.translate(0, 0.11, 0);
-  const lm = instanced(leafG, M.lotusLeaf, raised); scene.add(lm);
+  const lm = instanced(leafG, M.lotusLeaf, raised); scene.add(noMirror(lm));
   const d = new THREE.Object3D(); d.rotation.order = 'YXZ';
   anim.push(t => { raised.forEach((l, i) => { d.position.set(l.x, l.y, l.z); d.rotation.set(l.rx + Math.sin(t * 1.2 + l.ph) * 0.05, l.ry, l.rz + Math.cos(t * 0.9 + l.ph) * 0.05); d.scale.setScalar(l.s); d.updateMatrix(); lm.setMatrixAt(i, d.matrix); }); lm.instanceMatrix.needsUpdate = true; });
   const spots = []; tries = 0;
@@ -206,9 +209,9 @@ export function buildLotus(scene, M, anim) {
     cores.push({ x: s.x, y: y + 0.05, z: s.z, s: 0.055, color: '#f2c531' });
   });
   const pg = sph(1, 6, 5); pg.scale(0.07, 0.02, 0.15); pg.translate(0, 0, 0.15); pg.rotateX(-Math.PI / 2);
-  scene.add(instanced(pg, M.petal, petals, { receive: false }));
-  scene.add(instanced(sph(1, 8, 6), M.petal, [...cores, ...buds], { receive: false }));
-  scene.add(instanced(cyl(0.012, 0.016, 1, 5), M.glazeGreen, stems, { cast: false, receive: false }));
+  scene.add(noMirror(instanced(pg, M.petal, petals, { receive: false })));
+  scene.add(noMirror(instanced(sph(1, 8, 6), M.petal, [...cores, ...buds], { receive: false })));
+  scene.add(noMirror(instanced(cyl(0.012, 0.016, 1, 5), M.glazeGreen, stems, { cast: false, receive: false })));
 }
 
 export function buildKoi(scene, M, anim) {
@@ -217,7 +220,7 @@ export function buildKoi(scene, M, anim) {
   const b = new Batch(); b.add(body, M.koi); b.add(tail, M.koi); const geo = b.flush(new THREE.Group())[0].geometry;
   const loops = [{ x: -1.2, z: 4.6, r: 1.1 }, { x: -1.0, z: 4.5, r: 0.6 }, { x: -1.4, z: 4.8, r: 1.35 }, { x: 2.6, z: 2.2, r: 0.8 }, { x: 2.5, z: 2.3, r: 0.45 }, { x: 6.2, z: 2.75, r: 0.45 }, { x: 11.3, z: 7.7, r: 0.4 }, { x: 13.6, z: 5.2, r: 0.45 }];
   const fish = loops.map((l, i) => ({ ...l, sp: (0.35 + R() * 0.3) * (i % 2 ? -1 : 1), ph: R() * 6, s: 0.9 + R() * 0.5 }));
-  const mesh = instanced(geo, M.koi, fish.map(f => ({ x: f.x, y: C.WATER_Y - 0.03, z: f.z, color: pick(R, ['#ffffff', '#ffd9c2', '#ffe9a8']) })), { cast: false, receive: false }); scene.add(mesh);
+  const mesh = instanced(geo, M.koi, fish.map(f => ({ x: f.x, y: C.WATER_Y - 0.03, z: f.z, color: pick(R, ['#ffffff', '#ffd9c2', '#ffe9a8']) })), { cast: false, receive: false }); scene.add(noMirror(mesh));
   const d = new THREE.Object3D();
   anim.push(t => { fish.forEach((f, i) => { const a = t * f.sp + f.ph, wob = Math.sin(t * 5 + f.ph) * 0.12; d.position.set(f.x + Math.cos(a) * f.r, C.WATER_Y + 0.012, f.z + Math.sin(a) * f.r * 0.8); d.lookAt(f.x + Math.cos(a + 0.2 * Math.sign(f.sp)) * f.r, C.WATER_Y + 0.012, f.z + Math.sin(a + 0.2 * Math.sign(f.sp)) * f.r * 0.8); d.rotateY(wob); d.scale.setScalar(f.s); d.updateMatrix(); mesh.setMatrixAt(i, d.matrix); }); mesh.instanceMatrix.needsUpdate = true; });
 }
