@@ -35,7 +35,7 @@
 | [走进户型图](floorplan-walk/) · [看](https://aliceljy.github.io/playground/floorplan-walk/) | 同一张户型图做成能摆家具的彩色平面图：从家具库拖进去，切到 3D 房子从图上长出来，转着看或者从入户门走进去；真实日照、夜景、剖切、整屋换木色 | SVG 平面图 + Three.js，60 种家具（图例与模型移植自 floorplan-3d，MIT），键鼠与触屏，单文件离线可看 |
 | [十三行江岸](thirteen-hongs/) · [看](https://aliceljy.github.io/playground/thirteen-hongs/) | 约 1805 年前后的广州商馆区江岸：十三座商馆、旗杆、码头、二十九条船和六百多个各忙各的人，水面有倒影；可俯瞰、第一人称走进去或跟随茶艇、挑夫、轿子等九个对象，天色可切黄昏与入夜，每隔几分钟发生一遍「茶箱落艇」 | Three.js 纯代码大场景，没有模型、图片和音频，WebGL 与 WebGPU 两版，鼠标与触屏，单文件离线可看 |
 | [圣家堂](sagrada-familia/) · [看](https://aliceljy.github.io/playground/sagrada-familia/) | 巴塞罗那圣家堂整座用代码搭出来：十八座塔、三个立面、切角街区；内部有树形柱、带采光口的拱顶和一冷一暖的彩窗光；十七个视点，可环绕、漫游、飞行，早晨、正午、傍晚三档光 | Three.js 纯代码，没有模型和图片，鼠标与触屏，单文件离线可看 |
-| [岭南园林一角](lingnan-garden/) · [看](https://aliceljy.github.io/playground/lingnan-garden/) | 从一张 AI 画的岭南园林图出发搭成能走进去的院子：水榭、镬耳墙月洞门、荷塘、曲廊、石拱桥、假山六角亭；可回到原图机位并叠原图对照 | 一张图到 Three.js 纯代码场景，起始图为 AI 生成，第一人称步行，鼠标与触屏，单文件离线可看 |
+| [岭南园林一角](lingnan-garden/) · [看](https://aliceljy.github.io/playground/lingnan-garden/) | 按查证过的岭南园林特征让 AI 画一张图，再用代码搭成能走进去的院子：青砖墙麻石脚、长方荷池接八角池、八角亭与廊桥、英石壁山与跌水、满洲窗与蚝壳窗、灰塑屋脊、荔枝木棉；可回到原图机位并叠原图对照 | 一张图到 Three.js 纯代码场景，特征出处见 facts.md，起始图为 AI 生成，第一人称步行，鼠标与触屏，单文件离线可看 |
 | [花城秋岸](huacheng-autumn/) · [看](https://aliceljy.github.io/playground/huacheng-autumn/) | 广州海珠珠江南岸的秋天：簕杜鹃挂满天桥，白色有轨电车从花下开过，赤岗塔下异木棉开花，同岸西端是广州塔，对岸是珠江新城；时间从白天拖到入夜 | Three.js 纯代码沙盘，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [雪线小木屋](snowline-cabin/) · [看](https://aliceljy.github.io/playground/snowline-cabin/) | 雪夜山顶一间亮着灯的木屋：点暗着的山头替它点灯，七座点满有流星；时间从黄昏拖到日出；还能进屋待一会儿 | Three.js 纯代码场景，没有模型和图片，鼠标与触屏，单文件离线可看 |
 | [机械钟齿轮 · 一张图生成](clockwork/) · [看](https://aliceljy.github.io/playground/clockwork/) | 把一张机械钟图解交给 Gemini 4 Argon，它一次写出的 3D 页面：三级齿轮按图上标的齿比咬合转动 | Gemini 4 Argon 一次生成，Three.js，键鼠与触屏 |
