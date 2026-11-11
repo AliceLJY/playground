@@ -7,7 +7,7 @@
     const s = {
       data, stage: data.levels[level], stageIndex: level, seed: (Number(seed) >>> 0) || 1, rng: (Number(seed) >>> 0) || 1,
       workflow: workflow === 'clear' || workflow === 'sustain' ? workflow : '',
-      phase: 0, tick: 0, x: 180, y: 260, vx: 0, vy: 0, hp: 6, maxHP: 6, invuln: 0,
+      phase: 0, tick: 0, x: 180, y: 260, vx: 0, vy: 0, hp: 6, maxHP: 6, invuln: 0, hurtUntil: 0,
       xp: 0, prevXP: 0, autoCard: -1, autoUntil: 0, nextXP: 10, level: 1, revives: 0, revivals: 0, kills: 0, shots: 0, collected: 0,
       nextSpawn: 60, fire: 0, beam: 0, boss: -1, live: 0, peak: 0, spawned: 0, wall: 0, gCursor: 0,
       off: 0, burst: 0, warning: 0, event: 0, hits: 0, resets: 0, warnings: 0, fakeReveals: 0, fakeBites: 0,

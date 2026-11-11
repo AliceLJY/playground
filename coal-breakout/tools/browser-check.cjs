@@ -87,6 +87,27 @@ const sizes = { phone390: { width: 390, height: 664 }, phone412: { width: 412, h
         hook.paint(); return { samples, white, edgeContrast: delta / white, silhouetteFraction: (maxX - minX + 1) / canvas.width };
       });
       check(`${size} hero actual pixels: inner white contrast >=100, width 11–14%`, pixels.samples > 100 && pixels.white > 5 && pixels.edgeContrast >= 100 && pixels.silhouetteFraction >= .11 && pixels.silhouetteFraction <= .14, pixels);
+      const occlusions = await page.evaluate(() => {
+        const hook = __PLAYTEST__, s = hook.state(), canvas = document.querySelector('#game'), g = canvas.getContext('2d');
+        const saved = [s.x, s.y, s.vx, s.vy], scale = canvas.width / 360, cases = [];
+        for (let prop = 0; prop < s.oOn.length; prop++) if (s.oOn[prop]) {
+          // Reproduce north-side overlap for every prop in this actual seeded layout.
+          s.x = s.ox[prop]; s.y = s.oy[prop] - s.ohh[prop] - 24; s.vx = s.vy = 0;
+          hook.paint('background'); const bg = g.getImageData(0, 0, canvas.width, canvas.height).data;
+          hook.paint('hero'); const fg = g.getImageData(0, 0, canvas.width, canvas.height).data;
+          let changed = 0, outside = 0;
+          for (let i = 0; i < fg.length; i += 4) {
+            if (fg[i] === bg[i] && fg[i + 1] === bg[i + 1] && fg[i + 2] === bg[i + 2]) continue;
+            changed++;
+            const x = (i / 4 % canvas.width + .5) / scale, y = (Math.floor(i / 4 / canvas.width) + .5) / scale;
+            if (x < s.x - 32 || x > s.x + 32 || y < s.y - 46 || y > s.y + 51) outside++;
+          }
+          cases.push({ prop, changed, outside, image: canvas.toDataURL().split(',')[1] });
+        }
+        [s.x, s.y, s.vx, s.vy] = saved; hook.paint(); return cases;
+      });
+      for (const c of occlusions) { fs.writeFileSync(path.join(out, `${size}-hero-prop${c.prop}.png`), Buffer.from(c.image, 'base64')); delete c.image; }
+      check(`${size} north-side mask contains only hero pixels`, occlusions.length === 4 && occlusions.every(c => c.changed > 100 && c.outside === 0), occlusions);
     }
     if (view === 'result') {
       const png = await page.evaluate(() => document.querySelector('#poster').toDataURL().split(',')[1]); fs.writeFileSync(path.join(out, `${size}-poster.png`), Buffer.from(png, 'base64'));
