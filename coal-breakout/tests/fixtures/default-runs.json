@@ -1,41 +1,41 @@
 {
-  "source": "5de0485: pre-workflow default simulation, precise driver, per-frame snapshots + RNG + auto notice",
+  "source": "texture-coal: default (no preference) simulation after props, larger hero and re-tuned speed/orbit/wall; precise driver, per-frame snapshots + RNG + auto notice. Earlier baseline 5de0485 is superseded because props change every default run by design.",
   "runs": [
     {
       "stage": 0,
       "seed": 1,
-      "frames": 6701,
-      "digest": "296aca14847bae25e17ac29477695fb58f412c2505cc5174c5fac91b18e5ee7b"
+      "frames": 8046,
+      "digest": "bec4534f5440941aeb34245003f8483b7320b68448b5291fe82012bdba14c8e4"
     },
     {
       "stage": 0,
       "seed": 7,
-      "frames": 6925,
-      "digest": "6a42229602c8881d121f7357ebe60270d3877f47f09e4a8c39fa2e0c82eea0f9"
+      "frames": 7933,
+      "digest": "0c08fc05f94db2e3b9a4e0dfa9ed869448a658b0af1a42df89bd381b4dcb2105"
     },
     {
       "stage": 1,
       "seed": 1,
-      "frames": 8056,
-      "digest": "662d6eefe5f1882ec541504997c3acf42153637700503fb7520872f0ee0290cc"
+      "frames": 8288,
+      "digest": "133cca0aa68ffdbc794b56c2ed4c05d111739ddda92446e0fb69c011660e392a"
     },
     {
       "stage": 1,
       "seed": 7,
-      "frames": 8261,
-      "digest": "87ec86fc44f4550eed85b0b8664f1be93e3a94234cd2f965007d17f188049464"
+      "frames": 8257,
+      "digest": "d137f9b322d656d677005f6a5d405002ee11e892669549a548bafed4ff7cd296"
     },
     {
       "stage": 2,
       "seed": 1,
-      "frames": 9910,
-      "digest": "b1811994fd5d846d145cee3fb5e3fdcaaab4956afd8104ee991e70b99418a445"
+      "frames": 8762,
+      "digest": "f526a4b61b54cce1667a6e8d608d0d94a662bae13982913b53cc314d7d0b18d5"
     },
     {
       "stage": 2,
       "seed": 7,
-      "frames": 9039,
-      "digest": "61e33aeb39e34c5e72d2198d793c39307cb6db9da0a530f006e3ef4f377c144f"
+      "frames": 9991,
+      "digest": "4c8ffa3c8e5e4632d011fc52f53fd339a6167a345a01a5d2bb6f9cb6043d214c"
     }
   ]
 }

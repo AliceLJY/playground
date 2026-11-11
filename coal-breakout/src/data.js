@@ -2,15 +2,21 @@
   'use strict';
   const data = {
     width: 360, height: 520, fps: 60,
+    // Hero: drawn 2 units per sprite pixel. Damage uses the body centre; walls and props stop the feet.
+    hero: { speed: 2.1, hitRadius: 10, footY: 20, footRadius: 14, orbit: 34, minX: 22, maxX: 338, minY: 46, maxY: 489 },
+    // Props (half sizes in units): server rack, token crates, coal heap, old terminal. Bullets fly over them.
+    props: [{ hw: 21, hh: 28 }, { hw: 24, hh: 21 }, { hw: 26, hh: 18 }, { hw: 20, hh: 17 }],
+    // Candidate prop centres, kept clear of the start point, the boss entrances and the field edge.
+    slots: [[84, 128], [276, 128], [76, 262], [284, 262], [86, 392], [274, 392], [180, 452], [180, 164]],
     url: 'https://aliceljy.github.io/playground/coal-breakout/',
     levels: [
-      { name: '幻觉怪', subtitle: '眼见，也不一定为实。', duration: 6000, kind: 0, boss: '大幻觉', bossHP: 65, mechanism: 1,
+      { name: '幻觉怪', subtitle: '眼见，也不一定为实。', duration: 6000, kind: 0, props: 4, boss: '大幻觉', bossHP: 65, mechanism: 1,
         wavePeriod: 480, waveLength: 150, mimicSpeed: 125, clonePeriod: 300, cloneSpeed: 80,
         hint: '捡绿色经验 · 粉芯闪烁的宝石会咬人', briefing: '躲开问号团，靠捡经验升级。粉芯闪烁的宝石是假货；靠近它会先张口，再追咬。首领只有白色描边的真身会受伤。' },
-      { name: '上下文溢出', subtitle: '给自己，留一点余地。', duration: 7800, kind: 1, boss: '上下文黑洞', bossHP: 150, mechanism: 2,
-        wallRate: .04, wallMax: 100, elitePeriod: 2100, eliteOffset: 900, pull: 1.1, wavePeriod: 600, waveLength: 180,
+      { name: '上下文溢出', subtitle: '给自己，留一点余地。', duration: 7800, kind: 1, props: 4, boss: '上下文黑洞', bossHP: 150, mechanism: 2,
+        wallRate: .04, wallMax: 84, elitePeriod: 2100, eliteOffset: 900, pull: 1.1, wavePeriod: 600, waveLength: 180,
         hint: '文字墙正在收紧 · 击败黄色压缩器推回墙', briefing: '文字墙会向内挤。优先靠近黄色压缩器，让助手打掉它腾出空间。首领会把你和宝石吸向中心，逆着引力走。' },
-      { name: '额度重置', subtitle: '停火四秒，也要活下去。', duration: 7800, kind: 2, boss: '429 限流大魔王', bossHP: 420, mechanism: 3,
+      { name: '额度重置', subtitle: '停火四秒，也要活下去。', duration: 7800, kind: 2, props: 4, boss: '429 限流大魔王', bossHP: 420, mechanism: 3,
         hint: '每 40 秒停火 4 秒 · 红条预警时先找空地', briefing: '每 40 秒重置额度：提前 3 秒警报，停火 4 秒，随后爆发 5 秒。首领的黄框将在 1.2 秒后变红，别留在里面。' }
     ],
     enemies: [

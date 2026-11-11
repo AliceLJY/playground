@@ -24,11 +24,24 @@ test('A4: random steering wins some and loses some; reckless always dies; every 
 });
 
 for (let level = 0; level < 3; level++) test(`A4/A6: stage ${level + 1} has bounded human difficulty and remains precisely beatable`, t => {
-  const results = []; let warnings = 0, zones = 0, walls = 0;
+  const results = []; let warnings = 0, zones = 0, walls = 0, blocked = 0, maxStuck = 0, enemySamples = 0;
   for (const mode of ['precise', 'human']) for (let seed = 1; seed <= 12; seed++) {
-    const s = P.run(C, seed, level, mode, 18000, g => {
-      // Actual 36px sprite silhouette: source x=5..26,y=0..37; bottom at +17.2. Same anchored draw as art.js.
-      assert.ok(g.x - 13 >= 0 && g.x + 13 <= 360 && g.y - 25.4 >= 0 && g.y + 18 <= 520, `hero leaves field: ${g.x},${g.y}`);
+    let stuck = 0, lastX = 0, lastY = 0, lastKills = 0;
+    const s = P.run(C, seed, level, mode, 18000, (g, input) => {
+      // Actual hero silhouette: sprite pixels x=5..26, y=1..37 drawn 2 units per pixel from (x-32, y-45.12),
+      // with a 2-unit stride bob. Same anchored draw as art.js.
+      assert.ok(g.x - 22 >= 0 && g.x + 22 <= 360 && g.y - 45.2 >= 0 && g.y + 31 <= 520, `hero leaves field: ${g.x},${g.y}`);
+      // Feet never inside a live prop; ordinary enemies never sink into one (sampled every 15 frames). The boss and its clones float over props by design.
+      for (let i = 0; i < g.oOn.length; i++) if (g.oOn[i]) {
+        const fx = Math.max(Math.abs(g.x - g.ox[i]) - g.ohw[i], 0), fy = Math.max(Math.abs(g.y + 20 - g.oy[i]) - g.ohh[i], 0);
+        assert.ok(Math.hypot(fx, fy) >= 14 - 1e-6, `${mode} seed ${seed}: hero feet inside prop ${i} at ${g.x},${g.y}`);
+        if (g.tick % 15 === 0) for (let e = 0; e < g.eOn.length; e++) if (g.eOn[e] && g.er[e] < 20) {
+          const ex = Math.max(Math.abs(g.ex[e] - g.ox[i]) - g.ohw[i], 0), ey = Math.max(Math.abs(g.ey[e] - g.oy[i]) - g.ohh[i], 0);
+          assert.ok(Math.hypot(ex, ey) >= g.er[e] - 1, `${mode} seed ${seed}: enemy inside prop ${i}`); enemySamples++;
+        }
+      }
+      if (g.phase === 0 && Math.hypot(input[0], input[1]) > .2 && Math.hypot(g.x - lastX, g.y - lastY) < .01 && lastKills === g.kills) stuck++; else stuck = 0;
+      maxStuck = Math.max(maxStuck, stuck); lastX = g.x; lastY = g.y; lastKills = g.kills;
       if (g.warning) warnings++;
       if (g.wall > 30) walls++;
       for (let i = 0; i < g.zOn.length; i++) if (g.zOn[i]) {
@@ -40,9 +53,12 @@ for (let level = 0; level < 3; level++) test(`A4/A6: stage ${level + 1} has boun
     assert.ok(s.tick / 60 <= 240 && (s.phase === 3 || s.tick >= s.stage.duration), 'round duration falls outside spec');
     if (s.phase === 2 && level === 1) assert.ok(s.compressions > 0 && s.pullFrames > 0, 'compression and pull actually occurred');
     if (s.phase === 2 && level === 2) assert.ok(s.resets >= 3 && s.zones >= 2, 'reset and rate zones actually occurred');
-    results.push({ mode, stage: level + 1, seed, win: s.phase === 2, seconds: +(s.tick / 60).toFixed(2), hits: s.hits });
+    blocked += s.blocked;
+    results.push({ mode, stage: level + 1, seed, win: s.phase === 2, seconds: +(s.tick / 60).toFixed(2), hits: s.hits, blocked: s.blocked });
   }
-  t.diagnostic(JSON.stringify(results));
+  t.diagnostic(JSON.stringify({ maxStuck, blocked, enemySamples, results }));
+  assert.ok(maxStuck < 180, `stage ${level + 1}: held input made no movement or kill progress for ${maxStuck} frames`);
+  assert.ok(blocked > 0 && enemySamples > 1000, `stage ${level + 1}: props must actually be met in the sampled runs`);
   const human = results.filter(r => r.mode === 'human'), hits = human.map(r => r.hits).sort((a, b) => a - b);
   const wins = human.filter(r => r.win).length, median = (hits[5] + hits[6]) / 2;
   const minHits = [1, 2, 2][level], maxHits = [5, 8, 6][level], minWins = [8, 6, 8][level], maxWins = [12, 11, 12][level];
