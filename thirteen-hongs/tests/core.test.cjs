@@ -122,3 +122,33 @@ test('落货有递接：每箱都先脱手飞向艇上，艇上有人接，落�
   const b = sim.boats[0], d = sim.agents[b.crew[1]], w = C.agentWorld(sim, d);
   assert.ok(Math.abs(w.x - 40.7) < 1.5 && w.z > 15 && w.z < 17, `接货的人应站在艇上靠栈桥一侧，实际 ${w.x.toFixed(1)}, ${w.z.toFixed(1)}`);
 });
+
+test('走路不打滑：脚着地期间在世界里的位置不动（各种身高）', async () => {
+  const C = await load(); const G = C.GAIT;
+  for (const scale of [0.93, 1, 1.07]) {
+    let pos = 0, phase = 0.3, worst = 0, stances = 0; const start = [null, null];
+    for (let i = 0; i < 4000; i++) {
+      pos += 0.0025; phase += 0.0025 * C.PHASE_PER_M;
+      const y = C.gaitY(phase, G.cycle / 2 / scale);
+      for (const leg of [0, 1]) {
+        const fp = C.footAt(phase, leg, G.cycle / 2 / scale), h = G.hip + y - G.ankle - fp.lift, ik = C.legIK(fp.f, h);
+        const fwd = -(G.thigh * Math.sin(ik.a) + G.shin * Math.sin(ik.a + ik.b)), down = G.thigh * Math.cos(ik.a) + G.shin * Math.cos(ik.a + ik.b);
+        assert.ok(Math.abs(down - h) < 0.004, `脚踝高度应落在目标上，差 ${(down - h).toFixed(4)}`);
+        const world = pos + fwd * scale;
+        if (fp.stance) { if (start[leg] === null) { start[leg] = world; stances++; } worst = Math.max(worst, Math.abs(world - start[leg])); } else start[leg] = null;
+      }
+    }
+    assert.ok(stances >= 14, '样本里应有十几次落脚');
+    assert.ok(worst < 0.01, `身高 ${scale}：着地的脚滑了 ${(worst * 100).toFixed(1)} 厘米（应小于 1 厘米）`);
+  }
+});
+
+test('步子的大小像人：一步 0.5–0.75 米，膝盖不反折、不过度弯', async () => {
+  const C = await load(); const G = C.GAIT; const step = G.cycle / 2; let maxB = 0, minB = 9;
+  assert.ok(step >= 0.5 && step <= 0.75, `一步 ${step} 米`);
+  let stanceMax = 0, bobMin = 9, bobMax = -9;
+  for (let p = 0; p < 6.28; p += 0.02) { const y = C.gaitY(p); bobMin = Math.min(bobMin, y); bobMax = Math.max(bobMax, y); for (const leg of [0, 1]) { const fp = C.footAt(p, leg), ik = C.legIK(fp.f, G.hip + y - G.ankle - fp.lift); maxB = Math.max(maxB, ik.b); minB = Math.min(minB, ik.b); if (fp.stance) stanceMax = Math.max(stanceMax, ik.b); assert.ok(Number.isFinite(ik.a) && Number.isFinite(ik.b)); } }
+  assert.ok(minB >= 0 && maxB < 1.3, `膝盖弯角应在 0–1.3 弧度，实际 ${minB.toFixed(2)}–${maxB.toFixed(2)}`);
+  assert.ok(stanceMax < 0.4, `着地的腿应接近伸直（弯角小于 0.4），实际最大 ${stanceMax.toFixed(2)}：再大就是蹲着走`);
+  assert.ok(bobMax - bobMin > 0.02 && bobMax - bobMin < 0.08, `身体起伏应在 2–8 厘米，实际 ${((bobMax - bobMin) * 100).toFixed(1)}`);
+});

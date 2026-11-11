@@ -25,7 +25,7 @@ See [facts.md](facts.md) (in Chinese). The order of the factories, the two lanes
 
 ```
 npm ci && node tools/build.mjs          # bundles dist/index.html (WebGL) and dist/webgpu.html
-node --test tests/*.test.cjs            # 12 logic tests
+node --test tests/*.test.cjs            # 14 logic tests
 node tools/serve.cjs . 8947
 NODE_PATH="$(npm root -g)" node tools/shots.cjs http://127.0.0.1:8947/dist/index.html shots/x
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8947/dist/index.html shots/y
