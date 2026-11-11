@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFileSync } = require('node:child_process');
+const { measureClarity } = require('./clarity-check.cjs');
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch { ({ chromium } = require(path.join(execFileSync('npm', ['root', '-g'], { encoding: 'utf8' }).trim(), 'playwright'))); }
@@ -20,7 +21,7 @@ async function go(page, base, query = '') {
   const url = new URL(base);
   url.search = query;
   await page.goto(url.href, { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.__PLAYTEST__?.ready, { polling: 40 });
+  await page.waitForFunction(() => window.__PLAYTEST__?.ready, null, { polling: 40 });
   await page.waitForTimeout(120);
 }
 function half(value) {
@@ -85,6 +86,9 @@ async function main() {
     await go(page, new URL('/dev.html', base).href, 'view=hero&test');
     check('A8 source entry ready', (await snapshot(page)).stage === 5);
     await page.screenshot({ path: path.join(shots, 'source-hero.png') });
+    const clarity = await measureClarity(page, new URL('/dev.html', base).href, 'source');
+    for (const view of clarity.views) check('A9 source clarity ' + view.view, view.pass, view.metrics);
+    report.errors.push(...clarity.errors);
   }
   requests.length = 0;
   await go(page, base, 'view=hero&test');
@@ -223,6 +227,9 @@ async function main() {
   check('A6 default performance budget', perf.drawCalls <= 4 && perf.dpr <= 1.5 && perf.jsP95 < 8 && (perf.softwareRenderer || report.performance.measuredFps >= 26), report.performance);
   await page.screenshot({path:path.join(shots,'desktop-default.png')});
   await page.locator('#play').click();
+  const clarity = await measureClarity(page, base);
+  for (const view of clarity.views) check('A9 default clarity ' + view.view, view.pass, view.metrics);
+  report.errors.push(...clarity.errors);
   await go(page,base,'view=hero&test');
   await page.locator('#play').click();
   await page.waitForTimeout(1000);
