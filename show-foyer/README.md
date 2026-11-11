@@ -18,8 +18,8 @@ This is a personal toy, not an official page of the theatre or the production; i
 
 ## Controls
 
-- You start standing; the top bar says which hall has a seat. Press the first button (sit) or tap an empty seat. On desktop and phones, its backrest and visible cushion accept taps along their drawn outlines, leaving gaps between seats inactive. The first arrival takes the middle of the second row; later ones gather round it, corners last.
-- Lantern (second button): one more paper lantern stands at the front of the stage and throws a warm cone up the curtain. The whole stage brightens a step per lantern (about a second's fade): with none it is dark down to the gilt frame, with five it is in full warm light. The count itself is unlimited as before, and lanterns stay for later visitors.
+- You start standing; the top bar says which hall has a seat. Press the first button (sit) or tap an empty seat. On desktop and phones, its backrest and visible cushion accept taps along their drawn outlines, leaving gaps between seats inactive. The first arrival takes the middle of the second row; later ones gather round it, corners last. Brass backrest plates omit seat numbers on small screens.
+- Lantern (second button): one more paper lantern stands at the front of the stage and throws a warm cone up the curtain. The whole stage brightens a step per lantern (about a second's fade): with none it is dark down to the gilt frame, with five it is in full warm light. The count itself is unlimited as before, and lanterns stay for later visitors. At most twelve lanterns are drawn on stage; further presses only increase the count.
 - Clap (third button): a ripple around your seat. After the hourly gong and at curtain-up, replays who clapped back then clap again.
 - Tea (fourth button): only when a neighbour (adjacent seat, diagonals included) is present; the cup flies over and they nod.
 - Photograph the stage: tap the stage. A flash, and a small instant print appears by your seat (up to three). Replays who took pictures flash at the same moment they did. Not allowed once the show has started.
@@ -64,7 +64,7 @@ This is a personal toy, not an official page of the theatre or the production; i
 | 12 | Bell times, each once, catch-up on a jump; house-light curve | `tests/core.test.cjs` | pass |
 | 13 | Backstage schedule: first ≥12 s, gaps 20–40 s, three kinds without immediate repeats, reproducible | `tests/core.test.cjs` | pass |
 | 14 | Stage photos recorded and replayed; frozen at t=301: all bells caught up, curtain open, light 0.2, buttons off, overlay shown | Node test + `tools/browser-check.cjs` group 13 (`?view=full&t=301`) | pass |
-| 15 | Lanterns light the whole stage: mean curtain luminance rises 0 < 1 < 3 < 5 lanterns, each step ≥+3 and 5 vs 0 ≥+25 (0–255), mid-fade 120 ms after lighting | `tools/stage-light-check.cjs` (1440×810 DPR1, 390×664 DPR2, `?view=first&t=6`) | pass; old drawing fails both viewports |
+| 15 | Curtain left/middle/right, boards and both frame columns each brighten at 0/1/3/5 lamps: each step ≥3, span ≥25; isolated cone luminance excess ≥4 and R−B excess ≥3; column pixels separately check the total-light fade at 120/600/1000/2000 ms (bounds in SPEC) | `tools/stage-light-check.cjs` (1440×810 and 1440×1080 DPR1; 390×664 DPR2; `?view=first&t=6`) | Round-two browser checks pending; earlier readings do not verify these checks |
 
 ### F1 repair verification (2026-11-03)
 
@@ -93,7 +93,7 @@ Not tried on a real phone yet; nobody has listened to the sounds, only their tri
 | `&t=<s>` | advance the timeline to t and freeze; `t=301` is the after-curtain freeze |
 | `&mute=1`, `&seed=<n>` | mute; seed for the grey figures' and backstage schedules |
 
-With `view` set, localStorage is neither read nor written. Hooks: `window.__foyer` (`act(code)`, `snapshot()`, `gong()`, `photo()`, `openProgramme(p)`, `flip(d)`, `jumpTo(sec)` moves curtain to sec seconds from now, `nextShow()`, `pause()`, `step(ms)`, `reset()`) and the shared `window.__PLAYTEST__`.
+With `view` set, localStorage is neither read nor written. Hooks: `window.__foyer` (read-only `geometry` with logical coordinates for the stage, curtain, boards, frame and first light cone, `act(code)`, `snapshot()`, `gong()`, `photo()`, `openProgramme(p)`, `flip(d)`, `jumpTo(sec)` moves curtain to sec seconds from now, `nextShow()`, `pause()`, `step(ms)`, `reset()`) and the shared `window.__PLAYTEST__`.
 
 ## Origin
 

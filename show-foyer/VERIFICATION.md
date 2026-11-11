@@ -60,3 +60,130 @@ NODE_PATH="$(npm root -g)" node tools/tea-gift-check.cjs <页面基准地址> <�
 本轮复跑：Node **26/26**；`stage-light-check` **2/2**；`browser-check` **13/13 组**；`walkthrough` **21/21**；`regression` **100/100**；`tea-gift-check` **96/96**；`entry-check` **76/76**；`performance` **2/2**（390 档 p95 1.0 ms、最多 440 次绘制，1365 档 p95 0.9 ms、最多 468 次，原上限 1500；ANGLE Metal / Apple M4）。旧检查都没有依赖旧画法的断言，未改动。Playwright 自带 Chromium 158.0.8127.18。
 
 与改前（origin/main）四个机位并排、与生图靶子并排读图，结论见批次记录。未录新的开局 30 秒视频（`record.cjs` 未跑），未测真手机、Safari 与真人观感；未 push。
+
+## 2026-11-11 · 冷读第二轮：亮度检查补缺口
+
+本轮只改 `show-foyer/`，未联网、安装依赖、建立依赖软链、提交或推送，未启动浏览器。第一轮的座椅点击修复保留；第一轮已经增加幕布几何，本轮在该只读 getter 上扩展，未重做。
+
+改动对应：
+
+- `src/game.js`：只读 `__foyer.geometry` 新增舞台、木台板、左右台柱、Canvas 逻辑尺寸和首盏光锥/光斑几何。把原绘制中的灯光几何计算提为 `lampLightAt()`，绘制与回报共用原公式，避免测试再写一套会漂移的尺寸。没有改配色、布局、灯数规则、库或过渡参数。
+- `tools/stage-light-check.cjs`：幕布左/中/右、台板、左右台框六区分别验每档 ≥+3、总差 ≥+25；光锥在同一时刻、同一总光下扣除无灯笼参考，亮度差 ≥4、R−B 色差 ≥3，左右锥外各验一次；总光在光锥裁剪区外的两根台柱独立验 120/600/1000/2000 ms 曲线。三个视口保留鼠标/触控真实落座和第一次点灯；其后用原模拟钩子推进。输出原图、取样框叠图及原始读数 JSON，记录实际 Canvas 尺寸和横纵像素比例。
+- `tests/stage-light.test.cjs`：实际执行页面几何、烘焙、舞台绘制函数和 `tick()`。五种 Canvas 尺寸核对真实绘制矩形、实际光锥路径、取样非空、几何返回值不改布局；锥内框四角须在锥内且在光斑圆外。另验真实落座点灯后的总光曲线与细时间步一致性。它记录绘图指令，不模拟像素或声称原生 Canvas 通过。
+- `README.md` / `README_CN.md`：各补小屏铜牌省略座号、最多绘十二盏且之后只加计数两句；验收第 15 行改成新判据并标记浏览器待测，公开钩子说明同步。`SPEC.md` 写清分区、阈值与隔离方式；本节为中文交接报告。
+
+实际 Node 结果（在本目录）：
+
+```sh
+node --test tests/*.test.cjs
+```
+
+真实末尾输出：
+
+```text
+ℹ tests 51
+ℹ suites 0
+ℹ pass 51
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 218.569041
+```
+
+```sh
+node --check src/game.js
+node --check tools/stage-light-check.cjs
+node --check tests/stage-light.test.cjs
+```
+
+三条均退出码 0、无输出；`git diff --check -- show-foyer` 也退出码 0、无输出（该 git 命令从仓根执行）。
+
+### 已实际验证会红的 Node 坏版本
+
+以下仅在 VM 内存副本注入，不改工作区文件，各自运行后无需恢复；正常命令不带环境变量。真实输出摘录如下。
+
+```sh
+FOYER_LIGHT_MUTATION=old-geometry node --test tests/stage-light.test.cjs
+```
+
+```text
+ℹ tests 6
+ℹ pass 1
+ℹ fail 5
+AssertionError [ERR_ASSERTION]: 缺真实舞台/台板/台框/灯位几何
+```
+
+```sh
+FOYER_LIGHT_MUTATION=no-cone node --test tests/stage-light.test.cjs
+```
+
+```text
+ℹ tests 6
+ℹ pass 1
+ℹ fail 5
+AssertionError [ERR_ASSERTION]: 锥内取样框四角必须落在实际绘制的光锥路径内
+```
+
+此坏版本只删除锥形路径的 `fill()`，保留圆形光斑与灯笼；这是绘图路径检查变红，尚不是浏览器像素断言变红的证据。
+
+```sh
+FOYER_LIGHT_MUTATION=instant node --test tests/stage-light.test.cjs
+```
+
+```text
+ℹ tests 6
+ℹ pass 5
+ℹ fail 1
+AssertionError [ERR_ASSERTION]: early120: {"0":0,"120":0.2,"600":0.2,"1000":0.2,"2000":0.2,"3000":0.2}
+```
+
+不带变异重跑新增文件实际为 **6 pass / 0 fail**；全量结果见上面的 **51/51**。没有用合成 RGB 数据充当坏版渲染证据。
+
+### 派活方浏览器完整命令与预期结果（尚未执行）
+
+从仓根在终端 A 启动本地静态服务：
+
+```sh
+python3 -m http.server 8765 --bind 127.0.0.1
+```
+
+终端 B 同样从仓根开始，使用已有 Playwright，不安装、不建软链：
+
+```sh
+cd show-foyer
+LIGHT_CHECK_OUT="$(mktemp -d /tmp/show-foyer-light-round2.XXXXXX)"
+NODE_PATH="$(npm root -g)" node tools/stage-light-check.cjs http://127.0.0.1:8765/show-foyer/ "$LIGHT_CHECK_OUT"
+echo "$LIGHT_CHECK_OUT"
+```
+
+预期（不是本轮实测输出）：
+
+```text
+ok   desktop-1440x810: 37/37 checks
+ok   desktop-1440x1080: 37/37 checks
+ok   iphone-390x664: 37/37 checks
+stage-light-check: 3 passed, 0 failed
+```
+
+三个视口顺序执行，默认 Canvas 2D、DPR1/1/2，未切截图画质。`index.html` + `src/` 本来就是发布文件、没有构建步骤；派活方仍应对实际发布副本重复同一命令（替换页面基准地址和输出目录），不能用源码检查替代发布或上线复验。
+
+要看的证据：
+
+1. `report.json` 和各视口 JSON 中的 `failed`、`errors` 均空；`sampling` 有实际像素框、Canvas 尺寸与横纵比例。六区 `read[0/1/3/5]` 都各自通过，不能只看总均值。`fade` 两柱的归一化读数须落入 SPEC 区间。
+2. 每张原图与同名 `-regions.png` 并排读：幕布三框不沾墙和台柱、台板框避开节目单、两个台框取样在金柱内部；光锥内外框同高，锥内框避开圆形光斑。共三个视口、每档十个状态，各有原图和叠图。
+3. `cone-reference` / `cone-lit` 两图在同一时刻：总光应一致，差别来自灯笼及其局部光照；`coneIsolation` 中时间和 `lit` 一致，两根台柱亮度变化 ≤0.05。局部对比须对左右锥外分别满足亮度 ≥4、偏暖 ≥3；这里只对扣除参考后的增量设阈值，原始 RGB 仍完整保存。
+
+### 浏览器坏版本怎么造、哪条应红（待派活方实测）
+
+每次只临时改 `src/game.js` 的一项，开新的输出目录运行上面的完整检查命令，记下红项，然后恢复该行再测下一项；不要同时叠加坏版本，也不要提交它们。
+
+| 坏版本 | 精确改法 | 预期变红的像素断言 |
+|---|---|---|
+| 关总光、保留局部灯光 | 仅在 `drawStage()` 开头，把 `L = Math.max(0, Math.min(1, S.lit))` 改为 `L = 0` | `wholeStage.frameLeft.eachStep/span`、`wholeStage.frameRight.eachStep/span`；两柱 `totalFade.*.visible` 和曲线断言也应红。局部光斑无法照亮裁剪区外的两根柱子 |
+| 只关锥形光束，保留光斑、反光和灯笼 | 找到 `ctx.fillStyle = cone;` 开头的整行，只注释末尾 `ctx.fill();`，保留路径及其余绘制 | `cone.coneOutsideLeft.luma/warmth` 和 `cone.coneOutsideRight.luma/warmth` 四项应红。取样框在光斑外，不能由光斑顶替；Node 的 `no-cone` 坏版本已证明路径缺失会被抓到 |
+| 总光瞬亮、仍让灯笼淡入 | 把 `S.lit += (litTarget() - S.lit) * (1 - Math.exp(-dt * 2.2));` 改为 `S.lit = litTarget();` | 两柱 `totalFade.*.early120/middle600/near1000/ordered` 应红；可能同时触发总光隔离检查。灯笼 0.6 秒淡入不能挽救台柱的瞬亮 |
+
+恢复正常版本后，再用全新目录跑到 `3 passed, 0 failed`，逐张读图。新像素阈值与这些浏览器坏版本本轮均**未实测**，不得把上面的预期写成已通过。
+
+未做视觉材质返修、真人试玩、真机、Safari、声音或录像：这些不在本轮两处检查缺口及说明补充的范围。实现复用现有几何、状态钩子、Node 标准库与原有 Playwright，没有新增框架或依赖。
