@@ -15,6 +15,7 @@
 !/VERIFICATION.md
 !/tools/
 !/tools/mobile-check.cjs
+!/tools/stuck-check.cjs
 !/THIRD_PARTY_NOTICES.md
 !/tests/
 !/tests/core.test.cjs

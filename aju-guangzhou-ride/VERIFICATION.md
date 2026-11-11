@@ -39,3 +39,16 @@ The deferred direct-open issue above is now fixed. `tools/mobile-check.cjs` open
 Only the short touch-landscape introduction layout changed: smaller heading and gaps, hidden extra controls/version text, scrollable prose if needed, and a non-shrinking 44 px Start button. No new dependencies or JavaScript layout logic were needed. After the change, source and rebuilt single-file pages each pass **60/60 checks** across 844 × 300, 844 × 340, 390 × 664, 320 × 568 and 1365 × 900. Both landscape button bottoms are 249.59 CSS px and their centers hit the button; the other three Start rectangles are unchanged. Introduction screenshots were inspected alongside the baseline. The existing departure, riding and map checks still pass with zero page errors. Browser: Google Chrome 156.0.8078.80 through Playwright, real Apple M4 Metal GPU, Three.js r160, mobile DPR 2/render ratio 1.5 and desktop DPR/render ratio 1; normal rendering settings throughout.
 
 `node --test tests/*.test.cjs`: **27/27 passed**; JavaScript syntax checks and `git diff --check` also passed. `python3 build.py` regenerated `阿橘的广州慢游.html`, explicitly included in this follow-up commit as requested. Reproduce with the commands above using the source URL and then the generated HTML URL; the new screenshots are named `<width>x<height>-intro.png`, with measurements in `report.json`. Physical iOS/Safari and Android/Chrome devices, including browser-bar changes and safe-area insets in landscape, still need verification. This follow-up has not been pushed or checked on the live site.
+
+## Standing against a wall — 2026-11-11
+
+Reported in a review: with auto-forward on and nobody steering, the bike drifts into the arcade about 30 m from the start, falls, gets up still facing the wall, and then stands at 0 km/h for good; holding ↑ did nothing. Cause: a blocked step set the speed to zero every frame and nothing ever changed the heading.
+
+Change (`src/core.js`): when a step is blocked, the pedals are still asked for and nobody is steering, `clearTurn` picks the smallest turn after which the way ahead is clear (12 m, else 4 m, else 1.2 m), and the bike finishes that turn standing still before it sets off (`s.pivot`). Steering, braking or parking cancels it; navigation is untouched. The default is unchanged: auto-forward on, navigation off, the bike still rides straight where it points, so a rider who never steers still falls at bends.
+
+Checks, each red on the previous build:
+
+- `node --test tests/*.test.cjs`: **31/31** (four new tests: resting against a wall, after a fall, no turning for a rider who steers/brakes/parks, boxed in). Before the change two of them failed with "stood at 0 km/h for 8.0 s" and "11.7 s".
+- `NODE_PATH="$(npm root -g)" node tools/stuck-check.cjs <url> <out-dir>`: a visitor who never steers, 50 s on the real map, Chrome with Metal, 1365 × 900. Before: 1 fall, then 40.5 s at 0 km/h, 33 m travelled. After (source and rebuilt single file): 5 falls, longest standstill 1 s, 176–226 m travelled.
+
+Not verified: phones, and whether five falls in 50 s reads as acceptable for a visitor who never steers; that is the existing "navigation off by default" design, not changed here.
