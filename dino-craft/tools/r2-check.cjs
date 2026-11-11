@@ -8,7 +8,9 @@ try { ({chromium} = require('playwright')); }
 catch { ({chromium} = require(path.join(execFileSync('npm', ['root', '-g'], {encoding:'utf8'}).trim(), 'playwright'))); }
 const root = path.resolve(__dirname, '..'), out = path.join(root, 'shots');
 const before = process.argv.includes('--before');
-const report = {phase:before ? 'before' : 'after', checks:[], errors:[], scenes:[]};
+const baselinePath=path.join(out,'r2-before-report.json');
+const baselineAvailable=fs.existsSync(baselinePath);
+const report = {phase:before ? 'before' : 'after', checks:[], errors:[], scenes:[], limitations:baselineAvailable?[]:['Historical R2 screenshots are absent in this checkout; current R2 regressions run, paired palette comparison uses R3 artifacts.']};
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const ready = p => p.waitForFunction(() => __PLAYTEST__?.ready, null, {polling:100, timeout:60000});
 const customBase=process.argv.find(arg=>/^https?:/.test(arg));
@@ -44,14 +46,17 @@ async function run() {
           check('R3 leg hinge remains on the local lateral axis when turned',()=>assert.ok(audit.maxLegAxisTilt<.0001));
           check('R3 head projects in front of body', () => assert.ok(audit.rex.headAhead));
           check('R3 at least 95% of rex silhouette is unoccluded', () => assert.ok(audit.rex.visibility.fraction > .95, JSON.stringify(audit.rex.visibility)));
-          check('R2 leaf holes and translucent amber exist in actual Canvas atlas', () => assert.ok(audit.atlas.leafHoles > 8 && audit.atlas.amberTranslucent === 256));
+          check('R4 broadleaf edge gaps and translucent amber match the actual Canvas atlas', () => {
+            assert.equal(audit.atlas.leafHoles, 4, 'four edge gaps replace the old repeated flecks');
+            assert.equal(audit.atlas.amberTranslucent, 256);
+          });
         }
         check('R4 six round barrel tubes', () => assert.ok(audit.barrelRadialNormals >= 12, 'actual radial normals '+audit.barrelRadialNormals));
         check('R2 atlas used by real terrain', () => assert.ok(audit.terrain.textured && audit.terrain.nearest && audit.terrain.uvVertices > 0 && audit.terrain.alphaTest > 0, JSON.stringify(audit.terrain)));
       }
       // Identical world camera for each pair. Hero uses the side-observer camera
       // that will also be the final hero entry. No quality or material overrides.
-      const pose = before ? (view === 'hero' ? {position:[-12.5,29,-12], rotation:[-.262,-1.72,0]} : audit.camera) : JSON.parse(fs.readFileSync(path.join(out,'r2-before-report.json'))).scenes.find(s=>s.view===view).pose;
+      const pose = before ? (view === 'hero' ? {position:[-12.5,29,-12], rotation:[-.262,-1.72,0]} : audit.camera) : (baselineAvailable?JSON.parse(fs.readFileSync(baselinePath)).scenes.find(s=>s.view===view).pose:audit.camera);
       await p.evaluate(pose => __PLAYTEST__.captureCamera(pose), pose); await pause(200);
       await p.evaluate(() => __PLAYTEST__.clearPerformance()); await pause(1400);
       const s = await p.evaluate(() => __PLAYTEST__.snapshot());
@@ -95,7 +100,7 @@ async function run() {
       if (!before) check('R1 sky/ground pixel coverage seed '+seed, () => assert.ok(a.coverage.sky >= .15 && a.coverage.ground >= .15, JSON.stringify(a.coverage)));
       if (!before) report.checks.push({name:'coverage seed '+seed, data:a.coverage, spawn:a.spawn});
     }
-    if (!before) {
+    if (!before && baselineAvailable) {
       const baseline=JSON.parse(fs.readFileSync(path.join(out,'r2-before-report.json')));
       for(const scene of report.scenes){
         const old=baseline.scenes.find(s=>s.view===scene.view);
