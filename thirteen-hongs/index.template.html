@@ -21,6 +21,7 @@ button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 #labels{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
 #labels div{position:absolute;transform:translate(-50%,-100%);font:12px var(--serif);background:#f3ecd9cc;border:1px solid var(--line);border-radius:3px;padding:1px 5px;white-space:nowrap}
 #labels div.lane{background:#2c2620bb;color:var(--paper)}
+body.capture .hud,body.capture #labels,body.capture #intro,body.capture #joy{display:none!important}
 #joy{position:fixed;width:110px;height:110px;border-radius:50%;border:2px solid #2c262055;background:#f3ecd944;display:none;z-index:4;pointer-events:none}
 #joy b{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:#2c2620aa}
 #hint{left:50%;bottom:118px;transform:translateX(-50%);font-size:12px;background:var(--glass);border-radius:12px;padding:5px 12px;border:1px solid var(--line);opacity:0;transition:opacity .4s;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
