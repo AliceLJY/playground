@@ -12,6 +12,7 @@
   const poem = document.getElementById('poem');
   const note = document.getElementById('note');
   const hint = document.getElementById('hint');
+  const exit = document.getElementById('exit');
   const muteBtn = document.getElementById('mute');
   const srcBtn = document.getElementById('source-open'), srcPanel = document.getElementById('source');
   srcBtn.addEventListener('click', () => { srcPanel.hidden = false; });
@@ -23,7 +24,16 @@
   const fixedG = params.has('g') ? parseFloat(params.get('g')) : null; // 验收用：固定在行程某处
 
   const gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
-  if (!gl) { document.getElementById('fallback').style.display = 'flex'; return; }
+  // 这台设备画不了着色器：退成一卷能横着拨的静止画，四幅依次排开，卷尾是诗。溯源照样能点。
+  function goStatic() {
+    const fb = document.getElementById('fallback');
+    if (fb.classList.contains('on')) return;
+    document.body.classList.add('static'); document.body.style.touchAction = 'auto';
+    fb.innerHTML = SCENES.map((s) => `<img src="assets/${s.key}.jpg" alt="${s.line}">`).join('') +
+      '<div class="tail"><img src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维"><p>' + note.innerHTML + '</p></div>';
+    fb.classList.add('on'); hint.textContent = '向右拨，往山里走'; hint.classList.add('on'); setTimeout(() => hint.classList.remove('on'), 9000);
+  }
+  if (!gl || params.has('static')) { goStatic(); return; }
 
   const VS = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
   const FS = `
@@ -45,8 +55,6 @@ void main(){
   vec2 p = gl_FragCoord.xy / uRes.y;
   vec2 sc = p - vec2(uRes.x / uRes.y * 0.5, 0.5);     // 屏幕正中为原点
   vec3 col;
-  float paperNoise = fbm(vec2(p.x * 38.0, p.y * 160.0)) * 0.6 + fbm(vec2(p.x * 9.0, p.y * 7.0)) * 0.4;
-  vec3 paper = PAPER * (0.97 + 0.07 * (paperNoise - 0.5));
 
   if (uPaper < 0.5) {
     // 镜头：向左展、往里推。往里推的时候近处的东西比远处的涨得快，所以按深度反推回去取样。
@@ -82,7 +90,7 @@ void main(){
     vec2 e = (q - uLight) / uLightR;
     float g = exp(-dot(e, e));
     // 影：枝叶的碎影，加上树干拉长的斜影。斜影取自这幅画自己的树干——沿日头方向往上找，那里暗，这里就落影。
-    float leaf = smoothstep(0.46, 0.66, fbm(vec2(q.x * uR * 44.0 + uTime * 0.03, q.y * 60.0 - uTime * 0.012)));
+    float leaf = (uGlow > 0.001 && g > 0.004) ? smoothstep(0.46, 0.66, fbm(vec2(q.x * uR * 44.0 + uTime * 0.03, q.y * 60.0 - uTime * 0.012))) : 0.0;
     // 日头在右边、很低：每根树干的影子从树根起向左拖出去，日头越低拖得越长、越平
     float trunk = 0.0;
     vec2 dir = normalize(vec2(-1.0, 0.34 - 0.16 * uSun));
@@ -103,14 +111,18 @@ void main(){
     col *= mix(vec3(1.0), vec3(0.84, 0.86, 0.90), uDusk);
 
     // 换景：云气从疏到密漫上来，把这一景盖住
-    float vn = fbm(vec2(p.x * 1.6 + uTime * 0.02, p.y * 2.6 - uTime * 0.008));
-    float cover = smoothstep(0.0, 1.0, uVeil * 1.7 - (1.0 - vn) * 0.7);
-    col = mix(col, MIST * (0.98 + 0.06 * (vn - 0.5)), cover);
+    if (uVeil > 0.001) {
+      float vn = fbm(vec2(p.x * 1.6 + uTime * 0.02, p.y * 2.6 - uTime * 0.008));
+      col = mix(col, MIST * (0.98 + 0.06 * (vn - 0.5)), smoothstep(0.0, 1.0, uVeil * 1.7 - (1.0 - vn) * 0.7));
+    }
   } else {
     // 卷尾素纸：从云气里淡出来
-    float vn = fbm(vec2(p.x * 1.6 + uTime * 0.02, p.y * 2.6 - uTime * 0.008));
-    float cover = smoothstep(0.0, 1.0, uVeil * 1.7 - (1.0 - vn) * 0.7);
-    col = mix(paper, MIST * (0.98 + 0.06 * (vn - 0.5)), cover);
+    float paperNoise = fbm(vec2(p.x * 38.0, p.y * 160.0)) * 0.6 + fbm(vec2(p.x * 9.0, p.y * 7.0)) * 0.4;
+    col = PAPER * (0.97 + 0.07 * (paperNoise - 0.5));
+    if (uVeil > 0.001) {
+      float vn = fbm(vec2(p.x * 1.6 + uTime * 0.02, p.y * 2.6 - uTime * 0.008));
+      col = mix(col, MIST * (0.98 + 0.06 * (vn - 0.5)), smoothstep(0.0, 1.0, uVeil * 1.7 - (1.0 - vn) * 0.7));
+    }
   }
   col += (hash(gl_FragCoord.xy + fract(uTime)) - 0.5) * 0.012;   // 细颗粒，免得色带
   gl_FragColor = vec4(col, 1.0);
@@ -162,7 +174,7 @@ void main(){
 
   let W = 1, H = 1, aspect = 1;
   function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, matchMedia('(pointer: coarse)').matches ? 1.5 : 2);   // 手机平板降到 1.5 倍，少烫一点
     W = Math.round(innerWidth * dpr); H = Math.round(innerHeight * dpr);
     canvas.width = W; canvas.height = H; aspect = innerWidth / innerHeight;
     gl.viewport(0, 0, W, H);
@@ -198,6 +210,7 @@ void main(){
   addEventListener('resize', resize);
 
   const state = { scene: 0, u: 0 };
+  let frozen = false;
   function frame(now) {
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
     const t = fixedT !== null ? fixedT : (now - t0) / 1000;
@@ -265,7 +278,10 @@ void main(){
     } else {
       gl.uniform1f(U.uPaper, 1);
     }
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // 诗显全以后画面不再变，停止重画，省电
+    const settled = i >= N && u >= 1 && wipe >= 112 && !dragging;
+    if (!settled || !frozen) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    frozen = settled;
 
     // 卷尾的诗：素纸从云气里出来以后，从右往左一行行显出来
     const h = innerHeight;
@@ -275,6 +291,7 @@ void main(){
     poem.style.opacity = i >= N && wipe > 0 ? '1' : '0';
     poem.style.setProperty('--wipe', (wipe - 12).toFixed(1) + '%');
     note.style.opacity = i >= N && wipe >= 110 ? '1' : '0';
+    exit.classList.toggle('on', i >= N && wipe >= 110);
 
     setVoiceLevel(i < N ? SCENES[i].voice : 0.08);
     requestAnimationFrame(frame);
@@ -363,6 +380,7 @@ void main(){
     if (silentEl) (muted ? silentEl.pause() : silentEl.play().catch(() => {}));
   });
   muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  document.getElementById('again').addEventListener('click', (e) => { e.preventDefault(); g = 0; vel = 0; wipe = 0; t0 = performance.now(); lastTouch = -1e9; });
   document.addEventListener('visibilitychange', () => { if (ac) (document.hidden ? ac.suspend() : ac.resume()); });
 
   // 先载第一景就开场，其余的在后台按顺序接着载
@@ -374,5 +392,5 @@ void main(){
     requestAnimationFrame(frame);
     window.__luzhai = { get g() { return g; }, state, loaded: () => tex.map(Boolean), audio: () => (ac ? ac.state : 'none') };
     (async () => { for (let k = 0; k < N; k++) if (!tex[k]) { try { await loadScene(k); } catch (e) { break; } } })();
-  }).catch(() => { document.getElementById('fallback').style.display = 'flex'; });
+  }).catch(goStatic);
 })();

@@ -19,28 +19,35 @@
   }
   #note {
     position: fixed; top: 0; left: 0; margin: 0; pointer-events: none; opacity: 0;
-    font: 12px/1.7 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; color: rgba(60, 46, 26, .62);
+    font: 12px/1.7 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; color: rgba(43, 34, 24, .80);
     letter-spacing: .08em; text-align: center; transition: opacity 2.4s ease;
     left: 0; right: 0; top: 84vh; padding: 0 16px;
   }
   #hint {
     position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
-    font: 12px/1 "Songti SC", "Noto Serif SC", serif; letter-spacing: .3em; color: rgba(255, 244, 214, .0);
-    pointer-events: none; transition: color 1.6s ease;
+    font: 13px/1 "Songti SC", "Noto Serif SC", serif; letter-spacing: .3em; color: rgba(38, 30, 22, 0);
+    text-shadow: 0 0 6px rgba(255, 236, 190, 0); pointer-events: none; transition: color 1.6s ease, text-shadow 1.6s ease;
   }
-  #hint.on { color: rgba(255, 244, 214, .5); }
+  #hint.on { color: rgba(38, 30, 22, .82); text-shadow: 0 0 6px rgba(255, 236, 190, .7); }
+  #exit {
+    position: fixed; left: 0; right: 0; top: 91vh; margin: 0; text-align: center; opacity: 0; pointer-events: none; transition: opacity 2.4s ease;
+    font: 13px/1.7 "Songti SC", "Noto Serif SC", serif; letter-spacing: .15em;
+  }
+  #exit.on { opacity: 1; pointer-events: auto; }
+  #exit a { color: rgba(43, 34, 24, .78); text-decoration: none; border-bottom: 1px solid rgba(43, 34, 24, .35); padding-bottom: 1px; }
+  #exit span { margin: 0 .8em; color: rgba(43, 34, 24, .45); }
   #mute {
     position: fixed; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom));
-    width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255, 244, 214, .28); background: rgba(40, 30, 14, .18);
-    color: rgba(255, 244, 214, .6); font: 12px/28px "Songti SC", serif; text-align: center; padding: 0;
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .55);
+    color: rgba(38, 30, 22, .85); font: 12px/28px "Songti SC", serif; text-align: center; padding: 0;
     opacity: 0; transition: opacity 1.2s ease; cursor: pointer;
   }
   #mute.on { opacity: 1; }
-  #mute.off { color: rgba(255, 244, 214, .25); text-decoration: line-through; }
+  #mute.off { color: rgba(38, 30, 22, .4); text-decoration: line-through; }
   #source-open {
     position: fixed; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom));
-    height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid rgba(255, 244, 214, .34); background: rgba(40, 30, 14, .22);
-    color: rgba(255, 244, 214, .78); font: 12px/28px "Songti SC", "Noto Serif SC", serif; letter-spacing: .25em; text-indent: .25em; cursor: pointer;
+    height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .55);
+    color: rgba(38, 30, 22, .88); font: 12px/28px "Songti SC", "Noto Serif SC", serif; letter-spacing: .25em; text-indent: .25em; cursor: pointer;
   }
   #source {
     position: fixed; inset: 0; z-index: 5; background: rgba(226, 203, 159, .97); color: #2b2218; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -59,14 +66,24 @@
     height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid rgba(43, 34, 24, .4); background: rgba(226, 203, 159, .9);
     color: #2b2218; font: 13px/30px "Songti SC", serif; letter-spacing: .2em; cursor: pointer;
   }
-  noscript, #fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; }
-  #fallback img { height: 100%; }
+  #fallback {
+    position: fixed; inset: 0; z-index: 0; display: none; direction: rtl; overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+    background: #E2CB9F; touch-action: pan-x; -webkit-overflow-scrolling: touch;
+  }
+  #fallback.on { display: block; }
+  #fallback img { height: 100%; width: auto; display: inline-block; vertical-align: top; }
+  #fallback .tail { display: inline-block; height: 100%; width: min(100vw, 70vh); vertical-align: top; position: relative; direction: ltr; white-space: normal; }
+  #fallback .tail img { position: absolute; height: 25%; top: 34.5%; left: 50%; transform: translateX(-50%); }
+  #fallback .tail p { position: absolute; left: 0; right: 0; top: 84%; margin: 0; padding: 0 16px; text-align: center; font: 12px/1.7 "Songti SC", "Noto Serif SC", serif; color: rgba(43, 34, 24, .8); letter-spacing: .08em; }
+  #mute, #source-open, #hint, #exit { z-index: 3; }
+  body.static #scroll, body.static #poem, body.static #note, body.static #mute { display: none; }
 </style>
 </head>
 <body>
 <canvas id="scroll" aria-label="王维《鹿柴》：四句诗四幅画，一幅一幅往山里走"></canvas>
 <img id="poem" src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维" decoding="async">
 <p id="note">辋川卧游 · 鹿柴<br>画与字皆为 AI 依唐人勾线平涂、欧阳询楷书之法新作，并非古迹。</p>
+<p id="exit"><a href="./" id="again">再看一遍</a><span>·</span><a href="../">回 playground</a></p>
 <div id="hint">按住，往山里走</div>
 <button id="mute" aria-label="声音开关">声</button>
 <button id="source-open" aria-label="这幅画的依据与做法">溯源</button>
@@ -84,11 +101,11 @@
 <p>古人看山水叫「卧游」。手卷是一段一段展开看的，人不动，景在换，叫移步换景。这里一句诗配一幅画，一幅一幅往山里走：远望空山；走到林边，听见人语、看不见人；进了深林，斜阳照进来；低头，返照落在青苔上。</p>
 
 <h2>王维的画</h2>
-<p>王维没有公认的真迹传世。画史上说他有两路：一路学李思训的着色，就是青绿山水；一路承吴道子，带墨韵。宋代苏轼说他「诗中有画，画中有诗」；明代董其昌以禅论画，分南北宗，北宗推李思训，南宗推王维。传在他名下的几件作品真伪另当别论，但可以从中窥见画风。这一卷取的是青绿这一路。</p>
+<p>王维没有公认的真迹传世。画史上说他有两路：一路学李思训的着色，就是青绿山水；一路承吴道子，带墨韵。宋代苏轼说他「诗中有画，画中有诗」；明代董其昌以禅论画，分南北宗，北宗推李思训，南宗推王维。传在他名下的几件作品真伪另当别论，但可以从中窥见画风。这一卷取的是勾线设色这一路；设色照下面说的唐摹本，很淡，大半是绢色，没有铺石青石绿。</p>
 
 <h2>画法的依据</h2>
-<p>诗是什么年代，画就用什么年代的画法。唐代山水以线为主、以色为辅：先用匀细的线勾出山石树木的轮廓，再平涂颜色；轮廓线以内不皴；山头的苔和树丛，先用细线一簇簇圈出来再填色。由浓到淡的渲染，要到五代末、北宋初才有，唐代没有。</p>
-<p>所以这四幅画里没有皴，没有渲染，没有明暗，颜色很少、很淡、很平，大半是绢的本色。主要照的是《女史箴图》唐摹本（大英博物馆藏）里画山的那一段，只学画法，不抄构图。</p>
+<p>诗是什么年代，画就用什么年代的画法。这一卷依的看法是：唐代山水以线为主、以色为辅，先用匀细的线勾出山石树木的轮廓，再平涂颜色；轮廓线以内不皴；山头的苔和树丛，先用细线一簇簇圈出来再填色。后来山水里那种由浓到淡的墨色渲染，是五代末、北宋初才成熟的，所以这里不用。画史上对唐代设色有没有晕染另有说法，这里取的是从严的一种。</p>
+<p>所以这四幅画里没有皴，没有渲染，没有明暗，颜色很少、很淡、很平，大半是绢的本色。主要照的是《女史箴图》唐摹本（大英博物馆藏）里画山的那一段：原作传为东晋顾恺之，现存这一卷一般认为是唐人摹的，看的是唐人怎么下笔。第三幅画的时候另拿敦煌莫高窟第 217 窟盛唐壁画里的山石作旁证。都只学画法，不抄构图。</p>
 <p>这一卷的第一版用过带渲染的青绿，请懂画的人看过，指出年代不对，四幅都重画了。</p>
 
 <h2>字</h2>
@@ -102,7 +119,7 @@
 <p class="small">按住屏幕是往前走，松开它自己慢慢展；左右拨可以来回看。右下角是声音开关。</p>
 </div>
 </section>
-<div id="fallback"><img src="assets/s3.jpg" alt=""></div>
+<div id="fallback" aria-label="四幅画排成一卷，向右拨着看"></div>
 <script src="layout.js"></script>
 <script src="main.js"></script>
 </body>
