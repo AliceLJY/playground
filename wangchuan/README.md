@@ -19,7 +19,7 @@ Two seconds is enough to get something. You never have to finish it.
 
 | Scene | Line | The painting | What happens |
 |---|---|---|---|
-| 1 | Empty mountains, no one in sight | Layered blue-green peaks seen from afar, cloud bands across the slopes, dense woods, no sign of people | It opens here, nothing in the way |
+| 1 | Empty mountains, no one in sight | Layered peaks in fine outline seen from afar, clouds across the slopes, dense woods, no sign of people | It opens here, nothing in the way |
 | 2 | Only the sound of someone talking | The foot of the hill; a path follows a stream and bends into the wood, with nobody on it | The distant call and answer is nearest here |
 | 3 | Returning light enters the deep wood | The deep wood at sundown | Light comes in from the right and settles on the moss |
 | 4 | And shines again on the green moss | Looking down: old roots, stones, thick moss | The light rests on the moss; leaf shadows and long trunk shadows creep; then the light leaves and the wood dims |
