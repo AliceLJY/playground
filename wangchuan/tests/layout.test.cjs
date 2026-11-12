@@ -7,48 +7,92 @@ const L = require('../layout.js');
 
 // 竖屏手机、平板、横屏电脑、超宽屏
 const ASPECTS = [9 / 19.5, 9 / 16, 3 / 4, 4 / 3, 16 / 9, 21 / 9];
+const STEPS = Array.from({ length: 41 }, (_, k) => k / 40);
+const name = (a) => `宽高比 ${a.toFixed(2)}`;
 
-test('开场第一眼就看得见苔上的返照（留 2 秒也有 2 秒的收获）', () => {
+test('四景按诗的四句排，一句一景', () => {
+  assert.deepEqual(L.SCENES.map((s) => s.line), ['空山不见人', '但闻人语响', '返景入深林', '复照青苔上']);
+});
+
+test('第一眼就是一幅画：开场不在云气里，也不露出画外（留 2 秒也有 2 秒的收获）', () => {
+  assert.equal(L.veil(0, 0), 0, '第一景开头被云气遮住了');
   for (const a of ASPECTS) {
-    const cam = L.startCam(a);
-    const pos = (L.LIGHT_X - cam) / a; // 返照在屏幕横向的位置，0 是最左，1 是最右
-    assert.ok(pos > 0.25 && pos < 0.8, `宽高比 ${a.toFixed(2)}：开场时返照落在屏幕横向 ${pos.toFixed(2)}，应在 0.25–0.8 之间`);
+    const c = L.camera(0, 0, a);
+    assert.ok(c.left >= -1e-9 && c.right <= L.R + 1e-9, `${name(a)}：开场看到的范围 [${c.left.toFixed(2)}, ${c.right.toFixed(2)}] 超出画 [0, ${L.R}]`);
   }
 });
 
-test('开场不露出画心之外的东西', () => {
-  for (const a of ASPECTS.filter((x) => x < L.R)) {
-    const cam = L.startCam(a);
-    assert.ok(cam >= 0 && cam + a <= L.R + 1e-9, `宽高比 ${a.toFixed(2)}：开场视野 [${cam.toFixed(2)}, ${(cam + a).toFixed(2)}] 超出画心 [0, ${L.R.toFixed(2)}]`);
+test('每一景从头走到尾，镜头都不走出画外', () => {
+  for (const a of ASPECTS) for (let i = 0; i < L.N; i++) for (const u of STEPS) {
+    const c = L.camera(i, u, a);
+    assert.ok(c.left >= -1e-9 && c.right <= L.R + 1e-9, `${name(a)} 第 ${i + 1} 景 u=${u}：横向 [${c.left.toFixed(3)}, ${c.right.toFixed(3)}] 出画`);
+    assert.ok(c.bottom >= -1e-9 && c.top <= 1 + 1e-9, `${name(a)} 第 ${i + 1} 景 u=${u}：纵向出画`);
   }
 });
 
-test('卷到头时题诗居中，屏幕够宽就整首都在屏内', () => {
-  for (const a of ASPECTS) {
-    const cam = L.endCam(a);
-    assert.ok(Math.abs(cam + a / 2 - L.POEM_X) < 1e-9, `宽高比 ${a.toFixed(2)}：卷尾时题诗没有居中`);
-    assert.ok(cam < L.startCam(a), `宽高比 ${a.toFixed(2)}：卷尾位置应在开场位置的左边`);
-    if (a >= L.POEM_W + 0.04) {
-      assert.ok(L.POEM_X - L.POEM_W / 2 >= cam && L.POEM_X + L.POEM_W / 2 <= cam + a, `宽高比 ${a.toFixed(2)}：题诗有一部分在屏幕外`);
-    }
+test('每一景都是向左展、往里推（手卷从右往左看，人往山里走）', () => {
+  for (const a of ASPECTS) for (let i = 0; i < L.N; i++) {
+    const c0 = L.camera(i, 0, a), c1 = L.camera(i, 1, a);
+    assert.ok(c1.cx <= c0.cx + 1e-9, `${name(a)} 第 ${i + 1} 景：镜头没有向左`);
+    assert.ok(c1.zoom > c0.zoom * 1.05, `${name(a)} 第 ${i + 1} 景：镜头没有往里推`);
   }
+});
+
+test('「返景入深林」：光落到苔上那一刻，落点在屏幕里', () => {
+  const i = L.SCENES.findIndex((s) => s.line === '返景入深林'), li = L.SCENES[i].light;
+  assert.ok(li && li.enterFrom, '第三景没有写光从哪里照进来');
+  assert.ok(li.enterFrom[0] > li.u, '日头在右边，光应当从右往左照进来');
+  for (const a of ASPECTS) for (const u of [li.arrive, li.arrive + 0.15]) {
+    const c = L.camera(i, u, a), x = li.u * L.R;
+    assert.ok(x > c.left && x < c.right, `${name(a)} u=${u.toFixed(2)}：苔上落点 ${x.toFixed(2)} 不在看到的 [${c.left.toFixed(2)}, ${c.right.toFixed(2)}] 里`);
+  }
+});
+
+test('「复照青苔上」：光还在的那段时间里，苔上的返照一直在屏幕里，而且有树干能落影', () => {
+  const i = L.SCENES.findIndex((s) => s.line === '复照青苔上'), s = L.SCENES[i], li = s.light;
+  for (const a of ASPECTS) for (const u of STEPS.filter((x) => x >= L.FADE && x <= li.leave)) {
+    const c = L.camera(i, u, a), x = (li.u - 0.05 * u) * L.R;
+    assert.ok(x > c.left && x < c.right, `${name(a)} u=${u}：返照正中 ${x.toFixed(2)} 不在看到的 [${c.left.toFixed(2)}, ${c.right.toFixed(2)}] 里`);
+  }
+  assert.ok(s.trunks.some(([x]) => x > li.u), '日头在右边，返照右侧至少要有一根树干，影子才落得进光里');
+});
+
+test('人语在「但闻人语响」那一景最近', () => {
+  const v = L.SCENES.map((s) => s.voice), i = L.SCENES.findIndex((s) => s.line === '但闻人语响');
+  assert.equal(v.indexOf(Math.max(...v)), i);
+  assert.ok(v.every((x, k) => k === i || x <= v[i] * 0.5), '别的景里人语应当明显更远');
+});
+
+test('越往里走日头越低：暖意一景比一景重', () => {
+  const w = L.SCENES.map((s) => s.warm);
+  for (let k = 1; k < w.length; k++) assert.ok(w[k] > w[k - 1], `第 ${k + 1} 景的暖意没有比前一景重`);
+});
+
+test('换景在云气里：每一景收尾和下一景开头都被云气完全盖住，中间是清的', () => {
+  for (let i = 0; i < L.N; i++) {
+    assert.equal(L.veil(i, 1), 1, `第 ${i + 1} 景收尾没有完全进云`);
+    assert.equal(L.veil(i, 0.5), 0, `第 ${i + 1} 景中段不该有换景的云`);
+    if (i > 0) assert.equal(L.veil(i, 0), 1, `第 ${i + 1} 景开头不是从云里出来的`);
+  }
+  assert.equal(L.veil(L.N, 0), 1, '卷尾素纸不是从云里出来的');
+  assert.equal(L.veil(L.N, 0.5), 0, '卷尾素纸上还盖着云');
 });
 
 test('最窄的竖屏手机也装得下整首题诗', () => {
   assert.ok(L.POEM_W + 0.04 <= 9 / 19.5, `题诗宽 ${L.POEM_W.toFixed(3)} 屏高，9:19.5 的手机只有 ${(9 / 19.5).toFixed(3)} 屏高宽`);
 });
 
-test('题诗不压在画心上（唐画画面上不题诗，诗在卷尾素纸）', () => {
-  assert.ok(L.POEM_X + L.POEM_W / 2 < -L.MOUNT, '题诗右缘越过了隔水，压到画心一侧');
-});
-
-test('题诗图的尺寸和 layout 里写的一致', () => {
-  const buf = fs.readFileSync(path.join(__dirname, '..', 'assets', 'poem.png'));
+test('题诗图的尺寸和 layout 里写的一致；每一景的画和深度图都在', () => {
+  const dir = path.join(__dirname, '..', 'assets');
+  const buf = fs.readFileSync(path.join(dir, 'poem.png'));
   const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
   assert.ok(Math.abs(w / h - L.POEM_W / L.POEM_H) < 1e-3, `poem.png 是 ${w}×${h}，layout 按 ${(L.POEM_W / L.POEM_H).toFixed(3)} 算`);
+  for (const s of L.SCENES) for (const f of [`${s.key}.jpg`, `${s.key}-depth.jpg`]) {
+    assert.ok(fs.statSync(path.join(dir, f)).size > 5000, `缺 assets/${f}`);
+  }
 });
 
-test('页面上没有解说文字：除了卷尾的署名说明、声音提示和开关，不出现别的字', () => {
+test('页面上没有解说文字：除了卷尾的署名说明、声音提示和开关，不出现别的字（诗不写在画上）', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const body = html.slice(html.indexOf('<body>')).replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, '\n');
   const lines = body.split('\n').map((s) => s.trim()).filter(Boolean);

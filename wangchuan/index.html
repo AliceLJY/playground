@@ -20,7 +20,8 @@
   #note {
     position: fixed; top: 0; left: 0; margin: 0; pointer-events: none; opacity: 0;
     font: 12px/1.7 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; color: rgba(60, 46, 26, .62);
-    letter-spacing: .08em; white-space: nowrap; will-change: transform; text-align: center; transition: opacity 2.4s ease;
+    letter-spacing: .08em; text-align: center; transition: opacity 2.4s ease;
+    left: 0; right: 0; top: 84vh; padding: 0 16px;
   }
   #hint {
     position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
@@ -41,12 +42,12 @@
 </style>
 </head>
 <body>
-<canvas id="scroll" aria-label="王维《鹿柴》诗意的青绿山水长卷，向左展开"></canvas>
+<canvas id="scroll" aria-label="王维《鹿柴》：四句诗四幅青绿山水，一幅一幅往山里走"></canvas>
 <img id="poem" src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维" decoding="async">
 <p id="note">辋川卧游 · 鹿柴<br>画与字皆为 AI 依盛唐青绿、盛唐小楷之法新作，并非古迹。</p>
 <div id="hint">轻触有声</div>
 <button id="mute" aria-label="声音开关">声</button>
-<div id="fallback"><img src="assets/luzhai.jpg" alt=""></div>
+<div id="fallback"><img src="assets/s3.jpg" alt=""></div>
 <script src="layout.js"></script>
 <script src="main.js"></script>
 </body>
