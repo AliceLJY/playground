@@ -22,7 +22,7 @@
     position: fixed; top: 0; left: 0; margin: 0; pointer-events: none; opacity: 0;
     font: 12px/1.7 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; color: rgba(43, 34, 24, .80);
     letter-spacing: .08em; text-align: center; transition: opacity 2.4s ease;
-    left: 0; right: 0; top: 84vh; padding: 0 16px;
+    left: 0; right: 0; top: 76vh; padding: 0 16px;
   }
   #hint {
     position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom)); text-align: center;
@@ -35,6 +35,10 @@
     color: rgba(30, 23, 16, .92); text-shadow: 0 0 8px rgba(255, 236, 190, .85), 0 0 2px rgba(255, 236, 190, .9);
   }
   #line .zh { display: block; font: 17px/1.6 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; letter-spacing: .5em; text-indent: .5em; }
+  /* 中文访客：这一句竖排在画的右边，像题在卷边上 */
+  #line.side { left: auto; right: calc(20px + env(safe-area-inset-right)); bottom: auto; top: 18vh; text-align: left; }
+  #line.side .zh { writing-mode: vertical-rl; font-size: 19px; letter-spacing: .55em; text-indent: 0; }
+  #line.side .en { display: none; }
   #line .en { display: block; font: italic 14px/1.5 Georgia, "Times New Roman", serif; letter-spacing: .02em; margin-top: 2px; padding: 0 18px; }
   #dots { position: fixed; left: 0; right: 0; bottom: calc(31px + env(safe-area-inset-bottom)); text-align: center; pointer-events: none; z-index: 3; font-size: 0; }
   #dots i { display: inline-block; width: 6px; height: 6px; margin: 0 6px; border-radius: 50%; border: 1px solid rgba(38, 30, 22, .5); background: transparent; transition: background .8s ease, border-color .8s ease; }
@@ -48,12 +52,14 @@
   #intro b { display: block; font: 600 20px/1.4 Georgia, "Times New Roman", serif; letter-spacing: .04em; }
   #intro span { display: block; font: italic 14px/1.55 Georgia, "Times New Roman", serif; margin-top: 6px; max-width: 30em; margin-left: auto; margin-right: auto; }
   #exit {
-    position: fixed; left: 0; right: 0; top: 91vh; margin: 0; text-align: center; opacity: 0; pointer-events: none; transition: opacity 2.4s ease;
+    position: fixed; left: 0; right: 0; top: 88.5vh; margin: 0; text-align: center; opacity: 0; pointer-events: none; transition: opacity 2.4s ease;
     font: 13px/1.7 "Songti SC", "Noto Serif SC", serif; letter-spacing: .15em;
   }
   #exit.on { opacity: 1; pointer-events: auto; }
   #exit a { color: rgba(43, 34, 24, .78); text-decoration: none; border-bottom: 1px solid rgba(43, 34, 24, .35); padding-bottom: 1px; }
-  #exit span { margin: 0 .8em; color: rgba(43, 34, 24, .45); }
+  #exit span { margin: 0 .5em; color: rgba(43, 34, 24, .45); }
+  body.done #dots, body.done #source-open { opacity: 0; pointer-events: none; }
+  #dots, #source-open { transition: opacity 1.5s ease; }
   #mute {
     position: fixed; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom));
     width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .6);
@@ -96,7 +102,7 @@
   #fallback img { height: 100%; width: auto; display: inline-block; vertical-align: top; }
   #fallback .tail { display: inline-block; height: 100%; width: min(100vw, 70vh); vertical-align: top; position: relative; direction: ltr; white-space: normal; }
   #fallback .tail img { position: absolute; height: 25%; top: 34.5%; left: 50%; transform: translateX(-50%); }
-  #fallback .tail p { position: absolute; left: 0; right: 0; top: 84%; margin: 0; padding: 0 16px; text-align: center; font: 12px/1.7 "Songti SC", "Noto Serif SC", serif; color: rgba(43, 34, 24, .8); letter-spacing: .08em; }
+  #fallback .tail p { position: absolute; left: 0; right: 0; top: 70%; margin: 0; padding: 0 16px; text-align: center; font: 12px/1.7 "Songti SC", "Noto Serif SC", serif; color: rgba(43, 34, 24, .8); letter-spacing: .08em; }
   #mute, #source-open, #hint, #exit, #line, #dots, #intro { z-index: 3; }
   body.static #line, body.static #dots { display: none; }
   body.static #scroll, body.static #poem, body.static #note, body.static #mute { display: none; }
@@ -105,8 +111,8 @@
 <body>
 <canvas id="scroll" aria-label="王维《鹿柴》：四句诗四幅画，一幅一幅往山里走"></canvas>
 <img id="poem" src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维" decoding="async">
-<p id="note">辋川卧游 · 鹿柴<br>画与字皆为 AI 依唐人勾线平涂、欧阳询楷书之法新作，并非古迹。</p>
-<p id="exit"><a href="./" id="again">再看一遍</a><span>·</span><a href="../">回 playground</a></p>
+<p id="note">辋川卧游 · 鹿柴<br>照唐人的画法：只勾线、平涂，不皴不染。<br>画上的光、影、风和声音，是今人加的。<br>画与字皆为 AI 新作，并非古迹。</p>
+<p id="exit"><a href="./" id="again">再看一遍</a><span>·</span><a href="#" id="more">细看溯源</a><span>·</span><a href="../" id="home">回 playground</a></p>
 <div id="intro" lang="en"></div>
 <div id="line"><span class="zh" lang="zh"></span><span class="en" lang="en"></span></div>
 <div id="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
