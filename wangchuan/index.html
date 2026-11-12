@@ -25,11 +25,28 @@
     left: 0; right: 0; top: 84vh; padding: 0 16px;
   }
   #hint {
-    position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
-    font: 13px/1 "Songti SC", "Noto Serif SC", serif; letter-spacing: .3em; color: rgba(38, 30, 22, 0);
+    position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom)); text-align: center;
+    font: 13px/1 "Songti SC", "Noto Serif SC", Georgia, serif; letter-spacing: .3em; color: rgba(38, 30, 22, 0);
     text-shadow: 0 0 6px rgba(255, 236, 190, 0); pointer-events: none; transition: color 1.6s ease, text-shadow 1.6s ease;
   }
   #hint.on { color: rgba(38, 30, 22, .82); text-shadow: 0 0 6px rgba(255, 236, 190, .7); }
+  #line {
+    position: fixed; left: 0; right: 0; bottom: calc(112px + env(safe-area-inset-bottom)); text-align: center; pointer-events: none; opacity: 0; z-index: 3;
+    color: rgba(30, 23, 16, .92); text-shadow: 0 0 8px rgba(255, 236, 190, .85), 0 0 2px rgba(255, 236, 190, .9);
+  }
+  #line .zh { display: block; font: 17px/1.6 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; letter-spacing: .5em; text-indent: .5em; }
+  #line .en { display: block; font: italic 14px/1.5 Georgia, "Times New Roman", serif; letter-spacing: .02em; margin-top: 2px; padding: 0 18px; }
+  #dots { position: fixed; left: 0; right: 0; bottom: calc(31px + env(safe-area-inset-bottom)); text-align: center; pointer-events: none; z-index: 3; font-size: 0; }
+  #dots i { display: inline-block; width: 6px; height: 6px; margin: 0 6px; border-radius: 50%; border: 1px solid rgba(38, 30, 22, .5); background: transparent; transition: background .8s ease, border-color .8s ease; }
+  #dots i.on { background: rgba(38, 30, 22, .72); border-color: rgba(38, 30, 22, .72); }
+  #dots i.done { background: rgba(38, 30, 22, .28); }
+  #intro {
+    position: fixed; left: 0; right: 0; top: calc(9vh + env(safe-area-inset-top)); padding: 0 26px; text-align: center; pointer-events: none; opacity: 0; z-index: 3;
+    transition: opacity 1.8s ease; color: rgba(30, 23, 16, .94); text-shadow: 0 0 10px rgba(255, 236, 190, .9), 0 0 3px rgba(255, 236, 190, .95);
+  }
+  #intro.on { opacity: 1; }
+  #intro b { display: block; font: 600 20px/1.4 Georgia, "Times New Roman", serif; letter-spacing: .04em; }
+  #intro span { display: block; font: italic 14px/1.55 Georgia, "Times New Roman", serif; margin-top: 6px; max-width: 30em; margin-left: auto; margin-right: auto; }
   #exit {
     position: fixed; left: 0; right: 0; top: 91vh; margin: 0; text-align: center; opacity: 0; pointer-events: none; transition: opacity 2.4s ease;
     font: 13px/1.7 "Songti SC", "Noto Serif SC", serif; letter-spacing: .15em;
@@ -50,19 +67,23 @@
     height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .6);
     color: rgba(38, 30, 22, .88); font: 14px/42px "Songti SC", "Noto Serif SC", serif; letter-spacing: .25em; text-indent: .25em; cursor: pointer;
   }
-  #source {
+  .source {
     position: fixed; inset: 0; z-index: 5; background: #E2CB9F; color: #2b2218; overflow-y: auto; -webkit-overflow-scrolling: touch;
     touch-action: pan-y; -webkit-user-select: text; user-select: text;
     font: 15px/1.9 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
   }
-  #source[hidden] { display: none; }
-  #source .inner { max-width: 34em; margin: 0 auto; padding: calc(56px + env(safe-area-inset-top)) 22px calc(64px + env(safe-area-inset-bottom)); }
-  #source h1 { font-size: 20px; font-weight: 600; letter-spacing: .2em; margin: 0 0 4px; }
-  #source h2 { font-size: 15px; font-weight: 600; letter-spacing: .12em; margin: 30px 0 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(43, 34, 24, .25); }
-  #source p { margin: 0 0 10px; text-align: justify; }
-  #source .poem { letter-spacing: .3em; line-height: 2.1; margin: 8px 0 0; }
-  #source .small { font-size: 13px; color: rgba(43, 34, 24, .7); }
-  #source-close {
+  .source[hidden] { display: none; }
+  .source .inner { max-width: 34em; margin: 0 auto; padding: calc(56px + env(safe-area-inset-top)) 22px calc(64px + env(safe-area-inset-bottom)); }
+  .source h1 { font-size: 20px; font-weight: 600; letter-spacing: .2em; margin: 0 0 4px; }
+  .source h2 { font-size: 15px; font-weight: 600; letter-spacing: .12em; margin: 30px 0 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(43, 34, 24, .25); }
+  .source p { margin: 0 0 10px; text-align: justify; }
+  .source .poem { letter-spacing: .3em; line-height: 2.1; margin: 8px 0 0; }
+  .source .poem-en { font-family: Georgia, "Times New Roman", serif; line-height: 1.8; margin: 8px 0 10px; }
+  .source[lang=en] { font: 16px/1.7 Georgia, "Times New Roman", serif; }
+  .source[lang=en] p { text-align: left; }
+  .source[lang=en] h1, .source[lang=en] h2 { letter-spacing: .03em; }
+  .source .small { font-size: 13px; color: rgba(43, 34, 24, .7); }
+  .source-close {
     position: fixed; top: calc(12px + env(safe-area-inset-top)); right: calc(14px + env(safe-area-inset-right)); z-index: 6;
     height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid rgba(43, 34, 24, .4); background: rgba(226, 203, 159, .9);
     color: #2b2218; font: 13px/30px "Songti SC", serif; letter-spacing: .2em; cursor: pointer;
@@ -76,7 +97,8 @@
   #fallback .tail { display: inline-block; height: 100%; width: min(100vw, 70vh); vertical-align: top; position: relative; direction: ltr; white-space: normal; }
   #fallback .tail img { position: absolute; height: 25%; top: 34.5%; left: 50%; transform: translateX(-50%); }
   #fallback .tail p { position: absolute; left: 0; right: 0; top: 84%; margin: 0; padding: 0 16px; text-align: center; font: 12px/1.7 "Songti SC", "Noto Serif SC", serif; color: rgba(43, 34, 24, .8); letter-spacing: .08em; }
-  #mute, #source-open, #hint, #exit { z-index: 3; }
+  #mute, #source-open, #hint, #exit, #line, #dots, #intro { z-index: 3; }
+  body.static #line, body.static #dots { display: none; }
   body.static #scroll, body.static #poem, body.static #note, body.static #mute { display: none; }
 </style>
 </head>
@@ -85,11 +107,14 @@
 <img id="poem" src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维" decoding="async">
 <p id="note">辋川卧游 · 鹿柴<br>画与字皆为 AI 依唐人勾线平涂、欧阳询楷书之法新作，并非古迹。</p>
 <p id="exit"><a href="./" id="again">再看一遍</a><span>·</span><a href="../">回 playground</a></p>
+<div id="intro" lang="en"></div>
+<div id="line"><span class="zh" lang="zh"></span><span class="en" lang="en"></span></div>
+<div id="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div id="hint">按住，往山里走</div>
 <button id="mute" aria-label="声音开关">声</button>
 <button id="source-open" aria-label="这幅画的依据与做法">溯源</button>
-<section id="source" hidden aria-label="溯源：依据与做法">
-<button id="source-close">回到画里</button>
+<section id="source" class="source" hidden aria-label="溯源：依据与做法">
+<button class="source-close">回到画里</button>
 <div class="inner">
 <h1>溯源</h1>
 <p class="small">这一页讲：画是照什么画的，哪些有依据，哪些是我们加的。</p>
@@ -118,6 +143,38 @@
 <h2>怎么做的</h2>
 <p>画和字都是 AI 照上面的画法新作的，不是古迹，也不是哪一幅古画的复制。画没有拆开重画，只给每幅配了一张深度图，让近处比远处多动一点。</p>
 <p>怎么看：按住屏幕（或按住空格、方向键）是往前走，松开它自己慢慢展；左右拨、滚滚轮可以来回看。右下角是声音开关。走到头有「再看一遍」。</p>
+</div>
+</section>
+<section id="source-en" class="source" hidden lang="en" aria-label="Sources: what this is based on and how it was made">
+<button class="source-close">Back to the painting</button>
+<div class="inner">
+<h1>Sources</h1>
+<p class="small">What these paintings follow, what has a basis, and what we added.</p>
+
+<h2>The poem</h2>
+<p class="poem-en"><i>Empty mountain. No one in sight.<br>Only the sound of voices, somewhere.<br>Evening light returns into the deep wood,<br>and shines again on the green moss.</i></p>
+<p>"Deer Park" (<i>Lù Zhài</i>) by Wang Wei, who lived in eighth-century China under the Tang dynasty. It is one of twenty short poems about places on his country estate at Wangchuan; Deer Park is the name of one of those places, and there are no deer in the poem. The "returning light" is the low light of sunset, so the paintings are set in the evening, with the sun low on the right and lower in every scene. The English here is our own plain rendering.</p>
+
+<h2>Why four paintings</h2>
+<p>Old viewers called looking at a landscape painting <i>woyou</i>, travelling while lying down: the body stays where it is and the mind walks into the picture. A handscroll is unrolled a stretch at a time, so the viewer stays put while the scenery changes. Here each line of the poem has one painting, and you walk further into the hills with each: the empty mountain from afar; the edge of the wood, where voices carry but nobody is seen; the deep wood, with late sun slanting in; then the ground at your feet, light on moss.</p>
+
+<h2>Wang Wei as a painter</h2>
+<p>No painting accepted as from Wang Wei's own hand survives. Chinese accounts of painting describe two sides to his work: one coloured, in the manner of Li Sixun; one closer to Wu Daozi, with the life of the ink line. In the Song dynasty Su Shi wrote that there is painting in his poems and poetry in his paintings; in the Ming, Dong Qichang named him the founder of the "Southern school". This scroll follows the outlined-and-coloured side, with very light colour.</p>
+
+<h2>What the manner is based on</h2>
+<p>A poem should be painted in the manner of its own period. The view followed here is that Tang landscape is line first and colour second: rocks and trees are drawn in fine, even outline and then filled with flat colour; nothing is textured inside the outline; moss and foliage on the peaks are small clusters outlined one by one and then filled. The graded ink washes of later landscape matured only around the tenth century, so they are not used. Historians differ on how much graded colour Tang painters used; this takes the stricter view.</p>
+<p>So these four paintings have no texture strokes, no graded washes and no light and shade; the colour is sparse, pale and flat, and most of the surface is bare silk. The main model is the mountain passage of the <i>Admonitions of the Court Instructress</i> scroll in the British Museum: the original is attributed to Gu Kaizhi of the fourth century, and the surviving scroll is generally thought to be a Tang copy, so it shows how a Tang hand drew. The third painting also looked to the rocks in the High Tang murals of Mogao Cave 217 at Dunhuang. Only the manner was followed, never the composition.</p>
+<p>The first version of this scroll used washed blue-and-green. Someone who knows painting saw it and said the period was wrong, and all four were repainted.</p>
+
+<h2>The writing</h2>
+<p>The poem at the end is in regular script after Ouyang Xun, the early Tang calligrapher, following his <i>Jiucheng Palace Sweet Spring Inscription</i> (from a Song-dynasty rubbing in the National Palace Museum, Taipei). Writing a poem onto the picture itself became usual only from the Song and Yuan onward, and we could not confirm how it was done in the Tang, so the poem is not on the paintings. It waits on plain paper at the tail of the scroll.</p>
+
+<h2>What is modern</h2>
+<p>These paintings follow the Tang way of outline and flat colour, and no light or shadow is painted on them. The patch of returning light on screen, the tree shadows on the moss, the leaves moving in the wind, the far mist, the voices and footsteps, and the view walking into the picture are all a layer we added outside the paintings. The paintings themselves are flat and still.</p>
+
+<h2>How it was made</h2>
+<p>The paintings and the writing were newly made with AI in the manner described above. They are not old works and not copies of any one painting. The paintings were not cut apart or repainted; each has a depth map so that near things move slightly more than far things.</p>
+<p>How to look: press and hold (or hold Space or an arrow key) to walk forward; let go and it unrolls slowly by itself; swipe sideways or scroll to look back and forth. The sound switch is at the bottom right. At the end you can go round again.</p>
 </div>
 </section>
 <div id="fallback" aria-label="四幅画排成一卷，向右拨着看"></div>

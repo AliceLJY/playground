@@ -14,10 +14,24 @@
   const hint = document.getElementById('hint');
   const exit = document.getElementById('exit');
   const muteBtn = document.getElementById('mute');
-  const srcBtn = document.getElementById('source-open'), srcPanel = document.getElementById('source');
+  // 语言：浏览器是中文就一切照旧；不是中文，加一句英文开场、每景一行英译、英文的溯源页。?lang=en / ?lang=zh 可以强制。
+  const EN = (new URLSearchParams(location.search).get('lang') || navigator.language || 'zh').toLowerCase().slice(0, 2) !== 'zh';
+  const srcBtn = document.getElementById('source-open'), srcPanel = document.getElementById(EN ? 'source-en' : 'source');
+  const lineEl = document.getElementById('line'), dots = [...document.getElementById('dots').children], intro = document.getElementById('intro');
   srcBtn.addEventListener('click', () => { srcPanel.hidden = false; });
-  document.getElementById('source-close').addEventListener('click', () => { srcPanel.hidden = true; });
+  for (const b of document.querySelectorAll('.source-close')) b.addEventListener('click', () => { srcPanel.hidden = true; });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') srcPanel.hidden = true; });
+  if (EN) {
+    document.documentElement.lang = 'en';
+    srcBtn.textContent = 'Sources'; srcBtn.style.letterSpacing = '.04em'; srcBtn.style.textIndent = '0'; srcBtn.style.fontFamily = 'Georgia, serif';
+    muteBtn.textContent = '\u266A'; muteBtn.setAttribute('aria-label', 'Sound on / off');
+    hint.textContent = 'Press and hold to walk into the hills'; hint.style.letterSpacing = '.04em'; hint.style.fontStyle = 'italic';
+    note.innerHTML = 'Wangchuan, Lying Down \u00B7 Deer Park<br>Paintings and calligraphy newly made with AI in the Tang manner. Not old works.';
+    note.style.letterSpacing = '.02em'; note.style.fontFamily = 'Georgia, serif';
+    document.getElementById('again').textContent = 'Once more';
+    document.querySelector('#exit a:last-child').textContent = 'Back to playground';
+    intro.innerHTML = '<b>Deer Park \u00B7 Wang Wei</b><span>Walk into a Chinese poem from the eighth century. Four lines, four paintings. Follow the distant voices and the last of the light into the wood.</span>';
+  }
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const params = new URLSearchParams(location.search);
   const fixedT = params.has('t') ? parseFloat(params.get('t')) : null; // 验收用：冻结在某一秒
@@ -31,7 +45,7 @@
     document.body.classList.add('static'); document.body.style.touchAction = 'auto';
     fb.innerHTML = SCENES.map((s) => `<img src="assets/${s.key}.jpg" alt="${s.line}">`).join('') +
       '<div class="tail"><img src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维"><p>' + note.innerHTML + '</p></div>';
-    fb.classList.add('on'); hint.textContent = '向右拨，往山里走'; hint.classList.add('on'); setTimeout(() => hint.classList.remove('on'), 9000);
+    fb.classList.add('on'); hint.textContent = EN ? 'Swipe right to walk into the hills' : '向右拨，往山里走'; hint.classList.add('on'); setTimeout(() => hint.classList.remove('on'), 9000);
   }
   if (!gl || params.has('static')) { goStatic(); return; }
 
@@ -46,6 +60,8 @@ uniform float uCx, uZoom, uPush, uTime, uR, uVeil, uPaper, uWarm, uGlow, uShadow
 const vec3 PAPER = vec3(0.885, 0.795, 0.625);
 const vec3 MIST = vec3(0.880, 0.720, 0.400);
 
+// 画的上下边各有一道生图带出来的浅边，取样时往里收一点，不让它露出来
+vec3 paint(vec2 q){ return texture2D(uTex, vec2(q.x, 0.024 + q.y * 0.956)).rgb; }
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
@@ -68,13 +84,13 @@ void main(){
       d = texture2D(uDepth, clamp(uv, 0., 1.)).r;
     }
     vec2 q = clamp(uv, vec2(0.0015, 0.002), vec2(0.9985, 0.998));
-    col = texture2D(uTex, q).rgb;
+    col = paint(q);
     // 风：只让枝叶和苔草动（它们偏绿，绢和石头偏赭），一阵一阵从右往左过，高处动得多
     float leafy = smoothstep(0.80, 0.95, col.g / max(col.r, 0.01));
     float gust = 0.5 + 0.5 * sin(uTime * 0.38 + w.x * 1.7); gust *= gust;
     vec2 blow = vec2(sin(uTime * 1.35 + w.x * 11.0 + w.y * 6.0), 0.35 * cos(uTime * 1.1 + w.x * 7.0 - w.y * 3.0));
     blow *= 0.0042 * uWind * leafy * (0.30 + 0.70 * gust) * smoothstep(0.10, 0.65, w.y);
-    col = texture2D(uTex, clamp(q + blow * vec2(1.0 / uR, 1.0), vec2(0.0015, 0.002), vec2(0.9985, 0.998))).rgb;
+    col = paint(clamp(q + blow * vec2(1.0 / uR, 1.0), vec2(0.0015, 0.002), vec2(0.9985, 0.998)));
 
     // 傍晚的暖意：越往里走日头越低，向阳的右边染得略暖一点
     col *= mix(vec3(1.0), vec3(1.045, 1.0, 0.93), uWarm * (0.35 + 0.65 * q.x));
@@ -216,7 +232,8 @@ void main(){
   const state = { scene: 0, u: 0 };
   let frozen = false, keyDir = 0, touched = false, shown = false;
   // 提示语留到第一次动手之后再淡出
-  function firstTouch() { if (touched) return; touched = true; setTimeout(() => hint.classList.remove('on'), 2600); }
+  function firstTouch() { if (touched) return; touched = true; setTimeout(() => hint.classList.remove('on'), 2600); setTimeout(() => intro.classList.remove('on'), 4200); }
+  let lineScene = -1;
   function frame(now) {
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
     const t = fixedT !== null ? fixedT : (now - t0) / 1000;
@@ -302,6 +319,11 @@ void main(){
     poem.style.setProperty('--wipe', (wipe - 12).toFixed(1) + '%');
     note.style.opacity = i >= N && wipe >= 110 ? '1' : '0';
     exit.classList.toggle('on', i >= N && wipe >= 110);
+
+    // 这一景的诗句：画先看够，快走完时在画边上露一下再收回去。四个小点记着走到第几景。
+    if (i < N && i !== lineScene) { lineScene = i; lineEl.children[0].textContent = SCENES[i].line; lineEl.children[1].textContent = EN ? SCENES[i].en : ''; }
+    lineEl.style.opacity = i < N ? (L.lineAlpha(u) * (1 - veil)).toFixed(3) : '0';
+    dots.forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
 
     setVoiceLevel(i < N ? SCENES[i].voice : 0.08);
     requestAnimationFrame(frame);
@@ -398,6 +420,8 @@ void main(){
   loadScene(first).then(() => {
     resize(); t0 = prev = performance.now();
     if (fixedT === null) setTimeout(() => { if (!touched) hint.classList.add('on'); }, 2200);
+    if (EN && fixedT === null) { setTimeout(() => intro.classList.add('on'), 700); setTimeout(() => intro.classList.remove('on'), 14000); }
+    if (EN && params.has('intro')) intro.classList.add('on');
     requestAnimationFrame(frame);
     window.__luzhai = { get g() { return g; }, state, loaded: () => tex.map(Boolean), audio: () => (ac ? ac.state : 'none') };
     (async () => { for (let k = 0; k < N; k++) if (!tex[k]) { try { await loadScene(k); } catch (e) { break; } } })();

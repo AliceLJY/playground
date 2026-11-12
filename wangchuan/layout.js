@@ -17,12 +17,12 @@
   // light：返照落在画里的位置和大小（没有就不写）。trunks：会在返照里落影的几根树干，[横向位置, 树根的纵向位置]。
   // seconds：没人碰时这一景自己走多久。voice：这一景里人语有多近。warm：傍晚的暖意有多重。
   const SCENES = [
-    { key: 's1', line: '空山不见人', from: 0.68, to: 0.40, seconds: 12, voice: 0.12, warm: 0.25 },
-    { key: 's2', line: '但闻人语响', from: 0.80, to: 0.36, seconds: 13, voice: 1.00, warm: 0.45 },
-    { key: 's3', line: '返景入深林', from: 0.78, to: 0.58, seconds: 15, voice: 0.45, warm: 0.80,
+    { key: 's1', line: '空山不见人', en: 'Empty mountain. No one in sight.', from: 0.68, to: 0.40, seconds: 12, voice: 0.12, warm: 0.25 },
+    { key: 's2', line: '但闻人语响', en: 'Only the sound of voices, somewhere.', from: 0.80, to: 0.36, seconds: 13, voice: 1.00, warm: 0.45 },
+    { key: 's3', line: '返景入深林', en: 'Evening light returns into the deep wood,', from: 0.78, to: 0.58, seconds: 15, voice: 0.45, warm: 0.80,
       light: { u: 0.63, v: 0.80, ru: 0.085, rv: 0.050, enterFrom: [0.99, 0.50], arrive: 0.45 },
       trunks: [[0.72, 0.72], [0.80, 0.63], [0.88, 0.56], [0.57, 0.78]] },
-    { key: 's4', line: '复照青苔上', from: 0.60, to: 0.47, seconds: 16, voice: 0.20, warm: 1.00,
+    { key: 's4', line: '复照青苔上', en: 'and shines again on the green moss.', from: 0.60, to: 0.50, seconds: 16, push: 0.06, voice: 0.20, warm: 1.00,
       light: { u: 0.52, v: 0.62, ru: 0.16, rv: 0.17, leave: 0.72 },
       trunks: [[0.88, 0.45], [0.72, 0.52], [0.57, 0.27], [0.30, 0.33]] },
   ];
@@ -37,13 +37,21 @@
   // 第 i 景走到 u 时的镜头：正中的世界坐标 cx、放大倍数 zoom、屏幕两边看到的画的范围 [left, right]
   function camera(i, u, a) {
     const s = SCENES[i], e = ease(clamp01(u));
-    const z0 = baseZoom(a), z1 = z0 * (1 + PUSH), zoom = z0 * (1 + PUSH * e);
+    const push = s.push === undefined ? PUSH : s.push;   // 第四景是低头看苔，推太近就认不出是苔了
+    const z0 = baseZoom(a), z1 = z0 * (1 + push), zoom = z0 * (1 + push * e);
     const fit = (want, hw) => (hw >= R / 2 ? R / 2 : Math.max(hw, Math.min(R - hw, want)));
     const c0 = fit(s.from * R, a / (2 * z0));
     const c1 = Math.min(c0, fit(s.to * R, a / (2 * z1)));   // 屏幕很宽时也只许向左，不许倒回右边
     const hw = a / (2 * zoom);
     const cx = fit(c0 + (c1 - c0) * e, hw);
     return { cx, zoom, left: cx - hw, right: cx + hw, top: 0.5 + 0.5 / zoom, bottom: 0.5 - 0.5 / zoom };
+  }
+
+  // 这一景的诗句什么时候在画边上露一下：画先看够了，句子才出来，走完之前又收回去
+  const LINE_IN = 0.52, LINE_OUT = 0.84;
+  function lineAlpha(u) {
+    const up = clamp01((u - LINE_IN) / 0.10), down = 1 - clamp01((u - (LINE_OUT - 0.08)) / 0.08);
+    return ease(Math.min(up, down));
   }
 
   // 云气盖住画面的程度：换景时在云里，中间是清的。第一景开头不遮——第一眼就得是一幅画。
@@ -53,5 +61,5 @@
     return Math.max(head, tail);
   }
 
-  return { R, POEM_RATIO, poemH, poemW, PUSH, FADE, SCENES, N, HOLD, END, ease, clamp01, baseZoom, camera, veil };
+  return { R, POEM_RATIO, poemH, poemW, PUSH, FADE, SCENES, N, HOLD, END, ease, clamp01, baseZoom, camera, veil, lineAlpha, LINE_IN, LINE_OUT };
 });
