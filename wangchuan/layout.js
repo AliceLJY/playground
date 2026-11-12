@@ -8,24 +8,24 @@
   const R = 2.5;                      // 每幅画的宽高比（3172×1268 上下）
   const POEM_H = 0.25;                // 题诗高度（占屏高），与 CSS 的 25vh 对应
   const POEM_W = POEM_H * 948 / 585;  // 题诗宽度（按 assets/poem.png 的尺寸）
-  const PUSH = 0.12;                  // 每一景里镜头往画里推多少（1 → 1.12 倍）
+  const PUSH = 0.18;                  // 每一景里镜头往画里推多少（1 → 1.18 倍）
   const FADE = 0.14;                  // 每一景首尾各有这么长一段在云气里换景
 
   // from / to：镜头正中对着画的横向哪里（0 是最左，1 是最右）。手卷从右往左看，所以都是由大到小。
   // light：返照落在画里的位置和大小（没有就不写）。trunks：会在返照里落影的几根树干，[横向位置, 树根的纵向位置]。
   // seconds：没人碰时这一景自己走多久。voice：这一景里人语有多近。warm：傍晚的暖意有多重。
   const SCENES = [
-    { key: 's1', line: '空山不见人', from: 0.68, to: 0.40, seconds: 16, voice: 0.12, warm: 0.25 },
-    { key: 's2', line: '但闻人语响', from: 0.80, to: 0.36, seconds: 17, voice: 1.00, warm: 0.45 },
-    { key: 's3', line: '返景入深林', from: 0.78, to: 0.58, seconds: 20, voice: 0.45, warm: 0.80,
+    { key: 's1', line: '空山不见人', from: 0.68, to: 0.40, seconds: 12, voice: 0.12, warm: 0.25 },
+    { key: 's2', line: '但闻人语响', from: 0.80, to: 0.36, seconds: 13, voice: 1.00, warm: 0.45 },
+    { key: 's3', line: '返景入深林', from: 0.78, to: 0.58, seconds: 15, voice: 0.45, warm: 0.80,
       light: { u: 0.63, v: 0.80, ru: 0.085, rv: 0.050, enterFrom: [0.99, 0.50], arrive: 0.45 },
       trunks: [[0.72, 0.72], [0.80, 0.63], [0.88, 0.56], [0.57, 0.78]] },
-    { key: 's4', line: '复照青苔上', from: 0.60, to: 0.47, seconds: 22, voice: 0.20, warm: 1.00,
+    { key: 's4', line: '复照青苔上', from: 0.60, to: 0.47, seconds: 16, voice: 0.20, warm: 1.00,
       light: { u: 0.52, v: 0.62, ru: 0.16, rv: 0.17, leave: 0.72 },
       trunks: [[0.88, 0.45], [0.72, 0.52], [0.57, 0.27], [0.30, 0.33]] },
   ];
   const N = SCENES.length;
-  const HOLD = 4;                     // 开场停几秒才开始自己走
+  const HOLD = 3;                     // 开场停几秒才开始自己走
   const END = N + 1;                  // 行程终点（素纸上诗显全）
 
   const ease = (x) => x * x * (3 - 2 * x);

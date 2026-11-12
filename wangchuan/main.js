@@ -5,13 +5,18 @@
   'use strict';
 
   const L = LuzhaiLayout, { R, N, SCENES, END } = L;
-  const IDLE = 4;               // 手松开多久后恢复自己走
+  const IDLE = 3;               // 手松开多久后恢复自己走
+  const WALK = 5.5;             // 按住往前走时，一景走多少秒
 
   const canvas = document.getElementById('scroll');
   const poem = document.getElementById('poem');
   const note = document.getElementById('note');
   const hint = document.getElementById('hint');
   const muteBtn = document.getElementById('mute');
+  const srcBtn = document.getElementById('source-open'), srcPanel = document.getElementById('source');
+  srcBtn.addEventListener('click', () => { srcPanel.hidden = false; });
+  document.getElementById('source-close').addEventListener('click', () => { srcPanel.hidden = true; });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') srcPanel.hidden = true; });
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const params = new URLSearchParams(location.search);
   const fixedT = params.has('t') ? parseFloat(params.get('t')) : null; // 验收用：冻结在某一秒
@@ -26,7 +31,7 @@ precision highp float;
 uniform sampler2D uTex, uDepth;
 uniform vec2 uRes, uPar, uLight, uLightR;
 uniform vec2 uTr[4];
-uniform float uCx, uZoom, uPush, uTime, uR, uVeil, uPaper, uWarm, uGlow, uShadow, uDusk, uSun;
+uniform float uCx, uZoom, uPush, uTime, uR, uVeil, uPaper, uWarm, uGlow, uShadow, uDusk, uSun, uWind;
 
 const vec3 PAPER = vec3(0.885, 0.795, 0.625);
 const vec3 MIST = vec3(0.880, 0.720, 0.400);
@@ -56,6 +61,12 @@ void main(){
     }
     vec2 q = clamp(uv, vec2(0.0015, 0.002), vec2(0.9985, 0.998));
     col = texture2D(uTex, q).rgb;
+    // 风：只让枝叶和苔草动（它们偏绿，绢和石头偏赭），一阵一阵从右往左过，高处动得多
+    float leafy = smoothstep(0.80, 0.95, col.g / max(col.r, 0.01));
+    float gust = 0.5 + 0.5 * sin(uTime * 0.38 + w.x * 1.7); gust *= gust;
+    vec2 blow = vec2(sin(uTime * 1.35 + w.x * 11.0 + w.y * 6.0), 0.35 * cos(uTime * 1.1 + w.x * 7.0 - w.y * 3.0));
+    blow *= 0.0042 * uWind * leafy * (0.30 + 0.70 * gust) * smoothstep(0.10, 0.65, w.y);
+    col = texture2D(uTex, clamp(q + blow * vec2(1.0 / uR, 1.0), vec2(0.0015, 0.002), vec2(0.9985, 0.998))).rgb;
 
     // 傍晚的暖意：越往里走日头越低，向阳的右边染得略暖一点
     col *= mix(vec3(1.0), vec3(1.045, 1.0, 0.93), uWarm * (0.35 + 0.65 * q.x));
@@ -121,7 +132,7 @@ void main(){
   const loc = gl.getAttribLocation(prog, 'a');
   gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = {};
-  for (const n of ['uTex', 'uDepth', 'uRes', 'uPar', 'uLight', 'uLightR', 'uCx', 'uZoom', 'uPush', 'uTime', 'uR', 'uVeil', 'uPaper', 'uWarm', 'uGlow', 'uShadow', 'uDusk', 'uSun', 'uTr']) U[n] = gl.getUniformLocation(prog, n);
+  for (const n of ['uTex', 'uDepth', 'uRes', 'uPar', 'uLight', 'uLightR', 'uCx', 'uZoom', 'uPush', 'uTime', 'uR', 'uVeil', 'uPaper', 'uWarm', 'uGlow', 'uShadow', 'uDusk', 'uSun', 'uTr', 'uWind']) U[n] = gl.getUniformLocation(prog, n);
 
   function loadTex(src) {
     return new Promise((res, rej) => {
@@ -158,12 +169,12 @@ void main(){
   }
 
   let g = 0, vel = 0, dragging = false, lastX = 0, lastMove = 0, lastTouch = -1e9;
-  let t0 = performance.now(), prev = t0, wipe = 0;
+  let t0 = performance.now(), prev = t0, wipe = 0, downAt = 0, stride = 0, bob = 0, walking = 0;
   // 走到还没载好的景之前先停在云里等
   const limit = () => { let i = 0; while (i < N && tex[i]) i++; return i >= N ? END : i - 0.02; };
   const clampG = (x) => Math.max(0, Math.min(limit(), x));
 
-  function onDown(e) { dragging = true; lastX = e.clientX; vel = 0; canvas.classList.add('dragging'); lastTouch = performance.now(); startAudio(); }
+  function onDown(e) { dragging = true; lastX = e.clientX; vel = 0; canvas.classList.add('dragging'); lastTouch = lastMove = performance.now(); downAt = lastTouch; startAudio(); }
   function onMove(e) {
     if (!dragging) return;
     const dg = (e.clientX - lastX) / (innerHeight * 0.85); lastX = e.clientX;   // 手往右拨，卷子往左展，人往里走
@@ -191,8 +202,12 @@ void main(){
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
     const t = fixedT !== null ? fixedT : (now - t0) / 1000;
 
+    const gBefore = g;
     if (fixedG !== null) g = Math.max(0, Math.min(END, fixedG));
-    else if (!dragging) {
+    else if (dragging) {
+      // 按住不动 = 往前走：比它自己走快三倍。手在拨的时候听手的。
+      if (now - lastMove > 140 && now - downAt > 180) g = clampG(g + dt / WALK);
+    } else {
       if (Math.abs(vel) > 0.004) { g = clampG(g + vel * dt); vel *= Math.pow(0.04, dt); }
       else if (!reduced && t > L.HOLD && now - lastTouch > IDLE * 1000) {
         const i = Math.min(N, Math.floor(g));
@@ -202,6 +217,16 @@ void main(){
     }
     const i = Math.min(N, Math.floor(g)), u = g >= END ? 1 : g - i;
     state.scene = i; state.u = u;
+    // 是人在走（按住、拨、甩出去的惯性），还是它自己在展——只有人在走才有脚步和起伏
+    const speed = dt > 0 ? (g - gBefore) / dt : 0;
+    const byHand = dragging || Math.abs(vel) > 0.004;
+    walking += ((byHand && Math.abs(speed) > 0.03 && i < N ? 1 : 0) - walking) * Math.min(1, dt * 6);
+    if (walking > 0.5) {
+      stride += dt * (1.55 + Math.min(1.2, Math.abs(speed) * 3));     // 每秒一步半到两步多
+      if (stride >= 1) { stride -= 1; footstep(i); }
+    }
+    bob = walking * Math.sin(stride * Math.PI * 2);
+    state.walking = walking;
     const veil = L.veil(i, u);
 
     gl.uniform2f(U.uRes, W, H); gl.uniform1f(U.uTime, t); gl.uniform1f(U.uR, R); gl.uniform1f(U.uVeil, veil);
@@ -212,9 +237,10 @@ void main(){
       gl.uniform1i(U.uTex, 0); gl.uniform1i(U.uDepth, 1); gl.uniform1f(U.uPaper, 0);
       const sway = reduced ? 0 : 1;
       gl.uniform2f(U.uPar,
-        sway * (0.0085 * Math.sin(t * 0.23) + 0.0030 * Math.sin(t * 0.61 + 0.7)) + Math.max(-0.02, Math.min(0.02, vel * 0.03)),
-        sway * 0.0035 * Math.sin(t * 0.17 + 1.1));
-      gl.uniform1f(U.uCx, cam.cx); gl.uniform1f(U.uZoom, cam.zoom); gl.uniform1f(U.uPush, 0.55 * e);
+        sway * (0.0110 * Math.sin(t * 0.23) + 0.0040 * Math.sin(t * 0.61 + 0.7)) + Math.max(-0.02, Math.min(0.02, vel * 0.03)),
+        sway * 0.0045 * Math.sin(t * 0.17 + 1.1) + 0.0060 * bob);
+      gl.uniform1f(U.uCx, cam.cx); gl.uniform1f(U.uZoom, cam.zoom * (1 + 0.004 * bob)); gl.uniform1f(U.uPush, 0.70 * e + 0.05 * walking);
+      gl.uniform1f(U.uWind, reduced ? 0 : 1);
       gl.uniform1f(U.uWarm, s.warm);
 
       // 光：第三景里从右边照进来、落到苔上；第四景里停在苔上，树影慢慢挪，末了移走
@@ -256,17 +282,51 @@ void main(){
 
   // —— 声音：林间的风，远处的人语。要等第一次触碰才能响（浏览器规矩）。
   // 人语在第二景最清楚（「但闻人语响」），越往里走越远。
-  let ac = null, master = null, voiceBus = null, muted = false;
+  let ac = null, master = null, voiceBus = null, muted = false, noiseBuf = null, silentEl = null;
+  // iPhone / iPad：触摸「按下」不算数，要在「抬手 / 点击」里把声音放行；再循环放一段无声的音频，
+  // 让系统把这一页当成在播放媒体，这样侧边静音键开着也有声。
+  function unlock() {
+    startAudio();
+    if (ac && ac.state !== 'running') ac.resume();
+    if (!silentEl) {
+      const n = 4410, wav = new DataView(new ArrayBuffer(44 + n * 2)), W = (o, s) => [...s].forEach((c, k) => wav.setUint8(o + k, c.charCodeAt(0)));
+      W(0, 'RIFF'); wav.setUint32(4, 36 + n * 2, true); W(8, 'WAVEfmt '); wav.setUint32(16, 16, true); wav.setUint16(20, 1, true); wav.setUint16(22, 1, true);
+      wav.setUint32(24, 44100, true); wav.setUint32(28, 88200, true); wav.setUint16(32, 2, true); wav.setUint16(34, 16, true); W(36, 'data'); wav.setUint32(40, n * 2, true);
+      silentEl = new Audio(URL.createObjectURL(new Blob([wav.buffer], { type: 'audio/wav' })));
+      silentEl.loop = true; silentEl.setAttribute('playsinline', ''); silentEl.volume = 0.01;
+    }
+    if (silentEl.paused && !muted) silentEl.play().catch(() => {});
+  }
+  for (const ev of ['pointerup', 'touchend', 'click', 'keyup']) addEventListener(ev, unlock, { passive: true });
+  // 脚步：一小团低沉的沙沙声。山径上脆一点，苔上闷一点。只有人在走的时候才响。
+  function footstep(scene) {
+    state.steps = (state.steps || 0) + 1;
+    if (!ac || ac.state !== 'running' || !noiseBuf || muted) return;
+    const soft = scene >= 3, now = ac.currentTime + 0.01;
+    for (const [at, vol] of [[0, 1], [0.085, 0.55]]) {            // 脚跟、脚掌
+      const s = ac.createBufferSource(); s.buffer = noiseBuf; s.playbackRate.value = 0.7 + Math.random() * 0.5;
+      const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = (soft ? 260 : 520) * (0.85 + Math.random() * 0.3); f.Q.value = soft ? 0.7 : 1.1;
+      const gn = ac.createGain(); const peak = (soft ? 0.55 : 0.75) * vol * (0.8 + Math.random() * 0.4);
+      gn.gain.setValueAtTime(0, now + at); gn.gain.linearRampToValueAtTime(peak, now + at + 0.012);
+      gn.gain.exponentialRampToValueAtTime(0.001, now + at + (soft ? 0.16 : 0.11));
+      s.connect(f); f.connect(gn); gn.connect(master); s.start(now + at, Math.random() * 3, 0.25);
+    }
+  }
   function setVoiceLevel(v) { if (voiceBus) voiceBus.gain.setTargetAtTime(v, ac.currentTime, 1.2); }
   function startAudio() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    ac = new AC(); master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);
-    master.gain.linearRampToValueAtTime(muted ? 0 : 1, ac.currentTime + 3);
+    ac = new AC(); master = ac.createGain();
+    const limiter = ac.createDynamicsCompressor();   // 整体提响，用压限兜住不破音
+    limiter.threshold.value = -14; limiter.ratio.value = 6; limiter.attack.value = 0.004; limiter.release.value = 0.25;
+    const makeup = ac.createGain(); makeup.gain.value = 2.2;
+    master.connect(limiter); limiter.connect(makeup); makeup.connect(ac.destination);
+    master.gain.setValueAtTime(0, ac.currentTime); master.gain.linearRampToValueAtTime(muted ? 0 : 1, ac.currentTime + 1.5);
     voiceBus = ac.createGain(); voiceBus.gain.value = SCENES[Math.min(N - 1, state.scene)].voice; voiceBus.connect(master);
     hint.classList.remove('on'); muteBtn.classList.add('on');
 
     const len = ac.sampleRate * 4, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    noiseBuf = buf;
     let b0 = 0, b1 = 0, b2 = 0; // 粉噪，听着比白噪柔
     for (let k = 0; k < len; k++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.0990460; b1 = 0.96300 * b1 + w * 0.2965164; b2 = 0.57000 * b2 + w * 1.0526913; d[k] = (b0 + b1 + b2 + w * 0.1848) * 0.16; }
     function bed(type, freq, q, base, depth, rate) {
@@ -289,6 +349,8 @@ void main(){
         };
         let next = ac.currentTime + 2.5;
         (function loop() { // 一声喊，一声应，隔一阵再来一回
+          if (ac.state !== 'running') { setTimeout(loop, 400); next = Math.max(next, ac.currentTime + 1.5); return; }
+          next = Math.max(next, ac.currentTime + 0.3);
           say(voices[0], next, -0.55, 0.95); say(voices[1], next + 3.4, -0.25, 0.80);
           next += 11 + Math.random() * 6;
           setTimeout(loop, Math.max(1000, (next - ac.currentTime - 2) * 1000));
@@ -298,6 +360,7 @@ void main(){
   muteBtn.addEventListener('click', (e) => {
     e.stopPropagation(); startAudio(); muted = !muted; muteBtn.classList.toggle('off', muted);
     if (master) master.gain.setTargetAtTime(muted ? 0 : 1, ac.currentTime, 0.3);
+    if (silentEl) (muted ? silentEl.pause() : silentEl.play().catch(() => {}));
   });
   muteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   document.addEventListener('visibilitychange', () => { if (ac) (document.hidden ? ac.suspend() : ac.resume()); });
@@ -309,7 +372,7 @@ void main(){
     if (fixedT === null) setTimeout(() => { if (!ac) hint.classList.add('on'); }, 2500);
     if (fixedT === null) setTimeout(() => hint.classList.remove('on'), 11000);
     requestAnimationFrame(frame);
-    window.__luzhai = { get g() { return g; }, state, loaded: () => tex.map(Boolean) };
+    window.__luzhai = { get g() { return g; }, state, loaded: () => tex.map(Boolean), audio: () => (ac ? ac.state : 'none') };
     (async () => { for (let k = 0; k < N; k++) if (!tex[k]) { try { await loadScene(k); } catch (e) { break; } } })();
   }).catch(() => { document.getElementById('fallback').style.display = 'flex'; });
 })();
