@@ -16,9 +16,9 @@ body{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
 #stage{display:block;width:100%;height:100%;touch-action:none;background:#0b0a14}
 #mute{position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:50%;border:1px solid rgba(201,164,92,.4);
   background:rgba(14,10,20,.55);color:var(--gold);font-size:15px;line-height:1;font-family:inherit;padding:0}
-#tools{position:absolute;top:12px;right:58px;display:flex;gap:6px;align-items:center}
-#tools button,#tools span{height:30px;padding:0 10px;border:1px solid rgba(201,164,92,.4);border-radius:6px;background:rgba(14,10,20,.6);
-  color:var(--gold);font-size:13px;line-height:28px;font-family:inherit;white-space:nowrap}
+#tools{position:absolute;top:12px;right:56px;display:flex;gap:4px;align-items:center}
+#tools button,#tools span{height:30px;padding:0 8px;border:1px solid rgba(201,164,92,.4);border-radius:6px;background:rgba(14,10,20,.6);
+  color:var(--gold);font-size:12px;line-height:28px;font-family:inherit;white-space:nowrap}
 #tools [hidden]{display:none}
 #tools span{border-color:rgba(201,164,92,.25);color:var(--paper)}
 #pad button.glow{border-color:rgba(226,160,96,.9);animation:breathe 2.6s ease-in-out infinite}
@@ -72,7 +72,7 @@ body{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
         </ul>
         <button id="movesClose" type="button">关闭</button>
       </div>
-      <div id="tools"><button id="skip" type="button" hidden>跳过</button><button id="replay" type="button" hidden>教学</button><button id="movesBtn" type="button" hidden>招式</button><button id="demoBtn" type="button" hidden>看示范</button><span id="demoTag" hidden>示范中，点一下退出</span></div>
+      <div id="tools"><button id="skip" type="button" hidden>跳过</button><button id="replay" type="button" hidden>教学</button><button id="storyBtn" type="button" hidden>故事</button><button id="movesBtn" type="button" hidden>招式</button><button id="demoBtn" type="button" hidden>看示范</button><span id="demoTag" hidden>示范中，点一下退出</span></div>
       <button id="mute" type="button" aria-pressed="false" aria-label="静音开关">声</button>
     </div>
   </div>

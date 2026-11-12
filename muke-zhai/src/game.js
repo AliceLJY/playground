@@ -27,6 +27,14 @@
     get() { try { return localStorage.getItem(TUT_KEY) === '1'; } catch (_) { return false; } },
     set() { try { localStorage.setItem(TUT_KEY, '1'); } catch (_) { /* 无痕模式等 */ } },
   };
+  const STORY_KEY = 'mkz-story-seen';
+  const storyStore = {
+    get() { try { return localStorage.getItem(STORY_KEY) === '1'; } catch (_) { return false; } },
+    set() { try { localStorage.setItem(STORY_KEY, '1'); } catch (_) { /* 无痕模式 */ } },
+  };
+  function wantStory() {
+    return M.storyPolicy({ param: params.get('story'), view: VIEW, stage: STAGE, tutorialParam: params.get('tutorial'), seen: storyStore.get() });
+  }
   function wantTutorial() {
     const q = params.get('tutorial');
     if (q === '0') return false;
@@ -34,11 +42,11 @@
     if (VIEW || STAGE === 2) return false;
     return !store.get();
   }
-  let forceTut = null;
+  let forceTut = null, forceStory = null;
   let main = null, demo = null;          // 示范跑在独立的一局里，main 是玩家自己的局
   function newGame(seed, stage) {
     const tut = forceTut != null ? forceTut : wantTutorial();
-    g = M.create(CLIPS, { seed, stage, tutorial: tut && stage !== 2, touch: touchUI, hints: true });
+    g = M.create(CLIPS, { seed, stage, tutorial: tut && stage !== 2, touch: touchUI, hints: true, story: forceStory != null ? forceStory : wantStory() });
     main = g; demo = null;
     ui.meterShown = 0; ui.lastEvent = 0; ui.meterPulse = 0; ui.slow = 0;
     if (VIEW && !seedOverride) M.prepareView(g, VIEW);
@@ -350,26 +358,30 @@
     const b = M.chargeBar(g);
     ui.chargeRect = null;
     if (!b) return;
-    const e = g.e, w = 74, h = 5;
-    const x = camX(e.x) - w / 2, y = camY(e.who === 'mengliang' ? GROUND - 232 : GROUND - 284);
+    const e = g.e, w = 130, h = 8;
+    // 孟良：金盔图标下面；杨宗保：心动条下面一行（两条不重叠、不遮脸）
+    const x = camX(e.x) - w / 2, y = camY(e.who === 'mengliang' ? GROUND - 226 : GROUND - 318);
     const ws = b.winStart * w, fw = b.frac * w;
+    const inWin = b.frac >= b.winStart;
     ctx.save();
-    ctx.fillStyle = 'rgba(14,9,18,.82)'; ctx.fillRect(x - 1.5, y - 1.5, w + 3, h + 3);
-    // 没走到的部分：身子暗、亮段亮
-    ctx.fillStyle = 'rgba(96,62,46,.8)'; ctx.fillRect(x, y, ws, h);
-    ctx.fillStyle = 'rgba(232,160,84,.95)'; ctx.fillRect(x + ws, y, w - ws, h);
+    ctx.fillStyle = 'rgba(14,9,18,.86)'; ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+    // 外框：条头进入亮段的那一下整条外框亮一下
+    const since = inWin ? Math.min(1, (b.frac - b.winStart) / Math.max(0.02, 1 - b.winStart)) : 0;
+    const flashK = inWin ? Math.max(0, 1 - since * 1.8) : 0;
+    ctx.strokeStyle = `rgba(${150 + 105 * flashK},${104 + 96 * flashK},${60 + 60 * flashK},${0.55 + 0.45 * flashK})`; ctx.lineWidth = 1 + flashK;
+    ctx.strokeRect(x - 2.5, y - 2.5, w + 5, h + 5);
+    // 没走到的部分：身子暗、亮段更暖更亮的琥珀
+    ctx.fillStyle = 'rgba(96,62,46,.85)'; ctx.fillRect(x, y, ws, h);
+    ctx.fillStyle = 'rgba(244,168,78,1)'; ctx.fillRect(x + ws, y, w - ws, h);
     // 已走过的部分
-    ctx.fillStyle = 'rgba(204,132,82,.95)'; ctx.fillRect(x, y, Math.min(fw, ws), h);
-    if (fw > ws) { ctx.fillStyle = 'rgba(255,228,176,1)'; ctx.fillRect(x + ws, y, fw - ws, h); }
-    // 条头走进亮段，条身轻轻一亮
-    if (b.frac >= b.winStart) {
+    ctx.fillStyle = 'rgba(206,134,82,.97)'; ctx.fillRect(x, y, Math.min(fw, ws), h);
+    if (fw > ws) { ctx.fillStyle = 'rgba(255,232,180,1)'; ctx.fillRect(x + ws, y, fw - ws, h); }
+    if (inWin) {
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(255,180,100,${0.16 + 0.1 * Math.sin(g.t / 90)})`; ctx.fillRect(x, y - 1, w, h + 2);
+      ctx.fillStyle = `rgba(255,176,96,${0.16 + 0.1 * Math.sin(g.t / 90)})`; ctx.fillRect(x, y - 1, w, h + 2);
       ctx.globalCompositeOperation = 'source-over';
     }
-    // 条头
-    ctx.fillStyle = 'rgba(255,240,200,.95)'; ctx.fillRect(x + fw - 1, y - 2, 2, h + 4);
-    // 她在亮段里按下：条头处一个小的确认闪光
+    ctx.fillStyle = 'rgba(255,240,200,.97)'; ctx.fillRect(x + fw - 1.5, y - 3, 3, h + 6);
     const age = g.t - ui.confirmT;
     if (age >= 0 && age < 260) {
       const k2 = age / 260, hx = x + fw, hy = y + h / 2;
@@ -379,16 +391,23 @@
       ctx.fillStyle = gl; ctx.fillRect(hx - 20, hy - 20, 40, 40);
       ctx.globalCompositeOperation = 'source-over';
     }
-    // 三连回敬：三段依次出，条下面三个小点
     if (b.strikes > 1) {
       for (let i = 0; i < 3; i++) {
         ctx.fillStyle = i < b.strike ? 'rgba(255,214,150,.95)' : 'rgba(120,80,60,.8)';
-        ctx.fillRect(x + w / 2 - 10 + i * 8, y + h + 4, 4, 2);
+        ctx.fillRect(x + w / 2 - 10 + i * 8, y + h + 5, 4, 2);
       }
+    }
+    // 教学里：条的左边一个细的小箭头指向它（从字幕指过来的意思）
+    let ax = 0;
+    if (g.tut && !demo) {
+      const br = 0.6 + 0.4 * Math.sin(g.t / 200);
+      ctx.fillStyle = `rgba(240,190,120,${0.7 + 0.3 * br})`;
+      ctx.beginPath(); ctx.moveTo(x - 20 + 2 * br, y + h / 2 - 5); ctx.lineTo(x - 9 + 2 * br, y + h / 2); ctx.lineTo(x - 20 + 2 * br, y + h / 2 + 5); ctx.closePath(); ctx.fill();
+      ax = 22;
     }
     ctx.restore();
     ui.chargeRect = { x, y, w, h, ws, frac: b.frac };
-    box('charge', x - 4, y - 5, w + 8, h + (b.strikes > 1 ? 14 : 10));
+    box('charge', x - 4 - ax, y - 5, w + 8 + ax, h + (b.strikes > 1 ? 16 : 10));
   }
 
   // 势条：气下面一条细的，满了暖光亮一点
@@ -431,32 +450,116 @@
       ctx.restore();
     }
   }
-  function drawMeter(k) {
-    const w = portrait ? VW - 62 - 16 : 360, h = 7, x = portrait ? 62 : (VW - w) / 2;
-    const y = portrait ? 66 : 30 * k;
-    box('meter', x - 52, y - 11, w + 64, 22);
-    ctx.fillStyle = GOLD; ctx.font = `${16 * k}px ${FONT_KAI}`;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText('心动', x - 14, y);
-    // 细长的槽，端头各带一小片装饰
-    ctx.fillStyle = 'rgba(20,12,22,.7)'; ctx.fillRect(x, y - h / 2, w, h);
-    ctx.strokeStyle = GOLD_DIM; ctx.lineWidth = 1; ctx.strokeRect(x - 0.5, y - h / 2 - 0.5, w + 1, h + 1);
+  // 心动条：跟着杨宗保走的一条小条，在他头顶翎子上方；他让进门帘里时条变淡但不消失
+  const heartActor = () => g.z || (g.e && g.e.who === 'zongbao' ? g.e : (g.phase === 'end' || g.phase === 'finale' ? g.e : null));
+  const HEART_Y = GROUND - 336;
+  function heartPath(x, y, s) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + s);
+    ctx.bezierCurveTo(x - s * 1.6, y - s * 0.2, x - s * 0.6, y - s * 1.2, x, y - s * 0.3);
+    ctx.bezierCurveTo(x + s * 0.6, y - s * 1.2, x + s * 1.6, y - s * 0.2, x, y + s);
+    ctx.closePath();
+  }
+  function drawHeart(k) {
+    const z = heartActor();
+    ui.meterPos = null;
+    if (!z) return;
     const frac = Math.max(0, Math.min(1, ui.meterShown / 100));
-    ui.meterPos = { x: x + w * frac, y };
+    const sx = camX(z.x), y = camY(HEART_Y);
+    // 取景窗里看不到他（手机竖屏、第一场两人在左半场）：右缘贴边画一个小指示
+    if (sx > VW - 26) {
+      const ex = VW - 20, ey = Math.round(H * 0.56);
+      ctx.save();
+      ctx.fillStyle = 'rgba(14,9,18,.7)'; ctx.fillRect(ex - 16, ey - 17, 34, 34);
+      ctx.strokeStyle = GOLD_DIM; ctx.lineWidth = 1; ctx.strokeRect(ex - 15.5, ey - 16.5, 33, 33);
+      // 当前心动的细弧
+      ctx.strokeStyle = 'rgba(80,36,40,.9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(ex - 2, ey, 11, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(226,140,110,.95)';
+      ctx.beginPath(); ctx.arc(ex - 2, ey, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
+      ctx.fillStyle = `rgba(226,150,120,${0.8 + 0.2 * ui.meterPulse})`; heartPath(ex - 2, ey - 2, 4.5); ctx.fill();
+      // 朝右的小箭头
+      ctx.fillStyle = GOLD; ctx.beginPath(); ctx.moveTo(ex + 8, ey - 4); ctx.lineTo(ex + 14, ey); ctx.lineTo(ex + 8, ey + 4); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      box('heartEdge', ex - 16, ey - 17, 34, 34);
+      ui.meterPos = { x: ex - 2, y: ey, edge: true };
+      return;
+    }
+    const w = 110, h = 6, x = sx - w / 2 + 6;
+    const hide = z.x > 830 ? 0.55 : 1;
+    const sc = 1 + 0.16 * ui.meterPulse;
+    ctx.save();
+    ctx.globalAlpha = hide;
+    ctx.translate(sx, y); ctx.scale(sc, sc); ctx.translate(-sx, -y);
+    // 左端一颗小心形，细长的槽，暗朱红到暖粉的填充加亮前沿
+    ctx.fillStyle = 'rgba(14,9,18,.78)'; ctx.fillRect(x - 14, y - 7, w + 18, 14);
+    ctx.fillStyle = `rgba(226,140,112,${0.85 + 0.15 * ui.meterPulse})`; heartPath(x - 6, y - 1, 3.8); ctx.fill();
+    ctx.fillStyle = 'rgba(32,18,26,.9)'; ctx.fillRect(x, y - h / 2, w, h);
+    ctx.strokeStyle = GOLD_DIM; ctx.lineWidth = 1; ctx.strokeRect(x - 0.5, y - h / 2 - 0.5, w + 1, h + 1);
     if (frac > 0) {
       const gr = ctx.createLinearGradient(x, 0, x + w, 0);
       gr.addColorStop(0, '#6e1f28'); gr.addColorStop(1, '#d79078');
       ctx.fillStyle = gr; ctx.fillRect(x, y - h / 2, w * frac, h);
-      // 前沿一道亮线（心动满的那一下才亮得多）
-      const pulse = ui.meterPulse;
-      ctx.fillStyle = `rgba(255,214,170,${0.55 + 0.4 * pulse})`;
+      ctx.fillStyle = `rgba(255,214,170,${0.55 + 0.4 * ui.meterPulse})`;
       ctx.fillRect(x + w * frac - 1.5, y - h / 2 - 1, 2, h + 2);
     }
-    ctx.fillStyle = GOLD;
-    for (const ex of [x - 4, x + w + 4]) {
-      ctx.save(); ctx.translate(ex, y); ctx.rotate(Math.PI / 4);
-      ctx.fillRect(-3, -3, 6, 6); ctx.restore();
+    ctx.restore();
+    ui.meterPos = { x: x + w * frac, y };
+    ui.heartRect = { x: x - 14, y: y - 7, w: w + 18, h: 14, cx: sx };
+    box('heart', x - 14, y - 7, w + 18, 14);
+  }
+  // 第一次出场的小名牌：头上，停 2.5 秒淡出
+  function drawTags() {
+    const defs = [['p', g.p, GROUND - 300], ['e', g.e, GROUND - 292], ['z', g.z, GROUND - 306]];
+    for (const [id, a, wy] of defs) {
+      if (!a || id === 'e' && g.stage !== 1) continue;
+      const al = M.tagAlpha(g, id);
+      if (al <= 0.02) continue;
+      const x = camX(a.x), y = camY(wy);
+      if (x < 30 || x > VW - 30) continue;
+      ctx.save();
+      ctx.globalAlpha = al;
+      ctx.font = `12px ${FONT_KAI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+      const text = M.TAG_TEXT[id], tw = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(14,9,18,.72)'; ctx.fillRect(x - tw / 2 - 7, y - 9, tw + 14, 18);
+      ctx.strokeStyle = GOLD_DIM; ctx.lineWidth = 1; ctx.strokeRect(x - tw / 2 - 6.5, y - 8.5, tw + 13, 17);
+      ctx.fillStyle = PAPER; ctx.fillText(text, x, y + 1);
+      ctx.restore();
+      box('tag-' + id, x - tw / 2 - 7, y - 9, tw + 14, 18);
     }
+  }
+  // 戏单式的引子：暗底（戏台底图压暗）、细框、楷体、字距拉开
+  function drawIntro() {
+    const S = M.STORY;
+    ctx.fillStyle = 'rgba(8,6,14,.78)'; ctx.fillRect(0, 0, VW, H);
+    const inset = portrait ? 14 : 36;
+    ctx.strokeStyle = 'rgba(201,164,92,.5)'; ctx.lineWidth = 1;
+    ctx.strokeRect(inset + 0.5, inset + 0.5, VW - inset * 2 - 1, H - inset * 2 - 1);
+    ctx.strokeStyle = 'rgba(201,164,92,.22)';
+    ctx.strokeRect(inset + 5.5, inset + 5.5, VW - inset * 2 - 11, H - inset * 2 - 11);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ls = (v) => { if ('letterSpacing' in ctx) ctx.letterSpacing = v + 'px'; };
+    const cx = VW / 2, big = portrait ? 44 : 58;
+    ctx.fillStyle = GOLD; ctx.font = `${big}px ${FONT_KAI}`; ls(big * 0.4);
+    ctx.fillText(S.title, cx + big * 0.2, H * 0.2);
+    ctx.fillStyle = 'rgba(228,211,174,.7)'; ctx.font = `${portrait ? 13 : 15}px ${FONT_KAI}`; ls(5);
+    ctx.fillText(S.sub, cx, H * 0.2 + big * 0.9);
+    // 细横线
+    ctx.strokeStyle = GOLD_DIM; ctx.beginPath(); ctx.moveTo(cx - 40, H * 0.2 + big * 1.35); ctx.lineTo(cx + 40, H * 0.2 + big * 1.35); ctx.stroke();
+    const fs = portrait ? 15 : 18;
+    ctx.fillStyle = PAPER; ctx.font = `${fs}px ${FONT_KAI}`; ls(portrait ? 2 : 4);
+    let y = H * 0.2 + big * 1.9;
+    for (const para of S.lines) {
+      for (const ln of wrapText(para, VW - inset * 2 - 50)) { ctx.fillText(ln, cx, y); y += fs * 1.6; }
+      y += fs * 0.7;
+    }
+    ctx.fillStyle = GOLD; ctx.font = `${portrait ? 14 : 16}px ${FONT_KAI}`; ls(6);
+    ctx.fillText(S.foot, cx, Math.max(y + fs * 0.6, H * 0.8));
+    ctx.fillStyle = 'rgba(201,164,92,.5)'; ctx.font = `12px ${FONT_KAI}`; ls(3);
+    ctx.fillText(touchUI ? '点一下继续' : '点一下或按任意键继续', cx, H - inset - 14);
+    ctx.restore();
   }
   function wrapText(text, maxW) {
     if (ctx.measureText(text).width <= maxW) return [text];
@@ -542,8 +645,9 @@
     drawQi(k);
     if (!g.tut) drawShi(k);
     box('qi', portrait ? 8 : 12, portrait ? 12 : 28 * k - 14, 24 + 13 * 5 + 28, 24);
-    drawMeter(k);
+    drawHeart(k);
     drawCharge();
+    drawTags();
     // 他看在眼里：杨宗保有反应时，一个很小的暖色光点飘向心动条
     for (const f of g.fx) {
       if (f.kind !== 'mote' || !ui.meterPos) continue;
@@ -657,7 +761,7 @@
     if (ui.push > 0.005) { const z = 1 + 0.1 * ui.push; const px = camX((g.p.x + g.e.x) / 2); ctx.translate(px, H * 0.66); ctx.scale(z, z); ctx.translate(-px, -H * 0.66); }
     camApply();
     BD.draw(ctx, g.t, cam.cx);
-    if (!opts.hideActors) {
+    if (!opts.hideActors && !g.intro) {
       drawWarnLine(g.e, g.t);
       const order = g.e.id === 'e' ? [g.e, g.p] : [g.p, g.e];
       if (g.z) drawActor(g.z, g.t);
@@ -671,6 +775,7 @@
     BD.dust(ctx, g.t);
     ctx.restore();
     BD.front(ctx, g.t, VW);
+    if (g.intro) { ui.boxes = []; drawIntro(); return; }
     // 慢放时整个画面略带冷色（跟着真实时间缓入缓出，不跟着慢放走）
     if (ui.slow > 0.01) { ctx.fillStyle = `rgba(22,18,56,${(0.16 * ui.slow).toFixed(3)})`; ctx.fillRect(0, 0, VW, H); }
     drawHud(k);
@@ -767,6 +872,17 @@
     j: 'attack', k: 'guard', l: 'dodge', ' ': 'dodge', space: 'dodge', u: 'ult',
     left: 'left', right: 'right', attack: 'attack', guard: 'guard', dodge: 'dodge', ult: 'ult',
   };
+  // 引子：点一下或按任意键继续（拦下，不当成游戏输入），并记住「看过」
+  function closeIntro() { M.dismissIntro(main); storyStore.set(); }
+  document.addEventListener('pointerdown', (e) => {
+    if (!g.intro) return;
+    if (e.target && e.target.closest && e.target.closest('#mute')) return;
+    e.stopPropagation(); e.preventDefault(); unlock(); closeIntro();
+  }, true);
+  addEventListener('keydown', (e) => {
+    if (!g.intro) return;
+    e.stopImmediatePropagation(); e.preventDefault(); closeIntro();
+  }, true);
   // 示范进行中：点任意位置、按任意键，回到她自己的局（捕获阶段拦下，不当成游戏输入）
   document.addEventListener('pointerdown', (e) => {
     if (!demo) return;
@@ -815,7 +931,7 @@
   const toolsEl = document.getElementById('tools');
   const btn = { skip: document.getElementById('skip'), replay: document.getElementById('replay'), demo: document.getElementById('demoBtn'), tag: document.getElementById('demoTag') };
   btn.skip.addEventListener('click', () => { M.skipTutorial(main); store.set(); });
-  btn.replay.addEventListener('click', () => { forceTut = true; newGame(g.seed, 1); forceTut = null; });
+  btn.replay.addEventListener('click', () => { forceTut = true; forceStory = false; newGame(g.seed, 1); forceTut = null; forceStory = null; });
   btn.demo.addEventListener('click', () => startDemo());
   const movesEl = document.getElementById('moves');
   let pausedBeforeMoves = false;
@@ -823,6 +939,8 @@
     movesEl.hidden = !open;
     if (open) { pausedBeforeMoves = paused; paused = true; releaseAll(); } else paused = pausedBeforeMoves;
   }
+  btn.story = document.getElementById('storyBtn');
+  btn.story.addEventListener('click', () => { M.showIntro(main); releaseAll(); });
   btn.moves = document.getElementById('movesBtn');
   btn.moves.addEventListener('click', () => openMoves(true));
   document.getElementById('movesClose').addEventListener('click', () => openMoves(false));
@@ -830,9 +948,10 @@
   function syncTools() {
     const inTut = !demo && !!g.tut, idle = !demo && !g.tut && g.stage === 1 && g.phase === 'play';
     btn.skip.hidden = !inTut;
-    btn.replay.hidden = !idle;
-    btn.moves.hidden = !idle;
-    btn.demo.hidden = !(idle || (inTut && g.tut.step === 'walk' && false));
+    btn.replay.hidden = !idle || g.intro;
+    btn.moves.hidden = !idle || g.intro;
+    btn.story.hidden = !idle || g.intro;
+    btn.demo.hidden = !idle || g.intro;
     btn.tag.hidden = !demo;
     if (main && main.tutDone && !store.get() && !demo) store.set();
   }
@@ -992,6 +1111,15 @@
       if (i) M.tap(g, i, ms == null ? 120 : ms);
     },
     coverage, luma, ghostPixels, chargePixels, flashPixels,
+    // 心动条是否在杨宗保头顶上方：回报条的中心 x 与他的屏幕 x、条底与他格子顶的距离（CSS 像素）
+    heartCheck: () => {
+      render({});
+      const z = heartActor(), r = ui.heartRect, zr = z && rects[z.id];
+      const cr = canvas.getBoundingClientRect();
+      if (!z || !zr) return null;
+      const off = r ? { cx: cr.left + r.cx * scale, bottom: cr.top + (r.y + r.h) * scale } : null;
+      return { zx: cr.left + camX(z.x) * scale, zTop: cr.top + zr.y * scale, bar: off, edge: !r };
+    },
     // 界面各元素的外框（CSS 像素，相对视口），给浏览器检查查重叠
     layout: () => {
       render({});
@@ -1001,7 +1129,7 @@
       }));
       const keysDom = {};
       document.querySelectorAll('#pad button').forEach((b) => { keysDom['key-' + b.dataset.k] = b; });
-      const dom = { ...keysDom, mute: muteBtn, skip: btn.skip, replay: btn.replay, demo: btn.demo, moves: btn.moves, demoTag: btn.tag };
+      const dom = { ...keysDom, mute: muteBtn, skip: btn.skip, replay: btn.replay, demo: btn.demo, moves: btn.moves, story: btn.story, demoTag: btn.tag };
       for (const k of Object.keys(dom)) {
         if (!dom[k] || dom[k].hidden) continue;
         const m = dom[k].getBoundingClientRect();

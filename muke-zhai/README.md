@@ -42,6 +42,14 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 - **Hits never whiten the body**: only a narrow bright edge on the side that was hit (~60 ms) plus a shake; characters are never translucent or fully white (the browser check compares renders with and without the flash, < 6% changed pixels).
 - **Portrait camera**: a 400-wide window follows the pair's midpoint; in fight one it leans right by up to 120 when they fight in the right half so Yang Zongbao comes into view, but never pushes Mu Guiying or Meng Liang out, so he is off-screen while they fight on the left.
 
+### Heart bar, story intro, name plates
+
+- **Heart bar follows Yang Zongbao**: the long bar at the top centre is gone; a small bar (about 110 wide, a small heart at the left end, dark vermilion to warm pink with a bright leading edge) floats above his plumes, already in fight one while he stands at the door, fading (never vanishing) when he slips into the curtain. It swells slightly when the heart rises and a tiny mote drifts from the contact point or his body into the bar. In fight two his charge bar sits one row below it, not overlapping, not covering his face; Meng Liang's plates and charge bar stay put. On a portrait phone, when he is out of the camera window (fight one, both on the left) a small marker hugs the right edge (heart, an arc of the current heart, a right arrow) and is replaced by the bar when he comes into view.
+- **Louder charge bar**: about 130 wide and 8 tall, a warmer brighter amber for the bright segment, the whole frame flashes when the head enters it; in tutorial step three a breathing arrow points at it from the left.
+- **Story intro**: the first launch shows a playbill-style page (dark ground, thin frame, calligraphic type, wide letter-spacing, the dimmed stage backdrop): title "Muke Zhai", "a scene from traditional Peking opera", three lines of background, and "You play Mu Guiying." at the foot. Click or press any key to continue; game time does not run during it; it never auto-shows again, and a "Story" button next to "Moves" replays it. Tutorial, camera positions, `?stage=2` and `?tutorial=...` skip it; `?story=1` forces it, `?view=story` freezes on it.
+- **Name plates**: on first entrance each of the three gets a thin small plate over the head for 2.5 s then fades (Mu Guiying "daughter of the lord of Muke Village", Meng Liang "under the Yang generals, here for the dragon-taming wood", Yang Zongbao "a young Yang general, arriving soon"; the game shows the Chinese text).
+- **Ending**: after "Nobody won this fight..." a second small line, "In the opera the two marry and later ride to the Song camp against the Liao", stays 5 s, and only then "Play again". The first time the fight-one heart rises a short line "Yang Zongbao is watching." shows once for 2 s.
+
 ### Tutorial, demo and move list
 
 - First launch runs a tutorial (remembered in `localStorage`; `?tutorial=0` off, `?tutorial=1` forced; camera positions skip it): walk, thrust, guard (Meng Liang raises his axe at 0.35x speed; the line follows the state: "He raised his axe, watch the bar over his head" -> half way "When the bar reaches the bright part, hold K (Guard)" -> pressed inside it "Caught" -> gone after the parry; pressing too early is only a block with "Blocked. Wait for the bright part to knock him back" and another try; you must really parry once to pass; not pressing costs no qi, and after three misses it parries for you inside the bright part), punish while he is stunned (stun lengthened to 1.2 s, first plate drops), dodge, triple thrust, then "That's it. Knock off the last two plates." One lesson per step, advance only when done; a Skip button sits top-right. The key to press glows with a slow warm breathing edge.
@@ -76,6 +84,9 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 | 21 | Hints appear and leave | `tests/stage.test.cjs` S3-S6 | on the tick an action is done the line changes or clears (limit 0.3 s); every tutorial step checked; the Shi-full line clears the moment the ultimate is cast |
 | 22 | Yang Zongbao always present | S7-S10 + browser check `?view=open`, `?view=act1` | present every tick of fight one with a sane state; with or without him Mu Guiying and Meng Liang end up identical step by step; fight-one heart <= 20; no black screen, someone always on stage |
 | 23 | No body overlap, no dash misfire, no whiteout | S11-S12, `combo.test.cjs` C6, browser check `?view=chain3` | distance >= 84; a fresh press, point-blank and a 0.4 s double tap are plain thrusts; flash changes < 6% of pixels |
+| 24 | Heart bar over Yang Zongbao | browser check `?view=duel/act1/open/ult/meng`, desktop and phone | bar centre within 26 px of his screen x, bar bottom 0-120 px above his cell top; edge marker on phone when he is out of view; the long top bar is gone; no overlaps with charge bar, plates, qi, shi, subtitle, keys or the Skip/Tutorial/Story/Moves/Demo buttons |
+| 25 | Story intro and plates | `tests/stage.test.cjs` S13-S15 + browser check `?view=story`, `?view=open` | shown by default on first launch, closes on a click, time frozen meanwhile, no auto-show afterwards but a Story button exists; three plates fade in and out over 2.5 s |
+| 26 | Ending lines and "Yang Zongbao is watching." | S16-S17 | the two lines appear in order, the second stays 5 s before "Play again"; the watching line shows exactly once per game for about 2 s |
 | 19 | Ultimate look | browser check `?view=ult` | afterimages really drawn (>= 400 changed pixels against a render without them); bright share still <= 6%; Shi bar and new key do not overlap other UI |
 | 16 | Side by side with reference | by eye: the desktop `?view=duel` shot against the four closing items of `ART.md` (shadows, one bright colour, characters floating, UI stealing attention) | written verdict per item, see the delivery notes |
 
@@ -84,7 +95,8 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 - `?view=meng`: fight one, Meng Liang's telegraph (body flash, a line on the floor).
 - `?view=duel`: fight two, the two stand about 200 px apart.
 - `?view=end`: shoulder-to-shoulder finale, drifting hearts, closing subtitle.
-- `?view=open`: the opening frame, all three on stage. `?view=act1`: mid fight one, Meng Liang striking, Yang Zongbao at the door.
+- `?view=story`: the intro page. `?story=1`: force the intro.
+- `?view=open`: the opening frame, all three on stage with their plates. `?view=act1`: mid fight one, Meng Liang striking, Yang Zongbao at the door.
 - `?view=teach3`: tutorial step three, the axe rising slowly, bar half full, Guard glowing.
 - `?view=demo`: demo in progress (frozen just after it presses Guard).
 - `?view=ult`: third thrust of the ultimate. `?view=chain3`: third thrust of a triple thrust landing.
