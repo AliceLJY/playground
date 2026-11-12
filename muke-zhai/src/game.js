@@ -16,13 +16,30 @@
   const touchUI = matchMedia('(pointer:coarse)').matches;
 
   let g = null, paused = false, ready = false;
-  const ui = { meterShown: 0, meterPulse: 0, lastEvent: 0, qiLost: 0, boxes: [] };
+  const ui = { looseT: -1e9, push: 0, meterShown: 0, meterPulse: 0, lastEvent: 0, qiLost: 0, boxes: [], slow: 0 };
   let VW = W, portrait = false;   // 当前取景窗的逻辑宽度；手机竖屏取 400 宽的窗，跟着人走
   const box = (name, x, y, w, h) => ui.boxes.push({ name, x, y, w, h });
 
+  // 教学：第一次进游戏默认走；?tutorial=0 关、?tutorial=1 强制开；机位默认不出教学（teach3 除外）
+  const TUT_KEY = 'mkz-tutorial-done';
+  const store = {
+    get() { try { return localStorage.getItem(TUT_KEY) === '1'; } catch (_) { return false; } },
+    set() { try { localStorage.setItem(TUT_KEY, '1'); } catch (_) { /* 无痕模式等 */ } },
+  };
+  function wantTutorial() {
+    const q = params.get('tutorial');
+    if (q === '0') return false;
+    if (q === '1' || VIEW === 'teach3') return true;
+    if (VIEW || STAGE === 2) return false;
+    return !store.get();
+  }
+  let forceTut = null;
+  let main = null, demo = null;          // 示范跑在独立的一局里，main 是玩家自己的局
   function newGame(seed, stage) {
-    g = M.create(CLIPS, { seed, stage });
-    ui.meterShown = 0; ui.lastEvent = 0; ui.meterPulse = 0;
+    const tut = forceTut != null ? forceTut : wantTutorial();
+    g = M.create(CLIPS, { seed, stage, tutorial: tut && stage !== 2, touch: touchUI, hints: true });
+    main = g; demo = null;
+    ui.meterShown = 0; ui.lastEvent = 0; ui.meterPulse = 0; ui.slow = 0;
     if (VIEW && !seedOverride) M.prepareView(g, VIEW);
   }
   let seedOverride = false;
@@ -131,9 +148,23 @@
     // 灯间更暗：只用正片叠底（变暗不蒙白）；受击闪一下暖白；预警不动透明度，只闪轮廓
     const dk = 0.06 + 0.24 * (1 - level);
     const m = Math.round(255 * (1 - dk));
-    const hitFlash = a.flash > 0 ? Math.min(0.6, a.flash / 90) : 0;
+    const hitFlash = a.flash > 0 ? Math.min(0.24, a.flash / 160) : 0;
+    // 大招的残影：三四层逐渐变淡，沿着出枪的方向往后拖
+    if (a.act === 'ult' && a.ultT >= 0 && !noGhost) {
+      for (let i = 3; i >= 1; i--) {
+        const gf = M.frameOf(Object.assign({}, a, { ultT: Math.max(0, a.ultT - i * 38) }));
+        const gc = processed(a.who, gf.clip, gf.frame);
+        ctx.save();
+        ctx.translate(a.x - a.face * i * 15, GROUND); ctx.scale(a.face, 1);
+        ctx.globalAlpha = 0.34 / i;
+        ctx.drawImage(gc, -clip.anchor[0] - PAD, -clip.anchor[1] - PAD);
+        ctx.restore();
+      }
+    }
+    // 被打中的抖一下
+    const shk = a.shake > 0 ? Math.sin(g.t * 0.13) * 3 * (a.shake / 180) : 0;
     ctx.save();
-    ctx.translate(a.x, GROUND); ctx.scale(a.face, 1);
+    ctx.translate(a.x + shk, GROUND); ctx.scale(a.face, 1);
     const dx = -clip.anchor[0] - PAD, dy = -clip.anchor[1] - PAD;
     tctx.globalCompositeOperation = 'source-over';
     tctx.clearRect(0, 0, tmp.width, tmp.height);
@@ -177,6 +208,41 @@
     rects[a.id] = { x: left, y: GROUND - clip.anchor[1], w: clip.cell[0], h: clip.cell[1] };
   }
 
+  // ---------- 枪尖的弧形拖影：沿出枪那几帧枪尖走过的路径，细、亮芯、两端收尖、很快灭 ----------
+  // 枪尖位置只由出招动画时间决定（没有逐帧坐标，按出手帧前后一段弧线估算），所以定格和回放都一致
+  function tipAt(a, tau) {
+    const hitT = a.tabs.attack.hitT;
+    const k = Math.max(0, Math.min(1, (tau - (hitT - 150)) / 260));
+    const e = 1 - Math.pow(1 - k, 3);
+    const reach = a.spec.reach * 0.93;
+    return { x: a.x + a.face * (26 + e * (reach - 26)), y: GROUND - 160 + e * 12 - Math.sin(e * Math.PI) * 24 };
+  }
+  function drawTrail(a) {
+    let tau, long = 1;
+    const hitT = a.tabs.attack.hitT;
+    if (a.act === 'attack') { tau = a.t * a.rate; long = a.atk ? a.atk.trail : 1; }
+    else if (a.act === 'ult' && a.ultT >= 0) { tau = hitT - 150 + ((a.ultT % 150) / 150) * 260; long = 1.8; }
+    else return;
+    if (tau < hitT - 150 || tau > hitT + 300) return;
+    const fade = tau > hitT + 120 ? Math.max(0, 1 - (tau - hitT - 120) / 180) : 1;
+    const N = Math.max(4, Math.round(9 * long)), step = 11;
+    const pts = [];
+    for (let i = 0; i < N; i++) { const t0 = tau - i * step; if (t0 < hitT - 150) break; pts.push(tipAt(a, t0)); }
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const k = 1 - i / (pts.length - 1);            // 头 1，尾 0：两端收尖
+      const w = (0.6 + 3.2 * k) * Math.min(1.4, 0.8 + long * 0.3), al = Math.min(0.5, (0.14 + 0.42 * k) * fade * (0.8 + long * 0.12));
+      ctx.strokeStyle = `rgba(255,150,70,${(al * 0.3).toFixed(3)})`; ctx.lineWidth = w * 2.2;
+      ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[i + 1].x, pts[i + 1].y); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,226,170,${al.toFixed(3)})`; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[i + 1].x, pts[i + 1].y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // 孟良 / 杨宗保出招前的地面提示：脚下往前一道暖红细线，到枪（斧）能够到的地方
   function drawWarnLine(e, t) {
     if (e.act !== 'warn') return;
@@ -216,7 +282,7 @@
           ctx.stroke();
         }
         const gl = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, 26);
-        gl.addColorStop(0, `rgba(255,200,130,${0.45 * (1 - k)})`); gl.addColorStop(1, 'rgba(255,160,80,0)');
+        gl.addColorStop(0, `rgba(255,200,130,${0.28 * (1 - k)})`); gl.addColorStop(1, 'rgba(255,160,80,0)');
         ctx.fillStyle = gl; ctx.fillRect(f.x - 26, f.y - 26, 52, 52);
       } else if (f.kind === 'parry') {
         const k = age / 360;
@@ -234,16 +300,49 @@
   }
 
   // ---------- 界面：细线、楷体、克制（ART.md 第 7 条） ----------
-  function drawHelmet(x, y, s, on) {
+  // 盔形小图标：on 亮着；wobble 是晃动的弧度；chips 是缺角的数量（松动的格数）
+  function drawHelmet(x, y, s, on, wobble, chips) {
     ctx.save();
-    ctx.translate(x, y); ctx.scale(s, s);
-    ctx.lineWidth = 1.2 / s * 1.0;
+    ctx.translate(x, y); ctx.rotate(wobble || 0); ctx.scale(s, s);
+    ctx.lineWidth = 1.2 / s;
     ctx.strokeStyle = on ? GOLD : 'rgba(201,164,92,.28)';
     ctx.fillStyle = on ? 'rgba(201,164,92,.22)' : 'rgba(201,164,92,.04)';
     ctx.beginPath(); ctx.moveTo(-9, 4); ctx.quadraticCurveTo(-9, -8, 0, -9); ctx.quadraticCurveTo(9, -8, 9, 4);
     ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-12, 4); ctx.lineTo(12, 4); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, -13); ctx.stroke();
+    // 缺角：用背景色的小三角在盔沿上咬掉一口
+    if (on && chips > 0) {
+      ctx.fillStyle = 'rgba(16,10,18,.95)';
+      const cuts = [[-9, -2, -4, -8, -9, -8], [9, -2, 4, -8, 9, -8]];
+      for (let i = 0; i < Math.min(2, chips); i++) {
+        const c = cuts[i];
+        ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(c[2], c[3]); ctx.lineTo(c[4], c[5]); ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  // 势条：气下面一条细的，满了暖光亮一点
+  function drawShi(k) {
+    const x = portrait ? 12 : 16, y = portrait ? 45 : 28 * k + 23, w = 92, h = 3;
+    const frac = Math.max(0, Math.min(1, g.shi / 100)), full = g.shi >= 100;
+    box('shi', x - 4, y - 6, w + 34, 12);
+    ctx.save();
+    ctx.fillStyle = full ? 'rgba(226,160,96,.95)' : GOLD_DIM; ctx.font = `11px ${FONT_KAI}`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('势', x, y);
+    const bx = x + 18;
+    ctx.fillStyle = 'rgba(20,12,22,.7)'; ctx.fillRect(bx, y - h / 2, w, h);
+    ctx.strokeStyle = GOLD_DIM; ctx.lineWidth = 1; ctx.strokeRect(bx - 0.5, y - h / 2 - 0.5, w + 1, h + 1);
+    if (frac > 0) {
+      const gr = ctx.createLinearGradient(bx, 0, bx + w, 0);
+      gr.addColorStop(0, '#6e1f28'); gr.addColorStop(1, full ? '#f0b878' : '#d79078');
+      ctx.fillStyle = gr; ctx.fillRect(bx, y - h / 2, w * frac, h);
+    }
+    if (full) {
+      const br = 0.5 + 0.5 * Math.sin(g.t / 300);
+      ctx.fillStyle = `rgba(255,214,160,${0.25 + 0.3 * br})`; ctx.fillRect(bx, y - h / 2 - 1, w, h + 2);
+    }
     ctx.restore();
   }
   function drawQi(k) {
@@ -362,23 +461,19 @@
     // 孟良头上的三格金盔
     if (g.stage === 1 && g.e.act !== 'defeat') {
       const e = g.e;
-      for (let i = 0; i < 3; i++) drawHelmet(camX(e.x) + (i - 1) * 30, camY(GROUND - 252), 0.9, i < g.helmets);
+      // 下一个要掉的是亮着的最后一顶：松动时它晃一下、缺角（松几格缺几口）
+      const age = g.t - ui.looseT, wob = age < 400 ? Math.sin(age / 38) * 0.28 * Math.exp(-age / 150) : 0;
+      for (let i = 0; i < 3; i++) {
+        const cur = i === g.helmets - 1;
+        drawHelmet(camX(e.x) + (i - 1) * 30, camY(GROUND - 252), 0.9, i < g.helmets, cur ? wob : 0, cur ? g.loose : 0);
+      }
     }
     if (g.stage === 1 && g.e.act !== 'defeat') box('helmets', camX(g.e.x) - 52, camY(GROUND - 252) - 16, 104, 30);
     drawQi(k);
-    box('qi', portrait ? 8 : 20, portrait ? 10 : 28 * k - 14, 24 + 13 * 5 + 28, 28);
+    if (!g.tut) drawShi(k);
+    box('qi', portrait ? 8 : 12, portrait ? 12 : 28 * k - 14, 24 + 13 * 5 + 28, 24);
     if (g.stage === 2) drawMeter(k);
     ctx.save(); camApply(); drawFloats(k); drawHearts(); ctx.restore();
-    // 开场提示：只给键盘用户，几秒后淡出
-    if (!touchUI && g.stage === 1 && g.t < 9000 && g.phase === 'play') {
-      const a = Math.min(1, (9000 - g.t) / 1200) * Math.min(1, g.t / 600) * 0.7;
-      ctx.save(); ctx.globalAlpha = a;
-      ctx.font = `13px ${FONT_KAI}`; ctx.fillStyle = GOLD; ctx.textAlign = 'center';
-      if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
-      ctx.fillText('← → 走　J 出枪　K 架枪（按住）　L 或空格 翻身', VW / 2, 58 * Math.max(1, k * 0.7));
-      box('hint', VW / 2 - 190, 58 * Math.max(1, k * 0.7) - 10, 380, 20);
-      ctx.restore();
-    }
     drawSubtitle(k);
     // 再来 / 再玩一遍
     if (g.phase === 'retry') overlayText('再来', touchUI ? '点一下' : '点一下，或按 J', k, 0.55);
@@ -394,6 +489,27 @@
       box('prompt', VW / 2 - mw / 2, H - 40 - 10, mw, 20);
       ctx.restore();
     }
+  }
+  // ---------- 教学与示范：按键亮边 ----------
+  const padEl = document.getElementById('pad');
+  // 哪些键该亮：教学里是「该按的键」（呼吸的暖色亮边），示范里是「她按着的键」
+  function glowKeys() {
+    const T = g.tut;
+    if (!T || demo) return [];
+    return T.glow === 'move' ? ['left', 'right'] : T.glow ? [T.glow] : [];
+  }
+  // 势第一次满了：「架」和「刺」一起亮，放出一次后不再亮
+  function ultGlow() { return !demo && !g.tut && g.ultHintOn ? ['guard', 'attack'] : []; }
+  function litKeys() {
+    if (!demo) return [];
+    const out = [];
+    if (g.held.left) out.push('left');
+    if (g.held.right) out.push('right');
+    if (g.held.guard || g.t - g.pressT.guard < 220) out.push('guard');
+    if (g.t - g.pressT.attack < 220) out.push('attack');
+    if (g.t - g.pressT.dodge < 220) out.push('dodge');
+    if (g.ult) out.push('ult');
+    return out;
   }
   function overlayText(big, small, k, veil) {
     ctx.fillStyle = `rgba(10,7,18,${veil})`; ctx.fillRect(0, 0, VW, H);
@@ -432,8 +548,10 @@
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     scale = r.width / VW;
   }
+  let noGhost = false;
   function render(opts) {
     opts = opts || {};
+    noGhost = !!opts.noGhost;
     fit();
     const s = canvas.width / VW;
     ctx.setTransform(s, 0, 0, s, 0, 0);
@@ -443,17 +561,21 @@
     updateCam();
     ctx.save();
     ctx.translate(sk.x, sk.y);
+    if (ui.push > 0.005) { const z = 1 + 0.1 * ui.push; const px = camX((g.p.x + g.e.x) / 2); ctx.translate(px, H * 0.66); ctx.scale(z, z); ctx.translate(-px, -H * 0.66); }
     camApply();
     BD.draw(ctx, g.t, cam.cx);
     if (!opts.hideActors) {
       drawWarnLine(g.e, g.t);
       const order = g.e.id === 'e' ? [g.e, g.p] : [g.p, g.e];
       for (const a of order) drawActor(a, g.t);
+      for (const a of order) drawTrail(a);
       drawFx();
     }
     BD.dust(ctx, g.t);
     ctx.restore();
     BD.front(ctx, g.t, VW);
+    // 慢放时整个画面略带冷色（跟着真实时间缓入缓出，不跟着慢放走）
+    if (ui.slow > 0.01) { ctx.fillStyle = `rgba(22,18,56,${(0.16 * ui.slow).toFixed(3)})`; ctx.fillRect(0, 0, VW, H); }
     drawHud(k);
     if (g.fade > 0) { ctx.fillStyle = `rgba(6,4,12,${g.fade})`; ctx.fillRect(0, 0, VW, H); }
   }
@@ -524,6 +646,11 @@
       case 'clash': ban(0.4); gong(420, 0.8, 0.22); break;
       case 'hurt': thud(0.28); ban(0.2); break;
       case 'dodge': thud(0.05); break;
+      case 'hit': ban(ev.kind === 'normal' || ev.kind === 'light' ? 0.28 : 0.4); gong(ev.kind === 'heavy' ? 340 : 480, ev.kind === 'light' ? 0.25 : 0.5, ev.kind === 'heavy' ? 0.22 : 0.12); break;
+      case 'loose': ban(0.2); break;
+      case 'shiFull': gong(1180, 0.9, 0.08, [1, 1.5, 2.0]); break;
+      case 'ult': thud(0.22); gong(160, 0.5, 0.12); break;
+      case 'ultHit': ban(0.3 + (ev.i || 0) * 0.03); break;
       case 'gongBig': gong(110, 3.2, 0.5, [1, 1.58, 2.2, 2.76, 3.5]); break;
       default: break;
     }
@@ -540,11 +667,21 @@
   // ---------- 输入：键盘和触屏发的是同一套意图 ----------
   const KEYS = {
     arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right',
-    j: 'attack', k: 'guard', l: 'dodge', ' ': 'dodge', space: 'dodge',
-    left: 'left', right: 'right', attack: 'attack', guard: 'guard', dodge: 'dodge',
+    j: 'attack', k: 'guard', l: 'dodge', ' ': 'dodge', space: 'dodge', u: 'ult',
+    left: 'left', right: 'right', attack: 'attack', guard: 'guard', dodge: 'dodge', ult: 'ult',
   };
+  // 示范进行中：点任意位置、按任意键，回到她自己的局（捕获阶段拦下，不当成游戏输入）
+  document.addEventListener('pointerdown', (e) => {
+    if (!demo) return;
+    e.stopPropagation(); e.preventDefault(); stopDemo();
+  }, true);
+  addEventListener('keydown', (e) => {
+    if (!demo) return;
+    e.stopImmediatePropagation(); e.preventDefault(); stopDemo();
+  }, true);
   const downNow = new Set();
-  function intentDown(i) { unlock(); if (!downNow.has(i)) { downNow.add(i); M.input(g, i, true); } }
+  const flashAt = {};   // 键盘或鼠标按下某个键的时刻，键上亮一小会儿，让她看到「我按的这个键是干什么的」
+  function intentDown(i) { unlock(); flashAt[i] = performance.now(); if (!downNow.has(i)) { downNow.add(i); M.input(g, i, true); } }
   function intentUp(i) { if (downNow.has(i)) { downNow.delete(i); M.input(g, i, false); } }
   function releaseAll() { for (const i of [...downNow]) intentUp(i); }
   addEventListener('keydown', (e) => {
@@ -565,10 +702,10 @@
       try { b.setPointerCapture(e.pointerId); } catch (_) { /* 部分浏览器不支持 */ }
       b.setAttribute('aria-pressed', 'true');
       // 方向和架枪是按住，出枪和闪避是点一下
-      if (i === 'attack' || i === 'dodge') { intentDown(i); setTimeout(() => intentUp(i), 90); } else intentDown(i);
+      if (i === 'attack' || i === 'dodge' || i === 'ult') { intentDown(i); setTimeout(() => intentUp(i), 90); } else intentDown(i);
     });
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-      b.addEventListener(ev, () => { b.setAttribute('aria-pressed', 'false'); if (i !== 'attack' && i !== 'dodge') intentUp(i); });
+      b.addEventListener(ev, () => { b.setAttribute('aria-pressed', 'false'); if (i !== 'attack' && i !== 'dodge' && i !== 'ult') intentUp(i); });
     }
   });
   // 点画面：「再来」和结尾后重来
@@ -576,6 +713,71 @@
     unlock();
     if (g.phase === 'retry' || g.phase === 'end') { M.input(g, 'attack', true); M.input(g, 'attack', false); }
   });
+
+  // ---------- 小按钮：跳过 / 教学 / 看示范 ----------
+  const toolsEl = document.getElementById('tools');
+  const btn = { skip: document.getElementById('skip'), replay: document.getElementById('replay'), demo: document.getElementById('demoBtn'), tag: document.getElementById('demoTag') };
+  btn.skip.addEventListener('click', () => { M.skipTutorial(main); store.set(); });
+  btn.replay.addEventListener('click', () => { forceTut = true; newGame(g.seed, 1); forceTut = null; });
+  btn.demo.addEventListener('click', () => startDemo());
+  const movesEl = document.getElementById('moves');
+  let pausedBeforeMoves = false;
+  function openMoves(open) {
+    movesEl.hidden = !open;
+    if (open) { pausedBeforeMoves = paused; paused = true; releaseAll(); } else paused = pausedBeforeMoves;
+  }
+  btn.moves = document.getElementById('movesBtn');
+  btn.moves.addEventListener('click', () => openMoves(true));
+  document.getElementById('movesClose').addEventListener('click', () => openMoves(false));
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !movesEl.hidden) openMoves(false); });
+  function syncTools() {
+    const inTut = !demo && !!g.tut, idle = !demo && !g.tut && g.stage === 1 && g.phase === 'play';
+    btn.skip.hidden = !inTut;
+    btn.replay.hidden = !idle;
+    btn.moves.hidden = !idle;
+    btn.demo.hidden = !(idle || (inTut && g.tut.step === 'walk' && false));
+    btn.tag.hidden = !demo;
+    if (main && main.tutDone && !store.get() && !demo) store.set();
+  }
+
+  // 示范：独立的一局 + 精准档自动驾驶，画面下方的键随它的操作亮起，关键动作出一个短词
+  let demoAcc = 0, demoWin = 0, demoPrev = null;
+  const DEMO_WORD = { guard: '架', attack: '刺', dodge: '闪' };
+  let demoUlt = false;
+  function startDemo() {
+    if (demo) return;
+    const d = M.createDemo(CLIPS, 11);
+    main = g;
+    demo = { g: d.g, driver: d.driver };
+    demoPrev = { attack: d.g.pressT.attack, guard: d.g.pressT.guard, dodge: d.g.pressT.dodge };
+    demoAcc = 0; demoWin = 0; demoUlt = false;
+    ui.savedEvent = ui.lastEvent; ui.savedMeter = ui.meterShown;
+    g = d.g; ui.lastEvent = g.eventId; ui.meterShown = 0;
+    releaseAll();
+  }
+  function stopDemo() {
+    if (!demo) return;
+    demo = null; g = main;
+    ui.lastEvent = main.eventId;          // 示范里的事件不要在她的局里再响一遍
+    ui.meterShown = main.meter;
+  }
+  function demoAdvance(ms) {
+    demoAcc += ms;
+    while (demoAcc >= M.STEP && demo) {
+      demoAcc -= M.STEP;
+      demo.driver.think(g);
+      M.advance(g, M.STEP);
+      for (const k of ['guard', 'attack', 'dodge']) {
+        if (g.pressT[k] !== demoPrev[k]) {
+          demoPrev[k] = g.pressT[k];
+          g.sub = { text: DEMO_WORD[k], t0: g.t, until: g.t + 800 };
+        }
+      }
+      if (g.ult && !demoUlt) { demoUlt = true; g.sub = { text: '绝', t0: g.t, until: g.t + 1200 }; }
+      if (g.phase === 'win1' && !demoWin) demoWin = g.t;
+      if (g.t >= 24000 || (demoWin && g.t - demoWin > 1500)) { stopDemo(); return; }
+    }
+  }
 
   // ---------- 统一试玩钩子 ----------
   function coverage() {
@@ -607,6 +809,24 @@
     render({});
     return out;
   }
+  // 残影有没有画出来：带残影与不带残影各渲一次，在主角周围一圈数变化的像素
+  function ghostPixels() {
+    render({});
+    const a = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const r0 = rects.p;
+    render({ noGhost: true });
+    const b = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const s = canvas.width / VW;
+    const x0 = Math.max(0, Math.floor(camX(r0.x - 80) * s)), x1 = Math.min(canvas.width, Math.floor(camX(r0.x + r0.w + 80) * s));
+    const y0 = Math.max(0, Math.floor(r0.y * s)), y1 = Math.min(canvas.height, Math.floor((r0.y + r0.h) * s));
+    let n = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const i = (y * canvas.width + x) * 4;
+      if (Math.abs(a.data[i] - b.data[i]) + Math.abs(a.data[i + 1] - b.data[i + 1]) + Math.abs(a.data[i + 2] - b.data[i + 2]) > 18) n++;
+    }
+    render({});
+    return { pixels: n, ult: !!g.ult };
+  }
   function luma() {
     // 整屏亮度分布：中位数与高于 0.6 的占比，验「大部分画面是暗的」
     render({});
@@ -622,16 +842,18 @@
   }
   self.__PLAYTEST__ = {
     get ready() { return ready; },
-    snapshot: () => Object.assign(M.snapshot(g), { view: VIEW, paused, seed: g.seed, touch: touchUI }),
-    reset: () => { seedOverride = true; newGame(g.seed, STAGE); seedOverride = false; },
+    snapshot: () => Object.assign(M.snapshot(g), { view: VIEW, paused, seed: g.seed, touch: touchUI, demo: !!demo, lit: litKeys(), glowKeys: glowKeys(), tutDone: main.tutDone }),
+    mainSnapshot: () => M.snapshot(main),
+    startDemo, stopDemo, skipTutorial: () => { M.skipTutorial(main); store.set(); },
+    reset: () => { seedOverride = true; newGame(main.seed, STAGE); seedOverride = false; },
     setSeed: (n) => { seedOverride = true; newGame(n, STAGE); seedOverride = false; },
-    step: (ms) => { paused = true; M.advance(g, ms); syncUi(0); render(); },
+    step: (ms) => { paused = true; if (demo) demoAdvance(ms); else M.advance(g, ms); syncUi(0); render(); },
     play: () => { paused = false; },
     press: (name, ms) => {
       const i = KEYS[String(name).toLowerCase()];
       if (i) M.tap(g, i, ms == null ? 120 : ms);
     },
-    coverage, luma,
+    coverage, luma, ghostPixels,
     // 界面各元素的外框（CSS 像素，相对视口），给浏览器检查查重叠
     layout: () => {
       render({});
@@ -639,7 +861,14 @@
         name: b.name, left: r.left + b.x * scale, top: r.top + b.y * scale,
         right: r.left + (b.x + b.w) * scale, bottom: r.top + (b.y + b.h) * scale,
       }));
-      if (muteBtn) { const m = muteBtn.getBoundingClientRect(); out.push({ name: 'mute', left: m.left, top: m.top, right: m.right, bottom: m.bottom }); }
+      const keysDom = {};
+      document.querySelectorAll('#pad button').forEach((b) => { keysDom['key-' + b.dataset.k] = b; });
+      const dom = { ...keysDom, mute: muteBtn, skip: btn.skip, replay: btn.replay, demo: btn.demo, moves: btn.moves, demoTag: btn.tag };
+      for (const k of Object.keys(dom)) {
+        if (!dom[k] || dom[k].hidden) continue;
+        const m = dom[k].getBoundingClientRect();
+        out.push({ name: k, left: m.left, top: m.top, right: m.right, bottom: m.bottom });
+      }
       return { boxes: out, portrait, canvas: { w: r.width, h: r.height }, viewport: { w: innerWidth, h: innerHeight } };
     },
   };
@@ -650,24 +879,48 @@
     ui.meterShown += (g.meter - ui.meterShown) * Math.min(1, dt / 220 + 0.0001);
     if (!dt) ui.meterShown = g.meter;
     ui.meterPulse = Math.max(0, ui.meterPulse - dt / 500);
+    // 慢放的冷色罩用真实时间缓入缓出
+    const slowTarget = g.timeScale < 1 ? 1 : 0;
+    ui.push += ((g.ult ? 1 : 0) - ui.push) * Math.min(1, dt / 160 + (dt ? 0 : 1));
+    ui.slow += (slowTarget - ui.slow) * Math.min(1, dt / 200 + (dt ? 0 : 1));
     for (const ev of g.events) {
       if (ev.id <= ui.lastEvent) continue;
       ui.lastEvent = ev.id;
       if (g.t - ev.t < 400) play(ev);
       if (ev.type === 'meter') ui.meterPulse = ev.meter >= 100 ? 1 : 0.35;
+      if (ev.type === 'loose' || (ev.type === 'hit' && g.stage === 1)) ui.looseT = ev.t;
     }
+    // 键的亮边：教学是呼吸的暖色亮边（CSS 动画走真实时间），示范是按下即亮
+    const gl = glowKeys().concat(ultGlow()), lit = litKeys();
+    const nowMs = performance.now();
+    document.querySelectorAll('#pad button').forEach((b) => {
+      const k = b.dataset.k;
+      b.classList.toggle('glow', gl.includes(k));
+      const mine = !demo && (downNow.has(k) || nowMs - (flashAt[k] || -1e9) < 200);
+      b.classList.toggle('lit', lit.includes(k) || mine);
+    });
+    padEl.classList.toggle('full', g.shi >= 100 && !g.tut);
+    const ub = padEl.querySelector('[data-k="ult"]');
+    if (ub) ub.classList.toggle('ready', g.shi >= 100 && !g.tut);
+    syncTools();
   }
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(50, now - last); last = now;
-    if (!paused) { M.advance(g, dt); syncUi(dt); }
+    if (!paused) { if (demo) demoAdvance(dt); else M.advance(g, dt); syncUi(dt); }
     render();
     requestAnimationFrame(frame);
   }
   Promise.all(loads).then(() => {
     newGame(SEED, STAGE);
+    if (VIEW === 'demo') {
+      // 机位：示范进行中，停在她（自动驾驶）按下「架」之后一小会儿
+      startDemo();
+      for (let i = 0; i < 6000 && !(g.pressT.guard > 0 && g.t - g.pressT.guard >= 90 && g.sub); i++) demoAdvance(M.STEP);
+    }
     if (VIEW) paused = true;
-    ui.meterShown = g.meter; ui.lastEvent = g.eventId;
+    ui.meterShown = g.meter; ui.lastEvent = g.eventId; ui.slow = g.timeScale < 1 ? 1 : 0;
+    syncUi(0);
     render();
     ready = true;
     requestAnimationFrame((t) => { last = t; frame(t); });

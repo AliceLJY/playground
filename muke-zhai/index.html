@@ -12,17 +12,42 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--paper);overflow:
 body{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
 #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 .view{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
-.frame{position:relative;width:min(100vw,calc(100dvh * 16 / 9));aspect-ratio:16/9;max-height:100%}
+.frame{position:relative;width:min(100vw,calc((100dvh - 86px) * 16 / 9));aspect-ratio:16/9;max-height:100%}
 #stage{display:block;width:100%;height:100%;touch-action:none;background:#0b0a14}
 #mute{position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:50%;border:1px solid rgba(201,164,92,.4);
-  background:rgba(14,10,20,.55);color:var(--gold);font:15px/1 inherit;font-family:inherit;padding:0}
-#pad{display:none;justify-content:space-between;align-items:flex-end;padding:8px 14px calc(12px + env(safe-area-inset-bottom))}
+  background:rgba(14,10,20,.55);color:var(--gold);font-size:15px;line-height:1;font-family:inherit;padding:0}
+#tools{position:absolute;top:12px;right:58px;display:flex;gap:6px;align-items:center}
+#tools button,#tools span{height:30px;padding:0 10px;border:1px solid rgba(201,164,92,.4);border-radius:6px;background:rgba(14,10,20,.6);
+  color:var(--gold);font-size:13px;line-height:28px;font-family:inherit;white-space:nowrap}
+#tools [hidden]{display:none}
+#tools span{border-color:rgba(201,164,92,.25);color:var(--paper)}
+#pad button.glow{border-color:rgba(226,160,96,.9);animation:breathe 2.6s ease-in-out infinite}
+#pad button.lit{border-color:rgba(240,190,120,.95);background:rgba(120,56,36,.9);color:var(--paper);box-shadow:0 0 8px 1px rgba(226,150,80,.55)}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 1px rgba(214,150,80,.25)}50%{box-shadow:0 0 10px 2px rgba(226,160,96,.75)}}
+#pad{display:flex;justify-content:center;align-items:flex-end;gap:40px;padding:8px 14px calc(10px + env(safe-area-inset-bottom))}
 #pad .grp{display:flex;gap:10px}
-#pad button{width:64px;height:64px;border-radius:12px;border:1px solid rgba(201,164,92,.45);background:rgba(24,16,26,.85);
-  color:var(--gold);font-family:inherit;font-size:22px;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;
-  -webkit-touch-callout:none}
+#pad button{width:64px;height:60px;border-radius:10px;border:1px solid rgba(201,164,92,.4);background:rgba(22,15,24,.85);
+  color:var(--gold);font-family:inherit;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+#pad button{position:relative}
+#pad button.ult{opacity:.35;border-style:dashed}
+#pad button.ult.ready{opacity:1;border-style:solid;border-color:rgba(240,190,120,.95);color:var(--paper);animation:breathe 1.8s ease-in-out infinite}
+/* 势满了：「架」和「刺」之间一条细的连线，提示可以同时按 */
+#pad.full [data-k="guard"]::after{content:"";position:absolute;right:-11px;top:50%;width:12px;height:1px;background:rgba(226,160,96,.95)}
+#moves{position:absolute;inset:0;z-index:5;background:rgba(8,6,14,.94);padding:22px 26px;overflow:auto;color:var(--paper)}
+#moves h2{margin:0 0 10px;font-weight:400;font-size:20px;letter-spacing:6px;color:var(--gold)}
+#moves ul{list-style:none;margin:0;padding:0}
+#moves li{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid rgba(201,164,92,.18);font-size:14px;line-height:1.5}
+#moves li b{width:3.6em;flex:none;font-weight:400;color:var(--gold);letter-spacing:2px}
+#moves li kbd{flex:none;font-family:inherit;font-size:12px;color:rgba(201,164,92,.9);border:1px solid rgba(201,164,92,.4);border-radius:3px;padding:0 6px;white-space:nowrap}
+#moves li span{color:rgba(228,211,174,.85)}
+#moves button{margin-top:14px;height:30px;padding:0 16px;border:1px solid rgba(201,164,92,.4);border-radius:6px;background:transparent;color:var(--gold);font-family:inherit}
+#pad .lab{font-size:21px;line-height:22px}
+/* 小键帽：标出对应的键盘按键，细线、暖金，不抢眼 */
+#pad kbd{font-size:11px;line-height:14px;font-family:inherit;color:rgba(201,164,92,.85);border:1px solid rgba(201,164,92,.45);border-radius:3px;
+  padding:0 5px;background:rgba(8,6,12,.6);white-space:nowrap}
 #pad button[aria-pressed="true"]{background:rgba(110,36,40,.9);color:var(--paper)}
-@media (pointer:coarse),(max-width:720px){#pad{display:flex}.frame{width:min(100vw,calc((100dvh - 96px) * 16 / 9))}}
+@media (pointer:coarse),(max-width:720px){#pad{justify-content:space-between;gap:0}#pad{gap:0}#pad .grp{gap:8px}#pad button{width:52px;height:60px}#pad kbd{display:none}.frame{width:min(100vw,calc((100dvh - 96px) * 16 / 9))}}
 /* 竖屏：取景窗接近 4:5（逻辑 400×540），铺满宽度，放在上部，触屏键在下面 */
 @media (max-aspect-ratio:1/1){
   .view{align-items:flex-start}
@@ -35,12 +60,25 @@ body{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
   <div class="view">
     <div class="frame">
       <canvas id="stage" width="960" height="540" aria-label="穆柯寨戏台"></canvas>
+      <div id="moves" hidden role="dialog" aria-label="招式">
+        <h2>招式</h2>
+        <ul>
+          <li><b>刺</b><kbd>J</kbd><span>出枪。打在他收招硬直里或架开之后，直接掉一整顶；别的时候命中，金盔松一格</span></li>
+          <li><b>三连</b><kbd>J J J</kbd><span>后两下在上一枪的后半段按，第三枪最重，击退最远</span></li>
+          <li><b>冲刺</b><kbd>→ + J</kbd><span>按住方向再按刺，或同方向连点两下再刺。滑一大步突刺，收招稍长</span></li>
+          <li><b>翻身刺</b><kbd>L 后半段 J</kbd><span>闪的后半段按刺，落地接一枪</span></li>
+          <li><b>架开</b><kbd>K</kbd><span>按住是挡；对方命中前 0.2 秒内按下，算「架开」</span></li>
+          <li><b>大招</b><kbd>K + J</kbd><span>势满了同时按（或点「绝」）。连刺五枪，无法格挡，她全程无敌</span></li>
+        </ul>
+        <button id="movesClose" type="button">关闭</button>
+      </div>
+      <div id="tools"><button id="skip" type="button" hidden>跳过</button><button id="replay" type="button" hidden>教学</button><button id="movesBtn" type="button" hidden>招式</button><button id="demoBtn" type="button" hidden>看示范</button><span id="demoTag" hidden>示范中，点一下退出</span></div>
       <button id="mute" type="button" aria-pressed="false" aria-label="静音开关">声</button>
     </div>
   </div>
   <div id="pad">
-    <div class="grp"><button data-k="left" aria-label="向左走">◀</button><button data-k="right" aria-label="向右走">▶</button></div>
-    <div class="grp"><button data-k="dodge" aria-label="翻身闪避">闪</button><button data-k="guard" aria-label="架枪">架</button><button data-k="attack" aria-label="出枪">刺</button></div>
+    <div class="grp"><button data-k="left" aria-label="向左走"><span class="lab">◀</span><kbd>←</kbd></button><button data-k="right" aria-label="向右走"><span class="lab">▶</span><kbd>→</kbd></button></div>
+    <div class="grp"><button data-k="dodge" aria-label="翻身闪避"><span class="lab">闪</span><kbd>L · 空格</kbd></button><button data-k="guard" aria-label="架枪"><span class="lab">架</span><kbd>K</kbd></button><button data-k="attack" aria-label="出枪"><span class="lab">刺</span><kbd>J</kbd></button><button data-k="ult" aria-label="大招" class="ult"><span class="lab">绝</span><kbd>K+J</kbd></button></div>
   </div>
 </div>
 <script src="src/clips.js"></script>

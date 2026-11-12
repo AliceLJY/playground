@@ -26,11 +26,23 @@
   const STAGGER_RATE = 0.7;       // 被架开后受击动作放慢，给玩家反击留出时间
   const HITSTOP_LIGHT = 70, HITSTOP_HEAVY = 110;
   const QI_MAX = 5;
+  const ULT_WINDOW = 80;          // K 和 J 相隔这么久内按下算「一起按」
+  const ULT_CHARGE = 400;         // 大招起手的全场放慢
+  const ULT_STRIKE = 150;         // 大招连刺，每一枪的间隔
+  // 出枪的种类：rate 是出招动画的快慢，slide 是吸附滑步上限，knock 击退，stop 命中顿帧，
+  // loose 对金盔的松动格数，meter 对心动的加分，gate 为真时受「松动间隔」限制（乱按不涨）
+  const ATK = {
+    normal: { kind: 'normal', rate: 1.1, slide: 110, knock: 0.3, stop: 70, trauma: 0.3, loose: 1, meter: 3, gate: true, heavy: false, shi: 6, trail: 1 },
+    light: { kind: 'light', rate: 1.25, slide: 80, knock: 0.22, stop: 60, trauma: 0.22, loose: 1, meter: 3, gate: true, heavy: false, shi: 5, trail: 0.8 },
+    heavy: { kind: 'heavy', rate: 0.85, slide: 110, knock: 0.62, stop: 130, trauma: 0.6, loose: 1, meter: 6, gate: false, heavy: true, shi: 10, trail: 1.7 },
+    dash: { kind: 'dash', rate: 0.92, slide: 230, knock: 0.55, stop: 100, trauma: 0.45, loose: 1, meter: 5, gate: false, heavy: true, shi: 9, trail: 1.5, lock: 220 },
+    flip: { kind: 'flip', rate: 1, slide: 60, knock: 0.4, stop: 90, trauma: 0.35, loose: 1, meter: 5, gate: false, heavy: true, shi: 8, trail: 1.3 },
+  };
 
   // 动作名 → 图集动作名
   const CLIP_OF = {
     idle: 'idle', walk: 'walk', warn: 'attack', attack: 'attack', guard: 'guard',
-    dodge: 'jump', hurt: 'hurt', down: 'hurt', defeat: 'defeat', victory: 'victory', daze: 'idle',
+    dodge: 'jump', hurt: 'hurt', down: 'hurt', defeat: 'defeat', victory: 'victory', daze: 'idle', ult: 'attack',
   };
 
   function mulberry32(seed) {
@@ -87,7 +99,8 @@
       invuln: 0, hitDone: false, vul: false, cool: 0,
       slide: null, travel: null, attackId: 0, lock: 0,
       gRel: false, rt: 0, gPress: -9999, gLimit: 0,
-      path: 0,
+      path: 0, atkGap: 1e9, lastAtkEnd: -1e9, flinchOkAt: 0, atk: null, chainN: 0, flinch: false, shake: 0, armor: 0, chain: null, warnLen: null, flipReq: false,
+      ultT: 0,
     };
   }
   // 动作名 → 时间表
@@ -103,6 +116,12 @@
       return { clip: clipName, frame: indexAt(tab, raise + a.rt) };
     }
     if (a.act === 'warn') return { clip: clipName, frame: 0 };
+    if (a.act === 'ult') {
+      // 大招：起手停在蓄力帧，之后五次快速的出手帧（命中帧前后）连放
+      if (a.ultT < 0) return { clip: clipName, frame: 2 };
+      const s = Math.min(4, Math.floor(a.ultT / ULT_STRIKE)), local = (a.ultT % ULT_STRIKE) / ULT_STRIKE;
+      return { clip: clipName, frame: clamp(tab.hitIndex - 3 + Math.floor(local * 5), 0, tab.count - 1) };
+    }
     if (a.act === 'down') return { clip: clipName, frame: tab.count - 1 };
     if (a.act === 'victory' || a.act === 'defeat') {
       return { clip: clipName, frame: Math.min(indexAt(tab, a.t), tab.hold) };
@@ -122,16 +141,22 @@
       calm: false, qi: QI_MAX, helmets: 3, meter: 0,
       dingCool: 0, finT: 0, finStep: 0, endT: -1, victoryAt: -1,
       stats: newStats(), hitLog: [],
+      shi: 0, shiFull: false, loose: 0, gateUntil: 0, heavyGateUntil: 0, ult: null, ultSeen: !!opts.ultSeen, ultHintOn: false,
+      lastDir: { dir: 0, t: -1e9 }, dashArm: null,
+      tut: null, tutDone: false, timeScale: 1, touch: !!opts.touch, hints: !!opts.hints,
+      pressT: { attack: -1e9, guard: -1e9, dodge: -1e9 },
     };
     g.rng = mulberry32(g.seed);
     g.p = makeActor(g, 'p', 'guiying', 300, 1);
     setupStage(g, opts.stage || 1, true);
+    if (opts.tutorial) tutStart(g);
     return g;
   }
   function newStats() {
     return {
       parries: 0, blocks: 0, clashes: 0, hitsTaken: 0, hitsLanded: 0, dings: 0,
       dodges: 0, helmetsLost: 0, retries: 0, restarts: 0, swings: 0,
+      chain3: 0, ults: 0, dashes: 0, flips: 0, looses: 0, ultHits: 0, chainAllParried: 0,
       maxSlide: 0, minX: 9999, maxX: -9999, warnToHit: [],
     };
   }
@@ -151,7 +176,8 @@
 
   function setupStage(g, n, first) {
     g.stage = n; g.phase = 'play';
-    g.qi = QI_MAX; g.helmets = 3; g.meter = 0;
+    g.tut = null; g.timeScale = 1;
+    g.qi = QI_MAX; g.helmets = 3; g.meter = 0; g.shi = 0; g.shiFull = false; g.loose = 0; g.ult = null; g.gateUntil = 0; g.heavyGateUntil = 0;
     g.fade = 0; g.script.length = 0; g.fx.length = 0; g.floats.length = 0;
     g.finT = 0; g.finStep = 0; g.endT = -1; g.victoryAt = -1; g.dingCool = 0;
     g.buf.attack = g.buf.guard = g.buf.dodge = -9999;
@@ -165,6 +191,8 @@
       g.e = makeActor(g, 'e', 'zongbao', 680, -1);
       g.e.cool = 3800;
       say(g, '杨宗保：降龙木，我是一定要取的。', 3400);
+      // 第二场开头只补一句提示，三秒自己消失
+      if (!first && g.hints) later(g, 3600, () => say(g, '两枪同时出手会撞在一起，那也算数。', 3000));
     }
   }
   function resetActor(a, x, face) {
@@ -172,16 +200,35 @@
     a.pushV = 0; a.invuln = 0; a.hitDone = false; a.vul = false; a.slide = null;
     a.travel = null; a.lock = 0; a.gRel = false; a.rt = 0;
   }
-  function start(a, act) { a.act = act; a.t = 0; a.rate = 1; a.hitDone = false; a.slide = null; }
+  function start(a, act) { a.act = act; a.t = 0; a.rate = 1; a.hitDone = false; a.slide = null; a.flinch = false; }
 
   // ---------- 输入 ----------
   function input(g, name, down) {
-    if (name === 'left' || name === 'right') { g.held[name] = down; return; }
+    if (name === 'left' || name === 'right') {
+      // 0.25 秒内同方向连点两下，接着按 J 是冲刺突刺
+      if (down && !g.held[name]) {
+        const dir = name === 'right' ? 1 : -1;
+        if (g.lastDir.dir === dir && g.t - g.lastDir.t <= 250) g.dashArm = { dir, until: g.t + 500 };
+        g.lastDir = { dir, t: g.t };
+      }
+      g.held[name] = down; return;
+    }
+    if (name === 'ult') {
+      if (down && g.phase === 'play' && g.shi >= 100 && !g.ult && !g.tut) startUlt(g);
+      return;
+    }
     if (name === 'guard') g.held.guard = down;
     if (!down) return;
+    g.pressT[name] = g.t;
+    // K 和 J 在 0.08 秒内一起按：势满了就放大招；没满就各做各的
+    if ((name === 'attack' || name === 'guard') && g.phase === 'play' && g.shi >= 100 && !g.ult && !g.tut) {
+      const other = name === 'attack' ? 'guard' : 'attack';
+      if (g.t - g.pressT[other] <= ULT_WINDOW) { startUlt(g); return; }
+    }
     if (g.phase === 'retry') { retryStage(g); return; }
     if (g.phase === 'end' && g.endT > 1200) { restartAll(g); return; }
     g.buf[name] = g.t;
+    if (g.tut) tutOnPress(g, name);
   }
   // 按一下（保持 ms 毫秒再松开），给钩子和机器人用
   function tap(g, name, ms) {
@@ -207,12 +254,12 @@
   // 对手收招硬直：出招命中之后，或被架开后的踉跄
   function isVul(a) {
     if (a.act === 'hurt' && a.vul) return true;
-    return a.act === 'attack' && a.t >= a.tabs.attack.hitT + VUL_AFTER_HIT;
+    return a.act === 'attack' && a.t * a.rate >= a.tabs.attack.hitT + VUL_AFTER_HIT;
   }
   // 对手距离命中还有多久（预警 + 蓄力），没有在出招返回 null
   function hitIn(a) {
-    if (a.act === 'warn') return a.spec.warn - a.t + a.tabs.attack.hitT;
-    if (a.act === 'attack' && a.t < a.tabs.attack.hitT) return a.tabs.attack.hitT - a.t;
+    if (a.act === 'warn') return (a.warnLen || a.spec.warn) - a.t + a.tabs.attack.hitT / (a.nextRate || 1);
+    if (a.act === 'attack' && a.t * a.rate < a.tabs.attack.hitT) return (a.tabs.attack.hitT - a.t * a.rate) / a.rate;
     return null;
   }
   const dist = (g) => Math.abs(g.e.x - g.p.x);
@@ -241,7 +288,8 @@
 
   function playerHurt(g, att) {
     const p = g.p;
-    g.qi--; g.stats.hitsTaken++;
+    // 教学里挨一下只是演示，不掉气
+    if (!g.tut) { g.qi--; g.stats.hitsTaken++; }
     start(p, 'hurt');
     p.invuln = 1000; p.flash = 90; p.vul = false;
     push(p, -sign(att.x - p.x), 0.27);
@@ -249,7 +297,7 @@
     const c = contact(g, att, p);
     emit(g, 'hurt', c.x, c.y, { qi: g.qi });
     addTrauma(g, 0.55);
-    if (g.qi <= 0) {
+    if (g.qi <= 0 && !g.tut) {
       // 掉光了不是死，播完受击就出「再来」
       later(g, p.tabs.hurt.total + HITSTOP_HEAVY, () => {
         if (g.phase !== 'play') return;
@@ -263,35 +311,101 @@
     if (g.phase !== 'play') return;
     const { p, e } = g;
     const c = contact(g, e, p);
+    const T = g.tut;
+    if (T) { T.attempting = false; T.boost = 1; T.slow = false; g.timeScale = 1; }
     if (p.invuln > 0 || dodgeInvuln(p)) {
       if (dodgeInvuln(p)) g.stats.dodges++;
       emit(g, 'evade', p.x, GROUND - 120);
+      if (T && (T.step === 'guard' || T.step === 'dodge')) {
+        if (T.step === 'dodge' && dodgeInvuln(p)) tutPass(g); else tutMiss(g);
+      }
       return;
     }
     if (guardActive(p)) {
       const age = g.t - p.gPress;
       const mid = { x: (p.x + e.x) / 2 + p.face * 14, y: GROUND - 140 };
-      if (age <= PARRY_WINDOW) {
+      if (age <= PARRY_WINDOW || (T && T.step === 'guard')) {
         g.stats.parries++;
+        addShi(g, 15);
         stop(p, HITSTOP_LIGHT); stop(e, HITSTOP_LIGHT);
-        // 被架开：敌人踉跄，进入可被打的状态
-        start(e, 'hurt'); e.vul = true; e.rate = STAGGER_RATE; e.flash = 60;
-        push(e, sign(e.x - p.x), 0.22);
+        const mid3 = e.chain && e.chain.n < 3;
+        if (e.chain) e.chain.parried++;
+        if (mid3) {
+          // 三连刺的前两枪被架开：他不踉跄，接着出下一枪
+          e.flash = 60;
+          push(e, sign(e.x - p.x), 0.12);
+        } else {
+          if (e.chain && e.chain.parried >= 3) { g.stats.chainAllParried++; addMeter(g, 20, e.x, GROUND - 300); }
+          e.chain = null;
+          // 被架开：敌人踉跄，进入可被打的状态
+          start(e, 'hurt'); e.vul = true; e.rate = T ? 0.5 : STAGGER_RATE; e.flash = 60;
+          push(e, sign(e.x - p.x), 0.22);
+        }
         emit(g, 'parry', mid.x, mid.y);
         addTrauma(g, 0.25);
         if (g.stage === 2) addMeter(g, 12, e.x, GROUND - 270);
+        if (T && (T.step === 'guard' || T.step === 'dodge')) { if (T.step === 'guard') tutPass(g); else tutMiss(g); }
       } else {
         g.stats.blocks++;
+        addShi(g, 4);
         stop(p, HITSTOP_LIGHT); stop(e, HITSTOP_LIGHT);
         push(p, -sign(e.x - p.x), 0.2);
         emit(g, 'block', mid.x, mid.y);
         addTrauma(g, 0.15);
         if (g.stage === 2) addMeter(g, 6, e.x, GROUND - 270);
+        if (T && (T.step === 'guard' || T.step === 'dodge')) tutMiss(g);
       }
       return;
     }
     playerHurt(g, e);
+    if (T && (T.step === 'guard' || T.step === 'dodge')) tutMiss(g);
     g.fx.push({ kind: 'spark', x: c.x, y: c.y, t0: g.t, big: true, seed: g.eventId, dir: e.face });
+  }
+
+  // 势：命中、架开、对枪都会涨，被打中不掉
+  function addShi(g, n) {
+    if (g.tut || g.shi >= 100) return;
+    g.shi = Math.min(100, g.shi + n);
+    if (g.shi >= 100 && !g.shiFull) {
+      g.shiFull = true;
+      emit(g, 'shiFull', g.p.x, GROUND - 200);
+      if (!g.ultSeen) {
+        g.ultHintOn = true;
+        say(g, g.touch ? '势满了。同时按『架』和『刺』' : '势满了。同时按 K 和 J', 6000);
+      }
+    }
+  }
+
+  // 每一枪打中都有身体反应：顿帧、击退、抖一下、火花；站着的对手还会小退一步、播 hurt 的前几帧
+  function hitReaction(g, K, c, strength) {
+    const { p, e } = g;
+    stop(p, K.stop); stop(e, K.stop);
+    e.flash = 80; e.shake = 180;
+    push(e, sign(e.x - p.x), K.knock * (strength == null ? 1 : strength));
+    addTrauma(g, K.trauma * (strength == null ? 1 : strength));
+    g.fx.push({ kind: 'spark', x: c.x, y: c.y, t0: g.t, big: K.heavy, seed: g.eventId, dir: p.face });
+    emit(g, 'hit', c.x, c.y, { kind: K.kind });
+    if (K.heavy && e.who === 'mengliang') { e.armor = g.t + 700; e.cool = Math.min(e.cool, 300); }
+    const armored = g.t < e.armor || e.act === 'warn' || e.act === 'attack' || e.act === 'guard';
+    // 他不会被无限连着打：每 1.4 秒最多晃一次，其余时间硬扛，并尽快还手
+    e.cool = Math.min(e.cool, 250);
+    if (!armored && g.t >= e.flinchOkAt && (e.act === 'idle' || e.act === 'walk' || (e.act === 'hurt' && e.flinch))) {
+      start(e, 'hurt'); e.vul = false; e.rate = 1; e.flinch = true; e.flinchOkAt = g.t + 1400;
+    }
+  }
+
+  // 孟良掉一整顶金盔
+  function dropHelmet(g, c, last0) {
+    const { p, e } = g;
+    g.helmets--; g.stats.helmetsLost++; g.stats.hitsLanded++; g.loose = 0;
+    const last = g.helmets <= 0;
+    stop(p, last ? HITSTOP_HEAVY : Math.max(HITSTOP_LIGHT, p.freeze)); stop(e, last ? HITSTOP_HEAVY : HITSTOP_LIGHT);
+    e.flash = 90; e.shake = 220;
+    emit(g, 'helmet', c.x, c.y, { left: g.helmets });
+    addTrauma(g, last ? 0.7 : 0.4);
+    g.fx.push({ kind: 'spark', x: c.x, y: c.y, t0: g.t, big: true, seed: g.eventId, dir: p.face });
+    if (last) { startWin1(g); return true; }
+    return false;
   }
 
   // 玩家出手命中结算
@@ -299,41 +413,68 @@
     if (g.phase !== 'play') return;
     const { p, e } = g;
     const c = contact(g, p, e);
+    const K = p.atk || ATK.normal;
+    if (g.tut && g.tut.step === 'stab') {
+      // 教学第二步：这一下不掉金盔，只让她看到出枪和命中的反馈
+      stop(p, HITSTOP_LIGHT); stop(e, HITSTOP_LIGHT);
+      e.flash = 80;
+      emit(g, 'tap', c.x, c.y);
+      addTrauma(g, 0.3);
+      tutPass(g);
+      return;
+    }
+    const vul = isVul(e);
     if (g.stage === 1) {
-      if (isVul(e)) {
-        g.helmets--; g.stats.helmetsLost++; g.stats.hitsLanded++;
-        const last = g.helmets <= 0;
-        stop(p, last ? HITSTOP_HEAVY : HITSTOP_LIGHT);
-        stop(e, last ? HITSTOP_HEAVY : HITSTOP_LIGHT);
-        e.flash = 90;
-        emit(g, 'helmet', c.x, c.y, { left: g.helmets });
-        addTrauma(g, last ? 0.7 : 0.35);
-        g.fx.push({ kind: 'spark', x: c.x, y: c.y, t0: g.t, big: true, seed: g.eventId, dir: p.face });
-        if (last) { startWin1(g); return; }
+      if (vul) {
+        // 打在收招硬直里或架开之后：直接掉一整顶
+        addShi(g, 12);
+        if (dropHelmet(g, c)) return;
         start(e, 'hurt'); e.vul = false; e.rate = 1;
-        push(e, sign(e.x - p.x), 0.3);
-      } else if (!(e.act === 'hurt')) {
+        push(e, sign(e.x - p.x), K.knock);
+        if (g.tut && g.tut.step === 'punish') tutPass(g);
+      } else if (g.tut) {
         g.stats.dings++;
         emit(g, 'ding', c.x, c.y);
         addTrauma(g, 0.1);
+      } else if (e.act === 'hurt' && !e.flinch) {
+        // 刚掉了金盔、正在硬挨：不再计
+      } else {
+        // 普通命中：松一格；松满三格掉一顶。乱按有间隔限制，重招不受限
+        const gated = g.t < (K.gate ? g.gateUntil : g.heavyGateUntil);
+        hitReaction(g, K, c, gated ? 0.6 : 1);
+        if (gated) { g.stats.dings++; return; }
+        if (K.gate) g.gateUntil = g.t + 2200; else g.heavyGateUntil = g.t + 3000;
+        g.loose += K.loose; g.stats.looses++; g.stats.hitsLanded++;
+        addShi(g, K.shi);
+        if (g.loose >= 3) { g.loose -= 3; dropHelmet(g, c); if (g.phase !== 'play') return; start(e, 'hurt'); e.vul = false; e.rate = 1; }
+        else emit(g, 'loose', c.x, c.y, { loose: g.loose });
       }
       return;
     }
     // 第二场
-    if (isVul(e)) {
+    if (vul) {
       g.stats.hitsLanded++;
+      addShi(g, 12);
       stop(p, HITSTOP_LIGHT); stop(e, HITSTOP_LIGHT);
       e.flash = 80;
       emit(g, 'tap', c.x, c.y);
       addTrauma(g, 0.3);
       addMeter(g, 8, e.x, GROUND - 270);
       if (g.phase === 'play') { start(e, 'hurt'); e.vul = false; e.rate = 1; push(e, sign(e.x - p.x), 0.18); }
-    } else if (e.act !== 'hurt') {
+    } else if (e.act === 'guard') {
       g.stats.dings++;
       emit(g, 'ding', c.x, c.y);
       addTrauma(g, 0.12);
-      // 只有他真架着枪时才加分，每次架枪只算一次，乱戳不涨心动
-      if (e.act === 'guard' && !e.dinged) { e.dinged = true; addMeter(g, 3, e.x, GROUND - 270); }
+      // 他架着枪：只「叮」一下，每次架枪只算一次 +3
+      if (!e.dinged) { e.dinged = true; addMeter(g, 3, e.x, GROUND - 270); }
+    } else if (!(e.act === 'hurt' && !e.flinch)) {
+      const gated = g.t < (K.gate ? g.gateUntil : g.heavyGateUntil);
+      hitReaction(g, K, c, gated ? 0.6 : 1);
+      if (gated) { g.stats.dings++; return; }
+      if (K.gate) g.gateUntil = g.t + 2400; else g.heavyGateUntil = g.t + 4000;
+      g.stats.hitsLanded++;
+      addShi(g, K.shi);
+      addMeter(g, K.meter, e.x, GROUND - 270);
     }
   }
 
@@ -350,7 +491,9 @@
     if (g.stage !== 2) return false;
     const other = att === g.p ? g.e : g.p;
     if (other.act !== 'attack' || other.hitDone) return false;
-    const gap = other.tabs.attack.hitT - other.t;
+    // 对枪要的是看准了出手：上一枪收完不到 0.45 秒就又出枪（乱按、连招）不算
+    if (g.p.atkGap < 450) return false;
+    const gap = (other.tabs.attack.hitT - other.t * other.rate) / other.rate;
     if (Math.abs(gap) > CLASH_WINDOW) return false;
     if (dist(g) > Math.max(g.p.spec.reach, g.e.spec.reach) + 20) return false;
     att.hitDone = true; other.hitDone = true;
@@ -362,7 +505,8 @@
       // 各退半步，收招，短暂不能动
       start(a, 'idle'); a.lock = 260;
     }
-    g.e.cool = Math.max(g.e.cool, 900);
+    g.e.cool = Math.max(g.e.cool, 900); g.e.chain = null;
+    addShi(g, 20);
     emit(g, 'clash', x, GROUND - 150);
     g.fx.push({ kind: 'spark', x, y: GROUND - 150, t0: g.t, big: true, seed: g.eventId, dir: 1 });
     addTrauma(g, 0.5);
@@ -371,24 +515,38 @@
   }
 
   // ---------- 出招 ----------
-  function beginAttack(g, a, targetX) {
+  function beginAttack(g, a, targetX, kind) {
     a.attackId++;
+    a.atkGap = g.t - (a.lastAtkEnd == null ? -1e9 : a.lastAtkEnd);
+    a.lastAtkEnd = g.t;
     start(a, 'attack');
+    const K = isEnemy(a) ? null : ATK[kind || 'normal'];
+    a.atk = K;
     // 出手吸附：转向对手，小滑步到够得着的距离，不冲过头
     const d = Math.abs(targetX - a.x);
-    if (d < 360) a.face = sign(targetX - a.x);
-    const want = a.spec.reach * 0.85;
-    let slide = clamp(d - want, 0, isEnemy(a) ? 90 : 110);
+    if (d < 360 || (K && K.kind === 'dash')) a.face = sign(targetX - a.x);
+    let slide;
+    if (K && K.kind === 'dash') slide = clamp(d - 95, 0, K.slide);
+    else slide = clamp(d - a.spec.reach * 0.85, 0, K ? K.slide : 90);
     slide = Math.min(slide, Math.max(0, d - MIN_GAP));
+    if (K) {
+      a.rate = K.rate;
+      a.chainN = K.kind === 'normal' ? 1 : K.kind === 'light' ? 2 : K.kind === 'heavy' ? 3 : 0;
+      if (K.kind === 'heavy') g.stats.chain3++;
+      if (K.kind === 'dash') g.stats.dashes++;
+      if (K.kind === 'flip') g.stats.flips++;
+    } else if (a.chain) a.rate = a.chain.n > 0 ? 0.65 : 1;
+    if (a.chain) a.chain.n++;
     a.slide = { total: slide, done: 0, dur: a.tabs.attack.hitT, dir: a.face };
     g.stats.swings++;
-    emit(g, 'swing', a.x, GROUND - 150, { who: a.id });
+    emit(g, 'swing', a.x, GROUND - 150, { who: a.id, kind: K ? K.kind : 'enemy' });
+    if (K && g.tut && g.tut.step === 'chain' && K.kind === 'heavy') tutPass(g);
   }
 
   function slideStep(a, dt) {
     if (!a.slide) return;
     const s = a.slide;
-    const frac = clamp(a.t / s.dur, 0, 1);
+    const frac = clamp(a.t * a.rate / s.dur, 0, 1);
     // 先快后慢，贴近目标时收住
     const eased = 1 - (1 - frac) * (1 - frac);
     const target = s.total * eased;
@@ -400,7 +558,8 @@
   function attackStep(g, a, dt) {
     const tab = a.tabs.attack;
     slideStep(a, dt);
-    if (!a.hitDone && a.t >= tab.hitT) {
+    const t = a.t * a.rate;
+    if (!a.hitDone && t >= tab.hitT) {
       const target = isEnemy(a) ? g.p : g.e;
       const dx = target.x - a.x;
       const inRange = Math.abs(dx) <= a.spec.reach + 25 && sign(dx) === a.face;
@@ -411,15 +570,26 @@
           g.stats.warnToHit.push(g.t - a.warnT0);
           enemyHits(g);
         } else playerHits(g);
-      } else if (a.t >= tab.hitT + 100) {
+      } else if (t >= tab.hitT + 100 * a.rate) {
         a.hitDone = true;
         emit(g, 'whiff', a.x, GROUND - 150, { who: a.id });
       }
     }
-    if (a.t >= tab.total) { start(a, 'idle'); if (isEnemy(a)) a.cool = enemyCool(g, a); }
+    // 杨宗保的三连刺：每一枪打完很快接下一枪
+    if (isEnemy(a) && a.chain && a.hitDone && t >= tab.hitT + 200 && a.chain.n < 3 && g.phase === 'play') {
+      a.warnT0 = g.t;
+      beginAttack(g, a, g.p.x);
+      return;
+    }
+    if (t >= tab.total) {
+      if (!isEnemy(a) && a.atk && a.atk.lock) a.lock = a.atk.lock;
+      a.lastAtkEnd = g.t;
+      start(a, 'idle');
+      if (isEnemy(a)) { a.chain = null; a.cool = enemyCool(g, a); }
+    }
   }
   function enemyCool(g, a) {
-    return a.who === 'mengliang' ? range(g, 2600, 3800) : range(g, 3000, 4400);
+    return a.who === 'mengliang' ? range(g, 2200, 3400) : range(g, 2400, 3800);
   }
 
   // ---------- 玩家每步 ----------
@@ -434,11 +604,23 @@
       return p.act === 'guard' && p.gRel && p.rt > 100;
     }
     if (neutral) return true;
+    // 连招：在上一枪的后半段按；翻身刺：在闪的后半段按
+    if (p.act === 'attack' && p.atk && p.chainN >= 1 && p.chainN < 3 && p.t * p.rate >= tab.total * 0.5) return true;
+    if (p.act === 'dodge' && !p.flipReq && p.t >= p.tabs.jump.total * 0.5) return true;
     return p.act === 'guard' && p.gRel && p.rt > 60;
+  }
+  function pickAttackKind(g, p) {
+    if (p.act === 'dodge') return 'flipReq';
+    if (p.act === 'attack' && p.chainN >= 1 && p.chainN < 3) return p.chainN === 1 ? 'light' : 'heavy';
+    const toward = sign(g.e.x - p.x), dir = (g.held.right ? 1 : 0) - (g.held.left ? 1 : 0);
+    const far = dist(g) > 150 && dist(g) < 520;
+    if (far && dir === toward) return 'dash';
+    if (far && g.dashArm && g.t < g.dashArm.until && g.dashArm.dir === toward) { g.dashArm = null; return 'dash'; }
+    return 'normal';
   }
 
   function startDodge(g, p) {
-    start(p, 'dodge');
+    start(p, 'dodge'); p.flipReq = false;
     const dir = (g.held.right ? 1 : 0) - (g.held.left ? 1 : 0) || -sign(g.e.x - p.x);
     p.travel = { dir, total: 130, done: 0, dur: p.tabs.jump.total };
     emit(g, 'dodge', p.x, GROUND - 100);
@@ -452,6 +634,7 @@
 
   function updatePlayer(g, dt) {
     const p = g.p;
+    if (p.act === 'ult') return;
     if (p.freeze > 0) { p.freeze -= dt; return; }
     if (p.lock > 0) p.lock -= dt;
     if (p.invuln > 0) p.invuln -= dt;
@@ -465,7 +648,8 @@
       const tr = p.travel, frac = clamp((p.t - 80) / (p.tabs.jump.total - 160), 0, 1);
       const target = tr.total * frac;
       p.x += tr.dir * (target - tr.done); tr.done = target;
-      if (p.t >= p.tabs.jump.total) start(p, 'idle');
+      if (p.flipReq && p.t >= p.tabs.jump.total * 0.85) { p.flipReq = false; beginAttack(g, p, g.e.x, 'flip'); }
+      else if (p.t >= p.tabs.jump.total) start(p, 'idle');
     } else if (p.act === 'hurt') {
       if (p.t >= p.tabs.hurt.total) start(p, 'idle');
     } else if (p.act === 'guard') {
@@ -492,7 +676,10 @@
         g.buf[pick] = -9999;
         if (pick === 'dodge') startDodge(g, p);
         else if (pick === 'guard') startGuard(g, p, best);
-        else beginAttack(g, p, g.e.x);
+        else {
+          const kind = pickAttackKind(g, p);
+          if (kind === 'flipReq') p.flipReq = true; else beginAttack(g, p, g.e.x, kind);
+        }
       }
       // 走路
       if ((p.act === 'idle' || p.act === 'walk') && p.lock <= 0) {
@@ -510,6 +697,7 @@
   // ---------- 敌人每步 ----------
   function updateEnemy(g, dt, ai) {
     const e = g.e, p = g.p;
+    if (e.shake > 0) e.shake -= dt;
     if (e.freeze > 0) { e.freeze -= dt; return; }
     if (e.lock > 0) e.lock -= dt;
     e.t += dt;
@@ -519,12 +707,14 @@
     switch (e.act) {
       case 'hurt': {
         const tab = e.tabs.hurt;
-        if (e.t * e.rate >= tab.total) { start(e, 'idle'); e.vul = false; e.cool = Math.max(e.cool, enemyCool(g, e) * 0.8); }
+        // 普通命中只播 hurt 的前几帧（小退一步、晃一下）
+        const cutoff = e.flinch ? tab.cum[Math.min(3, tab.count - 1)] : tab.total;
+        if (e.t * e.rate >= cutoff) { start(e, 'idle'); e.vul = false; e.cool = Math.max(e.cool, enemyCool(g, e) * 0.8); }
         break;
       }
       case 'warn':
         e.face = sign(p.x - e.x);
-        if (e.t >= e.spec.warn) { const t0 = e.warnT0; beginAttack(g, e, p.x); e.warnT0 = t0; }
+        if (e.t >= (e.warnLen || e.spec.warn)) { const t0 = e.warnT0; beginAttack(g, e, p.x); e.warnT0 = t0; }
         break;
       case 'attack': attackStep(g, e, dt); break;
       case 'guard': {
@@ -563,13 +753,189 @@
     }
     start(e, 'warn');
     e.warnT0 = g.t;
+    e.warnLen = null; e.chain = null;
+    // 杨宗保偶尔三连刺回敬：预警更长更明显，三枪都能被逐一架开
+    if (e.who === 'zongbao' && g.stage === 2 && !g.tut && rnd(g) < 0.14) { e.chain = { n: 0, parried: 0 }; e.warnLen = 560; }
     emit(g, 'warn', e.x, GROUND - 180, { who: e.who, hitIn: hitIn(e) });
+  }
+
+  // ---------- 教学：第一场开头手把手，一步一件事，做到了才进下一步 ----------
+  const TUT_TEXT = {
+    walk: ['按住 ◀ ▶ 走到孟良跟前', '按住 ← → 走到孟良跟前'],
+    stab: ['按『刺』出枪', '按 J 出枪'],
+    guard: ['他要劈了，按住『架』', '他要劈了，按住 K'],
+    punish: ['趁他愣住，刺', '趁他愣住，刺'],
+    dodge: ['斧子太沉的时候，也可以『闪』开', '斧子太沉的时候，也可以按 L 闪开'],
+    chain: ['连按三下『刺』', '连按 J 三下'],
+    outro: ['就是这样。把剩下两顶金盔打下来。', '就是这样。把剩下两顶金盔打下来。'],
+  };
+  const TUT_GLOW = { walk: 'move', stab: 'attack', guard: 'guard', punish: 'attack', dodge: 'dodge', chain: 'attack', outro: null };
+  const SLOW = 0.35;
+  const tutText = (g, step) => TUT_TEXT[step][g.touch ? 0 : 1];
+
+  function tutStart(g) {
+    g.tut = { step: 'walk', tries: 0, slow: false, boost: 1, attempting: false, attempt: 0, glow: 'move', autoAt: 0, autoDone: false, pressed: false };
+    g.helmets = 3;
+    const e = g.e;
+    e.x = 640; e.lock = 1e9; e.cool = 1e9;
+    g.sub = null;
+    tutEnter(g, 'walk');
+  }
+  function tutEnter(g, step) {
+    const T = g.tut;
+    T.step = step; T.glow = TUT_GLOW[step]; T.pressed = false;
+    if (step === 'guard') g.sub = null; else say(g, tutText(g, step), 1e12);
+    if (step === 'guard') later(g, 900, () => tutAttempt(g));
+    if (step === 'dodge') later(g, 1800, () => tutAttempt(g));
+    if (step === 'outro') {
+      later(g, 3400, () => {
+        if (!g.tut) return;
+        g.tut = null; g.timeScale = 1; g.tutDone = true;
+        g.e.lock = 0; g.e.cool = 2200;
+        emit(g, 'tutorialDone', g.e.x, GROUND - 200);
+      });
+    }
+  }
+  // 孟良慢慢举斧（放慢到 0.35 倍），等她按
+  function tutAttempt(g) {
+    const T = g.tut;
+    if (!T || g.phase !== 'play' || (T.step !== 'guard' && T.step !== 'dodge')) return;
+    const e = g.e, p = g.p;
+    if (T.slow || T.attempting) return;
+    if (e.act !== 'idle' || p.act === 'hurt') { later(g, 300, () => tutAttempt(g)); return; }
+    T.attempt++;
+    T.attempting = true; T.slow = true; T.boost = 1; T.pressed = false;
+    T.glow = TUT_GLOW[T.step];
+    T.autoDone = false; T.autoAt = g.t + 1500;
+    // 前三次都没按，这一次替她按
+    T.auto = T.tries >= 3;
+    e.face = sign(p.x - e.x);
+    start(e, 'warn'); e.warnT0 = g.t;
+    emit(g, 'warn', e.x, GROUND - 180, { who: e.who, hitIn: hitIn(e) });
+    g.timeScale = SLOW;
+    say(g, tutText(g, T.step), 1e12);
+  }
+  function tutOnPress(g, name) {
+    const T = g.tut;
+    if (!T || !T.slow || T.pressed) return;
+    if ((T.step === 'guard' && name === 'guard') || (T.step === 'dodge' && name === 'dodge')) {
+      const rem = hitIn(g.e);
+      if (rem == null) return;
+      const want = name === 'guard' ? 180 : 300;
+      T.boost = rem > want ? rem / want : 1;
+      T.slow = false; T.pressed = true; T.glow = null;
+      g.timeScale = 1;
+    }
+  }
+  function tutPass(g) {
+    const T = g.tut;
+    if (!T) return;
+    T.tries = 0;
+    emit(g, 'tutStep', g.p.x, GROUND - 200, { step: T.step });
+    const next = { walk: 'stab', stab: 'guard', guard: 'punish', punish: 'dodge', dodge: 'chain', chain: 'outro' }[T.step];
+    tutEnter(g, next);
+  }
+  function tutMiss(g) {
+    const T = g.tut;
+    if (!T) return;
+    T.tries++; T.slow = false; T.boost = 1; T.attempting = false; g.timeScale = 1; T.glow = null;
+    say(g, '没关系，再来一次。', 1400);
+    later(g, 1900, () => tutAttempt(g));
+  }
+  function tutTick(g) {
+    const T = g.tut, e = g.e, p = g.p;
+    if (g.phase !== 'play') return;
+    if (T.step === 'walk' && g.t > 600 && Math.abs(e.x - p.x) <= 240) tutPass(g);
+    if (T.slow && T.auto && !T.autoDone && g.t >= T.autoAt) {
+      T.autoDone = true;
+      if (T.step === 'guard') tap(g, 'guard', 350); else tap(g, 'dodge', 80);
+    }
+    // 他愣住的时间过了还没打中：回到第三步重来（不算次数）
+    if (T.step === 'punish' && e.act === 'idle' && e.t > 300) tutEnter(g, 'guard');
+    // 斧子落空（她走开了）：当没架住，重来
+    if (T.attempting && (T.step === 'guard' || T.step === 'dodge') && e.act === 'idle' && e.t > 200) tutMiss(g);
+  }
+  // 跳过教学：直接进正常的第一场
+  function skipTutorial(g) {
+    if (!g.tut) return;
+    const e = g.e;
+    g.tut = null; g.timeScale = 1; g.sub = null; g.tutDone = true;
+    if (e.act !== 'defeat') { start(e, 'idle'); e.lock = 0; e.cool = 2500; e.vul = false; }
+    g.p.invuln = 0;
+    emit(g, 'tutorialDone', e.x, GROUND - 200, { skipped: true });
+  }
+
+  // ---------- 大招：势满了，K 和 J 一起按 ----------
+  function startUlt(g) {
+    const { p, e } = g;
+    g.shi = 0; g.shiFull = false; g.ultHintOn = false; g.ultSeen = true;
+    g.buf.attack = g.buf.guard = g.buf.dodge = -9999;
+    g.stats.ults++;
+    if (g.sub && /势满了/.test(g.sub.text)) g.sub = null;
+    start(p, 'ult');
+    p.ultT = -1; p.invuln = 1e9; p.flipReq = false; p.lock = 0;
+    p.face = sign(e.x - p.x);
+    g.ult = { t: 0, phase: 'charge', next: 0, done: false, endAt: 0 };
+    g.timeScale = 0.35;
+    emit(g, 'ult', p.x, GROUND - 160);
+  }
+  function endUlt(g) {
+    const p = g.p;
+    g.ult = null; g.timeScale = 1;
+    if (p.act === 'ult') { start(p, 'idle'); p.invuln = 300; p.ultT = 0; }
+  }
+  // 用真实时间推进：放慢只放慢别人，不放慢大招自己的节奏
+  function ultTick(g, dt) {
+    const U = g.ult, { p, e } = g;
+    if (p.freeze > 0) { p.freeze -= dt; return; }
+    U.t += dt;
+    if (U.phase === 'charge') {
+      p.ultT = -1;
+      if (U.t >= ULT_CHARGE) {
+        U.phase = 'strikes'; g.timeScale = 1; p.ultT = 0;
+        const d = Math.abs(e.x - p.x);
+        p.face = sign(e.x - p.x);
+        p.slide = { total: clamp(d - 95, 0, 240), done: 0, dur: ULT_STRIKE * 2, dir: p.face };
+        p.t = 0; p.rate = 1;
+      }
+      return;
+    }
+    const st = U.t - ULT_CHARGE;
+    p.ultT = st; p.t = st;
+    slideStep(p, dt);
+    while (U.next < 5 && st >= U.next * ULT_STRIKE + 90) { ultStrike(g, U.next); U.next++; }
+    if (U.next >= 5 && !U.done && st >= 4 * ULT_STRIKE + 90 + 450) { U.done = true; endUlt(g); }
+  }
+  function ultStrike(g, i) {
+    const { p, e } = g;
+    if (g.phase !== 'play') return;
+    const c = { x: e.x - p.face * 26, y: GROUND - 150 };
+    g.stats.ultHits++;
+    emit(g, 'ultHit', c.x, c.y, { i });
+    g.fx.push({ kind: 'spark', x: c.x, y: c.y - 6 + i * 3, t0: g.t, big: i === 4, seed: g.eventId, dir: p.face });
+    addTrauma(g, i === 4 ? 0.85 : 0.25);
+    e.flash = 70; e.shake = 200;
+    if (i === 0) { start(e, 'hurt'); e.vul = false; e.rate = 0.3; e.chain = null; }
+    push(e, sign(e.x - p.x), i === 4 ? 0.85 : 0.1);
+    if (i < 4) { stop(e, 40); return; }
+    // 最后一枪：长顿帧，大锣，对方大退
+    stop(p, 250); stop(e, 250);
+    emit(g, 'gongBig', c.x, c.y);
+    if (g.stage === 1) {
+      if (dropHelmet(g, c)) { endUlt(g); return; }
+      start(e, 'hurt'); e.vul = true; e.rate = 0.45;
+    } else {
+      start(e, 'hurt'); e.vul = false; e.rate = 0.6;
+      addMeter(g, 25, e.x, GROUND - 270);
+      e.cool = 1800;
+    }
   }
 
   // ---------- 过场：第一场收尾 ----------
   function startWin1(g) {
     const e = g.e;
-    g.phase = 'win1';
+    g.phase = 'win1'; g.ult = null; g.timeScale = 1; g.p.invuln = 0;
+    if (g.p.act === 'ult') start(g.p, 'idle');
     start(e, 'defeat');
     later(g, 900, () => say(g, '金盔留下，人可以走。', 2600));
     later(g, 3000, () => { g.phase = 'fade'; g.fadeDir = 1; });
@@ -578,7 +944,7 @@
   // ---------- 过场：第二场收尾 ----------
   function startFinale(g) {
     const { p, e } = g;
-    g.phase = 'finale'; g.finT = 0; g.finStep = 0;
+    g.phase = 'finale'; g.finT = 0; g.finStep = 0; g.ult = null; g.timeScale = 1; p.invuln = 0; p.pushV = 0; e.pushV = 0;
     start(e, 'hurt'); e.rate = 1; e.vul = false; e.hitDone = true;
     stop(e, HITSTOP_HEAVY);
     emit(g, 'finale', e.x, GROUND - 200);
@@ -649,12 +1015,18 @@
     }
 
     const { p, e } = g;
+    if (g.tut) tutTick(g);
+    if (g.ult) ultTick(g, dt);
+    // 放慢只放慢玩法的时间步；g.t、界面、特效、震屏、字幕都走真实时间
+    const gdt = dt * g.timeScale;
     if (g.phase === 'finale' || g.phase === 'end') {
       if (g.phase === 'end') g.endT += dt;
       updateFinale(g, dt);
     } else {
-      updatePlayer(g, dt);
-      updateEnemy(g, dt, g.phase === 'play');
+      updatePlayer(g, gdt);
+      // 教学里玩家按下后，敌人会加速把剩下的动作演完，分小步走免得跳帧
+      const boost = g.tut ? g.tut.boost : 1, n = Math.max(1, Math.ceil(boost));
+      for (let i = 0; i < n; i++) updateEnemy(g, gdt * boost / n, g.phase === 'play');
       fixPositions(g);
     }
     // 统计：任何时刻站位都不应出舞台
@@ -712,6 +1084,8 @@
     return {
       t: Math.round(g.t), stage: g.stage, phase: g.phase, qi: g.qi, helmets: g.helmets,
       meter: g.meter, sub: g.sub ? g.sub.text : null, trauma: g.trauma,
+      shi: g.shi, loose: g.loose, ult: g.ult ? g.ult.phase : null, ultStrike: g.ult ? g.ult.next : 0,
+      tutorial: g.tut ? g.tut.step : null, glow: g.tut ? g.tut.glow : null, timeScale: g.timeScale,
       p: pk(g.p), e: pk(g.e), stats: Object.assign({}, g.stats, { warnToHit: g.stats.warnToHit.length }),
     };
   }
@@ -738,6 +1112,18 @@
       runUntil(g, d, (s) => s.e.x - s.p.x <= 200, 20000);
       g.held.right = false;
       runUntil(g, null, (s) => s.p.act === 'idle' && s.p.t > 700, 5000);
+    } else if (view === 'teach3') {
+      // 真实模拟：自动驾驶走完前两步，孟良慢慢举斧，在「按住架」那一刻定格（不替她按）
+      const d = makeDriver('precise', 3, { tutStop: 'guard' });
+      runUntil(g, d, (s) => s.tut && s.tut.step === 'guard' && s.tut.slow && s.e.act === 'warn' && s.e.t >= 150, 60000);
+    } else if (view === 'ult') {
+      // 真实模拟：自动驾驶打到势满、放出大招，定格在第三枪出手那一刻
+      const d = makeDriver('precise', 3);
+      runUntil(g, d, (s) => s.ult && s.ult.phase === 'strikes' && s.ult.next >= 3, 120000);
+    } else if (view === 'chain3') {
+      // 真实模拟：精准档每次反击都接三连，定格在第三枪命中后的顿帧里
+      const d = makeDriver('precise', 3, { chainP: 1 });
+      runUntil(g, d, (s) => s.p.atk && s.p.atk.kind === 'heavy' && s.p.hitDone && s.p.freeze > 40, 120000);
     } else if (view === 'end') {
       const d = makeDriver('precise', 3);
       runUntil(g, d, (s) => s.phase === 'end' && s.endT > 1600, 600000);
@@ -746,23 +1132,28 @@
 
   // ---------- 自动驾驶：测试和定格都用它 ----------
   const PROFILES = {
-    precise: { react: 200, jit: 40, parry: 0.34, block: 0.25, dodge: 0.2, clash: 0.16, ignore: 0.04, miss: 0.12 },
-    sloppy: { react: 380, jit: 110, parry: 0.3, block: 0.22, dodge: 0.1, clash: 0.1, ignore: 0.1, miss: 0.2 },
+    precise: { react: 200, jit: 40, parry: 0.34, block: 0.25, dodge: 0.2, clash: 0.24, ignore: 0.04, miss: 0.12, chain: 0.75 },
+    sloppy: { react: 360, jit: 100, parry: 0.4, block: 0.25, dodge: 0.1, clash: 0.16, ignore: 0.06, miss: 0.2, chain: 0.4 },
   };
   function gauss(r) {
     const u = Math.max(1e-9, r()), v = r();
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   }
 
-  function makeDriver(skill, seed) {
+  function makeDriver(skill, seed, opts) {
+    opts = opts || {};
     const r = mulberry32((seed || 1) * 7919 + 13);
     const P = PROFILES[skill];
-    const d = { skill, plan: null, seen: -1, counterAt: null, counterDone: false, relAt: -1, retryAt: -1 };
+    const d = {
+      skill, plan: null, seen: -1, counterAt: null, counterDone: false, relAt: -1, retryAt: -1,
+      script: (opts.script || []).slice(), tutStop: opts.tutStop || null, flipArm: false, flipT: 0, tutSeen: -1, nextTap: 0, nextTap2: 0, chainLeft: 0, ultAt: -1, chainP: opts.chainP, chainArm: 0,
+    };
     const keys = (g, l, rt) => { g.held.left = l; g.held.right = rt; };
 
     d.think = function (g) {
       const { p, e } = g;
       if (skill === 'reckless') return reckless(d, g, r);
+      if (g.tut) return tutThink(d, g);
       if (g.phase === 'retry') {
         keys(g, false, false);
         if (d.retryAt < 0) d.retryAt = g.t + 600;
@@ -774,7 +1165,8 @@
       if (d.relAt > 0 && g.t >= d.relAt) { input(g, 'guard', false); d.relAt = -1; }
 
       // 1. 敌人刚开始预警：定一个应对方案
-      if (e.act === 'warn' && e.attackId !== d.seen) {
+      const newStrike = e.act === 'warn' || (e.act === 'attack' && e.chain && e.chain.n > 1 && e.t * e.rate < 150);
+      if (newStrike && e.attackId !== d.seen) {
         d.seen = e.attackId;
         const hitAt = g.t + hitIn(e);
         const roll = r();
@@ -787,6 +1179,8 @@
         else if (roll < c4) kind = 'dodge';
         else if (roll < c4 + clashP) kind = 'clash';
         else kind = 'parry';
+        if (e.chain && r() < (d.skill === 'precise' ? 0.9 : 0.75)) kind = 'parry';   // 三连刺要逐枪架开
+        if (d.script.length) kind = d.script.shift();
         const lead = { parry: 110, block: 420, dodge: 300, clash: 190, none: 0 }[kind];
         const late = g.t + P.react + gauss(r) * P.jit * 0.5;
         const at = Math.max(late, hitAt - lead + gauss(r) * P.jit);
@@ -798,7 +1192,7 @@
         pl.done = true;
         if (pl.kind === 'parry') { input(g, 'guard', true); d.relAt = g.t + 260; }
         else if (pl.kind === 'block') { input(g, 'guard', true); d.relAt = pl.hitAt + 130; }
-        else if (pl.kind === 'dodge') tap(g, 'dodge', 60);
+        else if (pl.kind === 'dodge') { tap(g, 'dodge', 60); if (opts.flip) { d.flipArm = true; d.flipT = g.t; } }
         else if (pl.kind === 'clash' && dst < p.spec.reach + 110) tap(g, 'attack', 60);
       }
       // 3. 敌人进入收招硬直：反击
@@ -810,8 +1204,32 @@
         if (!d.counterDone && !d.counterSkip && g.t >= d.counterAt && dst < 330) {
           d.counterDone = true;
           tap(g, 'attack', 60);
+          d.chainLeft = r() < (d.chainP != null ? d.chainP : P.chain) ? 2 : 0; d.chainArm = g.t;
         }
       } else { d.counterAt = null; d.counterDone = false; }
+
+      // 3a. 闪完接一枪（翻身刺），示范里用
+      if (d.flipArm) {
+        if (p.act === 'dodge' && p.t >= p.tabs.jump.total * 0.55) { tap(g, 'attack', 50); d.flipArm = false; }
+        else if (g.t - d.flipT > 900) d.flipArm = false;
+      }
+      // 3b. 连招：在上一枪的后半段再按
+      if (d.chainLeft > 0) {
+        if (p.act !== 'attack') { if (g.t - d.chainArm > 300) d.chainLeft = 0; }
+        else if (p.atk && p.chainN < 3 && p.t * p.rate >= p.tabs.attack.total * 0.55 && g.t >= d.nextTap2) {
+          tap(g, 'attack', 50); d.chainLeft--; d.nextTap2 = g.t + 220;
+        }
+      }
+      // 3c. 势满了就放大招（K 和 J 同一刻按下）
+      if (g.shi >= 100 && !g.ult && p.act !== 'hurt' && dst < 420) {
+        if (d.ultAt < 0) d.ultAt = g.t + P.react + 100 + Math.abs(gauss(r)) * P.jit;
+        if (g.t >= d.ultAt) {
+          d.ultAt = -1;
+          input(g, 'guard', true); input(g, 'attack', true);
+          later(g, 70, () => { input(g, 'guard', false); input(g, 'attack', false); });
+          return;
+        }
+      } else d.ultAt = -1;
 
       // 4. 平时保持距离
       const busy = p.act === 'attack' || p.act === 'dodge' || p.act === 'hurt' || p.act === 'guard';
@@ -822,6 +1240,66 @@
       else keys(g, false, false);
     };
     return d;
+  }
+
+  // 教学里的自动驾驶：每一步做对
+  function tutThink(d, g) {
+    const T = g.tut, p = g.p, e = g.e;
+    const dst = Math.abs(e.x - p.x), toward = sign(e.x - p.x);
+    g.held.left = g.held.right = false;
+    if (g.phase !== 'play') return;
+    if (T.step === 'walk') { if (dst > 225) { g.held.right = toward > 0; g.held.left = toward < 0; } }
+    else if (T.step === 'stab') {
+      if (g.t >= d.nextTap && dst <= 260 && (p.act === 'idle' || p.act === 'walk')) { tap(g, 'attack', 60); d.nextTap = g.t + 900; }
+      else if (dst > 260) { g.held.right = toward > 0; g.held.left = toward < 0; }
+    } else if (T.step === 'guard' || T.step === 'dodge') {
+      if (T.slow && !T.pressed && e.t >= 250 && d.tutSeen !== T.attempt && d.tutStop !== T.step) {
+        d.tutSeen = T.attempt;
+        if (T.step === 'guard') tap(g, 'guard', 300); else tap(g, 'dodge', 60);
+      }
+    } else if (T.step === 'punish') {
+      if (isVul(e) && dst < 330 && g.t >= d.nextTap) { tap(g, 'attack', 60); d.nextTap = g.t + 1500; }
+    } else if (T.step === 'chain') {
+      if (dst > 230) { g.held.right = toward > 0; g.held.left = toward < 0; }
+      else if (g.t >= d.nextTap && p.act !== 'attack' && p.act !== 'hurt') { tap(g, 'attack', 50); d.nextTap = g.t + 1500; }
+      else if (p.act === 'attack' && p.atk && p.chainN < 3 && p.t * p.rate >= p.tabs.attack.total * 0.55 && g.t >= d.nextTap2) { tap(g, 'attack', 50); d.nextTap2 = g.t + 200; }
+    }
+  }
+
+  // 示范用：独立的一局 + 精准档自动驾驶。先冲刺突刺、三连刺，再架开、闪开接翻身刺，最后势满放大招。
+  // 示范是演示，所以大招前把势直接填满（她自己的局里要打出来）。
+  function createDemo(clips, seed) {
+    seed = seed || 11;
+    const g = create(clips, { seed, touch: true, ultSeen: true });
+    g.sub = null; g.e.cool = 6500;
+    const base = makeDriver('precise', seed, { script: ['parry', 'dodge', 'parry', 'parry'], flip: true, chainP: 0 });
+    const queue = ['chain', 'dash'];
+    let nextAt = 600, ultDone = false;
+    const driver = {
+      base,
+      think(gg) {
+        base.think(gg);
+        const { p, e } = gg;
+        if (gg.phase !== 'play') return;
+        // 先演完连招和冲刺，孟良这段时间不出手
+        if (queue.length || gg.t < nextAt) e.cool = Math.max(e.cool, 1500);
+        const calm = (e.act === 'idle' || e.act === 'walk') && p.act === 'idle' && !isVul(e) && gg.t >= nextAt;
+        if (queue.length && calm) {
+          const k = queue.shift();
+          if (k === 'dash') {
+            if (Math.abs(e.x - p.x) > 160) { gg.held.right = sign(e.x - p.x) > 0; gg.held.left = !gg.held.right; tap(gg, 'attack', 50); }
+            else queue.unshift('dash');
+            nextAt = gg.t + 1700;
+          } else {
+            tap(gg, 'attack', 50); base.chainLeft = 2; base.chainArm = gg.t; nextAt = gg.t + 2200;
+          }
+        }
+        if (!ultDone && gg.stats.parries >= 1 && gg.stats.flips >= 1 && p.act === 'idle' && !gg.ult && gg.helmets >= 1 && gg.t > 7000) {
+          ultDone = true; gg.shi = 100; gg.shiFull = true; base.ultAt = -1;
+        }
+      },
+    };
+    return { g, driver };
   }
 
   // 莽撞档：只会往前冲、乱按出枪，从不架枪闪避
@@ -855,6 +1333,6 @@
     STEP, W, H, GROUND, MIN_X, MAX_X, SPEC, HITSTOP_LIGHT, HITSTOP_HEAVY, PARRY_WINDOW, CLASH_WINDOW,
     QI_MAX, mulberry32, create, advance, tick, input, tap, snapshot, frameOf, hitIn, isVul,
     shakeOffset, prepareView, makeDriver, playThrough, runUntil, setupStage, guardActive,
-    restartAll, retryStage,
+    restartAll, retryStage, skipTutorial, tutStart, tutText, createDemo,
   };
 });
