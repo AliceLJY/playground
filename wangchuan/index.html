@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>鹿柴 · 辋川卧游</title>
 <meta name="description" content="王维《鹿柴》，四句诗四幅画，一幅一幅往山里走。">
-<meta name="theme-color" content="#6b5630">
+<meta name="theme-color" content="#C8903A">
 <style>
-  html, body { margin: 0; height: 100%; background: #6b5630; overflow: hidden; overscroll-behavior: none; }
+  html, body { margin: 0; height: 100%; background: #C8903A; overflow: hidden; overscroll-behavior: none; }
   body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-  #scroll { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #scroll { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; opacity: 0; transition: opacity 1.2s ease; }
+  #scroll.ready { opacity: 1; }
   #scroll.dragging { cursor: grabbing; }
   #poem {
-    position: fixed; top: 0; left: 0; height: 25vh; width: auto; pointer-events: none;
+    position: fixed; top: 0; left: 0; height: 25vh; width: auto; pointer-events: none; /* 高度由脚本按屏幕比例改 */
     transform-origin: 0 0; will-change: transform; opacity: 0;
     -webkit-mask-image: linear-gradient(to left, #000 var(--wipe, 0%), transparent calc(var(--wipe, 0%) + 12%));
             mask-image: linear-gradient(to left, #000 var(--wipe, 0%), transparent calc(var(--wipe, 0%) + 12%));
@@ -38,19 +39,19 @@
   #exit span { margin: 0 .8em; color: rgba(43, 34, 24, .45); }
   #mute {
     position: fixed; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom));
-    width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .55);
-    color: rgba(38, 30, 22, .85); font: 12px/28px "Songti SC", serif; text-align: center; padding: 0;
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .6);
+    color: rgba(38, 30, 22, .85); font: 14px/42px "Songti SC", serif; text-align: center; padding: 0;
     opacity: 0; transition: opacity 1.2s ease; cursor: pointer;
   }
   #mute.on { opacity: 1; }
   #mute.off { color: rgba(38, 30, 22, .4); text-decoration: line-through; }
   #source-open {
     position: fixed; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom));
-    height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .55);
-    color: rgba(38, 30, 22, .88); font: 12px/28px "Songti SC", "Noto Serif SC", serif; letter-spacing: .25em; text-indent: .25em; cursor: pointer;
+    height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid rgba(38, 30, 22, .45); background: rgba(240, 222, 180, .6);
+    color: rgba(38, 30, 22, .88); font: 14px/42px "Songti SC", "Noto Serif SC", serif; letter-spacing: .25em; text-indent: .25em; cursor: pointer;
   }
   #source {
-    position: fixed; inset: 0; z-index: 5; background: rgba(226, 203, 159, .97); color: #2b2218; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    position: fixed; inset: 0; z-index: 5; background: #E2CB9F; color: #2b2218; overflow-y: auto; -webkit-overflow-scrolling: touch;
     touch-action: pan-y; -webkit-user-select: text; user-select: text;
     font: 15px/1.9 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
   }
@@ -116,7 +117,7 @@
 
 <h2>怎么做的</h2>
 <p>画和字都是 AI 照上面的画法新作的，不是古迹，也不是哪一幅古画的复制。画没有拆开重画，只给每幅配了一张深度图，让近处比远处多动一点。</p>
-<p class="small">按住屏幕是往前走，松开它自己慢慢展；左右拨可以来回看。右下角是声音开关。</p>
+<p>怎么看：按住屏幕（或按住空格、方向键）是往前走，松开它自己慢慢展；左右拨、滚滚轮可以来回看。右下角是声音开关。走到头有「再看一遍」。</p>
 </div>
 </section>
 <div id="fallback" aria-label="四幅画排成一卷，向右拨着看"></div>

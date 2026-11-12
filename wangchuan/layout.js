@@ -6,8 +6,10 @@
   else root.LuzhaiLayout = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   const R = 2.5;                      // 每幅画的宽高比（3172×1268 上下）
-  const POEM_H = 0.25;                // 题诗高度（占屏高），与 CSS 的 25vh 对应
-  const POEM_W = POEM_H * 915 / 652;  // 题诗宽度（按 assets/poem.png 的尺寸）
+  const POEM_RATIO = 915 / 652;       // 题诗图的宽高比（assets/poem.png）
+  // 题诗多高（占屏高）：手机上以整首放得下为限，屏幕宽了就放大，最多占四成屏高
+  const poemH = (a) => Math.max(0.2, Math.min(0.40, (a - 0.08) / POEM_RATIO));
+  const poemW = (a) => poemH(a) * POEM_RATIO;
   const PUSH = 0.18;                  // 每一景里镜头往画里推多少（1 → 1.18 倍）
   const FADE = 0.14;                  // 每一景首尾各有这么长一段在云气里换景
 
@@ -51,5 +53,5 @@
     return Math.max(head, tail);
   }
 
-  return { R, POEM_H, POEM_W, PUSH, FADE, SCENES, N, HOLD, END, ease, clamp01, baseZoom, camera, veil };
+  return { R, POEM_RATIO, poemH, poemW, PUSH, FADE, SCENES, N, HOLD, END, ease, clamp01, baseZoom, camera, veil };
 });
