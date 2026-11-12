@@ -183,13 +183,13 @@ void main(){
   let g = 0, vel = 0, dragging = false, lastX = 0, lastMove = 0, lastTouch = -1e9;
   let t0 = performance.now(), prev = t0, wipe = 0, downAt = 0, stride = 0, bob = 0, walking = 0;
   // 走到还没载好的景之前先停在云里等
-  const limit = () => { let i = 0; while (i < N && tex[i]) i++; return i >= N ? END : i - 0.02; };
+  const limit = () => { let i = 0; while (i < N && tex[i]) i++; return i >= N ? END : i - L.FADE - 0.01; };
   const clampG = (x) => Math.max(0, Math.min(limit(), x));
 
-  function onDown(e) { dragging = true; lastX = e.clientX; vel = 0; canvas.classList.add('dragging'); lastTouch = lastMove = performance.now(); downAt = lastTouch; startAudio(); }
+  function onDown(e) { dragging = true; lastX = e.clientX; vel = 0; canvas.classList.add('dragging'); lastTouch = lastMove = performance.now(); downAt = lastTouch; startAudio(); firstTouch(); }
   function onMove(e) {
     if (!dragging) return;
-    const dg = (e.clientX - lastX) / (innerHeight * 0.85); lastX = e.clientX;   // 手往右拨，卷子往左展，人往里走
+    const dg = (e.clientX - lastX) / Math.max(innerWidth * 1.15, innerHeight * 0.6); lastX = e.clientX;   // 手往右拨，卷子往左展，人往里走；拨满一屏宽走大半景
     g = clampG(g + dg);
     const now = performance.now(); const dt = Math.max(1, now - lastMove) / 1000; lastMove = now;
     vel = vel * 0.6 + (dg / dt) * 0.4; lastTouch = now;
@@ -201,22 +201,29 @@ void main(){
   canvas.addEventListener('pointercancel', onUp);
   addEventListener('wheel', (e) => {
     const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / innerHeight;
-    g = clampG(g + d * 0.6); vel = 0; lastTouch = performance.now(); startAudio();
+    g = clampG(g + Math.max(-0.12, Math.min(0.12, d * 1.4))); vel = 0; lastTouch = performance.now(); startAudio(); firstTouch();
   }, { passive: true });
   addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === ' ') { vel = 0.5; lastTouch = performance.now(); startAudio(); }
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { vel = -0.5; lastTouch = performance.now(); startAudio(); }
+    if (!srcPanel.hidden) return;
+    const fwd = e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'Enter';
+    const back = e.key === 'ArrowRight' || e.key === 'ArrowUp';
+    if (!fwd && !back) return;
+    e.preventDefault(); keyDir = fwd ? 1 : -1; lastTouch = performance.now(); firstTouch();
   });
+  addEventListener('keyup', () => { if (keyDir) { vel = keyDir * 0.12; keyDir = 0; lastTouch = performance.now(); } });
   addEventListener('resize', resize);
 
   const state = { scene: 0, u: 0 };
-  let frozen = false;
+  let frozen = false, keyDir = 0, touched = false, shown = false;
+  // 提示语留到第一次动手之后再淡出
+  function firstTouch() { if (touched) return; touched = true; setTimeout(() => hint.classList.remove('on'), 2600); }
   function frame(now) {
     const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
     const t = fixedT !== null ? fixedT : (now - t0) / 1000;
 
     const gBefore = g;
     if (fixedG !== null) g = Math.max(0, Math.min(END, fixedG));
+    else if (keyDir) { g = clampG(g + keyDir * dt / WALK); }
     else if (dragging) {
       // 按住不动 = 往前走：比它自己走快三倍。手在拨的时候听手的。
       if (now - lastMove > 140 && now - downAt > 180) g = clampG(g + dt / WALK);
@@ -232,7 +239,7 @@ void main(){
     state.scene = i; state.u = u;
     // 是人在走（按住、拨、甩出去的惯性），还是它自己在展——只有人在走才有脚步和起伏
     const speed = dt > 0 ? (g - gBefore) / dt : 0;
-    const byHand = dragging || Math.abs(vel) > 0.004;
+    const byHand = dragging || keyDir !== 0 || Math.abs(vel) > 0.004;
     walking += ((byHand && Math.abs(speed) > 0.03 && i < N ? 1 : 0) - walking) * Math.min(1, dt * 6);
     if (walking > 0.5) {
       stride += dt * (1.55 + Math.min(1.2, Math.abs(speed) * 3));     // 每秒一步半到两步多
@@ -279,13 +286,16 @@ void main(){
       gl.uniform1f(U.uPaper, 1);
     }
     // 诗显全以后画面不再变，停止重画，省电
-    const settled = i >= N && u >= 1 && wipe >= 112 && !dragging;
+    const settled = i >= N && u >= 1 && wipe >= 112 && !dragging && !keyDir;
+    if (!shown) { shown = true; canvas.classList.add('ready'); }
     if (!settled || !frozen) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     frozen = settled;
 
     // 卷尾的诗：素纸从云气里出来以后，从右往左一行行显出来
     const h = innerHeight;
-    poem.style.transform = `translate3d(${((aspect - L.POEM_W) / 2 * h).toFixed(1)}px, ${((0.47 - L.POEM_H / 2) * h).toFixed(1)}px, 0)`;
+    const ph = L.poemH(aspect), pw = L.poemW(aspect);
+    poem.style.height = (ph * h).toFixed(1) + 'px';
+    poem.style.transform = `translate3d(${((aspect - pw) / 2 * h).toFixed(1)}px, ${((0.46 - ph / 2) * h).toFixed(1)}px, 0)`;
     if (i >= N && u > L.FADE * 0.7) wipe = Math.min(112, wipe + dt * 10); else if (i < N) wipe = 0;
     if (params.has('poem')) wipe = 112;
     poem.style.opacity = i >= N && wipe > 0 ? '1' : '0';
@@ -340,7 +350,7 @@ void main(){
     master.connect(limiter); limiter.connect(makeup); makeup.connect(ac.destination);
     master.gain.setValueAtTime(0, ac.currentTime); master.gain.linearRampToValueAtTime(muted ? 0 : 1, ac.currentTime + 1.5);
     voiceBus = ac.createGain(); voiceBus.gain.value = SCENES[Math.min(N - 1, state.scene)].voice; voiceBus.connect(master);
-    hint.classList.remove('on'); muteBtn.classList.add('on');
+    muteBtn.classList.add('on');
 
     const len = ac.sampleRate * 4, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
     noiseBuf = buf;
@@ -387,8 +397,7 @@ void main(){
   const first = fixedG !== null ? Math.min(N - 1, Math.floor(fixedG)) : 0;
   loadScene(first).then(() => {
     resize(); t0 = prev = performance.now();
-    if (fixedT === null) setTimeout(() => { if (!ac) hint.classList.add('on'); }, 2500);
-    if (fixedT === null) setTimeout(() => hint.classList.remove('on'), 11000);
+    if (fixedT === null) setTimeout(() => { if (!touched) hint.classList.add('on'); }, 2200);
     requestAnimationFrame(frame);
     window.__luzhai = { get g() { return g; }, state, loaded: () => tex.map(Boolean), audio: () => (ac ? ac.state : 'none') };
     (async () => { for (let k = 0; k < N; k++) if (!tex[k]) { try { await loadScene(k); } catch (e) { break; } } })();

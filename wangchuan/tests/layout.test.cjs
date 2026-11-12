@@ -78,15 +78,19 @@ test('换景在云气里：每一景收尾和下一景开头都被云气完全�
   assert.equal(L.veil(L.N, 0.5), 0, '卷尾素纸上还盖着云');
 });
 
-test('最窄的竖屏手机也装得下整首题诗', () => {
-  assert.ok(L.POEM_W + 0.04 <= 9 / 19.5, `题诗宽 ${L.POEM_W.toFixed(3)} 屏高，9:19.5 的手机只有 ${(9 / 19.5).toFixed(3)} 屏高宽`);
+test('各种屏幕都装得下整首题诗；屏幕宽了字会放大，收尾不显得小', () => {
+  for (const a of ASPECTS) {
+    assert.ok(L.poemW(a) + 0.06 <= a, `${name(a)}：题诗宽 ${L.poemW(a).toFixed(3)} 屏高，屏幕只有 ${a.toFixed(3)} 屏高宽`);
+    assert.ok(L.poemH(a) <= 0.40 + 1e-9, `${name(a)}：题诗太高`);
+  }
+  assert.ok(L.poemH(16 / 9) >= L.poemH(9 / 19.5) * 1.25, '横屏电脑上题诗没有比手机上明显放大');
 });
 
 test('题诗图的尺寸和 layout 里写的一致；每一景的画和深度图都在', () => {
   const dir = path.join(__dirname, '..', 'assets');
   const buf = fs.readFileSync(path.join(dir, 'poem.png'));
   const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
-  assert.ok(Math.abs(w / h - L.POEM_W / L.POEM_H) < 1e-3, `poem.png 是 ${w}×${h}，layout 按 ${(L.POEM_W / L.POEM_H).toFixed(3)} 算`);
+  assert.ok(Math.abs(w / h - L.POEM_RATIO) < 1e-3, `poem.png 是 ${w}×${h}，layout 按 ${L.POEM_RATIO.toFixed(3)} 算`);
   for (const s of L.SCENES) for (const f of [`${s.key}.jpg`, `${s.key}-depth.jpg`]) {
     assert.ok(fs.statSync(path.join(dir, f)).size > 5000, `缺 assets/${f}`);
   }
