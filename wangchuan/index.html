@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>鹿柴 · 辋川卧游</title>
+<meta name="description" content="王维《鹿柴》，一段可以走进去的盛唐青绿山水。">
+<meta name="theme-color" content="#6b5630">
+<style>
+  html, body { margin: 0; height: 100%; background: #6b5630; overflow: hidden; overscroll-behavior: none; }
+  body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #scroll { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+  #scroll.dragging { cursor: grabbing; }
+  #poem {
+    position: fixed; top: 0; left: 0; height: 25vh; width: auto; pointer-events: none;
+    transform-origin: 0 0; will-change: transform; opacity: 0;
+    -webkit-mask-image: linear-gradient(to left, #000 var(--wipe, 0%), transparent calc(var(--wipe, 0%) + 12%));
+            mask-image: linear-gradient(to left, #000 var(--wipe, 0%), transparent calc(var(--wipe, 0%) + 12%));
+  }
+  #note {
+    position: fixed; top: 0; left: 0; margin: 0; pointer-events: none; opacity: 0;
+    font: 12px/1.7 "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif; color: rgba(60, 46, 26, .62);
+    letter-spacing: .08em; white-space: nowrap; will-change: transform; text-align: center; transition: opacity 2.4s ease;
+  }
+  #hint {
+    position: fixed; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center;
+    font: 12px/1 "Songti SC", "Noto Serif SC", serif; letter-spacing: .3em; color: rgba(255, 244, 214, .0);
+    pointer-events: none; transition: color 1.6s ease;
+  }
+  #hint.on { color: rgba(255, 244, 214, .5); }
+  #mute {
+    position: fixed; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom));
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255, 244, 214, .28); background: rgba(40, 30, 14, .18);
+    color: rgba(255, 244, 214, .6); font: 12px/28px "Songti SC", serif; text-align: center; padding: 0;
+    opacity: 0; transition: opacity 1.2s ease; cursor: pointer;
+  }
+  #mute.on { opacity: 1; }
+  #mute.off { color: rgba(255, 244, 214, .25); text-decoration: line-through; }
+  noscript, #fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; }
+  #fallback img { height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="scroll" aria-label="王维《鹿柴》诗意的青绿山水长卷，向左展开"></canvas>
+<img id="poem" src="assets/poem.png" alt="鹿柴　空山不见人，但闻人语响。返景入深林，复照青苔上。　王维" decoding="async">
+<p id="note">辋川卧游 · 鹿柴<br>画与字皆为 AI 依盛唐青绿、盛唐小楷之法新作，并非古迹。</p>
+<div id="hint">轻触有声</div>
+<button id="mute" aria-label="声音开关">声</button>
+<div id="fallback"><img src="assets/luzhai.jpg" alt=""></div>
+<script src="layout.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
