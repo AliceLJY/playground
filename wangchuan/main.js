@@ -21,15 +21,18 @@
   srcBtn.addEventListener('click', () => { srcPanel.hidden = false; });
   for (const b of document.querySelectorAll('.source-close')) b.addEventListener('click', () => { srcPanel.hidden = true; });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') srcPanel.hidden = true; });
+  document.getElementById('more').addEventListener('click', (e) => { e.preventDefault(); srcPanel.hidden = false; });
+  if (!EN) lineEl.classList.add('side');
   if (EN) {
     document.documentElement.lang = 'en';
     srcBtn.textContent = 'Sources'; srcBtn.style.letterSpacing = '.04em'; srcBtn.style.textIndent = '0'; srcBtn.style.fontFamily = 'Georgia, serif';
     muteBtn.textContent = '\u266A'; muteBtn.setAttribute('aria-label', 'Sound on / off');
     hint.textContent = 'Press and hold to walk into the hills'; hint.style.letterSpacing = '.04em'; hint.style.fontStyle = 'italic';
-    note.innerHTML = 'Wangchuan, Lying Down \u00B7 Deer Park<br>Paintings and calligraphy newly made with AI in the Tang manner. Not old works.';
+    note.innerHTML = 'Wangchuan, Lying Down \u00B7 Deer Park<br>Painted the Tang way: outline and flat colour, no washes.<br>The light, shadows, wind and sound are modern additions.<br>Paintings and calligraphy are new AI work, not old pieces.';
     note.style.letterSpacing = '.02em'; note.style.fontFamily = 'Georgia, serif';
-    document.getElementById('again').textContent = 'Once more';
-    document.querySelector('#exit a:last-child').textContent = 'Back to playground';
+    document.getElementById('again').textContent = 'Again';
+    document.getElementById('home').textContent = 'Playground';
+    document.getElementById('more').textContent = 'Sources';
     intro.innerHTML = '<b>Deer Park \u00B7 Wang Wei</b><span>Walk into a Chinese poem from the eighth century. Four lines, four paintings. Follow the distant voices and the last of the light into the wood.</span>';
   }
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -319,10 +322,13 @@ void main(){
     poem.style.setProperty('--wipe', (wipe - 12).toFixed(1) + '%');
     note.style.opacity = i >= N && wipe >= 110 ? '1' : '0';
     exit.classList.toggle('on', i >= N && wipe >= 110);
+    document.body.classList.toggle('done', i >= N && wipe >= 110);   // 卷尾有「细看溯源」了，左下角的入口和小点让开
 
     // 这一景的诗句：画先看够，快走完时在画边上露一下再收回去。四个小点记着走到第几景。
     if (i < N && i !== lineScene) { lineScene = i; lineEl.children[0].textContent = SCENES[i].line; lineEl.children[1].textContent = EN ? SCENES[i].en : ''; }
     lineEl.style.opacity = i < N ? (L.lineAlpha(u) * (1 - veil)).toFixed(3) : '0';
+    // 走出第一景以后，开场的提示和英文说明就不该还挂着了
+    if (g > 0.6) { hint.classList.remove('on'); intro.classList.remove('on'); }
     dots.forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
 
     setVoiceLevel(i < N ? SCENES[i].voice : 0.08);
@@ -419,8 +425,8 @@ void main(){
   const first = fixedG !== null ? Math.min(N - 1, Math.floor(fixedG)) : 0;
   loadScene(first).then(() => {
     resize(); t0 = prev = performance.now();
-    if (fixedT === null) setTimeout(() => { if (!touched) hint.classList.add('on'); }, 2200);
-    if (EN && fixedT === null) { setTimeout(() => intro.classList.add('on'), 700); setTimeout(() => intro.classList.remove('on'), 14000); }
+    if (fixedT === null) setTimeout(() => { if (!touched && g < 0.5) hint.classList.add('on'); }, 2200);
+    if (EN && fixedT === null) { setTimeout(() => { if (g < 0.5) intro.classList.add('on'); }, 700); setTimeout(() => intro.classList.remove('on'), 14000); }
     if (EN && params.has('intro')) intro.classList.add('on');
     requestAnimationFrame(frame);
     window.__luzhai = { get g() { return g; }, state, loaded: () => tex.map(Boolean), audio: () => (ac ? ac.state : 'none') };

@@ -57,6 +57,15 @@ test('「复照青苔上」：光还在的那段时间里，苔上的返照一�
   assert.ok(s.trunks.some(([x]) => x > li.u), '日头在右边，返照右侧至少要有一根树干，影子才落得进光里');
 });
 
+test('竖屏只看得到画的一窄条，所以竖屏时每景横着走得比横屏多，看得出是一长卷', () => {
+  const span = (i, a) => L.camera(i, 0, a).cx - L.camera(i, 1, a).cx;
+  const ph = 9 / 19.5;
+  let total = 0;
+  for (let i = 0; i < L.N; i++) total += span(i, ph) + ph / L.camera(i, 1, ph).zoom;   // 走过的加上屏幕本身看到的
+  assert.ok(total / L.N >= 0.5 * L.R, `竖屏手机上平均每幅只看到 ${(total / L.N / L.R * 100).toFixed(0)}% 的画宽，不到一半`);
+  assert.ok(span(0, ph) > 0.6 * L.R * (0.68 - 0.40), '竖屏第一景没有多走');
+});
+
 test('第四景低头看苔，推得比别的景少，免得推近了认不出是苔', () => {
   const a = 16 / 9, z = (i) => L.camera(i, 1, a).zoom / L.camera(i, 0, a).zoom;
   assert.ok(z(3) < z(2) - 0.08, `第四景推到 ${z(3).toFixed(2)} 倍，第三景 ${z(2).toFixed(2)} 倍`);
@@ -121,5 +130,5 @@ test('画面上不放解说：屏幕上只有卷尾署名和出口、一句提�
   for (const must of ['女史箴图', '欧阳询', '渲染', '今人加的', '不是古迹']) assert.ok(panel[0].includes(must), `溯源里没有讲到「${must}」`);
   body = body.replace(panel[0], '');
   const lines = body.replace(/<[^>]+>/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
-  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依唐人勾线平涂、欧阳询楷书之法新作，并非古迹。', '再看一遍', '·', '回 playground', '按住，往山里走', '声', '溯源']);
+  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '照唐人的画法：只勾线、平涂，不皴不染。', '画上的光、影、风和声音，是今人加的。', '画与字皆为 AI 新作，并非古迹。', '再看一遍', '·', '细看溯源', '·', '回 playground', '按住，往山里走', '声', '溯源']);
 });
