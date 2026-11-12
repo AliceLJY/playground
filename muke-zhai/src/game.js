@@ -14,9 +14,10 @@
   // 界面颜色：只用一族暖金（压暗）、暗朱红、旧纸色，不用纯白纯黑
   const GOLD = '#c9a45c', GOLD_DIM = 'rgba(201,164,92,.38)', PAPER = '#e4d3ae';
   const touchUI = matchMedia('(pointer:coarse)').matches;
+  const sign = (v) => (v < 0 ? -1 : 1);
 
   let g = null, paused = false, ready = false;
-  const ui = { looseT: -1e9, push: 0, meterShown: 0, meterPulse: 0, lastEvent: 0, qiLost: 0, boxes: [], slow: 0 };
+  const ui = { confirmT: -1e9, chargeRect: null, meterPos: null, looseT: -1e9, push: 0, meterShown: 0, meterPulse: 0, lastEvent: 0, qiLost: 0, boxes: [], slow: 0 };
   let VW = W, portrait = false;   // 当前取景窗的逻辑宽度；手机竖屏取 400 宽的窗，跟着人走
   const box = (name, x, y, w, h) => ui.boxes.push({ name, x, y, w, h });
 
@@ -129,26 +130,41 @@
 
   // 画一个人：接触影、倒影、压暗后的精灵，再按状态叠闪色
   function drawActor(a, t) {
+    // 杨宗保在第一场站在门边，离台口远一点：画得略小（6%）、略暗；孟良结尾探身也是这个画法
+    const D = a.id === 'z' || a.id === 'm';
+    const sc = D ? 0.94 : 1, gy = D ? GROUND - 22 : GROUND;
     const f = M.frameOf(a), clip = CLIPS[a.who][f.clip];
     const cv = processed(a.who, f.clip, f.frame);
     const level = BD.lightAt(a.x);
     // 脚下接触影：由深到浅三层，不是一个纯黑椭圆
-    const layers = [[84, 13, 0.14], [60, 9, 0.22], [38, 6, 0.34]];
+    const layers = D ? [[60, 9, 0.16], [40, 6, 0.26]] : [[84, 13, 0.14], [60, 9, 0.22], [38, 6, 0.34]];
     for (const [rx, ry, al] of layers) {
       ctx.fillStyle = `rgba(6,4,14,${al})`;
-      ctx.beginPath(); ctx.ellipse(a.x, GROUND + 2, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(a.x, gy + 2, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
     }
     // 地板上压扁、很淡的倒影
     ctx.save();
-    ctx.translate(a.x, GROUND + 3); ctx.scale(a.face, -0.26);
+    ctx.translate(a.x, gy + 3); ctx.scale(a.face * sc, -0.26 * sc);
     ctx.globalAlpha = 0.11;
     ctx.drawImage(cv, -clip.anchor[0] - PAD, -clip.anchor[1] - PAD);
     ctx.restore();
+    // 她架着的时候：枪身一道很淡的暖色护光，加脚下一圈细环；松手就没有
+    if (a.id === 'p' && M.guardActive(a)) {
+      const br = 0.6 + 0.4 * Math.sin(g.t / 160);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const gx = a.x + a.face * 30;
+      const gr = ctx.createRadialGradient(gx, GROUND - 130, 6, gx, GROUND - 130, 100);
+      gr.addColorStop(0, `rgba(255,170,90,${0.13 * br})`); gr.addColorStop(1, 'rgba(255,140,70,0)');
+      ctx.fillStyle = gr; ctx.fillRect(gx - 100, GROUND - 240, 200, 220);
+      ctx.strokeStyle = `rgba(255,190,120,${0.45 + 0.2 * br})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(a.x, GROUND + 2, 58, 9, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
 
     // 灯间更暗：只用正片叠底（变暗不蒙白）；受击闪一下暖白；预警不动透明度，只闪轮廓
-    const dk = 0.06 + 0.24 * (1 - level);
+    const dk = 0.06 + 0.24 * (1 - level) + (D ? 0.2 : 0);
     const m = Math.round(255 * (1 - dk));
-    const hitFlash = a.flash > 0 ? Math.min(0.24, a.flash / 160) : 0;
     // 大招的残影：三四层逐渐变淡，沿着出枪的方向往后拖
     if (a.act === 'ult' && a.ultT >= 0 && !noGhost) {
       for (let i = 3; i >= 1; i--) {
@@ -164,7 +180,7 @@
     // 被打中的抖一下
     const shk = a.shake > 0 ? Math.sin(g.t * 0.13) * 3 * (a.shake / 180) : 0;
     ctx.save();
-    ctx.translate(a.x + shk, GROUND); ctx.scale(a.face, 1);
+    ctx.translate(a.x + shk, gy); ctx.scale(a.face * sc, sc);
     const dx = -clip.anchor[0] - PAD, dy = -clip.anchor[1] - PAD;
     tctx.globalCompositeOperation = 'source-over';
     tctx.clearRect(0, 0, tmp.width, tmp.height);
@@ -173,10 +189,6 @@
     tctx.fillStyle = `rgb(${m},${m},${Math.min(255, m + 8)})`; tctx.fillRect(0, 0, cv.width, cv.height);
     tctx.globalCompositeOperation = 'destination-in';
     tctx.drawImage(cv, 0, 0);
-    if (hitFlash) {
-      tctx.globalCompositeOperation = 'source-atop';
-      tctx.fillStyle = `rgba(255,226,190,${hitFlash.toFixed(3)})`; tctx.fillRect(0, 0, cv.width, cv.height);
-    }
     ctx.drawImage(tmp, 0, 0, cv.width, cv.height, dx, dy, cv.width, cv.height);
     if (a.act === 'warn') {
       // 轮廓快速闪两下
@@ -190,6 +202,17 @@
       }
     }
     ctx.restore();
+    // 被打中：不整身变白，只在受击的那一侧闪一道窄亮边（约 60 毫秒），身体抖动另算
+    if (a.flash > 0 && !noFlash) {
+      const side = sign((a.id === 'p' ? g.e.x : g.p.x) - a.x);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(side > 0 ? a.x - 6 : a.x - 420, 0, 426, H); ctx.clip();
+      ctx.translate(a.x + shk, gy); ctx.scale(a.face * sc, sc);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.85 * Math.min(1, a.flash / 60);
+      ctx.drawImage(ring(a.who, f.clip, f.frame), dx, dy);
+      ctx.restore();
+    }
     if (a.act === 'warn') {
       // 兵器上一点高光，随两次闪动亮起
       const bump = (c0) => Math.max(0, 1 - Math.abs(a.t - c0) / 110);
@@ -322,6 +345,52 @@
     }
     ctx.restore();
   }
+  // 对手出招的蓄力条：从预警开始匀速走满，走满的那一刻招式落下；最后 0.2 秒（架开判定窗）用更亮的暖色标出
+  function drawCharge() {
+    const b = M.chargeBar(g);
+    ui.chargeRect = null;
+    if (!b) return;
+    const e = g.e, w = 74, h = 5;
+    const x = camX(e.x) - w / 2, y = camY(e.who === 'mengliang' ? GROUND - 232 : GROUND - 284);
+    const ws = b.winStart * w, fw = b.frac * w;
+    ctx.save();
+    ctx.fillStyle = 'rgba(14,9,18,.82)'; ctx.fillRect(x - 1.5, y - 1.5, w + 3, h + 3);
+    // 没走到的部分：身子暗、亮段亮
+    ctx.fillStyle = 'rgba(96,62,46,.8)'; ctx.fillRect(x, y, ws, h);
+    ctx.fillStyle = 'rgba(232,160,84,.95)'; ctx.fillRect(x + ws, y, w - ws, h);
+    // 已走过的部分
+    ctx.fillStyle = 'rgba(204,132,82,.95)'; ctx.fillRect(x, y, Math.min(fw, ws), h);
+    if (fw > ws) { ctx.fillStyle = 'rgba(255,228,176,1)'; ctx.fillRect(x + ws, y, fw - ws, h); }
+    // 条头走进亮段，条身轻轻一亮
+    if (b.frac >= b.winStart) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,180,100,${0.16 + 0.1 * Math.sin(g.t / 90)})`; ctx.fillRect(x, y - 1, w, h + 2);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // 条头
+    ctx.fillStyle = 'rgba(255,240,200,.95)'; ctx.fillRect(x + fw - 1, y - 2, 2, h + 4);
+    // 她在亮段里按下：条头处一个小的确认闪光
+    const age = g.t - ui.confirmT;
+    if (age >= 0 && age < 260) {
+      const k2 = age / 260, hx = x + fw, hy = y + h / 2;
+      ctx.globalCompositeOperation = 'lighter';
+      const gl = ctx.createRadialGradient(hx, hy, 1, hx, hy, 8 + 10 * k2);
+      gl.addColorStop(0, `rgba(255,236,190,${0.8 * (1 - k2)})`); gl.addColorStop(1, 'rgba(255,170,90,0)');
+      ctx.fillStyle = gl; ctx.fillRect(hx - 20, hy - 20, 40, 40);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // 三连回敬：三段依次出，条下面三个小点
+    if (b.strikes > 1) {
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = i < b.strike ? 'rgba(255,214,150,.95)' : 'rgba(120,80,60,.8)';
+        ctx.fillRect(x + w / 2 - 10 + i * 8, y + h + 4, 4, 2);
+      }
+    }
+    ctx.restore();
+    ui.chargeRect = { x, y, w, h, ws, frac: b.frac };
+    box('charge', x - 4, y - 5, w + 8, h + (b.strikes > 1 ? 14 : 10));
+  }
+
   // 势条：气下面一条细的，满了暖光亮一点
   function drawShi(k) {
     const x = portrait ? 12 : 16, y = portrait ? 45 : 28 * k + 23, w = 92, h = 3;
@@ -373,6 +442,7 @@
     ctx.fillStyle = 'rgba(20,12,22,.7)'; ctx.fillRect(x, y - h / 2, w, h);
     ctx.strokeStyle = GOLD_DIM; ctx.lineWidth = 1; ctx.strokeRect(x - 0.5, y - h / 2 - 0.5, w + 1, h + 1);
     const frac = Math.max(0, Math.min(1, ui.meterShown / 100));
+    ui.meterPos = { x: x + w * frac, y };
     if (frac > 0) {
       const gr = ctx.createLinearGradient(x, 0, x + w, 0);
       gr.addColorStop(0, '#6e1f28'); gr.addColorStop(1, '#d79078');
@@ -472,7 +542,23 @@
     drawQi(k);
     if (!g.tut) drawShi(k);
     box('qi', portrait ? 8 : 12, portrait ? 12 : 28 * k - 14, 24 + 13 * 5 + 28, 24);
-    if (g.stage === 2) drawMeter(k);
+    drawMeter(k);
+    drawCharge();
+    // 他看在眼里：杨宗保有反应时，一个很小的暖色光点飘向心动条
+    for (const f of g.fx) {
+      if (f.kind !== 'mote' || !ui.meterPos) continue;
+      const kk = Math.min(1, (g.t - f.t0) / 650), e2 = 1 - Math.pow(1 - kk, 2);
+      const sx = camX(f.x), sy = camY(f.y);
+      const mx = sx + (ui.meterPos.x - sx) * e2, my = sy + (ui.meterPos.y - sy) * e2 - Math.sin(kk * Math.PI) * 18;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 4; i++) {
+        const t2 = Math.max(0, kk - i * 0.04), ee = 1 - Math.pow(1 - t2, 2);
+        const px = sx + (ui.meterPos.x - sx) * ee, py = sy + (ui.meterPos.y - sy) * ee - Math.sin(t2 * Math.PI) * 18;
+        ctx.fillStyle = `rgba(255,190,120,${(0.7 - i * 0.16) * (1 - kk * 0.5)})`;
+        ctx.beginPath(); ctx.arc(px, py, 2.6 - i * 0.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.save(); camApply(); drawFloats(k); drawHearts(); ctx.restore();
     drawSubtitle(k);
     // 再来 / 再玩一遍
@@ -526,7 +612,14 @@
   // ---------- 取景：桌面和横屏整幅；手机竖屏取 400 宽的窗，水平跟着两人中点平滑移动、到底图边缘钳住 ----------
   let cam = { cx: W / 2 }, camLast = 0, camInit = false;
   function updateCam() {
-    const target = portrait ? Math.max(VW / 2, Math.min(W - VW / 2, (g.p.x + g.e.x) / 2)) : W / 2;
+    // 竖屏：跟着两人的中点；第一场两人打到右半场时往右偏，把门边的杨宗保带进画面（最多偏 120）
+    const mid0 = (g.p.x + g.e.x) / 2;
+    let mid = mid0;
+    if (g.z && Math.max(g.p.x, g.e.x) > 520) mid += Math.min(120, Math.max(0, (g.z.x - mid) * 0.5));
+    // 但不能把穆桂英或孟良挤出画面：两人都要留在取景窗里（各留 50 的边）
+    const lo = Math.max(g.p.x, g.e.x) - (VW / 2 - 50), hi = Math.min(g.p.x, g.e.x) + (VW / 2 - 50);
+    mid = lo <= hi ? Math.max(lo, Math.min(hi, mid)) : mid0;
+    const target = portrait ? Math.max(VW / 2, Math.min(W - VW / 2, mid)) : W / 2;
     const now = performance.now(), dtr = Math.min(100, now - camLast);
     camLast = now;
     if (!camInit || Math.abs(target - cam.cx) > 420) { cam.cx = target; camInit = true; return; }
@@ -548,10 +641,10 @@
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     scale = r.width / VW;
   }
-  let noGhost = false;
+  let noGhost = false, noFlash = false;
   function render(opts) {
     opts = opts || {};
-    noGhost = !!opts.noGhost;
+    noGhost = !!opts.noGhost; noFlash = !!opts.noFlash;
     fit();
     const s = canvas.width / VW;
     ctx.setTransform(s, 0, 0, s, 0, 0);
@@ -567,6 +660,10 @@
     if (!opts.hideActors) {
       drawWarnLine(g.e, g.t);
       const order = g.e.id === 'e' ? [g.e, g.p] : [g.p, g.e];
+      if (g.z) drawActor(g.z, g.t);
+      if (g.m && (g.phase === 'end' || (g.phase === 'finale' && g.finStep >= 1))) {
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 850, H); ctx.clip(); drawActor(g.m, g.t); ctx.restore();
+      }
       for (const a of order) drawActor(a, g.t);
       for (const a of order) drawTrail(a);
       drawFx();
@@ -827,6 +924,47 @@
     render({});
     return { pixels: n, ult: !!g.ult };
   }
+  // 蓄力条的亮段有没有画出来：亮段的平均亮度要明显高于还没走到的身子
+  function chargePixels() {
+    render({});
+    const r = ui.chargeRect;
+    if (!r) return null;
+    const s = canvas.width / VW;
+    const meanLum = (x0, x1) => {
+      const xa = Math.floor(x0 * s), xb = Math.max(xa + 1, Math.floor(x1 * s)), ya = Math.floor((r.y + 1) * s), yb = Math.max(ya + 1, Math.floor((r.y + r.h - 1) * s));
+      const d = ctx.getImageData(xa, ya, xb - xa, yb - ya).data;
+      let sum = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; n++; }
+      return sum / n / 255;
+    };
+    const fillEnd = r.x + r.frac * r.w;
+    const win = meanLum(r.x + r.ws + 1, r.x + r.w - 1);
+    const body = fillEnd + 2 < r.x + r.ws - 2 ? meanLum(fillEnd + 2, r.x + r.ws - 2) : meanLum(r.x + 1, r.x + r.ws - 1);
+    return { win, body, ratio: win / Math.max(0.01, body), frac: r.frac };
+  }
+  // 受击闪光是不是只沿一侧一道窄亮边：与关掉闪光的渲染对比，主角格子里变亮的像素占比
+  function flashPixels() {
+    render({});
+    const a = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const rs = { p: rects.p, e: rects.e };
+    render({ noFlash: true });
+    const b = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const s = canvas.width / VW, out = {};
+    for (const id of ['p', 'e']) {
+      const r = rs[id];
+      const x0 = Math.max(0, Math.floor(camX(r.x) * s)), x1 = Math.min(canvas.width, Math.floor(camX(r.x + r.w) * s));
+      const y0 = Math.max(0, Math.floor(r.y * s)), y1 = Math.min(canvas.height, Math.floor((r.y + r.h) * s));
+      let n = 0, changed = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const i = (y * canvas.width + x) * 4;
+        n++;
+        if (Math.abs(a.data[i] - b.data[i]) + Math.abs(a.data[i + 1] - b.data[i + 1]) + Math.abs(a.data[i + 2] - b.data[i + 2]) > 30) changed++;
+      }
+      out[id] = { ratio: n ? changed / n : 0, flash: id === 'p' ? g.p.flash : g.e.flash };
+    }
+    render({});
+    return out;
+  }
   function luma() {
     // 整屏亮度分布：中位数与高于 0.6 的占比，验「大部分画面是暗的」
     render({});
@@ -853,7 +991,7 @@
       const i = KEYS[String(name).toLowerCase()];
       if (i) M.tap(g, i, ms == null ? 120 : ms);
     },
-    coverage, luma, ghostPixels,
+    coverage, luma, ghostPixels, chargePixels, flashPixels,
     // 界面各元素的外框（CSS 像素，相对视口），给浏览器检查查重叠
     layout: () => {
       render({});
@@ -888,6 +1026,7 @@
       ui.lastEvent = ev.id;
       if (g.t - ev.t < 400) play(ev);
       if (ev.type === 'meter') ui.meterPulse = ev.meter >= 100 ? 1 : 0.35;
+      if (ev.type === 'guard' && ev.win) ui.confirmT = ev.t;
       if (ev.type === 'loose' || (ev.type === 'hit' && g.stage === 1)) ui.looseT = ev.t;
     }
     // 键的亮边：教学是呼吸的暖色亮边（CSS 动画走真实时间），示范是按下即亮

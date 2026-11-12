@@ -48,16 +48,18 @@ test('T1 五步一步一步走完：每一步做对之前不前进，做对之�
   assert.ok(until(g, () => g.tut.slow, 3000), '应进入放慢举斧');
   assert.equal(g.timeScale, 0.35);
   assert.equal(g.e.act, 'warn');
-  assert.ok(g.sub && g.sub.text.includes('架'), `提示应提到「架」：${g.sub && g.sub.text}`);
+  assert.equal(g.sub.text, '他举斧了，看他头上的条', g.sub.text);
   assert.equal(g.tut.glow, 'guard');
-  run(g, 1200);
+  assert.ok(until(g, () => g.sub.text.includes('亮的那一段'), 3000), '条走到一半，字幕应换成「按住架」');
   assert.equal(step(g), 'guard', '没按架就不该前进');
   assert.ok(g.tut.slow && g.timeScale === 0.35);
-  // 按住架：恢复正常速度，斧子落在枪上，出架开
+  // 条走进亮段再按住架：恢复正常速度，字幕立刻换成「架住了」，斧子落在枪上，出架开
   const parries0 = g.stats.parries;
+  assert.ok(until(g, () => M.chargeBar(g) && M.chargeBar(g).inWindow, 3000), '条应走进亮段');
   M.input(g, 'guard', true);
   M.advance(g, M.STEP * 2);
   assert.equal(g.timeScale, 1, '她一按住架就恢复正常速度');
+  assert.equal(g.sub.text, '架住了', '亮段里按下，字幕立刻换句');
   assert.ok(until(g, () => step(g) !== 'guard', 2500, () => {}), '架开后应前进');
   M.input(g, 'guard', false);
   assert.equal(g.stats.parries, parries0 + 1, '应出架开');
