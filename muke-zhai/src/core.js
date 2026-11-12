@@ -11,7 +11,18 @@
   const MIN_X = 110, MAX_X = 850; // 舞台可站的范围
   const MIN_GAP = 84;             // 两人身体至少隔开的距离（每人身体半径约 42）
   const Z_X = 806, Z_HIDE_X = 858; // 杨宗保在右侧门边站的位置；他让到门帘里一点的位置
-  const HEART1_MAX = 20;          // 第一场心动最多攒到这么多
+  const HEART1_MAX = 20;
+  // 第一次出场的名牌（停 2.5 秒淡出）
+  const TAG_TEXT = { p: '穆柯寨寨主之女', e: '杨家将麾下，来讨降龙木', z: '杨家少将，随后就到' };
+  const TAG_LIFE = 2500, TAG_FADE_IN = 300, TAG_FADE_OUT = 500;
+  // 戏单式的引子：只写这些字，不自己加史实
+  const STORY = {
+    title: '穆柯寨',
+    sub: '京剧传统戏里的一段',
+    lines: ['宋辽交战。杨家将要破辽兵，须用穆柯寨后山的降龙木。', '孟良先来讨，不敌寨主之女穆桂英。杨宗保再来。', '这一仗，打着打着，就不只是打仗了。'],
+    foot: '你来演穆桂英。',
+  };
+  const ENDING_LINE2 = '戏里，两人结为夫妻，后来同赴宋营抗辽。';          // 第一场心动最多攒到这么多
 
   // 每个人物的数值。速度单位：像素 / 毫秒；时间单位：毫秒。
   const SPEC = {
@@ -143,7 +154,7 @@
       calm: false, qi: QI_MAX, helmets: 3, meter: 0,
       dingCool: 0, finT: 0, finStep: 0, endT: -1, victoryAt: -1,
       stats: newStats(), hitLog: [],
-      z: null, m: null, hand: null, zr: mulberry32((opts.seed ?? 1) + 99), heldSince: { left: -1e9, right: -1e9 },
+      intro: !!opts.story, tags: null, zSeen: false, z: null, m: null, hand: null, zr: mulberry32((opts.seed ?? 1) + 99), heldSince: { left: -1e9, right: -1e9 },
       shi: 0, shiFull: false, loose: 0, gateUntil: 0, heavyGateUntil: 0, ult: null, ultSeen: !!opts.ultSeen, ultHintOn: false,
       lastDir: { dir: 0, t: -1e9 }, dashArm: null,
       tut: null, tutDone: false, timeScale: 1, touch: !!opts.touch, hints: !!opts.hints,
@@ -193,7 +204,7 @@
       g.e = makeActor(g, 'e', 'mengliang', 600, -1);
       g.e.cool = 4800;
       g.z = makeActor(g, 'z', 'zongbao', Z_X, -1);
-      if (first) say(g, '穆柯寨前，杨宗保带着孟良来讨降龙木。', 3600);
+      if (first) { say(g, '穆柯寨前，杨宗保带着孟良来讨降龙木。', 3600); g.tags = { p: g.t, e: g.t, z: g.t }; }
     } else {
       g.z = null;
       g.e = makeActor(g, 'e', 'zongbao', 680, -1);
@@ -212,6 +223,7 @@
 
   // ---------- 输入 ----------
   function input(g, name, down) {
+    if (g.intro) { if (down) dismissIntro(g); return; }
     if (name === 'left' || name === 'right') {
       // 0.25 秒内同方向连点两下，接着按 J 是冲刺突刺
       if (down && !g.held[name]) {
@@ -508,6 +520,7 @@
     g.meter = Math.min(100, g.meter + amt);
     g.floats.push({ x, y, text: '+' + amt, t0: g.t });
     emit(g, 'meter', x, y, { amt, meter: g.meter });
+    g.fx.push({ kind: 'mote', x, y: Math.max(GROUND - 260, y), t0: g.t, seed: g.eventId });
     if (g.meter >= 100) startFinale(g);
   }
 
@@ -1042,6 +1055,7 @@
     if (g.meter === before) return;
     emit(g, 'meter', g.z.x, GROUND - 210, { amt: g.meter - before, meter: g.meter });
     emit(g, 'zreact', g.z.x, GROUND - 210);
+    if (!g.zSeen) { g.zSeen = true; say(g, '杨宗保在看。', 2000); }
     g.fx.push({ kind: 'mote', x: g.z.x, y: GROUND - 210, t0: g.t, seed: g.eventId });
   }
   function updateZ(g, dt) {
@@ -1104,6 +1118,8 @@
           g.victoryAt = g.t;
           emit(g, 'gongBig', 480, GROUND - 200);
           say(g, '这一仗谁也没赢。后来的事，戏里都唱过。', 6000);
+          // 第一行快收时接第二行，之后才出「再来一遍」
+          later(g, 5950, () => { if (g.phase === 'end' || g.phase === 'finale') say(g, ENDING_LINE2, 5000); });
           addTrauma(g, 0.3);
         });
         later(g, 2200, () => { g.phase = 'end'; g.endT = 0; });
@@ -1179,6 +1195,7 @@
   }
 
   function advance(g, ms) {
+    if (g.intro) { g.acc = 0; return; }
     g.acc += ms;
     let n = 0;
     while (g.acc >= STEP && n++ < 600) {
@@ -1201,6 +1218,27 @@
     };
   }
 
+  // ---------- 引子、名牌 ----------
+  function dismissIntro(g) { if (g.intro) { g.intro = false; g.acc = 0; } }
+  function showIntro(g) {
+    g.intro = true; g.held.left = g.held.right = g.held.guard = false;
+    g.buf.attack = g.buf.guard = g.buf.dodge = -9999;
+  }
+  // 要不要自动出引子：第一次进来默认出；教学、机位、?stage=2 默认不出；?story=1 强制出
+  function storyPolicy(o) {
+    if (o.view === 'story' || o.param === '1') return true;
+    if (o.param === '0' || o.view || o.stage === 2 || o.tutorialParam != null) return false;
+    return !o.seen;
+  }
+  function tagAlpha(g, id) {
+    if (!g.tags || g.stage !== 1 || g.tags[id] == null) return 0;
+    const age = g.t - g.tags[id];
+    if (age < 0 || age > TAG_LIFE) return 0;
+    if (age < TAG_FADE_IN) return age / TAG_FADE_IN;
+    if (age > TAG_LIFE - TAG_FADE_OUT) return (TAG_LIFE - age) / TAG_FADE_OUT;
+    return 1;
+  }
+
   function snapshot(g) {
     const pk = (a) => {
       const f = frameOf(a);
@@ -1213,7 +1251,8 @@
       t: Math.round(g.t), stage: g.stage, phase: g.phase, qi: g.qi, helmets: g.helmets,
       meter: g.meter, sub: g.sub ? g.sub.text : null, trauma: g.trauma,
       shi: g.shi, loose: g.loose, ult: g.ult ? g.ult.phase : null, ultStrike: g.ult ? g.ult.next : 0,
-      charge: chargeBar(g),
+      charge: chargeBar(g), intro: g.intro, zSeen: g.zSeen,
+      tags: { p: tagAlpha(g, 'p'), e: tagAlpha(g, 'e'), z: tagAlpha(g, 'z') },
       tutorial: g.tut ? g.tut.step : null, glow: g.tut ? g.tut.glow : null, timeScale: g.timeScale,
       p: pk(g.p), e: pk(g.e), z: g.z ? pk(g.z) : null, m: g.m ? pk(g.m) : null, stats: Object.assign({}, g.stats, { warnToHit: g.stats.warnToHit.length }),
     };
@@ -1247,7 +1286,7 @@
       runUntil(g, d, (s) => s.tut && s.tut.step === 'guard' && s.tut.slow && s.e.act === 'warn' && chargeBar(s) && chargeBar(s).frac >= 0.55, 60000);
     } else if (view === 'open') {
       // 开场第一帧：三个人都在台上
-      runUntil(g, null, (s) => s.t >= 250, 2000);
+      runUntil(g, null, (s) => s.t >= 700, 2000);
     } else if (view === 'act1') {
       // 第一场中段：孟良在出斧、杨宗保在门边看着
       const d = makeDriver('precise', 5);
@@ -1477,6 +1516,6 @@
     STEP, W, H, GROUND, MIN_X, MAX_X, SPEC, HITSTOP_LIGHT, HITSTOP_HEAVY, PARRY_WINDOW, CLASH_WINDOW,
     QI_MAX, mulberry32, create, advance, tick, input, tap, snapshot, frameOf, hitIn, isVul,
     shakeOffset, prepareView, makeDriver, playThrough, runUntil, setupStage, guardActive,
-    restartAll, retryStage, chargeBar, skipTutorial, tutStart, tutText, createDemo,
+    restartAll, retryStage, chargeBar, dismissIntro, showIntro, storyPolicy, tagAlpha, STORY, TAG_TEXT, ENDING_LINE2, skipTutorial, tutStart, tutText, createDemo,
   };
 });

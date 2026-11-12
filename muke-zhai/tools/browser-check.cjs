@@ -20,6 +20,7 @@ const SHOTS = [
   { name: 'chain3', q: '?view=chain3' },
   { name: 'open', q: '?view=open' },
   { name: 'act1', q: '?view=act1' },
+  { name: 'story', q: '?view=story' },
 ];
 const fails = [];
 const check = (ok, msg) => { if (!ok) fails.push(msg); console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); };
@@ -41,7 +42,30 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
       await page.goto(base + s.q, { waitUntil: 'load' });
       await page.waitForFunction(() => self.__PLAYTEST__ && self.__PLAYTEST__.ready, null, { polling: 100, timeout: 30000 });
       await page.waitForTimeout(s.q ? 300 : 1500);
-      const snap = await page.evaluate(() => self.__PLAYTEST__.snapshot());
+      let snap = await page.evaluate(() => self.__PLAYTEST__.snapshot());
+      if (s.name === 'story') {
+        check(snap.intro === true && snap.view === 'story', `[${tag}] 定格在引子页（intro=${snap.intro}）`);
+        check(errs.length === 0 && bad.length === 0, `[${tag}] 引子页无报错、无失败请求`);
+        await page.screenshot({ path: path.join(out, `${v.name}-story.png`) });
+        const t0 = snap.t;
+        await page.waitForTimeout(400);
+        check((await page.evaluate(() => self.__PLAYTEST__.snapshot())).t === t0, `[${tag}] 引子页期间游戏时间不走（t=${t0}）`);
+        await page.mouse.click(v.width / 2, v.height / 2);
+        await page.waitForTimeout(200);
+        const after = await page.evaluate(() => self.__PLAYTEST__.snapshot());
+        check(after.intro === false, `[${tag}] 点一下关闭引子`);
+        await page.close();
+        continue;
+      }
+      if (s.name === 'play') {
+        // 第一次进来默认出引子，点一下继续；之后重新打开不再自动出
+        check(snap.intro === true, `[${tag}] 第一次进入默认出引子`);
+        await page.screenshot({ path: path.join(out, `${v.name}-story-first.png`) });
+        await page.mouse.click(v.width / 2, v.height / 2);
+        await page.waitForTimeout(1500);
+        snap = await page.evaluate(() => self.__PLAYTEST__.snapshot());
+        check(snap.intro === false && snap.t > 500, `[${tag}] 点一下后引子关闭、游戏开始（t=${snap.t}）`);
+      }
 
       // 机位钩子回报的状态要和请求对得上
       if (s.name === 'meng') check(snap.view === 'meng' && snap.stage === 1 && snap.e.act === 'warn', `[${tag}] 孟良处于预警（回报 ${snap.e.act}，t=${snap.t}）`);
@@ -142,6 +166,23 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
         const after = await page.evaluate(() => self.__PLAYTEST__.snapshot());
         check(adv && after.stats.parries === 1 && after.qi === 5, `[${tag}] 真${v.mobile ? '触摸按住「架」' : '按住 K'}后教学前进到第四步，出架开，气不掉（${after.tutorial}，架开 ${after.stats.parries}）`);
       }
+      if (['duel', 'act1', 'open', 'ult', 'meng'].includes(s.name)) {
+        // 心动条跟着杨宗保：在他头顶上方；看不到他时（手机竖屏）右缘有贴边指示
+        const hc = await page.evaluate(() => self.__PLAYTEST__.heartCheck());
+        const ln = await page.evaluate(() => self.__PLAYTEST__.layout());
+        if (hc && !hc.edge) {
+          check(!!hc.bar && Math.abs(hc.bar.cx - hc.zx) <= 26 && hc.bar.bottom <= hc.zTop + 30 && hc.bar.bottom >= hc.zTop - 120,
+            `[${tag}] 心动条在杨宗保头顶上方（条中心偏 ${hc.bar && Math.round(hc.bar.cx - hc.zx)}，条底距他格子顶 ${hc.bar && Math.round(hc.zTop - hc.bar.bottom)}）`);
+          check(!ln.boxes.some((b) => b.name === 'meter'), `[${tag}] 顶上居中的长「心动」条已去掉`);
+        } else {
+          check(v.mobile && ln.boxes.some((b) => b.name === 'heartEdge'), `[${tag}] 看不到杨宗保时右缘有贴边指示（手机竖屏）`);
+        }
+      }
+      if (s.name === 'open') {
+        const ln = await page.evaluate(() => self.__PLAYTEST__.layout());
+        const names = ln.boxes.filter((b) => b.name.startsWith('tag-')).map((b) => b.name);
+        check(v.mobile ? names.length >= 2 : names.length === 3, `[${tag}] 出场名牌（${names}）`);
+      }
       if (s.name === 'open' || s.name === 'act1') {
         const sn = await page.evaluate(() => self.__PLAYTEST__.snapshot());
         check(sn.z && sn.z.x > 700 && sn.e.act !== undefined && sn.stage === 1, `[${tag}] 杨宗保在右侧门边（x=${sn.z && sn.z.x}），孟良与穆桂英也在`);
@@ -154,7 +195,7 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
       }
       if (s.name === 'end') {
         // 字幕停稳后再出「再来一遍」，此时它与字幕、界面也不能重叠
-        await page.evaluate(() => self.__PLAYTEST__.step(4000));
+        await page.evaluate(() => self.__PLAYTEST__.step(9000));
         const lay2 = await checkLayout('字幕过后 ');
         check(lay2.boxes.some((b) => b.name === 'prompt') && !lay2.boxes.some((b) => b.name === 'subtitle'), `[${tag}] 字幕过后出「再来一遍」且字幕已退（${lay2.boxes.map((b) => b.name)}）`);
         await page.screenshot({ path: path.join(out, `${v.name}-end2.png`) });
@@ -232,6 +273,8 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
         const again = await page.evaluate(() => self.__PLAYTEST__.snapshot());
         check(again.tutorial === null, `[${tag}] 教学过一次后重新打开不再出（${again.tutorial}）`);
         const vis = await page.evaluate(() => ({ r: !document.getElementById('replay').hidden, d: !document.getElementById('demoBtn').hidden }));
+        const vs = await page.evaluate(() => !document.getElementById('storyBtn').hidden);
+        check(again.intro === false && vs, `[${tag}] 之后进来不再自动出引子，但有「故事」入口（intro=${again.intro}）`);
         check(vis.r && vis.d, `[${tag}] 留有「教学」「看示范」入口 ${JSON.stringify(vis)}`);
         const lay3 = await checkLayout('跳过后 ');
         // 点「看示范」：独立一局跑起来，点任意处回来，她的局没变

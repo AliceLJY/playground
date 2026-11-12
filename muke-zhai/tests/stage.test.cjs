@@ -238,3 +238,98 @@ test('S12 大招冲上去停在「刚好够得着」的距离，不贴脸', () =
   const gap = Math.abs(g.e.x - g.p.x);
   assert.ok(gap >= 100 && gap <= 230, `大招中段间距 ${gap.toFixed(0)}`);
 });
+
+test('S13 引子：第一次默认出，看过后不再自动出；教学、机位、?stage=2 默认不出；?story=1 / view=story 强制出', () => {
+  const P = M.storyPolicy;
+  assert.equal(P({ seen: false }), true, '第一次默认出');
+  assert.equal(P({ seen: true }), false, '看过后不再自动出');
+  assert.equal(P({ seen: false, view: 'meng' }), false, '机位默认不出');
+  assert.equal(P({ seen: false, stage: 2 }), false, '?stage=2 不出');
+  assert.equal(P({ seen: false, tutorialParam: '1' }), false, '?tutorial=… 不出');
+  assert.equal(P({ seen: true, param: '1' }), true, '?story=1 强制出');
+  assert.equal(P({ seen: true, view: 'story' }), true, '?view=story 定格在引子页');
+  assert.equal(P({ seen: false, param: '0' }), false);
+});
+
+test('S14 引子页期间游戏时间不走；点一下（或任意键）继续后才开始；之后可以用「故事」再看', () => {
+  const g = M.create(CLIPS, { seed: 3, story: true, tutorial: true });
+  run(g, 2000);
+  assert.equal(g.t, 0, '引子期间时间不走');
+  assert.equal(M.snapshot(g).intro, true);
+  assert.equal(g.tut.step, 'walk');
+  g.held.right = true; run(g, 500);
+  assert.equal(g.p.x, 300, '引子期间不能走');
+  M.input(g, 'attack', true);   // 任意输入也关闭
+  assert.equal(g.intro, false);
+  run(g, 600);
+  assert.ok(g.t >= 500, '关闭后游戏开始');
+  M.showIntro(g);
+  const t1 = g.t;
+  run(g, 500);
+  assert.equal(g.t, t1, '再看一遍时同样暂停');
+  assert.equal(g.held.right, false, '再看时松开按着的键');
+  M.dismissIntro(g);
+  run(g, 200);
+  assert.ok(g.t > t1);
+  assert.equal(M.STORY.title, '穆柯寨');
+  assert.equal(M.STORY.lines.length, 3);
+});
+
+test('S15 名牌：三个人第一次出场时各一个，淡入、停到 2.5 秒前后淡出，之后不再出；第二场没有', () => {
+  const g = M.create(CLIPS, { seed: 3 });
+  let s = M.snapshot(g).tags;
+  assert.equal(s.p, 0); assert.equal(s.e, 0); assert.equal(s.z, 0);
+  run(g, 150);
+  s = M.snapshot(g).tags;
+  assert.ok(s.p > 0.3 && s.p < 0.8 && s.z > 0.3, `淡入中 ${JSON.stringify(s)}`);
+  run(g, 600);
+  s = M.snapshot(g).tags;
+  assert.equal(s.p, 1); assert.equal(s.e, 1); assert.equal(s.z, 1);
+  run(g, 1500);
+  s = M.snapshot(g).tags;
+  assert.ok(s.p < 1 && s.p > 0, `淡出中 ${JSON.stringify(s)}`);
+  run(g, 700);
+  s = M.snapshot(g).tags;
+  assert.deepEqual([s.p, s.e, s.z], [0, 0, 0], '2.5 秒后全部收掉');
+  assert.deepEqual(M.TAG_TEXT, { p: '穆柯寨寨主之女', e: '杨家将麾下，来讨降龙木', z: '杨家少将，随后就到' });
+  const h = M.create(CLIPS, { seed: 3, stage: 2 });
+  run(h, 600);
+  const t = M.snapshot(h).tags;
+  assert.deepEqual([t.p, t.e, t.z], [0, 0, 0], '第二场不出名牌');
+});
+
+test('S16 结尾：先「这一仗谁也没赢…」，再「戏里，两人结为夫妻，后来同赴宋营抗辽。」停 5 秒，然后才出「再来一遍」', () => {
+  const g = M.create(CLIPS, { seed: 2 });
+  const d = M.makeDriver('precise', 2);
+  const seq = [];
+  let line2At = null, line2Until = null, goneAt = null;
+  for (let t = 0; t < 300000 && !goneAt; t += M.STEP) {
+    d.think(g); M.advance(g, M.STEP);
+    if (g.phase !== 'end') continue;
+    const txt = g.sub && g.sub.text;
+    if (txt && seq[seq.length - 1] !== txt) { seq.push(txt); if (txt === M.ENDING_LINE2) line2At = g.t; }
+    if (txt === M.ENDING_LINE2) line2Until = g.t;
+    if (!txt && line2At) goneAt = g.t;
+  }
+  assert.deepEqual(seq, ['这一仗谁也没赢。后来的事，戏里都唱过。', '戏里，两人结为夫妻，后来同赴宋营抗辽。']);
+  const held = line2Until - line2At;
+  assert.ok(held >= 4800 && held <= 5200, `第二行停了 ${held.toFixed(0)} 毫秒，应约 5 秒`);
+  assert.ok(goneAt - line2Until <= 100, '第二行一收，「再来一遍」就可以出了');
+});
+
+test('S17 第一场心动第一次上涨时出「杨宗保在看。」，只出一次，停 2 秒收掉', () => {
+  for (const seed of [1, 2, 3]) {
+    const g = M.create(CLIPS, { seed });
+    const d = M.makeDriver('precise', seed);
+    let shows = 0, since = null, spans = [];
+    for (let t = 0; t < 300000 && g.phase !== 'end'; t += M.STEP) {
+      d.think(g); M.advance(g, M.STEP);
+      const on = g.sub && g.sub.text === '杨宗保在看。';
+      if (on && since == null) { shows++; since = g.t; }
+      if (!on && since != null) { spans.push(g.t - since); since = null; }
+    }
+    assert.equal(shows, 1, `种子 ${seed}：「杨宗保在看。」出现了 ${shows} 次`);
+    assert.ok(spans[0] >= 1500 && spans[0] <= 2100, `停了 ${spans[0]} 毫秒`);
+    assert.equal(g.zSeen, true);
+  }
+});
