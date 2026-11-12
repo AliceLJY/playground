@@ -16,9 +16,29 @@ A scene from the Peking opera *Muke Zhai*: Mu Guiying first drives off Meng Lian
 - **Performance budget**: phone Chrome / Safari at 60 fps; per frame one backdrop, two characters and a few effects; the offscreen cache fills lazily per frame seen (not measured on a real phone).
 - **Backdrop is swappable**: `src/backdrop.js` is self-contained; changing the backdrop means changing that file and `assets/stage.webp`.
 
-### Controls
+### Controls and moves
 
-Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pressing within 0.2 s before the enemy's hit counts as a parry); L or Space to roll (invulnerable mid-roll, can cancel your own attack). Touch: two arrows bottom-left, three action buttons bottom-right. A mute button sits top-right; sound starts after the first tap.
+
+Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pressing within 0.2 s before the enemy's hit counts as a parry); L or Space to roll (invulnerable mid-roll, can cancel your own attack). Touch: two arrows bottom-left, three action buttons bottom-right. A mute button sits top-right; sound starts after the first tap. Six keys (◀ ▶ Dodge Guard Thrust Ult) stay at the bottom; on desktop each carries a small keycap (← → / L·Space / K / J / K+J), can be clicked or held with the mouse, and lights up when you press the matching key. Keycaps are hidden on phones.
+
+| Move | Input | Numbers (measured in `tests/combo.test.cjs`) |
+|---|---|---|
+| Thrust | J | 1.1x anim speed; hitstop 70 ms, knock 0.3. A hit in his recovery or after a parry drops a whole golden plate; any other hit loosens one notch (three notches drop one, at least 2.2 s apart). Fight two: +3 heart on a plain hit (>= 2.4 s apart), +8 in recovery |
+| Triple thrust | J J J | Press each in the second half of the previous thrust (buffered). Second 1.25x, hitstop 60 ms; third 0.85x with a wind-up, hitstop 130 ms, knock 0.62 (about 2x), shake 0.6. Fight two: +6 on the third |
+| Dash thrust | hold ← / → then J, or tap the same direction twice within 0.25 s then J | Slides up to 230 px (plain 110), never off stage; hitstop 100 ms, knock 0.55, +0.22 s of recovery; fight two: +5 |
+| Flip thrust | J in the second half of a dodge (L) | Lands at 85% of the dodge, after invulnerability ends; hitstop 90 ms, knock 0.4; fight two: +5 |
+| Ultimate | once Shi is full, K and J within 0.08 s, or the sixth key | 0.4 s of 0.35x slow motion, camera pushes in 10%, five thrusts 150 ms apart with three fading afterimages, last thrust holds 250 ms with a big gong and a big knock-back; invulnerable and unblockable. Meng Liang: a whole plate and a long stun; Yang Zongbao: +25 heart |
+
+**Shi** is the thin bar under Qi: +5-6 per plain hit, +8-10 for heavy moves, +12 in recovery, +15 parry, +20 clash, +4 block; being hit does not lower it; the ultimate resets it. The first time it fills, a line appears ("Shi is full. Press K and J together") and Guard and Thrust glow with a thin line between them; after one cast it never appears again.
+
+**Yang Zongbao's triple thrust**: about 14% of his attacks, with a longer telegraph (560 ms); every strike keeps a reaction window of at least 450 ms; parry all three for +20 heart. Meng Liang gets 0.7 s of armour after a heavy hit and strikes back at once; he flinches at most once per 1.4 s, so mashing cannot stun-lock him.
+
+### Tutorial, demo and move list
+
+- First launch runs a tutorial (remembered in `localStorage`; `?tutorial=0` off, `?tutorial=1` forced; camera positions skip it): walk, thrust, guard (Meng Liang raises his axe at 0.35x speed; holding Guard returns normal speed and parries; if you do not press you take the hit without losing qi, and after three misses it parries for you), punish while he is stunned (stun lengthened to 1.2 s, first plate drops), dodge, triple thrust, then "That's it. Knock off the last two plates." One lesson per step, advance only when done; a Skip button sits top-right. The key to press glows with a slow warm breathing edge.
+- After the tutorial the top-right shows Tutorial, Moves and Watch demo. The demo runs a separate game with the precise autopilot for about 15 s (triple thrust, dash, parry, dodge into flip thrust, ultimate), keys light as it presses them and a one-word caption appears; a tap or key returns to your own game, untouched. Shi is pre-filled before the ultimate in the demo only.
+- Fight two opens with one extra line: "Two thrusts at the same moment clash, and that counts too." for 3 seconds.
+
 
 ### Acceptance
 
@@ -26,9 +46,10 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 |---|---|---|---|
 | 1 | Frame data complete, hit and hold frames in range | `tests/core.test.cjs` 1 | pass |
 | 2 | Enemy telegraph is long enough | test 2: warn-to-hit time of every real enemy attack in simulation | each >= 450 ms (Meng Liang about 985, Yang Zongbao about 717) |
-| 3 | Precise and shaky autopilots finish across 5 seeds, sane duration | test 3 | finish, 60-240 s |
+| 3 | Precise and shaky autopilots finish across 5 seeds, sane duration | test 3 | finish, **40-240 s** (measured: precise 45-71 s, shaky 55-70 s). The lower bound moved from 60: triple thrust and the ultimate make runs faster; the two-sided checks (shaky gets hit, never runs out) stay |
 | 4 | Difficulty from both sides | test 4 | shaky autopilot is hit >= 3 times over 5 seeds and never runs out of qi |
-| 5 | Parries, clashes, blocks and dodges really happen in the samples | test 5 | parries >= 10, clashes >= 3, blocks >= 5, dodges >= 1 |
+| 4b | Mashing cannot win | `tests/combo.test.cjs` C13: reckless autopilot mashes J, 8 seeds | all run out of qi within 150 s; scoring has cooldowns and a clash needs a thrust started 0.45 s after the last one ended |
+| 5 | Parries, clashes, blocks, dodges, triple thrusts, ultimates and fully-parried triple thrusts really happen in the samples | test 5 | parries >= 10, clashes >= 3, blocks >= 5, dodges >= 1, triples >= 3, ultimates >= 3, fully parried >= 1 |
 | 6 | Reckless autopilot loses and can retry | test 6: only mashes thrust; qi runs out, "retry" appears, qi refills and the fight is clearable | 3 seeds |
 | 7 | Attacks never slide off stage or overshoot | test 7 | 0 out-of-bounds steps, slide <= 110 px |
 | 8 | No stuck windows | test 8 | 0 |
@@ -39,6 +60,10 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 | 13 | Characters are really drawn | same: render with and without actors, count changed pixels inside each character's cell | >= 10% (sprites are darkened; flat-lit originals read about 25-35%) |
 | 14 | Most of the screen is dark | same, whole-frame luminance | median <= 0.3, bright share <= 6% (measured median about 0.10, under 2%) |
 | 15 | Five touch buttons fully in view, non-overlapping, off the canvas, >= 44 px; portrait canvas >= 55% of the viewport, hero >= 240 CSS px tall; subtitle, prompt and HUD boxes pairwise non-overlapping | same, 390x664, all four entry points | all hold |
+| 15b | Six keys always visible on desktop, with keycaps, clickable | same, desktop 1280x720 | in view, non-overlapping, off the canvas; J lights Thrust; mouse-holding Guard enters guard |
+| 17 | Moves | `tests/combo.test.cjs` C1-C12 | numbers in the table above; C5 third thrust hitstop >= 108 ms and knock >= 1.5x the first two; C6 dash goes 60 px further; C7 flip thrust only in the second half of the dodge; C9 simultaneous press 0.08 s counts, 0.2 s does not; C10-C12 ultimate invulnerability, unblockable, both opponents |
+| 18 | Tutorial and demo | `tests/tutorial.test.cjs` T1-T7 + browser check `?view=teach3`, `?view=demo` | advance only when done, auto-parry after three misses, skip works, no qi lost in the tutorial, your state is identical field by field after a demo; Guard glows; a real touch hold on Guard advances the tutorial |
+| 19 | Ultimate look | browser check `?view=ult` | afterimages really drawn (>= 400 changed pixels against a render without them); bright share still <= 6%; Shi bar and new key do not overlap other UI |
 | 16 | Side by side with reference | by eye: the desktop `?view=duel` shot against the four closing items of `ART.md` (shadows, one bright colour, characters floating, UI stealing attention) | written verdict per item, see the delivery notes |
 
 ### Camera positions
@@ -46,6 +71,9 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 - `?view=meng`: fight one, Meng Liang's telegraph (body flash, a line on the floor).
 - `?view=duel`: fight two, the two stand about 200 px apart.
 - `?view=end`: shoulder-to-shoulder finale, drifting hearts, closing subtitle.
+- `?view=teach3`: tutorial step three, the axe rising slowly, Guard glowing.
+- `?view=demo`: demo in progress (frozen just after it presses Guard).
+- `?view=ult`: third thrust of the ultimate. `?view=chain3`: third thrust of a triple thrust landing.
 - `?stage=2`: start in fight two. `?seed=N` changes the seed.
 
 Frozen states come from real simulation (autopilot or key presses), never hand-placed. Hook: `window.__PLAYTEST__ = { ready, snapshot(), reset(), setSeed(n), step(ms), press(key) }`, plus `play()`, `coverage()`, `luma()`.

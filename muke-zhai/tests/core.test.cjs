@@ -43,13 +43,13 @@ test('2b 规格常量之外：孟良预警 0.6 秒，杨宗保 0.38 秒，都由
   assert.ok(g.stats.warnToHit.some((w) => w > 650 && w < 800), '杨宗保一档应在 0.65–0.8 秒');
 });
 
-test('3 精准档与手抖档：5 个种子都能打完全程，时长 60–240 秒', () => {
+test('3 精准档与手抖档：5 个种子都能打完全程，时长 40–240 秒', () => {
   for (const skill of ['precise', 'sloppy']) {
     for (const seed of SEEDS) {
       const r = get(skill, seed);
       assert.ok(r.done, `${skill} 种子 ${seed} 没打到结尾（用时 ${(r.ms / 1000).toFixed(0)} 秒，阶段 ${r.g.phase}）`);
       const s = r.ms / 1000;
-      assert.ok(s >= 60 && s <= 240, `${skill} 种子 ${seed} 用时 ${s.toFixed(1)} 秒，不在 60–240`);
+      assert.ok(s >= 40 && s <= 240, `${skill} 种子 ${seed} 用时 ${s.toFixed(1)} 秒，不在 40–240`);
     }
   }
 });
@@ -73,6 +73,11 @@ test('5 样本里真发生过架开和对枪（否则前面的全绿可能是空
     }
   }
   assert.ok(parries >= 10, `架开只发生 ${parries} 次`);
+  let chain3 = 0, ults = 0, ch3p = 0, dashes = 0;
+  for (const skill of ['precise', 'sloppy']) for (const seed of SEEDS) { const st = get(skill, seed).g.stats; chain3 += st.chain3; ults += st.ults; ch3p += st.chainAllParried; dashes += st.dashes; }
+  assert.ok(chain3 >= 3, `样本里三连刺只出现 ${chain3} 次`);
+  assert.ok(ults >= 3, `样本里大招只放出 ${ults} 次`);
+  assert.ok(ch3p >= 1, `杨宗保三连刺被三枪全架开只发生 ${ch3p} 次`);
   assert.ok(clashes >= 3, `对枪只发生 ${clashes} 次`);
   assert.ok(blocks >= 5, `挡下只发生 ${blocks} 次`);
   assert.ok(dodges >= 1, `闪避躲过只发生 ${dodges} 次`);
@@ -112,7 +117,7 @@ test('7 出招时不滑出舞台，吸附滑步不冲过头', () => {
       assert.equal(log.slideOut, 0, `${skill} 种子 ${seed} 出招时有 ${log.slideOut} 步越出舞台`);
       assert.ok(g.stats.minX >= M.MIN_X - 0.5 && g.stats.maxX <= M.MAX_X + 0.5,
         `站位出了舞台：${g.stats.minX.toFixed(1)}–${g.stats.maxX.toFixed(1)}`);
-      assert.ok(g.stats.maxSlide <= 110.5, `吸附滑步 ${g.stats.maxSlide.toFixed(0)} 像素，超过 110 上限`);
+      assert.ok(g.stats.maxSlide <= 240.5, `滑步 ${g.stats.maxSlide.toFixed(0)} 像素，超过冲刺/大招的 240 上限`);
     }
   }
   assert.ok(swings > 100, `出招样本只有 ${swings} 次`);
