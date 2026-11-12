@@ -18,6 +18,8 @@ const SHOTS = [
   { name: 'demo', q: '?view=demo' },
   { name: 'ult', q: '?view=ult' },
   { name: 'chain3', q: '?view=chain3' },
+  { name: 'open', q: '?view=open' },
+  { name: 'act1', q: '?view=act1' },
 ];
 const fails = [];
 const check = (ok, msg) => { if (!ok) fails.push(msg); console.log(`${ok ? 'PASS' : 'FAIL'}  ${msg}`); };
@@ -52,7 +54,7 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
         check(snap.view === 'teach3' && snap.tutorial === 'guard' && snap.timeScale < 1 && snap.e.act === 'warn',
           `[${tag}] 定格在教学第三步：孟良慢慢举斧（步骤 ${snap.tutorial}，时间 ${snap.timeScale} 倍，${snap.e.act}）`);
         check(snap.glowKeys.includes('guard') && snap.glowKeys.length === 1, `[${tag}] 只有「架」在亮（${snap.glowKeys}）`);
-        check(snap.qi === 5 && snap.sub && /架|K/.test(snap.sub), `[${tag}] 提示字提到「架」，气满（${snap.sub}）`);
+        check(snap.qi === 5 && snap.sub && /亮的那一段/.test(snap.sub) && /架|K/.test(snap.sub), `[${tag}] 条走到一半，提示字换成「亮段里按住架」，气满（${snap.sub}）`);
       }
       if (s.name === 'ult') {
         check(snap.view === 'ult' && snap.ult === 'strikes' && snap.ultStrike >= 3 && snap.shi === 0, `[${tag}] 定格在大招第三枪（${snap.ult}，已出 ${snap.ultStrike} 枪，势 ${snap.shi}）`);
@@ -116,9 +118,20 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
         }
         check(lay.boxes.some((b) => b.name === (s.name === 'teach3' ? 'skip' : 'demoTag')), `[${tag}] ${s.name === 'teach3' ? '教学里有「跳过」' : '示范里有「点一下退出」'}`);
       }
+      if (s.name === 'meng' || s.name === 'teach3') {
+        // 蓄力条：在可视区内、不与金盔/气/心动/字幕/键位条重叠（上面的两两检查已含它），亮段确实画出来
+        const ch = lay.boxes.find((b) => b.name === 'charge');
+        check(!!ch && ch.left >= 0 && ch.right <= lay.viewport.w && ch.top >= 0 && ch.bottom <= lay.viewport.h, `[${tag}] 蓄力条在可视区内 ${ch ? JSON.stringify([ch.left, ch.right, ch.top, ch.bottom].map(Math.round)) : '没有'}`);
+        const cp = await page.evaluate(() => self.__PLAYTEST__.chargePixels());
+        check(cp && cp.ratio >= 1.25, `[${tag}] 亮段确实画出来了（亮段亮度 ${cp && cp.win.toFixed(2)}，身子 ${cp && cp.body.toFixed(2)}，比 ${cp && cp.ratio.toFixed(2)}）`);
+        const sn = await page.evaluate(() => self.__PLAYTEST__.snapshot());
+        check(sn.charge && sn.charge.winStart > 0.7 && sn.charge.winStart < 0.9, `[${tag}] 亮段占条尾约 0.2 秒（起点 ${sn.charge && sn.charge.winStart.toFixed(2)}）`);
+      }
       if (s.name === 'teach3') {
         // 真操作：手机按住「架」按钮、桌面按住 K；教学应前进到第四步
         await page.evaluate(() => self.__PLAYTEST__.play());
+        // 条走进亮段（慢放里约 0.5 秒）再按住
+        await page.waitForFunction(() => { const c = self.__PLAYTEST__.snapshot().charge; return c && c.inWindow; }, null, { polling: 20, timeout: 6000 });
         if (v.mobile) {
           const gb = await page.locator('#pad button[data-k="guard"]').boundingBox();
           await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
@@ -128,6 +141,16 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
         if (v.mobile) await page.mouse.up(); else await page.keyboard.up('k');
         const after = await page.evaluate(() => self.__PLAYTEST__.snapshot());
         check(adv && after.stats.parries === 1 && after.qi === 5, `[${tag}] 真${v.mobile ? '触摸按住「架」' : '按住 K'}后教学前进到第四步，出架开，气不掉（${after.tutorial}，架开 ${after.stats.parries}）`);
+      }
+      if (s.name === 'open' || s.name === 'act1') {
+        const sn = await page.evaluate(() => self.__PLAYTEST__.snapshot());
+        check(sn.z && sn.z.x > 700 && sn.e.act !== undefined && sn.stage === 1, `[${tag}] 杨宗保在右侧门边（x=${sn.z && sn.z.x}），孟良与穆桂英也在`);
+        if (s.name === 'open') check(sn.p.x < sn.e.x && sn.e.x < sn.z.x, `[${tag}] 穆桂英在左、孟良居中、杨宗保在右（${sn.p.x}/${sn.e.x}/${sn.z.x}）`);
+        if (s.name === 'act1') check(['attack', 'warn'].includes(sn.e.act), `[${tag}] 孟良在出斧（${sn.e.act}）`);
+      }
+      if (s.name === 'chain3') {
+        const fp = await page.evaluate(() => self.__PLAYTEST__.flashPixels());
+        check(fp.e.ratio < 0.06 && fp.p.ratio < 0.06, `[${tag}] 受击闪光只是一道窄亮边，不整身发白（改变的像素 孟良 ${(fp.e.ratio * 100).toFixed(1)}%，穆桂英 ${(fp.p.ratio * 100).toFixed(1)}%）`);
       }
       if (s.name === 'end') {
         // 字幕停稳后再出「再来一遍」，此时它与字幕、界面也不能重叠

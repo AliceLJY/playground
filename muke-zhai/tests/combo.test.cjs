@@ -121,35 +121,38 @@ test('C5 三连刺：连按 J 三下，第三枪的击退、顿帧、震屏都�
   assert.ok(M.SPEC && true);
 });
 
-test('C6 冲刺突刺：按住方向键同时按 J，或 0.25 秒内同方向连点两下再 J；位移大于普通出枪，不出舞台', () => {
-  const dist0 = 380;
+test('C6 冲刺突刺：只在「0.25 秒内同向连点两下再 J」或「按住方向跑起来超过 0.35 秒后按 J」时出；刚起步、贴身都是普通刺', () => {
+  const kindOf = (g) => { const sw = g.events.filter((e) => e.type === 'swing' && e.who === 'p').pop(); return sw && sw.kind; };
   const measure = (setup) => {
-    const g = arena(1, 3, 300 + dist0);
+    const g = arena(1, 3, 680);
+    let x0 = g.p.x;
     setup(g);
-    const x0 = g.p.x;
-    let kind = null;
-    for (let t = 0; t < 900; t += M.STEP) {
-      M.advance(g, M.STEP);
-      const sw = g.events.filter((e) => e.type === 'swing' && e.who === 'p').pop();
-      if (sw) kind = sw.kind;
-    }
-    return { dx: g.p.x - x0, kind, g };
+    x0 = g.p.x;
+    for (let t = 0; t < 900; t += M.STEP) M.advance(g, M.STEP);
+    return { dx: g.p.x - x0, kind: kindOf(g), g };
   };
   const normal = measure((g) => { M.tap(g, 'attack', 50); });
-  const held = measure((g) => { g.held.right = true; M.tap(g, 'attack', 50); });
+  const justStarted = measure((g) => { M.input(g, 'right', true); run(g, 60); M.tap(g, 'attack', 50); });
+  const held = measure((g) => { M.input(g, 'right', true); run(g, 420); M.tap(g, 'attack', 50); });
   const dbl = measure((g) => { M.input(g, 'right', true); M.input(g, 'right', false); run(g, 100); M.input(g, 'right', true); M.input(g, 'right', false); run(g, 60); M.tap(g, 'attack', 50); });
   const slow = measure((g) => { M.input(g, 'right', true); M.input(g, 'right', false); run(g, 400); M.input(g, 'right', true); M.input(g, 'right', false); run(g, 60); M.tap(g, 'attack', 50); });
   assert.equal(normal.kind, 'normal');
-  assert.equal(held.kind, 'dash');
+  assert.equal(justStarted.kind, 'normal', '刚起步（按住 0.06 秒）按 J 是普通刺');
+  assert.equal(held.kind, 'dash', '按住方向跑起来超过 0.35 秒后按 J 应冲刺');
   assert.equal(dbl.kind, 'dash', '0.25 秒内连点两下再 J 应冲刺');
   assert.equal(slow.kind, 'normal', '间隔 0.4 秒的连点不算');
-  assert.ok(held.dx > normal.dx + 60, `冲刺位移 ${held.dx.toFixed(0)}，普通 ${normal.dx.toFixed(0)}`);
+  assert.ok(held.dx > normal.dx + 40, `冲刺位移 ${held.dx.toFixed(0)}，普通 ${normal.dx.toFixed(0)}`);
+  // 贴身（相距不到 120）时跑着按 J 也是普通刺
+  const close = arena(1, 3, 380);
+  M.input(close, 'right', true); run(close, 20);
+  close.p.x = close.e.x - 110; M.advance(close, M.STEP);
+  M.tap(close, 'attack', 50); run(close, 200);
+  assert.equal(kindOf(close), 'normal', '贴身时按 J 是普通刺');
   // 贴着舞台边缘：不出舞台
   const g = arena(1, 3, M.MAX_X);
-  g.p.x = 700; g.held.right = true; M.tap(g, 'attack', 50);
+  g.p.x = 700; M.input(g, 'right', true); run(g, 420); M.tap(g, 'attack', 50);
   run(g, 1000);
   assert.ok(g.p.x <= M.MAX_X && g.e.x <= M.MAX_X && g.stats.maxX <= M.MAX_X + 0.5, `站位 ${g.p.x} ${g.e.x}`);
-  // 收招稍长：冲刺打完后有短暂的锁
   assert.ok(held.g.stats.dashes === 1);
 });
 

@@ -25,7 +25,7 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 |---|---|---|
 | Thrust | J | 1.1x anim speed; hitstop 70 ms, knock 0.3. A hit in his recovery or after a parry drops a whole golden plate; any other hit loosens one notch (three notches drop one, at least 2.2 s apart). Fight two: +3 heart on a plain hit (>= 2.4 s apart), +8 in recovery |
 | Triple thrust | J J J | Press each in the second half of the previous thrust (buffered). Second 1.25x, hitstop 60 ms; third 0.85x with a wind-up, hitstop 130 ms, knock 0.62 (about 2x), shake 0.6. Fight two: +6 on the third |
-| Dash thrust | hold ← / → then J, or tap the same direction twice within 0.25 s then J | Slides up to 230 px (plain 110), never off stage; hitstop 100 ms, knock 0.55, +0.22 s of recovery; fight two: +5 |
+| Dash thrust | hold ← / → for over 0.35 s then J, or tap the same direction twice within 0.25 s then J; a fresh press or point-blank range (< 120) is a plain thrust | Slides up to 230 px (plain 110), never off stage; hitstop 100 ms, knock 0.55, +0.22 s of recovery; fight two: +5 |
 | Flip thrust | J in the second half of a dodge (L) | Lands at 85% of the dodge, after invulnerability ends; hitstop 90 ms, knock 0.4; fight two: +5 |
 | Ultimate | once Shi is full, K and J within 0.08 s, or the sixth key | 0.4 s of 0.35x slow motion, camera pushes in 10%, five thrusts 150 ms apart with three fading afterimages, last thrust holds 250 ms with a big gong and a big knock-back; invulnerable and unblockable. Meng Liang: a whole plate and a long stun; Yang Zongbao: +25 heart |
 
@@ -33,9 +33,18 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 
 **Yang Zongbao's triple thrust**: about 14% of his attacks, with a longer telegraph (560 ms); every strike keeps a reaction window of at least 450 ms; parry all three for +20 heart. Meng Liang gets 0.7 s of armour after a heavy hit and strikes back at once; he flinches at most once per 1.4 s, so mashing cannot stun-lock him.
 
+### Charge bar, Yang Zongbao, two leads
+
+- **Charge bar**: during an opponent's telegraph a thin bar appears over his head (under Meng Liang's plates, above Yang Zongbao), filling at a constant rate; the instant it is full the strike lands. The last 0.2 s (the parry window) is a brighter warm colour and the bar body brightens slightly when the head enters it. A triple thrust shows one bar per strike with three small dots. Holding Guard gives a faint warm aura on the spear and a thin ring at her feet (gone on release); pressing inside the bright segment adds a small confirm flash at the bar head before the parry feedback. Inside the bright segment = parry, earlier = block.
+- **Yang Zongbao is on stage from the start**: Mu Guiying at left, Meng Liang in the middle, Yang Zongbao at the right door (6% smaller and darker, further back), idle. He neither fights, nor can be hit, nor takes part in collisions. He recoils (first three hurt frames) or half-guards when she parries or casts the ultimate, steps forward half a step each time Meng Liang loses a plate, and slips into the curtain when the fight drifts right. Fight one already has the heart meter: parry +4, triple-thrust third hit +3, ultimate +5, at most 20, a small warm mote drifts to the bar when he reacts; fight two continues from that number.
+- **No black screen between fights**: Meng Liang walks into the right door, Yang Zongbao walks up and faces her, then speaks; in the finale Meng Liang peeks half a body from behind the right curtain (dimmed).
+- **Bodies have volume**: body circles of radius ~42 (distance >= 84) push each other apart; the ultimate first widens the gap to >= 130; dash and ultimate stop at just-in-reach (>= 105).
+- **Hits never whiten the body**: only a narrow bright edge on the side that was hit (~60 ms) plus a shake; characters are never translucent or fully white (the browser check compares renders with and without the flash, < 6% changed pixels).
+- **Portrait camera**: a 400-wide window follows the pair's midpoint; in fight one it leans right by up to 120 when they fight in the right half so Yang Zongbao comes into view, but never pushes Mu Guiying or Meng Liang out, so he is off-screen while they fight on the left.
+
 ### Tutorial, demo and move list
 
-- First launch runs a tutorial (remembered in `localStorage`; `?tutorial=0` off, `?tutorial=1` forced; camera positions skip it): walk, thrust, guard (Meng Liang raises his axe at 0.35x speed; holding Guard returns normal speed and parries; if you do not press you take the hit without losing qi, and after three misses it parries for you), punish while he is stunned (stun lengthened to 1.2 s, first plate drops), dodge, triple thrust, then "That's it. Knock off the last two plates." One lesson per step, advance only when done; a Skip button sits top-right. The key to press glows with a slow warm breathing edge.
+- First launch runs a tutorial (remembered in `localStorage`; `?tutorial=0` off, `?tutorial=1` forced; camera positions skip it): walk, thrust, guard (Meng Liang raises his axe at 0.35x speed; the line follows the state: "He raised his axe, watch the bar over his head" -> half way "When the bar reaches the bright part, hold K (Guard)" -> pressed inside it "Caught" -> gone after the parry; pressing too early is only a block with "Blocked. Wait for the bright part to knock him back" and another try; you must really parry once to pass; not pressing costs no qi, and after three misses it parries for you inside the bright part), punish while he is stunned (stun lengthened to 1.2 s, first plate drops), dodge, triple thrust, then "That's it. Knock off the last two plates." One lesson per step, advance only when done; a Skip button sits top-right. The key to press glows with a slow warm breathing edge.
 - After the tutorial the top-right shows Tutorial, Moves and Watch demo. The demo runs a separate game with the precise autopilot for about 15 s (triple thrust, dash, parry, dodge into flip thrust, ultimate), keys light as it presses them and a one-word caption appears; a tap or key returns to your own game, untouched. Shi is pre-filled before the ultimate in the demo only.
 - Fight two opens with one extra line: "Two thrusts at the same moment clash, and that counts too." for 3 seconds.
 
@@ -63,6 +72,10 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 | 15b | Six keys always visible on desktop, with keycaps, clickable | same, desktop 1280x720 | in view, non-overlapping, off the canvas; J lights Thrust; mouse-holding Guard enters guard |
 | 17 | Moves | `tests/combo.test.cjs` C1-C12 | numbers in the table above; C5 third thrust hitstop >= 108 ms and knock >= 1.5x the first two; C6 dash goes 60 px further; C7 flip thrust only in the second half of the dodge; C9 simultaneous press 0.08 s counts, 0.2 s does not; C10-C12 ultimate invulnerability, unblockable, both opponents |
 | 18 | Tutorial and demo | `tests/tutorial.test.cjs` T1-T7 + browser check `?view=teach3`, `?view=demo` | advance only when done, auto-parry after three misses, skip works, no qi lost in the tutorial, your state is identical field by field after a demo; Guard glows; a real touch hold on Guard advances the tutorial |
+| 20 | Charge bar | browser check `?view=meng`, `?view=teach3`; `tests/stage.test.cjs` S1-S2 | in view, no overlaps with other UI; bright segment luminance >= 1.25x the body; constant fill, last 0.2 s bright; parry inside, block before |
+| 21 | Hints appear and leave | `tests/stage.test.cjs` S3-S6 | on the tick an action is done the line changes or clears (limit 0.3 s); every tutorial step checked; the Shi-full line clears the moment the ultimate is cast |
+| 22 | Yang Zongbao always present | S7-S10 + browser check `?view=open`, `?view=act1` | present every tick of fight one with a sane state; with or without him Mu Guiying and Meng Liang end up identical step by step; fight-one heart <= 20; no black screen, someone always on stage |
+| 23 | No body overlap, no dash misfire, no whiteout | S11-S12, `combo.test.cjs` C6, browser check `?view=chain3` | distance >= 84; a fresh press, point-blank and a 0.4 s double tap are plain thrusts; flash changes < 6% of pixels |
 | 19 | Ultimate look | browser check `?view=ult` | afterimages really drawn (>= 400 changed pixels against a render without them); bright share still <= 6%; Shi bar and new key do not overlap other UI |
 | 16 | Side by side with reference | by eye: the desktop `?view=duel` shot against the four closing items of `ART.md` (shadows, one bright colour, characters floating, UI stealing attention) | written verdict per item, see the delivery notes |
 
@@ -71,7 +84,8 @@ Keyboard: left/right or A/D to walk; J to thrust; K to guard (hold to block; pre
 - `?view=meng`: fight one, Meng Liang's telegraph (body flash, a line on the floor).
 - `?view=duel`: fight two, the two stand about 200 px apart.
 - `?view=end`: shoulder-to-shoulder finale, drifting hearts, closing subtitle.
-- `?view=teach3`: tutorial step three, the axe rising slowly, Guard glowing.
+- `?view=open`: the opening frame, all three on stage. `?view=act1`: mid fight one, Meng Liang striking, Yang Zongbao at the door.
+- `?view=teach3`: tutorial step three, the axe rising slowly, bar half full, Guard glowing.
 - `?view=demo`: demo in progress (frozen just after it presses Guard).
 - `?view=ult`: third thrust of the ultimate. `?view=chain3`: third thrust of a triple thrust landing.
 - `?stage=2`: start in fight two. `?seed=N` changes the seed.
