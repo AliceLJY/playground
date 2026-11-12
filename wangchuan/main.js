@@ -62,7 +62,11 @@ void main(){
     vec2 e = (uv - L) / vec2(0.060, 0.034);
     float g = exp(-dot(e, e));
     float flick = 0.86 + 0.14 * sin(uTime * 0.31 + 1.3) * sin(uTime * 0.13);
-    float amt = g * flick * (1.0 - uDusk) * 0.36;
+    float leaf = smoothstep(0.46, 0.66, fbm(vec2(uv.x * uR * 46.0 + uTime * 0.035, uv.y * 62.0 - uTime * 0.012)));
+    float trunk = smoothstep(0.62, 0.80, noise(vec2((uv.x * uR + uv.y * 1.9) * 15.0 - uLight * 2.2, 3.7)));
+    float shade = clamp(leaf * 0.75 + trunk * 0.85, 0.0, 1.0);
+    float amt = g * flick * (1.0 - uDusk) * 0.42 * (1.0 - 0.80 * shade);
+    col *= 1.0 - 0.20 * shade * smoothstep(0.05, 0.6, g) * (1.0 - uDusk);
     col += vec3(0.50, 0.36, 0.06) * amt * (0.55 + 0.45 * smoothstep(0.2, 0.8, d));
     // 树冠上一点余晖
     vec2 e2 = (uv - vec2(0.86 - 0.03 * uLight, 0.30)) / vec2(0.10, 0.16);
@@ -223,8 +227,8 @@ void main(){
       const lfo = ac.createOscillator(); lfo.frequency.value = rate; const lg = ac.createGain(); lg.gain.value = depth;
       lfo.connect(lg); lg.connect(g.gain); s.connect(f); f.connect(g); g.connect(master); s.start(); lfo.start();
     }
-    bed('bandpass', 420, 0.5, 0.20, 0.10, 0.07);   // 风过林梢
-    bed('highpass', 2600, 0.3, 0.030, 0.022, 0.11); // 叶子的细响
+    bed('bandpass', 420, 0.5, 0.42, 0.20, 0.07);   // 风过林梢
+    bed('highpass', 2600, 0.3, 0.050, 0.035, 0.11); // 叶子的细响
 
     Promise.all(['assets/voice1.mp3', 'assets/voice2.mp3'].map((u) => fetch(u).then((r) => r.arrayBuffer()).then((a) => new Promise((ok, no) => ac.decodeAudioData(a, ok, no)))))
       .then((voices) => {
@@ -234,10 +238,10 @@ void main(){
           if (ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(master); } else g.connect(master);
           s.start(when);
         };
-        let next = ac.currentTime + 4;
+        let next = ac.currentTime + 2.5;
         (function loop() { // 一声喊，一声应，隔很久再来一回
-          say(voices[0], next, -0.55, 0.55); say(voices[1], next + 3.4, -0.25, 0.42);
-          next += 19 + Math.random() * 12;
+          say(voices[0], next, -0.55, 0.95); say(voices[1], next + 3.4, -0.25, 0.80);
+          next += 13 + Math.random() * 8;
           setTimeout(loop, Math.max(1000, (next - ac.currentTime - 2) * 1000));
         })();
       }).catch(() => {});
