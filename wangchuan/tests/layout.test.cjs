@@ -92,9 +92,14 @@ test('题诗图的尺寸和 layout 里写的一致；每一景的画和深度图
   }
 });
 
-test('页面上没有解说文字：除了卷尾的署名说明、声音提示和开关，不出现别的字（诗不写在画上）', () => {
+test('画面上不放解说：屏幕上只有卷尾署名、一句提示、声音开关和「溯源」入口；学术背景收在点开才见的那一页里', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const body = html.slice(html.indexOf('<body>')).replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, '\n');
-  const lines = body.split('\n').map((s) => s.trim()).filter(Boolean);
-  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依唐人勾线平涂、盛唐小楷之法新作，并非古迹。', '轻触有声', '声']);
+  let body = html.slice(html.indexOf('<body>')).replace(/<script[\s\S]*?<\/script>/g, '');
+  const panel = body.match(/<section id="source"([^>]*)>[\s\S]*?<\/section>/);
+  assert.ok(panel, '没有溯源那一页');
+  assert.ok(/\bhidden\b/.test(panel[1]), '溯源那一页应当默认收起');
+  for (const must of ['女史箴图', '灵飞经', '渲染', '今人加的', '不是古迹']) assert.ok(panel[0].includes(must), `溯源里没有讲到「${must}」`);
+  body = body.replace(panel[0], '');
+  const lines = body.replace(/<[^>]+>/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
+  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依唐人勾线平涂、盛唐小楷之法新作，并非古迹。', '按住，往山里走', '声', '溯源']);
 });
