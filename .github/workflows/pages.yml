@@ -89,6 +89,12 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Muke Zhai
+        working-directory: muke-zhai
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Memory Fade
         working-directory: memory-fade
         run: |
@@ -307,6 +313,17 @@ jobs:
           mkdir -p _site/daomadan-sprite
           cp daomadan-sprite/index.html _site/daomadan-sprite/index.html
           cp -R daomadan-sprite/src daomadan-sprite/assets _site/daomadan-sprite/
+
+      - name: Assemble Muke Zhai
+        run: |
+          # 穆柯寨·不打不相识：Canvas 2D 横版小游戏，没有构建步骤，页面、源码、图集与底图原样发布
+          mkdir -p _site/muke-zhai
+          cp muke-zhai/index.html _site/muke-zhai/index.html
+          cp -R muke-zhai/src muke-zhai/assets _site/muke-zhai/
+          # 同像素办公室：脚本引用带上本次提交号，免得新 index.html 配到缓存里的旧 JS
+          V="${GITHUB_SHA::8}"
+          sed -i -E "s#\"(src/[a-z]+\.js)\"#\"\1?v=$V\"#g" _site/muke-zhai/index.html
+          test "$(grep -o "?v=$V" _site/muke-zhai/index.html | wc -l)" -eq 4
 
       - name: Assemble Memory Fade
         run: |

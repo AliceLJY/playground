@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>穆柯寨 · 不打不相识</title>
+<meta name="description" content="京剧《穆柯寨》里穆桂英打退孟良、再和杨宗保对枪、不打不相识的一段，做成了一个两三分钟的小游戏。">
+<style>
+:root{--bg:#07060d;--gold:#c9a45c;--paper:#e4d3ae}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--paper);overflow:hidden}
+body{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+.view{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+.frame{position:relative;width:min(100vw,calc(100dvh * 16 / 9));aspect-ratio:16/9;max-height:100%}
+#stage{display:block;width:100%;height:100%;touch-action:none;background:#0b0a14}
+#mute{position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:50%;border:1px solid rgba(201,164,92,.4);
+  background:rgba(14,10,20,.55);color:var(--gold);font:15px/1 inherit;font-family:inherit;padding:0}
+#pad{display:none;justify-content:space-between;align-items:flex-end;padding:8px 14px calc(12px + env(safe-area-inset-bottom))}
+#pad .grp{display:flex;gap:10px}
+#pad button{width:64px;height:64px;border-radius:12px;border:1px solid rgba(201,164,92,.45);background:rgba(24,16,26,.85);
+  color:var(--gold);font-family:inherit;font-size:22px;padding:0;touch-action:none;user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none}
+#pad button[aria-pressed="true"]{background:rgba(110,36,40,.9);color:var(--paper)}
+@media (pointer:coarse),(max-width:720px){#pad{display:flex}.frame{width:min(100vw,calc((100dvh - 96px) * 16 / 9))}}
+/* 竖屏：取景窗接近 4:5（逻辑 400×540），铺满宽度，放在上部，触屏键在下面 */
+@media (max-aspect-ratio:1/1){
+  .view{align-items:flex-start}
+  .frame{width:min(100vw,calc((100dvh - 96px) * 400 / 540));aspect-ratio:400/540;max-height:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="view">
+    <div class="frame">
+      <canvas id="stage" width="960" height="540" aria-label="穆柯寨戏台"></canvas>
+      <button id="mute" type="button" aria-pressed="false" aria-label="静音开关">声</button>
+    </div>
+  </div>
+  <div id="pad">
+    <div class="grp"><button data-k="left" aria-label="向左走">◀</button><button data-k="right" aria-label="向右走">▶</button></div>
+    <div class="grp"><button data-k="dodge" aria-label="翻身闪避">闪</button><button data-k="guard" aria-label="架枪">架</button><button data-k="attack" aria-label="出枪">刺</button></div>
+  </div>
+</div>
+<script src="src/clips.js"></script>
+<script src="src/core.js"></script>
+<script src="src/backdrop.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
