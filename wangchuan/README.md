@@ -2,7 +2,7 @@
 
 [中文](README_CN.md) · [Open](https://aliceljy.github.io/playground/wangchuan/)
 
-Wang Wei's four-line poem "Deer Park" (Lu Zhai, 8th century) as a handscroll you can drift through. It opens on a deep wood painted in the blue-and-green manner of the High Tang, with late sunlight resting on a patch of moss. Stay, and the painting breathes a little: the light wavers and creeps, mist moves far off, someone calls across the hills, and the scroll unrolls leftward by itself. At the end, on plain paper, the poem appears column by column.
+Wang Wei's four-line poem "Deer Park" (Lu Zhai, 8th century): four lines, four paintings, one after another, deeper into the hills. Empty mountains from afar. The edge of the wood, where voices carry but nobody is seen. The deep wood, with late sun slanting in from the right. Then the ground at your feet: returning light on moss, tree shadows creeping. At the end, on plain paper, the poem appears column by column.
 
 Two seconds is enough to get something. You never have to finish it.
 
@@ -13,33 +13,35 @@ Two seconds is enough to get something. You never have to finish it.
 - Same period throughout: Wang Wei lived in the High Tang, so the painting follows High Tang blue-and-green landscape and the writing follows High Tang small regular script. The poem is not written on the painting; it sits on the paper at the tail of the scroll.
 - No explanatory text. The only words on screen are one credit line at the tail, a sound hint, and a sound toggle.
 - Colours: the painting is what it is; mount strip around sRGB `#3C3428`, tail paper around sRGB `#E2CB9F`, ink `#261E16`.
-- Budget: 60 fps on a phone browser; one full-screen shader, one draw call, two textures (painting 3966×1586, depth 992×397); device pixel ratio capped at 2.
+- Budget: 60 fps on a phone browser; one full-screen shader, one draw call, two textures bound at a time (the current scene's painting at 3172×1268 and its depth at 992×397), scenes loading in the background; device pixel ratio capped at 2.
 
-## What each stretch of time gives you
+## Step by step, scene by scene
 
-| Stay | What you get |
-|---|---|
-| 2 s | A complete picture: deep wood, returning light on moss |
-| ~10 s | The picture breathes, the light flickers, mist drifts far off; if you have touched the screen, wind and a distant call and answer |
-| after 7 s | The scroll unrolls leftward by itself; drag and it follows you, and resumes 5 s after you let go |
-| about a minute | The mount strip, then plain paper; the poem appears right to left |
-| after 90 s | The light moves off and the wood dims slightly |
+| Scene | Line | The painting | What happens |
+|---|---|---|---|
+| 1 | Empty mountains, no one in sight | Layered blue-green peaks seen from afar, cloud bands across the slopes, dense woods, no sign of people | It opens here, nothing in the way |
+| 2 | Only the sound of someone talking | The foot of the hill; a path follows a stream and bends into the wood, with nobody on it | The distant call and answer is nearest here |
+| 3 | Returning light enters the deep wood | The deep wood at sundown | Light comes in from the right and settles on the moss |
+| 4 | And shines again on the green moss | Looking down: old roots, stones, thick moss | The light rests on the moss; leaf shadows and long trunk shadows creep; then the light leaves and the wood dims |
+| Tail | — | Plain paper | The poem appears right to left |
+
+Within each scene the view unrolls leftward and pushes a little way into the painting, then changes to the next scene inside drifting mist. It is evening, the sun is low on the right, and lower with every scene. Left alone it walks by itself, about a minute and a half in all; swipe and it follows you, and resumes four seconds after you let go.
 
 ## How it was made
 
-- Painting: AI-generated (Codex), with two early blue-and-green landscapes as references (*Emperor Minghuang's Journey to Shu*, attributed to a Tang hand, and *Spring Excursion*, attributed to Zhan Ziqian, both from Wikimedia Commons), for colour texture and brushwork only, not composition. It is a new image, not an old painting.
+- Paintings: all four are AI-generated (Codex). Scene 3 came first, with two early blue-and-green landscapes as references (*Emperor Minghuang's Journey to Shu*, attributed to a Tang hand, and *Spring Excursion*, attributed to Zhan Ziqian, both from Wikimedia Commons), for colour texture and brushwork only, not composition. The other three were then painted with scene 3 as an extra reference, as further stretches of the same scroll. They are new images, not old paintings.
 - Writing: AI-generated, with the High Tang small-regular-script manuscript *Lingfei jing* (attributed to Zhong Shaojing, Metropolitan Museum, via Wikimedia Commons) as reference. All 24 characters were checked one by one, then the ink was lifted onto a transparent image.
-- Motion: the painting is not cut into layers or repainted. Depth-Anything-V2 estimates a depth map, and a shader moves near things slightly more than far things. Mist and the wavering, travelling light are added in the same shader.
-- Sound: wind is synthesised live with Web Audio; the distant voices are system speech synthesis with reverb and filtering.
+- Motion: the paintings are not cut into layers or repainted. Depth-Anything-V2 estimates a depth map for each, and a shader moves near things slightly more than far things, and grows them slightly faster as the view pushes in. Mist, the returning light, the shadows and the mist between scenes all live in that one shader. Trunk shadows are cast from where each painting's trees stand, and stretch as the sun sinks.
+- Sound: wind is synthesised live with Web Audio; the distant voices are system speech synthesis with reverb and filtering, brought nearer or farther scene by scene.
 - No build step, no runtime dependencies.
 
 ## Checks
 
-`node --test tests/*.test.cjs` runs seven: the light is visible in the first frame at six screen ratios, the opening shows nothing outside the painting, the poem is centred and fully on screen at the end, the narrowest phone fits the whole poem, the poem never overlaps the painting, the poem image matches the layout numbers, and the page carries no extra text. The first one was tried against a broken version (opening at the far right of the painting) and fails as it should.
+`node --test tests/*.test.cjs` runs twelve, each across six screen ratios: the scenes follow the poem's four lines; the opening is neither in mist nor outside the painting; the view never leaves the painting anywhere in any scene; every scene unrolls leftward and pushes in; in scene 3 the spot where the light lands is on screen when it lands; in scene 4 the light stays on screen while it lasts and there is a trunk to its right to cast a shadow; the voices are nearest in scene 2; each scene is warmer than the last; scene changes are fully inside mist and clear in the middle; the narrowest phone fits the whole poem; all assets exist; the page carries no extra text.
 
-It was also run live at 390×844: a screenshot at 2 s, waiting for the scroll to move by itself, dragging to the tail and waiting for the poem, with no console errors at 60 fps.
+Twelve points along the walk were also screenshotted and looked at, at 390×844 and 1440×810, with no console errors.
 
-These show it behaves as specified. Whether it is beautiful, and whether it calls the poem to mind, is for people to judge.
+These show it behaves as specified. Whether it is beautiful, whether the four paintings read as one mountain, and whether it calls the poem to mind, is for people to judge.
 
 ## Licence
 
