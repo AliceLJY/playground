@@ -325,6 +325,24 @@ jobs:
           sed -i -E "s#\"(src/[a-z]+\.js)\"#\"\1?v=$V\"#g" _site/muke-zhai/index.html
           test "$(grep -o "?v=$V" _site/muke-zhai/index.html | wc -l)" -eq 4
 
+      - name: Check Wangchuan
+        working-directory: wangchuan
+        run: |
+          node --check layout.js
+          node --check main.js
+          node --test tests/*.test.cjs
+
+      - name: Assemble Wangchuan
+        run: |
+          # 辋川卧游·鹿柴：一个全屏着色器的手卷页，没有构建步骤，页面、脚本与素材原样发布
+          mkdir -p _site/wangchuan
+          cp wangchuan/index.html wangchuan/layout.js wangchuan/main.js _site/wangchuan/
+          cp -R wangchuan/assets _site/wangchuan/
+          # 同穆柯寨：脚本引用带上本次提交号，免得新 index.html 配到缓存里的旧 JS
+          V="${GITHUB_SHA::8}"
+          sed -i -E "s#\"((layout|main)\.js)\"#\"\1?v=$V\"#g" _site/wangchuan/index.html
+          test "$(grep -o "?v=$V" _site/wangchuan/index.html | wc -l)" -eq 2
+
       - name: Assemble Memory Fade
         run: |
           # 记忆褪色：SVG 讲解页，没有构建步骤，页面与源码原样发布
