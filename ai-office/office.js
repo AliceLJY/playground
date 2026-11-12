@@ -598,8 +598,9 @@
         const petter = at('cat'), waterer = at('water'), fed = sim.playing?.('cat');
         if (fed) { r(ctx,'#b5473a',44,62,10,4); r(ctx,'#e9c9a0',45,61,8,2); for (let j=0;j<3;j++) text(ctx,'♥',54+j*6,46-((t*6+j*4)%10),6,'#e58f9a'); }
         const p = fed ? {x: 52, y: 62} : petter ? {x: 66, y: 62} : {x: 40 + Math.round((Math.sin(t * .3) + 1) * 26), y: 40 + Math.round((Math.cos(t * .23) + 1) * 12)};
-        r(ctx,'#4c4d4030',p.x-1,p.y,12,2); r(ctx,'#e8963a',p.x,p.y-6,10,6); r(ctx,'#e8963a',p.x+8,p.y-9,5,5); r(ctx,'#e8963a',p.x+8,p.y-11,1,2); r(ctx,'#e8963a',p.x+12,p.y-11,1,2);
-        r(ctx,'#c8732a',p.x+2,p.y-6,1,6); r(ctx,'#c8732a',p.x+5,p.y-6,1,6); r(ctx,'#2f3a3c',p.x+10,p.y-8,1,1); r(ctx,'#e8963a',p.x-3,p.y-8 + (Math.floor(t * 2) % 2),3,2);
+        const f = fed || petter || Math.cos(t * .3) >= 0 ? 1 : -1, R = (col,dx,dy,w,h) => r(ctx,col,f>0?p.x+dx:p.x+10-dx-w,p.y+dy,w,h); // strolling left = facing left
+        r(ctx,'#4c4d4030',p.x-1,p.y,12,2); R('#e8963a',0,-6,10,6); R('#e8963a',8,-9,5,5); R('#e8963a',8,-11,1,2); R('#e8963a',12,-11,1,2);
+        R('#c8732a',2,-6,1,6); R('#c8732a',5,-6,1,6); R('#2f3a3c',10,-8,1,1); R('#e8963a',-3,-8 + (Math.floor(t * 2) % 2),3,2);
         if (petter) text(ctx,'♥',p.x+6,p.y-14 - (t % 2) * 2,6,'#e58f9a');
         if (waterer) for (let j = 0; j < 3; j++) r(ctx,'#7ad7ff',22 + j * 3,30 + ((t * 20 + j * 5) % 10),1,2);
       });
@@ -698,8 +699,11 @@
       let step=dt*(catPlay?.phase==='chase' || c.fleeUntil>sim.time ? 46 : morning ? 34 : 22);
       while (step>0 && c.path.length) { const q=c.path[0],d=Core.distance(c,q); if(d<=step){c.x=q.x;c.y=q.y;c.path.shift();step-=d;} else {c.x+=(q.x-c.x)/d*step;c.y+=(q.y-c.y)/d*step;step=0;} }
     }
+    // Facing follows the last sideways step (the sprite is drawn facing right; 11-12 Alice: the cats ran backwards going left).
+    for (const c of cats) { if (c.px!=null && Math.abs(c.x-c.px)>.05) c.face=c.x<c.px?-1:1; c.px=c.x; }
+    if (catPlay?.phase==='tussle') for (const c of cats) { const o=cats[1-c.k]; if (o.x!==c.x) c.face=o.x>c.x?1:-1; }
     const people=[...sim.actors,...sim.visitors,sim.boss].filter(Boolean);
-    return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,moving:c.path.length>0,carrying:!!c.task&&!c.task.arrived,fed,running:catPlay?.phase==='chase',
+    return cats.map(c=>({x:Math.round(c.x),y:Math.round(c.y),look:c.look,k:c.k,face:c.face||1,moving:c.path.length>0,carrying:!!c.task&&!c.task.arrived,fed,running:catPlay?.phase==='chase',
       tussle:catPlay?.phase==='tussle',meow:!!morning&&!fed,muddy:muddy&&c.k===0,bath:bathing&&c.k===0,hiss:c.k===1&&!fed&&!morning&&!c.path.length&&[...sim.actors,...sim.visitors,sim.boss].filter(Boolean).some(p=>Core.distance(p,c)<14),petted:!catPlay&&(!!petter||!c.path.length&&people.some(p=>Core.distance(p,c)<14)),asleep:sleepy&&!c.path.length&&!c.task}));
   }
   function drawCats() {
@@ -718,15 +722,16 @@
         continue;
       }
       const L=c.look,bob=c.tussle?(Math.floor(t*10+c.k)%2)*2:0,p={x:c.x+(c.tussle?(c.k?3:-3):0),y:c.y-bob},leg=c.moving&&Math.floor(t*(c.running?14:8))%2;
+      const f=c.face<0?-1:1, R=(col,dx,dy,w,h)=>r(ctx,col,f>0?p.x+dx:p.x-dx-w,p.y+dy,w,h); // offsets as if facing right, mirrored when facing left
       r(ctx,'#4c4d4030',c.x-6,c.y,12,2);
-      if (c.asleep) { r(ctx,L.fur,p.x-6,p.y-5,12,5); r(ctx,L.stripe,p.x-3,p.y-5,1,5); if(L.patch)r(ctx,L.patch,p.x-1,p.y-5,3,3); r(ctx,L.head,p.x+4,p.y-7,4,3); text(ctx,'z',p.x+9,p.y-10-(t%3|0),6,'#45534b'); continue; }
-      r(ctx,L.fur,p.x-5,p.y-6,10,5); r(ctx,L.belly,p.x-3,p.y-3,6,2);
-      if (L.patch) { r(ctx,L.patch,p.x-4,p.y-6,3,2); r(ctx,L.stripe,p.x,p.y-6,3,3); } else { r(ctx,L.stripe,p.x-3,p.y-6,1,5); r(ctx,L.stripe,p.x,p.y-6,1,5); }
-      r(ctx,L.head,p.x+3,p.y-9,5,5); r(ctx,L.head,p.x+3,p.y-11,1,2); r(ctx,L.head,p.x+7,p.y-11,1,2); r(ctx,L.muzzle,p.x+5,p.y-6,3,2); if(L.patch)r(ctx,'#e8963a',p.x+3,p.y-9,2,2);
-      r(ctx,'#2f3a3c',p.x+5,p.y-8,1,1);
-      r(ctx,L.stripe,p.x-4+leg,p.y-1,1,2); r(ctx,L.stripe,p.x+2-leg,p.y-1,1,2); r(ctx,L.patch?L.stripe:L.fur,p.x-8,p.y-8+(Math.floor(t*(c.running?8:2))%2),3,2);
-      if (c.tussle && Math.floor(t*6+c.k)%2) r(ctx,'#f4f1e6',p.x+(c.k?-6:8),p.y-10,3,2);
-      if (c.carrying) { r(ctx,'#fffaf0',p.x+7,p.y-7,5,4); r(ctx,'#c1b597',p.x+8,p.y-5,3,1); }
+      if (c.asleep) { R(L.fur,-6,-5,12,5); R(L.stripe,-3,-5,1,5); if(L.patch)R(L.patch,-1,-5,3,3); R(L.head,4,-7,4,3); text(ctx,'z',p.x+9*f,p.y-10-(t%3|0),6,'#45534b'); continue; }
+      R(L.fur,-5,-6,10,5); R(L.belly,-3,-3,6,2);
+      if (L.patch) { R(L.patch,-4,-6,3,2); R(L.stripe,0,-6,3,3); } else { R(L.stripe,-3,-6,1,5); R(L.stripe,0,-6,1,5); }
+      R(L.head,3,-9,5,5); R(L.head,3,-11,1,2); R(L.head,7,-11,1,2); R(L.muzzle,5,-6,3,2); if(L.patch)R('#e8963a',3,-9,2,2);
+      R('#2f3a3c',5,-8,1,1);
+      R(L.stripe,-4+leg,-1,1,2); R(L.stripe,2-leg,-1,1,2); R(L.patch?L.stripe:L.fur,-8,-8+(Math.floor(t*(c.running?8:2))%2),3,2);
+      if (c.tussle && Math.floor(t*6+c.k)%2) R('#f4f1e6',8,-10,3,2);
+      if (c.carrying) { R('#fffaf0',7,-7,5,4); R('#c1b597',8,-5,3,1); }
       if (c.muddy && !c.asleep) { for (const [mx,my] of [[-4,-5],[0,-3],[3,-6],[-2,-2]]) r(ctx,'#7a5a3a',p.x+mx,p.y+my,2,1); if (Math.floor(t/3)%4===0) text(ctx,'脏兮兮',p.x+4,p.y-14,5,'#7a5a3a'); }
       if (c.hiss) { if (Math.floor(t*1.2)%3===0) { text(ctx,'哈！',p.x+4,p.y-14,6,'#b5473a'); r(ctx,L.head,p.x+8,p.y-8-(Math.floor(t*6)%2),2,2); } }
       else if (c.meow) { const say=['喵～','喵喵！','喵——','咪呜'][Math.floor(t/1.3+c.k*2)%4]; if (Math.floor(t*1.5+c.k)%3) text(ctx,say,p.x+4,p.y-14-(Math.floor(t*4)%2),6,'#b5473a'); }
