@@ -10,7 +10,7 @@ Two seconds is enough to get something. You never have to finish it.
 
 - One line: look at a landscape the way old viewers "travelled lying down" (woyou): the painting first, the poem later. Main aesthetics are sensation and immersion. It is an arc you pass through once, not a loop you replay.
 - Setting: a stranger opens it on a phone, portrait, probably muted, and stays anywhere from two seconds to a bit over a minute. So the first frame has to stand by itself, and sound is a bonus.
-- Same period throughout: Wang Wei lived in the High Tang, so the painting follows High Tang blue-and-green landscape and the writing follows High Tang small regular script. The poem is not written on the painting; it sits on the paper at the tail of the scroll.
+- Same period throughout: Wang Wei lived in the High Tang, so the paintings follow the Tang way of fine outline and flat colour, and the writing follows High Tang small regular script. Graded washes did not exist yet in the Tang, so the paintings have none; the first version used a washed blue-and-green and was repainted after someone who knows painting pointed this out. The poem is not written on the painting; it sits on the paper at the tail of the scroll.
 - No explanatory text. The only words on screen are one credit line at the tail, a sound hint, and a sound toggle.
 - Colours: the painting is what it is; mount strip around sRGB `#3C3428`, tail paper around sRGB `#E2CB9F`, ink `#261E16`.
 - Budget: 60 fps on a phone browser; one full-screen shader, one draw call, two textures bound at a time (the current scene's painting at 3172×1268 and its depth at 992×397), scenes loading in the background; device pixel ratio capped at 2.
@@ -29,9 +29,9 @@ Within each scene the view unrolls leftward and pushes a little way into the pai
 
 ## How it was made
 
-- Paintings: all four are AI-generated (Codex). Scene 3 came first, with two early blue-and-green landscapes as references (*Emperor Minghuang's Journey to Shu*, attributed to a Tang hand, and *Spring Excursion*, attributed to Zhan Ziqian, both from Wikimedia Commons), for colour texture and brushwork only, not composition. The other three were then painted with scene 3 as an extra reference, as further stretches of the same scroll. They are new images, not old paintings.
+- Paintings: all four are AI-generated (Codex) in the Tang manner: line first, colour second; rocks are outlines only, with no texture strokes, no graded washes and no light and shade inside the lines; colour is sparse, pale and flat, and most of the surface is bare silk; moss and foliage are small scalloped clusters outlined in fine line and then filled with pale green. The main reference is the mountain passage of the Tang copy of *Admonitions of the Court Instructress*, for manner only, not composition. No light or shadow is painted. They are new images, not old paintings.
 - Writing: AI-generated, with the High Tang small-regular-script manuscript *Lingfei jing* (attributed to Zhong Shaojing, Metropolitan Museum, via Wikimedia Commons) as reference. All 24 characters were checked one by one, then the ink was lifted onto a transparent image.
-- Motion: the paintings are not cut into layers or repainted. Depth-Anything-V2 estimates a depth map for each, and a shader moves near things slightly more than far things, and grows them slightly faster as the view pushes in. Mist, the returning light, the shadows and the mist between scenes all live in that one shader. Trunk shadows are cast from where each painting's trees stand, and stretch as the sun sinks.
+- Motion: the paintings are not cut into layers or repainted. Depth-Anything-V2 estimates a depth map for each, and a shader moves near things slightly more than far things, and grows them slightly faster as the view pushes in. The paintings are flat; the warm returning light, the tree shadows on the moss, the far mist and the mist between scenes are all laid on by that one shader. Trunk shadows are cast from where each painting's trees stand, and stretch as the sun sinks.
 - Sound: wind is synthesised live with Web Audio; the distant voices are system speech synthesis with reverb and filtering, brought nearer or farther scene by scene.
 - No build step, no runtime dependencies.
 
@@ -45,4 +45,4 @@ These show it behaves as specified. Whether it is beautiful, whether the four pa
 
 ## Licence
 
-Code is MIT with the rest of this repository. The three reference works are in the public domain; none of their images are included in the page.
+Code is MIT with the rest of this repository. The reference works are in the public domain; none of their images are included in the page.

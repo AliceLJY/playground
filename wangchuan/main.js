@@ -26,10 +26,10 @@ precision highp float;
 uniform sampler2D uTex, uDepth;
 uniform vec2 uRes, uPar, uLight, uLightR;
 uniform vec2 uTr[4];
-uniform float uCx, uZoom, uPush, uTime, uR, uVeil, uPaper, uWarm, uGlow, uBaked, uShadow, uDusk, uSun;
+uniform float uCx, uZoom, uPush, uTime, uR, uVeil, uPaper, uWarm, uGlow, uShadow, uDusk, uSun;
 
 const vec3 PAPER = vec3(0.885, 0.795, 0.625);
-const vec3 MIST = vec3(0.815, 0.725, 0.500);
+const vec3 MIST = vec3(0.880, 0.720, 0.400);
 
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
@@ -65,7 +65,7 @@ void main(){
     float band = smoothstep(0.10, 0.38, w.y) * smoothstep(0.98, 0.60, w.y);
     float n = fbm(vec2(w.x * 1.25 - uTime * 0.011, w.y * 2.4 + uTime * 0.004));
     float breath = 0.5 + 0.5 * sin(uTime * 0.42);
-    col = mix(col, MIST, far * band * smoothstep(0.38, 0.78, n) * (0.16 + 0.12 * breath));
+    col = mix(col, MIST, far * band * smoothstep(0.38, 0.78, n) * (0.10 + 0.08 * breath));
 
     // 返景：落下来的那片暖色，是染出来的，不是光柱。
     vec2 e = (q - uLight) / uLightR;
@@ -84,10 +84,10 @@ void main(){
     }
     float shade = clamp(leaf * 0.55 + trunk * 0.95, 0.0, 1.0) * uShadow;
     float flick = 0.86 + 0.14 * sin(uTime * 0.31 + 1.3) * sin(uTime * 0.13);
-    // 画里本来就染了这片暖色；光还没照进来、或者已经移走时，把它压暗
-    col *= 1.0 - (1.0 - uBaked) * 0.30 * smoothstep(0.02, 0.7, g);
-    col += vec3(0.50, 0.36, 0.06) * g * flick * uGlow * (1.0 - 0.80 * shade) * (0.55 + 0.45 * smoothstep(0.2, 0.8, d));
-    col *= 1.0 - 0.22 * shade * smoothstep(0.05, 0.6, g) * uGlow;
+    // 画是勾线平涂的，上面不画光；这片暖色是叠上去的：先把绢色提亮染暖，再在光里压出影子
+    float lit = g * flick * uGlow;
+    col = col * (1.0 + vec3(0.30, 0.22, 0.02) * lit) + vec3(0.16, 0.10, 0.00) * lit * (1.0 - 0.85 * shade);
+    col *= 1.0 - 0.30 * shade * smoothstep(0.05, 0.6, g) * min(1.0, uGlow * 1.6);
     // 日头落下去以后，林子略略沉下来
     col *= mix(vec3(1.0), vec3(0.84, 0.86, 0.90), uDusk);
 
@@ -121,7 +121,7 @@ void main(){
   const loc = gl.getAttribLocation(prog, 'a');
   gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = {};
-  for (const n of ['uTex', 'uDepth', 'uRes', 'uPar', 'uLight', 'uLightR', 'uCx', 'uZoom', 'uPush', 'uTime', 'uR', 'uVeil', 'uPaper', 'uWarm', 'uGlow', 'uBaked', 'uShadow', 'uDusk', 'uSun', 'uTr']) U[n] = gl.getUniformLocation(prog, n);
+  for (const n of ['uTex', 'uDepth', 'uRes', 'uPar', 'uLight', 'uLightR', 'uCx', 'uZoom', 'uPush', 'uTime', 'uR', 'uVeil', 'uPaper', 'uWarm', 'uGlow', 'uShadow', 'uDusk', 'uSun', 'uTr']) U[n] = gl.getUniformLocation(prog, n);
 
   function loadTex(src) {
     return new Promise((res, rej) => {
@@ -218,22 +218,22 @@ void main(){
       gl.uniform1f(U.uWarm, s.warm);
 
       // 光：第三景里从右边照进来、落到苔上；第四景里停在苔上，树影慢慢挪，末了移走
-      let lx = 0, ly = 0, glow = 0, baked = 1, shadow = 0, dusk = 0, sun = 0;
+      let lx = 0, ly = 0, glow = 0, shadow = 0, dusk = 0, sun = 0;
       if (s.light) {
         const li = s.light; lx = li.u; ly = li.v;
         if (li.enterFrom) {
           const k = L.ease(L.clamp01(u / li.arrive));
           lx = li.enterFrom[0] + (li.u - li.enterFrom[0]) * k; ly = li.enterFrom[1] + (li.v - li.enterFrom[1]) * k;
-          glow = 0.20 + 0.22 * k; baked = k; shadow = 0.35 + 0.45 * k; sun = 0.2 * u;
+          glow = 0.35 + 0.45 * k; shadow = 0.35 + 0.50 * k; sun = 0.2 * u;
         } else {
           const gone = L.ease(L.clamp01((u - li.leave) / (1 - L.FADE - li.leave)));
           lx = li.u - 0.05 * u; ly = li.v - 0.012 * u;
-          glow = 0.34 * (1 - gone); baked = 1 - gone; shadow = 1; dusk = gone; sun = 0.3 + 0.7 * u;
+          glow = 0.85 * (1 - gone); shadow = 1; dusk = gone; sun = 0.3 + 0.7 * u;
         }
         gl.uniform2f(U.uLightR, li.ru, li.rv);
       } else gl.uniform2f(U.uLightR, 0.05, 0.05);
       gl.uniform2f(U.uLight, lx, ly);
-      gl.uniform1f(U.uGlow, s.light ? glow : 0); gl.uniform1f(U.uBaked, baked);
+      gl.uniform1f(U.uGlow, s.light ? glow : 0);
       gl.uniform1f(U.uShadow, shadow); gl.uniform1f(U.uDusk, dusk); gl.uniform1f(U.uSun, sun);
       gl.uniform2fv(U.uTr, new Float32Array((s.trunks || [[9, 9], [9, 9], [9, 9], [9, 9]]).flat()));
     } else {

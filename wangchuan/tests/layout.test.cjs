@@ -96,5 +96,5 @@ test('页面上没有解说文字：除了卷尾的署名说明、声音提示�
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const body = html.slice(html.indexOf('<body>')).replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, '\n');
   const lines = body.split('\n').map((s) => s.trim()).filter(Boolean);
-  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依盛唐青绿、盛唐小楷之法新作，并非古迹。', '轻触有声', '声']);
+  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依唐人勾线平涂、盛唐小楷之法新作，并非古迹。', '轻触有声', '声']);
 });

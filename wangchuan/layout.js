@@ -15,14 +15,14 @@
   // light：返照落在画里的位置和大小（没有就不写）。trunks：会在返照里落影的几根树干，[横向位置, 树根的纵向位置]。
   // seconds：没人碰时这一景自己走多久。voice：这一景里人语有多近。warm：傍晚的暖意有多重。
   const SCENES = [
-    { key: 's1', line: '空山不见人', from: 0.66, to: 0.30, seconds: 16, voice: 0.12, warm: 0.25 },
-    { key: 's2', line: '但闻人语响', from: 0.80, to: 0.34, seconds: 17, voice: 1.00, warm: 0.45 },
-    { key: 's3', line: '返景入深林', from: 0.78, to: 0.60, seconds: 20, voice: 0.45, warm: 0.80,
-      light: { u: 0.728, v: 0.805, ru: 0.060, rv: 0.034, enterFrom: [0.99, 0.56], arrive: 0.45 },
-      trunks: [[0.80, 0.74], [0.87, 0.70], [0.94, 0.73], [0.77, 0.69]] },
-    { key: 's4', line: '复照青苔上', from: 0.64, to: 0.52, seconds: 22, voice: 0.20, warm: 1.00,
-      light: { u: 0.60, v: 0.46, ru: 0.15, rv: 0.16, leave: 0.72 },
-      trunks: [[0.93, 0.36], [0.65, 0.20], [0.72, 0.30], [0.33, 0.22]] },
+    { key: 's1', line: '空山不见人', from: 0.68, to: 0.40, seconds: 16, voice: 0.12, warm: 0.25 },
+    { key: 's2', line: '但闻人语响', from: 0.80, to: 0.36, seconds: 17, voice: 1.00, warm: 0.45 },
+    { key: 's3', line: '返景入深林', from: 0.78, to: 0.58, seconds: 20, voice: 0.45, warm: 0.80,
+      light: { u: 0.63, v: 0.80, ru: 0.085, rv: 0.050, enterFrom: [0.99, 0.50], arrive: 0.45 },
+      trunks: [[0.72, 0.72], [0.80, 0.63], [0.88, 0.56], [0.57, 0.78]] },
+    { key: 's4', line: '复照青苔上', from: 0.60, to: 0.47, seconds: 22, voice: 0.20, warm: 1.00,
+      light: { u: 0.52, v: 0.62, ru: 0.16, rv: 0.17, leave: 0.72 },
+      trunks: [[0.88, 0.45], [0.72, 0.52], [0.57, 0.27], [0.30, 0.33]] },
   ];
   const N = SCENES.length;
   const HOLD = 4;                     // 开场停几秒才开始自己走
