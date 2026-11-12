@@ -27,6 +27,10 @@ Two seconds is enough to get something. You never have to finish it.
 
 Within each scene the view unrolls leftward and pushes a little way into the painting, then changes to the next scene inside drifting mist. It is evening, the sun is low on the right, and lower with every scene. Left alone it unrolls slowly by itself, about a minute in all. Press and hold to walk forward, three times faster, with footsteps and a slight bob; swipe left or right to look back and forth; it resumes three seconds after you let go. Leaves and moss stir in gusts of wind.
 
+Near the end of each scene its line of the poem appears faintly below the painting for a few seconds and withdraws: the painting first, the words after. Four small dots at the bottom show which scene you are in.
+
+If the browser is not set to Chinese, there is one opening sentence in English, an English rendering under each line, and an English sources page; Chinese visitors see no change. `?lang=en` or `?lang=zh` forces either.
+
 The "溯源" (sources) button at the bottom left opens at any time: the poem, the two strands of Wang Wei's painting, the basis for the Tang manner, which works were followed, what is modern addition, and how it was made. You do not have to reach the end to read it.
 
 ## How it was made
@@ -39,7 +43,7 @@ The "溯源" (sources) button at the bottom left opens at any time: the poem, th
 
 ## Checks
 
-`node --test tests/*.test.cjs` runs twelve, each across six screen ratios: the scenes follow the poem's four lines; the opening is neither in mist nor outside the painting; the view never leaves the painting anywhere in any scene; every scene unrolls leftward and pushes in; in scene 3 the spot where the light lands is on screen when it lands; in scene 4 the light stays on screen while it lasts and there is a trunk to its right to cast a shadow; the voices are nearest in scene 2; each scene is warmer than the last; scene changes are fully inside mist and clear in the middle; the narrowest phone fits the whole poem; all assets exist; the page carries no extra text.
+`node --test tests/*.test.cjs` runs fourteen, most across six screen ratios: the scenes follow the poem's four lines; the opening is neither in mist nor outside the painting; the view never leaves the painting anywhere in any scene; every scene unrolls leftward and pushes in; in scene 3 the spot where the light lands is on screen when it lands; in scene 4 the light stays on screen while it lasts and there is a trunk to its right to cast a shadow; the voices are nearest in scene 2; each scene is warmer than the last; scene changes are fully inside mist and clear in the middle; the narrowest phone fits the whole poem; all assets exist; the page carries no extra text; scene 4 pushes in less than the others; each line appears only after its painting has been seen, withdraws before the scene change, and has an English rendering.
 
 Twelve points along the walk were also screenshotted and looked at, at 390×844 and 1440×810, with no console errors.
 

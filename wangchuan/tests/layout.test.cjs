@@ -34,7 +34,7 @@ test('每一景都是向左展、往里推（手卷从右往左看，人往山�
   for (const a of ASPECTS) for (let i = 0; i < L.N; i++) {
     const c0 = L.camera(i, 0, a), c1 = L.camera(i, 1, a);
     assert.ok(c1.cx <= c0.cx + 1e-9, `${name(a)} 第 ${i + 1} 景：镜头没有向左`);
-    assert.ok(c1.zoom > c0.zoom * 1.05, `${name(a)} 第 ${i + 1} 景：镜头没有往里推`);
+    assert.ok(c1.zoom > c0.zoom * 1.04, `${name(a)} 第 ${i + 1} 景：镜头没有往里推`);
   }
 });
 
@@ -55,6 +55,18 @@ test('「复照青苔上」：光还在的那段时间里，苔上的返照一�
     assert.ok(x > c.left && x < c.right, `${name(a)} u=${u}：返照正中 ${x.toFixed(2)} 不在看到的 [${c.left.toFixed(2)}, ${c.right.toFixed(2)}] 里`);
   }
   assert.ok(s.trunks.some(([x]) => x > li.u), '日头在右边，返照右侧至少要有一根树干，影子才落得进光里');
+});
+
+test('第四景低头看苔，推得比别的景少，免得推近了认不出是苔', () => {
+  const a = 16 / 9, z = (i) => L.camera(i, 1, a).zoom / L.camera(i, 0, a).zoom;
+  assert.ok(z(3) < z(2) - 0.08, `第四景推到 ${z(3).toFixed(2)} 倍，第三景 ${z(2).toFixed(2)} 倍`);
+});
+
+test('每景的诗句：画先看够才出来，进云换景之前已经收回去；每句都有英译', () => {
+  assert.equal(L.lineAlpha(0), 0); assert.equal(L.lineAlpha(0.4), 0, '诗句出来得太早，画还没看够');
+  assert.ok(L.lineAlpha(0.7) > 0.99, '走到七成时诗句应当已经显全');
+  assert.equal(L.lineAlpha(1 - L.FADE), 0, '进云换景时诗句还没收回去');
+  for (const s of L.SCENES) assert.ok(s.en && /[a-z]/.test(s.en) && !/deer/i.test(s.en), `「${s.line}」的英译缺了，或者写进了鹿`);
 });
 
 test('人语在「但闻人语响」那一景最近', () => {
@@ -102,6 +114,10 @@ test('画面上不放解说：屏幕上只有卷尾署名和出口、一句提�
   const panel = body.match(/<section id="source"([^>]*)>[\s\S]*?<\/section>/);
   assert.ok(panel, '没有溯源那一页');
   assert.ok(/\bhidden\b/.test(panel[1]), '溯源那一页应当默认收起');
+  const en = body.match(/<section id="source-en"([^>]*)>[\s\S]*?<\/section>/);
+  assert.ok(en && /\bhidden\b/.test(en[1]), '英文溯源那一页不在，或者没有默认收起');
+  for (const must of ['Admonitions', 'Ouyang Xun', 'Tang copy', 'What is modern', 'not old works', 'no deer']) assert.ok(en[0].includes(must), `英文溯源里没有讲到 ${must}`);
+  body = body.replace(en[0], '');
   for (const must of ['女史箴图', '欧阳询', '渲染', '今人加的', '不是古迹']) assert.ok(panel[0].includes(must), `溯源里没有讲到「${must}」`);
   body = body.replace(panel[0], '');
   const lines = body.replace(/<[^>]+>/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
