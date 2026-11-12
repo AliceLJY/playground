@@ -98,8 +98,8 @@ test('画面上不放解说：屏幕上只有卷尾署名、一句提示、声�
   const panel = body.match(/<section id="source"([^>]*)>[\s\S]*?<\/section>/);
   assert.ok(panel, '没有溯源那一页');
   assert.ok(/\bhidden\b/.test(panel[1]), '溯源那一页应当默认收起');
-  for (const must of ['女史箴图', '灵飞经', '渲染', '今人加的', '不是古迹']) assert.ok(panel[0].includes(must), `溯源里没有讲到「${must}」`);
+  for (const must of ['女史箴图', '欧阳询', '渲染', '今人加的', '不是古迹']) assert.ok(panel[0].includes(must), `溯源里没有讲到「${must}」`);
   body = body.replace(panel[0], '');
   const lines = body.replace(/<[^>]+>/g, '\n').split('\n').map((s) => s.trim()).filter(Boolean);
-  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依唐人勾线平涂、盛唐小楷之法新作，并非古迹。', '按住，往山里走', '声', '溯源']);
+  assert.deepEqual(lines, ['辋川卧游 · 鹿柴', '画与字皆为 AI 依唐人勾线平涂、欧阳询楷书之法新作，并非古迹。', '按住，往山里走', '声', '溯源']);
 });
