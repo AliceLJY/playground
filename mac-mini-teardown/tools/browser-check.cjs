@@ -30,8 +30,9 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
   const inter = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
 
   // B2 走完导览：每 2 秒定格一次，机器主体（屏幕包围盒，不含螺丝盘与已拿走的零件）在画面内，被界面挡住不超过 15%
-  for (const [w, h, dpr, tag] of [[1365, 900, 1, 'desk'], [390, 664, 2, 'phone']]) {
-    const { ctx, page } = await open('?capture', w, h, dpr);
+  // 手机档不带 ?capture（那是录片版式）；录片竖屏 540×960 另量一档
+  for (const [w, h, dpr, tag, q] of [[1365, 900, 1, 'desk', '?capture'], [390, 664, 2, 'phone', '?at=0'], [540, 960, 1, 'film-tall', '?capture']]) {
+    const { ctx, page } = await open(q, w, h, dpr);
     const T = await page.evaluate(() => window.__mini.TOUR_S);
     const bad = []; let worst = 0, n = 0;
     for (let t = 0; t < T; t += 2) {
@@ -40,7 +41,7 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
       if (view.includes('show') || s >= 22) continue; // SSD 特写与总结：主角是悬起来的 SSD 或总结卡，不量机身
       const b = await page.evaluate(() => window.__mini.box());
       const box = { x0: b.x0 * w, x1: b.x1 * w, y0: b.y0 * h, y1: b.y1 * h }, area = (box.x1 - box.x0) * (box.y1 - box.y0);
-      const ui = await rects(page, ['.title h1', '.cards', '.dialbox', '.stepbar', '.side', '.desc']);
+      const ui = await rects(page, ['.title h1', '.cards', '.dialbox', '.stepbar', '.side', '.desc', '.narr']);
       // 视口外那部分也算「看不到」
       const vis = inter(box, { x0: 0, y0: 0, x1: w, y1: h });
       const cover = ui.reduce((a, r) => a + inter(box, r), 0) + (area - vis);

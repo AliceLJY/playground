@@ -36,6 +36,74 @@ function labelTex(lines, w = 256, h = 128, bg = null, fg = '#2b2a28', size = 34)
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 
+/** 带种子的随机数（元件摆放可复现） */
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+/** 主板顶面的丝印图（代码画，示意）：底色、走线、过孔、元件框、位号 */
+function boardTexture() {
+  const N = 1024, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), R = rng(11);
+  const X = (x) => (x + 60.5) / 121 * N, Z = (z) => (z + 60.5) / 121 * N;
+  g.fillStyle = '#cfcbc2'; g.fillRect(0, 0, N, N);
+  g.strokeStyle = 'rgba(120,112,98,.28)'; g.lineWidth = 2;
+  for (let i = 0; i < 70; i++) { // 走线：横竖两段
+    const x = R() * N, z = R() * N, l = 40 + R() * 220; g.beginPath(); g.moveTo(x, z);
+    if (R() < 0.5) { g.lineTo(x + l, z); g.lineTo(x + l + 30, z + 30); } else { g.lineTo(x, z + l); g.lineTo(x + 30, z + l + 30); } g.stroke();
+  }
+  g.fillStyle = 'rgba(150,140,124,.55)'; for (let i = 0; i < 260; i++) { g.beginPath(); g.arc(R() * N, R() * N, 2.4, 0, 7); g.fill(); }
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.fillStyle = 'rgba(255,255,255,.8)'; g.font = '600 15px Menlo, monospace';
+  const boxes = [[8, 12, 9, 7, 'U5100'], [34, 14, 11, 8, 'U5300'], [30, 32, 13, 10, 'U6000'], [8, 42, 11, 8, 'U7400'], [40, 46, 12, 9, 'U8100'], [-46, -30, 8, 12, 'U2900'], [34, -30, 9, 9, 'U3300'], [-42, 26, 32, 46, 'SSD'], [8, -31, 26, 26, 'SOC']];
+  for (const [x, z, w, d, n] of boxes) { g.strokeRect(X(x - w / 2), Z(z - d / 2), w / 121 * N, d / 121 * N); g.fillText(n, X(x - w / 2), Z(z - d / 2) - 5); }
+  for (let i = 0; i < 40; i++) { const x = -58 + R() * 116, z = -58 + R() * 116; g.fillText(['C', 'R', 'L', 'Q'][i % 4] + (1000 + Math.floor(R() * 8999)), X(x), Z(z)); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t;
+}
+/** SSD 模块外形（竖长圆角板，局部坐标：x 宽 28、z 长 42，近端 z=-21 是金手指，远端 z=+21 正中半圆缺口） */
+const MOD = { W: 28, L: 42, R: 1.4, notch: 2.6, keyX: -14 + 28 * 0.36, keyW: 1.3, keyD: 3.8, finger: 3.6 };
+function moduleShape() {
+  const { W, L, R: r, notch, keyX, keyW, keyD } = MOD, x0 = -W / 2, x1 = W / 2, z0 = -L / 2, z1 = L / 2;
+  const s = new THREE.Shape();
+  s.moveTo(x0 + r, z0); s.lineTo(keyX - keyW / 2, z0); s.lineTo(keyX - keyW / 2, z0 + keyD); s.lineTo(keyX + keyW / 2, z0 + keyD); s.lineTo(keyX + keyW / 2, z0);
+  s.lineTo(x1 - r, z0); s.quadraticCurveTo(x1, z0, x1, z0 + r); s.lineTo(x1, z1 - r); s.quadraticCurveTo(x1, z1, x1 - r, z1);
+  s.lineTo(notch, z1); s.absarc(0, z1, notch, 0, Math.PI, true); s.lineTo(x0 + r, z1); s.quadraticCurveTo(x0, z1, x0, z1 - r); s.lineTo(x0, z0 + r); s.quadraticCurveTo(x0, z0, x0 + r, z0);
+  return s;
+}
+function buildModule(add, P, b, kind) {
+  const cx = b[0], cy = b[1], cz = b[2], T = 0.8, at = (g, x = 0, y = 0, z = 0) => { g.translate(cx + x, cy + y, cz + z); return g; };
+  // 黑色 PCB（形状拉伸 0.8 mm，形状的 y 轴对到世界 z）
+  const pcb = new THREE.ExtrudeGeometry(moduleShape(), { depth: T, bevelEnabled: false, curveSegments: 12 }); pcb.rotateX(Math.PI / 2); pcb.translate(0, T / 2, 0);
+  add(P, at(pcb), mat(kind === 'third' ? 0x1d1f20 : 0x2a2e2d, { roughness: 0.5 }), { edges: 25 });
+  // 金手指：近端两面各一排，避开防呆缺口
+  const gold = mat(0xe2bd60, { roughness: 0.32, metalness: 0.3, emissive: 0x3a2a08 }), pads = [];
+  for (let x = -MOD.W / 2 + 1.1; x < MOD.W / 2 - 0.8; x += 0.85) { if (Math.abs(x - MOD.keyX) < MOD.keyW) continue; for (const sy of [1, -1]) pads.push(at(boxG(0.55, 0.06, MOD.finger, 0, 0, 0), x, sy * (T / 2 + 0.03), -MOD.L / 2 + MOD.finger / 2 + 0.2)); }
+  add(P, mergeGeometries(pads), gold, { edges: 0 });
+  // 远端半圆缺口外一圈镀金（螺丝压在这里）
+  for (const sy of [1, -1]) { const ring = new THREE.RingGeometry(MOD.notch, MOD.notch + 1.2, 24, 1, 0, Math.PI); ring.rotateX(-Math.PI / 2); if (sy < 0) ring.rotateX(Math.PI); add(P, at(ring, 0, sy * (T / 2 + 0.02), MOD.L / 2), gold, { edges: 0 }); }
+  // 小元件（两面都撒一些）
+  const R = rng(kind === 'third' ? 21 : 5), smd = [];
+  for (let i = 0; i < 46; i++) {
+    const x = -12 + R() * 24, z = -15 + R() * 33, sy = i % 3 === 0 ? -1 : 1;
+    if (Math.abs(x) < 8 && z > -11 && z < 9) continue; // 闪存那块空出来
+    if (Math.abs(x) < 4.5 && z > 16) continue;          // 缺口附近
+    smd.push(at(boxG(i % 2 ? 1.0 : 0.6, 0.35, i % 2 ? 0.5 : 0.35, 0, 0, 0), x, sy * (T / 2 + 0.17), z));
+  }
+  add(P, mergeGeometries(smd), mat(0x6a645c, { roughness: 0.55 }), { edges: 0 });
+  if (kind === 'third') {
+    // 第三方 2TB 小板：正面一大颗银灰色闪存（按商品图），远端两角两个灰色焊盘
+    add(P, at(boxG(14, 0.3, 17, 0, 0, 0), -1.5, T / 2 + 0.15, -2), mat(0xa9aaa5, { roughness: 0.35, metalness: 0.35 }), { edges: 30 });
+    const pads2 = [cylG(1.1, 0.06, 0, 0, 0, 14), cylG(1.1, 0.06, 0, 0, 0, 14)];
+    add(P, mergeGeometries([at(pads2[0], -11.5, T / 2 + 0.03, 18.5), at(pads2[1], 11.5, T / 2 + 0.03, 18.5)]), mat(0x8a8a88, { roughness: 0.4, metalness: 0.4 }), { edges: 0 });
+    const lab = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), new THREE.MeshBasicMaterial({ map: labelTex(['2 TB'], 256, 128, null, '#5d5d5a', 60), transparent: true }));
+    lab.rotation.x = -Math.PI / 2; lab.position.set(-1.5, T / 2 + 0.31, -2); P.g.add(lab);
+  } else {
+    // 原厂模块：两面各一颗 128 GB 闪存，背面另有一颗电源管理芯片（iFixit 178986 第 6–7 步）
+    const nandM = mat(0x3d3d40, { roughness: 0.35 });
+    for (const sy of [1, -1]) {
+      add(P, at(boxG(13, 0.3, 15, 0, 0, 0), 0, sy * (T / 2 + 0.15), -2), nandM, { edges: 30 });
+      const lab = new THREE.Mesh(new THREE.PlaneGeometry(11, 10), new THREE.MeshBasicMaterial({ map: labelTex(['NAND', '128 GB'], 256, 236, null, '#d6d3cc', 52), transparent: true }));
+      lab.rotation.x = -sy * Math.PI / 2; lab.position.set(0, sy * (T / 2 + 0.32), -2); P.g.add(lab);
+    }
+    add(P, at(boxG(5, 0.3, 5, 0, 0, 0), 6, -(T / 2 + 0.15), 12), nandM, { edges: 0 });
+  }
+}
+
 export function buildMachine() {
   const root = new THREE.Group();
   const parts = {}; // id → { g, mats:[{m, base, op}], lines }
@@ -78,18 +146,37 @@ export function buildMachine() {
   }
   {
     const P = part('board', C('board')); const b = M.PARTS.board.box;
-    add(P, slab(b[3], b[5], 12, b[4], b[1] - b[4] / 2, null, 8), mat(0xcfcbc2, { roughness: 0.75 }));
-    // 风扇底下那片空出来的地方：一些低矮元件（示意，比风扇底面低得多）
-    const y = b[1] + b[4] / 2, parts2 = [];
-    const spots = [[8, 12, 7, 5], [22, 10, 4, 4], [34, 14, 9, 6], [46, 9, 5, 7], [14, 26, 5, 5], [30, 30, 11, 8], [46, 30, 6, 4], [8, 42, 9, 6], [24, 46, 5, 5], [40, 46, 10, 7], [52, 44, 3, 6], [-50, -30, 6, 10], [-54, -10, 4, 6]];
-    for (const [x, z, w, d] of spots) parts2.push(boxG(w, 0.9, d, x, y + 0.45, z));
-    add(P, mergeGeometries(parts2), mat(0x47474a, { roughness: 0.5 }), { edges: 0 });
+    // 主板顶面贴一张代码画的丝印图：走线、过孔、元件框和位号（示意）
+    const tex = boardTexture(); tex.repeat.set(1 / b[3], 1 / b[5]); tex.offset.set(0.5, 0.5);
+    add(P, slab(b[3], b[5], 12, b[4], b[1] - b[4] / 2, null, 8), mat(0xffffff, { map: tex, roughness: 0.78 }));
+    // 低矮元件：电感（灰壳深顶）、芯片（深色带丝印）、电容（小圆柱）、贴片阻容（小方块）。都比风扇底面、散热片底座低
+    const y = b[1] + b[4] / 2, chips = [], inds = [], caps = [], tiny = [];
+    const R = rng(7);
+    const free = (x, z, w, d) => !(x - w / 2 < -26 && z + d / 2 > 1) && !(x + w / 2 > -26 && x - w / 2 < -9 && z + d / 2 > 47) && !(Math.abs(x + 2) < 7 && Math.abs(z) < 6) && !(x > -4 && x < 21 && z > -55 && z < -7);
+    const chipSpots = [[8, 12, 7, 5], [34, 14, 9, 6], [30, 32, 11, 8], [8, 42, 9, 6], [40, 46, 10, 7], [-46, -30, 6, 10], [-40, -50, 8, 6], [34, -30, 7, 7], [40, -48, 6, 9]];
+    for (const [x, z, w, d] of chipSpots) if (free(x, z, w, d)) chips.push(boxG(w, 0.9, d, x, y + 0.45, z));
+    const indSpots = [[22, 10, 4], [46, 9, 4], [14, 26, 4.5], [46, 30, 4], [24, 46, 4], [52, 22, 3.5], [-22, -30, 4], [-22, -44, 4], [26, -18, 3.5]];
+    for (const [x, z, s] of indSpots) if (free(x, z, s, s)) { inds.push(boxG(s, 1.5, s, x, y + 0.75, z)); }
+    for (let i = 0; i < 140; i++) {
+      const x = -58 + R() * 116, z = -58 + R() * 116;
+      if (!free(x, z, 2, 2)) continue;
+      if (i % 3 === 0) caps.push(cylG(0.55, 1.1, x, y + 0.55, z, 8)); else tiny.push(boxG(i % 2 ? 1.0 : 0.6, 0.45, i % 2 ? 0.5 : 0.3, x, y + 0.22, z));
+    }
+    add(P, mergeGeometries(chips), mat(0x3a3a3d, { roughness: 0.45 }), { edges: 30 });
+    add(P, mergeGeometries(inds), mat(0x8e8d89, { roughness: 0.5, metalness: 0.3 }), { edges: 30 });
+    add(P, mergeGeometries(caps), mat(0xb9b6ae, { roughness: 0.4, metalness: 0.4 }), { edges: 0 });
+    add(P, mergeGeometries(tiny), mat(0x5b5550, { roughness: 0.6 }), { edges: 0 });
   }
   // ---------- M4 与内存颗粒（在散热片底下） ----------
   {
     const P = part('m4', C('m4')); const b = M.PARTS.m4.box, y0 = b[1] - b[4] / 2;
     add(P, boxG(22, 0.8, 22, b[0], y0 + 0.4, b[2]), mat(0x3b3b3d));
     add(P, boxG(14, 1.2, 14, b[0], y0 + 1.4, b[2]), mat(0xbdbcb8, { metalness: 0.5, roughness: 0.35 }));
+    // 封装基板四周一圈小电容
+    const cs = []; for (let i = 0; i < 16; i++) { const a2 = i / 16 * Math.PI * 2; cs.push(boxG(0.8, 0.35, 0.5, b[0] + Math.cos(a2) * 9.4, y0 + 0.97, b[2] + Math.sin(a2) * 9.4)); }
+    add(P, mergeGeometries(cs), mat(0xb1aa9a, { roughness: 0.5 }), { edges: 0 });
+    const lab = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicMaterial({ map: labelTex(['M4'], 128, 128, null, '#6f6d68', 54), transparent: true }));
+    lab.rotation.x = -Math.PI / 2; lab.position.set(0, b[4] / 2 + 0.02, 0); P.g.add(lab);
   }
   for (const id of ['ramA', 'ramB']) {
     const P = part(id, C(id)); const b = M.PARTS[id].box;
@@ -100,31 +187,32 @@ export function buildMachine() {
   // ---------- 散热片：底座 + 鳍片（找内存那一拍变 X 光） ----------
   {
     const P = part('heatsink', C('heatsink')); const b = M.PARTS.heatsink.box;
-    const y0 = b[1] - b[4] / 2, y1 = b[1] + b[4] / 2, z0 = b[2] - b[5] / 2, z1 = b[2] + b[5] / 2;
-    const gs = [boxG(b[3], 2.2, b[5], b[0], y0 + 1.1, b[2]), boxG(b[3], 1.2, 6, b[0], y0 + 2.8, z1 - 3)];
-    for (let i = 0; i < 24; i++) gs.push(boxG(0.8, y1 - y0 - 2.2, z1 - 8 - z0, b[0] - b[3] / 2 + 2 + i * ((b[3] - 4) / 23), y0 + 2.2 + (y1 - y0 - 2.2) / 2, z0 + (z1 - 8 - z0) / 2));
-    add(P, mergeGeometries(gs), mat(0xd8d7d3, { roughness: 0.45, metalness: 0.45 }), { edges: 40 });
+    const y0 = b[1] - b[4] / 2, y1 = b[1] + b[4] / 2, z0 = b[2] - b[5] / 2, z1 = b[2] + b[5] / 2, x0 = b[0] - b[3] / 2;
+    const alu = mat(0xd8d7d3, { roughness: 0.45, metalness: 0.4 });
+    // 底座（带一道前沿「唇」，内板就是从它下面抽出来的）与四个螺柱
+    const base = [boxG(b[3], 2.2, b[5], b[0], y0 + 1.1, b[2]), boxG(b[3], 1.2, 6, b[0], y0 + 2.8, z1 - 3)];
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) base.push(cylG(1.8, 1.4, b[0] + sx * (b[3] / 2 - 3), y0 + 2.9, b[2] + sz * (b[5] / 2 - 3) - (sz > 0 ? 6 : 0), 14));
+    add(P, mergeGeometries(base), alu, { edges: 30 });
+    // 34 片薄鳍片，每片顶上一条折边
+    const fins = [], n = 34, fh = y1 - y0 - 2.2, fz = z1 - 8 - z0;
+    for (let i = 0; i < n; i++) {
+      const x = x0 + 2 + i * ((b[3] - 4) / (n - 1));
+      fins.push(boxG(0.45, fh, fz, x, y0 + 2.2 + fh / 2, z0 + fz / 2));
+      fins.push(boxG(1.6, 0.35, fz, x, y1 - 0.18, z0 + fz / 2));
+    }
+    add(P, mergeGeometries(fins), alu, { edges: 40 });
+    // 两根压扁的热管，从 M4 那块底座横穿鳍片
+    const pipes = [];
+    for (const z of [-34, -24]) { const g = new THREE.CylinderGeometry(1.9, 1.9, b[3] - 2, 16); g.rotateZ(Math.PI / 2); g.scale(1, 0.6, 1); g.translate(b[0], y0 + 3.0, z); pipes.push(g); }
+    add(P, mergeGeometries(pipes), mat(0xbfae94, { roughness: 0.35, metalness: 0.5 }), { edges: 0 });
   }
   // ---------- SSD 插槽、SSD 模块、耳机孔、ZIF 插座 ----------
   {
     const P = part('socket', C('socket')); const b = M.PARTS.socket.box;
     add(P, boxG(b[3], b[4], b[5], b[0], b[1], b[2]), mat(0x2c2c2e, { roughness: 0.5 }));
   }
-  {
-    const P = part('ssd', C('ssd')); const b = M.PARTS.ssd.box, y0 = b[1] - b[4] / 2, z0 = b[2] - b[5] / 2;
-    add(P, boxG(b[3], 0.8, b[5], b[0], b[1], b[2]), mat(0x4b5350, { roughness: 0.55 }));
-    // 正面（朝上）一颗闪存，背面一颗闪存加一个电源管理芯片（iFixit 178986 第 6–7 步）
-    const nandM = mat(0x3f3f42, { roughness: 0.35 });
-    add(P, boxG(16, 0.3, 18, b[0] + 2, b[1] + 0.55, b[2] + 4), nandM);
-    add(P, boxG(16, 0.3, 18, b[0] + 2, b[1] - 0.55, b[2] + 4), nandM);
-    add(P, boxG(6, 0.3, 6, b[0] - 8, b[1] - 0.55, b[2] - 12), nandM, { edges: 0 });
-    for (const sgn of [1, -1]) {
-      const lab = new THREE.Mesh(new THREE.PlaneGeometry(13, 12), new THREE.MeshBasicMaterial({ map: labelTex(['NAND', '128 GB'], 256, 236, null, '#d6d3cc', 52), transparent: true }));
-      lab.rotation.x = -sgn * Math.PI / 2; lab.position.set(2, sgn * 0.72, 4); P.g.add(lab);
-    }
-    add(P, boxG(30, 0.9, 3.4, b[0], b[1], z0 + 1.9), mat(0xe0b95c, { roughness: 0.35, metalness: 0.25, emissive: 0x3a2a08 }), { edges: 0 }); // 金手指，插槽那一端
-    add(P, cylG(2.6, 0.82, b[0], b[1], b[2] + b[5] / 2 - 4, 20), mat(0xe0b95c, { roughness: 0.35, metalness: 0.25 }), { edges: 0 }); // 螺丝位
-  }
+  buildModule(add, part('ssd', C('ssd')), M.PARTS.ssd.box, 'apple');
+  buildModule(add, part('ssd2', C('ssd2')), M.PARTS.ssd2.box, 'third');
   {
     const P = part('jack', C('jack')); const b = M.PARTS.jack.box;
     add(P, boxG(b[3], b[4] - 3, b[5], b[0], b[1] - 1.5, b[2]), mat(0x3a3a3c));
@@ -143,17 +231,26 @@ export function buildMachine() {
   {
     const P = part('fan', C('fan')); const b = M.PARTS.fan.box;
     const cx = b[0], cz = b[2], y0 = b[1] - b[4] / 2, y1 = b[1] + b[4] / 2, h = y1 - y0;
+    const ox = cx + 2, oz = cz + 2; // 叶轮中心
     const white = mat(0xf2f1ed, { roughness: 0.55 });
     add(P, (() => { const g = slab(b[3], b[5], 10, 1.2, y0, null, 8); g.translate(cx, 0, cz); return g; })(), white);
     add(P, (() => { const g = slab(b[3], b[5], 10, 1.2, y1 - 1.2, [46, 46, 23], 10); g.translate(cx, 0, cz); return g; })(), white);
-    const ring = new THREE.CylinderGeometry(27, 27, h - 2.4, 48, 1, true); ring.translate(cx + 2, y0 + h / 2, cz + 2);
+    // 蜗壳：开口朝散热片（-z）的一圈壁，加四个螺丝耳
+    const ring = new THREE.CylinderGeometry(27, 27, h - 2.4, 56, 1, true, Math.PI * 0.25, Math.PI * 1.62); ring.translate(ox, y0 + h / 2, oz);
     add(P, ring, mat(0xeae9e5, { side: THREE.DoubleSide }), { edges: 0 });
-    const blades = [cylG(9, h - 4, cx + 2, y0 + h / 2, cz + 2, 32)];
-    for (let i = 0; i < 36; i++) { const a = (i / 36) * Math.PI * 2, g = boxG(12, h - 4.4, 0.6, 16, 0, 0); g.rotateY(a + 0.35); g.translate(cx + 2, y0 + h / 2, cz + 2); blades.push(g); }
-    add(P, mergeGeometries(blades), mat(0x8f8d89, { roughness: 0.5 }), { edges: 0 });
-    // 上盖上的贴纸
+    const ears = []; for (const [x, z] of [[-4, 50], [48, 4], [-4, 4], [48, 50]]) ears.push(cylG(2.8, 1.6, x, y1 - 2.0, z, 18));
+    add(P, mergeGeometries(ears), white, { edges: 30 });
+    // 叶轮：40 片后弯叶片 + 轮毂
+    const bladeShape = new THREE.Shape(); const pts = [];
+    for (let i = 0; i <= 8; i++) { const r = 10 + i * 1.75, a2 = -0.5 * (i / 8) ** 1.4; pts.push([Math.cos(a2) * r, Math.sin(a2) * r]); }
+    bladeShape.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) bladeShape.lineTo(q[0], q[1]);
+    for (const q of pts.slice().reverse()) bladeShape.lineTo(q[0] - Math.sin(Math.atan2(q[1], q[0])) * -0.7, q[1] + Math.cos(Math.atan2(q[1], q[0])) * 0.7);
+    const blades = [];
+    for (let i = 0; i < 40; i++) { const g = new THREE.ExtrudeGeometry(bladeShape, { depth: h - 4.6, bevelEnabled: false }); g.rotateX(-Math.PI / 2); g.rotateY(i / 40 * Math.PI * 2); g.translate(ox, y0 + 2.3, oz); blades.push(g); }
+    add(P, mergeGeometries(blades), mat(0xb3b0aa, { roughness: 0.5 }), { edges: 50 });
+    add(P, cylG(9.6, h - 4, ox, y0 + h / 2, oz, 40), mat(0xdedcd6, { roughness: 0.45 }), { edges: 30 });
     const lab = new THREE.Mesh(new THREE.CircleGeometry(8, 32), new THREE.MeshBasicMaterial({ map: labelTex(['FAN'], 128, 128, '#e6e4df', '#77736c', 30) }));
-    lab.rotation.x = -Math.PI / 2; lab.position.set(cx + 2 - b[0], y1 + 0.02 - b[1], cz + 2 - b[2]); P.g.add(lab);
+    lab.rotation.x = -Math.PI / 2; lab.position.set(ox - b[0], y0 + h - 1.95 - b[1], oz - b[2]); P.g.add(lab);
   }
   // ---------- 内板：冲压金属薄板 ----------
   {
@@ -308,7 +405,7 @@ export function buildMachine() {
   /** 屏幕标注用的锚点（世界坐标） */
   function anchor(name) {
     const PS = lastPose; if (!PS) return null;
-    const at = { gold: ['ssd', [-42, 15.6, 8]], nand: ['ssd', [-40, 16.2, 32]], ssd: ['ssd', [-42, 16, 30]], ram: ['ramA', [8, 15.4, -48.5]], ramB: ['ramB', [8, 15.4, -13.5]], m4: ['m4', [8, 16.2, -31]], power: ['cover', [M.POWER_BUTTON[0], 48, M.POWER_BUTTON[1]]], zif: ['zif', [-2, 15.6, 0]], fan: ['fan', [23, 37.6, 27]], inner: ['inner', [0, 41.7, 0]] }[name];
+    const at = { gold: ['ssd', [-42, 15.4, 9.8]], nand: ['ssd', [-42, 15.7, 27]], ssd: ['ssd', [-42, 16, 30]], notch: ['ssd2', [-42, 15.4, 48]], ssd2: ['ssd2', [-42, 15.7, 27]], ram: ['ramA', [8, 15.4, -48.5]], ramB: ['ramB', [8, 15.4, -13.5]], m4: ['m4', [8, 16.2, -31]], power: ['cover', [M.POWER_BUTTON[0], 48, M.POWER_BUTTON[1]]], zif: ['zif', [-2, 15.6, 0]], fan: ['fan', [23, 37.6, 27]], inner: ['inner', [0, 41.7, 0]] }[name];
     if (!at) return null;
     return new THREE.Vector3(...wp(PS[at[0]], rel(at[0], at[1])));
   }

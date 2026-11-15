@@ -2,9 +2,9 @@
 
 [中文](README_CN.md)
 
-My Mac mini (M4, 2024) is running out of disk. Some people just open it and swap in a bigger SSD board. I didn't dare, so this page takes it apart for me in 3D, following iFixit's SSD replacement guide step by step: flip it, pry the four pins, unscrew the inner plate and the fan, release the ZIF cable, then pull the SSD module. A row of counters keeps climbing: steps, screws, bits, connectors. On the way it glances at the memory: LPDDR5 packages soldered next to the M4, so there is nothing to add. The SSD looks like a normal M.2 drive, but it has no storage controller (that lives in the M4), so a normal M.2 SSD won't work. The page text is Chinese.
+My Mac mini (M4, 2024) is running out of disk. Some people just open it and swap in a bigger SSD board. I didn't dare, so this page takes it apart for me in 3D, following iFixit's SSD replacement guide step by step: flip it, pry the four pins, unscrew the inner plate and the fan, release the ZIF cable, then pull the SSD module. A row of counters keeps climbing: steps, screws, bits, connectors. On the way it glances at the memory: LPDDR5 packages soldered next to the M4, so there is nothing to add. The SSD looks like a normal M.2 drive, but it has no storage controller (that lives in the M4), so a normal M.2 SSD won't work. Then it shows how a replacement goes in: a third-party 2 TB board slides into the same socket at an angle, is pressed flat, and the screw drops into the half-round notch. It ends on why I didn't do it: I worried about the warranty, and after fitting it you still have to DFU-restore with Apple Configurator from another Mac, which erases the whole drive, so I plugged in an external SSD instead. The page text is Chinese.
 
-Left alone, the page tours itself for 53 seconds; touch it and it is yours: turn the dial, press previous / next or ← →, take it apart or put it back. After 25 idle seconds the tour comes back.
+Left alone, the page tours itself for 54 seconds; touch it and it is yours: turn the dial, press previous / next or ← →, take it apart or put it back. After 25 idle seconds the tour comes back.
 
 Live: https://aliceljy.github.io/playground/mac-mini-teardown/
 
@@ -16,13 +16,14 @@ Live: https://aliceljy.github.io/playground/mac-mini-teardown/
 | Memory is LPDDR5 packages next to the M4; the SSD carries one 128 GB NAND package per side | iFixit chip ID 178986 |
 | "Looks like a normal M.2 SSD but lacks a storage controller; normal M.2 SSDs are incompatible" | Introduction of guide 180199 |
 | 12.7 × 12.7 × 5.0 cm, 0.67 kg (M4) | Apple Support, Mac mini (2024) Tech Specs |
-| A third-party larger SSD board needs a DFU restore, which erases the internal drive | The author's own research, September 2026 |
+| A third-party larger board needs a DFU restore with Apple Configurator from another Mac, erasing the whole drive | The board maker's restore guide (maker not named) and the author's own research, September 2026 |
+| Module shape: an upright rounded board about 1 : 1.5, keyed gold fingers, a half-round screw notch at the far end | A product photo of the third-party 2 TB board; the Apple module has the same outline with one 128 GB NAND per side |
 
 `data/` keeps the step text of both guides (extracted from the iFixit API by `tools/extract-ifixit.py`); `tests/` parse it directly. Internal part sizes, positions and package counts are illustrative, placed by the relative positions the steps describe.
 
 ## How it is built
 
-- One input drives everything: teardown progress `s` (0–23). `src/model.js` is pure functions that pose every part, compute the counters and draw the side view; the 3D model, the cards, the dial and the tests all read it.
+- One input drives everything: teardown progress `s` (0–24). `src/model.js` is pure functions that pose every part, compute the counters and draw the side view; the 3D model, the cards, the dial and the tests all read it.
 - The whole machine is built in code (`src/machine.js`): no model files, no images.
 - The tour is an `s(t)` curve plus camera, captions and a cursor (`src/tour.js`).
 - Method borrowed from the teardown workflow (model before pixels, still-frame review, self-driving tour, a film rendered as a pure function of time); the code is new, like [The Flashiest Guy in Town](../gz-roach/).
