@@ -1,5 +1,6 @@
 {
  "source": "https://www.ifixit.com/Guide/How+to+Replace+the+SSD+in+your+Mac+mini+(2024)/180199",
+ "introduction": "Use this guide to replace the SSD, or flash storage module, in your Mac mini (2024).\n\nThis guide was written with a base model M4 Mac mini. Although the SSD for the M4 Pro model is longer and in a different position, the disassembly procedure is the same.\n\nWhile the Mac mini's SSD looks like a normal M.2 SSD, [link|https://www.ifixit.com/News/105220/could-you-hack-a-new-mac-mini-ssd|its lacks a storage controller|new_window=true]. Apple integrates the storage controllers into the Apple Silicon SoC, which means that ***normal M.2 SSDs are incompatible***.\n\nThis guide is purely instructional for how to replace the SSD with another of the same type.",
  "guideid": 180199,
  "title": "How to Replace the SSD in your Mac mini (2024)",
  "revisionid": 2089095,
