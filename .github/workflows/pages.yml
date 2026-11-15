@@ -496,6 +496,14 @@ jobs:
           node --test tests/*.test.cjs
           node tools/build.mjs
 
+      - name: Check and bundle Mac mini Teardown
+        working-directory: mac-mini-teardown
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node --test tests/*.test.cjs
+          node tools/build.mjs
+
       - name: Check and bundle Lens Lab
         working-directory: lens-lab
         run: |
@@ -588,6 +596,9 @@ jobs:
           # 最靓的仔：广州小强奔跑拆解台；上面已打成单文件（Three.js 许可在文件开头注释里）
           mkdir -p _site/gz-roach
           cp gz-roach/dist/index.html _site/gz-roach/index.html
+          # Mac mini 换硬盘：按 iFixit 换 SSD 指南的 21 步拆解台；上面已打成单文件（Three.js 许可在文件开头注释里）
+          mkdir -p _site/mac-mini-teardown
+          cp mac-mini-teardown/dist/index.html _site/mac-mini-teardown/index.html
 
       - name: Assemble Clockwork
         run: |
