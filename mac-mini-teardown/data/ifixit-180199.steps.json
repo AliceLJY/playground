@@ -1,0 +1,395 @@
+{
+ "source": "https://www.ifixit.com/Guide/How+to+Replace+the+SSD+in+your+Mac+mini+(2024)/180199",
+ "guideid": 180199,
+ "title": "How to Replace the SSD in your Mac mini (2024)",
+ "revisionid": 2089095,
+ "license": "CC BY-NC-SA 3.0, iFixit",
+ "difficulty": "Moderate",
+ "time_required": "30 - 45 minutes",
+ "tools": [
+  "Jimmy",
+  "iFixit Opening Picks (Set of 6)",
+  "3IP Torx Plus  Bit",
+  "5IP Torx Plus Bit",
+  "Torx Plus 8IP Screwdriver",
+  "Tweezers",
+  "Spudger",
+  "T3 Torx Screwdriver",
+  "T5 Torx Screwdriver",
+  "T8 Torx Security Bit Screwdriver"
+ ],
+ "steps": [
+  {
+   "n": 1,
+   "title": "Before you begin",
+   "guideid": 180192,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Fully shut down your Mac mini and unplug all cables from it."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Flip over your Mac mini and place it on a clean, flat surface to avoid scratching the chassis."
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "title": "Create a gap",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "icon_caution",
+     "level": 0,
+     "text": "Using the Jimmy or other metal tools during this step could scratch the aluminum chassis; however, it's the simplest way to perform this step. Follow the alternate instructions to avoid scratching the aluminum."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Insert a Jimmy into the gap between the bottom cover and the chassis."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Pry up the bottom cover to create a gap."
+    },
+    {
+     "bullet": "icon_note",
+     "level": 1,
+     "text": "Alternatively, you can insert the point of a spudger into one of the plastic vent holes and pry up to create a gap big enough to insert an opening pick into."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Keep the Jimmy inserted under the bottom cover."
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "title": "Insert an opening pick",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Insert an opening pick into the gap created by the Jimmy."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Remove the Jimmy."
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "title": "Release the pins",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Slide the opening pick along the bottom cover until you feel it snag on a pin."
+    },
+    {
+     "bullet": "icon_note",
+     "level": 1,
+     "text": "There are [link|https://guide-images.cdn.ifixit.com/igi/UrJenovXW5ZZHxax.full|four pins total|new_window=true]—one at each corner of the bottom cover."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Twist the pick to lift the pin out of its slot."
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "title": "",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Continue sliding and prying with the pick along the perimeter of the bottom cover to release the remaining pins."
+    },
+    {
+     "bullet": "icon_caution",
+     "level": 1,
+     "text": "Don't insert the pick more than an inch when sliding near the power button, as you risk damaging [link|https://guide-images.cdn.ifixit.com/igi/LPWoheHp21qR3B11.full|the cable|new_window=true]."
+    },
+    {
+     "bullet": "icon_reminder",
+     "level": 0,
+     "text": "During reassembly, press along the perimeter of the bottom until you hear and feel all four pins click back into place."
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "title": "",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "icon_caution",
+     "level": 0,
+     "text": "Don't remove the bottom cover, as it's still connected to the Mac mini with a cable."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Lift the edge of the bottom cover opposite the power button and flip it over to expose the power button cable."
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "title": "Disconnect the power button",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "icon_caution",
+     "level": 0,
+     "text": "***The power button cable is very fragile!*** You don't have to disconnect it to access the internals— but it will require you to keep the bottom cover propped up."
+    },
+    {
+     "bullet": "icon_note",
+     "level": 0,
+     "text": "To disconnect the cable and remove the bottom cover, follow the next two steps."
+    },
+    {
+     "bullet": "icon_note",
+     "level": 0,
+     "text": "If you don't disconnect the cable, prop up the bottom cover to prevent straining the cable and skip the next two steps."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Grip the power button cable close to the head and pull it away from its socket to disconnect it."
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "title": "Remove the bottom cover",
+   "guideid": 180193,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Remove the bottom cover."
+    }
+   ]
+  },
+  {
+   "n": 9,
+   "title": "Remove the inner plate screws",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "icon_note",
+     "level": 0,
+     "text": "Throughout this repair, [product|IF145-491|keep track of each screw|new_window=true] and make sure it goes back exactly where it came from."
+    },
+    {
+     "bullet": "icon_note",
+     "level": 0,
+     "text": "While the Mac mini uses [link|https://en.m.wikipedia.org/wiki/Torx#Torx_Plus|Torx Plus|new_window=true] screws, standard Torx bits work. Make sure to apply constant, downward force to prevent stripping."
+    },
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Use a T5 Torx screwdriver to remove the eight 3.4 mm‑long screws securing the inner plate."
+    }
+   ]
+  },
+  {
+   "n": 10,
+   "title": "Separate the inner plate",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Insert the point of a spudger into one of the [link|https://guide-images.cdn.ifixit.com/igi/poXCLQTmYjZgfobM.full|clips' slots on the inner plate|new_window=true]."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Pry up the inner plate enough so you can grip the edge along the same side as the headphone jack."
+    }
+   ]
+  },
+  {
+   "n": 11,
+   "title": "",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Pull the inner plate away from the chassis to slide it out from under the [link|https://guide-images.cdn.ifixit.com/igi/KL2vQTio63TGuTRK.full|lip on the heat sink|new_window=true]."
+    },
+    {
+     "bullet": "icon_reminder",
+     "level": 0,
+     "text": "During reassembly, slide the inner plate back under the heat sink and press along its edges to secure it in the chassis."
+    }
+   ]
+  },
+  {
+   "n": 12,
+   "title": "",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "icon_caution",
+     "level": 0,
+     "text": "Don't remove the inner plate, as it's still connected to the Mac mini by a cable."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Lift the inner plate and flip it over the edge of the chassis. Let it rest against the chassis."
+    }
+   ]
+  },
+  {
+   "n": 13,
+   "title": "Remove the fan screws",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Remove the four screws securing the fan:"
+    },
+    {
+     "bullet": "red",
+     "level": 1,
+     "text": "Two 2.4 mm‑long Torx Plus 3IP screws"
+    },
+    {
+     "bullet": "orange",
+     "level": 1,
+     "text": "Two 7.9 mm‑long Torx Plus 5IP screws"
+    }
+   ]
+  },
+  {
+   "n": 14,
+   "title": "Reposition the fan",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Lift the fan out of its recess in the chassis and flip it over to expose its wire and connector."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Let the fan rest on the chassis and heat sink."
+    }
+   ]
+  },
+  {
+   "n": 15,
+   "title": "Disconnect the fan",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Use tweezers to peel back the tape covering the fan [guide|25629|ZIF connector|stepid=64969|new_window=true]."
+    }
+   ]
+  },
+  {
+   "n": 16,
+   "title": "",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Use the point of a spudger, or your fingernail, to flip up the locking tab on the fan ZIF connector."
+    }
+   ]
+  },
+  {
+   "n": 17,
+   "title": "",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Use tweezers, or your fingers, to slide the ZIF connector straight out of its socket."
+    }
+   ]
+  },
+  {
+   "n": 18,
+   "title": "Remove the fan",
+   "guideid": 181761,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Remove the fan."
+    }
+   ]
+  },
+  {
+   "n": 19,
+   "title": "Remove the SSD screw",
+   "guideid": 180199,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Use a Torx Plus 8IP screwdriver to remove the 4.1 mm‑long screw securing the SSD."
+    }
+   ]
+  },
+  {
+   "n": 20,
+   "title": "Remove the SSD",
+   "guideid": 180199,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Insert the point of a spudger into [link|https://guide-images.cdn.ifixit.com/igi/QrIK52fFyfTSsDUZ.full|one of the holes|new_window=true] along the bottom edge of the SSD."
+    },
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Use the spudger to pull the SSD away from its socket, alternating sides as necessary, until it's fully disconnected."
+    }
+   ]
+  },
+  {
+   "n": 21,
+   "title": "",
+   "guideid": 180199,
+   "lines": [
+    {
+     "bullet": "black",
+     "level": 0,
+     "text": "Grip the corner of the SSD, tilt it up against the headphone jack, and lift it out of its socket."
+    },
+    {
+     "bullet": "icon_reminder",
+     "level": 0,
+     "text": "During reassembly, insert the SSD at an angle and gently wiggle it into place until it sits flat to the logic board."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "mac-mini-teardown",
+  "private": true,
+  "type": "module",
+  "description": "Mac mini（M4，2024）拆解台：一个拆解进度驱动整台机器. Build: npm ci && node tools/build.mjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.1"
+  }
+}
