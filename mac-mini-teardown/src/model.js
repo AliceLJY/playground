@@ -346,6 +346,15 @@ export function counters(s) {
   };
 }
 
+/** 屏幕上的步号（读数卡「步数」、步骤栏、旋钮中间的数都从这里取，不各算各的）：
+ *  一律显示「正在做的这一步」，这一步一开始就跳到它；插进来的几拍沿用前一个 iFixit 步号。
+ *  （2026-11-16 Alice 看片指出读数卡按「已完成」、步骤栏按「当前」，开头差了 1。）
+ *  counters(s).steps 仍是已完成步数，测试和总结用它。 */
+export function readout(s) {
+  const { i, stage } = stageAt(s);
+  const n = stage.ifixit ? stage.ifixit : STAGES.slice(0, i).filter((x) => x.ifixit).length;
+  return { card: n, bar: n, dial: n };
+}
 /** 当前在第几阶段（下标），以及它是不是正在进行 */
 export function stageAt(s) { s = clamp(s, 0, S_MAX); const i = Math.min(S_MAX - 1, Math.floor(s)); return { i, u: s - i, stage: STAGES[i] }; }
 /** 正在动的那一件（强调色给它） */

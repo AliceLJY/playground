@@ -56,3 +56,15 @@ test('公开仓：旁白、步骤栏、页面文字里不出现第三方小板�
   assert.match(dfu[0][1], /Apple Configurator/);
   assert.ok(T._steps.steps.caption.some((c) => /第三方 2TB 小板/.test(c[1])), '要交代换上去的是第三方 2TB 小板');
 });
+
+test('读数卡的「步数」、步骤栏的步号、旋钮中间的数，在每个节拍和每 0.1 秒都一致', async () => {
+  const [M, T] = await load();
+  const times = [...T._steps.steps.caption.map((c) => c[0] + 0.6)];
+  for (let t = 0; t <= T.TOUR_S; t += 0.1) times.push(t);
+  const bad = [];
+  for (const t of times) {
+    const r = M.readout(T.sAt(t));
+    if (r.card !== r.bar || r.dial !== r.bar) bad.push(`t=${t.toFixed(1)} 卡 ${r.card} / 栏 ${r.bar} / 钮 ${r.dial}`);
+  }
+  assert.strictEqual(bad.length, 0, `对不上 ${bad.length} 处，例如 ${bad.slice(0, 3).join('；')}`);
+});
