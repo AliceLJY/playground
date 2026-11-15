@@ -9,36 +9,40 @@ export const SPEC = { width: 127, depth: 127, height: 50, weightKg: 0.67 };
 const HALF = SPEC.width / 2, WALL = 2.6, IN = HALF - WALL; // 内壁半宽 60.9（壁厚示意）
 const TOPSKIN = 2.5; // 原来的顶面，翻过来后贴着桌面（示意）
 
-// ---------------- 步骤：21 个 iFixit 步骤；第 18 步后插一拍「顺带看内存」，最后加一拍 SSD 特写 ----------------
-// title 是给屏幕的中文；ifixit 为 null 的是插进来的一拍，不计步数。
+// ---------------- 步骤：21 个 iFixit 步骤；第 18 步后插一拍「顺带看内存」，最后加 SSD 特写和「换上第三方小板」两拍 ----------------
+// ifixit 为 null 的是插进来的一拍，不计步数。
 export const STAGES = [
-  { ifixit: 1, title: '关机、拔掉所有线，翻过来放平', short: '翻面' },
-  { ifixit: 2, title: '用撬片（Jimmy）在底盖和机身之间撬出一道缝', short: '撬缝' },
-  { ifixit: 3, title: '在缝里插进一枚开启片，抽出撬片', short: '插开启片' },
-  { ifixit: 4, title: '开启片沿边滑，卡到销钉就一拧：第 1 个销钉起来了', short: '销钉 1' },
-  { ifixit: 5, title: '沿着一圈撬起其余 3 个销钉；电源键附近只插 1 英寸，别伤到排线', short: '销钉 2–4' },
-  { ifixit: 6, title: '先别拿走：底盖还连着电源键排线，从对边掀起、翻过去', short: '掀开底盖' },
-  { ifixit: 7, title: '捏住排线头拔开电源键排线（很脆；不拔也行，要把底盖撑住）', short: '电源键排线' },
-  { ifixit: 8, title: '取下底盖', short: '取下底盖' },
-  { ifixit: 9, title: '拧下内板的 8 颗 T5 螺丝（3.4 mm）', short: '内板螺丝' },
-  { ifixit: 10, title: '撬棒插进内板的卡扣槽，撬起耳机孔那一侧的边', short: '撬起内板' },
-  { ifixit: 11, title: '把内板从散热片的边沿下面抽出来', short: '抽出内板' },
-  { ifixit: 12, title: '内板还连着一根线：翻过机身边缘，靠在机身上', short: '内板靠边' },
-  { ifixit: 13, title: '拧下风扇的 4 颗螺丝：3IP ×2（2.4 mm）、5IP ×2（7.9 mm）', short: '风扇螺丝' },
-  { ifixit: 14, title: '把风扇从凹槽里抬出来翻个面，搁在机身和散热片上', short: '翻起风扇' },
-  { ifixit: 15, title: '用镊子揭开风扇 ZIF 接头上的胶带', short: '揭胶带' },
-  { ifixit: 16, title: '用撬棒尖翻起 ZIF 接头的锁扣', short: '翻锁扣' },
-  { ifixit: 17, title: '把 ZIF 排线笔直地抽出插座', short: '抽排线' },
-  { ifixit: 18, title: '取下风扇', short: '取下风扇' },
-  { ifixit: null, kind: 'look', title: '顺带一眼（不在指南里）：内存是焊在 M4 旁边的 LPDDR5 颗粒，没有插槽，加不了', short: '顺带看内存' },
-  { ifixit: 19, title: '用 8IP 拧下固定 SSD 的那 1 颗螺丝（4.1 mm）', short: 'SSD 螺丝' },
-  { ifixit: 20, title: '撬棒插进 SSD 边上的孔，左右交替，把它从插槽里拔开', short: '拔开 SSD' },
-  { ifixit: 21, title: '捏住 SSD 一角，斜着靠向耳机孔，从插槽里取出', short: '取出 SSD' },
-  { ifixit: null, kind: 'closeup', title: '特写（不在步骤里）：它长得像普通 M.2 固态硬盘，但不是', short: '看清这块硬盘' },
+  // op：步骤栏小字，只写 iFixit 原文的操作要点（工具 · 动作）；大字旁白另写，不重复
+  { ifixit: 1, op: '关机、拔掉所有线 · 翻过来放平', short: '翻面' },
+  { ifixit: 2, op: 'Jimmy 撬片 · 在底盖和机身之间撬出一道缝', short: '撬缝' },
+  { ifixit: 3, op: '开启片插进缝里 · 抽出 Jimmy', short: '插开启片' },
+  { ifixit: 4, op: '开启片沿边滑，卡到销钉一拧 · 销钉 1/4', short: '销钉 1' },
+  { ifixit: 5, op: '沿一圈撬起其余 3 个销钉 · 电源键附近只插 1 英寸', short: '销钉 2–4' },
+  { ifixit: 6, op: '从电源键对边掀起底盖 · 翻过去撑住', short: '掀开底盖' },
+  { ifixit: 7, op: '捏住排线头拔开 · 可不拔', short: '电源键排线' },
+  { ifixit: 8, op: '取下底盖', short: '取下底盖' },
+  { ifixit: 9, op: 'T5 · 拧下 8 颗 3.4 mm 螺丝', short: '内板螺丝' },
+  { ifixit: 10, op: '撬棒插进卡扣槽 · 撬起耳机孔那一侧', short: '撬起内板' },
+  { ifixit: 11, op: '从散热片边沿下抽出内板', short: '抽出内板' },
+  { ifixit: 12, op: '翻过机身边缘靠住 · 还连着一根线', short: '内板靠边' },
+  { ifixit: 13, op: '3IP ×2（2.4 mm）· 5IP ×2（7.9 mm）', short: '风扇螺丝' },
+  { ifixit: 14, op: '抬出风扇翻面 · 搁在机身和散热片上', short: '翻起风扇' },
+  { ifixit: 15, op: '镊子 · 揭开 ZIF 接头上的胶带', short: '揭胶带' },
+  { ifixit: 16, op: '撬棒尖 · 翻起 ZIF 锁扣', short: '翻锁扣' },
+  { ifixit: 17, op: '镊子 · 把排线笔直抽出插座', short: '抽排线' },
+  { ifixit: 18, op: '取下风扇', short: '取下风扇' },
+  { ifixit: null, kind: 'look', op: '', short: '顺带看内存' },
+  { ifixit: 19, op: '8IP · 拧下 1 颗 4.1 mm 螺丝', short: 'SSD 螺丝' },
+  { ifixit: 20, op: '撬棒插进边上的孔 · 左右交替拔离插槽', short: '拔开 SSD' },
+  { ifixit: 21, op: '捏住一角 · 斜着靠向耳机孔取出', short: '取出 SSD' },
+  { ifixit: null, kind: 'closeup', op: '', short: '看清这块硬盘' },
+  // 装回去按第 21 步原文的 During reassembly：斜着插、轻晃到位、压平，再拧回 8IP
+  { ifixit: null, kind: 'swap', op: '斜着插进插槽 · 轻晃到位、压平 · 拧回 8IP', short: '换上第三方小板' },
 ];
-export const S_MAX = STAGES.length; // 23
+export const S_MAX = STAGES.length; // 24
 export const LOOK = STAGES.findIndex((x) => x.kind === 'look'); // 18
 export const CLOSEUP = STAGES.findIndex((x) => x.kind === 'closeup'); // 22
+export const SWAP = STAGES.findIndex((x) => x.kind === 'swap'); // 23
 export const SSD_OUT = CLOSEUP; // 第 21 步做完时的进度
 export const IFIXIT_STEPS = STAGES.filter((x) => x.ifixit).length; // 21
 
@@ -55,8 +59,8 @@ export const SCREWS = [
   // 第 13 步：风扇 3IP ×2（2.4 mm）、5IP ×2（7.9 mm）
   ...screwRow(12, '3IP', 2.4, [[-4, 50], [48, 4]], 38.6, 0.08, 0.48),
   ...screwRow(12, '5IP', 7.9, [[-4, 4], [48, 50]], 38.6, 0.52, 0.92),
-  // 第 19 步：SSD 8IP ×1（4.1 mm），在靠耳机孔那一端
-  ...screwRow(19, '8IP', 4.1, [[-42, 46]], 16.4, 0.15, 0.85),
+  // 第 19 步：SSD 8IP ×1（4.1 mm），压在 SSD 远端正中的半圆缺口里
+  ...screwRow(19, '8IP', 4.1, [[-42, 49.6]], 16.4, 0.15, 0.85),
 ].map((s, i) => ({ ...s, id: 'screw' + i }));
 export const BITS = ['T5', '3IP', '5IP', '8IP'];
 export const CONNECTORS = [
@@ -105,8 +109,10 @@ export const PARTS = {
   ramA: { name: 'LPDDR5 内存颗粒', box: box(-1, 17, 14.2, 15.4, -53, -44) },
   ramB: { name: 'LPDDR5 内存颗粒', box: box(-1, 17, 14.2, 15.4, -18, -9) },
   heatsink: { name: '散热片', box: box(-48, 48, 16.2, 38, -58, -6) },
-  socket: { name: 'SSD 插槽', box: box(-58, -26, 14.2, 16.8, 2, 8) },
-  ssd: { name: 'SSD 闪存模块', box: box(-58, -26, 14.2, 15.6, 6, 50) },
+  // SSD 模块：竖长板，宽 : 长 = 1 : 1.5（形状按第三方 2TB 小板商品图与 iFixit「看着像 M.2」；尺寸示意），金手指在插槽那条短边
+  socket: { name: 'SSD 插槽', box: box(-57, -27, 14.2, 16.8, 3, 9.6) },
+  ssd: { name: 'SSD 闪存模块', box: box(-56, -28, 14.2, 15.6, 8, 50) },
+  ssd2: { name: '第三方 2TB 小板', box: box(-56, -28, 14.2, 15.6, 8, 50) },
   jack: { name: '耳机孔', box: box(-24, -11, 14.2, 24, 50, IN - 0.2) },
   zif: { name: '风扇 ZIF 插座', box: box(-6, 2, 14.2, 15.6, -3, 3) },
   fan: { name: '风扇', box: box(-8, 54, 18, 37.6, -2, 56) },
@@ -228,9 +234,9 @@ function ssdPose(s) {
   let p = add(c0, [0, 0, 4.4 * seg(u20, 0.2, 0.85)]);
   let R = I3;
   if (u21 > 0) {
-    // 绕靠耳机孔那条长边（x = -26）翘起，再往上取出
+    // 绕靠耳机孔那条长边（x = -28）翘起，再往上取出
     const tilt = 24 * D * seg(u21, 0.05, 0.35);
-    const Rt = rotZ(-tilt), pv = [-26, 14.2, p[2]];
+    const Rt = rotZ(-tilt), pv = [-28, 14.2, p[2]];
     const tilted = aboutPivot(Rt, pv, p);
     const lifted = add(tilted, [0, 52 * seg(u21, 0.3, 0.6), 0]); // 先竖直提出机身口（壁高 50），再往前送
     const k = seg(u21, 0.58, 1);
@@ -240,11 +246,38 @@ function ssdPose(s) {
   const uc = local(s, CLOSEUP);
   if (uc > 0) {
     // 特写：先正面（闪存颗粒、金手指），再翻到背面看另一颗，最后翻回来
-    const flip = Math.PI * (seg(uc, 0.42, 0.6) - seg(uc, 0.66, 0.8)); // 约 35.8–37.5 秒翻到背面，38.1–39.5 秒翻回来
+    const flip = Math.PI * (seg(uc, 0.32, 0.46) - seg(uc, 0.74, 0.88)); // 导览里约 30.4–31.5 秒翻到背面，33.6–34.7 秒翻回来
     R = mul(euler(SSD_SHOW.e), rotZ(flip));
     p = add(SSD_SHOW.p, [0, 10 * seg(uc, 0, 0.2), 0]);
   }
-  return { R, p, op: 1, hi: s > 19 ? 1 : 0 };
+  const us = local(s, SWAP);
+  if (us > 0) {
+    // 换上小板的那一拍一开头（硬切泛白时），原厂模块平放到机身正前方的桌上
+    const k = seg(us, 0, 0.06);
+    p = lerp3(add(SSD_SHOW.p, [0, 10, 0]), SSD_DESK, k);
+    R = k >= 1 ? I3 : euler(lerp3(SSD_SHOW.e, [0, 0, 0], k));
+  }
+  return { R, p, op: 1, hi: s > 19 && s < SWAP ? 1 : 0 };
+}
+export const SSD_DESK = [-120, 0.7, 80]; // 机身左前方的桌上（内板靠在机身左边，只占 z ±61）
+
+// 第三方 2TB 小板：从上方落下，斜着插进同一个插槽（绕插槽那端的下棱翘 20°），轻晃到位，压平
+export const SSD2_TILT = -20 * D;
+export function ssd2Pose(s) {
+  const b = PARTS.ssd2.box, c0 = [b[0], b[1], b[2]];
+  const u = local(s, SWAP);
+  if (u <= 0) return { R: I3, p: add(c0, [0, 140, 30]), op: 0, hi: 0 };
+  const pivot = [c0[0], 14.2, 8]; // 插槽那端的下棱
+  const wiggle = 2.2 * D * Math.sin(Math.PI * 4 * seg(u, 0.44, 0.56)) * (1 - seg(u, 0.52, 0.58));
+  const ang = SSD2_TILT * (1 - seg(u, 0.54, 0.7)) + wiggle;
+  const R = rotX(ang);
+  const seated = aboutPivot(R, pivot, c0);
+  // 插入前：沿板子自己的方向往外退 9 mm、再抬高
+  const back = apply(R, [0, 0, 9]);
+  const k1 = seg(u, 0.06, 0.3), k2 = seg(u, 0.3, 0.46);
+  const above = add(seated, [0, 30, 12]), before = add(seated, [back[0], back[1] + 1.5, back[2]]);
+  const p = k2 > 0 ? lerp3(before, seated, k2) : lerp3(above, before, k1);
+  return { R, p, op: seg(u, 0.03, 0.1), hi: u < 0.95 ? 1 : 0 };
 }
 
 // 散热片：找内存那一拍变成 X 光（半透明），让底下的 M4 和内存颗粒露出来
@@ -268,7 +301,17 @@ export function screwPose(sc, s, layout = 'wide') {
   let p = out;
   if (fly > 0) { const a = lerp3(out, mid, fly), b2 = lerp3(mid, dst, fly); p = lerp3(a, b2, fly); }
   const spin = -back * 5 * 2 * Math.PI;
-  const R = fly > 0 ? mul(rotX(Math.PI / 2 * fly), rotY(spin)) : rotY(spin);
+  let R = fly > 0 ? mul(rotX(Math.PI / 2 * fly), rotY(spin)) : rotY(spin);
+  // 换上小板那一拍：同一颗 8IP 从盘里飞回来，落进小板的半圆缺口拧紧（不改拧下的计数）
+  const us = sc.bit === '8IP' ? local(s, SWAP) : 0;
+  if (us > 0.7) {
+    const f = seg(us, 0.7, 0.84), dn = seg(us, 0.84, 0.97);
+    const hover = add(home, [0, sc.len * 1.15 + 18, 0]);
+    const mid2 = [(dst[0] + hover[0]) / 2, Math.max(dst[1], hover[1]) + 30, (dst[2] + hover[2]) / 2];
+    p = dn > 0 ? lerp3(hover, home, dn) : lerp3(lerp3(dst, mid2, f), lerp3(mid2, hover, f), f);
+    R = mul(rotX(Math.PI / 2 * (1 - f)), rotY(dn * 5 * 2 * Math.PI));
+    return { R, p, op: 1, hi: dn < 1 ? 1 : 0, done: true, k: 1, back: true };
+  }
   return { R, p, op: 1, hi: k > 0 && k < 1 ? 1 : 0, done: k >= 1, k };
 }
 
@@ -277,10 +320,10 @@ export function pose(s, layout = 'wide') {
   s = clamp(s, 0, S_MAX);
   const out = {};
   for (const id of Object.keys(PARTS)) out[id] = restPose(id);
-  out.cover = coverPose(s); out.inner = innerPose(s); out.fan = fanPose(s); out.ssd = ssdPose(s); out.heatsink = heatPose(s);
+  out.cover = coverPose(s); out.inner = innerPose(s); out.fan = fanPose(s); out.ssd = ssdPose(s); out.ssd2 = ssd2Pose(s); out.heatsink = heatPose(s);
   out.ramA = ramPose('ramA', s); out.ramB = ramPose('ramB', s);
   out.m4.hi = 0.35 * seg(local(s, LOOK), 0.22, 0.34) * (1 - seg(local(s, LOOK), 0.92, 1));
-  out.socket.hi = s > 20 && s < 21 ? 1 : 0;
+  out.socket.hi = (s > 20 && s < 21) || (s > SWAP + 0.3 && s < SWAP + 0.7) ? 1 : 0;
   out.zif.hi = s > 14 && s < 17 ? 1 : 0;
   for (const sc of SCREWS) out[sc.id] = screwPose(sc, s, layout);
   for (const id of Object.keys(out)) if (!(id.startsWith('screw') && out[id].k > 0)) out[id] = applyGlobal(out[id], s);
@@ -313,6 +356,7 @@ export function activePart(s) {
   if (i <= 11) return 'inner';
   if (i <= 17) return i >= 14 && i <= 16 ? 'zif' : 'fan';
   if (i === LOOK) return 'ram';
+  if (i === SWAP) return 'ssd2';
   return 'ssd';
 }
 
@@ -349,7 +393,7 @@ export function corners(o) {
 }
 
 // ---------------- 侧视线稿（从机身左侧看，z 横轴、y 纵轴） ----------------
-const SIDE = ['skin', 'wallN', 'wallS', 'psu', 'board', 'm4', 'ramA', 'ramB', 'heatsink', 'socket', 'ssd', 'jack', 'fan', 'inner', 'cover'];
+const SIDE = ['skin', 'wallN', 'wallS', 'psu', 'board', 'm4', 'ramA', 'ramB', 'heatsink', 'socket', 'ssd', 'ssd2', 'jack', 'fan', 'inner', 'cover'];
 function hull(pts) {
   pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);

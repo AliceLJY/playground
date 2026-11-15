@@ -12,6 +12,7 @@ if (CAPTURE) document.body.classList.add('capture');
 const portrait = () => innerWidth / innerHeight < 1 || innerWidth <= 760;
 const filmTall = () => CAPTURE && innerWidth / innerHeight < 1;
 const layoutName = () => (portrait() ? 'tall' : 'wide');
+const portraitLive = () => portrait() && !filmTall(); // 手机可操作档：总结机位不另排
 
 // ---------------- 舞台 ----------------
 const canvas = $('#scene');
@@ -39,11 +40,13 @@ const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 60; controls.maxDistance = 900; controls.maxPolarAngle = Math.PI * 0.48; controls.enabled = false;
 
 // ---------------- 机位：按「要框住的半径」和可用画面算距离，再把目标点挪到可用区的中心 ----------------
+// 机器可用的画面区。总结机位（结尾两句和总结卡）另排：宽屏让出右边给总结卡，竖屏让出中间给总结卡、机器挪到下方画面区
+let summaryLayout = false;
 function freeRect() {
   const W = innerWidth, H = innerHeight;
-  if (filmTall()) return { x0: 24, x1: W - 24, y0: 258, y1: 572 };
+  if (filmTall()) return summaryLayout ? { x0: 20, x1: W - 20, y0: 560, y1: 948 } : { x0: 20, x1: W - 20, y0: 424, y1: 806 };
   if (portrait()) return { x0: 8, x1: W - 8, y0: 146, y1: H - 236 };
-  return { x0: 380, x1: W - 380, y0: 150, y1: H - 300 };
+  return summaryLayout ? { x0: 330, x1: W - 650, y0: 150, y1: H - 300 } : { x0: 380, x1: W - 380, y0: 150, y1: H - 300 };
 }
 function viewSpec(name) { const v = VIEWS[name] || VIEWS.hero; return (layoutName() === 'tall' && v.tall) ? v.tall : v; }
 function camFromView(name) {
@@ -51,7 +54,8 @@ function camFromView(name) {
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
   const F = freeRect(), W = innerWidth, H = innerHeight, t = Math.tan(camera.fov * Math.PI / 360);
   const tv = t * (F.y1 - F.y0) / H, th = t * camera.aspect * (F.x1 - F.x0) / W;
-  const dist = v.r / Math.min(tv, th);
+  // 竖屏机位是按录片竖屏（机器要占画宽 60–70%）调的；手机可操作档上下都有控件，框松一点
+  const dist = v.r * (portraitLive() ? 1.28 : 1) / Math.min(tv, th);
   const tgt = new THREE.Vector3(...v.t);
   return { pos: tgt.clone().addScaledVector(dir, dist), tgt };
 }
@@ -61,7 +65,9 @@ function setOffset() {
   camera.updateProjectionMatrix();
 }
 let displayedView = 'open';
+function setSummaryLayout(on) { if (on !== summaryLayout) { summaryLayout = on; setOffset(); } }
 function applyCam(from, to, k) {
+  setSummaryLayout(to === 'summary' && !portraitLive());
   const A = camFromView(from), B = camFromView(to);
   const tgt = A.tgt.clone().lerp(B.tgt, k);
   // 位置按「方向 + 距离」插值，比直接插位置少穿模
@@ -104,9 +110,9 @@ function updateStepbar(s) {
   const { i, stage } = M.stageAt(s);
   const no = stage.ifixit ? stage.ifixit : M.STAGES.slice(0, i).filter((x) => x.ifixit).length;
   $('#stepNo').innerHTML = `${pad2(no)}<small>/21</small>`;
-  const end = s >= M.S_MAX - 1e-6;
-  $('#stepKind').textContent = end ? '拆完了' : stage.ifixit ? `iFixit 第 ${stage.ifixit} 步` : stage.kind === 'look' ? '插一拍 · 不在指南里' : '特写 · 不在步骤里';
-  $('#stepTx').textContent = end ? '能换的只有这块 SSD 模块，而且只能换同类型的。' : stage.title;
+  // 小字只写 iFixit 原文的操作要点（model.STAGES[].op）；插进来的几拍只标是什么，不和大字旁白说同一句话
+  $('#stepKind').textContent = stage.ifixit ? `iFixit 第 ${stage.ifixit} 步` : { look: '插一拍 · 不在指南里', closeup: '特写 · 不在步骤里', swap: '装回去 · 照第 21 步的装回说明' }[stage.kind];
+  $('#stepTx').textContent = stage.op;
 }
 
 // ---------------- 侧视线稿 ----------------
@@ -169,6 +175,8 @@ function placeTag(el, lead, dot, anchorName, html, k, side = 1) {
   const W = innerWidth, F = freeRect(), cw = el.offsetWidth, ch = el.offsetHeight;
   let lx = side > 0 ? ax + 60 : ax - 60 - cw; lx = Math.max(16, Math.min(W - 16 - cw, lx));
   let ly = ay - 70 - ch / 2; ly = Math.max(F.y0 + 4, Math.min(F.y1 - ch - 4, ly));
+  // 录片竖屏：标注是要读的字，只能在 y 740 以上，且不进右侧按钮栏（x>465、y 440–750）
+  if (filmTall()) { ly = Math.max(F.y0 + 4 + (side > 0 ? ch + 10 : 0), Math.min(736 - ch, ly)); lx = Math.min(lx, 460 - cw); lx = Math.max(16, lx); }
   el.style.transform = `translate(${lx.toFixed(1)}px, ${ly.toFixed(1)}px)`; el.style.opacity = k.toFixed(3);
   const ex = side > 0 ? lx : lx + cw, ey = ly + ch / 2;
   lead.setAttribute('d', `M${ax.toFixed(1)},${ay.toFixed(1)} L${(ex + (side > 0 ? -14 : 14)).toFixed(1)},${ey.toFixed(1)} L${ex.toFixed(1)},${ey.toFixed(1)}`);
@@ -185,9 +193,10 @@ function updateTags(s, tTour) {
   }
   const notes = SSD_NOTES.filter(([a, b]) => tTour >= a && tTour < b && s >= M.CLOSEUP);
   const k = (a, b) => Math.min(ease((tTour - a) / 0.4), 1 - ease((tTour - b + 0.3) / 0.3));
-  const n1 = notes.find((n) => n[2] === 'gold'), n2 = notes.find((n) => n[2] === 'nand');
-  placeTag(tag1, $('#lead'), $('#leadDot'), n1 && 'gold', n1 ? `<b>${n1[3]}</b>` : '', n1 ? k(n1[0], n1[1]) : 0, -1);
-  placeTag(tag2, $('#lead2'), $('#leadDot2'), n2 && 'nand', n2 ? `<b>${n2[3]}</b>` : '', n2 ? k(n2[0], n2[1]) : 0, 1);
+  const SIDE = { gold: -1, nand: 1, notch: 1 };
+  const [n1, n2] = notes;
+  placeTag(tag1, $('#lead'), $('#leadDot'), n1 && n1[2], n1 ? `<b>${n1[3]}</b>` : '', n1 ? k(n1[0], n1[1]) : 0, n1 ? SIDE[n1[2]] : -1);
+  placeTag(tag2, $('#lead2'), $('#leadDot2'), n2 && n2[2], n2 ? `<b>${n2[3]}</b>` : '', n2 ? k(n2[0], n2[1]) : 0, n2 ? SIDE[n2[2]] : 1);
 }
 
 // ---------------- 导览光标 ----------------
@@ -219,7 +228,11 @@ function drawFrame(s, tTour, { view, cursor, caption, captionAt: cAt, summary })
   const narr = $('#narr');
   if (narr.textContent !== caption) narr.textContent = caption;
   narr.style.opacity = caption ? Math.min(1, (tTour - cAt) / 0.3).toFixed(3) : '0';
-  const sm = $('#summary'); sm.style.opacity = summary.toFixed(3); sm.style.transform = (filmTall() ? 'translate(-50%, -50%)' : portrait() ? 'translate(-50%, -54%)' : 'translate(-50%, -54%)') + ` translateY(${((1 - summary) * 14).toFixed(1)}px)`;
+  const sm = $('#summary'); sm.style.opacity = summary.toFixed(3);
+  sm.style.transform = (filmTall() ? 'translate(-50%, 0)' : portrait() ? 'translate(-50%, -54%)' : 'translateY(-54%)') + ` translateY(${((1 - summary) * 14).toFixed(1)}px)`;
+  // 竖屏与手机：总结卡出来时步骤栏让位
+  // 录片竖屏的结尾两句可能折成三行，步骤栏让开
+  if (portrait()) $('.stepbar').style.opacity = (filmTall() && tTour >= OUTRO_AT ? 0 : 1 - summary).toFixed(3);
   updateTags(s, tTour);
   moveCursor(cursor);
   renderer.render(scene, camera);
@@ -254,7 +267,7 @@ function tick(now) {
     controls.update();
     displayedView = userOrbit ? 'orbit' : camAnim ? '→' + liveView : liveView;
     // 特写标注按剧本时间走；拆到底停 6 秒后出总结卡
-    const tNotes = liveS >= M.CLOSEUP ? Math.min(41.2, 31.6 + (liveS - M.CLOSEUP) * 9.9) : tT;
+    const tNotes = liveS >= M.CLOSEUP ? Math.min(OUTRO_AT - 0.1, timeAt(liveS)) : tT;
     drawFrame(liveS, tNotes, { view: null, cursor: null, caption: cap.text, captionAt: liveS >= M.S_MAX - 1e-6 ? cap.at - (OUTRO_AT - 0) * 0 : cap.at, summary: ease((liveDwell - 6.5) / 0.7) });
     $('#narr').style.opacity = cap.text ? 1 : 0;
     if (idle > IDLE_BACK) backToTour();
@@ -262,7 +275,7 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 function sAtTime(t) { return tourAt(t).s; }
-function flyTo(name) { const V = camFromView(name); camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1: V.pos, t1: V.tgt, k: 0 }; liveView = name; }
+function flyTo(name) { setSummaryLayout(name === 'summary' && !portraitLive()); const V = camFromView(name); camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1: V.pos, t1: V.tgt, k: 0 }; liveView = name; }
 
 // 帧率与降档：连续 3 秒低于 40 帧就降像素比、换硬阴影、线稿隔帧
 let fpsAcc = 0, fpsN = 0, fps = 60, slowFor = 0;

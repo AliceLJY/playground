@@ -80,7 +80,7 @@
   .tag { padding: 7px 11px; font-size: 13px; line-height: 1.45; max-width: 230px; opacity: 0; border-color: rgba(224, 96, 42, .5); }
   .tag b { color: var(--accent); font-weight: 600; }
 
-  .summary { left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(560px, calc(100% - 40px)); padding: 26px 30px 22px; opacity: 0; background: rgba(250, 249, 246, .94); box-shadow: 0 10px 40px rgba(40, 30, 20, .08); }
+  .summary { right: 64px; top: 50%; transform: translateY(-54%); width: min(540px, calc(100% - 40px)); padding: 26px 30px 22px; opacity: 0; background: rgba(250, 249, 246, .94); box-shadow: 0 10px 40px rgba(40, 30, 20, .08); }
   .summary h2 { margin: 0 0 14px; font-family: var(--serif); font-size: 22px; font-weight: 700; }
   .summary .row { display: flex; align-items: baseline; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); }
   .summary .row b { font-family: var(--mono); font-size: 44px; font-weight: 600; min-width: 2.2ch; text-align: right; letter-spacing: -.03em; line-height: 1; }
@@ -126,32 +126,32 @@
     .btncol button { flex: 1; }
     #resume { margin-top: 0; width: auto; position: absolute; right: 8px; top: -54px; background: var(--card); }
     .tag { font-size: 12px; max-width: 180px; }
-    .summary { top: 49%; padding: 18px 20px 16px; }
+    .summary { left: 50%; right: auto; top: 49%; padding: 18px 20px 16px; }
     .summary h2 { font-size: 18px; }
     .summary .row b { font-size: 32px; }
     .summary .row span { font-size: 15px; }
     .summary .row.last b { font-size: 22px; }
   }
   /* ---------- 录片竖屏 540×960（×2 = 1080×1920）：要读的字在 y 84–740，740 以下只放画面 ---------- */
-  body.film-tall .title { top: 92px; left: 30px; right: 30px; }
+  body.film-tall .title { top: 90px; left: 30px; right: 30px; }
   body.film-tall .kicker { font-size: 13px; }
   body.film-tall .title h1 { font-size: 40px; margin-top: 6px; }
   body.film-tall .badge, body.film-tall .dialbox, body.film-tall #cursor { display: none; }
-  body.film-tall .cards { top: 182px; left: 30px; right: 30px; gap: 8px; }
+  body.film-tall .cards { top: 200px; left: 30px; right: 30px; gap: 8px; }
   body.film-tall .stat { padding: 9px 10px 8px; }
   body.film-tall .stat .k { font-size: 12.5px; }
   body.film-tall .stat .v { font-size: 34px; }
   body.film-tall .stat .v small { font-size: 14px; }
-  body.film-tall .narr { top: 586px; bottom: auto; font-size: 23px; max-width: 470px; width: 470px; }
-  body.film-tall .stepbar { top: 668px; bottom: auto; left: 30px; right: 30px; }
+  body.film-tall .narr { top: 282px; bottom: auto; font-size: 21px; line-height: 1.4; max-width: 480px; width: 480px; }
+  body.film-tall .stepbar { top: 364px; bottom: auto; left: 30px; right: 30px; }
   body.film-tall .stepbar .no { font-size: 24px; }
   body.film-tall .stepbar .tx { font-size: 15.5px; }
-  body.film-tall .foot { display: block; left: 30px; top: 150px; bottom: auto; font-size: 11px; white-space: normal; right: 30px; }
-  body.film-tall .tag { font-size: 15px; max-width: 230px; }
-  body.film-tall .side { display: block; left: 30px; right: 30px; top: 760px; bottom: auto; width: auto; background: transparent; border: none; padding: 0; }
+  body.film-tall .foot { display: block; left: 30px; top: 160px; bottom: auto; font-size: 11px; line-height: 1.45; white-space: normal; right: 30px; color: #8e897f; }
+  body.film-tall .tag { font-size: 14px; max-width: 150px; }
+  body.film-tall .side { display: block; left: 120px; right: 120px; top: 812px; bottom: auto; width: auto; background: transparent; border: none; padding: 0; }
   body.film-tall .side h3 { display: none; }
-  body.film-tall .side svg { height: 176px; }
-  body.film-tall .summary { top: 430px; transform: translate(-50%, -50%); width: 470px; }
+  body.film-tall .side svg { height: 120px; }
+  body.film-tall .summary { left: 50%; right: auto; top: 288px; transform: translate(-50%, 0); width: 480px; padding: 18px 24px 14px; }
   body.film-tall .summary .row b { font-size: 40px; }
   body.film-tall .summary .row span { font-size: 18px; }
   body.film-tall .summary .row.last b { font-size: 26px; }
@@ -188,7 +188,7 @@
     </div>
     <button id="resume" hidden>继续导览</button>
   </div>
-  <div class="foot" id="foot">拆解步骤按 iFixit 指南 180199，模型为示意，尺寸按官方规格 · 「为什么没拆」据作者 2026-09 扩容调研</div>
+  <div class="foot" id="foot">拆解步骤按 iFixit 指南 180199，模型为示意，尺寸按官方规格 · 刷机一句据第三方小板厂商的刷机教程 · 「为什么没拆」据作者 2026-09 扩容调研</div>
 
   <div class="tag card" id="tag1"></div>
   <div class="tag card" id="tag2"></div>
@@ -198,7 +198,7 @@
     <div class="row"><b>13</b><span>颗螺丝</span></div>
     <div class="row"><b>4</b><span>种刀头（T5 · 3IP · 5IP · 8IP）</span></div>
     <div class="row last"><b>一块</b><span>不是普通 M.2 的硬盘</span></div>
-    <div class="src">步骤与数字：iFixit 指南 180199、178986 · 我没拆的理由：作者 2026-09 扩容调研</div>
+    <div class="src">步骤与数字：iFixit 指南 180199、178986 · 刷机：第三方小板厂商的刷机教程 · 我没拆的理由：作者 2026-09 扩容调研</div>
   </div>
   <div id="cursor"><svg viewBox="0 0 22 22"><path d="M3 2 L3 18 L7.5 14 L10.5 20.5 L13 19.4 L10.1 13 L16 13 Z" fill="#fff" stroke="#1f1e1c" stroke-width="1.4" stroke-linejoin="round"/></svg><div id="ping"></div></div>
 </div>

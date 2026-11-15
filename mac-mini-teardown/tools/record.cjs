@@ -2,7 +2,7 @@
 //   node tools/build.mjs
 //   NODE_PATH="$(npm root -g)" node tools/record.cjs <out.mp4> [--size 1920x1080] [--dpr 1] [--fps 30]
 //   竖屏：--size 540x960 --dpr 2（1080×1920，录片竖屏版式）
-// 同时在 out.mp4 旁边写 <out>.events.json：每颗螺丝落盘、每个接头断开、每句旁白、SSD 拔出、总结卡出现的时刻，给 tools/score.py 配声音用。
+// 同时在 out.mp4 旁边写 <out>.events.json：每颗螺丝落盘、每个接头断开、每句旁白、SSD 拔出、小板压平、螺丝拧回、总结卡出现的时刻，给 tools/score.py 配声音用。
 const { chromium } = require('playwright');
 const { spawn } = require('child_process');
 const fs = require('fs'), path = require('path');
@@ -20,7 +20,7 @@ const [W, H] = opt('size', '1920x1080').split('x').map(Number), dpr = +opt('dpr'
   const dur = await page.evaluate(() => window.__mini.TOUR_S);
   const frames = Math.round(dur * fps);
   console.log(await page.evaluate(() => window.__mini.info().renderer), `${W * dpr}x${H * dpr}`, frames, 'frames');
-  const events = { duration: dur, fps, screws: [], connectors: [], steps: [], beats: await page.evaluate(() => window.__mini.beats()), ssdOut: null, ram: null, summary: null };
+  const events = { duration: dur, fps, screws: [], connectors: [], steps: [], beats: await page.evaluate(() => window.__mini.beats()), ssdOut: null, ram: null, seated: null, screwBack: null, summary: null };
   let prev = null;
   const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-', '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
   const t0 = Date.now();
@@ -33,6 +33,8 @@ const [W, H] = opt('size', '1920x1080').split('x').map(Number), dpr = +opt('dpr'
       for (let k = prev.c.steps; k < st.c.steps; k++) events.steps.push(+t.toFixed(4));
       if (events.ram === null && st.c.ramSlots === 0) events.ram = +t.toFixed(4);
       if (events.ssdOut === null && st.s >= 22) events.ssdOut = +t.toFixed(4);
+      if (events.seated === null && st.s >= 23.66) events.seated = +t.toFixed(4); // 第三方小板压平
+      if (events.screwBack === null && st.s >= 23.97) events.screwBack = +t.toFixed(4); // 8IP 拧回缺口
       if (events.summary === null && st.sum > 0.5) events.summary = +t.toFixed(4);
     }
     prev = st;

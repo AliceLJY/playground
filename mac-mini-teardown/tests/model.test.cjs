@@ -104,7 +104,9 @@ test('SPEC 3: 读数随进度单调不减；顺带看内存那一拍之前内存
 
 const ALLOWED = (a, b, s) => {
   const k = [a, b].sort().join('|');
-  return k === 'socket|ssd' && s < 20.9; // SSD 插在插槽里，直到第 20 步拔开
+  if (k === 'socket|ssd') return s < 20.9; // 原厂 SSD 插在插槽里，直到第 20 步拔开
+  if (k === 'socket|ssd2') return s > 23.38; // 第三方小板从斜插进插槽开始
+  return false;
 };
 const SOLID = (M) => Object.keys(M.PARTS);
 for (const layout of ['wide', 'tall']) {
@@ -148,9 +150,33 @@ test('SPEC 5: 拆下来的零件离开机身后不再回来；螺丝在被拧之
     const p = M.pose(s)[sc.id].p;
     assert.ok(Math.hypot(p[0] - sc.x, p[1] - sc.y, p[2] - sc.z) < 1e-6, `${sc.id} 在 s=${s.toFixed(2)} 就动了`);
   }
-  // 拧下的螺丝都落进螺丝盘
+  // 拆完那一刻，拧下的螺丝都在螺丝盘里
+  const out = M.pose(M.SWAP);
+  for (const sc of M.SCREWS) assert.ok(out[sc.id].p[1] < 6, `${sc.id} 没落进盘里`);
+  // 换上小板以后：那颗 8IP 回到半圆缺口原位，其余还在盘里；「拧下」的计数不因装回而变
   const end = M.pose(M.S_MAX);
-  for (const sc of M.SCREWS) assert.ok(end[sc.id].p[1] < 6, `${sc.id} 没落进盘里`);
+  for (const sc of M.SCREWS) {
+    const d = Math.hypot(end[sc.id].p[0] - sc.x, end[sc.id].p[1] - sc.y, end[sc.id].p[2] - sc.z);
+    if (sc.bit === '8IP') assert.ok(d < 1e-6, `8IP 没拧回缺口（差 ${d.toFixed(2)} mm）`);
+    else assert.ok(end[sc.id].p[1] < 6, `${sc.id} 不该离开螺丝盘`);
+  }
+  assert.strictEqual(M.counters(M.S_MAX).screws, 13);
+  // 小板最后平放在原厂模块的位置；原厂模块平放在机身外的桌上
+  const b = M.PARTS.ssd2.box, q = end.ssd2;
+  assert.ok(Math.hypot(q.p[0] - b[0], q.p[1] - b[1], q.p[2] - b[2]) < 1e-6 && Math.abs(q.R[4] - 1) < 1e-9, '小板没压平到位');
+  assert.ok(end.ssd.p[2] > 63.5 && end.ssd.p[1] < 2, '原厂模块应平放在机身前面的桌上');
+});
+
+test('SPEC 8: SSD 模块是竖长板，宽 : 长 ≈ 1 : 1.5，金手指那条短边插进插槽；螺丝在远端短边正中', async () => {
+  const M = await load();
+  for (const id of ['ssd', 'ssd2']) {
+    const b = M.PARTS[id].box, r = b[5] / b[3];
+    assert.ok(r > 1.4 && r < 1.6, `${id} 长宽比 ${r.toFixed(2)}`);
+  }
+  const s = M.PARTS.ssd.box, k = M.PARTS.socket.box;
+  assert.ok(Math.abs(k[0] - s[0]) < 1e-6 && k[2] < s[2], '插槽在 SSD 的近端短边');
+  const sc = M.SCREWS.find((x) => x.bit === '8IP');
+  assert.ok(Math.abs(sc.x - s[0]) < 1e-6 && Math.abs(sc.z - (s[2] + s[5] / 2)) < 1, '8IP 在远端短边正中');
 });
 
 test('SPEC 7: 机身按官方规格 127 × 127 × 50 mm', async () => {

@@ -44,3 +44,15 @@ test('SPEC 6: 每句旁白停留够读（1 秒 + 每 4 个字 0.25 秒）', asyn
     assert.ok(t1 - t0 >= need, `「${text}」只停 ${(t1 - t0).toFixed(1)} s，要 ${need.toFixed(1)} s`);
   }
 });
+
+test('公开仓：旁白、步骤栏、页面文字里不出现第三方小板的品牌、价格或朋友的名字；DFU 那句只出现一次', async () => {
+  const [M, T] = await load();
+  const fs = require('node:fs'), path = require('node:path');
+  const page = fs.readFileSync(path.join(__dirname, '../index.template.html'), 'utf8');
+  const all = [...T._steps.steps.caption.map((c) => c[1]), ...M.STAGES.map((s) => s.op), ...T.SSD_NOTES.map((n) => n[3]), page].join('\n');
+  for (const bad of ['全闪', 'quanshan', '勇哥', '¥', '元）', '价格']) assert.ok(!all.includes(bad), `出现了「${bad}」`);
+  const dfu = T._steps.steps.caption.filter((c) => /DFU/.test(c[1]));
+  assert.strictEqual(dfu.length, 1, 'DFU 只用一句话交代');
+  assert.match(dfu[0][1], /Apple Configurator/);
+  assert.ok(T._steps.steps.caption.some((c) => /第三方 2TB 小板/.test(c[1])), '要交代换上去的是第三方 2TB 小板');
+});
