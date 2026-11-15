@@ -208,7 +208,7 @@ let mode = CAPTURE || q.has('at') || q.has('view') || q.has('s') ? 'frozen' : 't
 let tourClock = 0, idle = 0, backTimer, liveS = 0, targetS = 0, liveDwell = 0, userOrbit = false, liveView = 'hero', camAnim = null;
 const heldPointers = new Set();
 const IDLE_BACK = q.has('idle') ? Math.max(1, +q.get('idle')) : 25;
-let lowTier = false, frame = 0, renderedS = 0;
+let lowTier = false, frame = 0, renderedS = 0, loopFade = 0;
 
 function drawFrame(s, tTour, { view, cursor, caption, captionAt: cAt, summary }) {
   renderedS = s;
@@ -224,15 +224,17 @@ function drawFrame(s, tTour, { view, cursor, caption, captionAt: cAt, summary })
   moveCursor(cursor);
   renderer.render(scene, camera);
 }
-function renderTour(t) { const T = tourAt(t); drawFrame(T.s, T.t, T); return T; }
+function renderTour(t) { const T = tourAt(t); drawFrame(T.s, T.t, T); $('#fade').style.opacity = T.dip.toFixed(3); return T; }
 
 function tick(now) {
   const dt = Math.min(0.05, (now - lastNow) / 1000); lastNow = now; frame++;
   fpsMeter(dt);
   if (mode === 'tour') {
     tourClock += dt;
-    if (tourClock >= TOUR_S) { tourClock = 0; const f = $('#fade'); f.style.opacity = 1; setTimeout(() => { f.style.opacity = 0; }, 420); }
+    if (tourClock >= TOUR_S) { tourClock = 0; loopFade = 1; }
     renderTour(tourClock);
+    // 导览循环回到开头：盖一层淡入淡出（按帧时间递减，不靠 CSS 过渡）
+    if (loopFade > 0) { loopFade = Math.max(0, loopFade - dt / 0.45); $('#fade').style.opacity = Math.max(loopFade, +$('#fade').style.opacity).toFixed(3); }
   } else if (mode === 'live') {
     idle = heldPointers.size ? 0 : idle + dt;
     // 按导览同样的节奏追目标进度：在剧本时间轴上走 dt×2
@@ -283,7 +285,7 @@ function takeOver() {
 function backToTour() {
   if (mode !== 'live') return;
   const f = $('#fade'); f.style.opacity = 1;
-  backTimer = setTimeout(() => { mode = 'tour'; tourClock = 0; controls.enabled = false; camAnim = null; $('#badge').textContent = '自动导览 · 点一下就交给你'; $('#resume').hidden = true; f.style.opacity = 0; }, 380);
+  backTimer = setTimeout(() => { mode = 'tour'; tourClock = 0; loopFade = 1; controls.enabled = false; camAnim = null; $('#badge').textContent = '自动导览 · 点一下就交给你'; $('#resume').hidden = true; }, 200);
   mode = 'fading';
 }
 function goStep(dir) {
@@ -347,12 +349,13 @@ window.__mini = {
   render: (t) => { clearTimeout(backTimer); $('#fade').style.opacity = 0; mode = 'frozen'; return renderTour(t); },
   state: () => ({ mode, s: mode === 'live' ? liveS : renderedS, target: targetS, tourClock, idle, view: displayedView, layout: layoutName(), filmTall: filmTall(), counters: M.counters(renderedS), camera: { position: camera.position.toArray(), target: controls.target.toArray() }, lowTier, fps }),
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pixelRatio: renderer.getPixelRatio(), renderer: rendererName() }),
-  // 机器（不含螺丝盘、工具）在屏幕上的范围，0–1 归一
+  // 机器主体（机身和还在机身里的零件；不含螺丝盘、工具、已经挪到机身外的底盖、内板、风扇和拔出来的 SSD）在屏幕上的范围，0–1 归一
   box: () => {
+    const out = { cover: 5, inner: 10.5, fan: 13, ssd: 21 };
     const b = new THREE.Box3(), v = new THREE.Vector3(); let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     machine.root.updateMatrixWorld(true);
     for (const [id, P] of Object.entries(machine.parts)) {
-      if (id.startsWith('screw') || !P.g.visible || P.op < 0.3) continue;
+      if (id.startsWith('screw') || !P.g.visible || P.op < 0.3 || (out[id] !== undefined && renderedS >= out[id])) continue;
       b.setFromObject(P.g);
       for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) { v.set(x, y, z).project(camera); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
     }

@@ -240,7 +240,7 @@ function ssdPose(s) {
   const uc = local(s, CLOSEUP);
   if (uc > 0) {
     // 特写：先正面（闪存颗粒、金手指），再翻到背面看另一颗，最后翻回来
-    const flip = Math.PI * (seg(uc, 0.42, 0.6) - seg(uc, 0.82, 0.98));
+    const flip = Math.PI * (seg(uc, 0.42, 0.6) - seg(uc, 0.66, 0.8)); // 约 35.8–37.5 秒翻到背面，38.1–39.5 秒翻回来
     R = mul(euler(SSD_SHOW.e), rotZ(flip));
     p = add(SSD_SHOW.p, [0, 10 * seg(uc, 0, 0.2), 0]);
   }

@@ -16,7 +16,7 @@ const S_KEYS = [
   [41.5, 23], [TOUR_S, 23], // 特写，然后总结卡
 ];
 const steps = {
-  view: [[0, 'open'], [2.3, 'hero'], [7.0, 'back'], [10.8, 'hero'], [15.4, 'fan'], [21.4, 'ssd'], [23.2, 'chip'], [25.8, 'ssd'], [31.0, 'show'], [40.6, 'summary']],
+  view: [[0, 'open'], [2.3, 'hero'], [7.0, 'back'], [10.8, 'hero'], [15.4, 'fan'], [21.4, 'ssd'], [23.2, 'chip'], [25.8, 'ssd'], [31.0, 'show'], [41.0, 'summary', 0]],
   caption: [
     [0, 'Mac mini 硬盘满了，有人直接拆机换大容量。'],
     [2.4, '我不敢，那就在 3D 里替我拆一遍。'],
@@ -41,8 +41,8 @@ const steps = {
 };
 // 特写里的标注（贴在 SSD 上，随它翻面）
 export const SSD_NOTES = [
-  [32.9, 40.6, 'gold', '金手指：看着像 M.2'],
-  [35.0, 40.6, 'nand', '一面一颗 128 GB 闪存（两面共两颗）'],
+  [32.9, 38.0, 'gold', '金手指：看着像 M.2'],
+  [35.0, 38.0, 'nand', '一面一颗 128 GB 闪存（两面共两颗）'],
 ];
 // 机位：目标点、方位角（从 +z 往 +x 转）、仰角、要框住的半径（mm）。tall 是竖屏版（画面窄，框得松一点）。
 export const VIEWS = {
@@ -52,7 +52,7 @@ export const VIEWS = {
   fan: { t: [18, 28, 12], az: 24, el: 56, r: 84, tall: { t: [22, 26, 8], az: 24, el: 56, r: 100 } },
   ssd: { t: [-30, 18, 24], az: 18, el: 58, r: 74, tall: { t: [-14, 18, 18], az: 18, el: 58, r: 92 } },
   chip: { t: [4, 20, -26], az: 22, el: 62, r: 74, tall: { t: [6, 20, -18], az: 22, el: 60, r: 92 } },
-  show: { t: [SSD_SHOW.p[0], SSD_SHOW.p[1] + 4, SSD_SHOW.p[2]], az: 4, el: 3, r: 33 },
+  show: { t: [SSD_SHOW.p[0], SSD_SHOW.p[1] + 4, SSD_SHOW.p[2]], az: 4, el: -8, r: 33 }, // 略微仰视：机身落到画外，特写背后只有素背景
   summary: { t: [0, 80, 40], az: 28, el: 26, r: 150, tall: { t: [10, 84, 30], az: 24, el: 26, r: 150 } },
 };
 
@@ -77,15 +77,21 @@ export function timeAt(s) {
   }
   return SUMMARY_AT - 0.1;
 }
-/** 镜头：切到新机位后 1.4 s 缓动过去 */
+/** 镜头：切到新机位后缓动过去（默认 1.4 s；第三项写 0 就是硬切，配一下泛白） */
 function viewAt(t) {
   let from = steps.view[0][1], to = from, k = 1;
   for (let i = 1; i < steps.view.length; i++) {
-    const [t1, name] = steps.view[i];
+    const [t1, name, d = 1.4] = steps.view[i];
     if (t < t1) break;
-    from = steps.view[i - 1][1]; to = name; k = ease((t - t1) / 1.4);
+    from = steps.view[i - 1][1]; to = name; k = d > 0 ? ease((t - t1) / d) : 1;
   }
   return { from, to, k };
+}
+/** 硬切处的泛白：切点前后各 0.25 s，三角形 */
+function dipAt(t) {
+  let d = 0;
+  for (const [t1, , dur = 1.4] of steps.view) if (dur === 0) d = Math.max(d, 1 - Math.abs(t - t1) / 0.25);
+  return Math.max(0, d);
 }
 export const viewNameAt = (t) => step(steps.view, t);
 function cursorAt(t) {
@@ -101,7 +107,7 @@ export function tourAt(t) {
   const c = captionAt(t);
   return {
     t, s: sAt(t), view: viewAt(t), cursor: cursorAt(t), caption: c.text, captionAt: c.at,
-    summary: ease((t - SUMMARY_AT) / 0.7),
+    summary: ease((t - SUMMARY_AT) / 0.7), dip: dipAt(t),
     notes: SSD_NOTES.filter(([a, b]) => t >= a && t < b).map(([a, b, id, text]) => ({ id, text, k: Math.min(ease((t - a) / 0.4), 1 - ease((t - b + 0.3) / 0.3)) })),
   };
 }
