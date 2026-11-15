@@ -65,7 +65,7 @@ export const CONNECTORS = [
   { id: 'ssd', name: 'SSD 插槽', stage: 20, at: 0.8 },
 ];
 export const PINS = [[0.35, 3], [0.25, 4], [0.55, 4], [0.85, 4]].map(([at, stage], i) => ({ stage, at, corner: [[1, 1], [1, -1], [-1, -1], [-1, 1]][i] }));
-export const RAM_FOUND_AT = LOOK + 0.42;
+export const RAM_FOUND_AT = LOOK + 0.3;
 
 // ---------------- 小工具 ----------------
 export const clamp = (x, a = 0, b = 1) => (x < a ? a : x > b ? b : x);
@@ -115,20 +115,20 @@ export const PARTS = {
 };
 export const POWER_BUTTON = [45, -45]; // 电源键在底盖一角（示意）
 
-// 摆在一旁的螺丝盘（四格，按刀头分）。宽屏放机身右前方，竖屏放在机身正前方（录片里落在下方那块只放画面的区域）
+// 摆在一旁的螺丝盘（四格，按刀头分），放在机身右边；竖屏格子小一点、离机身近一点，好让整台机器加盘子塞进窄画面
 export const TRAY = {
-  wide: { c: [118, 0, 66], cell: 22 },
-  tall: { c: [0, 0, 128], cell: 26 },
+  wide: { c: [134, 0, -6], cell: 22 },
+  tall: { c: [116, 0, 6], cell: 24 },
 };
 export function trayCell(layout, bit, k) {
   const T = TRAY[layout] || TRAY.wide, i = BITS.indexOf(bit);
   const off = (i - 1.5) * T.cell;
   const jx = ((k % 3) - 1) * 5.2, jz = (Math.floor(k / 3) - 1) * 5.2;
-  return layout === 'tall' ? [T.c[0] + off + jx, 3.2, T.c[2] + jz] : [T.c[0] + jx, 3.2, T.c[2] + off + jz];
+  return [T.c[0] + jx, 3.2, T.c[2] + off + jz];
 }
 export function trayBox(layout) {
   const T = TRAY[layout] || TRAY.wide, L = T.cell * 4 + 4, S = T.cell + 4;
-  return layout === 'tall' ? [T.c[0], 1, T.c[2], L, 2, S] : [T.c[0], 1, T.c[2], S, 2, L];
+  return [T.c[0], 1, T.c[2], S, 2, L];
 }
 
 // ---------------- 位姿 ----------------
@@ -220,7 +220,8 @@ function fanPose(s) {
 }
 
 // SSD：螺丝出来 → 从插槽拔开（往耳机孔方向挪）→ 斜着翘起、取出，悬在机器上方亮相
-export const SSD_SHOW = { p: [-6, 88, 34], e: [-58 * D, 18 * D, 0] };
+// 特写时 SSD 悬在机器前上方 190 mm，正面朝镜头（镜头几乎平视，背后是素背景）
+export const SSD_SHOW = { p: [0, 190, 96], e: [72 * D, 14 * D, 0] };
 function ssdPose(s) {
   const b = PARTS.ssd.box, c0 = [b[0], b[1], b[2]];
   const u20 = local(s, 20), u21 = local(s, 21);
@@ -231,8 +232,8 @@ function ssdPose(s) {
     const tilt = 24 * D * seg(u21, 0.05, 0.35);
     const Rt = rotZ(-tilt), pv = [-26, 14.2, p[2]];
     const tilted = aboutPivot(Rt, pv, p);
-    const lifted = add(tilted, [0, 22 * seg(u21, 0.3, 0.55), 0]);
-    const k = seg(u21, 0.5, 1);
+    const lifted = add(tilted, [0, 52 * seg(u21, 0.3, 0.6), 0]); // 先竖直提出机身口（壁高 50），再往前送
+    const k = seg(u21, 0.58, 1);
     p = lerp3(lifted, SSD_SHOW.p, k);
     R = k > 0 ? euler(lerp3([0, 0, -tilt], SSD_SHOW.e, k)) : Rt;
   }
@@ -249,10 +250,10 @@ function ssdPose(s) {
 // 散热片：找内存那一拍变成 X 光（半透明），让底下的 M4 和内存颗粒露出来
 export function xray(s) {
   const u = local(s, LOOK);
-  return seg(u, 0.46, 0.62) * (1 - seg(u, 0.9, 1));
+  return seg(u, 0.08, 0.22) * (1 - seg(u, 0.9, 1));
 }
 function heatPose(s) { const r = restPose('heatsink'); r.op = 1 - 0.82 * xray(s); return r; }
-function ramPose(id, s) { const r = restPose(id); const u = local(s, LOOK); r.hi = seg(u, 0.6, 0.75) * (1 - seg(u, 0.92, 1)); return r; }
+function ramPose(id, s) { const r = restPose(id); const u = local(s, LOOK); r.hi = seg(u, 0.22, 0.34) * (1 - seg(u, 0.92, 1)); return r; }
 
 /** 一颗螺丝：在自己的区间里转着退出、抬起，然后飞进螺丝盘对应那一格 */
 export function screwPose(sc, s, layout = 'wide') {
@@ -278,7 +279,7 @@ export function pose(s, layout = 'wide') {
   for (const id of Object.keys(PARTS)) out[id] = restPose(id);
   out.cover = coverPose(s); out.inner = innerPose(s); out.fan = fanPose(s); out.ssd = ssdPose(s); out.heatsink = heatPose(s);
   out.ramA = ramPose('ramA', s); out.ramB = ramPose('ramB', s);
-  out.m4.hi = 0.35 * seg(local(s, LOOK), 0.6, 0.75) * (1 - seg(local(s, LOOK), 0.92, 1));
+  out.m4.hi = 0.35 * seg(local(s, LOOK), 0.22, 0.34) * (1 - seg(local(s, LOOK), 0.92, 1));
   out.socket.hi = s > 20 && s < 21 ? 1 : 0;
   out.zif.hi = s > 14 && s < 17 ? 1 : 0;
   for (const sc of SCREWS) out[sc.id] = screwPose(sc, s, layout);

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mac mini 换硬盘 · 21 步拆解台</title>
+<meta name="description" content="Mac mini（M4，2024）硬盘满了，有人拆机换大容量。我没敢，就在 3D 里按 iFixit 换 SSD 指南替我拆一遍：21 步、13 颗螺丝、4 种刀头，最后拔出一块不是普通 M.2 的硬盘。">
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg: #ecebe7; --ink: #1f1e1c; --dim: #77736c; --line: rgba(31, 30, 28, .14); --card: rgba(250, 249, 246, .86); --accent: #e0602a;
+    --serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "STSong", Georgia, serif;
+    --sans: "PingFang SC", "Helvetica Neue", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-tap-highlight-color: transparent; }
+  canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .hud { position: fixed; inset: 0; pointer-events: none; }
+  .hud > * { position: absolute; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+
+  .title { left: 40px; top: 30px; max-width: 520px; }
+  .kicker { font-size: 12px; letter-spacing: .16em; color: var(--dim); display: flex; gap: 10px; align-items: center; }
+  .kicker::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .title h1 { margin: 8px 0 0; font-family: var(--serif); font-weight: 800; font-size: 52px; letter-spacing: .02em; line-height: 1.05; }
+  .title p { margin: 10px 0 0; font-size: 15px; line-height: 1.6; color: var(--dim); }
+  .desc { right: 40px; top: 36px; width: 330px; font-size: 13.5px; line-height: 1.75; color: #4b4842; }
+  .desc b { color: var(--ink); font-weight: 600; }
+
+  .cards { left: 50%; bottom: 116px; transform: translateX(-50%); display: flex; gap: 12px; }
+  .stat { width: 168px; padding: 12px 14px 11px; position: relative; transition: border-color .2s; }
+  .stat .k { font-size: 12px; letter-spacing: .12em; color: var(--dim); }
+  .stat .v { margin-top: 2px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 40px; font-weight: 600; letter-spacing: -.03em; line-height: 1.05; }
+  .stat .v small { font-size: 16px; color: var(--dim); font-weight: 500; letter-spacing: 0; margin-left: 2px; }
+  .stat .sub { margin-top: 6px; font-size: 11.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 6px; min-height: 18px; }
+  .stat .sub span { font-family: var(--mono); font-size: 11px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); color: #a29d94; }
+  .stat .sub span.on { color: var(--ink); border-color: rgba(31, 30, 28, .35); background: #fff; }
+  .stat.hot { border-color: var(--accent); }
+  .stat.hot .v { color: var(--accent); }
+  .ramnote { left: 40px; top: 160px; font-size: 12px; color: var(--dim); white-space: nowrap; opacity: 0; }
+  .ramnote b { color: var(--ink); font-weight: 600; }
+
+  .stepbar { left: 50%; bottom: 30px; transform: translateX(-50%); width: min(620px, calc(100% - 760px)); min-width: 420px; display: flex; gap: 14px; align-items: flex-start; }
+  .stepbar .no { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 600; color: var(--accent); line-height: 1; padding-top: 2px; white-space: nowrap; }
+  .stepbar .no small { font-size: 13px; color: var(--dim); font-weight: 500; }
+  .stepbar .tx { font-size: 15px; line-height: 1.5; }
+  .stepbar .tx em { display: block; font-style: normal; font-size: 11.5px; color: var(--dim); letter-spacing: .08em; margin-bottom: 1px; }
+
+  .narr { left: 50%; bottom: 266px; transform: translateX(-50%); max-width: min(760px, calc(100% - 80px)); text-align: center; font-family: var(--serif); font-size: 24px; font-weight: 700; line-height: 1.45; letter-spacing: .02em; text-shadow: 0 0 18px var(--bg), 0 0 6px var(--bg); }
+
+  .side { left: 40px; bottom: 30px; width: 300px; padding: 10px 12px 8px; }
+  .side h3, .dialbox h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: .14em; color: var(--dim); font-weight: 600; display: flex; justify-content: space-between; }
+  .side h3 em { font-style: normal; font-weight: 400; letter-spacing: 0; }
+  .side svg { display: block; width: 100%; height: 150px; }
+  .side svg .p { fill: rgba(255, 255, 255, .55); stroke: #3a3936; stroke-width: .9; vector-effect: non-scaling-stroke; }
+  .side svg .p.hi { stroke: var(--accent); stroke-width: 1.8; fill: rgba(224, 96, 42, .1); }
+  .side svg .p.xr { fill: none; stroke-dasharray: 3 2; stroke: #8a867e; }
+  .side svg .p.chassis { fill: rgba(218, 217, 214, .7); }
+  .side svg text { font-size: 10px; fill: var(--dim); font-family: var(--sans); }
+  .side svg .floor { stroke: #b9b5ad; stroke-width: 1; }
+
+  .dialbox { right: 40px; bottom: 30px; padding: 10px 12px 12px; width: 232px; pointer-events: auto; }
+  .dialrow { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  #dial { width: 112px; height: 112px; touch-action: none; cursor: grab; }
+  #dial .tk { stroke: #b9b5ad; stroke-width: 1.4; }
+  #dial .tk.done { stroke: var(--ink); }
+  #dial .tk.look { stroke: var(--accent); }
+  #dial text { font-family: var(--mono); font-size: 22px; font-weight: 600; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+  #dial .knob { fill: var(--accent); stroke: #fff; stroke-width: 2; }
+  button { font: inherit; font-size: 13px; color: var(--ink); background: rgba(255, 255, 255, .7); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 44px; min-width: 44px; cursor: pointer; }
+  button:hover { background: #fff; }
+  .btncol { display: flex; flex-direction: column; gap: 6px; }
+  #resume[hidden] { display: none; }
+  #resume { margin-top: 8px; width: 100%; color: var(--dim); }
+  .badge { right: 40px; top: 228px; font-size: 11px; letter-spacing: .1em; color: var(--dim); }
+  .foot { left: 40px; bottom: 8px; font-size: 10.5px; color: #9a958c; white-space: nowrap; }
+
+  #callouts { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #callouts path { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+  #callouts circle { fill: var(--accent); }
+  .tag { padding: 7px 11px; font-size: 13px; line-height: 1.45; max-width: 230px; opacity: 0; border-color: rgba(224, 96, 42, .5); }
+  .tag b { color: var(--accent); font-weight: 600; }
+
+  .summary { left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(560px, calc(100% - 40px)); padding: 26px 30px 22px; opacity: 0; background: rgba(250, 249, 246, .94); box-shadow: 0 10px 40px rgba(40, 30, 20, .08); }
+  .summary h2 { margin: 0 0 14px; font-family: var(--serif); font-size: 22px; font-weight: 700; }
+  .summary .row { display: flex; align-items: baseline; gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .summary .row b { font-family: var(--mono); font-size: 44px; font-weight: 600; min-width: 2.2ch; text-align: right; letter-spacing: -.03em; line-height: 1; }
+  .summary .row span { font-size: 18px; }
+  .summary .row.last b { color: var(--accent); font-family: var(--serif); font-size: 30px; }
+  .summary .row.last span { font-size: 17px; }
+  .summary .src { margin-top: 12px; font-size: 11px; color: var(--dim); line-height: 1.6; }
+
+  #cursor { left: 0; top: 0; width: 22px; height: 22px; opacity: 0; will-change: transform; z-index: 5; }
+  #cursor svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
+  #ping { position: absolute; left: -9px; top: -9px; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; }
+  #fade { position: fixed; inset: 0; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .38s; }
+  .nogl .hud, .nogl canvas { display: none; }
+  .nogl::after { content: "这个页面需要 WebGL。换一个浏览器试试。"; position: fixed; inset: 0; display: grid; place-items: center; color: var(--dim); }
+
+  /* 录片：不要毛玻璃、不要过渡（逐帧截图时过渡跟真实时间走，会拍到中间态） */
+  body.capture *, body.capture *::before, body.capture *::after { transition: none !important; animation: none !important; }
+  body.capture .dialbox button#resume { display: none; }
+
+  /* ---------- 手机竖屏（可操作） ---------- */
+  @media (max-aspect-ratio: 1/1), (max-width: 760px) {
+    .title { left: 16px; top: 12px; right: 16px; max-width: none; }
+    .kicker { font-size: 10.5px; }
+    .title h1 { font-size: 26px; margin-top: 4px; }
+    .title p { display: none; }
+    .desc, .side, .foot, .ramnote { display: none; }
+    .badge { right: 16px; top: 14px; font-size: 10px; }
+    .cards { top: 86px; bottom: auto; left: 12px; right: 12px; transform: none; gap: 6px; }
+    .stat { flex: 1; width: auto; padding: 7px 8px 6px; }
+    .stat .k { font-size: 10.5px; letter-spacing: .06em; }
+    .stat .v { font-size: 22px; }
+    .stat .v small { font-size: 11px; }
+    .stat .sub { display: none; }
+    .narr { bottom: 214px; font-size: 17px; max-width: calc(100% - 32px); width: max-content; }
+    .stepbar { left: 16px; right: 16px; bottom: 132px; transform: none; width: auto; min-width: 0; gap: 10px; }
+    .stepbar .no { font-size: 20px; }
+    .stepbar .tx { font-size: 13.5px; }
+    .dialbox { left: 12px; right: 12px; bottom: 12px; width: auto; padding: 6px 8px; }
+    .dialbox h3 { display: none; }
+    .dialrow { gap: 6px; }
+    #dial { width: 96px; height: 96px; }
+    .btncol { flex-direction: row-reverse; flex: 1; justify-content: space-around; }
+    .btncol button { flex: 1; }
+    #resume { margin-top: 0; width: auto; position: absolute; right: 8px; top: -54px; background: var(--card); }
+    .tag { font-size: 12px; max-width: 180px; }
+    .summary { top: 49%; padding: 18px 20px 16px; }
+    .summary h2 { font-size: 18px; }
+    .summary .row b { font-size: 32px; }
+    .summary .row span { font-size: 15px; }
+    .summary .row.last b { font-size: 22px; }
+  }
+  /* ---------- 录片竖屏 540×960（×2 = 1080×1920）：要读的字在 y 84–740，740 以下只放画面 ---------- */
+  body.film-tall .title { top: 92px; left: 30px; right: 30px; }
+  body.film-tall .kicker { font-size: 13px; }
+  body.film-tall .title h1 { font-size: 40px; margin-top: 6px; }
+  body.film-tall .badge, body.film-tall .dialbox, body.film-tall #cursor { display: none; }
+  body.film-tall .cards { top: 182px; left: 30px; right: 30px; gap: 8px; }
+  body.film-tall .stat { padding: 9px 10px 8px; }
+  body.film-tall .stat .k { font-size: 12.5px; }
+  body.film-tall .stat .v { font-size: 34px; }
+  body.film-tall .stat .v small { font-size: 14px; }
+  body.film-tall .narr { top: 586px; bottom: auto; font-size: 23px; max-width: 470px; width: 470px; }
+  body.film-tall .stepbar { top: 668px; bottom: auto; left: 30px; right: 30px; }
+  body.film-tall .stepbar .no { font-size: 24px; }
+  body.film-tall .stepbar .tx { font-size: 15.5px; }
+  body.film-tall .foot { display: block; left: 30px; top: 150px; bottom: auto; font-size: 11px; white-space: normal; right: 30px; }
+  body.film-tall .tag { font-size: 15px; max-width: 230px; }
+  body.film-tall .side { display: block; left: 30px; right: 30px; top: 760px; bottom: auto; width: auto; background: transparent; border: none; padding: 0; }
+  body.film-tall .side h3 { display: none; }
+  body.film-tall .side svg { height: 176px; }
+  body.film-tall .summary { top: 430px; transform: translate(-50%, -50%); width: 470px; }
+  body.film-tall .summary .row b { font-size: 40px; }
+  body.film-tall .summary .row span { font-size: 18px; }
+  body.film-tall .summary .row.last b { font-size: 26px; }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Mac mini 三维拆解模型"></canvas>
+<svg id="callouts"><path id="lead"></path><circle id="leadDot" r="3" cx="-10" cy="-10"></circle><path id="lead2"></path><circle id="leadDot2" r="3" cx="-10" cy="-10"></circle></svg>
+<div class="hud">
+  <div class="title">
+    <div class="kicker">拆解台 · MAC MINI M4 · 2024</div>
+    <h1>Mac mini 换硬盘</h1>
+    <p>我没敢走的那条路，在 3D 里替我拆一遍。</p>
+  </div>
+  <div class="desc">按 iFixit 换 SSD 指南的 <b>21 步</b>拆到底：底盖、内板、风扇，最后拔出 SSD 模块。屏幕上的每个数都来自 iFixit 原文；零件的尺寸和位置是示意。拖右下角的旋钮，或按 ← →，自己一步步拆。</div>
+  <div class="badge" id="badge">自动导览 · 点一下就交给你</div>
+
+  <div class="cards">
+    <div class="stat card" id="cSteps"><div class="k">步数</div><div class="v"><span>0</span><small>/21</small></div><div class="sub" id="stepSub"></div></div>
+    <div class="stat card" id="cScrews"><div class="k">螺丝</div><div class="v"><span>0</span><small>/13</small></div><div class="sub" id="screwSub"></div></div>
+    <div class="stat card" id="cBits"><div class="k">刀头</div><div class="v"><span>0</span><small>/4</small></div><div class="sub" id="bitSub"></div></div>
+    <div class="stat card" id="cConns"><div class="k">接头</div><div class="v"><span>0</span><small>/3</small></div><div class="sub" id="connSub"></div></div>
+  </div>
+  <div class="ramnote" id="ramnote">内存：焊在 M4 旁边的 LPDDR5 颗粒，<b>0</b> 个插槽</div>
+  <div class="narr" id="narr"></div>
+  <div class="stepbar"><div class="no" id="stepNo">01<small>/21</small></div><div class="tx"><em id="stepKind">iFixit 第 1 步</em><span id="stepTx"></span></div></div>
+
+  <div class="side card"><h3>侧视线稿 <em>随拆解同步 · 示意</em></h3><svg id="side" viewBox="0 0 300 150" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="dialbox card">
+    <h3>工序 <span>拖旋钮 · ← →</span></h3>
+    <div class="dialrow">
+      <svg id="dial" viewBox="0 0 120 120" data-tour="dial" role="slider" aria-label="拆解进度" tabindex="0"></svg>
+      <div class="btncol"><button id="next" data-tour="next">下一步 →</button><button id="prev">← 上一步</button></div>
+    </div>
+    <button id="resume" hidden>继续导览</button>
+  </div>
+  <div class="foot" id="foot">拆解步骤按 iFixit 指南 180199，模型为示意，尺寸按官方规格 · 「为什么没拆」据作者 2026-09 扩容调研</div>
+
+  <div class="tag card" id="tag1"></div>
+  <div class="tag card" id="tag2"></div>
+  <div class="summary card" id="summary">
+    <h2>换一块 Mac mini 的硬盘</h2>
+    <div class="row"><b>21</b><span>步</span></div>
+    <div class="row"><b>13</b><span>颗螺丝</span></div>
+    <div class="row"><b>4</b><span>种刀头（T5 · 3IP · 5IP · 8IP）</span></div>
+    <div class="row last"><b>一块</b><span>不是普通 M.2 的硬盘</span></div>
+    <div class="src">步骤与数字：iFixit 指南 180199、178986 · 我没拆的理由：作者 2026-09 扩容调研</div>
+  </div>
+  <div id="cursor"><svg viewBox="0 0 22 22"><path d="M3 2 L3 18 L7.5 14 L10.5 20.5 L13 19.4 L10.1 13 L16 13 Z" fill="#fff" stroke="#1f1e1c" stroke-width="1.4" stroke-linejoin="round"/></svg><div id="ping"></div></div>
+</div>
+<div id="fade"></div>
+<!--BUNDLE-->
+</body>
+</html>
