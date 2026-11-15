@@ -65,6 +65,19 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
     await ctx.close();
   }
 
+  // B9 读数卡「步数」与步骤栏步号、旋钮中间的数在每个旁白节拍上一致（读的是页面上实际显示的字）
+  {
+    const { ctx, page } = await open('?capture', 1365, 900, 1);
+    const beats = await page.evaluate(() => window.__mini.beats()); const bad = [];
+    for (const b of beats) {
+      const t = +(b + 0.6).toFixed(2);
+      const v = await page.evaluate((x) => { window.__mini.render(x); const n = (sel) => parseInt(document.querySelector(sel).textContent, 10); return { card: n('#cSteps .v span'), bar: n('#stepNo'), dial: n('#dialNo') }; }, t);
+      if (v.card !== v.bar || v.dial !== v.bar) bad.push(`t=${t} 卡 ${v.card} 栏 ${v.bar} 钮 ${v.dial}`);
+    }
+    check('B9', '读数卡步数、步骤栏步号、旋钮的数在每个节拍上一致', bad.length === 0, bad.length ? `对不上 ${bad.length}/${beats.length} 处：` + bad.slice(0, 4).join('；') : `${beats.length} 个节拍都一致`);
+    await ctx.close();
+  }
+
   // 录片竖屏安全区：要读的字只在 y 84–740 CSS（×2 = 168–1480），右侧 x>465 且 y 440–750 不放字
   {
     const { ctx, page } = await open('?capture', 540, 960, 2);

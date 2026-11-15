@@ -18,7 +18,7 @@ const S_KEYS = [
   [OUTRO_AT, 24], [TOUR_S, 24], // 换上第三方小板 6 秒，然后结尾和总结卡
 ];
 const steps = {
-  view: [[0, 'open'], [2.1, 'hero'], [6.6, 'back'], [9.2, 'hero'], [13.1, 'fan'], [19.2, 'ssd'], [20.6, 'chip'], [22.9, 'ssd'], [27.4, 'show'], [SWAP_AT, 'swap', 0], [OUTRO_AT, 'summary', 0]],
+  view: [[0, 'open'], [2.1, 'hero'], [6.6, 'back'], [9.2, 'hero'], [13.1, 'fan'], [19.2, 'ssd'], [20.6, 'chip'], [22.9, 'ssd'], [27.4, 'show'], [SWAP_AT, 'swap', 0], [OUTRO_AT, 'outro', 0], [SUMMARY_AT - 1.4, 'summary']],
   // 大字旁白讲故事；步骤栏小字只写 iFixit 的操作要点（model.STAGES[].op），两行不说同一句话
   caption: [
     [0, 'Mac mini 硬盘满了，有人直接拆机换大容量。'],
@@ -61,6 +61,8 @@ export const VIEWS = {
   show: { t: [SSD_SHOW.p[0], SSD_SHOW.p[1] + 4, SSD_SHOW.p[2]], az: 4, el: -8, r: 33 }, // 略微仰视：机身落到画外，特写背后只有素背景
   swap: { t: [-36, 20, 24], az: 20, el: 58, r: 58, tall: { t: [-30, 20, 22], az: 20, el: 58, r: 60 } },
   summary: { t: [-20, 20, 40], az: 24, el: 38, r: 104, tall: { t: [-24, 20, 30], az: 20, el: 40, r: 96 } },
+  // 结尾两句：和总结同一个角度，但还在正常画面区；总结卡进场前 1.4 秒才平滑挪到总结版式（竖屏机器挪到下方、宽屏挪到左边）
+  outro: { t: [-20, 20, 40], az: 24, el: 38, r: 104, tall: { t: [-24, 20, 30], az: 20, el: 40, r: 96 } },
 };
 
 const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * x * (x * (x * 6 - 15) + 10));

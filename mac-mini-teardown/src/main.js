@@ -41,12 +41,15 @@ controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistan
 
 // ---------------- 机位：按「要框住的半径」和可用画面算距离，再把目标点挪到可用区的中心 ----------------
 // 机器可用的画面区。总结机位（结尾两句和总结卡）另排：宽屏让出右边给总结卡，竖屏让出中间给总结卡、机器挪到下方画面区
-let summaryLayout = false;
+let summaryMix = 0; // 0 = 正常画面区，1 = 总结版式；两者之间按镜头过渡的进度插值，不跳
 function freeRect() {
   const W = innerWidth, H = innerHeight;
-  if (filmTall()) return summaryLayout ? { x0: 20, x1: W - 20, y0: 560, y1: 948 } : { x0: 20, x1: W - 20, y0: 424, y1: 806 };
-  if (portrait()) return { x0: 8, x1: W - 8, y0: 146, y1: H - 236 };
-  return summaryLayout ? { x0: 330, x1: W - 650, y0: 150, y1: H - 300 } : { x0: 380, x1: W - 380, y0: 150, y1: H - 300 };
+  let A, B;
+  if (filmTall()) { A = { x0: 20, x1: W - 20, y0: 424, y1: 806 }; B = { x0: 20, x1: W - 20, y0: 560, y1: 948 }; }
+  else if (portrait()) return { x0: 8, x1: W - 8, y0: 146, y1: H - 236 };
+  else { A = { x0: 380, x1: W - 380, y0: 150, y1: H - 300 }; B = { x0: 330, x1: W - 650, y0: 150, y1: H - 300 }; }
+  const m = summaryMix, L = (a, b) => a + (b - a) * m;
+  return { x0: L(A.x0, B.x0), x1: L(A.x1, B.x1), y0: L(A.y0, B.y0), y1: L(A.y1, B.y1) };
 }
 function viewSpec(name) { const v = VIEWS[name] || VIEWS.hero; return (layoutName() === 'tall' && v.tall) ? v.tall : v; }
 function camFromView(name) {
@@ -65,9 +68,10 @@ function setOffset() {
   camera.updateProjectionMatrix();
 }
 let displayedView = 'open';
-function setSummaryLayout(on) { if (on !== summaryLayout) { summaryLayout = on; setOffset(); } }
+function setSummaryMix(m) { if (Math.abs(m - summaryMix) > 1e-6) { summaryMix = m; setOffset(); } }
 function applyCam(from, to, k) {
-  setSummaryLayout(to === 'summary' && !portraitLive());
+  const sf = from === 'summary' ? 1 : 0, st = to === 'summary' ? 1 : 0;
+  setSummaryMix(portraitLive() ? 0 : sf + (st - sf) * k);
   const A = camFromView(from), B = camFromView(to);
   const tgt = A.tgt.clone().lerp(B.tgt, k);
   // 位置按「方向 + 距离」插值，比直接插位置少穿模
@@ -88,13 +92,13 @@ screwSub.innerHTML = M.BITS.map((b) => `<span data-sb="${b}"></span>`).join('');
 let lastKey = '';
 function updateCards(s) {
   const c = M.counters(s), before = M.counters(Math.max(0, s - 0.12));
-  const key = [c.steps, c.screws, c.bits, c.connectors, c.ramSlots, s > M.LOOK + 0.3, before.steps !== c.steps, before.screws !== c.screws, before.bits !== c.bits, before.connectors !== c.connectors].join();
+  const key = [M.readout(s).card, M.readout(Math.max(0, s - 0.12)).card, c.steps, c.screws, c.bits, c.connectors, c.ramSlots, s > M.LOOK + 0.3, before.steps !== c.steps, before.screws !== c.screws, before.bits !== c.bits, before.connectors !== c.connectors].join();
   if (key === lastKey) return c; lastKey = key;
-  cards.steps.querySelector('.v span').textContent = pad2(c.steps);
+  cards.steps.querySelector('.v span').textContent = pad2(M.readout(s).card);
   cards.screws.querySelector('.v span').textContent = pad2(c.screws);
   cards.bits.querySelector('.v span').textContent = c.bits;
   cards.conns.querySelector('.v span').textContent = c.connectors;
-  cards.steps.classList.toggle('hot', before.steps !== c.steps);
+  cards.steps.classList.toggle('hot', M.readout(Math.max(0, s - 0.12)).card !== M.readout(s).card);
   cards.screws.classList.toggle('hot', before.screws !== c.screws);
   cards.bits.classList.toggle('hot', before.bits !== c.bits);
   cards.conns.classList.toggle('hot', before.connectors !== c.connectors);
@@ -108,7 +112,7 @@ function updateCards(s) {
 }
 function updateStepbar(s) {
   const { i, stage } = M.stageAt(s);
-  const no = stage.ifixit ? stage.ifixit : M.STAGES.slice(0, i).filter((x) => x.ifixit).length;
+  const no = M.readout(s).bar;
   $('#stepNo').innerHTML = `${pad2(no)}<small>/21</small>`;
   // 小字只写 iFixit 原文的操作要点（model.STAGES[].op）；插进来的几拍只标是什么，不和大字旁白说同一句话
   $('#stepKind').textContent = stage.ifixit ? `iFixit 第 ${stage.ifixit} 步` : { look: '插一拍 · 不在指南里', closeup: '特写 · 不在步骤里', swap: '装回去 · 照第 21 步的装回说明' }[stage.kind];
@@ -160,7 +164,7 @@ function updateDial(s) {
   if (Math.abs(s - lastDial) < 1e-4) return; lastDial = s;
   const a = angOf(s);
   $('#needle').setAttribute('transform', `rotate(${a.toFixed(2)} 60 60)`); $('#knob').setAttribute('transform', `rotate(${a.toFixed(2)} 60 60)`);
-  $('#dialNo').textContent = pad2(M.counters(s).steps);
+  $('#dialNo').textContent = pad2(M.readout(s).dial);
   dial.querySelectorAll('.tk').forEach((t) => { const i = +t.dataset.i; t.classList.toggle('done', i <= s); t.classList.toggle('look', i === M.LOOK + 1); });
   dial.setAttribute('aria-valuenow', s.toFixed(2));
 }
@@ -275,7 +279,7 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 function sAtTime(t) { return tourAt(t).s; }
-function flyTo(name) { setSummaryLayout(name === 'summary' && !portraitLive()); const V = camFromView(name); camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1: V.pos, t1: V.tgt, k: 0 }; liveView = name; }
+function flyTo(name) { setSummaryMix(name === 'summary' && !portraitLive() ? 1 : 0); const V = camFromView(name); camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p1: V.pos, t1: V.tgt, k: 0 }; liveView = name; }
 
 // 帧率与降档：连续 3 秒低于 40 帧就降像素比、换硬阴影、线稿隔帧
 let fpsAcc = 0, fpsN = 0, fps = 60, slowFor = 0;
