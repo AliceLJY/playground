@@ -1,0 +1,268 @@
+{
+ "source": "https://www.ifixit.com/Teardown/Mac+Mini+(2024)+Chip+ID/178986",
+ "guideid": 178986,
+ "title": "Mac Mini (2024) Chip ID",
+ "revisionid": 2061227,
+ "license": "CC BY-NC-SA 3.0, iFixit",
+ "difficulty": "Moderate",
+ "time_required": "No estimate",
+ "tools": [],
+ "steps": [
+  {
+   "n": 1,
+   "title": "Main Board Side 1",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Apple APL1206/339S01548 E M4 deca-core applications processor w/ GPU"
+    },
+    {
+     "bullet": "orange",
+     "level": 0,
+     "text": "Micron MT62F1G64D4AS-026 XT:C 8 GB LPDDR5 SDRAM Memory"
+    },
+    {
+     "bullet": "yellow",
+     "level": 0,
+     "text": "Apple APL1066/343S00710 power management"
+    },
+    {
+     "bullet": "green",
+     "level": 0,
+     "text": "Apple APL1067/343S00683 ? power management"
+    },
+    {
+     "bullet": "light_blue",
+     "level": 0,
+     "text": "Likely Apple U0P4F7-Y2 Thunderbolt 4 controller"
+    },
+    {
+     "bullet": "blue",
+     "level": 0,
+     "text": "Winbond [link|https://www.winbond.com/hq/product/code-storage-flash-memory/1.2v-serial-nor-flash/?__locale=en&partNo=W25Q64NE|W25Q64NE|new_window=true] 8 MB serial NOR flash memory"
+    },
+    {
+     "bullet": "violet",
+     "level": 0,
+     "text": "Likely Infineon CYUSB2408 USB level shifter"
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "title": "Main Board Side 1",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Winbond [link|https://www.winbond.com/hq/product/code-storage-flash-memory/serial-nor-flash/?__locale=en&partNo=W25X40CL|W25X40CL|new_window=true] 4 Mb serial NOR flash memory"
+    },
+    {
+     "bullet": "orange",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TPS628502|TPS628502|new_window=true] 2 A / adj. step-down converter"
+    },
+    {
+     "bullet": "yellow",
+     "level": 0,
+     "text": "Analog Devices DC-DC converter"
+    },
+    {
+     "bullet": "green",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TPS715A|TPS715A01|new_window=true] 80 mA / adj. LDO regulator"
+    },
+    {
+     "bullet": "light_blue",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TPS2559|TPS2559|new_window=true] power distribution switch"
+    },
+    {
+     "bullet": "blue",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/INA190|INA190A2|new_window=true] bidirectional current sense amplifier"
+    },
+    {
+     "bullet": "violet",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TLV7021|TLV7021|new_window=true] single comparator"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "title": "",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Likely Parade Technologies PS190 DisplayPort to HDMI converter"
+    },
+    {
+     "bullet": "orange",
+     "level": 0,
+     "text": "Genesys Logic [link|https://www.genesyslogic.com.tw/en/product_view.php?show=68|GL3590-TBYS2|new_window=true] 3 USB Type-C SuperSpeed+ & 3 USB Type-A SuperSpeed+ hub controller"
+    },
+    {
+     "bullet": "yellow",
+     "level": 0,
+     "text": "Macronix [link|https://www.mxic.com.tw/en-us/products/NOR-Flash/Serial-NOR-Flash/Pages/spec.aspx?p=MX25V2035F&m=Serial%20NOR%20Flash&n=PM2336&epn=MX25V2035FZUI|MX25V2035FZUI|new_window=true] 2 Mb serial NOR flash memory"
+    },
+    {
+     "bullet": "green",
+     "level": 0,
+     "text": "Texas Instruments SN26A23 USB Type-C controller"
+    },
+    {
+     "bullet": "light_blue",
+     "level": 0,
+     "text": "GigaDevice [link|https://www.gigadevice.com/product/flash/product-series/spi-nor-flash/gd25q80e|GD25Q80E|new_window=true] 1 MB serial NOR flash memory"
+    },
+    {
+     "bullet": "blue",
+     "level": 0,
+     "text": "Broadcom BCM57762 gigabit ethernet controller"
+    },
+    {
+     "bullet": "violet",
+     "level": 0,
+     "text": "Winbond [link|https://www.winbond.com/hq/product/code-storage-flash-memory/1.2v-serial-nor-flash/?__locale=en&partNo=W25Q64NE|W25Q64NE|new_window=true] 8 MB serial NOR flash memory"
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "title": "",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Apple APL5791/343S00709 power management"
+    },
+    {
+     "bullet": "orange",
+     "level": 0,
+     "text": "Renesas multiphase controller"
+    },
+    {
+     "bullet": "yellow",
+     "level": 0,
+     "text": "Cirrus Logic CS42L84A audio codec"
+    },
+    {
+     "bullet": "green",
+     "level": 0,
+     "text": "Texas Instruments SN012776B0 audio amplifier"
+    },
+    {
+     "bullet": "light_blue",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TPS628502|TPS628502|new_window=true] 2 A / adj. step-down converter"
+    },
+    {
+     "bullet": "blue",
+     "level": 0,
+     "text": "Texas Instruments TPS621371 step-down converter"
+    },
+    {
+     "bullet": "violet",
+     "level": 0,
+     "text": "Likely Renesas PWM DC-DC converter controller"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "title": "",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "onsemi [link|https://www.onsemi.com/products/power-management/protection/current-protection/NCP380|NCP380LMU05AATBG|new_window=true] power distribution switch"
+    },
+    {
+     "bullet": "orange",
+     "level": 0,
+     "text": "Likely Renesas mixed signal array"
+    },
+    {
+     "bullet": "yellow",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TLV758P|TLV75801P|new_window=true] 500 mA / adj. LDO regulator"
+    },
+    {
+     "bullet": "green",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/INA190|INA190A2|new_window=true] bidirectional current sense amplifier"
+    },
+    {
+     "bullet": "light_blue",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/INA190|INA190A3|new_window=true] bidirectional current sense amplifier"
+    },
+    {
+     "bullet": "blue",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TLV7011|TLV7011|new_window=true] single comparator"
+    },
+    {
+     "bullet": "violet",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TLV9051|TLV9051|new_window=true] single operational amplifier"
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "title": "Flash Module (NAND) Side 1",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "SanDisk SDMVGKLK2 128G 128 GB NAND flash"
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "title": "Flash Module (NAND) Side 2",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "SanDisk SDMVGKLK2 128G 128 GB NAND flash"
+    },
+    {
+     "bullet": "orange",
+     "level": 0,
+     "text": "Apple 338S00600-A0 power management"
+    },
+    {
+     "bullet": "yellow",
+     "level": 0,
+     "text": "Texas Instruments [link|https://www.ti.com/product/TPS62180|TPS62180|new_window=true] 6 A synchronous buck converter"
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "title": "Wireless Board",
+   "guideid": 178986,
+   "lines": [
+    {
+     "bullet": "red",
+     "level": 0,
+     "text": "Likely USI 339S01162 Bluetooth & WiFi module"
+    }
+   ]
+  }
+ ]
+}
