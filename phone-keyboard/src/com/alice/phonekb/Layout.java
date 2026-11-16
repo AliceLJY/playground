@@ -8,8 +8,9 @@ public final class Layout {
 
     public static final int KIND_NORMAL = 0;
     public static final int KIND_MODIFIER = 1;
-    /** 中/英：按下等于 Ctrl+空格（iPad 切输入法）。 */
-    public static final int KIND_IME = 2;
+    /** 组合键：按下等于「固定修饰键 + 一个键」，如中/英 = Ctrl+空格、复制 = ⌘C。 */
+    public static final int KIND_COMBO = 2;
+    public static final int KIND_IME = KIND_COMBO;
 
     public static final int MOD_CTRL = 0x01;
     public static final int MOD_SHIFT = 0x02;
@@ -57,6 +58,8 @@ public final class Layout {
 
     public static final Board MAIN = new Board(WIDTH, ROWS);
     public static final Board NUMPAD = new Board(4, 4);
+    /** 触控板下面一排快捷键。 */
+    public static final Board TOOLS = new Board(7, 1);
 
     private static List<Key> KEYS = MAIN.keys;
     private static float cx, cy;
@@ -66,6 +69,11 @@ public final class Layout {
     private static void k(String label, String shift, int usage, float w) {
         KEYS.add(new Key(label, shift, usage, 0, KIND_NORMAL, cx, cy, w, 1));
         cx += w;
+    }
+
+    private static void combo(String label, int mods, int usage) {
+        KEYS.add(new Key(label, label, usage, mods, KIND_COMBO, cx, cy, 1, 1));
+        cx += 1;
     }
 
     private static void mod(String label, int bit, float w) {
@@ -131,6 +139,13 @@ public final class Layout {
         k("1", "!", 0x1E, 1); k("2", "@", 0x1F, 1); k("3", "#", 0x20, 1); k(".", ">", 0x37, 1);
         row(3);
         k("0", ")", 0x27, 2); k(",", "<", 0x36, 1); k("⏎", "⏎", 0x28, 1);
+
+        // 触控板下的快捷键（代替三指手势：OPPO 把三指上滑/下滑留给了系统，App 收不到）
+        KEYS = TOOLS.keys;
+        row(0);
+        combo("全选", MOD_GUI, 0x04); combo("剪切", MOD_GUI, 0x1B); combo("复制", MOD_GUI, 0x06);
+        combo("粘贴", MOD_GUI, 0x19); combo("撤销", MOD_GUI, 0x1D);
+        combo("回主屏", MOD_GUI, 0x0B); combo("切App", MOD_GUI, 0x2B);
         KEYS = MAIN.keys;
     }
 

@@ -106,6 +106,21 @@ public class KeyStateTest {
         check(np1.label.equals("1") && s.report()[0] == Layout.MOD_SHIFT && s.report()[2] == 0x1E, "锁 ⇧ 后按数字键 1 → !");
         s.up(1);
 
+        // 10. 触控板下快捷键：7 个，宽度 7；复制 = ⌘C、回主屏 = ⌘H，松开归零
+        float tw = 0;
+        for (Layout.Key k : Layout.TOOLS.keys()) tw += k.w;
+        check(Layout.TOOLS.keys().size() == 7 && Math.abs(tw - 7) < 1e-4, "快捷键一排 7 个、宽 7");
+        String[][] combos = {{"全选", "04"}, {"剪切", "1B"}, {"复制", "06"}, {"粘贴", "19"}, {"撤销", "1D"}, {"回主屏", "0B"}, {"切App", "2B"}};
+        for (String[] cmb : combos) {
+            Layout.Key tk = null;
+            for (Layout.Key k : Layout.TOOLS.keys()) if (k.label.equals(cmb[0])) tk = k;
+            s = new KeyState();
+            s.down(0, tk);
+            boolean ok = hex(s.report()).equals("08 00 " + cmb[1] + " 00 00 00 00 00");
+            s.up(0);
+            check(ok && hex(s.report()).equals("00 00 00 00 00 00 00 00"), cmb[0] + " → ⌘+" + cmb[1] + "，松开归零");
+        }
+
         TouchpadTest.run();
         System.out.println(fails == 0 ? "ALL PASS" : fails + " FAILED");
         System.exit(fails == 0 ? 0 : 1);
