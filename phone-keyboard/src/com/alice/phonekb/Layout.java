@@ -37,10 +37,28 @@ public final class Layout {
         }
     }
 
+    /** 一块键区：坐标单位是这块自己的「标准键宽」。 */
+    public static final class Board {
+        public final float width, rows;
+        final List<Key> keys = new ArrayList<>();
+        Board(float width, float rows) { this.width = width; this.rows = rows; }
+        public List<Key> keys() { return keys; }
+        /** 在键位坐标 (ux, uy) 处的键，没有返回 null。 */
+        public Key hit(float ux, float uy) {
+            for (Key key : keys) {
+                if (ux >= key.x && ux < key.x + key.w && uy >= key.y && uy < key.y + key.h) return key;
+            }
+            return null;
+        }
+    }
+
     public static final float WIDTH = 14.5f;
     public static final float ROWS = 5f;
 
-    private static final List<Key> KEYS = new ArrayList<>();
+    public static final Board MAIN = new Board(WIDTH, ROWS);
+    public static final Board NUMPAD = new Board(4, 4);
+
+    private static List<Key> KEYS = MAIN.keys;
     private static float cx, cy;
 
     private static void row(int r) { cx = 0; cy = r; }
@@ -102,21 +120,27 @@ public final class Layout {
         k("↑", "↑", 0x52, 1);
         k("↓", "↓", 0x51, 1);
         k("→", "→", 0x4F, 1);
+
+        // 左上数字键（发主键盘数字行的键码，不依赖 NumLock；⇧ 锁住时同样出符号）
+        KEYS = NUMPAD.keys;
+        row(0);
+        k("7", "&", 0x24, 1); k("8", "*", 0x25, 1); k("9", "(", 0x26, 1); k("⌫", "⌫", 0x2A, 1);
+        row(1);
+        k("4", "$", 0x21, 1); k("5", "%", 0x22, 1); k("6", "^", 0x23, 1); k("-", "_", 0x2D, 1);
+        row(2);
+        k("1", "!", 0x1E, 1); k("2", "@", 0x1F, 1); k("3", "#", 0x20, 1); k(".", ">", 0x37, 1);
+        row(3);
+        k("0", ")", 0x27, 2); k(",", "<", 0x36, 1); k("⏎", "⏎", 0x28, 1);
+        KEYS = MAIN.keys;
     }
 
     private static void letter(char c, String letters) {
         k(String.valueOf(c), String.valueOf(Character.toUpperCase(c)), 0x04 + letters.indexOf(c), 1);
     }
 
-    public static List<Key> keys() { return KEYS; }
+    public static List<Key> keys() { return MAIN.keys; }
 
-    /** 在键位坐标 (ux, uy) 处的键，没有返回 null。 */
-    public static Key hit(float ux, float uy) {
-        for (Key key : KEYS) {
-            if (ux >= key.x && ux < key.x + key.w && uy >= key.y && uy < key.y + key.h) return key;
-        }
-        return null;
-    }
+    public static Key hit(float ux, float uy) { return MAIN.hit(ux, uy); }
 
     private Layout() {}
 }

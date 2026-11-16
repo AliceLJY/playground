@@ -4,18 +4,20 @@
 
 ## 体验
 
-- 手机横屏，整个屏幕是一把键盘；iPad 认它是普通外接键盘，屏幕上的软键盘自动收起。
+- 横竖都行（折叠屏展开是方屏）：最上一条状态栏；上半区左边数字键、右边触控板；下半区整块键盘。触控板放上面，打字时手掌不会蹭到。
+- iPad 认它是普通外接键盘 + 鼠标，屏幕上的软键盘自动收起。
+- 触控板照 MacBook 习惯：单指移动、轻点=左键、双指轻点=右键、双指滑=滚动（自然方向）、轻点后马上按住拖=拖动、三指上滑=回主屏（⌘H）、三指横滑=上一个 App（⌘Tab）。iPad 的原生多指手势只认苹果自家触控板，这里用快捷键代替。
 - 打中文用 iPad 自带的拼音输入法；「中/英」键等于 Ctrl+空格。
 - 修饰键（⇧ ctrl ⌥ ⌘）点一下锁住，用于下一个键，之后自动取消；也可以一指按住、另一指按键。
 - 按键时有轻微震动；按住键不放由 iPad 自己连发。
 
 ## 原理
 
-Android 9+ 自带 `BluetoothHidDevice`，App 注册成标准启动键盘（报告 ID 1，8 字节报告），iPad 那边什么都不用装。
+Android 9+ 自带 `BluetoothHidDevice`，App 注册成标准启动键盘（报告 ID 1，8 字节）加鼠标（报告 ID 2：三键、X/Y、滚轮、横向滚动），iPad 那边什么都不用装。
 
 ## 构建
 
-不用 Gradle，直接用 SDK 命令行工具：`bash tools/build.sh`，先跑 `tests/KeyStateTest.java`（键位与报告字节的断言），再出 `build/phone-keyboard.apk`。环境来自 `~/.android-build.env`。
+不用 Gradle，直接用 SDK 命令行工具：`bash tools/build.sh`，先跑 `tests/KeyStateTest.java`（键位、报告字节、触控板手势的断言），再出 `build/phone-keyboard.apk`。环境来自 `~/.android-build.env`。
 
 ## 验收
 
