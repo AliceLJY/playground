@@ -26,7 +26,7 @@ import java.util.concurrent.Executor;
 /** 把手机注册成一把蓝牙键盘（HID Device），iPad 当普通外接键盘认。 */
 public final class MainActivity extends Activity implements KeyboardView.Listener {
 
-    /** 标准启动键盘描述符，报告 ID 1：修饰位 + 保留 + 6 键；另有 LED 输出。 */
+    /** 键盘 + 鼠标组合描述符。键盘报告 ID 1：修饰位 + 保留 + 6 键，另有 LED 输出。 */
     static final byte[] DESCRIPTOR = {
             0x05, 0x01, 0x09, 0x06, (byte) 0xA1, 0x01, (byte) 0x85, 0x01,
             0x05, 0x07, 0x19, (byte) 0xE0, 0x29, (byte) 0xE7, 0x15, 0x00, 0x25, 0x01,
@@ -36,9 +36,21 @@ public final class MainActivity extends Activity implements KeyboardView.Listene
             (byte) 0x95, 0x01, 0x75, 0x03, (byte) 0x91, 0x01,
             (byte) 0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65,
             0x05, 0x07, 0x19, 0x00, 0x29, 0x65, (byte) 0x81, 0x00,
-            (byte) 0xC0
+            (byte) 0xC0,
+            // 鼠标，报告 ID 2：3 个键 + X/Y/滚轮（相对，-127..127）+ 横向滚动（AC Pan）
+            0x05, 0x01, 0x09, 0x02, (byte) 0xA1, 0x01, (byte) 0x85, 0x02,
+            0x09, 0x01, (byte) 0xA1, 0x00,
+            0x05, 0x09, 0x19, 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01,
+            (byte) 0x95, 0x03, 0x75, 0x01, (byte) 0x81, 0x02,
+            (byte) 0x95, 0x01, 0x75, 0x05, (byte) 0x81, 0x03,
+            0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09, 0x38,
+            0x15, (byte) 0x81, 0x25, 0x7F, 0x75, 0x08, (byte) 0x95, 0x03, (byte) 0x81, 0x06,
+            0x05, 0x0C, 0x0A, 0x38, 0x02,
+            (byte) 0x95, 0x01, 0x75, 0x08, (byte) 0x81, 0x06,
+            (byte) 0xC0, (byte) 0xC0
     };
     static final int REPORT_ID = 1;
+    static final int MOUSE_ID = 2;
 
     private static final int REQ_PERMS = 1;
     private static final int REQ_ENABLE = 2;
@@ -125,7 +137,7 @@ public final class MainActivity extends Activity implements KeyboardView.Listene
     private void registerApp() {
         BluetoothHidDeviceAppSdpSettings sdp = new BluetoothHidDeviceAppSdpSettings(
                 "手机键盘", "Phone keyboard", "playground",
-                BluetoothHidDevice.SUBCLASS1_KEYBOARD, DESCRIPTOR);
+                BluetoothHidDevice.SUBCLASS1_COMBO, DESCRIPTOR);
         hid.registerApp(sdp, null, null, main, new BluetoothHidDevice.Callback() {
             @Override public void onAppStatusChanged(BluetoothDevice plugged, boolean reg) {
                 registered = reg;
@@ -153,7 +165,7 @@ public final class MainActivity extends Activity implements KeyboardView.Listene
                 }
             }
             @Override public void onGetReport(BluetoothDevice d, byte type, byte id, int size) {
-                hid.replyReport(d, type, id, new byte[8]);
+                hid.replyReport(d, type, id, new byte[id == MOUSE_ID ? 5 : 8]);
             }
         });
     }
@@ -187,6 +199,12 @@ public final class MainActivity extends Activity implements KeyboardView.Listene
     @SuppressWarnings("MissingPermission")
     public void onReport(byte[] report) {
         if (hid != null && host != null) hid.sendReport(host, REPORT_ID, report);
+    }
+
+    @Override
+    @SuppressWarnings("MissingPermission")
+    public void onMouse(byte[] report) {
+        if (hid != null && host != null) hid.sendReport(host, MOUSE_ID, report);
     }
 
     @Override

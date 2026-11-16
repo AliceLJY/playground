@@ -12,7 +12,7 @@ OUT=build
 rm -rf "$OUT"; mkdir -p "$OUT/res" "$OUT/classes" "$OUT/dex" "$OUT/testclasses"
 
 echo "== 测试"
-javac -encoding UTF-8 -d "$OUT/testclasses" src/com/alice/phonekb/Layout.java src/com/alice/phonekb/KeyState.java tests/KeyStateTest.java
+javac -encoding UTF-8 -d "$OUT/testclasses" src/com/alice/phonekb/Layout.java src/com/alice/phonekb/KeyState.java src/com/alice/phonekb/Touchpad.java tests/KeyStateTest.java tests/TouchpadTest.java
 java -cp "$OUT/testclasses" KeyStateTest
 
 echo "== 资源"

@@ -6,7 +6,7 @@ public class KeyStateTest {
 
     static int fails = 0;
 
-    static void check(boolean ok, String msg) {
+    public static void check(boolean ok, String msg) {
         if (!ok) { fails++; System.out.println("FAIL " + msg); }
         else System.out.println("ok   " + msg);
     }
@@ -82,7 +82,31 @@ public class KeyStateTest {
         for (int i = 0; i < 7; i++) s.down(i, key(seven[i]));
         check(hex(s.report()).equals("00 00 01 01 01 01 01 01"), "7 键同按 → rollover");
 
-        // 9. 描述符里报告 ID 是 1，和发送一致
+        // 9. 左上数字键：4x4 每行宽 4、无空洞；数字码和主键盘一致；锁 ⇧ 出符号
+        for (int row = 0; row < 4; row++) {
+            float sum = 0;
+            for (Layout.Key k : Layout.NUMPAD.keys()) if (k.y == row) sum += k.w;
+            check(Math.abs(sum - 4) < 1e-4, "数字键第 " + row + " 行宽度 = 4（实际 " + sum + "）");
+        }
+        int nholes = 0;
+        for (float y = 0.05f; y < 4; y += 0.1f)
+            for (float x = 0.01f; x < 4; x += 0.05f)
+                if (Layout.NUMPAD.hit(x, y) == null) nholes++;
+        check(nholes == 0, "数字键区无空洞（" + nholes + "）");
+        for (Layout.Key nk : Layout.NUMPAD.keys()) {
+            if (nk.label.matches("[0-9]")) {
+                check(nk.usage == key(nk.label).usage && nk.shiftLabel.equals(key(nk.label).shiftLabel),
+                        "数字键 " + nk.label + " 与主键盘同码同符号");
+            }
+        }
+        s = new KeyState();
+        s.down(0, shift); s.up(0);
+        Layout.Key np1 = Layout.NUMPAD.hit(0.5f, 2.5f);
+        s.down(1, np1);
+        check(np1.label.equals("1") && s.report()[0] == Layout.MOD_SHIFT && s.report()[2] == 0x1E, "锁 ⇧ 后按数字键 1 → !");
+        s.up(1);
+
+        TouchpadTest.run();
         System.out.println(fails == 0 ? "ALL PASS" : fails + " FAILED");
         System.exit(fails == 0 ? 0 : 1);
     }
