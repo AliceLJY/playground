@@ -52,19 +52,19 @@ public class TouchpadTest {
         p.down(0, 100, 100, 0); p.down(1, 200, 100, 20); p.up(0, 100); p.up(1, 110);
         check(out.size() == 2 && out.get(0)[0] == 2 && out.get(1)[0] == 0, "双指轻点 → 右键单击");
 
-        // 双指往上滑 → 滚轮负（往下翻），不移动指针
+        // 双指往上滑 → wheel 正（iPad 会自己反转成自然滚动），不移动指针
         p = fresh();
         p.down(0, 100, 500, 0); p.down(1, 200, 500, 5);
         for (int i = 1; i <= 20; i++) { p.move(0, 100, 500 - i * 12, i * 10); p.move(1, 200, 500 - i * 12, i * 10); }
         p.up(0, 300); p.up(1, 300);
-        check(sum(3) < 0 && sum(1) == 0 && sum(2) == 0 && !anyButton(2), "双指上滑 → 往下翻（wheel=" + sum(3) + "），指针不动");
+        check(sum(3) > 0 && sum(1) == 0 && sum(2) == 0 && !anyButton(2), "双指上滑 → wheel 正（iPad 再套自然滚动后=往下翻，wheel=" + sum(3) + "），指针不动");
 
-        // 双指往左滑 → 横向往右翻
+        // 双指往左滑 → pan 负
         p = fresh();
         p.down(0, 500, 100, 0); p.down(1, 500, 200, 5);
         for (int i = 1; i <= 20; i++) { p.move(0, 500 - i * 12, 100, i * 10); p.move(1, 500 - i * 12, 200, i * 10); }
         p.up(0, 300); p.up(1, 300);
-        check(sum(4) > 0, "双指左滑 → 横向滚动（pan=" + sum(4) + "）");
+        check(sum(4) < 0, "双指左滑 → pan 负，与竖向同一套约定（pan=" + sum(4) + "）");
 
         // 轻点后马上按住拖 → 左键按住移动，松手放开
         p = fresh();
