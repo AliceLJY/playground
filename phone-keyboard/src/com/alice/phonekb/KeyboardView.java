@@ -46,7 +46,13 @@ public final class KeyboardView extends View implements Touchpad.Sink {
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
-    private final RectF mainArea = new RectF(), numArea = new RectF(), padArea = new RectF();
+    private final RectF mainArea = new RectF(), numArea = new RectF(), padArea = new RectF(), toolsArea = new RectF();
+    private final Runnable holdCheck = new Runnable() {
+        @Override public void run() {
+            pad.tick(android.os.SystemClock.uptimeMillis());
+            invalidate();
+        }
+    };
     private final float density;
     /** 每根手指归谁：true = 触控板，false = 键。 */
     private final Map<Integer, Boolean> owner = new HashMap<>();
@@ -77,6 +83,7 @@ public final class KeyboardView extends View implements Touchpad.Sink {
         state.clear();
         owner.clear();
         pad.cancel();
+        removeCallbacks(holdCheck);
         emit();
         invalidate();
     }
@@ -90,7 +97,9 @@ public final class KeyboardView extends View implements Touchpad.Sink {
         float topH = avail * TOP_SHARE;
         float split = m + (w - 2 * m) * NUMPAD_SHARE;
         numArea.set(m, barH, split, barH + topH);
-        padArea.set(split + gap, barH + gap / 2, w - m, barH + topH - gap / 2);
+        float toolsH = Math.min(topH * 0.22f, 48 * density);
+        toolsArea.set(split + gap / 2, barH + topH - toolsH, w - m, barH + topH);
+        padArea.set(split + gap, barH + gap / 2, w - m, toolsArea.top - gap / 2);
         mainArea.set(m, barH + topH + gap, w - m, h - m);
     }
 
@@ -111,18 +120,24 @@ public final class KeyboardView extends View implements Touchpad.Sink {
 
         // 触控板
         boolean padTouched = owner.containsValue(Boolean.TRUE);
-        fill.setColor(pad.dragging() ? KEY_LATCHED : padTouched ? PAD_ACTIVE : PAD);
+        fill.setColor(pad.locked() ? KEY_LATCHED : pad.dragging() ? KEY_LATCHED : padTouched ? PAD_ACTIVE : PAD);
         float r = 14 * density;
         c.drawRoundRect(padArea, r, r, fill);
         text.setColor(TEXT_DIM);
         text.setTextSize(Math.min(12 * density, padArea.width() / 22));
         float cy = padArea.centerY();
         float lh = text.getTextSize() * 1.5f;
-        c.drawText("触控板", padArea.centerX(), cy - lh, text);
-        c.drawText("单指移动 · 轻点=左键 · 双指轻点=右键", padArea.centerX(), cy, text);
-        c.drawText("双指滑=滚动 · 轻点后按住拖=拖动 · 三指上滑=回主屏", padArea.centerX(), cy + lh, text);
+        if (pad.locked()) {
+            text.setColor(TEXT);
+            c.drawText("拖选中：滑动选文字，抬手可换位置接着拖", padArea.centerX(), cy - lh / 2, text);
+            c.drawText("轻点一下结束", padArea.centerX(), cy + lh / 2, text);
+        } else {
+            c.drawText("单指移动 · 轻点=左键 · 双指轻点=右键 · 双指滑=滚动", padArea.centerX(), cy - lh / 2, text);
+            c.drawText("长按半秒=拖选（选长段文字）· 轻点后按住拖=拖一下", padArea.centerX(), cy + lh / 2, text);
+        }
 
         drawBoard(c, Layout.NUMPAD, numArea);
+        drawBoard(c, Layout.TOOLS, toolsArea);
         drawBoard(c, Layout.MAIN, mainArea);
     }
 
@@ -144,7 +159,7 @@ public final class KeyboardView extends View implements Touchpad.Sink {
 
             String label = shift ? k.shiftLabel : k.label;
             if (label.isEmpty()) continue;
-            boolean small = label.length() > 1 && !label.equals("中/英");
+            boolean small = label.length() > 1 && !label.equals("中/英") && k.kind != Layout.KIND_COMBO;
             text.setColor(TEXT);
             text.setTextSize(Math.min(Math.min(uh, uw) * (small ? 0.30f : 0.42f), 26 * density));
             float ty = rect.centerY() - (text.descent() + text.ascent()) / 2;
@@ -155,6 +170,7 @@ public final class KeyboardView extends View implements Touchpad.Sink {
     private Layout.Key keyAt(float px, float py) {
         if (mainArea.contains(px, py)) return hit(Layout.MAIN, mainArea, px, py);
         if (numArea.contains(px, py)) return hit(Layout.NUMPAD, numArea, px, py);
+        if (toolsArea.contains(px, py)) return hit(Layout.TOOLS, toolsArea, px, py);
         return null;
     }
 
@@ -179,6 +195,8 @@ public final class KeyboardView extends View implements Touchpad.Sink {
                 if (padArea.contains(x, y)) {
                     owner.put(id, Boolean.TRUE);
                     pad.down(id, x, y, t);
+                    removeCallbacks(holdCheck);
+                    postDelayed(holdCheck, Touchpad.HOLD_MS + 20);
                     invalidate();
                     return true;
                 }
@@ -233,13 +251,7 @@ public final class KeyboardView extends View implements Touchpad.Sink {
     }
 
     @Override
-    public void combo(int mods, int usage) {
-        if (listener == null) return;
-        byte[] r = new byte[8];
-        r[0] = (byte) mods;
-        r[2] = (byte) usage;
-        listener.onReport(r);
-        listener.onReport(state.report());
-        listener.onKeyTap();
+    public void feedback() {
+        if (listener != null) listener.onKeyTap();
     }
 }

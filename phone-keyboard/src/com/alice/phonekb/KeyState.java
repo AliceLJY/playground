@@ -46,7 +46,7 @@ public final class KeyState {
     private int heldModifiers() {
         int m = 0;
         for (Layout.Key k : held.values()) {
-            if (k.kind == Layout.KIND_MODIFIER || k.kind == Layout.KIND_IME) m |= k.modBit;
+            if (k.kind == Layout.KIND_MODIFIER || k.kind == Layout.KIND_COMBO) m |= k.modBit;
         }
         return m;
     }

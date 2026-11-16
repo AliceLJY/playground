@@ -8,13 +8,15 @@ import java.util.List;
 public class TouchpadTest {
 
     static final List<int[]> out = new ArrayList<>();
-    static final List<int[]> combos = new ArrayList<>();
+    static int buzz = 0;
     static final Touchpad.Sink SINK = new Touchpad.Sink() {
         public void mouse(int b, int dx, int dy, int w, int p) { out.add(new int[]{b, dx, dy, w, p}); }
-        public void combo(int mods, int usage) { combos.add(new int[]{mods, usage}); }
+        public void feedback() { buzz++; }
     };
 
-    static Touchpad fresh() { out.clear(); combos.clear(); return new Touchpad(3, SINK); }
+    static Touchpad fresh() { out.clear(); buzz = 0; return new Touchpad(3, SINK); }
+
+    static int last() { return out.isEmpty() ? -1 : out.get(out.size() - 1)[0]; }
 
     static void check(boolean ok, String msg) { KeyStateTest.check(ok, "[触控板] " + msg); }
 
@@ -87,20 +89,54 @@ public class TouchpadTest {
         p.up(0, 1100);
         check(!anyButton(1), "隔 0.7 秒再按 → 只移动不拖");
 
-        // 三指上滑 → ⌘H 一次
+        // 三指滑动 → 什么都不发（OPPO 系统手势占用）
         p = fresh();
         p.down(0, 100, 500, 0); p.down(1, 200, 500, 0); p.down(2, 300, 500, 0);
         for (int i = 1; i <= 20; i++) for (int f = 0; f < 3; f++) p.move(f, 100 + f * 100, 500 - i * 15, i * 10);
         p.up(0, 300); p.up(1, 300); p.up(2, 300);
-        check(combos.size() == 1 && combos.get(0)[0] == Layout.MOD_GUI && combos.get(0)[1] == 0x0B, "三指上滑 → ⌘H 一次");
-        check(out.isEmpty(), "三指手势不发鼠标报告");
+        check(out.isEmpty(), "三指滑动不发任何报告");
 
-        // 三指横滑 → ⌘Tab
+        // 长按半秒 → 进入拖选：左键按下 + 震动；还没到时间 tick 不触发
         p = fresh();
-        p.down(0, 500, 100, 0); p.down(1, 500, 200, 0); p.down(2, 500, 300, 0);
-        for (int i = 1; i <= 20; i++) for (int f = 0; f < 3; f++) p.move(f, 500 - i * 15, 100 + f * 100, i * 10);
-        p.up(0, 300); p.up(1, 300); p.up(2, 300);
-        check(combos.size() == 1 && combos.get(0)[1] == 0x2B, "三指横滑 → ⌘Tab");
+        p.down(0, 100, 100, 0);
+        p.tick(300);
+        check(out.isEmpty() && !p.locked(), "按住 0.3 秒还不算长按");
+        p.tick(470);
+        check(p.locked() && last() == 1 && buzz == 1, "按住 0.47 秒 → 拖选开始（左键按下、震一下）");
+        for (int i = 1; i <= 10; i++) p.move(0, 100 + i * 10, 100, 470 + i * 15);
+        p.up(0, 700);
+        boolean held = true;
+        for (int i = 1; i < out.size(); i++) if (out.get(i)[0] != 1) held = false;
+        check(held && p.locked() && sum(1) > 0, "拖选中滑动 → 左键一直按着；抬手后仍按着");
+        // 换个位置接着拖
+        p.down(0, 100, 100, 900);
+        for (int i = 1; i <= 10; i++) p.move(0, 100 + i * 10, 100 + i * 5, 900 + i * 15);
+        p.up(0, 1100);
+        held = true;
+        for (int[] r : out) if (r[0] != 1) held = false;
+        check(held && p.locked(), "抬手再滑 → 接着拖，左键没松过");
+        // 轻点结束
+        p.down(0, 100, 100, 1300); p.up(0, 1360);
+        check(!p.locked() && last() == 0, "拖选中轻点一下 → 松开左键、结束");
+        // 结束后的轻点是普通点击
+        out.clear();
+        p.down(0, 100, 100, 2000); p.up(0, 2060);
+        check(out.size() == 2 && out.get(0)[0] == 1 && out.get(1)[0] == 0, "结束后轻点恢复为普通单击");
+
+        // 一边移动一边按着（没停住）不会误进拖选
+        p = fresh();
+        p.down(0, 100, 100, 0);
+        for (int i = 1; i <= 10; i++) p.move(0, 100 + i * 10, 100, i * 40);
+        p.tick(470);
+        p.up(0, 500);
+        check(!p.locked() && !anyButton(1), "边按边移动超过半秒 → 只移指针，不进拖选");
+
+        // 长按后不动直接松手 → 仍在拖选（等下一次滑动），轻点结束
+        p = fresh();
+        p.down(0, 100, 100, 0); p.tick(470); p.up(0, 600);
+        check(p.locked(), "长按后原地松手 → 拖选保持");
+        p.down(0, 100, 100, 800); p.up(0, 850);
+        check(!p.locked() && last() == 0, "再轻点 → 结束");
 
         // 一次滑很快：单份报告不超过 ±127
         p = fresh();
