@@ -343,6 +343,21 @@ jobs:
           sed -i -E "s#\"((layout|main)\.js)\"#\"\1?v=$V\"#g" _site/wangchuan/index.html
           test "$(grep -o "?v=$V" _site/wangchuan/index.html | wc -l)" -eq 2
 
+      - name: Check Phone Keyboard
+        working-directory: phone-keyboard
+        run: |
+          # 手机键盘是安卓 App，这里只跑纯 Java 的键位、报告字节与触控板手势测试；安装包挂在 GitHub Releases
+          mkdir -p /tmp/pk
+          javac -encoding UTF-8 -d /tmp/pk src/com/alice/phonekb/Layout.java src/com/alice/phonekb/KeyState.java src/com/alice/phonekb/Touchpad.java tests/KeyStateTest.java tests/TouchpadTest.java
+          java -cp /tmp/pk KeyStateTest
+
+      - name: Assemble Phone Keyboard
+        run: |
+          # 手机键盘：只发布下载介绍页和截图
+          mkdir -p _site/phone-keyboard/assets
+          cp phone-keyboard/index.html _site/phone-keyboard/index.html
+          cp phone-keyboard/assets/screenshot.jpg _site/phone-keyboard/assets/
+
       - name: Assemble Memory Fade
         run: |
           # 记忆褪色：SVG 讲解页，没有构建步骤，页面与源码原样发布
