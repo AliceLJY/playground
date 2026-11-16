@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手机键盘 · OPPO Find N6 专属版</title>
+<meta name="description" content="把安卓手机变成 iPad 的蓝牙键盘加触控板，为 OPPO Find N6 展开屏排的布局。">
+<style>
+  :root { --bg: #f6f5f2; --card: #ffffff; --ink: #1f2328; --muted: #5d6470; --line: #e3e1dc; --accent: #2f6fde; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141619; --card: #1c1f24; --ink: #e8eaed; --muted: #9aa1ab; --line: #2b2f36; --accent: #6b9cff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif; }
+  main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  a { color: var(--accent); }
+  .back { font-size: .9rem; color: var(--muted); text-decoration: none; }
+  h1 { font-size: 1.75rem; line-height: 1.3; margin: 1rem 0 .25rem; }
+  .tag { display: inline-block; font-size: .8rem; letter-spacing: .04em; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: .1rem .7rem; }
+  .lead { color: var(--muted); margin: .75rem 0 1.5rem; }
+  .shot { width: 100%; height: auto; border-radius: 14px; display: block; }
+  .dl { display: inline-block; margin: 1.5rem 0 .5rem; padding: .75rem 1.4rem; border-radius: 10px;
+    background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; }
+  .fine { font-size: .875rem; color: var(--muted); margin: 0; }
+  h2 { font-size: 1.15rem; margin: 2.5rem 0 .5rem; }
+  ol, ul { padding-left: 1.3rem; margin: .25rem 0; }
+  li { margin: .3rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .875rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="../">← 回玩具架</a>
+  <h1>手机键盘</h1>
+  <span class="tag">OPPO Find N6 专属版</span>
+  <p class="lead">出门带 iPad 不想背键盘：把手机展开，上面左边是数字键、右边是触控板，下面是整块键盘。iPad 把它当成普通的蓝牙键盘和鼠标，不用装任何东西，屏幕上的软键盘也会自动收起。</p>
+
+  <img class="shot" src="assets/screenshot.jpg" width="1078" height="1138" alt="手机展开后的键盘布局：左上数字键，右上触控板和一排快捷键，下方整块键盘">
+
+  <a class="dl" href="https://github.com/AliceLJY/playground/releases/download/phone-keyboard-v0.4/phone-keyboard-v0.4.apk">下载安装包（v0.4，25 KB）</a>
+  <p class="fine">安卓 10 及以上。布局按 Find N6 展开屏排的，其他安卓手机能装，但手机系统得支持「模拟蓝牙键盘」，部分品牌不支持。</p>
+
+  <h2>第一次连 iPad</h2>
+  <ol>
+    <li>装好打开「手机键盘」，系统问「附近设备」权限时选允许。安装时提示「未知来源」，选继续安装。</li>
+    <li>点屏幕最上面的状态栏，选「让 iPad 搜到我」。</li>
+    <li>去 iPad 的 设置 → 蓝牙，点手机的名字配对。状态栏的点变绿就能用了。</li>
+    <li>iPad 搜不到时反过来：先在手机蓝牙设置里和 iPad 配对，再回 App 点状态栏选「连接已配对的」。以后打开会自动连上次那台。</li>
+  </ol>
+
+  <h2>怎么用</h2>
+  <ul>
+    <li>打中文用 iPad 自带的拼音；「中/英」键切输入法。</li>
+    <li>⇧ ctrl ⌥ ⌘ 点一下锁住，管下一个键；也可以一指按住、另一指按键。</li>
+    <li>触控板照 MacBook 的习惯：单指移动，轻点左键，双指轻点右键，双指滑动滚动。</li>
+    <li>选长段文字：在触控板上按住不动半秒（会震一下），然后滑动；抬手换位置可以接着选，轻点一下结束。</li>
+    <li>触控板下面一排：全选、剪切、复制、粘贴、撤销、回主屏、切 App。没做三指手势，因为 OPPO 系统把三指上滑和下滑留给了自己。</li>
+  </ul>
+
+  <h2>谁会点开、AI 素材</h2>
+  <p>给出门带 iPad、又不想多背一个键盘的人。代码全部是 AI 协作写的，截图是真机截的，没有 AI 生成的图片和声音。</p>
+
+  <footer>源码在 <a href="https://github.com/AliceLJY/playground/tree/main/phone-keyboard">GitHub</a> · 我的AI小木屋</footer>
+</main>
+</body>
+</html>

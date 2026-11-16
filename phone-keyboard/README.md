@@ -1,4 +1,6 @@
-# Phone Keyboard
+# Phone Keyboard · OPPO Find N6 edition
+
+**Download**: [phone-keyboard-v0.4.apk](https://github.com/AliceLJY/playground/releases/download/phone-keyboard-v0.4/phone-keyboard-v0.4.apk) (25 KB, Android 10+). The layout is tuned for the Find N6's square inner screen; other Android phones work only if the system keeps `BluetoothHidDevice` enabled.
 
 Turns an Android phone into a Bluetooth keyboard for an iPad, so you can leave the hardware keyboard at home.
 
@@ -9,3 +11,7 @@ Turns an Android phone into a Bluetooth keyboard for an iPad, so you can leave t
 - Modifiers latch for one key on tap, or can be held with another finger.
 
 Built on Android's `BluetoothHidDevice` (Android 9+). Build without Gradle: `bash tools/build.sh` runs `tests/KeyStateTest.java`, then writes `build/phone-keyboard.apk`.
+
+## Who opens this, AI assets
+
+For anyone who carries an iPad and would rather not carry a keyboard too. All code was written with AI collaboration; the screenshot is from a real device; no AI-generated images or audio.
