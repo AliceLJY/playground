@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * 触控板手势，照 MacBook 触控板的习惯：
  * 单指移动 = 移指针；轻点 = 左键；双指轻点 = 右键；
- * 轻点后马上再按住拖 = 按住左键拖动；双指滑 = 滚动（自然方向）；
+ * 轻点后马上再按住拖 = 按住左键拖动；双指滑 = 滚动（和 MacBook 同向）；
  * 三指上滑 = 回主屏（⌘H），三指左右滑 = 切到上一个 App（⌘Tab）。
  * 纯 Java，坐标用像素、时间用毫秒，测试直接用。
  */
@@ -81,10 +81,12 @@ public final class Touchpad {
         } else if (n == 2) {
             scrollY += dy; scrollX += dx;
             float step = SCROLL_STEP_DP * dp;
-            int wheel = (int) (scrollY / step);   // 手指往上（dy<0）→ 往下翻
-            int pan = (int) (-scrollX / step);    // 手指往左 → 往右翻
-            scrollY -= wheel * step;
-            scrollX += pan * step;
+            // iPad 自己会对鼠标滚轮套「自然滚动」，所以这里发传统方向：
+            // 手指往上（dy<0）→ wheel>0。11-16 真机实测：反过来发正好和 MacBook 相反。
+            int wheel = (int) (-scrollY / step);
+            int pan = (int) (scrollX / step);
+            scrollY += wheel * step;
+            scrollX -= pan * step;
             if (wheel != 0 || pan != 0) sink.mouse(0, 0, 0, clamp(wheel), clamp(pan));
         } else if (!fired3) {
             float d = SWIPE3_DP * dp;
