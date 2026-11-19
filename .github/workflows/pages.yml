@@ -143,6 +143,14 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Sui Sui Ping An
+        working-directory: suisui
+        run: |
+          # 碎碎平安：core.js 是普通脚本，其余是 ES module，按 module 检查
+          node --check src/core.js
+          for f in src/game.js src/draw.js src/sound.js vendor/dissolve-atlas.js; do node --input-type=module --check < "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Secret Sweeper
         working-directory: secret-sweeper
         run: |
@@ -405,6 +413,14 @@ jobs:
           mkdir -p _site/later-whack
           cp later-whack/index.html _site/later-whack/index.html
           cp -R later-whack/src _site/later-whack/
+
+      - name: Assemble Sui Sui Ping An
+        run: |
+          # 碎碎平安：二维画布加 dissolve 粒子引擎（MIT，原样放在 vendor/），没有构建步骤
+          mkdir -p _site/suisui
+          cp suisui/index.html _site/suisui/index.html
+          cp suisui/THIRD_PARTY_NOTICES.md _site/suisui/
+          cp -R suisui/src suisui/vendor _site/suisui/
 
       - name: Assemble Secret Sweeper
         run: |
