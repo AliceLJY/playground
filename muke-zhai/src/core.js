@@ -9,7 +9,7 @@
   const W = 960, H = 540;         // 逻辑画布
   const GROUND = 448;             // 脚底的地面坐标
   const MIN_X = 110, MAX_X = 850; // 舞台可站的范围
-  const MIN_GAP = 84;             // 两人身体至少隔开的距离（每人身体半径约 42）
+  const MIN_GAP = 130;            // 两人身体至少隔开的距离（11-19 从 84 加大：84 时画面上身子叠在一起）
   const Z_X = 806, Z_HIDE_X = 858; // 杨宗保在右侧门边站的位置；他让到门帘里一点的位置
   const HEART1_MAX = 20;
   // 第一次出场的名牌（停 2.5 秒淡出）
@@ -305,6 +305,8 @@
     p.x = clamp(p.x, MIN_X, MAX_X);
     e.x = clamp(e.x, MIN_X, MAX_X);
     const gap = Math.abs(e.x - p.x);
+    // 收场并肩亮相时两人本来就站得近，不推开
+    if (g.phase === 'finale' && g.finStep >= 1) return;
     if (gap < MIN_GAP) {
       // 身体有体积，互相推开；贴墙时被墙挡住的那一方不动，另一方让出全部
       const dir = e.x >= p.x ? 1 : -1, half = (MIN_GAP - gap) / 2;
@@ -566,7 +568,7 @@
     const d = Math.abs(targetX - a.x);
     if (d < 360 || (K && K.kind === 'dash')) a.face = sign(targetX - a.x);
     let slide;
-    if (K && K.kind === 'dash') slide = clamp(d - 105, 0, K.slide);
+    if (K && K.kind === 'dash') slide = clamp(d - MIN_GAP, 0, K.slide);
     else slide = clamp(d - a.spec.reach * 0.85, 0, K ? K.slide : 90);
     slide = Math.min(slide, Math.max(0, d - MIN_GAP));
     if (K) {
@@ -654,7 +656,7 @@
     if (p.act === 'dodge') return 'flipReq';
     if (p.act === 'attack' && p.chainN >= 1 && p.chainN < 3) return p.chainN === 1 ? 'light' : 'heavy';
     const toward = sign(g.e.x - p.x), dir = (g.held.right ? 1 : 0) - (g.held.left ? 1 : 0);
-    const far = dist(g) > 120 && dist(g) < 520;
+    const far = dist(g) > MIN_GAP + 10 && dist(g) < 520;
     // 只在「连点两下」或「按住方向跑起来超过 0.35 秒」后才冲刺；刚起步、贴身都是普通刺
     const heldMs = dir ? g.t - g.heldSince[dir > 0 ? 'right' : 'left'] : 0;
     if (far && dir === toward && p.act === 'walk' && heldMs >= 350) return 'dash';
@@ -1108,12 +1110,13 @@
       if (e.act === 'idle') { start(e, 'daze'); }
       // 脸红愣神演完（约 2.6 秒）再往下走，最长等 5 秒
       const dz = e.tabs.daze, dazeDone = !dz || (e.act === 'daze' && e.t >= dz.total + 300);
-      if ((g.finT > 2500 && dazeDone) || g.finT > 5000) { g.finStep = 1; }
+      if ((g.finT > 2500 && dazeDone) || g.finT > 5000) { g.finStep = 1; g.finMark = g.finT; }
     } else if (g.finStep === 1) {
       // 两人转向同一边，走到舞台中间并肩
       e.face = 1; p.face = 1;
       const a = walkTo(p, 410, dt), b = walkTo(e, 540, dt);
-      if ((a && b) || g.finT > 5200) {
+      // 走过去最多 2.7 秒（从这一步开始算，愣神长短不影响）
+      if ((a && b) || g.finT - g.finMark > 2700) {
         g.finStep = 2; g.finMark = g.finT;
         p.face = 1; e.face = 1;
         start(p, 'idle'); start(e, 'idle');
@@ -1450,15 +1453,16 @@
     }
   }
 
-  // 示范用：独立的一局 + 精准档自动驾驶。先冲刺突刺、三连刺，再架开、闪开接翻身刺，最后势满放大招。
+  // 示范用：独立的一局 + 精准档自动驾驶。先冲刺突刺、再三连刺，再架开、闪开接翻身刺，最后势满放大招。
   // 示范是演示，所以大招前把势直接填满（她自己的局里要打出来）。
   function createDemo(clips, seed) {
     seed = seed || 11;
     const g = create(clips, { seed, touch: true, ultSeen: true });
     g.sub = null; g.e.cool = 6500;
     const base = makeDriver('precise', seed, { script: ['parry', 'dodge', 'parry', 'parry'], flip: true, chainP: 0 });
-    const queue = ['chain', 'dash'];
-    let nextAt = 600, ultDone = false, dash = null;
+    // 冲刺先演：开场两人离得最远（间距加大后，三连之后贴得太近冲不起来）
+    const queue = ['dash', 'chain'];
+    let nextAt = 600, ultDone = false, dash = null, back = null;
     const driver = {
       base,
       think(gg) {
@@ -1469,18 +1473,26 @@
         if (queue.length || gg.t < nextAt) e.cool = Math.max(e.cool, 1500);
         const calm = (e.act === 'idle' || e.act === 'walk') && p.act === 'idle' && !isVul(e) && gg.t >= nextAt;
         // 冲刺：先按住方向跑起来超过 0.35 秒，再按 J
+        // 离得太近冲不起来：先退开一段
+        if (back) {
+          const far = Math.abs(e.x - p.x) > MIN_GAP + 170 || gg.t > back.until;
+          gg.held.right = !far && back.dir > 0; gg.held.left = !far && back.dir < 0;
+          if (far) { back = null; nextAt = gg.t + 250; }
+          return;
+        }
         if (dash) {
           gg.held.right = dash.dir > 0; gg.held.left = dash.dir < 0;
           gg.heldSince[dash.dir > 0 ? 'right' : 'left'] = dash.since;
-          if (gg.t - dash.since >= 420 && p.act === 'walk') { tap(gg, 'attack', 50); dash = null; nextAt = gg.t + 1700; }
+          if (gg.t - dash.since >= 360 && p.act === 'walk') { tap(gg, 'attack', 50); dash = null; nextAt = gg.t + 1700; }
           else if (gg.t - dash.since > 1500) { dash = null; nextAt = gg.t + 800; }
           return;
         }
         if (queue.length && calm) {
           const k = queue.shift();
           if (k === 'dash') {
-            if (Math.abs(e.x - p.x) > 200) dash = { dir: sign(e.x - p.x), since: gg.t };
-            else { queue.unshift('dash'); nextAt = gg.t + 400; }
+            // 跑 0.36 秒约 85 像素，跑完还要在冲刺的远近线（MIN_GAP + 10）之外
+            if (Math.abs(e.x - p.x) > MIN_GAP + 95) dash = { dir: sign(e.x - p.x), since: gg.t };
+            else { queue.unshift('dash'); back = { dir: -sign(e.x - p.x), until: gg.t + 1200 }; }
           } else {
             tap(gg, 'attack', 50); base.chainLeft = 2; base.chainArm = gg.t; nextAt = gg.t + 2200;
           }
