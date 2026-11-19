@@ -64,18 +64,6 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
-      - name: Check Shadow Gong (Flow sprite copy)
-        working-directory: shadow-gong-flow
-        run: |
-          node --check src/stage.js
-          node --check src/rig.js
-          node --check src/core.js
-          node --check src/audio.js
-          node --check src/flowsprite.js
-          node --check src/world.js
-          node --check src/game.js
-          node --test tests/*.test.cjs
-
       - name: Check Shadow Gong
         working-directory: shadow-gong
         run: |
@@ -83,6 +71,7 @@ jobs:
           node --check src/rig.js
           node --check src/core.js
           node --check src/audio.js
+          node --check src/flowsprite.js
           node --check src/world.js
           node --check src/game.js
           node --test tests/*.test.cjs
@@ -313,11 +302,11 @@ jobs:
           cp 'shadow-gong/灯影守夜.html' _site/shadow-gong/index.html
           cp shadow-gong/vendor/THREE-LICENSE.txt _site/shadow-gong/THREE-LICENSE.txt
 
-      - name: Assemble Shadow Gong (Flow sprite copy)
+      - name: Assemble Shadow Gong Flow redirect
         run: |
-          # 灯影守夜 Flow 精灵版：主角换成 Google Flow 图生视频抠出的精灵，带图集，按目录发布
+          # 旧 Flow 精灵版副本已并入 shadow-gong，只留一个跳转页
           mkdir -p _site/shadow-gong-flow
-          cp -R shadow-gong-flow/index.html shadow-gong-flow/src shadow-gong-flow/vendor shadow-gong-flow/assets _site/shadow-gong-flow/
+          cp shadow-gong-flow/index.html _site/shadow-gong-flow/index.html
 
       - name: Assemble Coal Breakout
         run: |
