@@ -264,7 +264,27 @@ function createWorld(canvas){
     return tex(kind+':'+part.name,()=>{seed=7+part.name.length*13+kind.length;const [w,h]=part.size,{c,g}=partCanvas(w,h,part.anchor[0],part.anchor[1]);
       if(part.name==='bladeB')g.scale(-1,1);if(part.name==='wingB')g.scale(1,-1);ART[key](g,w,h);return c;});
   }
+  // The hero is drawn from the Flow sprite atlas (src/flowsprite.js); ?rig=1 draws the riveted code rig instead.
+  const useFlow=!!root.GongFlow&&!/[?&]rig=1/.test((root.location&&root.location.search)||'');
+  let flowTex=null,glowTex=null;
+  function makeFlowPuppet(kind,id){
+    const F=root.GongFlow.META,[cw,ch]=F.cell,w=F.worldPerPx;
+    if(!flowTex){flowTex=new THREE.TextureLoader().load(root.GongFlow.url);flowTex.colorSpace=THREE.SRGBColorSpace;flowTex.anisotropy=maxAniso;
+      flowTex.repeat.set(1/F.cols,1/F.rows);}
+    const geo=new THREE.PlaneGeometry(cw*w,ch*w).translate((cw/2-F.root[0])*w,(F.root[1]-ch/2)*w,0);
+    const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:flowTex,transparent:true,alphaTest:.04,depthWrite:false,side:THREE.DoubleSide,clippingPlanes:clip}));
+    m.matrixAutoUpdate=false;m.renderOrder=15;scene.add(m);
+    // perfect-parry glow: a soft disc that follows the gong's position in each frame of the atlas
+    glowTex=glowTex||tex('flowGlow',()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),gr=g.createRadialGradient(64,64,0,64,64,64);
+      gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.62,'rgba(255,255,255,.85)');gr.addColorStop(.8,'rgba(255,255,255,.3)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);return c;});
+    const gm=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,clippingPlanes:clip,color:0}));
+    gm.matrixAutoUpdate=false;gm.renderOrder=40;gm.visible=false;scene.add(gm);
+    const rodGeo=new THREE.BufferGeometry();rodGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(18),3));
+    const rods=new THREE.LineSegments(rodGeo,new THREE.LineBasicMaterial({transparent:true,opacity:0}));rods.visible=false;scene.add(rods);   // rods are painted into the sprite
+    return{kind,id,meshes:[{m,part:{z:5,name:'flow'}}],glows:[{m:gm,part:{name:'gong'},name:'gong'}],rods,glow:0,flash:0,tint:0,flow:true};
+  }
   function makePuppet(kind,id){
+    if(kind==='player'&&useFlow)return makeFlowPuppet(kind,id);
     const meshes=[],glows=[];
     for(const part of R.rigs[kind]){
       if(!part.art)continue;const t=partTexture(kind,part);if(!t)continue;
@@ -285,6 +305,18 @@ function createWorld(canvas){
   function poseInto(pp,actor,t,lamp){
     const pose=R.pose(pp.kind,actor,t),solved=R.solve(pp.kind,pose),z=actorLayer[pp.kind]+(actor.id||0)*.0013;
     const depth=actor.depth||0,fade=1-.72*depth,dark=1-.55*depth;
+    if(pp.flow){
+      const FL=root.GongFlow,F=FL.META,i=FL.frameFor(actor,t),m=pp.meshes[0].m,w=F.worldPerPx;
+      m.material.map.offset.set((i%F.cols)/F.cols,1-(Math.floor(i/F.cols)+1)/F.rows);
+      const r=FL.ownRotation(actor.state)?0:(pose.rot||0),c=Math.cos(r),sn=Math.sin(r),f=pose.face||1;
+      m.matrix.set(f*c,-f*sn,0,pose.x,sn,c,0,pose.y,0,0,1,z+.01,0,0,0,1);m.matrixWorldNeedsUpdate=true;
+      const k=lamp*dark*(1+pp.flash*.8);m.material.color.setRGB(k*(1+pp.tint*.6),k*(1-pp.tint*.35),k*(1-pp.tint*.4));m.material.opacity=fade;
+      const g=F.gong[i],gm=pp.glows[0].m;
+      if(g){const lx=(g[0]-F.root[0])*w,ly=(F.root[1]-g[1])*w,d=2.5*g[2]*w;
+        gm.matrix.set(f*c*d,-f*sn*d,0,pose.x+f*(c*lx-sn*ly),sn*d,c*d,0,pose.y+sn*lx+c*ly,0,0,1,z+.02,0,0,0,1);gm.matrixWorldNeedsUpdate=true;}
+      else gm.material.color.setScalar(0);
+      return solved;
+    }
     for(const {m,part} of pp.meshes){
       const a=solved[part.name].m;m.matrix.set(a[0],a[2],0,a[4],a[1],a[3],0,a[5],0,0,1,z+part.z*.002,0,0,0,1);m.matrixWorldNeedsUpdate=true;
       const k=lamp*dark*(1+pp.flash*.8);m.material.color.setRGB(k*(1+pp.tint*.6),k*(1-pp.tint*.35),k*(1-pp.tint*.4));m.material.opacity=fade;
