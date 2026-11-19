@@ -1,5 +1,6 @@
 // 碎碎平安 room · the network side: WebSocket at /room/ws, limits, heartbeat, broadcasting.
-// Exposed on the public internet through Tailscale funnel (8443 /suisui -> 127.0.0.1:8798/room), so it trusts nothing:
+// Local and test server. The public room runs the same room.mjs in a Cloudflare Durable Object (../worker/), because
+// mainland phones reached the old Tailscale funnel entry slowly or not at all (2026-11-20). Trusts nothing either way:
 // browser origin checked, every message parsed against a whitelist, rate limits per connection and per address,
 // a cap on people and connections, no disk, no access log.
 //   node server/room-server.mjs            (PORT, HOST, SEED from the environment)
@@ -7,38 +8,15 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { handshake, FrameReader, encodeText, encodeClose, encodePong, encodePing } from './ws.mjs';
 import { createRoom, parse, join, leave, handle, tick, flushPointers } from './room.mjs';
+import { LIMIT, ORIGINS, Bucket } from './limits.mjs';
 
-export const LIMIT = {
-  people: 50, conns: 60, perAddr: 4, handshakesPerSec: 10,
-  msgsPerSec: 30, fingersPerSec: 15, floodMs: 3000, helloMs: 5000,
-  pingEvery: 15000, silentMs: 40000, tickMs: 100,
-};
-const ORIGINS = [/^https:\/\/aliceljy\.github\.io$/, /^http:\/\/127\.0\.0\.1(:\d+)?$/, /^http:\/\/localhost(:\d+)?$/];
+export { LIMIT };
 
 // The visitor's address as seen by the last proxy. Funnel appends to X-Forwarded-For, so the last entry is the one
 // it wrote; anything before it came from the client and can be forged (checked on the public side after deploy).
 export function addrOf(req) {
   const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
   return xff.length ? xff[xff.length - 1] : req.socket.remoteAddress || '?';
-}
-
-// Token bucket. `flooding(windowMs)` is true when more messages were dropped in the window than the bucket would
-// have allowed in it, i.e. someone keeps sending at twice the limit or more. (Timing "since it first ran dry" does
-// not work: a refill every 1/rate seconds resets it, so a flood just above the rate was never cut off.)
-class Bucket {
-  constructor(rate) { this.rate = rate; this.tokens = rate; this.at = Date.now(); this.drops = []; }
-  take() {
-    const t = Date.now();
-    this.tokens = Math.min(this.rate, this.tokens + ((t - this.at) / 1000) * this.rate); this.at = t;
-    if (this.tokens >= 1) { this.tokens -= 1; return true; }
-    this.drops.push(t);
-    return false;
-  }
-  flooding(windowMs) {
-    const t = Date.now();
-    while (this.drops.length && t - this.drops[0] > windowMs) this.drops.shift();
-    return this.drops.length > this.rate * Math.max(1, windowMs / 1000);
-  }
 }
 
 export function startRoom({ port = 8798, host = '127.0.0.1', seed = (Math.random() * 1e9) >>> 0, now, limits = {} } = {}) {
@@ -99,7 +77,7 @@ export function startRoom({ port = 8798, host = '127.0.0.1', seed = (Math.random
           c.tok = r.me.tok; byTok.set(c.tok, c); clearTimeout(hello);
           return deliver(r.o);
         }
-        if (m.t === 'hi') return;
+        if (m.t === 'hi' || m.t === 'k') return;
         if (m.t === 'p' && !c.fingers.take()) return;
         deliver(handle(room, c.tok, m));
       },

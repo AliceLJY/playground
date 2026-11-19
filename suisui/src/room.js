@@ -8,7 +8,7 @@ export const NAMES = ['青柚','橘子','杏仁','芒果','山楂','龙眼','荔
   '白鹭','喜鹊','黄鹂','燕子','麻雀','画眉','鸳鸯','仙鹤','锦鲤','熊猫','狸花','三花','橘猫','柴犬','小鹿','白兔'];
 // 12 colours readable on the dark shelf.
 export const COLORS = ['#ff8a65','#ffd54f','#aed581','#4dd0e1','#64b5f6','#9575cd','#f06292','#e57373','#81c784','#ffb74d','#4db6ac','#ba68c8'];
-export const DEFAULT_URL = 'wss://mac-mini.tail791fb9.ts.net:8443/suisui/ws';
+export const DEFAULT_URL = 'wss://suisui.aliceljy.xyz/room/ws';
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -34,11 +34,13 @@ export const myNotes = {
 // onUp fires when the welcome snapshot arrives. Returns { send, close, get up }.
 export function connect(url, { onUp, onMessage, onDown }) {
   let ws = null, up = false, stopped = false, retry = 0, timer = 0;
+  // A small message every 15 s keeps the connection alive through proxies and tells the room this page is still here.
+  setInterval(() => { if (up && ws && ws.readyState === 1) ws.send('{"t":"k"}'); }, 15000);
   const look = myLook();
   const open = () => {
     if (stopped) return;
     try { ws = new WebSocket(url); } catch { return fail(); }
-    const t = setTimeout(() => { if (!up) { try { ws.close(); } catch { /* ignore */ } } }, 5000);
+    const t = setTimeout(() => { if (!up) { try { ws.close(); } catch { /* ignore */ } } }, 10000);   // mobile networks in China can take seconds
     ws.onopen = () => {
       const tok = store.get('suisui.token');
       ws.send(JSON.stringify({ t: 'hi', n: look.n, c: look.c, ...(tok && /^[0-9a-f]{32}$/.test(tok) ? { tok } : {}) }));

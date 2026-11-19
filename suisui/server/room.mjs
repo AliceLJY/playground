@@ -1,9 +1,9 @@
 // 碎碎平安 room · the shared shelf as a pure state machine. No sockets, no timers, no disk:
 // the server feeds it messages and clock ticks and sends out whatever it returns.
 // Rules: README of the multiplayer batch (sections 1–8) and plan.md section 8 (review decisions).
-import { createRequire } from 'node:module';
-import { randomBytes } from 'node:crypto';
-const C = createRequire(import.meta.url)('../src/core.js');
+// No Node-only imports: the same file runs in Node (tests, the old local server) and in a Cloudflare Durable Object.
+import C from '../src/core.js';
+const hex = (bytes) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
 const K = C.KINDS;
 
 export const SLOTS = 12, COLS = 4;                 // fixed shelf: phones lay it out 3 x 4, desktops 4 x 3
@@ -40,11 +40,12 @@ export function parse(text) {
       && num(m.ox, 0, 1) && num(m.oy, 0, 1) && num(m.vx ?? 0, -5000, 5000) && num(m.vy ?? 0, -5000, 5000) ? m : null;
     case 'n': return only(m, ['t']) ? m : null;
     case 'a': return only(m, ['t']) ? m : null;
+    case 'k': return only(m, ['t']) ? m : null;     // keepalive from the page; the network layer swallows it
     default: return null;
   }
 }
 
-export function createRoom({ now = Date.now, seed = 1, token = () => randomBytes(16).toString('hex'), noteId = () => randomBytes(4).toString('hex') } = {}) {
+export function createRoom({ now = Date.now, seed = 1, token = () => hex(16), noteId = () => hex(4) } = {}) {
   const shelf = C.createShelf(seed, SLOTS, COLS);
   const R = {
     now, token, noteId, r: shelf.r, pidNext: 1,

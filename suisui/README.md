@@ -47,7 +47,7 @@ node server/room-server.mjs                                          # local roo
 NODE_PATH="$(npm root -g)" node tools/room-check.cjs <output-dir>     # two browsers in one room
 ```
 
-Point the page at it with `?room=ws://127.0.0.1:8798/room/ws`. Spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese). Whether it feels good, sounds good and whether the shake is too much still needs a person with a phone.
+Point the page at it with `?room=ws://127.0.0.1:8798/room/ws`. The public room is the same `server/room.mjs` in a Cloudflare Durable Object at `wss://suisui.aliceljy.xyz/room/ws` (`cd worker && npx wrangler@4 deploy`; locally `npx wrangler@4 dev --port 8799 --var SEED:1`, then run room-check with `ROOM_URL=ws://127.0.0.1:8799/room/ws`). Spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese). Whether it feels good, sounds good and whether the shake is too much still needs a person with a phone.
 
 ## Assets and sources
 

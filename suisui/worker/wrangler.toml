@@ -1,0 +1,15 @@
+name = "suisui-room"
+main = "index.mjs"
+compatibility_date = "2026-10-01"
+# workers.dev is DNS-poisoned in mainland China; the room lives on her own domain (aliceljy.xyz is on this Cloudflare
+# account, same as tea.aliceljy.xyz). Deploying adds the DNS record.
+routes = [{ pattern = "suisui.aliceljy.xyz", custom_domain = true }]
+workers_dev = false
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

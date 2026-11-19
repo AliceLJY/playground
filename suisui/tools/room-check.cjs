@@ -7,6 +7,7 @@
 //   5. The server stops: both pages fall back to single-player without page errors and can still break things.
 //   python3 -m http.server 8971 --bind 127.0.0.1        (inside suisui/)
 //   NODE_PATH="$(npm root -g)" node tools/room-check.cjs <output-dir> [page-url]
+//   ROOM_URL=ws://127.0.0.1:8787/room/ws ROOM_STOP='kill <pid>' ... same command   (an external room, e.g. wrangler dev)
 const {chromium}=require('playwright');
 const fs=require('fs'),path=require('path');
 const out=process.argv[2]||'room-check-out',base=(process.argv[3]||'http://127.0.0.1:8971/index.html').replace(/[?#].*$/,'');
@@ -19,8 +20,12 @@ const A_WORDS='甲方又改需求',B_WORDS='乙的小烦恼';
   const S=await import('../server/room-server.mjs'),M=await import('../server/room.mjs');
   // a seed whose shelf starts with exactly two notes, so A's note goes up and B's has to wait
   let seed=1;for(;seed<500;seed++){const r=M.createRoom({seed});if(r.slots.filter(s=>s.kind==='note').length===2)break;}
-  const srv=await S.startRoom({port:0,seed});
-  const roomUrl=`ws://127.0.0.1:${srv.port}/room/ws`;
+  // ROOM_URL: check an already-running room instead (the Cloudflare one under `wrangler dev --var SEED:<seed>`);
+  // ROOM_STOP: the shell command that takes it down for step 5. The seed this script needs is printed first.
+  let stopped=false;
+  const srv=process.env.ROOM_URL?{stop:async()=>{if(stopped)return;stopped=true;if(process.env.ROOM_STOP)require('child_process').execSync(process.env.ROOM_STOP,{stdio:'ignore'});}}:await S.startRoom({port:0,seed});
+  const roomUrl=process.env.ROOM_URL||`ws://127.0.0.1:${srv.port}/room/ws`;
+  console.log('room',roomUrl,'seed',seed);
   const browser=await chromium.launch();
   async function open(name,opts){
     const ctx=await browser.newContext(opts),page=await ctx.newPage(),errors=[];
