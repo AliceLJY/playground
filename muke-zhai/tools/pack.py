@@ -16,7 +16,8 @@ CH = {
    'jump':   dict(take='t02', frames=[0] + R(12, 108, 6) + [120]),
    'hurt':   dict(take='t01', frames=R(36, 100, 6)),
    'guard':  dict(take='t01', frames=[0, 12, 18, 24, 30, 36, 48, 96, 102, 108, 120], hold=6),
-   'victory':dict(take='t03', frames=[0, 6, 12, 18, 24, 54, 60, 66, 72], hold=8),
+   # 11-19 重拍：枪一直竖在手里、抬手亮相，动作连贯（原 t03 中间跳掉 30 帧）；只取前 72 帧，之后画面变大、脚挪位
+   'victory':dict(set='guiying-red-liangxiang2', take='t01', frames=R(0, 72, 6), hold=12, stabilize=True),
  }),
  'zongbao': dict(set='zongbao2', body=260, ratio=0.865, acts={
    'idle':   dict(take='t01', frames=R(0, 141, 3), loop=True),
@@ -30,7 +31,8 @@ CH = {
  }),
  'mengliang': dict(set='mengliang2', body=215, ratio=1.0, acts={
    'idle':   dict(take='t03', frames=R(0, 36, 3) + R(33, 3, -3), loop=True),
-   'walk':   dict(take='t01', search=(16, 48), step=2, loop=True),
+   # 11-19 重拍：碎步、不抬高腿（set-mengliang2-walk2，Grok 一条过）
+   'walk':   dict(set='mengliang2-walk2', take='t01', search=(16, 48), step=2, loop=True),
    'attack': dict(take='t02', frames=R(6, 120, 6), hit=7),
    'hurt':   dict(take='t01', frames=R(54, 108, 6)),
    'defeat': dict(take='t03', frames=R(0, 60, 4), hold=15),
@@ -64,6 +66,27 @@ def find_loop(fs, box, lo, hi):
             if best is None or score < best[0]: best = (score, i, p, d, mid)
     return best
 
+def hem(im, depth):
+    # 脚底往上 depth 像素那一段（下摆和靴子）的宽度与中心、脚底：只认实心的列，枪杆这种细竖线不算。
+    # 用固定深度而不是外框比例：抬手、翎子扬起会把外框拉高，按比例量会量到更宽的裙身
+    a = np.asarray(im)[..., 3] > 24; ys = np.where(a.any(1))[0]; y1 = ys.max()
+    band = a[max(0, int(y1 - depth)):y1 + 1]; cols = np.where(band.sum(0) > band.shape[0] * 0.3)[0]
+    return cols.max() - cols.min(), (cols.max() + cols.min()) / 2.0, float(y1)
+
+def stabilize(ims):
+    # 生成的视频会慢慢推镜：推镜以画面中心为原点放大，脚底会往下沉。按脚底离画面中心的距离估每帧放大了多少，
+    # 缩回第一帧的大小，再把脚底和下摆中心对回第一帧。
+    # 不用下摆宽度估：亮相时她叉开脚，裙摆本来就会张开，按宽度缩会把人缩小（11-19 踩过）
+    cy = ims[0].height / 2.0
+    _, cx0, b0 = hem(ims[0], 40); out = [ims[0]]
+    for im in ims[1:]:
+        _, cx, b = hem(im, 40); k = (b0 - cy) / (b - cy)
+        sm = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
+        canvas = Image.new('RGBA', im.size, (0, 0, 0, 0))
+        canvas.paste(sm, (round(cx0 - cx * k), round(b0 - b * k)), sm)
+        out.append(canvas)
+    return out
+
 clips, report = {}, {}
 for name, c in CH.items():
     clips[name] = {}
@@ -79,6 +102,8 @@ for name, c in CH.items():
         else:
             idx = cfg['frames']
         ims = [Image.open(fs[i]).convert('RGBA') for i in idx]
+        if cfg.get('stabilize'):
+            ims = stabilize(ims)
         boxes = [bbox(np.asarray(im)) for im in ims]
         ux0, uy0 = min(b[0] for b in boxes) - 2, min(b[1] for b in boxes) - 2
         ux1, uy1 = max(b[2] for b in boxes) + 2, max(b[3] for b in boxes) + 2
