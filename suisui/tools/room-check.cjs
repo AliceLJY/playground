@@ -42,6 +42,12 @@ const A_WORDS='甲方又改需求',B_WORDS='乙的小烦恼';
     let a=await P(A),b=await P(B);
     check('both in the room with the same 12 things',a.slots.length===12&&JSON.stringify(a.slots.map(s=>s.kind))===JSON.stringify(b.slots.map(s=>s.kind)),{a:a.slots.map(s=>s.kind)});
     check('online count is 2 on both',a.online===2&&b.online===2,{a:a.online,b:b.online});
+    check('the status line says who is in the room, me first',/^房间里 2 人：你·/.test(a.status)&&/^房间里 2 人：你·/.test(b.status),{a:a.status,b:b.status});
+    const names=await Promise.all([A,B].map(p=>p.page.textContent('#roomline .who.me')));
+    check('A and B are told apart by name',names[0]!==names[1]&&names[0].replace('你·','')!==names[1].replace('你·',''),names);
+    check('the 候贴区 strip is on screen and says it is empty',await A.page.isVisible('#waitbar')&&a.waitbar.startsWith('候贴区空着'),{waitbar:a.waitbar});
+    const sys=a.slots.find(s=>s.kind==='note');
+    check('the shelf\'s own slips are labelled 大家的',sys&&sys.owner==='大家的',{owner:sys&&sys.owner});
     await A.page.screenshot({path:path.join(out,'A-start.png')});await B.page.screenshot({path:path.join(out,'B-start.png')});
 
     // 1. A breaks a free slot, B sees it and both get the same new thing
@@ -82,20 +88,25 @@ const A_WORDS='甲方又改需求',B_WORDS='乙的小烦恼';
     a=await P(A);
     const aSlot=a.slots.findIndex(s=>s.text===A_WORDS);
     check('3. A\'s note is on the shelf with A\'s words on A\'s screen',up&&aSlot>=0,{notes:a.slots.filter(s=>s.kind==='note').map(s=>s.text)});
+    check('3. A sees it labelled 我写的',a.slots[aSlot].owner==='我写的',{owner:a.slots[aSlot].owner});
     await B.page.waitForTimeout(400);b=await P(B);
     check('3. on B\'s screen the same note is folded, no words',aSlot>=0&&b.slots[aSlot].kind==='note'&&b.slots[aSlot].folded&&b.slots[aSlot].text==='',{b:b.slots[aSlot]});
+    const aName=(await A.page.textContent('#roomline .who.me')).replace(/^你·/,'');
+    check('3. B sees whose it is: 「<A 的名字> 写的」',b.slots[aSlot].owner===`${aName} 写的`,{owner:b.slots[aSlot].owner,aName});
     await write(B,B_WORDS);
     const waits=await waitFor(B,()=>!!window.__suisui.probe().mine,null,4000);
     b=await P(B);
     await B.page.screenshot({path:path.join(out,'B-waiting.png')});
-    check('3. with three notes up, B\'s note waits in the 候贴区',waits&&b.mine&&b.mine.pos===1,{mine:b.mine,wait:b.wait,line:await B.page.textContent('#roomline')});
+    check('3. with three notes up, B\'s note waits in the 候贴区',waits&&b.mine&&b.mine.pos===1,{mine:b.mine,wait:b.wait});
+    check('3. the 候贴区 strip shows B\'s slip as 我的',await B.page.evaluate(()=>!!document.querySelector('#waitbar .slip.mine')&&document.querySelector('#waitbar').textContent.includes('我的')),{waitbar:b.waitbar});
+    check('3. on A\'s screen the strip shows one slip waiting, not marked as A\'s',await waitFor(A,()=>document.querySelectorAll('#waitbar .slip').length===1&&!document.querySelector('#waitbar .slip.mine'),null,3000));
     // slips are brushed one character at a time, so join everything ever drawn and look for the words in a row
     const seen=(p,w)=>p.page.evaluate(w=>({dom:document.documentElement.outerHTML.includes(w)||document.body.innerText.includes(w),canvas:window.__drawn.filter((t,k,all)=>t!==all[k-1]).join('').includes(w),storage:JSON.stringify(localStorage).includes(w)}),w);
     const control=await seen(A,A_WORDS);
     check('3. control: the same check does find A\'s words on A\'s own screen',control.canvas,control);
     const leak=await seen(B,A_WORDS);
     check('3. A\'s words appear nowhere on B\'s side (DOM, canvas text, storage)',!leak.dom&&!leak.canvas&&!leak.storage,leak);
-    check('3. B sees 撕下换上 on A\'s note while B has one waiting',await B.page.evaluate(i=>document.querySelectorAll('.slot')[i].classList.contains('tearable'),aSlot));
+    check('3. while B has one waiting, A\'s note says it can be torn (「<A> 的 · 可撕」)',await waitFor(B,([i,n])=>window.__suisui.probe().slots[i].owner===`${n} 的 · 可撕`,[aSlot,aName],3000),{owner:(await P(B)).slots[aSlot].owner});
 
     // 4. B tears A's note: B's goes straight up there, A is told what was burned
     await tap(B,aSlot);
@@ -126,6 +137,9 @@ const A_WORDS='甲方又改需求',B_WORDS='乙的小烦恼';
     await srv.stop();
     const soloA=await waitFor(A,()=>window.__suisui.probe().mode==='solo',null,8000),soloB=await waitFor(B,()=>window.__suisui.probe().mode==='solo',null,8000);
     check('5. server gone: both back to single-player',soloA&&soloB);
+    const lineA=(await P(A)).status;
+    check('5. the status line says the room is not reachable',lineA.startsWith('没连上房间'),{status:lineA});
+    check('5. my own slip is still marked 我写的 in single-player',(await P(B)).slots.some(s=>s.text===B_WORDS&&s.owner==='我写的'));
     await A.page.waitForTimeout(600);
     const n=(await P(A)).smashes;
     const iS=(await P(A)).slots.findIndex(s=>s.shown&&!s.busy);await tap(A,iS);

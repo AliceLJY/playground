@@ -13,7 +13,7 @@ export function loadArt(kinds, base = 'assets/') {
     im.decoding = 'async';
     im.onload = () => { ART[k] = im; done(); };
     im.onerror = () => done();
-    im.src = `${base}${k}.webp?v=3`;
+    im.src = `${base}${k}.webp?v=4`;
   })));
 }
 

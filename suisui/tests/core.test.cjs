@@ -92,7 +92,7 @@ test('spec 4: the shelf fits the visible screen with room for the title and the 
   for(const [name,[w,h]] of Object.entries(SCREENS)){
     const L=C.layout(w,h);
     assert.ok(L.shelfW<=w,`${name}: shelf ${L.shelfW}px wider than ${w}px`);
-    assert.ok(L.shelfH+C.HEADER+C.FOOTER<=h,`${name}: shelf ${L.shelfH}px plus bars does not fit ${h}px`);
+    assert.ok(L.shelfH+C.HEADER+C.FOOTER+C.ROOM_BAR<=h,`${name}: shelf ${L.shelfH}px plus bars does not fit ${h}px`);
     assert.ok(L.rows>=3&&L.rows<=4,`${name}: ${L.rows} rows`);
     assert.ok(L.item>=60,`${name}: items only ${L.item}px, too small to hit`);
   }
@@ -144,7 +144,7 @@ test('room layout: always 12 slots, 3 x 4 on phones and 4 x 3 wider, and it fits
     assert.equal(L.count,12);assert.equal(L.cols*L.rows,12);
     assert.equal(L.cols,w<560?3:4,name);
     assert.ok(L.shelfW<=w,`${name}: shelf too wide`);
-    assert.ok(L.shelfH+C.HEADER+C.FOOTER+C.ROOM_BAR<=h,`${name}: ${L.shelfH}px shelf plus bars does not fit ${h}px`);
+    assert.ok(L.shelfH+C.HEADER+C.FOOTER+C.ROOM_BAR+C.WAIT_BAR<=h,`${name}: ${L.shelfH}px shelf plus bars does not fit ${h}px`);
     assert.ok(L.item>=60,`${name}: items only ${L.item}px`);
   }
 });
