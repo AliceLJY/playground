@@ -25,6 +25,8 @@ CH = {
    'guard':  dict(take='t01', frames=[0, 6, 12, 18, 24, 36, 48, 96, 102, 108, 120], hold=6),
    'hurt':   dict(take='t01', frames=R(48, 100, 4)),
    'victory':dict(take='t03', frames=[0, 6, 12, 18, 24, 36, 48, 60, 72], hold=8),
+   # 脸红愣神：11-19 Grok 单拍（set-zongbao2-blush 的 cast 动作，t01），收场时演一次
+   'daze':   dict(set='zongbao2-blush', src='cast', take='t01', frames=R(4, 140, 4)),
  }),
  'mengliang': dict(set='mengliang2', body=215, ratio=1.0, acts={
    'idle':   dict(take='t03', frames=R(0, 36, 3) + R(33, 3, -3), loop=True),
@@ -66,7 +68,7 @@ clips, report = {}, {}
 for name, c in CH.items():
     clips[name] = {}
     for a, cfg in c['acts'].items():
-        fs = load(c['set'], a, cfg['take'])
+        fs = load(cfg.get('set', c['set']), cfg.get('src', a), cfg['take'])
         f0 = np.asarray(Image.open(fs[0]).convert('RGBA')); b0 = bbox(f0)
         scale = (c['body'] / c['ratio']) / (b0[3] - b0[1])
         band = f0[int(b0[3] - (b0[3] - b0[1]) * 0.06):b0[3]]; xs = np.where(band[..., 3] > 24)[1]
