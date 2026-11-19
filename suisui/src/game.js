@@ -1,8 +1,9 @@
 // 碎碎平安 · the page: shelf layout, tap / hold / swipe, refills, words, shake, smash-all, typed worries.
 // Rules and numbers live in core.js (SPEC.md); the particle engine is vendor/dissolve-atlas.js.
+// ?v= on every script: GitHub Pages caches for ten minutes, and a new page with an old module breaks. Bump it on each release.
 import { play, snapshot, cancelAll } from '../vendor/dissolve-atlas.js';
-import { draw } from './draw.js';
-import { Sound } from './sound.js';
+import { draw, loadArt } from './draw.js?v=2';
+import { Sound } from './sound.js?v=2';
 
 const C = window.SuiCore, G = C.G, K = C.KINDS;
 const $ = (s) => document.querySelector(s);
@@ -52,7 +53,7 @@ function build(keep) {
   }
 }
 
-function pickNote() { return C.NOTES[Math.floor(S.r() * C.NOTES.length)]; }
+function pickNote() { return C.pickNote(S.r, S.slots.map((s) => s.text)); }
 
 function put(slot, kind, text) {
   slot.kind = kind; slot.text = kind === 'note' ? (text || pickNote()) : '';
@@ -350,6 +351,7 @@ window.__PLAYTEST__ = {
 async function start() {
   setVH();
   try { await Promise.race([document.fonts?.ready, new Promise((r) => setTimeout(r, 800))]); } catch { /* fonts API missing */ }
+  await loadArt(C.SPRITES);
   build();
   S.ready = true;
   if (VIEW === 'burst') requestAnimationFrame(() => window.__suisui.tap(0, 0.4, 0.45));

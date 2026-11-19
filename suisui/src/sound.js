@@ -56,6 +56,17 @@ export class Sound {
         this.noise(t, 0.12, 'highpass', 4500 * p, 0.7, 0.45 * v);
         for (let i = 0; i < 10; i++) this.tone(t + R() * 0.3, (3200 + R() * 4200) * p, 0.15 + R() * 0.35, 0.06 * v);
         break;
+      case 'jade':
+        this.noise(t, 0.08, 'bandpass', 4200 * p, 1.2, 0.35 * v);
+        for (let i = 0; i < 4; i++) this.tone(t + R() * 0.12, (1800 + R() * 900) * p, 0.35 + R() * 0.4, 0.09 * v);
+        break;
+      case 'firecracker':
+        for (let i = 0; i < 12; i++) {
+          const at = t + i * 0.05 + R() * 0.04;
+          this.noise(at, 0.035, 'highpass', (600 + R() * 500) * p, 0.7, (0.5 + R() * 0.4) * v, 0.001);
+          this.tone(at, (90 + R() * 40) * p, 0.05, 0.3 * v, 'sine', 45, 0.001);
+        }
+        break;
       case 'crumble':
         this.noise(t, 0.75, 'lowpass', 900 * p, 0.6, 0.45 * v, 0.02);
         for (let i = 0; i < 14; i++) this.noise(t + R() * 0.6, 0.02, 'bandpass', (1200 + R() * 1500) * p, 2, 0.12 * v);

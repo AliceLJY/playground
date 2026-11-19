@@ -416,11 +416,11 @@ jobs:
 
       - name: Assemble Sui Sui Ping An
         run: |
-          # 碎碎平安：二维画布加 dissolve 粒子引擎（MIT，原样放在 vendor/），没有构建步骤
+          # 碎碎平安：二维画布加 dissolve 粒子引擎（MIT，原样放在 vendor/），藏品图在 assets/，没有构建步骤
           mkdir -p _site/suisui
           cp suisui/index.html _site/suisui/index.html
           cp suisui/THIRD_PARTY_NOTICES.md _site/suisui/
-          cp -R suisui/src suisui/vendor _site/suisui/
+          cp -R suisui/src suisui/vendor suisui/assets _site/suisui/
 
       - name: Assemble Secret Sweeper
         run: |
