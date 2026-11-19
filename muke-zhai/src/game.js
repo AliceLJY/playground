@@ -1185,7 +1185,8 @@
       startDemo();
       for (let i = 0; i < 6000 && !(g.pressT.guard > 0 && g.t - g.pressT.guard >= 90 && g.sub); i++) demoAdvance(M.STEP);
     }
-    if (VIEW) paused = true;
+    // 机位默认定格；加 &play=1 从这一刻接着往下播（验收看收场用）
+    if (VIEW && params.get('play') !== '1') paused = true;
     ui.meterShown = g.meter; ui.lastEvent = g.eventId; ui.slow = g.timeScale < 1 ? 1 : 0;
     syncUi(0);
     render();

@@ -203,8 +203,8 @@ test('S10 孟良认输后的转场是连续的：不黑场、每一步场上都�
   assert.ok(zAtHandoff >= 690 && zAtHandoff <= 710, `杨宗保站到对面 ${zAtHandoff}`);
 });
 
-test('S11 身体有体积：除了结尾并肩，两人身体圆（半径 42）全程不重叠，大招起手前修正间距', () => {
-  const R2 = 84;
+test('S11 身体有体积：除了结尾并肩，两人身体圆（半径 65）全程不重叠，大招起手前修正间距', () => {
+  const R2 = 130;
   let minGap = 1e9, ticks = 0;
   for (const skill of ['precise', 'sloppy', 'reckless']) {
     for (const seed of [1, 2, 3]) {

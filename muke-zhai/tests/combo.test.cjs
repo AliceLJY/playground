@@ -124,7 +124,7 @@ test('C5 三连刺：连按 J 三下，第三枪的击退、顿帧、震屏都�
 test('C6 冲刺突刺：只在「0.25 秒内同向连点两下再 J」或「按住方向跑起来超过 0.35 秒后按 J」时出；刚起步、贴身都是普通刺', () => {
   const kindOf = (g) => { const sw = g.events.filter((e) => e.type === 'swing' && e.who === 'p').pop(); return sw && sw.kind; };
   const measure = (setup) => {
-    const g = arena(1, 3, 680);
+    const g = arena(1, 3, 780);
     let x0 = g.p.x;
     setup(g);
     x0 = g.p.x;
@@ -142,10 +142,10 @@ test('C6 冲刺突刺：只在「0.25 秒内同向连点两下再 J」或「按�
   assert.equal(dbl.kind, 'dash', '0.25 秒内连点两下再 J 应冲刺');
   assert.equal(slow.kind, 'normal', '间隔 0.4 秒的连点不算');
   assert.ok(held.dx > normal.dx + 40, `冲刺位移 ${held.dx.toFixed(0)}，普通 ${normal.dx.toFixed(0)}`);
-  // 贴身（相距不到 120）时跑着按 J 也是普通刺
+  // 贴身（相距不到 MIN_GAP + 10，即 140）时跑着按 J 也是普通刺
   const close = arena(1, 3, 380);
   M.input(close, 'right', true); run(close, 20);
-  close.p.x = close.e.x - 110; M.advance(close, M.STEP);
+  close.p.x = close.e.x - 135; M.advance(close, M.STEP);
   M.tap(close, 'attack', 50); run(close, 200);
   assert.equal(kindOf(close), 'normal', '贴身时按 J 是普通刺');
   // 贴着舞台边缘：不出舞台
