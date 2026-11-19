@@ -50,8 +50,12 @@
     main = g; demo = null;
     ui.meterShown = 0; ui.lastEvent = 0; ui.meterPulse = 0; ui.slow = 0;
     if (VIEW && !seedOverride) M.prepareView(g, VIEW);
+    // ?auto=precise：自动玩家真打一局（录演示片用，不是给人玩的）
+    autoDriver = AUTO ? M.makeDriver(AUTO, g.seed) : null;
   }
   let seedOverride = false;
+  const AUTO = params.get('auto');
+  let autoDriver = null;
 
   // ---------- 图集 ----------
   const atlas = {};
@@ -691,7 +695,7 @@
   // 势第一次满了：「架」和「刺」一起亮，放出一次后不再亮
   function ultGlow() { return !demo && !g.tut && g.ultHintOn ? ['guard', 'attack'] : []; }
   function litKeys() {
-    if (!demo) return [];
+    if (!demo && !autoDriver) return [];
     const out = [];
     if (g.held.left) out.push('left');
     if (g.held.right) out.push('right');
@@ -947,7 +951,7 @@
   document.getElementById('movesClose').addEventListener('click', () => openMoves(false));
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && !movesEl.hidden) openMoves(false); });
   function syncTools() {
-    const inTut = !demo && !!g.tut, idle = !demo && !g.tut && g.stage === 1 && g.phase === 'play';
+    const inTut = !demo && !!g.tut, idle = !demo && !autoDriver && !g.tut && g.stage === 1 && g.phase === 'play';
     btn.skip.hidden = !inTut || g.intro;
     btn.replay.hidden = !idle || g.intro;
     btn.moves.hidden = !idle || g.intro;
@@ -1153,6 +1157,7 @@
     for (const ev of g.events) {
       if (ev.id <= ui.lastEvent) continue;
       ui.lastEvent = ev.id;
+      if (self.__evlog) self.__evlog.push({ type: ev.type, kind: ev.kind || null, stage: g.stage, phase: g.phase });   // 录演示片时按事件卡点配乐
       if (g.t - ev.t < 400) play(ev);
       if (ev.type === 'meter') ui.meterPulse = ev.meter >= 100 ? 1 : 0.35;
       if (ev.type === 'guard' && ev.win) ui.confirmT = ev.t;
@@ -1175,7 +1180,12 @@
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(50, now - last); last = now;
-    if (!paused) { if (demo) demoAdvance(dt); else M.advance(g, dt); syncUi(dt); }
+    if (!paused) {
+      if (demo) demoAdvance(dt);
+      else if (autoDriver && !g.intro) { for (let r = dt; r > 0; r -= M.STEP) { autoDriver.think(g); M.advance(g, Math.min(M.STEP, r)); } }
+      else M.advance(g, dt);
+      syncUi(dt);
+    }
     render();
     requestAnimationFrame(frame);
   }
