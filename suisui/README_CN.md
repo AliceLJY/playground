@@ -45,7 +45,7 @@ node server/room-server.mjs                                         # 本地房�
 NODE_PATH="$(npm root -g)" node tools/room-check.cjs <输出目录>      # 两个浏览器同进一个房间的验收
 ```
 
-页面加 `?room=ws://127.0.0.1:8798/room/ws` 连本地服务。规格与验收条目见 [SPEC.md](SPEC.md)。砸起来爽不爽、声音好不好听、震屏会不会晕，要人在手机上试。
+页面加 `?room=ws://127.0.0.1:8798/room/ws` 连本地服务。线上房间是同一个 `server/room.mjs` 跑在 Cloudflare Durable Object 里，地址 `wss://suisui.aliceljy.xyz/room/ws`（发布：`cd worker && npx wrangler@4 deploy`；本地：`npx wrangler@4 dev --port 8799 --var SEED:1`，再带 `ROOM_URL=ws://127.0.0.1:8799/room/ws` 跑 room-check）。规格与验收条目见 [SPEC.md](SPEC.md)。砸起来爽不爽、声音好不好听、震屏会不会晕，要人在手机上试。
 
 ## 素材与来源
 

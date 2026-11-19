@@ -6,7 +6,7 @@
 import { play, snapshot, cancelAll } from '../vendor/dissolve-atlas.js';
 import { draw, loadArt } from './draw.js?v=4';
 import { Sound } from './sound.js?v=4';
-import { connect, NAMES, COLORS, DEFAULT_URL, myNotes } from './room.js?v=4';
+import { connect, NAMES, COLORS, DEFAULT_URL, myNotes } from './room.js?v=5';
 
 const C = window.SuiCore, G = C.G, K = C.KINDS;
 const $ = (s) => document.querySelector(s);
