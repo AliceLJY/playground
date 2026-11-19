@@ -58,3 +58,20 @@ test('a played match only ever asks for frames the atlas has',()=>{
   }
   assert.ok(n>100&&seen.size>=3,`states seen: ${[...seen]}`);
 });
+
+// Duet's play report: pushed to the far left and knocked down, the hero's back went behind the frame.
+test('knocked down at either end of the stage, the hero sprite stays on the cloth',()=>{
+  const G=require('../src/stage.js');
+  const box=(i,x,face)=>{const b=M.box[i],w=M.worldPerPx,r=M.root[0],a=(b[0]-r)*w*face,c=(b[2]-r)*w*face;return[x+Math.min(a,c),x+Math.max(a,c)];};
+  let rawOut=0,checked=0;
+  for(const state of ['down','dead','hurt','broken','dodge','idle'])
+    for(const x of [-C.PLAYER.clamp,C.PLAYER.clamp])for(const face of [1,-1])
+      for(let u=0;u<=2.2;u+=.05){
+        const i=F.frameFor({state,st:u,stateDur:2.2,dodgeDur:.35},u);
+        const [lo,hi]=box(i,F.placeX(i,x,face,G.screen.left,G.screen.right),face);
+        assert.ok(lo>=G.screen.left&&hi<=G.screen.right,`${state} x=${x} face=${face} u=${u.toFixed(2)}: ${lo.toFixed(2)}..${hi.toFixed(2)}`);
+        const [rl,rh]=box(i,x,face);if(rl<G.screen.left||rh>G.screen.right)rawOut++;checked++;
+      }
+  assert.ok(rawOut>0,'without placeX some knocked-down frames do leave the cloth (the check can fail)');
+  assert.ok(checked>400);
+});

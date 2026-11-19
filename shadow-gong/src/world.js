@@ -273,15 +273,21 @@ function createWorld(canvas){
       flowTex.repeat.set(1/F.cols,1/F.rows);}
     const geo=new THREE.PlaneGeometry(cw*w,ch*w).translate((cw/2-F.root[0])*w,(F.root[1]-ch/2)*w,0);
     const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:flowTex,transparent:true,alphaTest:.04,depthWrite:false,side:THREE.DoubleSide,clippingPlanes:clip}));
-    m.matrixAutoUpdate=false;m.renderOrder=15;scene.add(m);
+    m.matrixAutoUpdate=false;m.renderOrder=18;scene.add(m);   // above every enemy body (rat parts reach 17.2), below the enemies' attack glints (40)
     // perfect-parry glow: a soft disc that follows the gong's position in each frame of the atlas
     glowTex=glowTex||tex('flowGlow',()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),gr=g.createRadialGradient(64,64,0,64,64,64);
       gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.62,'rgba(255,255,255,.85)');gr.addColorStop(.8,'rgba(255,255,255,.3)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);return c;});
     const gm=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,clippingPlanes:clip,color:0}));
     gm.matrixAutoUpdate=false;gm.renderOrder=40;gm.visible=false;scene.add(gm);
+    // the Flow gong reads smaller than the code puppet's: an ink rim and a gold ring make it as easy to find
+    const ringTex=tex('flowGongRing',()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');
+      g.lineWidth=14;g.strokeStyle='rgba(36,20,13,.9)';g.beginPath();g.arc(128,128,106,0,7);g.stroke();
+      g.lineWidth=7;g.strokeStyle='rgba(255,214,120,1)';g.beginPath();g.arc(128,128,96,0,7);g.stroke();return c;});
+    const ring=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:ringTex,transparent:true,depthWrite:false,clippingPlanes:clip}));
+    ring.matrixAutoUpdate=false;ring.renderOrder=19;scene.add(ring);
     const rodGeo=new THREE.BufferGeometry();rodGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(18),3));
     const rods=new THREE.LineSegments(rodGeo,new THREE.LineBasicMaterial({transparent:true,opacity:0}));rods.visible=false;scene.add(rods);   // rods are painted into the sprite
-    return{kind,id,meshes:[{m,part:{z:5,name:'flow'}}],glows:[{m:gm,part:{name:'gong'},name:'gong'}],rods,glow:0,flash:0,tint:0,flow:true};
+    return{kind,id,meshes:[{m,part:{z:5,name:'flow'}}],glows:[{m:gm,part:{name:'gong'},name:'gong'}],ring,rods,glow:0,flash:0,tint:0,flow:true};
   }
   function makePuppet(kind,id){
     if(kind==='player'&&useFlow)return makeFlowPuppet(kind,id);
@@ -309,12 +315,15 @@ function createWorld(canvas){
       const FL=root.GongFlow,F=FL.META,i=FL.frameFor(actor,t),m=pp.meshes[0].m,w=F.worldPerPx;
       m.material.map.offset.set((i%F.cols)/F.cols,1-(Math.floor(i/F.cols)+1)/F.rows);
       const r=FL.ownRotation(actor.state)?0:(pose.rot||0),c=Math.cos(r),sn=Math.sin(r),f=pose.face||1;
-      m.matrix.set(f*c,-f*sn,0,pose.x,sn,c,0,pose.y,0,0,1,z+.01,0,0,0,1);m.matrixWorldNeedsUpdate=true;
+      const px=FL.placeX(i,pose.x,f,G.screen.left,G.screen.right);
+      m.matrix.set(f*c,-f*sn,0,px,sn,c,0,pose.y,0,0,1,z+.01,0,0,0,1);m.matrixWorldNeedsUpdate=true;
       const k=lamp*dark*(1+pp.flash*.8);m.material.color.setRGB(k*(1+pp.tint*.6),k*(1-pp.tint*.35),k*(1-pp.tint*.4));m.material.opacity=fade;
       const g=F.gong[i],gm=pp.glows[0].m;
       if(g){const lx=(g[0]-F.root[0])*w,ly=(F.root[1]-g[1])*w,d=2.5*g[2]*w;
-        gm.matrix.set(f*c*d,-f*sn*d,0,pose.x+f*(c*lx-sn*ly),sn*d,c*d,0,pose.y+sn*lx+c*ly,0,0,1,z+.02,0,0,0,1);gm.matrixWorldNeedsUpdate=true;}
-      else gm.material.color.setScalar(0);
+        const gx=px+f*(c*lx-sn*ly),gy=pose.y+sn*lx+c*ly,rd=2.4*g[2]*w;
+        gm.matrix.set(f*c*d,-f*sn*d,0,gx,sn*d,c*d,0,gy,0,0,1,z+.02,0,0,0,1);gm.matrixWorldNeedsUpdate=true;
+        pp.ring.matrix.set(rd,0,0,gx,0,rd,0,gy,0,0,1,z+.015,0,0,0,1);pp.ring.matrixWorldNeedsUpdate=true;pp.ring.visible=true;pp.ring.material.opacity=fade;pp.ring.material.color.setScalar(Math.min(1.25,k));}
+      else{gm.material.color.setScalar(0);pp.ring.visible=false;}
       return solved;
     }
     for(const {m,part} of pp.meshes){
@@ -389,7 +398,7 @@ function createWorld(canvas){
       const g=id===0?{red:false,eta:0,amount:gongGlow}:glintOf(a);
       for(const {m,name} of pp.glows){
         let amount=0,color=PAL.glint;
-        if(id===0){amount=gongGlow*1.4;color='#FFF6DA';}
+        if(id===0){amount=Math.max(pp.flow?.07:0,gongGlow*1.4);color='#FFF6DA';}
         else if(g&&(kind!=='rat'||(name==='jar')===g.red)){amount=.45+.55*Math.max(0,1-g.eta/.45);color=g.red?PAL.danger:PAL.glint;}
         m.visible=amount>.01;m.material.color.set(color).multiplyScalar(amount*k);
       }

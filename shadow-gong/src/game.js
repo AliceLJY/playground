@@ -71,9 +71,9 @@ $('sound').addEventListener('click',()=>{audio.setMuted(!audio.muted);$('sound')
 function toMenu(){s=C.create({seed:1+Math.floor(Math.random()*1e6)});audio.ambience(false);$('menu').hidden=false;$('hud').hidden=true;$('pause').hidden=true;$('result').hidden=true;}
 
 // ---- HUD and hints --------------------------------------------------------------------
-const shownHints=new Set();let hintUntil=0,orientationUntil=0;
+const shownHints=new Set();let hintUntil=0,orientationUntil=0,hintStun=false;
 const T=()=>document.body.classList.contains('touchy');
-function hint(id,text,seconds=4.5){if(id&&shownHints.has(id))return;if(id)shownHints.add(id);$('orientation').hidden=true;$('hint').textContent=text;$('hint').classList.add('on');hintUntil=real+seconds;}
+function hint(id,text,seconds=4.5){if(id&&shownHints.has(id))return;if(id)shownHints.add(id);$('orientation').hidden=true;$('hint').textContent=text;$('hint').classList.add('on');hintUntil=real+seconds;hintStun=id==='stun';}
 function call(text){const el=$('call');el.textContent=text;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');}
 function plate(title,name){$('plate-title').textContent=title;$('plate-name').textContent=name;const el=$('plate');el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
 const key=(k,t)=>T()?t:k;
@@ -124,6 +124,8 @@ function hud(){
   const chain=s.stats.chain>=2?`连弹 ×${s.stats.chain}`:'';if(shown.chain!==chain){shown.chain=chain;$('chain').textContent=chain;}
   const rat=s.enemies.find(e=>e.kind==='rat');
   if(rat){setBar('boss-posture',rat.posture/rat.maxPosture);const marks=Array.from({length:3},(_,i)=>`<i class="${i<rat.hp?'':'out'}"></i>`).join('');if(shown.marks!==marks){shown.marks=marks;$('boss-marks').innerHTML=marks;}}
+  // the stun hint goes away with the stun: the moth only stays down 1.5 s, the hint would otherwise outlive it
+  if(hintStun&&!s.enemies.some(e=>e.state==='stun'&&!e.execBy))hintUntil=Math.min(hintUntil,real),hintStun=false;
   if(real>hintUntil)$('hint').classList.remove('on');
   if(resultAt&&real>=resultAt&&$('result').hidden){
     resultAt=0;const won=s.phase==='won',t=Math.round(playEnd-playStart),st=s.stats;
