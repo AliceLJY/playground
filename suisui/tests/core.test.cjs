@@ -26,6 +26,7 @@ test('spec 1: every shelf has at least two worries to burn, each with words on i
       const notes=s.kinds.map((k,i)=>k==='note'?i:-1).filter(i=>i>=0);
       assert.ok(notes.length>=2,`seed ${seed} ${w}x${h}: only ${notes.length} worry notes`);
       for(const i of notes)assert.ok(s.notes[i].length>0,`seed ${seed}: note at ${i} has no text`);
+      assert.equal(new Set(notes.map(i=>s.notes[i])).size,notes.length,`seed ${seed} ${w}x${h}: two slips say the same worry`);
     }
   }
 });
@@ -34,9 +35,9 @@ test('spec 6.1: across many shelves every kind shows up, worries and porcelain m
   const n=Object.fromEntries(KIND_IDS.map(k=>[k,0]));
   for(let seed=1;seed<=300;seed++)for(const k of C.createShelf(seed,12,3).kinds)n[k]++;
   for(const k of KIND_IDS)assert.ok(n[k]>0,`${k} never appeared in 300 shelves`);
-  const porcelain=n.plate+n.vase+n.bowl,all=Object.values(n).reduce((a,b)=>a+b,0);
+  const porcelain=n.meiping+n.plate+n.ru,all=Object.values(n).reduce((a,b)=>a+b,0);
   assert.ok(porcelain/all>0.2&&porcelain/all<0.45,`porcelain share ${(porcelain/all).toFixed(2)} outside 0.2–0.45`);
-  assert.ok(n.note>n.pixel&&n.note>n.paper,'worry notes should be more common than the rare kinds');
+  assert.ok(n.note>n.sugar&&n.note>n.book,'worry notes should be more common than the rare kinds');
 });
 
 test('spec 6.2: every break uses a variant the vendored engine really registers',()=>{
@@ -62,16 +63,16 @@ test('spec 6.3: tap, hold and swipe split at 280 ms and 18 px, both sides of eac
 test('spec 2: a tap breaks from where it landed for shatter and snap; swipes fling at a usable speed',()=>{
   const box={w:120,h:120};
   assert.deepEqual(C.plan('plate','tap',{x:30,y:80},box).origin,{x:30,y:80});
-  assert.deepEqual(C.plan('balloon','tap',{x:200,y:-5},box).origin,{x:120,y:0},'points outside the item are clamped to its edge');
-  assert.equal(C.plan('pot','tap',{x:30,y:80},box).origin,undefined,'sand pours on its own clock, no origin');
-  assert.equal(C.plan('paper','tap',{x:100,y:10},box).origin,'right','dust blows away from the side that was hit');
-  const slow=C.plan('vase','swipe',{x:0,y:0},box,{x:30,y:0}).velocity;
+  assert.deepEqual(C.plan('firecracker','tap',{x:200,y:-5},box).origin,{x:120,y:0},'points outside the item are clamped to its edge');
+  assert.equal(C.plan('teapot','tap',{x:30,y:80},box).origin,undefined,'sand pours on its own clock, no origin');
+  assert.equal(C.plan('book','tap',{x:100,y:10},box).origin,'right','dust blows away from the side that was hit');
+  const slow=C.plan('meiping','swipe',{x:0,y:0},box,{x:30,y:0}).velocity;
   assert.ok(Math.abs(Math.hypot(slow.x,slow.y)-G.flingMin)<1e-6,'a slow drag still flings at the minimum speed');
-  const fast=C.plan('vase','swipe',{x:0,y:0},box,{x:-9000,y:9000}).velocity;
+  const fast=C.plan('meiping','swipe',{x:0,y:0},box,{x:-9000,y:9000}).velocity;
   assert.ok(Math.abs(Math.hypot(fast.x,fast.y)-G.flingMax)<1e-6&&fast.x<0&&fast.y>0,'fast flings are capped but keep their direction');
-  const still=C.plan('vase','swipe',{x:0,y:0},box,{x:0,y:0}).velocity;
+  const still=C.plan('meiping','swipe',{x:0,y:0},box,{x:0,y:0}).velocity;
   assert.ok(Number.isFinite(still.x)&&Number.isFinite(still.y),'zero velocity must not produce NaN');
-  assert.equal(C.plan('glass','hold',{x:5,y:5},box).preset,'charge');
+  assert.equal(C.plan('liuli','hold',{x:5,y:5},box).preset,'charge');
 });
 
 test('spec 6.4: smash-all keeps grains on screen together under 16000 on every screen',()=>{
@@ -105,17 +106,21 @@ test('spec 2: typed worries are one clean line of at most ten characters',()=>{
   assert.equal(Array.from(C.cleanNote('😤😤😤😤😤😤😤😤😤😤😤')).length,10,'emoji count as one character each, never split in half');
 });
 
-test('every kind on the shelf has a drawer, and the pixel critter is a clean 12 x 12 grid',()=>{
-  // read the source instead of importing it: draw.js is an ES module and CI's Node may not detect that on its own
+test('every collectible has its sprite on disk, the worry slip is the only thing drawn in code',()=>{
+  const dir=path.join(__dirname,'../assets');
+  assert.deepEqual([...C.SPRITES,'note'].sort(),[...KIND_IDS].sort(),'SPRITES should be every kind except the worry slip');
+  let total=0;
+  for(const k of C.SPRITES){
+    const f=path.join(dir,k+'.webp');
+    assert.ok(fs.existsSync(f),`missing sprite assets/${k}.webp`);
+    const b=fs.readFileSync(f);total+=b.length;
+    assert.equal(b.toString('ascii',0,4)+b.toString('ascii',8,12),'RIFFWEBP',`${k}.webp is not a webp file`);
+    assert.ok(b.includes(Buffer.from('ALPH'))||b.includes(Buffer.from('VP8L')),`${k}.webp has no transparency, it would show a black box on the shelf`);
+    assert.ok(b.length<160*1024,`${k}.webp is ${Math.round(b.length/1024)} KB, over the 160 KB budget per sprite`);
+  }
+  assert.ok(total<1.2*1024*1024,`sprites add up to ${Math.round(total/1024)} KB, over the 1.2 MB page budget`);
   const src=fs.readFileSync(path.join(__dirname,'../src/draw.js'),'utf8');
-  const table=src.match(/^const DRAW = \{([^}]+)\};$/m);
-  assert.ok(table,'draw.js lost its DRAW table');
-  const drawn=table[1].split(',').map(s=>s.trim()).filter(Boolean);
-  assert.deepEqual([...drawn].sort(),[...KIND_IDS].sort(),'core.js and draw.js disagree about what can sit on the shelf');
-  for(const k of drawn)assert.match(src,new RegExp(`^function ${k}\\(x`,'m'),`no drawer function for ${k}`);
-  const rows=[...src.matchAll(/^  '([.A-Z]+)',$/gm)].map(m=>m[1]);
-  assert.equal(rows.length,12,'pixel art should have 12 rows');
-  for(const r of rows)assert.equal(r.length,12,`pixel row "${r}" is ${r.length} wide`);
+  assert.match(src,/^export const DRAWN_IN_CODE = \['note'\];$/m,'draw.js should draw only the worry slip in code');
 });
 
 test('spec 1: no kind fills the shelf, at most two of anything and three worries, also after refills',()=>{

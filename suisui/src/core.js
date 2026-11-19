@@ -8,20 +8,24 @@ const ENGINE_FX=['dust','sand','ember','pixel','vortex','snap','fling','gather',
 
 // kind -> material, how a tap breaks it, which synth sound, the floating words, how often it shows up.
 // opts go straight to the engine's play(): n = engine knob (shard count for shatter, push for snap).
+// Every kind except the worry slip is a photographed sprite in assets/<kind>.webp; the slip is drawn in code (its words change).
 const KINDS={
-  plate:   {name:'青花盘', mat:'porcelain', fx:'shatter', sound:'porcelain', words:['碎碎平安','岁岁平安'], weight:3,   opts:{n:[150],duration:1500}, shake:0.55},
-  vase:    {name:'梅瓶',   mat:'porcelain', fx:'shatter', sound:'porcelain', words:['碎碎平安','岁岁平安'], weight:2,   opts:{n:[190],duration:1600}, shake:0.6},
-  bowl:    {name:'盖碗',   mat:'porcelain', fx:'shatter', sound:'porcelain', words:['碎碎平安','岁岁平安'], weight:2,   opts:{n:[120],duration:1400}, shake:0.5},
-  glass:   {name:'玻璃杯', mat:'glass',     fx:'shatter', sound:'glass',     words:['碎碎平安'],             weight:2,   opts:{n:[280],duration:1300}, shake:0.5},
-  pot:     {name:'陶罐',   mat:'clay',      fx:'sand',    sound:'crumble',   words:['散了'],                 weight:2,   opts:{grain:2.5,duration:1700}, shake:0.35},
-  note:    {name:'烦心事', mat:'paper',     fx:'ember',   sound:'burn',      words:['烧掉了','烧干净'],       weight:3,   opts:{duration:1700}, shake:0.15},
-  paper:   {name:'旧报纸', mat:'paper',     fx:'dust',    sound:'whoosh',    words:['吹走了'],               weight:1,   opts:{duration:1500}, shake:0.1},
-  candle:  {name:'蜡烛',   mat:'wax',       fx:'melt',    sound:'melt',      words:['化了'],                 weight:1.5, opts:{}, shake:0.1},
-  icecream:{name:'冰淇淋', mat:'ice',       fx:'melt',    sound:'melt',      words:['化了'],                 weight:1,   opts:{}, shake:0.1},
-  balloon: {name:'气球',   mat:'rubber',    fx:'snap',    sound:'pop',       words:['砰！'],                 weight:2,   opts:{n:[1.7],duration:950}, shake:0.7},
-  cloud:   {name:'乌云',   mat:'mood',      fx:'vortex',  sound:'swirl',     words:['散了','天晴了'],         weight:1.5, opts:{duration:1250}, shake:0.2},
-  pixel:   {name:'像素小怪',mat:'pixel',    fx:'pixel',   sound:'chip',      words:['消灭'],                 weight:1,   opts:{grain:6,duration:1000}, shake:0.3},
+  meiping: {name:'青花梅瓶', mat:'porcelain', fx:'shatter', sound:'porcelain', words:['碎碎平安','岁岁平安'], weight:2,   opts:{n:[190],duration:1600}, shake:0.6},
+  plate:   {name:'青花大盘', mat:'porcelain', fx:'shatter', sound:'porcelain', words:['碎碎平安','岁岁平安'], weight:2,   opts:{n:[160],duration:1500}, shake:0.55},
+  ru:      {name:'汝窑天青盏',mat:'porcelain', fx:'shatter', sound:'porcelain', words:['碎碎平安','岁岁平安'], weight:2,   opts:{n:[120],duration:1400}, shake:0.5},
+  liuli:   {name:'琉璃荷叶盏',mat:'glass',     fx:'shatter', sound:'glass',     words:['碎碎平安'],             weight:2,   opts:{n:[260],duration:1300}, shake:0.5},
+  bi:      {name:'白玉璧',   mat:'jade',      fx:'shatter', sound:'jade',      words:['碎碎平安','玉碎了'],     weight:1.5, opts:{n:[140],duration:1500}, shake:0.55},
+  horse:   {name:'唐三彩马', mat:'earthenware',fx:'sand',   sound:'crumble',   words:['散了'],                 weight:1.5, opts:{grain:2.5,duration:1700}, shake:0.35},
+  teapot:  {name:'紫砂壶',   mat:'clay',      fx:'sand',    sound:'crumble',   words:['散了'],                 weight:1.5, opts:{grain:2.5,duration:1700}, shake:0.35},
+  note:    {name:'烦心事',   mat:'paper',     fx:'ember',   sound:'burn',      words:['烧掉了','烧干净'],       weight:3,   opts:{duration:1700}, shake:0.15},
+  book:    {name:'线装古籍', mat:'paper',     fx:'dust',    sound:'whoosh',    words:['翻篇了'],               weight:1.5, opts:{duration:1500}, shake:0.1},
+  candle:  {name:'红烛',     mat:'wax',       fx:'melt',    sound:'melt',      words:['化了'],                 weight:1.5, opts:{}, shake:0.1},
+  sugar:   {name:'糖画龙',   mat:'sugar',     fx:'melt',    sound:'melt',      words:['化了','甜的'],           weight:1,   opts:{}, shake:0.1},
+  firecracker:{name:'红鞭炮',mat:'paper',     fx:'snap',    sound:'firecracker',words:['噼里啪啦','砰！'],      weight:1.5, opts:{n:[1.8],duration:950}, shake:0.75},
+  censer:  {name:'宣德炉',   mat:'bronze',    fx:'vortex',  sound:'swirl',     words:['烟消云散'],             weight:1.5, opts:{duration:1250}, shake:0.2},
 };
+// Sprites drawn from photographs; the rest are drawn in code.
+const SPRITES=Object.keys(KINDS).filter(k=>k!=='note');
 const KIND_IDS=Object.keys(KINDS);
 
 // Generic worries for the default notes: nothing personal, nothing about anyone real.
@@ -42,7 +46,7 @@ function layout(vw,vh){
   let rows=4,cell=cellW;
   if(rows*cellW>availH){rows=3;cell=Math.min(cellW,availH/3);}
   cell=Math.max(64,Math.floor(cell));
-  const item=Math.round(cell*0.74);
+  const item=Math.round(cell*0.78);
   return{cols,rows,cell,item,shelfW:cell*cols+frame,shelfH:cell*rows+frame,count:cols*rows};
 }
 
@@ -59,15 +63,18 @@ function avoidFor(kinds,i,cols){
   return neighbours(kinds,i,cols).concat(Object.keys(n).filter(k=>n[k]>=(k==='note'?MAX_NOTES:MAX_SAME)));
 }
 
+// A default worry for a new slip, not one already on the shelf.
+function pickNote(r,used){const pool=NOTES.filter(n=>!used.includes(n));const p=pool.length?pool:NOTES;return p[Math.floor(r()*p.length)];}
+
 function createShelf(seed,count,cols){
   const r=rng(seed),kinds=new Array(count).fill(null),notes=[];
-  for(let i=0;i<count;i++){kinds[i]=pickKind(r,avoidFor(kinds,i,cols));notes[i]=kinds[i]==='note'?NOTES[Math.floor(r()*NOTES.length)]:'';}
+  for(let i=0;i<count;i++){kinds[i]=pickKind(r,avoidFor(kinds,i,cols));notes[i]=kinds[i]==='note'?pickNote(r,notes):'';}
   // at least two worries on every shelf: they are the point of the page
   let have=kinds.filter(k=>k==='note').length;
   const start=Math.floor(r()*count);
   for(let j=0;have<2&&j<count;j++){
     const i=(start+j*7)%count;   // stride 7 is coprime with every slot count we lay out (9, 12, 15, 16, 20), so this visits each slot once
-    const nb=neighbours(kinds,i,cols);if(kinds[i]!=='note'&&!nb.includes('note')&&have<MAX_NOTES){kinds[i]='note';notes[i]=NOTES[Math.floor(r()*NOTES.length)];have++;}
+    const nb=neighbours(kinds,i,cols);if(kinds[i]!=='note'&&!nb.includes('note')&&have<MAX_NOTES){kinds[i]='note';notes[i]=pickNote(r,notes);have++;}
   }
   return{kinds,notes,r};
 }
@@ -108,5 +115,5 @@ function words(kind,r){const w=KINDS[kind].words;return w[Math.floor((r||Math.ra
 // A worry typed by the visitor: one line, no control characters, at most noteMax characters.
 function cleanNote(s){const t=String(s||'').replace(/\s+/g,' ').replace(/[\u0000-\u001f\u007f]/g,'').trim();return Array.from(t).slice(0,G.noteMax).join('');}
 
-return{ENGINE_FX,KINDS,KIND_IDS,NOTES,G,HEADER,FOOTER,MAX_SAME,MAX_NOTES,rng,layout,pickKind,neighbours,avoidFor,createShelf,classify,clampSpeed,plan,grainsFor,cascadeGrain,words,cleanNote};
+return{ENGINE_FX,KINDS,KIND_IDS,SPRITES,NOTES,G,HEADER,FOOTER,MAX_SAME,MAX_NOTES,rng,layout,pickKind,pickNote,neighbours,avoidFor,createShelf,classify,clampSpeed,plan,grainsFor,cascadeGrain,words,cleanNote};
 });

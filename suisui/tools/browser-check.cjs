@@ -8,7 +8,7 @@ const fs=require('fs'),path=require('path');
 const out=process.argv[2]||'check-out',base=process.argv[3]||'http://127.0.0.1:8971/index.html';
 const page0=new URL(base),dir=page0.pathname.replace(/[^/]*$/,'');
 const rel=u=>{const x=new URL(u);return x.origin===page0.origin&&x.pathname.startsWith(dir)?x.pathname.slice(dir.length):null;};
-const ALLOWED=new Set(['','index.html','src/core.js','src/game.js','src/draw.js','src/sound.js','vendor/dissolve-atlas.js']);
+const ALLOWED=new Set(['','index.html','src/core.js','src/game.js','src/draw.js','src/sound.js','vendor/dissolve-atlas.js',...require('../src/core.js').SPRITES.map(k=>'assets/'+k+'.webp')]);
 fs.mkdirSync(out,{recursive:true});
 const SIZES={iphone:{viewport:{width:390,height:664},deviceScaleFactor:3,hasTouch:true,isMobile:true},
   android:{viewport:{width:412,height:700},deviceScaleFactor:2.625,hasTouch:true,isMobile:true},
