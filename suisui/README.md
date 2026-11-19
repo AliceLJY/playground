@@ -17,6 +17,12 @@ Works on phones (portrait or landscape) and desktop. No score to chase, no way t
 - **Smash all**: the whole shelf breaks in one wave from top left to bottom right, then fills up again.
 - Sound can be switched off at the bottom right; the counter at the top right stays in your own browser only.
 
+## The shared room
+
+Everyone who opens the page lands in the same room and breaks things on the same shelf, with other people's fingers shown where they press. If someone is already breaking a slot you queue for it ("2nd in line"); when the new thing lands it is yours for five seconds. The shelf holds at most three worry slips; more wait in a queue by the door. While you have one waiting you can tear down someone else's slip and burn it for them, and yours goes up in its place; the owner is told which worry was burned. Other people's slips only ever show as a folded, sealed paper: the words stay in the writer's own browser and never pass through the server. Smash-all only breaks slots nobody holds or waits for, with a 30-second cooldown each.
+
+If the room cannot be reached, drops, or is full (50 people), the page keeps working single-player and rejoins when it can. Add `?solo=1` to play alone.
+
 The name is a Chinese saying for when something breaks: "broken pieces, peace every year" (*sui* "broken" sounds the same as *sui* "year").
 
 ## Run locally
@@ -34,7 +40,14 @@ node --test tests/*.test.cjs                                          # rules, r
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir>   # real tap, hold, swipe, write and smash-all on three screens
 ```
 
-Spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese). Whether it feels good, sounds good and whether the shake is too much still needs a person with a phone.
+Shared room:
+
+```bash
+node server/room-server.mjs                                          # local room server on 127.0.0.1:8798
+NODE_PATH="$(npm root -g)" node tools/room-check.cjs <output-dir>     # two browsers in one room
+```
+
+Point the page at it with `?room=ws://127.0.0.1:8798/room/ws`. Spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese). Whether it feels good, sounds good and whether the shake is too much still needs a person with a phone.
 
 ## Assets and sources
 

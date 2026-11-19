@@ -148,7 +148,9 @@ jobs:
         run: |
           # 碎碎平安：core.js 是普通脚本，其余是 ES module，按 module 检查
           node --check src/core.js
-          for f in src/game.js src/draw.js src/sound.js vendor/dissolve-atlas.js; do node --input-type=module --check < "$f"; done
+          for f in src/game.js src/draw.js src/sound.js src/room.js vendor/dissolve-atlas.js; do node --input-type=module --check < "$f"; done
+          # the shared room's server (runs on the mini, not on Pages); its tests open sockets on 127.0.0.1 only
+          for f in server/*.mjs; do node --check "$f"; done
           node --test tests/*.test.cjs
 
       - name: Check Secret Sweeper
