@@ -685,7 +685,7 @@
   // 哪些键该亮：教学里是「该按的键」（呼吸的暖色亮边），示范里是「她按着的键」
   function glowKeys() {
     const T = g.tut;
-    if (!T || demo) return [];
+    if (!T || demo || g.intro) return [];
     return T.glow === 'move' ? ['left', 'right'] : T.glow ? [T.glow] : [];
   }
   // 势第一次满了：「架」和「刺」一起亮，放出一次后不再亮
@@ -947,7 +947,7 @@
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && !movesEl.hidden) openMoves(false); });
   function syncTools() {
     const inTut = !demo && !!g.tut, idle = !demo && !g.tut && g.stage === 1 && g.phase === 'play';
-    btn.skip.hidden = !inTut;
+    btn.skip.hidden = !inTut || g.intro;
     btn.replay.hidden = !idle || g.intro;
     btn.moves.hidden = !idle || g.intro;
     btn.story.hidden = !idle || g.intro;

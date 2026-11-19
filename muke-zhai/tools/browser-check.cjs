@@ -60,6 +60,8 @@ const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <
       if (s.name === 'play') {
         // 第一次进来默认出引子，点一下继续；之后重新打开不再自动出
         check(snap.intro === true, `[${tag}] 第一次进入默认出引子`);
+        const introUi = await page.evaluate(() => ({ glow: [...document.querySelectorAll('#pad button.glow')].map((b) => b.dataset.k), skip: document.getElementById('skip').hidden }));
+        check(introUi.glow.length === 0 && introUi.skip === true, `[${tag}] 引子没关时键位不亮、「跳过」不露（glow=${introUi.glow} skipHidden=${introUi.skip}）`);
         await page.screenshot({ path: path.join(out, `${v.name}-story-first.png`) });
         await page.mouse.click(v.width / 2, v.height / 2);
         await page.waitForTimeout(1500);
