@@ -13,7 +13,7 @@ export function loadArt(kinds, base = 'assets/') {
     im.decoding = 'async';
     im.onload = () => { ART[k] = im; done(); };
     im.onerror = () => done();
-    im.src = `${base}${k}.webp?v=2`;
+    im.src = `${base}${k}.webp?v=3`;
   })));
 }
 
@@ -74,8 +74,38 @@ function note(x, text) {
   x.restore();
 }
 
-export function draw(kind, ctx, w, h, text) {
-  if (kind === 'note') { ctx.save(); ctx.scale(w / 100, h / 100); note(ctx, text); ctx.restore(); return; }
+// Someone else's worry in the shared room: the slip folded in half, sealed, no words at all. The words never left
+// the writer's browser, so there is nothing to draw even if we wanted to.
+function folded(x, seed) {
+  const n = noise(seed + 11);
+  const X = 24, W = 52, Y = 42, H = 50;
+  x.save(); x.translate(50, 96); x.rotate(0.05); x.translate(-50, -96);
+  x.fillStyle = 'rgba(0,0,0,0.35)'; x.beginPath(); x.ellipse(51, 96, W * 0.6, 2.4, 0, 0, TAU); x.fill();
+  // back half, peeking out above the fold
+  x.beginPath(); x.moveTo(X + 3, Y + 3); x.lineTo(X + W - 2, Y - 4); x.lineTo(X + W, Y + 6); x.lineTo(X + 2, Y + 10); x.closePath();
+  x.fillStyle = '#7c160f'; x.fill();
+  // front half
+  const front = () => { x.beginPath(); x.moveTo(X, Y + 6); x.quadraticCurveTo(50, Y + 3, X + W, Y + 6); x.lineTo(X + W - 0.5, Y + H); x.quadraticCurveTo(50, Y + H + 1, X + 0.5, Y + H - 0.5); x.closePath(); };
+  front();
+  const g = x.createLinearGradient(X, Y, X + W, Y + H);
+  g.addColorStop(0, '#c63022'); g.addColorStop(0.55, '#a8221a'); g.addColorStop(1, '#7a150e');
+  x.fillStyle = g; x.fill();
+  x.save(); front(); x.clip();
+  for (let i = 0; i < 34; i++) { const s = 0.4 + n() * 1.2; x.fillStyle = `rgba(240,${195 + n() * 40},110,${0.5 + n() * 0.4})`; x.fillRect(X + n() * W, Y + 6 + n() * H, s, s * 0.8); }
+  const fold = x.createLinearGradient(0, Y + 6, 0, Y + 14);
+  fold.addColorStop(0, 'rgba(0,0,0,0.35)'); fold.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = fold; x.fillRect(X, Y + 6, W, 8);
+  x.restore();
+  // a round seal over the fold: 封
+  x.fillStyle = '#f2e3c4'; x.beginPath(); x.arc(50, Y + 27, 8, 0, TAU); x.fill();
+  x.strokeStyle = '#9a1c12'; x.lineWidth = 1; x.beginPath(); x.arc(50, Y + 27, 6.6, 0, TAU); x.stroke();
+  x.fillStyle = '#9a1c12'; x.font = `700 8px ${BRUSH}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('封', 50, Y + 27.5);
+  front(); x.strokeStyle = 'rgba(60,8,4,0.55)'; x.lineWidth = 0.5; x.stroke();
+  x.restore();
+}
+
+export function draw(kind, ctx, w, h, text, isFolded = false, seed = 1) {
+  if (kind === 'note') { ctx.save(); ctx.scale(w / 100, h / 100); if (isFolded) folded(ctx, seed); else note(ctx, text); ctx.restore(); return; }
   const im = ART[kind];
   if (im) ctx.drawImage(im, 0, 0, w, h);
 }

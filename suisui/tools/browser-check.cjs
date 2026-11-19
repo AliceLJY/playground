@@ -1,6 +1,6 @@
 // Browser acceptance for 碎碎平安 (SPEC 6.5–6.9), run by hand (not part of CI). Needs Playwright with its Chromium.
 //   python3 -m http.server 8971 --bind 127.0.0.1            (inside suisui/)
-//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [page-url]
+//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [page-url] [extra-query]
 // page-url defaults to http://127.0.0.1:8971/index.html; online it is https://aliceljy.github.io/playground/suisui/
 // Writes screenshots and report.json into <output-dir>; exits 1 when any check fails. Read the screenshots afterwards.
 const {chromium}=require('playwright');
@@ -8,20 +8,26 @@ const fs=require('fs'),path=require('path');
 const out=process.argv[2]||'check-out',base=process.argv[3]||'http://127.0.0.1:8971/index.html';
 const page0=new URL(base),dir=page0.pathname.replace(/[^/]*$/,'');
 const rel=u=>{const x=new URL(u);return x.origin===page0.origin&&x.pathname.startsWith(dir)?x.pathname.slice(dir.length):null;};
-const ALLOWED=new Set(['','index.html','src/core.js','src/game.js','src/draw.js','src/sound.js','vendor/dissolve-atlas.js',...require('../src/core.js').SPRITES.map(k=>'assets/'+k+'.webp')]);
+const ALLOWED=new Set(['','index.html','src/core.js','src/game.js','src/draw.js','src/sound.js','src/room.js','vendor/dissolve-atlas.js',...require('../src/core.js').SPRITES.map(k=>'assets/'+k+'.webp')]);
 fs.mkdirSync(out,{recursive:true});
 const SIZES={iphone:{viewport:{width:390,height:664},deviceScaleFactor:3,hasTouch:true,isMobile:true},
   android:{viewport:{width:412,height:700},deviceScaleFactor:2.625,hasTouch:true,isMobile:true},
   desktop:{viewport:{width:1280,height:720},deviceScaleFactor:1}};
 const report={base,checks:[],runs:[]};let failed=0;
 const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});if(!pass)failed++;console.log(pass?'ok  ':'FAIL',name,detail==null?'':JSON.stringify(detail));};
-const url=q=>base.replace(/[?#].*$/,'')+q;
+// optional 3rd argument: extra query for every page, e.g. 'room=ws://127.0.0.1:9/room/ws' to check the page with an unreachable room
+const extra=process.argv[4]||'';
+const url=q=>base.replace(/[?#].*$/,'')+q+(extra?(q?'&':'?')+extra:'');
 
 (async()=>{
   const browser=await chromium.launch();report.browser=browser.version();
   async function open(query,size){
     const ctx=await browser.newContext(SIZES[size]),page=await ctx.newPage(),errors=[],stray=[];
-    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+    // with an unreachable room on purpose, the browser's own "WebSocket connection to <that url> failed" log is expected;
+    // every other error still counts
+    const roomUrl=(extra.match(/(?:^|&)room=([^&]+)/)||[])[1];
+    const expected=t=>roomUrl&&t.startsWith(`WebSocket connection to '${decodeURIComponent(roomUrl)}' failed`);
+    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!expected(m.text()))errors.push(m.text());});
     page.on('request',r=>{const u=r.url();if(u.startsWith('data:'))return;const p=rel(u);if(p==null||!ALLOWED.has(p))stray.push(u);});
     await page.goto(url(query));
     await page.waitForFunction(()=>window.__suisui&&window.__suisui.ready&&window.__PLAYTEST__.ready,null,{polling:100,timeout:20000});
