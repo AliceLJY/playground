@@ -63,7 +63,7 @@ const freshStats=()=>({perfect:0,block:0,hurt:0,exec:0,kills:0,chain:0,bestChain
 function makePlayer(){
   return{x:0,y:0,face:1,hp:PLAYER.hp,maxHp:PLAYER.hp,posture:0,maxPosture:PLAYER.posture,postureT:-9,
     state:'idle',st:0,stateDur:0,walkPhase:0,blockDown:false,blockPressT:-99,pressWindow:FEEL.parryWindow,guardUntil:-99,presses:[],
-    attackPressT:-99,dodgePressT:-99,dodgeWant:0,dodgeDir:1,dodgeDur:PLAYER.dodge.dur,dodgeEnd:-99,
+    attackPressT:-99,execWant:false,dodgePressT:-99,dodgeWant:0,dodgeDir:1,dodgeDur:PLAYER.dodge.dur,dodgeEnd:-99,
     combo:0,attackDur:0,attackHit:0,attackDone:false,counterUntil:-99,recoil:0,execTarget:0,execDone:false,hits:[]};
 }
 function create(options={}){
@@ -193,7 +193,7 @@ function pressBlock(s,p){
   const recent=p.presses.filter(t=>s.time-t<FEEL.spamSpan-1e-9).length;
   p.presses=p.presses.filter(t=>s.time-t<1).concat(s.time);
   if(!canGuard(p))return;
-  p.blockPressT=s.time;p.pressWindow=FEEL.parryWindow/(1+recent);p.guardUntil=s.time+FEEL.minGuard;p.attackPressT=-99;  // a guard press cancels a buffered swing
+  p.blockPressT=s.time;p.pressWindow=FEEL.parryWindow/(1+recent);p.guardUntil=s.time+FEEL.minGuard;p.attackPressT=-99;p.execWant=false;  // a guard press cancels a buffered swing
   const side=threatSide(s);if(side)p.face=side;
   if(p.state!=='parry'&&p.state!=='guard')setState(p,'guard');
   s.events.push({type:'press',t:s.time,window:p.pressWindow});
@@ -212,7 +212,9 @@ function updatePlayer(s,inp,dt){
   const p=s.player;p.st+=dt;p.recoil=Math.max(0,p.recoil-dt/.3);
   if(p.state==='dead'||p.state==='won')return;
   if(inp.blockPressed)pressBlock(s,p);
-  if(inp.attackPressed)p.attackPressT=s.time;
+  // A press aimed at a stunned enemy in reach is kept until the hero can act (it may be mid-stagger),
+  // for as long as that enemy stays stunned; any other press only lives for the usual buffer.
+  if(inp.attackPressed){p.attackPressT=s.time;p.execWant=!!executableNear(s,p);}
   const dir=(inp.right?1:0)-(inp.left?1:0);
   if(inp.dodgePressed){p.dodgePressT=s.time;p.dodgeWant=dir;}
   p.blockDown=!!inp.blockDown||!!inp.blockPressed;
@@ -241,12 +243,13 @@ function updatePlayer(s,inp,dt){
   if(free){
     if(s.time-p.dodgePressT<=PLAYER.buffer&&s.time-p.dodgeEnd>=PLAYER.dodge.cool){
       setState(p,'dodge');p.dodgeDur=PLAYER.dodge.dur;p.dodgeDir=p.dodgeWant||-p.face;p.dodgePressT=-99;s.events.push({type:'dodge'});
-    }else if(s.time-p.attackPressT<=PLAYER.buffer&&p.state!=='attack'){
+    }else if((s.time-p.attackPressT<=PLAYER.buffer||p.execWant&&executableNear(s,p))&&p.state!=='attack'){
       const ex=executableNear(s,p);
-      if(ex){setState(p,'execute');p.execTarget=ex.id;p.execDone=false;p.face=sign(ex.x-p.x)||p.face;p.attackPressT=-99;ex.execBy=true;s.events.push({type:'executeStart',id:ex.id});}
+      if(ex){setState(p,'execute');p.execTarget=ex.id;p.execDone=false;p.face=sign(ex.x-p.x)||p.face;p.attackPressT=-99;p.execWant=false;ex.execBy=true;s.events.push({type:'executeStart',id:ex.id});}
       else startAttack(s,p,0);
     }else if(holding&&p.state!=='guard'&&p.state!=='parry'&&p.state!=='attack')setState(p,'guard');
   }
+  if(p.execWant&&!executableNear(s,p))p.execWant=false;
   // walking
   if(['idle','walk','guard'].includes(p.state)){
     const speed=p.state==='guard'?PLAYER.guardWalk:PLAYER.walk;
