@@ -55,7 +55,7 @@
   // 动作名 → 图集动作名
   const CLIP_OF = {
     idle: 'idle', walk: 'walk', warn: 'attack', attack: 'attack', guard: 'guard',
-    dodge: 'jump', hurt: 'hurt', down: 'hurt', defeat: 'defeat', victory: 'victory', daze: 'idle', ult: 'attack',
+    dodge: 'jump', hurt: 'hurt', down: 'hurt', defeat: 'defeat', victory: 'victory', daze: 'daze', ult: 'attack',
   };
 
   function mulberry32(seed) {
@@ -84,6 +84,7 @@
       else if (act === 'jump') ms = 38;
       else if (act === 'victory') ms = 110;
       else if (act === 'defeat') ms = 70;
+      else if (act === 'daze') ms = 75;
       out.push(ms);
     }
     return out;
@@ -121,7 +122,8 @@
 
   // 当前该画哪个动作的第几帧
   function frameOf(a) {
-    const clipName = CLIP_OF[a.act];
+    // 没有专门图集的动作（如孟良没有「愣神」）退回待机
+    const clipName = a.tabs[CLIP_OF[a.act]] ? CLIP_OF[a.act] : 'idle';
     const tab = a.tabs[clipName];
     if (a.act === 'guard') {
       const raise = tab.cum[tab.hold];
@@ -1104,7 +1106,9 @@
       // 他受击后愣住一下
       if (p.act !== 'idle' && p.act !== 'hurt' && p.t > 400) start(p, 'idle');
       if (e.act === 'idle') { start(e, 'daze'); }
-      if (g.finT > 2500) { g.finStep = 1; }
+      // 脸红愣神演完（约 2.6 秒）再往下走，最长等 5 秒
+      const dz = e.tabs.daze, dazeDone = !dz || (e.act === 'daze' && e.t >= dz.total + 300);
+      if ((g.finT > 2500 && dazeDone) || g.finT > 5000) { g.finStep = 1; }
     } else if (g.finStep === 1) {
       // 两人转向同一边，走到舞台中间并肩
       e.face = 1; p.face = 1;
@@ -1299,6 +1303,10 @@
       // 真实模拟：精准档每次反击都接三连，定格在第三枪命中后的顿帧里
       const d = makeDriver('precise', 3, { chainP: 1 });
       runUntil(g, d, (s) => s.p.atk && s.p.atk.kind === 'heavy' && s.p.hitDone && s.p.freeze > 40, 120000);
+    } else if (view === 'blush') {
+      // 收场：杨宗保脸红愣神演到一半
+      const d = makeDriver('precise', 3);
+      runUntil(g, d, (s) => s.phase === 'finale' && s.e.act === 'daze' && s.e.t > 1300, 600000);
     } else if (view === 'end') {
       const d = makeDriver('precise', 3);
       runUntil(g, d, (s) => s.phase === 'end' && s.endT > 1600, 600000);
