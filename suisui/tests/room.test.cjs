@@ -177,3 +177,11 @@ test('plan 8.11 and README: the fullest snapshot still fits one frame, and nothi
   const odd=[...new Set(strings)].filter(s=>!allowed.test(s));
   assert.deepEqual(odd,[],'an outbound string that is not a code, kind, id or token');
 });
+
+test('two people in the room never share a name, so 「青柚 写的」 means one person',async()=>{
+  const {R,join}=await setup();
+  const people=Array.from({length:20},()=>join(5,3));
+  const names=people.map(p=>p.n);
+  assert.equal(new Set(names).size,20,'every live visitor has a different name');
+  assert.equal(people[0].n,5,'the first keeps the name they asked for');
+});

@@ -42,7 +42,7 @@ function layout(vw,vh){
   const shelfW=Math.min(vw*0.92,980);
   const frame=20;                                  // wood frame thickness, both sides together
   const cellW=(shelfW-frame)/cols;
-  const availH=vh-HEADER-FOOTER-GAP-frame;
+  const availH=vh-HEADER-FOOTER-GAP-frame-ROOM_BAR;   // the status line shows in single-player too (room or not, and why)
   let rows=4,cell=cellW;
   if(rows*cellW>availH){rows=3;cell=Math.min(cellW,availH/3);}
   cell=Math.max(64,Math.floor(cell));
@@ -55,12 +55,13 @@ const ROOM_SLOTS=12;
 function roomLayout(vw,vh){
   const cols=vw<560?3:4,rows=ROOM_SLOTS/cols;
   const shelfW=Math.min(vw*0.92,980),frame=20;
-  const availH=vh-HEADER-FOOTER-GAP-frame-ROOM_BAR;
+  const availH=vh-HEADER-FOOTER-GAP-frame-ROOM_BAR-WAIT_BAR;
   let cell=Math.min((shelfW-frame)/cols,availH/rows);
   cell=Math.max(64,Math.floor(cell));
   return{cols,rows,cell,item:Math.round(cell*0.78),shelfW:cell*cols+frame,shelfH:cell*rows+frame,count:ROOM_SLOTS};
 }
-const ROOM_BAR=22;   // the line under the title with people online and the 候贴区
+const ROOM_BAR=24;   // the status line under the title: in the room or not, and who is here
+const WAIT_BAR=34;   // the 候贴区 strip under the shelf, room only
 
 function weighted(r,ids){let sum=0;for(const k of ids)sum+=KINDS[k].weight;let x=r()*sum;for(const k of ids){x-=KINDS[k].weight;if(x<=0)return k;}return ids[ids.length-1];}
 
@@ -127,5 +128,5 @@ function words(kind,r){const w=KINDS[kind].words;return w[Math.floor((r||Math.ra
 // A worry typed by the visitor: one line, no control characters, at most noteMax characters.
 function cleanNote(s){const t=String(s||'').replace(/\s+/g,' ').replace(/[\u0000-\u001f\u007f]/g,'').trim();return Array.from(t).slice(0,G.noteMax).join('');}
 
-return{ENGINE_FX,KINDS,KIND_IDS,SPRITES,NOTES,G,HEADER,FOOTER,MAX_SAME,MAX_NOTES,ROOM_SLOTS,ROOM_BAR,rng,layout,roomLayout,pickKind,pickNote,neighbours,avoidFor,createShelf,classify,clampSpeed,plan,grainsFor,cascadeGrain,words,cleanNote};
+return{ENGINE_FX,KINDS,KIND_IDS,SPRITES,NOTES,G,HEADER,FOOTER,MAX_SAME,MAX_NOTES,ROOM_SLOTS,ROOM_BAR,WAIT_BAR,rng,layout,roomLayout,pickKind,pickNote,neighbours,avoidFor,createShelf,classify,clampSpeed,plan,grainsFor,cascadeGrain,words,cleanNote};
 });

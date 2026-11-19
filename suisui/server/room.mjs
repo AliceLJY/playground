@@ -108,7 +108,12 @@ export function join(R, msg) {
   if (me) { me.live = true; me.lost = 0; }
   else {
     const tok = R.token();
-    me = { tok, pid: R.pidNext++, n: msg.n, c: msg.c, live: true, lost: 0, cd: 0, lastNote: -Infinity };
+    // names must tell people apart: if someone here already has this one, take the next free name (and colour)
+    const taken = new Set([...R.sessions.values()].filter((x) => x.live).map((x) => x.n));
+    const usedC = new Set([...R.sessions.values()].filter((x) => x.live).map((x) => x.c));
+    let n = msg.n; for (let k = 0; k < LIMITS.names && taken.has(n); k++) n = (n + 1) % LIMITS.names;
+    let c = msg.c; if (taken.has(msg.n)) for (let k = 0; k < LIMITS.colors && usedC.has(c); k++) c = (c + 1) % LIMITS.colors;
+    me = { tok, pid: R.pidNext++, n, c, live: true, lost: 0, cd: 0, lastNote: -Infinity };
     R.sessions.set(tok, me); R.byPid.set(me.pid, me);
   }
   o.to.push([me.tok, snapshot(R, me)]);

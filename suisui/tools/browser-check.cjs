@@ -46,6 +46,9 @@ const url=q=>base.replace(/[?#].*$/,'')+q+(extra?(q?'&':'?')+extra:'');
     const p0=await probe(page),ink=await inked(page);
     await page.screenshot({path:path.join(out,size+'-hero.png')});
     check(tag('hero: view reported, seed 1'),p0.view==='hero'&&p0.seed===1,{view:p0.view,seed:p0.seed});
+    // the status line always tells you whether you are in the shared room
+    const st=await page.waitForFunction(x=>{const p=window.__suisui.probe();return x?p.status.startsWith('没连上房间'):p.status.startsWith('单人模式');},/room=/.test(extra),{polling:100,timeout:5000}).then(()=>true,()=>false);
+    check(tag('status line says single-player, and why'),st,{status:(await probe(page)).status});
     check(tag('hero: every slot has a visible item with real pixels (>= 12% inked)'),ink.length===p0.slots.length&&ink.every(v=>v>=0.12)&&p0.slots.every(s=>s.shown),{ink:ink.map(v=>+v.toFixed(2))});
     check(tag('hero: at least two worries, at most two of anything else'),(()=>{const n={};p0.slots.forEach(s=>n[s.kind]=(n[s.kind]||0)+1);return(n.note||0)>=2&&Object.entries(n).every(([k,v])=>v<=(k==='note'?3:2));})(),p0.slots.map(s=>s.kind).join(','));
 

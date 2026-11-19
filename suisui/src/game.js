@@ -4,9 +4,9 @@
 // server/room.mjs. Single-player is the default and the fallback: no room, no problem.
 // ?v= on every script: GitHub Pages caches for ten minutes, and a new page with an old module breaks. Bump it on each release.
 import { play, snapshot, cancelAll } from '../vendor/dissolve-atlas.js';
-import { draw, loadArt } from './draw.js?v=3';
-import { Sound } from './sound.js?v=3';
-import { connect, NAMES, COLORS, DEFAULT_URL, myNotes } from './room.js?v=3';
+import { draw, loadArt } from './draw.js?v=4';
+import { Sound } from './sound.js?v=4';
+import { connect, NAMES, COLORS, DEFAULT_URL, myNotes } from './room.js?v=4';
 
 const C = window.SuiCore, G = C.G, K = C.KINDS;
 const $ = (s) => document.querySelector(s);
@@ -24,12 +24,12 @@ const S = {
   L: null, slots: [], r: Math.random, gen: 0,
   count: Number(store.get('suisui.count', '0')) || 0, smashes: 0, active: 0,
   ready: false, allBusy: false, charging: new Set(),
-  mode: 'solo', room: null, me: null, people: new Map(), online: 0, wait: 0, mine: null, cdUntil: 0, pendingNote: '', deferred: null,
+  mode: 'solo', room: null, me: null, people: new Map(), live: new Set(), conn: 'off', online: 0, wait: 0, mine: null, cdUntil: 0, pendingNote: '', deferred: null,
 };
 const sound = new Sound();
 sound.muted = store.get('suisui.muted', '0') === '1';
 
-const shelf = $('#shelf'), stage = $('#stage'), countEl = $('#count'), hint = $('#hint'), roomline = $('#roomline'), toastEl = $('#toast');
+const shelf = $('#shelf'), stage = $('#stage'), countEl = $('#count'), hint = $('#hint'), roomline = $('#roomline'), toastEl = $('#toast'), waitbar = $('#waitbar');
 countEl.textContent = S.count;
 const inRoom = () => S.mode === 'room';
 
@@ -54,12 +54,12 @@ function build(from, roomSlots) {
   for (let i = 0; i < L.count; i++) {
     const el = document.createElement('div');
     el.className = 'slot'; el.tabIndex = 0; el.setAttribute('role', 'button');
-    el.innerHTML = '<div class="lamp"></div><div class="shade"></div><div class="charge" aria-hidden="true"><i></i></div><div class="tag" aria-hidden="true"></div>';
+    el.innerHTML = '<div class="lamp"></div><div class="shade"></div><div class="charge" aria-hidden="true"><i></i></div><div class="tag" aria-hidden="true"></div><div class="owner" aria-hidden="true"></div>';
     const slot = { i, el, kind: null, text: '', folded: false, note: null, cv: null, busy: false, gen: S.gen,
-      v: 0, st: 'idle', by: null, qq: [], h: 0, until: 0, mineBreak: false };
+      v: 0, st: 'idle', by: null, qq: [], h: 0, until: 0, mineBreak: false, owner: null };
     S.slots.push(slot); shelf.appendChild(el);
     if (roomSlots) { const rs = roomSlots[i]; putRoom(slot, rs); applyState(slot, rs); }
-    else { const kept = from && from[i]; put(slot, kept ? kept.kind : init.kinds[i], kept ? kept.text : init.notes[i]); }
+    else { const kept = from && from[i]; put(slot, kept ? kept.kind : init.kinds[i], kept ? kept.text : init.notes[i], false, kept && kept.mine ? { who: 'me' } : null); }
     bind(slot);
   }
   paintRoom();
@@ -67,8 +67,8 @@ function build(from, roomSlots) {
 
 function pickNote() { return C.pickNote(S.r, S.slots.map((s) => s.text)); }
 
-function put(slot, kind, text, folded = false) {
-  slot.kind = kind; slot.folded = kind === 'note' && folded;
+function put(slot, kind, text, folded = false, owner = null) {
+  slot.kind = kind; slot.folded = kind === 'note' && folded; slot.owner = kind === 'note' ? owner : null;
   slot.text = kind === 'note' && !slot.folded ? (text || pickNote()) : '';
   const s = S.L.item;
   const cv = snapshot(s, s, (ctx) => draw(kind, ctx, s, s, slot.text, slot.folded, slot.i + 1));
@@ -84,9 +84,11 @@ function put(slot, kind, text, folded = false) {
 function putRoom(slot, rs) {
   slot.note = rs.n || null;
   if (rs.k !== 'note' || !rs.n) return put(slot, rs.k, '');
-  if (rs.n.s != null) return put(slot, 'note', C.NOTES[rs.n.s] || '烦');
-  const mine = S.me && rs.n.o === S.me.pid && myNotes.get(rs.n.id);
-  return mine ? put(slot, 'note', mine) : put(slot, 'note', '', true);
+  if (rs.n.s != null) return put(slot, 'note', C.NOTES[rs.n.s] || '烦', false, { who: 'shared' });
+  const isMine = S.me && rs.n.o === S.me.pid;
+  const mine = isMine && myNotes.get(rs.n.id);
+  if (mine) return put(slot, 'note', mine, false, { who: 'me' });
+  return put(slot, 'note', '', true, { who: isMine ? 'me' : 'other', pid: rs.n.o });
 }
 
 // Measure the item without the hover lift, then hide it: the engine draws the grains from here on.
@@ -389,7 +391,7 @@ function pasteNote(text) {
   const pool = free.filter((s) => s.kind !== 'note');
   const slot = (pool.length ? pool : free)[Math.floor(S.r() * (pool.length ? pool : free).length)];
   lift(slot);
-  put(slot, 'note', text);
+  put(slot, 'note', text, false, { who: 'me' });
   enter(slot, 'print');
   const r = slot.cv.getBoundingClientRect();
   setTimeout(() => floatWords('贴好了', r.left + r.width / 2, r.top, 20), 300);
@@ -418,6 +420,7 @@ paintMute();
 /* ---------- the room ---------- */
 
 const nameOf = (pid) => { const p = S.people.get(pid); return p ? '访客 ' + NAMES[p[0]] : '访客'; };
+const shortName = (pid) => { const p = S.people.get(pid); return p ? NAMES[p[0]] : '?'; };
 const colorOf = (pid) => { const p = S.people.get(pid); return p ? COLORS[p[1]] : '#ccc'; };
 function roomSend(m) { return S.room ? S.room.send(m) : false; }
 
@@ -437,7 +440,6 @@ function paintSlot(slot) {
   el.classList.toggle('held', held);
   el.classList.toggle('mine', mineTurn);
   el.classList.toggle('remote-charge', held && !mineTurn && !!slot.h);
-  el.classList.toggle('tearable', inRoom() && !!S.mine && othersNote(slot));
   if (held) el.style.setProperty('--who', colorOf(slot.by)); else el.style.removeProperty('--who');
   const me = S.me && slot.qq.indexOf(S.me.pid);
   let text = '';
@@ -447,14 +449,60 @@ function paintSlot(slot) {
   else if (held) text = nameOf(slot.by) + (slot.qq.length ? ` · ${slot.qq.length} 人在等` : '');
   else if (slot.qq.length) text = `${slot.qq.length} 人在等`;
   tag.textContent = text; tag.classList.toggle('on', !!text); tag.classList.toggle('me', me >= 0 || mineTurn);
+  // whose worry is this: mine, someone's (by name), or one of the shelf's own
+  const own = el.querySelector('.owner'), o = slot.kind === 'note' ? slot.owner : null;
+  const tearable = inRoom() && !!S.mine && othersNote(slot);   // I have one waiting: tapping someone's swaps mine in
+  own.className = 'owner' + (o ? ' on ' + o.who : '') + (tearable ? ' tear' : '');
+  own.textContent = !o ? '' : o.who === 'me' ? '我写的' : o.who === 'shared' ? (inRoom() ? '大家的' : '') : tearable ? `${shortName(o.pid)} 的 · 可撕` : `${shortName(o.pid)} 写的`;
+  if (o && o.who === 'other') own.style.setProperty('--who', colorOf(o.pid)); else own.style.removeProperty('--who');
+  if (!own.textContent) own.className = 'owner';
 }
 
+// The line under the title always says whether you are in the shared room, and who is there.
+const CONN_TEXT = {
+  off: '单人模式：只有你自己的架子',
+  connecting: '正在连房间……',
+  down: '没连上房间，现在是你一个人的架子（会自动重试）',
+  full: '房间满了，现在是你一个人的架子',
+};
+function chip(text, color, me) {
+  const b = document.createElement('span'); b.className = 'who' + (me ? ' me' : '');
+  const i = document.createElement('i'); i.style.background = color; b.append(i, document.createTextNode(text)); return b;
+}
+function paintStatus() {
+  roomline.replaceChildren();
+  roomline.className = 'roomline ' + (inRoom() ? 'up' : S.conn);
+  if (!inRoom()) { roomline.textContent = CONN_TEXT[S.conn] || CONN_TEXT.off; return; }
+  const lead = document.createElement('b'); lead.textContent = S.live.size > 1 ? `房间里 ${S.live.size} 人：` : '房间里只有你：';
+  roomline.append(lead, chip('你·' + shortName(S.me.pid), colorOf(S.me.pid), true));
+  const others = [...S.live].filter((p) => p !== S.me.pid);
+  others.slice(0, 5).forEach((p) => roomline.append(chip(shortName(p), colorOf(p))));
+  if (others.length > 5) roomline.append(document.createTextNode(` 等 ${others.length} 人`));
+}
+// The 候贴区 by the door: one folded slip per waiting worry, mine in gold.
+function paintWaitbar() {
+  waitbar.replaceChildren();
+  if (!inRoom()) return;
+  const label = document.createElement('b'); label.textContent = '候贴区';
+  waitbar.append(label);
+  if (!S.wait) { const e = document.createElement('span'); e.className = 'empty'; e.textContent = '空着 · 架上便签满三张后，新写的在这里排队'; waitbar.append(e); return; }
+  const n = Math.min(S.wait, 8);
+  for (let k = 0; k < n; k++) {
+    const slip = document.createElement('span');
+    const mine = S.mine && S.mine.pos - 1 === k;
+    slip.className = 'slip' + (mine ? ' mine' : ''); slip.textContent = mine ? '我的' : '';
+    waitbar.append(slip);
+  }
+  if (S.wait > n) waitbar.append(document.createTextNode(` +${S.wait - n}`));
+  const tip = document.createElement('span'); tip.className = 'tip';
+  tip.textContent = S.mine ? '轮到你就自动贴上；也可以撕一张别人的换上' : `${S.wait} 张在等`;
+  waitbar.append(tip);
+}
 function paintRoom() {
   document.body.classList.toggle('room', inRoom());
-  if (!inRoom()) { roomline.textContent = ''; $('#all').textContent = '全砸了'; $('#all').disabled = false; return; }
+  paintStatus(); paintWaitbar();
+  if (!inRoom()) { $('#all').textContent = '全砸了'; $('#all').disabled = false; for (const s of S.slots) paintSlot(s); return; }
   const left = Math.ceil((S.cdUntil - Date.now()) / 1000);
-  const mine = S.mine ? ` · 你的在第 ${S.mine.pos} 张` : '';
-  roomline.textContent = `在线 ${S.online} 人 · 候贴区 ${S.wait} 张${mine}`;
   const all = $('#all');
   all.textContent = left > 0 ? `全砸了 · ${left}s` : '全砸了';
   all.disabled = left > 0;
@@ -482,7 +530,8 @@ fingers.clear = function () { for (const f of this.values()) f.remove(); Map.pro
 
 function enterRoom(w) {
   S.me = w.you; S.mode = 'room';
-  S.people = new Map(w.people.map(([pid, n, c]) => [pid, [n, c]]));
+  for (const [pid, n, c] of w.people) S.people.set(pid, [n, c]);
+  S.live = new Set(w.people.map(([pid]) => pid));
   S.online = w.online; S.wait = w.wait; S.mine = w.mine; S.cdUntil = Date.now() + (w.cd || 0);
   build(null, w.slots);
   hint.classList.add('gone');
@@ -490,8 +539,8 @@ function enterRoom(w) {
 }
 function leaveRoom() {
   if (!inRoom()) return;
-  const keep = S.slots.map((s) => ({ kind: s.folded ? 'note' : s.kind, text: s.folded ? '' : s.text }));
-  S.mode = 'solo'; S.mine = null;
+  const keep = S.slots.map((s) => ({ kind: s.kind, text: s.folded ? '' : s.text, mine: s.owner && s.owner.who === 'me' && !s.folded }));
+  S.mode = 'solo'; S.mine = null; S.live = new Set();
   build(keep);
   toast('连不上房间，先自己砸着');
 }
@@ -501,8 +550,8 @@ function onRoom(m) {
   switch (m.t) {
     case 'O':
       S.online = m.online;
-      for (const [pid, n, c] of m.people || []) S.people.set(pid, [n, c]);
-      if (m.gone) { const f = fingers.get(m.gone); if (f) { f.remove(); fingers.delete(m.gone); } }
+      for (const [pid, n, c] of m.people || []) { S.people.set(pid, [n, c]); S.live.add(pid); }
+      if (m.gone) { S.live.delete(m.gone); const f = fingers.get(m.gone); if (f) { f.remove(); fingers.delete(m.gone); } }
       break;
     case 'C': if (slot) applyState(slot, m); break;
     case 'S': {
@@ -572,15 +621,17 @@ function onRoom(m) {
 }
 
 function startRoom() {
-  if (!ROOM_URL || typeof WebSocket !== 'function') return;
+  if (!ROOM_URL || typeof WebSocket !== 'function') { S.conn = 'off'; paintRoom(); return; }
+  S.conn = 'connecting'; paintRoom();
   S.room = connect(ROOM_URL, {
     onUp: (w) => {
       // switch when nothing of mine is mid-flight; otherwise wait for the current break to finish
+      S.conn = 'up';
       const go = () => (S.charging.size ? setTimeout(go, 300) : enterRoom(w));
       go();
     },
-    onMessage: (m) => { if (inRoom()) onRoom(m); else if (m.t === 'F') onRoom(m); },
-    onDown: (wasUp) => { if (wasUp) leaveRoom(); },
+    onMessage: (m) => { if (m.t === 'F') S.conn = 'full'; if (inRoom()) onRoom(m); else if (m.t === 'F') onRoom(m); paintRoom(); },
+    onDown: (wasUp) => { if (S.conn !== 'full') S.conn = 'down'; if (wasUp) leaveRoom(); paintRoom(); },
   });
 }
 
@@ -596,7 +647,7 @@ function onResize() {
     if (inRoom()) {
       const views = S.slots.map((s) => ({ i: s.i, k: s.kind, v: s.v, st: s.st, by: s.by, q: s.qq, h: s.h, ms: Math.max(0, s.until - performance.now()), n: s.note }));
       build(null, views);
-    } else build(S.slots.map((s) => ({ kind: s.kind, text: s.text })));
+    } else build(S.slots.map((s) => ({ kind: s.kind, text: s.text, mine: s.owner && s.owner.who === 'me' })));
   }, 200);
 }
 addEventListener('resize', onResize);
@@ -608,9 +659,9 @@ function probe() {
     count: S.count, smashes: S.smashes, active: S.active, charging: S.charging.size,
     floats: document.querySelectorAll('.float').length,
     mode: S.mode, me: S.me && S.me.pid, online: S.online, wait: S.wait, mine: S.mine, cd: Math.max(0, S.cdUntil - Date.now()),
-    toast: toastEl.hidden ? '' : toastEl.textContent,
+    toast: toastEl.hidden ? '' : toastEl.textContent, conn: S.conn, status: roomline.textContent, waitbar: waitbar.textContent,
     slots: S.slots.map((s) => ({ kind: s.kind, text: s.text, folded: s.folded, busy: s.busy, shown: s.cv.style.opacity !== '0',
-      st: s.st, by: s.by, q: s.qq.slice(), v: s.v, tag: s.el.querySelector('.tag').textContent, note: s.note && { id: s.note.id, o: s.note.o } })),
+      st: s.st, by: s.by, q: s.qq.slice(), v: s.v, tag: s.el.querySelector('.tag').textContent, owner: s.el.querySelector('.owner').textContent, note: s.note && { id: s.note.id, o: s.note.o } })),
   };
 }
 window.__suisui = {
