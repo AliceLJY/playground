@@ -766,7 +766,8 @@
       const order = g.e.id === 'e' ? [g.e, g.p] : [g.p, g.e];
       if (g.z) drawActor(g.z, g.t);
       if (g.m && (g.phase === 'end' || (g.phase === 'finale' && g.finStep >= 1))) {
-        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 850, H); ctx.clip(); drawActor(g.m, g.t); ctx.restore();
+        // 裁在门柱左边缘，像躲在门柱后（11-19 前固定裁在 850，落在门洞中间，像被看不见的墙切开）
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, BD.doorPostX(cam.cx), H); ctx.clip(); drawActor(g.m, g.t); ctx.restore();
       }
       for (const a of order) drawActor(a, g.t);
       for (const a of order) drawTrail(a);

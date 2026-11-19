@@ -47,8 +47,13 @@
   }
 
   // 底图随角色位置做 2–4 px 的视差，所以多画一圈边
+  const parOf = (camX) => ((camX == null ? W / 2 : camX) - W / 2) / (W / 2) * -3;
+  // 右侧门洞的右门柱左边缘：底图上在 853（按 960 宽量的），画出来随放大和视差走。
+  // 结尾孟良从门里探身，按这条线裁，看起来是躲在门柱后面
+  const DOOR_POST_X = 853;
+  function doorPostX(camX) { return -12 + parOf(camX) + DOOR_POST_X * (W + 24) / W; }
   function draw(g, t, camX) {
-    const par = ((camX == null ? W / 2 : camX) - W / 2) / (W / 2) * -3;
+    const par = parOf(camX);
     g.fillStyle = '#0b0a14'; g.fillRect(0, 0, W, H);
     if (loaded) g.drawImage(img, -12 + par, -7, W + 24, H + 14);
     // 灯笼的呼吸：很轻的暖光，幅度小；另给灯笼一点点摆动的错觉（光晕中心微动）
@@ -125,5 +130,5 @@
     g.fillStyle = v; g.fillRect(0, 0, vw, H);
   }
 
-  root.MKZ_BACKDROP = { load, draw, front, dust, lightAt, LANTERNS, W, H, GROUND };
+  root.MKZ_BACKDROP = { load, draw, doorPostX, front, dust, lightAt, LANTERNS, W, H, GROUND };
 })(typeof self !== 'undefined' ? self : this);
