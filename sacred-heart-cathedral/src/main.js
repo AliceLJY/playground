@@ -5,7 +5,7 @@ import { Pass } from 'three/addons/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as C from './core.js';
-import { buildWorld, GLASS } from './world.js';
+import { buildWorld, GLASS, WARM } from './world.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
@@ -65,7 +65,10 @@ composer.addPass(new OutputPass());
 // ---------- 状态 ----------
 const S = { mode: 'orbit', zone: 'out', view: 'whole', light: 'morning' };
 // 内部的亮度一处调：先暗，再一点点加
-const LV = { hemi: 0.95, bloom: 0.22, exp: 1.0, glass: 1.7, vault: 0.8, vol: 1.0 };
+// 实拍里中殿是「暗而暖」：环境光压低，上部渐暗（dim 是拱顶处剩几成），吊灯的暖光照亮下半截。
+// 手机屏小、常在亮处看，画质「中」「低」按 PHONE 那一组稍微提亮，免得一片黑。
+const LV = { hemi: 0.5, bloom: 0.3, exp: 1.0, glass: 1.7, vault: 0.52, vol: 1.0, warm: 1.0, dim: 0.42 };
+const PHONE = { hemi: 0.72, vault: 0.64, warm: 1.1, dim: 0.6 };
 for (const k of Object.keys(LV)) if (Q.get(k)) LV[k] = +Q.get(k);
 const orbit = { az: 0.6, pol: 1.15, dist: 120, target: new THREE.Vector3(0, 22, 6), idle: 0 };
 const fp = { x: 0, y: C.EYE + C.GROUND, z: 79, yaw: 0, pitch: 0.1, v: 0, bob: 0 };
@@ -100,7 +103,9 @@ function updateLight(dt) {
   tri(PAL.sun, t, sun.color); sun.intensity = inside ? 0 : 2.9;
   if (inside) {
     // 里面不靠太阳直射：一个偏暗的环境光，再加彩窗投进来的色光
-    hemi.intensity = LV.hemi + 0.12 * side; hemi.color.set('#e9e0d0').lerp(_cb.set('#ffcf90'), t > 0.5 ? (t - 0.5) * 0.7 : 0); hemi.groundColor.set('#a09585');
+    const lv = k => quality === 'high' || Q.has(k) ? LV[k] : PHONE[k];
+    hemi.intensity = lv('hemi') + 0.12 * side; hemi.color.set('#ddd6ca').lerp(_cb.set('#ffcf90'), t > 0.5 ? (t - 0.5) * 0.7 : 0); hemi.groundColor.set('#8f8170');
+    WARM.uWarm.value.set(0.58, 0.44, 0.29).multiplyScalar(lv('warm')); WARM.uDim.value = lv('dim');
     scene.fog.color.set('#4a4338'); scene.fog.near = 30; scene.fog.far = 240;
     bloom.strength = LV.bloom; bloom.threshold = 0.9; renderer.toneMappingExposure = LV.exp;
   } else {
@@ -115,7 +120,7 @@ function updateLight(dt) {
   for (const m of world.westMats) m.color.setScalar(0.3 + 0.75 * light.west);
   for (const m of world.southMats) m.color.setScalar(0.35 + 0.7 * light.south);
   for (const m of world.apseMats) m.color.setScalar(0.72);
-  world.vaultMat.color.setScalar(LV.vault + 0.1 * side);
+  const vk = (inside && quality !== 'high' && !Q.has('vault') ? PHONE.vault : LV.vault) + 0.1 * side; world.vaultMat.color.setScalar(vk); world.ribMat.color.setScalar(vk * 1.12);
   // 太阳越高，光斑落得离窗越近；早晚斜着打进来，能铺到对面的柱子上
   GLASS.uGL.value.set(-0.5 - 0.8 * Math.sin(Math.PI * t), -0.12);
   world.rays.vol.uniforms.uK.value = LV.vol * (0.6 + 0.5 * side);
@@ -330,7 +335,7 @@ function setQuality(q, auto) {
   if (!QUAL[q]) return; quality = q; const k = QUAL[q];
   DPR = Math.min(window.devicePixelRatio || 1, k.dpr); renderer.setPixelRatio(DPR);
   world.rays.vol.uniforms.uSteps.value = Math.max(1, k.steps); world.rays.mesh.visible = k.steps > 0 && !Q.has('novol'); bloom.enabled = k.bloom;
-  $('qBtn').textContent = '画质 ' + k.cn + (auto ? '（自动）' : ''); resize();
+  $('qBtn').textContent = '画质 ' + k.cn + (auto ? '（自动）' : ''); resize(); light.dirty = true;
 }
 $('qBtn').addEventListener('click', () => setQuality({ high: 'mid', mid: 'low', low: 'high' }[quality]));
 

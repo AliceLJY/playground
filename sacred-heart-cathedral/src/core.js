@@ -145,8 +145,8 @@ export const LIGHTS = {
 };
 // 窗洞尺寸：着色器、玻璃面片、墙上的洞共用同一组数
 export const WIN = {
-  clere: { sill: 14.4, h: 6.6, w: 0.62, off: 0.78, ocY: 23.5, ocR: 0.55 },     // 高侧窗：两扇尖窗加一个四叶圆窗
-  chapel: { sill: 2.9, h: 3.3, w: 0.5, off: 0.64, ocY: 7.75, ocR: 0.42 },      // 小礼拜堂的窗
+  clere: { sill: 14.4, h: 6.6, w: 0.62, off: 0.78, ocY: 23.6, ocR: 0.7 },     // 高侧窗：两扇尖窗加一个四叶圆窗
+  chapel: { sill: 2.9, h: 3.3, w: 0.5, off: 0.64, ocY: 7.82, ocR: 0.58 },      // 小礼拜堂的窗
   rose: { y: 19, r: 3.5 },                                                      // 正面玫瑰窗（直径约 7 米）
   transRose: { y: 12.6, r: 3.3 },                                               // 横厅两端的玫瑰窗
   apse: { sill: 7.2, h: 11.5, w: 0.55, off: 0.68 },
