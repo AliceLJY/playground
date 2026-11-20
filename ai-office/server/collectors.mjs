@@ -69,17 +69,23 @@ async function launchd(label) {
   }
 }
 
-export async function latestMtime(root, limit = 20000) {
+export async function latestMtime(root, limit = 20000, maxDepth = Infinity) {
   let count = 0, latest = 0;
-  const pending = [root];
+  const pending = [[root, 0]];
   while (pending.length) {
-    const dir = pending.pop();
+    const [dir, depth] = pending.pop();
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (++count > limit) throw new Error('Scan limit exceeded');
       if (entry.name === '.git' || entry.isSymbolicLink()) continue;
       const file = path.join(dir, entry.name);
-      if (entry.isDirectory()) pending.push(file);
+      if (entry.isDirectory()) {
+        // At the depth cap, take the folder's own mtime instead of walking into it: a folder's mtime moves when a file
+        // lands in or leaves it, which is all a "has anything arrived lately" signal needs, and it costs one stat
+        // instead of one per file below. Without this the capped walk would see only folders and report empty.
+        if (depth + 1 >= maxDepth) latest = Math.max(latest, (await stat(file)).mtimeMs);
+        else pending.push([file, depth + 1]);
+      }
       else if (entry.isFile()) latest = Math.max(latest, (await stat(file)).mtimeMs);
     }
   }
@@ -98,8 +104,10 @@ export async function boxAsleep(file) {
   } catch { return undefined; }
 }
 
-export async function statusFiles(dir, fallbackDir, awakeFile) {
-  const fallback = fallbackDir ? await latestMtime(fallbackDir).catch(() => ({ error: true })) : { empty: true };
+export async function statusFiles(dir, fallbackDir, awakeFile, fallbackDepth = Infinity) {
+  // The mirror folder can hold thousands of files; walking all of them is what made this desk time out under load
+  // (2026-11-20: 209 of 231 timeouts were this one, none between 03:00 and 10:00 Beijing when the machine is idle).
+  const fallback = fallbackDir ? await latestMtime(fallbackDir, 20000, fallbackDepth).catch(() => ({ error: true })) : { empty: true };
   const asleep = await boxAsleep(awakeFile);
   let entries;
   try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) { if (e.code !== 'ENOENT') throw e; return { slips: [], fallback, asleep }; }
@@ -223,7 +231,7 @@ export async function collect(source, previous = {}) {
       }
       case 'statusfiles': {
         // The same engine also runs as a local CLI (Grok CLI next to Grok Bot); a live run counts at the same desk.
-        const r = await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null, source.awakeFile ? expand(source.awakeFile) : null);
+        const r = await statusFiles(expand(source.directory), source.fallbackDirectory ? expand(source.fallbackDirectory) : null, source.awakeFile ? expand(source.awakeFile) : null, source.fallbackDepth || Infinity);
         if (source.processes?.length) r.processes = processCount(await ps(), source.processes);
         return r;
       }

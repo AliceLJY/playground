@@ -158,6 +158,17 @@ test('etwin appended lines count only; initial/rotated logs do not replay; parti
   await fs.writeFile(file,'rotated\n');assert.equal((await etwinActivity(file,memory)).activity,false);
   await fs.mkdir(path.join(dir,'nested'));await fs.writeFile(path.join(dir,'nested/new.txt'),'x');
   assert.ok((await latestMtime(dir)).mtime>0);await assert.rejects(latestMtime(dir,1));
+  // Depth cap (2026-11-20): the fixture's top level holds ONLY a folder, which is the case that catches a capped
+  // walk skipping folders instead of stat'ing them — that bug reports {empty:true} and silently loses the signal.
+  // Calibrated by breaking the implementation on purpose: the earlier version of this check, run against `dir`,
+  // stayed green because a file sat at `dir`'s top level and covered for the missing folder mtime.
+  const deep=await fs.mkdtemp(path.join(root,'tools/.test-data/depth-'));
+  await fs.mkdir(path.join(deep,'day'));await fs.writeFile(path.join(deep,'day/x.txt'),'x');
+  const future=new Date(Date.now()+86_400_000);await fs.utimes(path.join(deep,'day/x.txt'),future,future);
+  assert.ok((await latestMtime(deep)).mtime>=future.getTime()-1,'full walk reads the file below');
+  const capped=await latestMtime(deep,20000,1);
+  assert.ok(capped.mtime>0,'depth cap must still report a signal, not empty');
+  assert.ok(capped.mtime<future.getTime()-1,'depth cap must not read files below the cap');
 });
 
 test('status slips: waiting beats busy, done fades, stale slips fall back to the mirror, badge counts',async()=>{
