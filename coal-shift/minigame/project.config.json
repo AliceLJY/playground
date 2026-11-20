@@ -1,8 +1,24 @@
 {
-  "appid": "wxcaec7905a6f35f24",
+  "appid": "touristappid",
   "compileType": "game",
   "projectname": "coal-shift-minigame",
   "libVersion": "3.6.0",
-  "setting": { "es6": true, "minified": true, "postcss": false, "urlCheck": true },
-  "packOptions": { "ignore": [{ "type": "folder", "value": "tools" }, { "type": "file", "value": "README.md" }] }
+  "setting": {
+    "es6": true,
+    "minified": true,
+    "postcss": false,
+    "urlCheck": true
+  },
+  "packOptions": {
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "tools"
+      },
+      {
+        "type": "file",
+        "value": "README.md"
+      }
+    ]
+  }
 }
