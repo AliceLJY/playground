@@ -63,13 +63,20 @@ Small things built for fun. One repo, one subfolder each, one Pages site. The fr
 | [Pixel Office](ai-office/) · [watch](https://aliceljy.github.io/playground/ai-office/) | Eleven AI teammates each at a desk: typing while busy, a hop and confetti when done, queuing at the boss desk when they need a decision; a courier hands over notifications as paper slips and the board keeps them. Online is the demo; the real one runs a dependency-free local server on your own machine | Canvas 2D pixel art, one-minute demo loop, day/dusk/night lighting by Beijing time, no build step |
 | [Daomadan Sprite](daomadan-sprite/) · [watch](https://aliceljy.github.io/playground/daomadan-sprite/) | One master still of a Cantonese opera female warrior turned by AI into five game actions (idle, walk, spear thrust, jump, hurt): costume colours fixed against opera references, each action one image-to-video clip from the same still, cut into frames, then a small stage to try them. Running did not work out; the page says why | Canvas 2D frame atlases from agent-sprite-forge, WebP, no build step |
 
+## Tools
+
+| Toy | What it is | Tech |
+|---|---|---|
+| [Phone Keyboard](phone-keyboard/) · [view](https://aliceljy.github.io/playground/phone-keyboard/) | An unfolded Android phone as a Bluetooth keyboard and trackpad for an iPad; built for the OPPO Find N6 | Android app, 25 KB install, nothing to install on the iPad |
+| [Phone Remote](https://github.com/AliceLJY/phone-remote) | A phone web page as a wireless keyboard and shortcut pad for a Mac: dictate with the phone's own voice input, which remote-desktop tools fail to forward, and open Claude Code, Codex and other CLIs with one tap. Its own repo; only the entry lives here | A zero-dependency server on the Mac, a web page on the phone |
+
 ## Adding a new toy
 
 Start with the [production and acceptance guide](AGENTS.md) and write a one-page spec in the toy's own folder.
 
 1. Drop it in its own folder at the repo root.
 2. Add a build step to `.github/workflows/pages.yml` that copies its static output into `_site/<name>/`.
-3. Add a card to the matching board (games, 3D exhibits, behind the AI or tools) in the root `index.html`. The home page opens on a landing view of the boards and shows one board's cards at a time; the counts and previews on the landing view update themselves. To open a new board, copy an existing `<section class="board" id="short-name" data-blurb="one-line intro">` and keep `h2.shelf` directly followed by `div.grid`; the landing view picks it up automatically, but the count boxes at the top of `roadmap.html` are written by hand, so add one there too.
+3. Add a card to the matching board (games, 3D exhibits, behind the AI or tools) in the root `index.html`. The home page opens on a landing view of the boards and shows one board's cards at a time; the counts and previews on the landing view update themselves. To open a new board, copy an existing `<section class="board" data-key="short-name" data-blurb="one-line intro">` and keep `h2.shelf` directly followed by `div.grid`; the landing view picks it up automatically, but the count boxes at the top of `roadmap.html` are written by hand, so add one there too.
 4. Check the root `roadmap.html`: the "shipped" list reads itself from the home page, but the "still polishing" and "up next" tables are written by hand, so move the new piece out of them if it was listed. The pixel office keeps its own arcade and showroom menus in `ai-office/index.html`; add a line there too.
 
 Static toys only need a copy step. Anything needing a build gets its build command in that same workflow — see how `aju-guangzhou-ride` inlines its sources via `build.py`.

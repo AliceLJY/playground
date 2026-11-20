@@ -108,7 +108,7 @@
   <nav class="boards" id="boards" aria-label="板块"></nav>
   <nav class="boardbar" id="boardbar" aria-label="切换板块"><a class="back" href="#">← 所有板块</a><span class="chips"></span></nav>
 
-  <section class="board" id="games" data-blurb="动手玩的：拍、打、跑、配对、破案，点开就能玩。">
+  <section class="board" data-key="games" data-blurb="动手玩的：拍、打、跑、配对、破案，点开就能玩。">
   <h2 class="shelf">小游戏<span class="note">上手玩</span></h2>
   <div class="grid">
     <a class="card" href="suisui/">
@@ -294,7 +294,7 @@
 
   </section>
 
-  <section class="board" id="3d" data-blurb="代码搭出来的场景和建筑：转着看、走进去、拆开看。">
+  <section class="board" data-key="3d" data-blurb="代码搭出来的场景和建筑：转着看、走进去、拆开看。">
   <h2 class="shelf">3D 展页<span class="note">转着看</span></h2>
   <div class="grid">
     <a class="card" href="lens-lab/">
@@ -423,7 +423,7 @@
 
   </section>
 
-  <section class="board" id="ai" data-blurb="AI 干活的过程，做成放着就能看懂的小片子和小场景。">
+  <section class="board" data-key="ai" data-blurb="AI 干活的过程，做成放着就能看懂的小片子和小场景。">
   <h2 class="shelf">AI 幕后<span class="note">放着看</span></h2>
   <div class="grid">
     <a class="card" href="dispatch-replay/">
@@ -465,13 +465,19 @@
 
   </section>
 
-  <section class="board" id="tools" data-blurb="自己日常在用的小东西，装上就能用。">
+  <section class="board" data-key="tools" data-blurb="自己日常在用的小东西，装上就能用。">
   <h2 class="shelf">小工具<span class="note">装上用</span></h2>
   <div class="grid">
     <a class="card" href="phone-keyboard/">
       <p class="name">手机键盘<span class="en">phone-keyboard</span></p>
       <p class="desc">出门带 iPad 不想背键盘：安卓手机展开当蓝牙键盘加触控板，上面数字键和触控板，下面整块键盘，按 MacBook 的手势习惯来。OPPO Find N6 专属版。</p>
       <p class="meta">安卓 App · 安装包 25 KB · iPad 免装任何东西</p>
+    </a>
+
+    <a class="card" href="https://github.com/AliceLJY/phone-remote/blob/main/README_CN.md">
+      <p class="name">手机遥控 Mac<span class="en">phone-remote</span></p>
+      <p class="desc">远程桌面连另一台 Mac 时，语音输入打不进去。手机浏览器打开一个网页，用手机自带的输入法说话打字，方向键、Tab、Ctrl+C、⌘ 组合都做成按钮，字直接打进 Mac 最前面的窗口。顶上一排点一下就开出 Claude Code、Codex 这类工具。</p>
+      <p class="meta">Mac 上跑一个零依赖小服务 · 手机不用装 App，加到主屏幕就行 · 局域网或 Tailscale · 独立仓作品，点开去 GitHub 看装法</p>
     </a>
   </div>
 
@@ -482,7 +488,8 @@
   </footer>
 </div>
 <script>
-// 落地页与板块切换。板块就是下面的 <section class="board">：加一段 section（id、data-blurb、h2.shelf、div.grid），落地页自动多一块。
+// 落地页与板块切换。板块用 data-key 不用 id：用 id 的话打开 #3d 这类网址时浏览器会自己滚到那一段，标题被滚走。
+// 板块就是下面的 <section class="board">：加一段 section（data-key、data-blurb、h2.shelf、div.grid），落地页自动多一块。
 // roadmap.html 按「h2.shelf 紧跟 div.grid」数卡片，别拆开这两个。
 (function () {
   var root = document.documentElement, boards = [].slice.call(document.querySelectorAll('section.board'));
@@ -493,20 +500,20 @@
     var h = b.querySelector('h2.shelf'), title = h.firstChild.textContent.trim(), note = (h.querySelector('.note') || {}).textContent || '';
     var cards = [].slice.call(b.querySelectorAll('a.card')), names = cards.slice(0, 3).map(nameOf);
     b.dataset.title = title;
-    var t = el('a', 'tile'); t.href = '#' + b.id;
+    var t = el('a', 'tile'); t.href = '#' + b.dataset.key;
     var top = el('div', 'top'), tt = el('span', 'tt', title), n = el('span', 'n', String(cards.length));
     tt.appendChild(el('small', null, note)); n.appendChild(el('small', null, '个')); top.append(tt, n);
     t.append(top, el('p', 'bl', b.dataset.blurb || ''));
     if (names.length) t.appendChild(el('p', 'pv', names.join('、') + (cards.length > names.length ? ' 等' : '')));
     t.appendChild(el('span', 'go', '进去看 →'));
     home.appendChild(t);
-    var c = el('a', null, title + ' ' + cards.length); c.href = '#' + b.id; c.dataset.key = b.id; chips.appendChild(c);
+    var c = el('a', null, title + ' ' + cards.length); c.href = '#' + b.dataset.key; c.dataset.key = b.dataset.key; chips.appendChild(c);
   });
   function show(scroll) {
     var key = decodeURIComponent(location.hash.slice(1)), cur = null;
-    boards.forEach(function (b) { var on = b.id === key; b.classList.toggle('on', on); if (on) cur = b; });
+    boards.forEach(function (b) { var on = b.dataset.key === key; b.classList.toggle('on', on); if (on) cur = b; });
     root.dataset.view = cur ? 'board' : 'home';
-    [].forEach.call(chips.children, function (c) { c.classList.toggle('on', !!cur && c.dataset.key === cur.id); if (cur && c.dataset.key === cur.id) c.setAttribute('aria-current', 'page'); else c.removeAttribute('aria-current'); });
+    [].forEach.call(chips.children, function (c) { c.classList.toggle('on', !!cur && c.dataset.key === cur.dataset.key); if (cur && c.dataset.key === cur.dataset.key) c.setAttribute('aria-current', 'page'); else c.removeAttribute('aria-current'); });
     document.title = cur ? cur.dataset.title + ' · ' + baseTitle : baseTitle;
     if (scroll) window.scrollTo(0, 0);
   }

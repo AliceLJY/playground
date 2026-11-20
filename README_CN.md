@@ -63,13 +63,20 @@
 | [像素办公室](ai-office/) · [看](https://aliceljy.github.io/playground/ai-office/) | 十一位 AI 伙伴各坐一张工位，按状态敲键盘、蹦跳撒彩带、到老板桌前排队敲门；送信员把推送当纸条递来，公告板留底。线上是演示版，真实版在自己机器上跑一个零依赖的小服务读本机状态 | Canvas 2D 像素风，演示剧本一分钟循环，白天傍晚夜晚按北京时间换灯，没有构建步骤 |
 | [刀马旦精灵](daomadan-sprite/) · [看](https://aliceljy.github.io/playground/daomadan-sprite/) | 一张粤剧刀马旦原画，AI 变出待机、走、出枪、跳、受击五个游戏动作：照戏服资料改对颜色，每个动作从同一张画出发演一段图生视频再切成帧，最后放到舞台上试玩。跑步没做成，页面里写了原因 | Canvas 2D 逐帧图集（agent-sprite-forge 打包），WebP，没有构建步骤 |
 
+## 小工具
+
+| 玩意 | 是什么 | 技术 |
+|---|---|---|
+| [手机键盘](phone-keyboard/) · [看](https://aliceljy.github.io/playground/phone-keyboard/) | 安卓手机展开当 iPad 的蓝牙键盘加触控板，OPPO Find N6 专属版 | 安卓 App，安装包 25 KB，iPad 免装 |
+| [手机遥控 Mac](https://github.com/AliceLJY/phone-remote) | 手机网页当 Mac 的无线键盘和快捷键面板，用手机输入法语音打字，绕开远程桌面打不进中文的问题；一键开出 Claude Code、Codex 等工具。独立仓作品，这里只放入口 | Mac 上一个零依赖小服务，手机端是网页 |
+
 ## 加一个新玩意
 
 开工前先读 [制作与验收约定](AGENTS.md)，在玩意自己的目录写一页规格。
 
 1. 在仓库根目录建它自己的文件夹。
 2. 在 `.github/workflows/pages.yml` 里加一段，把它的静态产物拷进 `_site/<名字>/`。
-3. 在根目录 `index.html` 对应的板块（小游戏、3D 展页、AI 幕后或小工具）里加一张卡片。首页打开先是板块落地页，点进去才是某一块的卡片；落地页上的个数和预览会自己跟上。要新开一个板块，照现有的抄一段 `<section class="board" id="英文短名" data-blurb="一句话介绍">`，里面保持「`h2.shelf` 紧跟 `div.grid`」，落地页会自动多一块；`roadmap.html` 顶部的计数格是手写的，要跟着加一格。
+3. 在根目录 `index.html` 对应的板块（小游戏、3D 展页、AI 幕后或小工具）里加一张卡片。首页打开先是板块落地页，点进去才是某一块的卡片；落地页上的个数和预览会自己跟上。要新开一个板块，照现有的抄一段 `<section class="board" data-key="英文短名" data-blurb="一句话介绍">`，里面保持「`h2.shelf` 紧跟 `div.grid`」，落地页会自动多一块；`roadmap.html` 顶部的计数格是手写的，要跟着加一格。
 4. 看一眼根目录 `roadmap.html`（进度表）：「已经上架」会自己从首页读，「还在打磨」「接下来想做」两张表是手写的，新玩意原来在表里就挪走。像素办公室的游戏室和陈列室菜单在 `ai-office/index.html`，也补一条。
 
 纯静态的只要一条 cp。需要构建的把构建命令写进同一个 workflow —— 参考 `aju-guangzhou-ride` 用 `build.py` 把源码内联成单文件的做法。
