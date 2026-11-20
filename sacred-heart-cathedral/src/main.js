@@ -128,9 +128,15 @@ function updateLight(dt) {
 
 // ---------- 镜头 ----------
 const _d = new THREE.Vector3(), _look = new THREE.Vector3(), _qa = new THREE.Quaternion(), _m4 = new THREE.Matrix4();
+// 站在正门前的广场、台阶上（人眼高度）时，堂内也一起画：从门洞看得见中殿深处，走进去不是一块黑板
+let peek = false;
+// 代价：这段路上绘制约 300 次、三角面约 42 万，超过 SPEC 的 260 次 / 35 万；画质掉到「低」（连续卡顿自动降档）时不画，门洞回到暗板
+const peekable = p => quality !== 'low' && p.y < 3 && p.z > C.Z_FRONT + 0.6 && p.z < 78.5 && Math.abs(p.x) < 12;
 function setZone(z) {
-  if (S.zone === z && world.int.visible === (z === 'in') && world.ext.visible === (z !== 'in')) return;
-  S.zone = z; world.int.visible = z === 'in'; world.ext.visible = z !== 'in'; world.sky.visible = z !== 'in'; light.zoneDirty = true;
+  const pk = z !== 'in' && peekable(camera.position);
+  if (S.zone === z && pk === peek && world.int.visible === (z === 'in' || pk) && world.ext.visible === (z !== 'in')) return;
+  S.zone = z; peek = pk; world.int.visible = z === 'in' || pk; world.ext.visible = z !== 'in'; world.sky.visible = z !== 'in'; light.zoneDirty = true;
+  world.doorVoids.visible = !pk; world.rays.mesh.visible = !pk && QUAL[quality].steps > 0 && !Q.has('novol');
   scene.background = z === 'in' ? new THREE.Color('#14120e') : null;
 }
 function zoneOf(p) { return C.inside(p.x, p.z) && C.sdFoot(p.x, p.z) < -0.05 && p.y < 29.6 ? 'in' : 'out'; }
@@ -334,7 +340,7 @@ let quality = QUAL[Q.get('q')] ? Q.get('q') : (coarse ? 'mid' : 'high'), slow = 
 function setQuality(q, auto) {
   if (!QUAL[q]) return; quality = q; const k = QUAL[q];
   DPR = Math.min(window.devicePixelRatio || 1, k.dpr); renderer.setPixelRatio(DPR);
-  world.rays.vol.uniforms.uSteps.value = Math.max(1, k.steps); world.rays.mesh.visible = k.steps > 0 && !Q.has('novol'); bloom.enabled = k.bloom;
+  world.rays.vol.uniforms.uSteps.value = Math.max(1, k.steps); world.rays.mesh.visible = k.steps > 0 && !Q.has('novol') && !peek; bloom.enabled = k.bloom;
   $('qBtn').textContent = '画质 ' + k.cn + (auto ? '（自动）' : ''); resize(); light.dirty = true;
 }
 $('qBtn').addEventListener('click', () => setQuality({ high: 'mid', mid: 'low', low: 'high' }[quality]));
@@ -361,7 +367,7 @@ function frame(now) {
 // ---------- 验收钩子 ----------
 window.__ss = window.__sf = {
   ready: false, C, S, stat, LV, world, scene, relight() { light.dirty = true; updateLight(0); }, counts: world.counts,
-  snapshot: () => ({ ...S, tween: !!tween, cam: camera.position.toArray().map(v => +v.toFixed(2)), fp: { x: +fp.x.toFixed(2), y: +fp.y.toFixed(2), z: +fp.z.toFixed(2), yaw: +fp.yaw.toFixed(3) }, orbit: { az: +orbit.az.toFixed(3), dist: +orbit.dist.toFixed(1) }, light: S.light, east: +light.east.toFixed(3), west: +light.west.toFixed(3), south: +light.south.toFixed(3), glass: GLASS.uGI.value.toArray().map(v => +v.toFixed(3)), extVisible: world.ext.visible, intVisible: world.int.visible, fps: stat.fps, calls: stat.calls, tris: stat.tris }),
+  snapshot: () => ({ ...S, tween: !!tween, cam: camera.position.toArray().map(v => +v.toFixed(2)), fp: { x: +fp.x.toFixed(2), y: +fp.y.toFixed(2), z: +fp.z.toFixed(2), yaw: +fp.yaw.toFixed(3) }, orbit: { az: +orbit.az.toFixed(3), dist: +orbit.dist.toFixed(1) }, light: S.light, east: +light.east.toFixed(3), west: +light.west.toFixed(3), south: +light.south.toFixed(3), glass: GLASS.uGI.value.toArray().map(v => +v.toFixed(3)), extVisible: world.ext.visible, intVisible: world.int.visible, peek, fps: stat.fps, calls: stat.calls, tris: stat.tris }),
   quality: () => quality, setQuality,
   // 任意机位（对照截图用）：临时加一个视点，飞过去再拿掉
   shot(pos, look, fov) { if (fov) { camera.fov = fov; camera.updateProjectionMatrix(); } C.VIEWS.push({ id: '_shot', cn: '', en: '', zone: C.inside(pos[0], pos[2]) && pos[1] < 29.6 ? 'in' : 'out', pos, look, mode: 'fly', text: '' }); goView('_shot', true); C.VIEWS.pop(); },
