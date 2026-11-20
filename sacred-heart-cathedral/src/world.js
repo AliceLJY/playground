@@ -321,6 +321,9 @@ export function buildWorld(scene, { coarse = false } = {}) {
   const floorMat = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5, metalness: 0.05, map: floorTexture() }), { world: 0.3, glass: 1.5, inside: 1 });
   const I = batcher(int, plain, { cast: false, receive: false }), S = batcher(int, stone, { cast: false, receive: false });
   const IG = batcher(int, new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), { cast: false, receive: false });
+  // 门槛石（堂内这一侧）：盖住门洞底下和地面同在 y=0 的墙洞底，免得从里外两边看门槛都闪；外面那一侧见 exterior.js
+  // 顶面 2.5 毫米，比外面那块（5 毫米）低一点：在门口两块都画时由外面那块盖住，不互相抢
+  S.box(0, -0.05, 38.0, 4.2, 0.0525, 0.8, '#dccfba'); for (const s of [-1, 1]) S.box(s * C.TOWER.cx, -0.05, 38.0, 2.8, 0.0525, 0.8, '#dccfba');
   const wallOpt = { cast: false }, ST = '#e9dcc4', ST2 = '#d9c9ad', ST3 = '#f1e7d2';
   const add = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; int.add(m); return m; };
 
@@ -578,8 +581,8 @@ export function buildWorld(scene, { coarse = false } = {}) {
   for (const s of [-1, 1]) bays.forEach((b, i) => { if (!b.chancel && i % 2 === 1) chand(s * 7.7, 7.6, b.z0 - b.len / 2, 0.45, 2.9); });
   // 侧廊墩上的苦路浮雕（白色小龛，示意）
   for (const s of [-1, 1]) for (let k = 1; k < C.NAVE_BAYS; k++) { I.box(s * (C.AISLE - 0.5), 2.2, C.naveLine(k), 0.1, 0.8, 0.6, '#efeadc'); I.prism(s * (C.AISLE - 0.5), 3.0, C.naveLine(k), 0.6, 0.3, 0.1, '#efeadc', Math.PI / 2); }
-  // 门：从里面看是深红的木门扇
-  for (const d of C.DOORS) if (d.axis === 'x') for (const e of [-1, 1]) I.box(d.x + e * (d.half + 0.05), 0, C.Z_FRONT - 0.5, 0.1, d.half > 1.2 ? 4.4 : 3.4, d.half * 1.0, '#5e1f1c');
+  // 门：从里面看是深红的木门扇。门扇内面比门洞侧面往里凸 2 厘米——原先两面重合，镜头一动门边就一条条闪
+  for (const d of C.DOORS) if (d.axis === 'x') for (const e of [-1, 1]) I.box(d.x + e * (d.half + 0.03), 0, C.Z_FRONT - 0.5, 0.1, d.half > 1.2 ? 4.4 : 3.4, d.half * 1.0, '#5e1f1c');
   I.build(); IG.build(); S.build(); RB.build();
 
   // 圣所的暖光：祭台周围点着灯，照片里这一块是金色的
