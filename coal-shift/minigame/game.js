@@ -78,7 +78,7 @@ function office() {
   rect(791, 353, 60, 13, '#889d78'); rect(797, 337, 48, 24, '#889d78'); rect(802, 341, 38, 13, '#a0b48c'); rect(817, 366, 7, 29, '#718968'); rect(797, 395, 46, 5, '#718968');
   plant(33, 394, .8); plant(931, 395, .85);
   rect(0, 508, W, 32, '#a2b68f'); rect(0, 508, W, 3, '#718c68');
-  label('SOOTY & CO.', 25, 530, 10, '#718b66'); label('EST. 09:00 — OUT. 18:00', W - 22, 530, 9, '#718b66', 'right');
+  label('煤球下班', 25, 531, 13, '#5f7a56', 'left', 'sans-serif'); label('EST. 09:00 — OUT. 18:00', W - 22, 530, 9, '#718b66', 'right');
   for (let y = 3; y < H; y += 4) rect(0, y, W, 1, 'rgba(24,55,43,.024)');
 }
 
@@ -253,5 +253,5 @@ function onTouchEnd(e) {
 function onTouchCancel(e) { pressedCard = false; for (const t of e.changedTouches || []) { if (t.identifier === pointerId) { pointerId = null; pointerTarget = null; } sideTouches.delete(t.identifier); } syncKeys(); }
 wx.onTouchStart(onTouchStart); wx.onTouchMove(onTouchMove); wx.onTouchEnd(onTouchEnd); wx.onTouchCancel(onTouchCancel);
 wx.onHide(() => { releaseControls(); if (mode === 'playing') pause(); });
-showCard('17:59 · 下班前的最后一分钟', '小煤球，开工啦！', ['接住咖啡，避开 bug。', '守住 3 颗小红心，撑到下班！'], '开始上班 →', '');
+showCard('煤球下班 · 17:59 下班前的最后一分钟', '小煤球，开工啦！', ['接住咖啡，避开 bug。', '守住 3 颗小红心，撑到下班！'], '开始上班 →', '');
 lastTime = Date.now(); requestAnimationFrame(frame);

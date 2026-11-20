@@ -111,3 +111,9 @@ test('小游戏版：玩法数值与网页版一致', () => {
     assert.ok(compact(html).includes(compact(fragment)), `网页版缺少数值 ${fragment}（检查本身过期了）`);
   }
 });
+
+test('小游戏版：开始卡片和游玩画面都写着游戏名「煤球下班」（备案截图要求截图内能看到小游戏名）', () => {
+  assert.match(source, /label\('煤球下班'/, '游玩画面左下角缺游戏名');
+  const c = environment();
+  run(c, "assert.ok(card.tag.includes('煤球下班'), '开始卡片缺游戏名');");
+});
