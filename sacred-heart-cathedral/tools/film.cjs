@@ -5,7 +5,7 @@
 //   probe=…：只按给的时间点各出一张 probe-<秒>.jpg，用来对镜头。
 // 录法：page.clock 冻住页面的 requestAnimationFrame，镜头和光由这里按时间算好，经 window.__sf.pose / mix / tick 一帧一帧画，再截图。
 const { chromium } = require('playwright');
-const fs = require('fs'), path = require('path');
+const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const [url, outDir, endDir, probeArg] = process.argv.slice(2);
 const probe = probeArg && probeArg.startsWith('probe=') ? probeArg.slice(6).split(',').map(Number) : null;
 const FPS = 30, W = 1080, H = 1920;
@@ -17,11 +17,12 @@ const lerp3 = (a, b, k) => a.map((v, i) => lerp(v, b[i], k));
 // 梯形速度：前 a 加速、后 d 减速，中间匀速；返回走过的比例 0…1
 const trap = (k, a, d) => { k = clamp(k); const v = 1 / (1 - a / 2 - d / 2); if (k < a) return v * k * k / (2 * a); if (k < 1 - d) return v * (a / 2 + k - a); const r = 1 - k; return 1 - v * r * r / (2 * d); };
 // 地面高度：照 src/core.js 的 groundY（中线上：院子 -0.75，台阶 41.3→38.9 升到 0，堂内 0）
-const groundOnAxis = z => z > 38.7 ? GROUND * clamp((z - 38.9) / 2.4) : 0;
+// 镜头高度在台阶上用缓动曲线升上去（场景的 groundY 是一条直坡，两头有折角）
+const groundOnAxis = z => z > 38.7 ? GROUND * sm((z - 38.9) / 2.4) : 0;
 
 // ---------- 时间线（秒） ----------
 // nave 只是字幕的时间点（进门后约半秒），镜头在 walk 段里连续走进去
-const T = { open: 0, facade: 7.5, walk: 14, nave: 25, vault: 30, glass: 34.5, light: 38.5, lightEnd: 46.5 };
+const T = { open: 0, facade: 7.5, walk: 14, nave: 27, vault: 34, glass: 38.5, light: 42.5, lightEnd: 50.5 };
 // 光变化的机位：站在中殿偏西，看东边一排束柱和上面的高侧窗——上午那排窗亮，傍晚这排窗暗下去，西窗的色光落到这一侧的墙和柱子上
 const GLASS_POS = [-2.5, EYE, 22], GLASS_LOOK = [6, 9, 12];
 const MORNING = [0, 1.0, 0.12, 0.3], EVENING = [1, 0.12, 1.0, 0.25];
@@ -36,12 +37,12 @@ function at(t) {
     const k = sm((t - T.facade) / (T.walk - T.facade));
     cam = { pos: [0, GROUND + EYE, lerp(78.2, 75.8, k)], look: [0, lerp(15, 17.4, k), 38], fov: 70 };   // 站在广场南端（门洞里已能看见堂内）
   } else if (t < T.vault) {                              // C 从广场走上台阶、穿过中门进中殿，在中殿里慢下来
-    const k = (t - T.walk) / (T.vault - T.walk), z = lerp(76, 25, trap(k, 0.1, 0.28));
+    const k = (t - T.walk) / (T.vault - T.walk), z = lerp(70, 25, trap(k, 0.12, 0.3));   // 最快约 2.8 米/秒
     const y = groundOnAxis(z) + EYE;
     const lookY = z > 50 ? lerp(y + 6, y + 14, clamp((z - 50) / 26)) : lerp(y + 2.2, y + 6, clamp((z - 31) / 19));
     cam = { pos: [0, y, z], look: [0, lookY, z - 20], fov: 64 };
     // 站在广场和台阶上时场景会一起画堂内（main.js 的 peek），门洞里看得见中殿；跨过门槛那一下里外换光，轻轻压暗一点遮住跳变（最暗也只到四成）
-    dip = 0.4 * clamp(1 - Math.abs(z - 38.4) / 1.4);
+    dip = 0.4 * sm(1 - Math.abs(z - 37.95) / 1.0);   // 37.95 是里外切换的那一点（core.js 里 sdFoot < -0.05）
   } else if (t < T.glass) {                              // D2 停住抬头看肋拱
     const k = sm((t - T.vault) / (T.glass - T.vault)), z = 25 - 0.6 * k;
     const lk = lerp3([0, EYE + 2.2, z - 20], [0, 28, z - 6], k);
@@ -61,8 +62,8 @@ function at(t) {
 // 字幕：[起, 止, 主行, 小字]
 const CAPS = [
   [T.facade + 0.6, T.walk - 0.6, '墙、柱、塔全是花岗岩', '1863 年奠基 · 1888 年落成'],
-  [T.walk + 0.8, T.walk + 5.6, '从一德路的大门走进去', ''],
-  [T.walk + 6.4, T.nave - 0.4, '上五级台阶，穿过中门', ''],
+  [T.walk + 0.8, T.walk + 7.5, '从一德路的大门走进去', ''],
+  [T.walk + 8.3, T.nave - 0.4, '上五级台阶，穿过中门', ''],
   [T.nave + 0.3, T.vault + 0.3, '两排束柱，左右各十根', ''],
   [T.vault + 0.8, T.glass + 0.2, '尖形肋拱，拱顶高 28.2 米', '肋是石，拱面是红砖'],
   [T.glass + 0.8, T.light + 2.2, '上午，东边的窗亮', '太阳在东'],
@@ -99,18 +100,18 @@ let n = 0; const marks = [], mark = (name, t) => marks.push({ name, t: +t.toFixe
     document.body.insertAdjacentHTML('beforeend', '<div id="film-dip"></div><div id="film-shade"></div><div id="film-title"><h1>石室圣心大教堂</h1><p>广州一德路 · 纯代码搭建</p><i></i></div><div id="film-cap"><b></b><span></span></div>');
     dispatchEvent(new Event('resize'));
   });
-  const render = async t => {
+  const render = async (t, zone = null) => {
     const { cam, lightMix, dip } = at(t);
     const tA = clamp((t - 0.6) / 0.8) * clamp((T.facade - 0.5 - t) / 0.6);
     const c = CAPS.find(q => t >= q[0] && t < q[1]);
     const cA = c ? clamp((t - c[0]) / 0.45) * clamp((c[1] - t) / 0.45) : 0;
-    await page.evaluate(([cam, lm, dip, tA, cap, cA]) => {
-      const sf = window.__sf; sf.mix(...lm); sf.pose(cam.pos, cam.look, cam.fov); sf.tick(1 / 30);
+    await page.evaluate(([cam, lm, dip, tA, cap, cA, zone]) => {
+      const sf = window.__sf; sf.mix(...lm); sf.pose(cam.pos, cam.look, cam.fov, zone); sf.tick(1 / 30);
       document.getElementById('film-dip').style.opacity = dip;
       document.getElementById('film-title').style.opacity = tA; document.getElementById('film-shade').style.opacity = tA;
       const fc = document.getElementById('film-cap'); fc.style.opacity = cA;
       if (cap) { fc.firstChild.textContent = cap[2]; fc.lastChild.textContent = cap[3]; fc.lastChild.style.display = cap[3] ? 'block' : 'none'; }
-    }, [cam, lightMix, dip, tA, c || null, cA]);
+    }, [cam, lightMix, dip, tA, c || null, cA, zone]);
   };
   // 光和阴影第一次要多画几帧才稳定
   await render(0); for (let i = 0; i < 6; i++) await page.evaluate(() => window.__sf.tick(1 / 30));
@@ -121,10 +122,24 @@ let n = 0; const marks = [], mark = (name, t) => marks.push({ name, t: +t.toFixe
   let lastZone = null;
   for (const [name, t] of Object.entries(T)) if (name !== 'lightEnd') mark('section:' + name, t);
   mark('bell', 0.15);
+  // 跨门槛：里外两套光一刀切会跳。门槛前后约 0.4 秒内，每帧同一机位各画一张「外面的光」和「里面的光」，按缓动权重叠成一帧（叠化），正好落在压暗最低处
+  let tSwitch = 0; for (let t = T.walk; t < T.vault; t += 0.001) if (at(t).cam.pos[2] < 37.95) { tSwitch = t; break; }
+  const XF = 0.2, SUB = 4; mark('zone:in', tSwitch);
   for (let i = 0; i < Math.round(DUR_FILM * FPS); i++) {
-    const t = i / FPS; await render(t);
-    const z = await page.evaluate(() => window.__sf.S.zone); if (z !== lastZone) { if (lastZone) mark('zone:' + z, t); lastZone = z; }
-    await page.screenshot({ path: path.join(frames, String(n++).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 93 });
+    const t = i / FPS, file = path.join(frames, String(n++).padStart(5, '0') + '.jpg');
+    if (t >= T.walk && t < T.vault) {
+      // 走路这段：台阶、门扇贴着镜头扫过去，30 帧下会一闪一闪；每帧在半帧快门里取 4 个时刻平均（运动模糊）
+      const avg = async (zone, tag) => { const fs4 = []; for (let j = 0; j < SUB; j++) { const f = path.join(outDir, `_${tag}${j}.png`); await render(t + (j / (SUB - 1) - 0.5) * 0.5 / FPS, zone); await page.screenshot({ path: f }); fs4.push(f); }
+        const o = path.join(outDir, `_${tag}.png`); execFileSync('ffmpeg', ['-loglevel', 'error', '-y', ...fs4.flatMap(f => ['-i', f]), '-filter_complex', `mix=inputs=${SUB}`, o]); return o; };
+      if (Math.abs(t - tSwitch) <= XF) {
+        const w = sm((t - tSwitch + XF) / (2 * XF)), a = await avg('out', 'o'), b = await avg('in', 'i');
+        execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', a, '-i', b, '-filter_complex', `[0][1]blend=all_expr='A*${(1 - w).toFixed(4)}+B*${w.toFixed(4)}'`, '-q:v', '2', file]);
+      } else execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', await avg(null, 'm'), '-q:v', '2', file]);
+      continue;
+    }
+    await render(t);
+    const z = await page.evaluate(() => window.__sf.S.zone); if (z !== lastZone) lastZone = z;
+    await page.screenshot({ path: file, type: 'jpeg', quality: 93 });
     if (i % 150 === 0) console.log('frame', i, t.toFixed(1) + 's', z);
   }
   mark('lightEnd', T.lightEnd);
