@@ -43,8 +43,9 @@ def pipe(f, dur, att=0.9, rel=1.4):
 CH = {'D': [50, 57, 62, 66], 'Bm': [47, 54, 59, 62], 'G': [43, 55, 59, 62], 'A': [45, 57, 61, 64], 'F#m': [42, 54, 57, 61],
       'Em': [40, 55, 59, 64], 'Dhi': [50, 62, 66, 69], 'A/C#': [49, 57, 64, 69]}
 L = t_light
-PROG = [(0, 'D'), (3.75, 'Bm'), (7.5, 'G'), (10.8, 'A'), (14, 'D'), (17.2, 'F#m'), (20.4, 'G'), (22.6, 'A'), (t_in - 0.4, 'D'), (t_in + 3.5, 'Bm'),
-        (30, 'G'), (34.5, 'Em'), (L, 'G'), (L + 3, 'A/C#'), (L + 6, 'Dhi'), (t_outro, 'D')]
+W, V, GL = first('section:walk', 14), first('section:vault', 30), first('section:glass', 34.5)
+PROG = [(0, 'D'), (3.75, 'Bm'), (7.5, 'G'), (10.8, 'A'), (W, 'D'), (W + 0.3 * (t_in - W), 'F#m'), (W + 0.6 * (t_in - W), 'G'), (t_in - 2.2, 'A'), (t_in - 0.4, 'D'), (t_in + 3.5, 'Bm'),
+        (V, 'G'), (GL, 'Em'), (L, 'G'), (L + 3, 'A/C#'), (L + 6, 'Dhi'), (t_outro, 'D')]
 outside, inside = np.zeros(N), np.zeros(N)
 for i, (s0, name) in enumerate(PROG):
     s1 = PROG[i + 1][0] if i + 1 < len(PROG) else T - 1.4
@@ -68,8 +69,8 @@ def bell(f, dur=9.0):
 bells = np.zeros(N)
 place(bells, bell(hz(62)), first('bell', 0.15), 0.32)
 place(bells, bell(hz(57)), 3.9, 0.22)
-place(bells, lp(bell(hz(62)), 1600), 15.2, 0.12)           # distant toll while crossing the forecourt
-place(bells, lp(bell(hz(57)), 1600), 19.0, 0.08)
+place(bells, lp(bell(hz(62)), 1600), W + 1.2, 0.12)           # distant toll while crossing the forecourt
+place(bells, lp(bell(hz(57)), 1600), W + 5.5, 0.08)
 
 # ---------- light turning: a small rising phrase ----------
 def flute(f, dur):
