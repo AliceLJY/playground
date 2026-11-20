@@ -18,6 +18,7 @@ node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8947/dist/index.html
 NODE_PATH="$(npm root -g)" node tools/shots.cjs http://127.0.0.1:8947/dist/index.html shots
 NODE_PATH="$(npm root -g)" node tools/compare.cjs http://127.0.0.1:8947/dist/index.html <实拍目录> <输出目录>
+NODE_PATH="$(npm root -g)" node tools/film.cjs http://127.0.0.1:8947/dist/index.html <输出目录> <署名页模板目录>   # 竖屏演示片逐帧；配乐与合成命令在 tools/demo-sound.py 文件头
 ```
 
 规格与验收条目见 [SPEC.md](SPEC.md)。`tools/compare.cjs` 要一份实拍照片（文件名见脚本），照片没有放进仓库，出处在 `facts.md` 文末。

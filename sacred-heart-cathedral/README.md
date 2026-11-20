@@ -18,6 +18,7 @@ node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8947/dist/index.html
 NODE_PATH="$(npm root -g)" node tools/shots.cjs http://127.0.0.1:8947/dist/index.html shots
 NODE_PATH="$(npm root -g)" node tools/compare.cjs http://127.0.0.1:8947/dist/index.html <photo-dir> <out-dir>
+NODE_PATH="$(npm root -g)" node tools/film.cjs http://127.0.0.1:8947/dist/index.html <out-dir> <end-card-template-dir>   # vertical demo film frames; sound and mux steps are at the top of tools/demo-sound.py
 ```
 
 Spec and acceptance items are in [SPEC.md](SPEC.md). `tools/compare.cjs` needs a folder of reference photographs (file names are in the script); the photographs are not in this repository, and their sources are listed at the end of `facts.md`.
