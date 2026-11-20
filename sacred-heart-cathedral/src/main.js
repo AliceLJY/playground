@@ -43,6 +43,8 @@ Object.assign(sun.shadow.camera, { left: -100, right: 100, top: 100, bottom: -10
 scene.add(hemi, sun, sun.target);
 
 const world = buildWorld(scene, { coarse });
+// 贴图一律开到显卡支持的各向异性上限（最多 16）：台阶、地面这种斜着看的石面不然会拉丝
+{ const an = Math.min(16, renderer.capabilities.getMaxAnisotropy()); scene.traverse(o => { for (const m of [].concat(o.material || [])) for (const k of ['map', 'bumpMap', 'roughnessMap', 'normalMap']) if (m[k]) m[k].anisotropy = an; }); }
 
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { samples: Q.get('msaa') ? +Q.get('msaa') : (coarse || (window.devicePixelRatio || 1) > 1.5 ? 2 : 4), type: THREE.HalfFloatType }));
 // 内部墙面的着色贵、又层层叠着：先只写一遍深度，再正式画，看不见的像素就不算了
@@ -101,11 +103,12 @@ function updateLight(dt) {
   const inside = S.zone === 'in', side = Math.max(light.east, light.west);
   sun.position.copy(sunDir).multiplyScalar(300); sun.target.position.set(0, 0, 0);
   tri(PAL.sun, t, sun.color); sun.intensity = inside ? 0 : 2.9;
+  const lv = k => quality === 'high' || Q.has(k) ? LV[k] : PHONE[k];
+  // 堂内专用的暖光与上部渐暗，里外都设：站在门口从门洞看进去时，堂内就已经是这个样子，跨进门不跳
+  WARM.uWarm.value.set(0.58, 0.44, 0.29).multiplyScalar(lv('warm')); WARM.uDim.value = lv('dim');
   if (inside) {
     // 里面不靠太阳直射：一个偏暗的环境光，再加彩窗投进来的色光
-    const lv = k => quality === 'high' || Q.has(k) ? LV[k] : PHONE[k];
     hemi.intensity = lv('hemi') + 0.12 * side; hemi.color.set('#ddd6ca').lerp(_cb.set('#ffcf90'), t > 0.5 ? (t - 0.5) * 0.7 : 0); hemi.groundColor.set('#8f8170');
-    WARM.uWarm.value.set(0.58, 0.44, 0.29).multiplyScalar(lv('warm')); WARM.uDim.value = lv('dim');
     scene.fog.color.set('#4a4338'); scene.fog.near = 30; scene.fog.far = 240;
     bloom.strength = LV.bloom; bloom.threshold = 0.9; renderer.toneMappingExposure = LV.exp;
   } else {

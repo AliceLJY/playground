@@ -106,7 +106,9 @@ export function buildExterior({ ext, coarse }) {
     const Y = C.YARD, pm = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, map: paveTex() }), { world: 0.16 });
     const yard = add(new THREE.PlaneGeometry(Y.x1 - Y.x0, Y.z1 - Y.z0), pm, (Y.x0 + Y.x1) / 2, G, (Y.z0 + Y.z1) / 2); yard.rotation.x = -Math.PI / 2; yard.castShadow = false;
     // 教堂的石基座与门前五级台阶
-    ES.box(0, G, (C.Z_FRONT + C.Z_APSE) / 2, C.CHAP * 2 + 1.4, -G, C.Z_FRONT - C.Z_APSE + 1.4, D); ES.box(0, G, (C.Z_CROSS0 + C.Z_CROSS1) / 2, C.TRANS * 2 + 1.4, -G, 12, D); ES.cyl(0, G, C.Z_APSE, C.APSE_R + 1.3, -G, D, 'oct');
+    // 基座顶面压低 4 毫米：原先和堂内地面、门前最上一级台阶、门洞的石槛同在 y=0，几层面叠在一起抢深度，镜头一动就一条条闪
+    const BT = -G - 0.004;
+    ES.box(0, G, (C.Z_FRONT + C.Z_APSE) / 2, C.CHAP * 2 + 1.4, BT, C.Z_FRONT - C.Z_APSE + 1.4, D); ES.box(0, G, (C.Z_CROSS0 + C.Z_CROSS1) / 2, C.TRANS * 2 + 1.4, BT, 12, D); ES.cyl(0, G, C.Z_APSE, C.APSE_R + 1.3, BT, D, 'oct');
     for (let k = 0; k < 5; k++) ES.box(0, G, 38.6 + C.STAIR / 2 * (5 - k) / 5 + 0.2, 31.5 - k * 0.2, -G * (k + 1) / 5, C.STAIR * (5 - k) / 5 + 0.4, k % 2 ? '#d9cfbb' : '#cfc5b0');
     for (const s of [-1, 1]) for (let k = 0; k < 4; k++) ES.box(s * (C.CHAP + 0.7 + (4 - k) * 0.22), G, C.naveMid(C.SIDE_DOOR_BAY), (4 - k) * 0.44 + 0.4, -G * (k + 1) / 4, 3.6, '#cfc5b0');
     // 一德路与铁栅、大门
@@ -275,11 +277,13 @@ export function buildExterior({ ext, coarse }) {
     if (n > 3) for (const e of [-1, 1]) { const qx = cx + e * gr * 1.9, qy = sp + oRise + 0.45; for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; E.hoop(qx + Math.cos(a) * 0.17, qy + Math.sin(a) * 0.17, ZF + 0.47, 0.13, A); } }
     // 门楣、门楣上的石花格、敞开的红门扇、门里的暗处
     ES.box(cx, doorH, back - 0.1, wd + 0.2, 0.3, 0.3, A); pane(M.tymp, cx, doorH + 0.3 + (sp + rise - doorH - 0.3) / 2, back - 0.12, wd + 0.1, sp + rise - doorH - 0.3, 0);
-    for (const e of [-1, 1]) E.box(cx + e * (wd / 2 - 0.05), 0, back - 0.2 - wd / 4, 0.09, doorH, wd / 2, '#7a2420');
+    for (const e of [-1, 1]) E.box(cx + e * (wd / 2 - 0.065), 0, back - 0.2 - wd / 4, 0.09, doorH, wd / 2, '#7a2420');   // 离门洞侧面 2 厘米，免得两面抢深度
     EV.box(cx, 0, back - wd / 2 - 0.6, wd + 0.8, doorH + 0.2, 0.1, '#120f0c'); EV.box(cx, 0.01, back - wd / 4 - 0.3, wd, 0.02, wd / 2 + 0.6, '#3a352e');
     return { ow, oRise, sp };
   }
   const main = portal(0, 3.1, 4.6, 3.4, 5, 15.6);
+  // 门槛石：比地面高 5 毫米，盖住门洞底下几层同在 y=0 的面（墙洞底、券脚、台阶顶），免得闪；前沿比台阶前沿缩 2 厘米
+  ES.box(0, -0.05, (37.0 + 39.5) / 2, 8.0, 0.055, 2.5, D); for (const s of [-1, 1]) ES.box(s * T.cx, -0.05, (37.6 + 39.5) / 2, 4.6, 0.055, 1.9, D);
   // 中间一跨：门、玫瑰窗、山花
   { const rs = C.WIN.rose; slab(ext, stone, { a: [-5.7, ZF - 0.35], b: [5.7, ZF - 0.35], y1: 25, gable: 6.9, thick: 0.7, holes: [{ u: 5.7, y: 0, w: main.ow, spring: main.sp, rise: main.oRise }, { u: 5.7, y: rs.y, r: rs.r + 0.3 }, { u: 5.7, y: 28.0, r: 1.05 }] });
     pane(M.rose, 0, rs.y, ZF - 0.5, rs.r * 2 + 0.7, rs.r * 2 + 0.7, 0); pane(M.roundLouver, 0, 28.0, ZF - 0.5, 2.2, 2.2, 0);
