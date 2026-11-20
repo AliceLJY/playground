@@ -74,6 +74,8 @@ Start with the [production and acceptance guide](AGENTS.md) and write a one-page
 
 Static toys only need a copy step. Anything needing a build gets its build command in that same workflow — see how `aju-guangzhou-ride` inlines its sources via `build.py`.
 
+Single-file 3D pages built by `tools/build.mjs` get a Content Security Policy as the first thing in `<head>`, via `withCsp()` from `tools/csp.mjs`: the page may only use the code and data inside the file, and the browser refuses every network request, outside image or font, so it is the browser that proves the page loads nothing from elsewhere. Copy the line from an existing build.mjs for a new page, then run `tools/csp-check.cjs` locally (usage at the top of the file) to confirm the policy blocks nothing the page needs.
+
 ## Local preview
 
 Each folder runs standalone over plain HTTP (ES modules need a real server, `file://` will not work):

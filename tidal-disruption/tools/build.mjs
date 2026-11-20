@@ -2,6 +2,7 @@
 // Usage: npm ci && node tools/build.mjs      (same recipe as diorama-walk/tools/build.mjs)
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { withCsp } from '../../tools/csp.mjs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -18,7 +19,7 @@ if (template.split(marker).length !== 2) throw new Error('index.template.html mu
 const threeLicense = readFileSync(path.join(root, 'node_modules/three/LICENSE'), 'utf8').trim();
 const notice = `<!--\nBundles Three.js (MIT):\n${threeLicense}\n-->\n`;
 // function replacers: a plain string would let "$&" and friends inside the bundle be read as replacement patterns
-const html = template.replace('<head>', () => '<head>\n' + notice).replace(marker, () => '<script>\n' + js + '\n</script>');
+const html = withCsp(template).replace('<head>', () => '<head>\n' + notice).replace(marker, () => '<script>\n' + js + '\n</script>');
 // an empty data: icon is allowed; it stops the browser asking the server for /favicon.ico
 if (/<script[^>]+src=|<link[^>]+href="(?!data:)/.test(html)) throw new Error('the page must not load anything from outside itself');
 mkdirSync(path.join(root, 'dist'), { recursive: true });
