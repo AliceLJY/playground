@@ -1,7 +1,7 @@
 // 石室圣心大教堂：外部。正立面与双塔、侧面的高窗与飞扶壁、小礼拜堂、横厅、后殿、屋面，以及院子和周边街区的大样。
 import * as THREE from 'three';
 import * as C from './core.js';
-import { rng, canvasTex, batcher, slab, archRingGeo, patch, graniteTexture, roundTexture } from './world.js';
+import { rng, canvasTex, batcher, slab, archRingGeo, archPts, sweepGeo, patch, graniteTexture, roundTexture } from './world.js';
 
 const STONE = '#cbb89c', LOUVER = '#6e2a26';
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
@@ -27,20 +27,42 @@ function twoLightTexture(fill, head, asp) {
 }
 const cellTex = (draw, w = 128, h = 128) => canvasTex(w, h, draw, { aniso: 8 });
 // 一排小尖券（盲券带、檐下的小券）：一格一个
-const arcadeTex = dark => cellTex((g, w, h) => { g.fillStyle = '#c4a97f'; g.fillRect(0, 0, w, h); g.fillStyle = dark; g.beginPath(); g.moveTo(w * 0.2, h); g.lineTo(w * 0.2, h * 0.42); g.quadraticCurveTo(w * 0.2, h * 0.14, w * 0.5, h * 0.06); g.quadraticCurveTo(w * 0.8, h * 0.14, w * 0.8, h * 0.42); g.lineTo(w * 0.8, h); g.fill(); g.strokeStyle = '#dcc7a2'; g.lineWidth = 5; g.stroke(); g.fillStyle = '#dcc7a2'; g.fillRect(0, 0, w * 0.08, h); g.fillRect(w * 0.92, 0, w * 0.08, h); g.fillStyle = '#00000030'; g.fillRect(0, h - 5, w, 5); }, 64, 128);
+// 盲券的一格：三叶形券头（券里两个小尖角）、券洞里上暗下亮的阴影，格与格之间一根带柱头柱础的细柱。
+// 照片正立面上这些券都是一格格三叶券加细柱；材质的凹凸取这张图的明暗，所以亮的柱子凸、暗的券洞凹。
+const arcadeTex = dark => cellTex((g, w, h) => {
+  g.fillStyle = '#c4a97f'; g.fillRect(0, 0, w, h);
+  const L = w * 0.17, Rr = w * 0.83, top = h * 0.1, sp = h * 0.42, mid = w / 2, head = () => { g.beginPath(); g.moveTo(L, h); g.lineTo(L, sp); g.quadraticCurveTo(L, top + h * 0.06, mid, top); g.quadraticCurveTo(Rr, top + h * 0.06, Rr, sp); g.lineTo(Rr, h); g.closePath(); };
+  head(); const gr = g.createLinearGradient(0, top, 0, h); gr.addColorStop(0, '#3f3426'); gr.addColorStop(0.35, dark); gr.addColorStop(1, '#a58c66'); g.fillStyle = gr; g.fill();
+  g.fillStyle = '#c4a97f'; for (const x of [L + w * 0.06, Rr - w * 0.06]) { g.beginPath(); g.moveTo(x, sp - h * 0.02); g.lineTo(x + (x < mid ? w * 0.12 : -w * 0.12), sp - h * 0.06); g.lineTo(x, sp - h * 0.12); g.fill(); }   // 三叶券的小尖角
+  g.strokeStyle = '#e2cfab'; g.lineWidth = 4; head(); g.stroke(); g.strokeStyle = 'rgba(60,45,30,.45)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(L + 3, h); g.lineTo(L + 3, sp); g.stroke();
+  for (const x of [0, w]) { const cg = g.createLinearGradient(x - w * 0.09, 0, x + w * 0.09, 0); cg.addColorStop(0, '#b39771'); cg.addColorStop(0.45, '#eedcb8'); cg.addColorStop(1, '#9c815c'); g.fillStyle = cg; g.fillRect(x - w * 0.09, sp - h * 0.02, w * 0.18, h); g.fillStyle = '#e8d5b0'; g.fillRect(x - w * 0.13, sp - h * 0.07, w * 0.26, h * 0.06); g.fillRect(x - w * 0.12, h - h * 0.06, w * 0.24, h * 0.06); }
+  g.fillStyle = '#00000038'; g.fillRect(0, h - 4, w, 4); g.fillStyle = '#e6d3ae'; g.fillRect(0, 0, w, 3);
+}, 64, 128);
 // 镂空的栏杆：一格一个四叶孔
 const balTex = () => cellTex((g, w, h) => { g.fillStyle = '#cdb38a'; g.fillRect(0, 0, w, h); g.globalCompositeOperation = 'destination-out'; for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; g.beginPath(); g.arc(w / 2 + Math.cos(a) * w * 0.16, h * 0.52 + Math.sin(a) * w * 0.16, w * 0.15, 0, 7); g.fill(); } g.globalCompositeOperation = 'source-over'; g.fillStyle = '#b89c72'; g.fillRect(0, 0, w, h * 0.1); g.fillRect(0, h * 0.9, w, h * 0.1); g.fillRect(0, 0, w * 0.07, h); g.fillRect(w * 0.93, 0, w * 0.07, h); }, 96, 96);
 const tileTex = () => canvasTex(256, 256, (g, w, h) => { const r = rng(4); g.fillStyle = '#7b756b'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) { for (let x = 0; x < w; x += 10) { g.fillStyle = `hsl(${30 + r() * 10} ${7 + r() * 8}% ${38 + r() * 13}%)`; g.fillRect(x, y, 9, 15); } g.fillStyle = '#0000003a'; g.fillRect(0, y + 14, w, 2); } });
 const paveTex = () => canvasTex(256, 256, (g, w, h) => { const r = rng(6); g.fillStyle = '#a9a59c'; g.fillRect(0, 0, w, h); for (let j = 0; j < 4; j++) for (let i = 0; i < 2; i++) { g.fillStyle = `hsl(40 5% ${63 + r() * 3.5}%)`; g.fillRect(i * 128 + (j % 2) * 64 - 64 + 1, j * 64 + 1, 126, 62); g.fillRect(i * 128 + (j % 2) * 64 + 192 + 1, j * 64 + 1, 126, 62); } for (let i = 0; i < 4000; i++) { g.fillStyle = r() < 0.5 ? '#00000010' : '#ffffff14'; g.fillRect(r() * w, r() * h, 1.5, 1.5); } });
-const cityTex = () => canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let j = 0; j < 6; j++) for (let i = 0; i < 6; i++) { g.fillStyle = '#6d6a66'; g.fillRect(i * 21 + 6, j * 21 + 5, 10, 12); g.fillStyle = '#cfc8ba'; g.fillRect(i * 21 + 4, j * 21 + 17, 14, 2); } });
+// 院外住宅楼的外墙：一格 3 米一层、3 米一开间，四层四间一张图（12 米见方）。窗有框和窗台，
+// 一些窗拉着窗帘、一些开着，挂空调外机，楼板一道浅色线，窗下有水渍。实拍西南俯瞰里周边就是这种白、米色的居民楼。
+const cityTex = () => canvasTex(256, 256, (g, w, h) => { const r = rng(12); g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 2500; i++) { g.fillStyle = r() < 0.5 ? 'rgba(0,0,0,.05)' : 'rgba(255,255,255,.06)'; g.fillRect(r() * w, r() * h, 2, 2); }
+  for (let j = 0; j < 4; j++) { const y = j * 64; g.fillStyle = '#e9e6df'; g.fillRect(0, y + 58, w, 6); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, y + 57, w, 1);
+    for (let i = 0; i < 4; i++) { const x = i * 64, kind = r(), ww = kind < 0.25 ? 40 : 30, wx = x + (64 - ww) / 2;
+      g.fillStyle = 'rgba(90,70,50,.10)'; g.fillRect(wx + 4, y + 44, ww - 8, 14);                                         // 窗下水渍
+      g.fillStyle = '#d8d4cc'; g.fillRect(wx - 3, y + 9, ww + 6, 36);                                                      // 窗框
+      const glass = kind < 0.12 ? '#3a4650' : kind < 0.55 ? '#55626b' : kind < 0.8 ? '#6d7880' : '#4a4a48'; g.fillStyle = glass; g.fillRect(wx, y + 12, ww, 30);
+      if (r() < 0.4) { g.fillStyle = r() < 0.5 ? '#c9c2b0' : '#b8b0a0'; g.fillRect(wx + (r() < 0.5 ? 0 : ww / 2), y + 12, ww / 2, 30); }   // 窗帘
+      g.fillStyle = '#e4e1da'; g.fillRect(wx + ww / 2 - 1, y + 12, 2, 30); g.fillRect(wx - 4, y + 42, ww + 8, 3);                  // 中梃、窗台
+      if (r() < 0.45) { g.fillStyle = '#f2f1ee'; g.fillRect(wx + ww + 3, y + 30, 13, 10); g.fillStyle = '#9c9a94'; g.beginPath(); g.arc(wx + ww + 9.5, y + 35, 3, 0, 7); g.fill(); }   // 空调外机
+    } } });
 const tympTex = () => canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#bfa47a'; g.fillRect(0, 0, w, h); g.strokeStyle = '#3a3026'; g.fillStyle = '#3a3026'; const c = w / 2, cy = h * 0.5; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.beginPath(); g.arc(c + Math.cos(a) * 46, cy + Math.sin(a) * 46, 15, 0, 7); g.fill(); } g.beginPath(); g.arc(c, cy, 20, 0, 7); g.fill(); g.lineWidth = 6; g.strokeStyle = '#d8c39c'; g.beginPath(); g.arc(c, cy, 72, 0, 7); g.stroke(); for (const sx of [-1, 1]) { g.fillStyle = '#3a3026'; g.beginPath(); g.arc(c + sx * 92, h * 0.86, 13, 0, 7); g.fill(); } }, { wrap: false });
 const fenceTex = () => cellTex((g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#8a2a22'; for (let x = 6; x < w; x += 16) { g.fillRect(x, h * 0.08, 4, h * 0.92); g.beginPath(); g.moveTo(x - 3, h * 0.1); g.lineTo(x + 2, 0); g.lineTo(x + 7, h * 0.1); g.fill(); } g.fillRect(0, h * 0.2, w, 5); g.fillRect(0, h * 0.82, w, 5); g.strokeStyle = '#8a2a22'; g.lineWidth = 3; g.beginPath(); g.arc(w / 2, h * 0.52, w * 0.2, 0, 7); g.stroke(); });
 
 export function buildExterior({ ext, coarse }) {
   const R = rng(1888), G = C.GROUND;
-  const gran = graniteTexture(STONE, 11);
-  const stone = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.93, map: gran }), { world: 0.2 });
-  const stone2 = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.93, map: gran, side: THREE.DoubleSide }), { world: 0.2 });
+  const gran = graniteTexture(STONE, 11, { joint: 0.08, vary: 0.7 }); gran.userData.bumpScale = 1.1;
+  const stone = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.93, map: gran }), { world: 0.2, grime: 1 });
+  const stone2 = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.93, map: gran, side: THREE.DoubleSide }), { world: 0.2, grime: 1 });
   const plain = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 });
   const roofMat = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, map: tileTex(), side: THREE.DoubleSide }), { world: 0.45 });
   const E0 = batcher(ext, plain), ES = batcher(ext, stone);
@@ -54,8 +76,10 @@ export function buildExterior({ ext, coarse }) {
   const insts = new Map(), inst = (key, mk, mat, x, y, z, ry = 0, sx = 1) => { let o = insts.get(key); if (!o) insts.set(key, o = { geo: mk(), mat, list: [] }); o.list.push([x, y, z, ry, sx]); };
   const ring = (w, spring, rise, band, depth, x, y, z, ry = 0) => inst(`r${w}/${spring}/${rise}/${band}/${depth}`, () => archRingGeo(w, spring, rise, band, depth), stone, x, y, z, ry);
   const rPos = [], quad = (...p) => { for (const i of [0, 1, 2, 0, 2, 3]) rPos.push(...p[i]); }, tri = (...p) => { for (const q of p) rPos.push(...q); };
-  const mkPane = (tex, alpha) => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, transparent: !!alpha, alphaTest: alpha ? 0.5 : 0, side: THREE.DoubleSide });
-  const bandMat = (tex, alpha) => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, alphaTest: alpha ? 0.5 : 0, side: THREE.DoubleSide });
+  // 贴图本身的明暗当高度：花格、券边亮的地方凸出来，玻璃、券洞暗的地方凹进去，侧光下有浮雕感
+  const bumpOf = tex => { const b = new THREE.CanvasTexture(tex.image); b.wrapS = tex.wrapS; b.wrapT = tex.wrapT; b.repeat.copy(tex.repeat); b.anisotropy = 4; return b; };
+  const mkPane = (tex, alpha) => new THREE.MeshStandardMaterial({ map: tex, bumpMap: bumpOf(tex), bumpScale: 2.5, roughness: 0.6, transparent: !!alpha, alphaTest: alpha ? 0.5 : 0, side: THREE.DoubleSide });
+  const bandMat = (tex, alpha) => new THREE.MeshStandardMaterial({ map: tex, bumpMap: bumpOf(tex), bumpScale: 3, roughness: 0.92, alphaTest: alpha ? 0.5 : 0, side: THREE.DoubleSide });
   const M = {
     glass2: mkPane(twoLightTexture('glass', 'quatre', 2.6)), louver2: mkPane(twoLightTexture('louver', 'quatre', 2.6)), belfryRose: mkPane(twoLightTexture('louver', 'rose', 2.7)), belfryClock: mkPane(twoLightTexture('louver', 'clock', 2.7)),
     rose: mkPane(roundTexture(3, 'rose', { stone: '#d6bf98', dark: true }), true), roundLouver: mkPane(canvasTex(128, 128, (g, w) => { g.clearRect(0, 0, w, w); g.beginPath(); g.arc(64, 64, 62, 0, 7); g.clip(); g.fillStyle = LOUVER; g.fillRect(0, 0, w, w); for (let y = 0; y < w; y += 9) { g.fillStyle = '#3d1513'; g.fillRect(0, y, w, 3); } }, { wrap: false }), true),
@@ -101,14 +125,59 @@ export function buildExterior({ ext, coarse }) {
     E.cyl(F.x, G, F.z, F.r, 0.5, '#d6d0c2'); E.cyl(F.x, G + 0.42, F.z, F.r - 0.3, 0.1, '#4f8ea6'); E.cyl(F.x, G, F.z, 0.5, 1.3, '#cfc8b8'); E.ball(F.x, G + 1.5, F.z, 0.45, '#cfc8b8'); E.cyl(F.x, G + 0.01, F.z, F.r + 2.2, 0.04, '#b9aa9a'); }
   // 树：西侧一排大树，广场东边一排小树，花园里几棵
   const trees = []; for (let z = -44; z <= 34; z += 9.5) trees.push([-27 - R() * 3, z + R() * 3, 1.5 + R() * 0.4]); for (let z = 46; z <= 76; z += 10) trees.push([24, z, 0.75]); for (const [x, z] of [[24, -22], [40, -18], [38, -2], [24, 0], [-12, -48], [10, -47], [30, -46], [-40, 30], [-40, 5], [-41, -22]]) trees.push([x, z, 1.1 + R() * 0.4]);
-  for (const [x, z, s] of trees) { E.cyl(x, G, z, 0.3 * s, 4.2 * s, '#5d4a35'); const gcol = ['#35602f', '#3f6d34', '#476f36', '#2f5a2c']; for (let k = 0; k < 11; k++) { const an = R() * 6.283, d = 0.6 + R() * 2.6, hh = 5.2 + R() * 3.4 - d * 0.35; E.ball(x + Math.cos(an) * d * s, G + hh * s, z + Math.sin(an) * d * s, (1.5 + R() * 1.2) * s, gcol[Math.floor(R() * 4)], 0.8); } }
+  // 树：主干往上分三四根枝，每根枝头一团叶簇；叶簇是若干张带透明叶片贴图的交叉面片，里面垫一个暗绿的低面数实心，
+  // 法线一律从树冠中心朝外，整棵树像一个蓬松的团块那样受光（不是一个个球）。树种是示意。
+  for (let i = 0; i < trees.length * 55; i++) R();        // 院外楼的随机摆放照旧（以前这里每棵树取 55 次随机数）
+  { const RT = rng(2024), pos = [], nor = [], uv = [], col = [], idx = [], fill = [], fillCol = [];
+    const leafTex = canvasTex(256, 256, (g, w, h) => { const r = rng(31); g.clearRect(0, 0, w, h);
+      for (let i = 0; i < 520; i++) { const a = r() * 6.283, d = Math.pow(r(), 0.6) * w * 0.45, x = w / 2 + Math.cos(a) * d, y = h / 2 + Math.sin(a) * d * 0.9, l = 9 + r() * 9;
+        g.save(); g.translate(x, y); g.rotate(r() * 6.283); g.fillStyle = `hsl(${92 + r() * 30} ${32 + r() * 22}% ${18 + r() * 22 + (1 - d / (w * 0.45)) * 8}%)`; g.beginPath(); g.ellipse(0, 0, l * 0.42, l, 0, 0, 7); g.fill(); g.restore(); } }, { wrap: false, aniso: 4 });
+    const card = (cx, cy, cz, size, tc, shade) => {
+      const a = RT() * Math.PI, tilt = (RT() - 0.5) * 1.2, ux = Math.cos(a), uz = Math.sin(a), vy = Math.cos(tilt), vh = Math.sin(tilt), b = pos.length / 3;
+      for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const px = cx + ux * u * size / 2 - uz * vh * v * size / 2, py = cy + vy * v * size / 2, pz = cz + uz * u * size / 2 + ux * vh * v * size / 2;
+        pos.push(px, py, pz); let nx = px - tc[0], ny = (py - tc[1]) * 0.8 + 0.6, nz = pz - tc[2]; const l = Math.hypot(nx, ny, nz); nor.push(nx / l, ny / l, nz / l); uv.push((u + 1) / 2, (v + 1) / 2);
+        const k = shade * (0.62 + 0.38 * THREE.MathUtils.clamp((py - tc[1]) / (size * 2) + 0.5, 0, 1)); col.push(k, k, k);
+      }
+      idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    };
+    for (const [x, z, s] of trees) {
+      const top = G + 4.2 * s, tc = [x, G + 6.6 * s, z], nb = 3 + Math.floor(RT() * 2);
+      E.rod([x, G, z], [x + (RT() - 0.5) * 0.3 * s, top, z + (RT() - 0.5) * 0.3 * s], 0.34 * s, '#4d3d2c', 'taper');
+      const heads = [[x, G + 8.4 * s, z]];
+      for (let k = 0; k < nb; k++) { const a = k / nb * 6.283 + RT() * 0.8, d = (1.6 + RT() * 0.9) * s, hh = (5.6 + RT() * 1.6) * s, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d;
+        E.rod([x, top - 0.6 * s, z], [hx, G + hh, hz], 0.16 * s, '#4d3d2c', 'taper'); heads.push([hx, G + hh + 0.6 * s, hz]); }
+      for (const [hx, hy, hz] of heads) {
+        const cr = (1.7 + RT() * 0.6) * s; fill.push([hx, hy, hz, cr * 0.6]); fillCol.push(0.6 + RT() * 0.25);
+        for (let c = 0; c < 14; c++) { const a = RT() * 6.283, el = (RT() - 0.35) * 1.4, d = cr * (0.45 + RT() * 0.5); card(hx + Math.cos(a) * Math.cos(el) * d, hy + Math.sin(el) * d * 0.75, hz + Math.sin(a) * Math.cos(el) * d, cr * (0.8 + RT() * 0.45), tc, 0.8 + RT() * 0.35); }
+      }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx);
+    const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, vertexColors: true, roughness: 0.95 });
+    leafMat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', '')); };   // 背面也用朝外的法线
+    const leaves = new THREE.Mesh(g, leafMat); leaves.castShadow = leaves.receiveShadow = true; leaves.frustumCulled = false; ext.add(leaves);
+    // 叶簇里面垫的实心：二十面体，压扁一点，暗绿
+    const fg = new THREE.IcosahedronGeometry(1, 1), fm = new THREE.InstancedMesh(fg, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: false }), fill.length);
+    fill.forEach(([fx, fy, fz, fr], i) => { _m.compose(_p.set(fx, fy, fz), _q.setFromEuler(_e.set(0, RT() * 3, 0)), _s.set(fr, fr * 0.8, fr)); fm.setMatrixAt(i, _m); fm.setColorAt(i, new THREE.Color('#33582b').multiplyScalar(fillCol[i])); });
+    fm.castShadow = fm.receiveShadow = true; fm.frustumCulled = false; ext.add(fm); }
   // 院子外面的城：全是示意的方盒子，近处矮、远处高
   let cityMesh = null; const city = [], TONES = ['#d6d0c4', '#c9c3b6', '#d9d5cc', '#bfb9ac', '#d2c9b8', '#c6beb0', '#b9b3a8', '#d8cab4'], Y = C.YARD;
   for (let gx = -9; gx <= 9; gx++) for (let gz = -8; gz <= 9; gz++) { const x = gx * 34 + (R() - 0.5) * 8, z = gz * 34 + 8 + (R() - 0.5) * 8; if (x > Y.x0 - 16 && x < Y.x1 + 16 && z > Y.z0 - 16 && z < Y.z1 + 26) continue; if (Math.abs(z - (Y.z1 + 8)) < 20) continue;
     const d = Math.hypot(x, z), tall = R() < (d > 230 ? 0.3 : d > 170 ? 0.12 : 0), hgt = tall ? 55 + R() * 70 : (d < 120 ? 9 + R() * 14 : 12 + R() * 22), w = tall ? 20 + R() * 8 : 20 + R() * 12, dp = tall ? 20 + R() * 8 : 18 + R() * 12; city.push({ x, z, sx: w, sy: hgt, sz: dp, color: TONES[Math.floor(R() * TONES.length)] }); }
   for (let x = -230; x <= 230; x += 15.5) if (Math.abs(x) > 2) { const hgt = 13 + Math.floor(R() * 3) * 3.4; city.push({ x, z: Y.z1 + 23, sx: 15, sy: hgt, sz: 14, color: TONES[Math.floor(R() * TONES.length)] }); for (const o of [-5, 0, 5]) E.box(x + o, G, Y.z1 + 15.8, 0.6, 4.2, 0.6, '#d9d2c2'); E.box(x, G + 4.2, Y.z1 + 17.2, 15, hgt - 4.2, 3.4, '#e2dccf'); }      // 一德路南侧的骑楼（示意）
-  { const ct = cityTex(), side = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, map: ct }), { world: 0.085 }), top = new THREE.MeshStandardMaterial({ color: '#bdb7ab', roughness: 1 }), cm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), [side, side, top, top, side, side], city.length), col = new THREE.Color();
-    city.forEach((c, i) => { _m.compose(_p.set(c.x, G + c.sy / 2, c.z), _q.identity(), _s.set(c.sx, c.sy, c.sz)); cm.setMatrixAt(i, _m); cm.setColorAt(i, col.set(c.color)); }); cm.castShadow = cm.receiveShadow = true; cm.frustumCulled = false; ext.add(cm); cityMesh = cm; }
+  // 每栋楼再加几样让它不像方盒子的东西：首层一圈深色的店面、顶上一圈挑出的檐口、高楼收一道退台、屋顶的楼梯间和水箱
+  const extra = [], RC = rng(515);
+  for (const c of city) {
+    const y0 = G, y1 = G + c.sy, cc = c.color; if (c.sy < 6) continue;
+    extra.push([c.x, y0, c.z, c.sx + 0.3, 3.6, c.sz + 0.3, '#6f6a62']);                                                   // 首层店面
+    extra.push([c.x, y1 - 0.2, c.z, c.sx + 0.9, 0.55, c.sz + 0.9, '#e6e1d6']);                                            // 檐口
+    if (!c.upper && c.sy > 40 && RC() < 0.7) { const k = 0.72 + RC() * 0.12, hh = 6 + RC() * 10; city.push({ x: c.x + (RC() - 0.5) * c.sx * 0.15, z: c.z + (RC() - 0.5) * c.sz * 0.15, sx: c.sx * k, sy: c.sy + hh, sz: c.sz * k, color: cc, upper: true }); }
+    for (let k = 0, n = 1 + Math.floor(RC() * 2); k < n; k++) { const bw = 3 + RC() * 4, bh = 2.4 + RC() * 1.6; extra.push([c.x + (RC() - 0.5) * (c.sx - bw - 1), y1 + 0.35, c.z + (RC() - 0.5) * (c.sz - bw - 1), bw, bh, bw * (0.6 + RC() * 0.5), RC() < 0.3 ? '#8f9aa0' : '#d4cfc4']); }
+  }
+  { const ct = cityTex(), side = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, map: ct }), { world: 1 / 12, grime: 0.6 }), top = new THREE.MeshStandardMaterial({ color: '#bdb7ab', roughness: 1 }), cm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), [side, side, top, top, side, side], city.length), col = new THREE.Color();
+    city.forEach((c, i) => { _m.compose(_p.set(c.x, G + c.sy / 2, c.z), _q.identity(), _s.set(c.sx, c.sy, c.sz)); cm.setMatrixAt(i, _m); cm.setColorAt(i, col.set(c.color)); }); cm.castShadow = cm.receiveShadow = true; cm.frustumCulled = false; ext.add(cm); cityMesh = cm;
+    const em = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 }), extra.length);
+    extra.forEach(([x, y, z, sx, sy, sz, c], i) => { _m.compose(_p.set(x, y + sy / 2, z), _q.identity(), _s.set(sx, sy, sz)); em.setMatrixAt(i, _m); em.setColorAt(i, col.set(c)); }); em.castShadow = em.receiveShadow = true; em.frustumCulled = false; cm.add(em); }
 
   // ===== 中殿、侧廊、小礼拜堂、飞扶壁 =====
   const bays = []; for (let k = 0; k < C.NAVE_BAYS; k++) bays.push({ z0: C.naveLine(k), len: C.NAVE_BAY, door: k === C.SIDE_DOOR_BAY }); for (let j = 0; j < C.CH_BAYS; j++) bays.push({ z0: C.chLine(j), len: C.CH_BAY });
@@ -187,13 +256,21 @@ export function buildExterior({ ext, coarse }) {
   // ===== 正立面与双塔 =====
   const ZF = 38.6, T = C.TOWER;
   // 一座往里层层收进的尖券门：n 道券，每道往里退一步；门上一个带卷叶的尖山花
+  const rolls = [], ROLL = [[-1, -0.2], [-0.92, 0.38], [-0.6, 0.8], [0, 1], [0.6, 0.8], [0.92, 0.38], [1, -0.2]];
   function portal(cx, wd, sp, rise, n, gApex) {
     const bw = 0.32, step = 0.3, back = ZF - n * step, ow = wd + 2 * bw * n, oRise = rise + bw * n, doorH = sp - 0.1;
     for (let i = 0; i < n; i++) { ring(wd + 2 * bw * i, sp, rise + bw * i, bw, step + 0.02, cx, 0, back + i * step);
-      for (const e of [-1, 1]) { const x = cx + e * (wd / 2 + bw * i + bw * 0.55), z = back + i * step + step; E.cyl(x, 0.5, z, 0.085, sp - 0.75, A); E.cyl(x, 0, z, 0.14, 0.5, D, 'oct'); E.ball(x, sp - 0.12, z, 0.15, A, 1.1); } }
+      for (const e of [-1, 1]) { const x = cx + e * (wd / 2 + bw * i + bw * 0.55), z = back + i * step + step; E.cyl(x, 0.5, z, 0.085, sp - 0.85, A); E.cyl(x, 0, z, 0.14, 0.5, D, 'oct'); E.cyl(x, sp - 0.36, z, 0.17, 0.3, A, 'flare'); ES.box(x, sp - 0.06, z, 0.38, 0.1, 0.34, A); E.ball(x + e * 0.1, sp - 0.16, z + 0.08, 0.06, A); E.ball(x - e * 0.1, sp - 0.16, z + 0.08, 0.06, A); }
+      // 每道券的边上一条圆线脚；隔一道在凹处排一串球花（照片里门券一圈圈都有雕饰，具体纹样查不到，这是示意）
+      const arc = archPts(wd + 2 * bw * i + bw * 0.15, sp, rise + bw * i + bw * 0.07, 16, 0, cx).slice(1, -1).map(([x, y]) => [x, y, back + i * step + step + 0.02]);
+      rolls.push({ pts: arc, nOf: () => [0, 0, 1], profile: ROLL, r: 0.075 });
+      if (i % 2 === 1 || n === 3) { const mid = archPts(wd + 2 * bw * i + bw * 1.05, sp, rise + bw * i + bw * 0.52, 40, 0, cx).slice(1, -1); let acc = 0; for (let k = 1; k < mid.length; k++) { acc += Math.hypot(mid[k][0] - mid[k - 1][0], mid[k][1] - mid[k - 1][1]); if (acc > 0.34) { acc = 0; E.ball(mid[k][0], mid[k][1], back + i * step + step + 0.05, 0.075, A, 1); } } } }
     slab(ext, stone, { a: [cx - ow / 2 - 0.75, ZF + 0.2], b: [cx + ow / 2 + 0.75, ZF + 0.2], y1: sp + 0.8, gable: gApex - sp - 0.8, thick: 0.5, holes: [{ u: ow / 2 + 0.75, y: 0, w: ow, spring: sp, rise: oRise }] });
     const hw = ow / 2 + 0.75; crockets(cx - hw, sp + 0.9, cx, gApex + 0.1, ZF + 0.3, 8, 0.16); crockets(cx + hw, sp + 0.9, cx, gApex + 0.1, ZF + 0.3, 8, 0.16); finial(cx, gApex, ZF + 0.2, 1.3);
-    const gy = (sp + oRise + gApex) / 2 - 0.3; E.hoop(cx, gy, ZF + 0.47, Math.min(0.75, (gApex - sp - oRise) * 0.2), A); E.hoop(cx, gy, ZF + 0.47, Math.min(0.75, (gApex - sp - oRise) * 0.2) * 0.45, A);
+    const gy = (sp + oRise + gApex) / 2 - 0.3, gr = Math.min(0.75, (gApex - sp - oRise) * 0.2); E.hoop(cx, gy, ZF + 0.47, gr, A); E.hoop(cx, gy, ZF + 0.47, gr * 0.45, A);
+    // 山花里的圆花饰：一圈小圆瓣（正立面照片中门山花里是一个多瓣的圆花饰，两边各一个四叶）
+    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + Math.PI / 6; E.hoop(cx + Math.cos(a) * gr * 0.68, gy + Math.sin(a) * gr * 0.68, ZF + 0.47, gr * 0.27, A); }
+    if (n > 3) for (const e of [-1, 1]) { const qx = cx + e * gr * 1.9, qy = sp + oRise + 0.45; for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; E.hoop(qx + Math.cos(a) * 0.17, qy + Math.sin(a) * 0.17, ZF + 0.47, 0.13, A); } }
     // 门楣、门楣上的石花格、敞开的红门扇、门里的暗处
     ES.box(cx, doorH, back - 0.1, wd + 0.2, 0.3, 0.3, A); pane(M.tymp, cx, doorH + 0.3 + (sp + rise - doorH - 0.3) / 2, back - 0.12, wd + 0.1, sp + rise - doorH - 0.3, 0);
     for (const e of [-1, 1]) E.box(cx + e * (wd / 2 - 0.05), 0, back - 0.2 - wd / 4, 0.09, doorH, wd / 2, '#7a2420');
@@ -265,6 +342,7 @@ export function buildExterior({ ext, coarse }) {
   for (const [mat, arr] of panes) { const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, arr.length); arr.forEach(([x, y, z, w, h, ry], i) => { _m.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(0, ry, 0)), _s.set(w, h, 1)); mesh.setMatrixAt(i, _m); }); mesh.frustumCulled = false; mesh.receiveShadow = true; ext.add(mesh); }
   for (const o of insts.values()) { const mesh = new THREE.InstancedMesh(o.geo, o.mat, o.list.length); o.list.forEach(([x, y, z, ry, sx], i) => { _m.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(0, ry, 0)), _s.set(sx, 1, 1)); mesh.setMatrixAt(i, _m); }); mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false; ext.add(mesh); }
   { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(rPos, 3)); g.computeVertexNormals(); const m = new THREE.Mesh(g, roofMat); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; ext.add(m); }
+  { const m = new THREE.Mesh(sweepGeo(rolls), stone); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; ext.add(m); }
   ES.build(); E0.build();
   return { city: cityMesh, counts: { spires, buttresses: C.BUTTRESS.length, cityBoxes: city.length, trees: trees.length } };
 }
