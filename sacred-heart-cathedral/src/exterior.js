@@ -66,6 +66,8 @@ export function buildExterior({ ext, coarse }) {
   const plain = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 });
   const roofMat = patch(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95, map: tileTex(), side: THREE.DoubleSide }), { world: 0.45 });
   const E0 = batcher(ext, plain), ES = batcher(ext, stone);
+  // 门里的暗处单独一组：走近正门时堂内会一起画出来（见 main.js 的 peek），那时把这块暗板藏掉，从门洞看得见中殿
+  const voids = new THREE.Group(); voids.name = 'door-voids'; ext.add(voids); const EV = batcher(voids, plain, { cast: false });
   const A = '#fff7e6', B = '#efe2c8', D = '#dccaa8', DK = '#2a2622';
   // 石色的小部件也走带石纹的材质，免得比墙面白一截
   const E = new Proxy({}, { get: (_, k) => (...args) => { const col = args.find(v => typeof v === 'string' && v[0] === '#'); return (col === A || col === B || col === D ? ES : E0)[k](...args); } });
@@ -274,7 +276,7 @@ export function buildExterior({ ext, coarse }) {
     // 门楣、门楣上的石花格、敞开的红门扇、门里的暗处
     ES.box(cx, doorH, back - 0.1, wd + 0.2, 0.3, 0.3, A); pane(M.tymp, cx, doorH + 0.3 + (sp + rise - doorH - 0.3) / 2, back - 0.12, wd + 0.1, sp + rise - doorH - 0.3, 0);
     for (const e of [-1, 1]) E.box(cx + e * (wd / 2 - 0.05), 0, back - 0.2 - wd / 4, 0.09, doorH, wd / 2, '#7a2420');
-    E.box(cx, 0, back - wd / 2 - 0.6, wd + 0.8, doorH + 0.2, 0.1, '#120f0c'); E.box(cx, 0.01, back - wd / 4 - 0.3, wd, 0.02, wd / 2 + 0.6, '#3a352e');
+    EV.box(cx, 0, back - wd / 2 - 0.6, wd + 0.8, doorH + 0.2, 0.1, '#120f0c'); EV.box(cx, 0.01, back - wd / 4 - 0.3, wd, 0.02, wd / 2 + 0.6, '#3a352e');
     return { ow, oRise, sp };
   }
   const main = portal(0, 3.1, 4.6, 3.4, 5, 15.6);
@@ -335,14 +337,15 @@ export function buildExterior({ ext, coarse }) {
       E.cyl(cx, y1 - 0.1, cz, 0.3, 0.3, A, 'oct'); E.ball(cx, y1 + 0.45, cz, 0.42, B, 1.15); E.ball(cx, y1 + 0.95, cz, 0.2, B);
       const top = T.h + G + 3.4; E.cyl(cx, y1 + 1.0, cz, 0.035, top - y1 - 1.0, DK); E.box(cx, top - 0.75, cz, 0.9, 0.05, 0.05, DK); E.hoop(cx, top - 0.75, cz, 0.24, DK); for (const [dx, dy] of [[0.45, 0], [-0.45, 0], [0, 0.6]]) E.ball(cx + dx, top - 0.73 + dy, cz, 0.05, DK); }
   }
-  // 门前台阶两侧、塔与中跨之间贴地的勒脚线
-  course([-14.6, ZF], [14.6, ZF], 0.9, 0.3, 0.2, [0, 1], D);
+  // 门前台阶两侧、塔与中跨之间贴地的勒脚线；三座门洞处断开（原先一条横贯，门洞里齐膝横着一道石条）
+  { const sideW = 2.1 + 2 * 0.32 * 3, cuts = [[-T.cx - sideW / 2, -T.cx + sideW / 2], [-main.ow / 2, main.ow / 2], [T.cx - sideW / 2, T.cx + sideW / 2]]; let x0 = -14.6;
+    for (const [a, b] of cuts) { course([x0, ZF], [a, ZF], 0.9, 0.3, 0.2, [0, 1], D); x0 = b; } course([x0, ZF], [14.6, ZF], 0.9, 0.3, 0.2, [0, 1], D); }
 
   // ===== 收尾：把攒的东西建出来 =====
   for (const [mat, arr] of panes) { const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, arr.length); arr.forEach(([x, y, z, w, h, ry], i) => { _m.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(0, ry, 0)), _s.set(w, h, 1)); mesh.setMatrixAt(i, _m); }); mesh.frustumCulled = false; mesh.receiveShadow = true; ext.add(mesh); }
   for (const o of insts.values()) { const mesh = new THREE.InstancedMesh(o.geo, o.mat, o.list.length); o.list.forEach(([x, y, z, ry, sx], i) => { _m.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(0, ry, 0)), _s.set(sx, 1, 1)); mesh.setMatrixAt(i, _m); }); mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false; ext.add(mesh); }
   { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(rPos, 3)); g.computeVertexNormals(); const m = new THREE.Mesh(g, roofMat); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; ext.add(m); }
   { const m = new THREE.Mesh(sweepGeo(rolls), stone); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; ext.add(m); }
-  ES.build(); E0.build();
-  return { city: cityMesh, counts: { spires, buttresses: C.BUTTRESS.length, cityBoxes: city.length, trees: trees.length } };
+  ES.build(); E0.build(); EV.build();
+  return { city: cityMesh, voids, counts: { spires, buttresses: C.BUTTRESS.length, cityBoxes: city.length, trees: trees.length } };
 }

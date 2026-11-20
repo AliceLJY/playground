@@ -599,7 +599,7 @@ export function buildWorld(scene, { coarse = false } = {}) {
   scene.add(sky);
 
   return {
-    ext, int, sky, noPre, city: extInfo.city, rays: { vol: volMat, mesh: vol }, vaultMat, ribMat, eastMats, westMats, southMats, apseMats,
+    ext, int, sky, noPre, city: extInfo.city, doorVoids: extInfo.voids, rays: { vol: volMat, mesh: vol }, vaultMat, ribMat, eastMats, westMats, southMats, apseMats,
     counts: { piers: C.PIERS.length, ribs: ribCount, windows: [...winGroups.values()].reduce((a, b) => a + b.length, 0), pews: C.PEWS.length, ...extInfo.counts },
   };
 }

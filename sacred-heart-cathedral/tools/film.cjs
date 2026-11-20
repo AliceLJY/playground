@@ -34,14 +34,14 @@ function at(t) {
     cam = { pos: [tg[0] + dist * Math.sin(pol) * Math.sin(az), tg[1] + dist * Math.cos(pol), tg[2] + dist * Math.sin(pol) * Math.cos(az)], look: tg, fov: 52 };
   } else if (t < T.walk) {                               // B 正立面仰看：广场南端，镜头慢慢抬到塔尖
     const k = sm((t - T.facade) / (T.walk - T.facade));
-    cam = { pos: [0, GROUND + EYE, lerp(90, 83, k)], look: [0, lerp(20, 30, k), 38], fov: 66 };
+    cam = { pos: [0, GROUND + EYE, lerp(78.2, 75.8, k)], look: [0, lerp(15, 17.4, k), 38], fov: 70 };   // 站在广场南端（门洞里已能看见堂内）
   } else if (t < T.vault) {                              // C 从广场走上台阶、穿过中门进中殿，在中殿里慢下来
     const k = (t - T.walk) / (T.vault - T.walk), z = lerp(76, 25, trap(k, 0.1, 0.28));
     const y = groundOnAxis(z) + EYE;
     const lookY = z > 50 ? lerp(y + 6, y + 14, clamp((z - 50) / 26)) : lerp(y + 2.2, y + 6, clamp((z - 31) / 19));
     cam = { pos: [0, y, z], look: [0, lookY, z - 20], fov: 64 };
-    // 门里没画堂内（外面看门洞是黑的）：走到门口压暗，进门后再亮起来
-    dip = z >= 38 ? clamp((43.5 - z) / 3.5) : clamp((z - 34.5) / 3.5);
+    // 站在广场和台阶上时场景会一起画堂内（main.js 的 peek），门洞里看得见中殿；跨过门槛那一下里外换光，轻轻压暗一点遮住跳变（最暗也只到四成）
+    dip = 0.4 * clamp(1 - Math.abs(z - 38.4) / 1.4);
   } else if (t < T.glass) {                              // D2 停住抬头看肋拱
     const k = sm((t - T.vault) / (T.glass - T.vault)), z = 25 - 0.6 * k;
     const lk = lerp3([0, EYE + 2.2, z - 20], [0, 28, z - 6], k);
