@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+<body>
+<script>
+// 浏览器里模拟微信小游戏环境，只用于本地截图检查，不进小游戏包（project.config.json 已忽略 tools/）。
+// 用法：shim.html?safe={"left":47,"top":0,"right":797,"bottom":369}
+const shimQuery = new URLSearchParams(location.search);
+const shimSafe = JSON.parse(shimQuery.get('safe') || 'null');
+const shimHandlers = {};
+const shimStorage = new Map();
+let shimFirstCanvas = true;
+window.wx = {
+  getWindowInfo: () => ({windowWidth: innerWidth, windowHeight: innerHeight, pixelRatio: devicePixelRatio,
+    safeArea: shimSafe ? {...shimSafe, width: shimSafe.right - shimSafe.left, height: shimSafe.bottom - shimSafe.top} : null}),
+  createCanvas() {
+    const c = document.createElement('canvas');
+    if (shimFirstCanvas) { shimFirstCanvas = false; c.style.width = innerWidth + 'px'; c.style.height = innerHeight + 'px'; document.body.appendChild(c); }
+    return c;
+  },
+  getStorageSync: k => (shimStorage.has(k) ? shimStorage.get(k) : ''), setStorageSync: (k, v) => shimStorage.set(k, v),
+  onTouchStart: f => { shimHandlers.start = f; }, onTouchMove: f => { shimHandlers.move = f; },
+  onTouchEnd: f => { shimHandlers.end = f; }, onTouchCancel: f => { shimHandlers.cancel = f; },
+  onHide: f => { shimHandlers.hide = f; }, vibrateShort() {},
+};
+window.__wx = shimHandlers;
+const shimTouch = e => ({changedTouches: [{identifier: e.pointerId, clientX: e.clientX, clientY: e.clientY}]});
+addEventListener('pointerdown', e => shimHandlers.start(shimTouch(e)));
+addEventListener('pointermove', e => { if (e.buttons) shimHandlers.move(shimTouch(e)); });
+addEventListener('pointerup', e => shimHandlers.end(shimTouch(e)));
+</script>
+<script src="../game.js"></script>
+</body>
