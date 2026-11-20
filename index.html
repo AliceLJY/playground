@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>playground · 小试AI 的玩具架</title>
+<script>document.documentElement.classList.add('js')</script>
 <style>
   :root {
     --ink: #1f2328;
@@ -50,6 +51,48 @@
   .guide dt { color: var(--muted); white-space: nowrap; }
   .guide dd { margin: 0; min-width: 0; }
   .guide kbd { display: inline-block; min-width: 1.5em; padding: 0 .35em; margin: 0 .1em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--card); font: 600 .74rem/1.5 ui-monospace, Menlo, monospace; text-align: center; }
+  /* 落地页：先看有哪几块，点进去只看那一块。没开 JS 时全部摊开（html 没有 .js） */
+  .boards, .boardbar { display: none; }
+  html.js .board { display: none; }
+  html.js .board.on { display: block; }
+  html.js .board .shelf { margin-top: 0; }
+  html.js[data-view="home"] .boards { display: grid; gap: 1rem; }
+  html.js[data-view="board"] .boardbar { display: flex; }
+  @media (min-width: 640px) { html.js[data-view="home"] .boards { grid-template-columns: 1fr 1fr; } }
+  a.tile {
+    display: flex; flex-direction: column; gap: .45rem; padding: 1.25rem 1.4rem 1.1rem;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    text-decoration: none; color: inherit; transition: transform .15s ease, border-color .15s ease;
+  }
+  a.tile:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .tile .top { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+  .tile .tt { font-size: 1.25rem; font-weight: 600; }
+  .tile .tt small { margin-left: .5rem; font-size: .85rem; font-weight: 400; color: var(--muted); }
+  .tile .n { font-size: 1.9rem; font-weight: 700; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .n small { font-size: .8rem; font-weight: 400; color: var(--muted); margin-left: .15rem; }
+  .tile .bl { margin: 0; font-size: .92rem; }
+  .tile .pv { margin: 0; font-size: .82rem; color: var(--muted); }
+  .tile .go { margin-top: auto; padding-top: .3rem; font-size: .85rem; color: var(--accent); }
+  @media (max-width: 639px) {
+    html.js[data-view="home"] body { padding-top: 1.75rem; }
+    html.js[data-view="home"] header { margin-bottom: 1.25rem; }
+    html.js[data-view="home"] .boards { gap: .7rem; }
+    a.tile { padding: .85rem 1.05rem .9rem; gap: .3rem; }
+    .tile .pv, .tile .go { display: none; }
+    .tile .n { font-size: 1.6rem; }
+    .tile .n::after { content: "›"; margin-left: .45rem; font-size: 1.3rem; font-weight: 400; color: var(--muted); }
+  }
+  .boardbar {
+    position: sticky; top: 0; z-index: 5; align-items: center; gap: .5rem .9rem; flex-wrap: wrap;
+    margin: -.5rem -1.25rem 1.5rem; padding: .6rem 1.25rem; background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .boardbar .back { color: var(--accent); text-decoration: none; font-size: .9rem; white-space: nowrap; }
+  .boardbar .chips { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .boardbar .chips a {
+    padding: .1rem .7rem; border: 1px solid var(--line); border-radius: 999px; font-size: .82rem;
+    color: var(--muted); text-decoration: none; white-space: nowrap; min-height: 32px; display: inline-flex; align-items: center;
+  }
+  .boardbar .chips a.on { color: var(--card); background: var(--accent); border-color: var(--accent); }
   footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
   footer a { color: var(--accent); }
 </style>
@@ -62,6 +105,10 @@
     <p class="sub" style="margin-top:.5rem"><a href="roadmap.html" style="color:var(--accent)">做了什么，接下来做什么 →</a></p>
   </header>
 
+  <nav class="boards" id="boards" aria-label="板块"></nav>
+  <nav class="boardbar" id="boardbar" aria-label="切换板块"><a class="back" href="#">← 所有板块</a><span class="chips"></span></nav>
+
+  <section class="board" id="games" data-blurb="动手玩的：拍、打、跑、配对、破案，点开就能玩。">
   <h2 class="shelf">小游戏<span class="note">上手玩</span></h2>
   <div class="grid">
     <a class="card" href="suisui/">
@@ -245,6 +292,9 @@
     </a>
   </div>
 
+  </section>
+
+  <section class="board" id="3d" data-blurb="代码搭出来的场景和建筑：转着看、走进去、拆开看。">
   <h2 class="shelf">3D 展页<span class="note">转着看</span></h2>
   <div class="grid">
     <a class="card" href="lens-lab/">
@@ -371,6 +421,9 @@
     </a>
   </div>
 
+  </section>
+
+  <section class="board" id="ai" data-blurb="AI 干活的过程，做成放着就能看懂的小片子和小场景。">
   <h2 class="shelf">AI 幕后<span class="note">放着看</span></h2>
   <div class="grid">
     <a class="card" href="dispatch-replay/">
@@ -410,6 +463,9 @@
     </a>
   </div>
 
+  </section>
+
+  <section class="board" id="tools" data-blurb="自己日常在用的小东西，装上就能用。">
   <h2 class="shelf">小工具<span class="note">装上用</span></h2>
   <div class="grid">
     <a class="card" href="phone-keyboard/">
@@ -419,9 +475,44 @@
     </a>
   </div>
 
+  </section>
+
   <footer>
     源码在 <a href="https://github.com/AliceLJY/playground">GitHub</a>。
   </footer>
 </div>
+<script>
+// 落地页与板块切换。板块就是下面的 <section class="board">：加一段 section（id、data-blurb、h2.shelf、div.grid），落地页自动多一块。
+// roadmap.html 按「h2.shelf 紧跟 div.grid」数卡片，别拆开这两个。
+(function () {
+  var root = document.documentElement, boards = [].slice.call(document.querySelectorAll('section.board'));
+  var home = document.getElementById('boards'), chips = document.querySelector('#boardbar .chips'), baseTitle = document.title;
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function nameOf(a) { return a.querySelector('.name').firstChild.textContent.trim(); }
+  boards.forEach(function (b) {
+    var h = b.querySelector('h2.shelf'), title = h.firstChild.textContent.trim(), note = (h.querySelector('.note') || {}).textContent || '';
+    var cards = [].slice.call(b.querySelectorAll('a.card')), names = cards.slice(0, 3).map(nameOf);
+    b.dataset.title = title;
+    var t = el('a', 'tile'); t.href = '#' + b.id;
+    var top = el('div', 'top'), tt = el('span', 'tt', title), n = el('span', 'n', String(cards.length));
+    tt.appendChild(el('small', null, note)); n.appendChild(el('small', null, '个')); top.append(tt, n);
+    t.append(top, el('p', 'bl', b.dataset.blurb || ''));
+    if (names.length) t.appendChild(el('p', 'pv', names.join('、') + (cards.length > names.length ? ' 等' : '')));
+    t.appendChild(el('span', 'go', '进去看 →'));
+    home.appendChild(t);
+    var c = el('a', null, title + ' ' + cards.length); c.href = '#' + b.id; c.dataset.key = b.id; chips.appendChild(c);
+  });
+  function show(scroll) {
+    var key = decodeURIComponent(location.hash.slice(1)), cur = null;
+    boards.forEach(function (b) { var on = b.id === key; b.classList.toggle('on', on); if (on) cur = b; });
+    root.dataset.view = cur ? 'board' : 'home';
+    [].forEach.call(chips.children, function (c) { c.classList.toggle('on', !!cur && c.dataset.key === cur.id); if (cur && c.dataset.key === cur.id) c.setAttribute('aria-current', 'page'); else c.removeAttribute('aria-current'); });
+    document.title = cur ? cur.dataset.title + ' · ' + baseTitle : baseTitle;
+    if (scroll) window.scrollTo(0, 0);
+  }
+  addEventListener('hashchange', function () { show(true); });
+  show(false);   // 首次载入不滚：从某个玩意按返回回来时，浏览器会把位置还原到原来那张卡
+})();
+</script>
 </body>
 </html>
