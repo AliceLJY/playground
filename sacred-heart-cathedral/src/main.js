@@ -369,6 +369,15 @@ window.__ss = window.__sf = {
   step(ms) { for (let t = 0; t < ms; t += 16) step(0.016); hud(); drawMap(); },
   press(k, on) { on ? keys.add(k) : keys.delete(k); },
   teleport(x, z, yaw = 0, mode = 'walk') { tween = null; S.mode = mode; Object.assign(fp, { x, z, yaw, pitch: 0 }); fp.y = C.groundY(x, z) + C.EYE; placeCamera(); setZone(zoneOf(camera.position)); syncUI(); },
+  // 录演示片用（tools/film.cjs）：直接摆镜头、直接给光、画一帧，不走缓动也不读输入；正常访问不会调用
+  pose(pos, look, fov) {
+    tween = null; S.mode = 'fly'; [fp.x, fp.y, fp.z] = pos; _d.set(look[0] - pos[0], look[1] - pos[1], look[2] - pos[2]).normalize();
+    fp.yaw = Math.atan2(-_d.x, -_d.z); fp.pitch = Math.asin(clamp(_d.y, -1, 1)); fp.v = 0;
+    if (fov && fov !== camera.fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    placeCamera(); setZone(zoneOf(camera.position));
+  },
+  mix(tod, east, west, south) { Object.assign(light, { tod, east, west, south, tTod: tod, tEast: east, tWest: west, tSouth: south, dirty: true }); updateLight(0); },
+  tick(dt) { step(dt); },
   gpu() { const gl = renderer.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); return x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : 'unknown'; },
 };
 

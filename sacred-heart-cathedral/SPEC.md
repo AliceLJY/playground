@@ -36,4 +36,4 @@ mini（Apple M4，Chrome 真实 GPU）1440×900 不低于 30 帧；绘制 260 �
 
 `?view=<id>&light=<morning|noon|evening>&still`，id 见 `src/core.js` 的 `VIEWS`（whole、facade、portals、rose、towers、east、buttress、apse、plaza、nave、piers、vault、crossing、altar、east-glass、west-glass、rose-in、chapel）。`still` 关掉闲置自动环绕；`&mode=walk` 落在广场南端；`&q=high|mid|low` 指定画质。
 
-钩子：`window.__sf`（同 `window.__ss`；`snapshot()`、`setView(id)`、`setLight(id)`、`teleport(x,z,yaw)`、`shot(pos,look,fov)`、`gpu()`），另挂统一的 `window.__PLAYTEST__`。
+钩子：`window.__sf`（同 `window.__ss`；`snapshot()`、`setView(id)`、`setLight(id)`、`teleport(x,z,yaw)`、`shot(pos,look,fov)`、`gpu()`；录演示片用的 `pose(pos,look,fov)`、`mix(tod,east,west,south)`、`tick(dt)`，见 `tools/film.cjs`），另挂统一的 `window.__PLAYTEST__`。
