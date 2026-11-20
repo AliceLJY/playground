@@ -44,6 +44,12 @@
   .name .en { font-weight: 400; color: var(--muted); font-size: .9rem; margin-left: .5rem; }
   .desc { margin: 0 0 .6rem; color: var(--ink); font-size: .95rem; }
   .meta { margin: 0; color: var(--muted); font-size: .82rem; }
+  .guide { margin: .75rem 0 0; padding: .6rem .8rem; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: .82rem; line-height: 1.9; }
+  .guide .gt { margin: 0 0 .15rem; font-size: .72rem; letter-spacing: .12em; color: var(--accent); font-weight: 600; }
+  .guide dl { margin: 0; display: grid; grid-template-columns: auto 1fr; column-gap: .7rem; }
+  .guide dt { color: var(--muted); white-space: nowrap; }
+  .guide dd { margin: 0; min-width: 0; }
+  .guide kbd { display: inline-block; min-width: 1.5em; padding: 0 .35em; margin: 0 .1em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--card); font: 600 .74rem/1.5 ui-monospace, Menlo, monospace; text-align: center; }
   footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
   footer a { color: var(--accent); }
 </style>
@@ -134,6 +140,15 @@
       <p class="name">骑楼擂台<span class="en">qilou-brawl</span></p>
       <p class="desc">黄昏的西关骑楼街，粤剧武生阿龙从街口一路打上醒狮擂台：早茶阿婆、包租公的肚腩冲撞，最后是醒狮头。拳脚连段、翻滚格挡，攒满锣鼓开二阶段。第一次来先在街口跟阿婆讨教：挡住三掌，再一脚请她让路。</p>
       <p class="meta">3D 街头格斗 · AI 一张图生成的角色 · 键鼠与触屏</p>
+      <div class="guide">
+        <p class="gt">怎么玩</p>
+        <dl>
+          <dt>移动</dt><dd><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · 拖动鼠标转镜头</dd>
+          <dt>出手</dt><dd><kbd>J</kbd> 或左键 拳 · <kbd>K</kbd> 或右键 脚 · <kbd>空格</kbd> 翻滚</dd>
+          <dt>防守</dt><dd>按住 <kbd>Q</kbd> 格挡 · 锣鼓满了按 <kbd>E</kbd> 开二阶段 · <kbd>M</kbd> 声音</dd>
+          <dt>手机</dt><dd>左下拖动走位，右半屏拖动看方向，锣鼓满了点锣</dd>
+        </dl>
+      </div>
     </a>
 
     <a class="card" href="diorama-walk/">
@@ -188,6 +203,15 @@
       <p class="name">天台水枪大战<span class="en">rooftop-splash</span></p>
       <p class="desc">夏日天台，蓝橙两队。绕过水箱和花架，和电脑队友一起打场水仗；三把水枪、两颗水球，湿透了再来。</p>
       <p class="meta">第一人称 · 电脑团队对战 · 键鼠与触屏 · 单文件离线可玩</p>
+      <div class="guide">
+        <p class="gt">怎么玩</p>
+        <dl>
+          <dt>移动</dt><dd><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · <kbd>Shift</kbd> 快跑 · <kbd>空格</kbd> 跳 · <kbd>C</kbd> 蹲</dd>
+          <dt>开火</dt><dd>左键开火 · 按住右键瞄准 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 换枪</dd>
+          <dt>补给</dt><dd><kbd>R</kbd> 补水 · <kbd>G</kbd> 扔水球 · <kbd>Tab</kbd> 计分板 · <kbd>Esc</kbd> 暂停</dd>
+          <dt>手机</dt><dd>左手摇杆走，右手拖动转头，右侧按钮开火、补水、跳；横屏更好</dd>
+        </dl>
+      </div>
     </a>
 
     <a class="card" href="xiaoju-racing/">
@@ -263,6 +287,15 @@
       <p class="name">十三行江岸<span class="en">thirteen-hongs</span></p>
       <p class="desc">约 1805 年前后的广州商馆区江岸。一排西式立面的商馆、旗杆、码头石阶，江上是疍家艇、西瓜扁和帆船，六百多个人各忙各的，水面映着岸和船。从空中看，或者自己走进去，也可以跟着轿子、官员、挑夫走；每隔几分钟有一艘茶艇靠岸，挑夫把茶箱一箱箱扛上艇，升帆开往黄埔。</p>
       <p class="meta">Three.js 纯代码大场景，没有模型、图片和音频 · 俯瞰、第一人称步行、九个跟随视角 · 午后、黄昏、入夜 · 另有 WebGPU 版 · 鼠标与触屏</p>
+      <div class="guide">
+        <p class="gt">怎么看</p>
+        <dl>
+          <dt>视角</dt><dd><kbd>1</kbd> 俯瞰 · <kbd>2</kbd> 步行 · 点「跟 茶艇」「跟 挑夫」这类按钮跟着走</dd>
+          <dt>电脑</dt><dd>拖动转头 · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 走动 · 滚轮缩放</dd>
+          <dt>手机</dt><dd>左下摇杆走动，其余地方拖动转头，双指缩放</dd>
+          <dt>别错过</dt><dd>点「名场面」直接跟到茶箱落艇那一幕 · 天色按钮切午后、黄昏、入夜</dd>
+        </dl>
+      </div>
     </a>
 
     <a class="card" href="sacred-heart-cathedral/">
