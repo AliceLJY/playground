@@ -29,6 +29,15 @@ So the coal creature on screen is Codex's own drawing from the name alone, and i
 - Feel has only had two rounds of play: Codex played once on desktop and once in a 400 px wide phone preview, and I ran one full round with a script. It has not been tried on a real phone.
 - The fixed camera parameters and shared playtest hook this repository asks of new toys were not added, because this game is published as delivered from one sentence.
 
+## WeChat mini game (minigame/)
+
+Ported to a WeChat mini game on 2026-11-21 under the account name "煤球下班" (the platform flags the word "打工" as an industry term, so it was dropped from the name). Gameplay and numbers are copied from the web version; the interface is now drawn entirely on the canvas: landscape, a readout bar above the stage (so it never covers falling items), hold-to-move arrow buttons on both sides, or drag Sooty on the stage. Saving uses WeChat storage, the round pauses when the app goes to the background, and the phone buzzes briefly on a bug hit.
+
+- `minigame/game.js`, `game.json`, `project.config.json`: the mini game package itself, about 20 KB, not part of the web deploy.
+- `tests/minigame.test.cjs`: the original 20 checks rewritten for touch input on the mini game, plus five more: sound toggle, card button slide-off guard, layout on four screen ratios, WeChat-only APIs, and numbers matching the web version. The layout and sound checks were run against broken versions first and do turn red.
+- `minigame/tools/shim.html`: emulates the WeChat API in a browser, for local screenshot checks only.
+- A preview build has been uploaded with miniprogram-ci; feel on a real phone still needs a play in WeChat.
+
 ## Files
 
 - `index.html`: the whole game. Art, logic and synthesised sound are in this one file, and it works offline.
