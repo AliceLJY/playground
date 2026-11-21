@@ -58,7 +58,7 @@
   {id:'xiaoju-racing',title:'小橘飞车 · 珠江杯',type:'小游戏',text:'六只猫骑车竞速，漂移、氮气',road:'ring',fraction:.95,group:'江边'}
  ];
  const hotspotColor=type=>type==='小游戏'?'#dc8d35':type==='小玩意'||type==='小测验'?'#d77a8a':'#4f8f86';
- const HOTSPOTS=HOTSPOT_DATA.map(d=>{const road=[...ROADS,...PATHS].find(r=>r.id===d.road),at=road.length*d.fraction;return {...d,road,at,name:d.title,note:d.text,color:hotspotColor(d.type),radius:4};});
+ const HOTSPOTS=HOTSPOT_DATA.map(d=>{const road=[...ROADS,...PATHS].find(r=>r.id===d.road),at=road.length*d.fraction;return {...d,road,at,name:d.title,note:d.text,color:hotspotColor(d.type),radius:5};});
  const STOPS=[
   {id:'tea',at:END*.13,short:'西关茶香',title:'骑楼下，一盅茶',text:'“饮啖茶，慢慢嚟。”\n飞得再快，也可以停下来吃个包。',stamp:'茶香',color:'#b16c42'},
   {id:'tree',at:END*.48,short:'沙面花园',title:'榕树下，歇一歇',text:'车铃响过，花园里的猫抬起头。\n它给阿橘留了一小块树荫。',stamp:'花园',color:'#538974'},
@@ -81,7 +81,7 @@
  }
  function navigate(s,id){const route=planRoute(s,id);if(!route)return false;s.routeNav=route;s.assist=true;s.cruising=true;s.manual=0;s.hotspotDwell=0;s.hotspotSuppressed=null;return true;}
  const GATES=[.24,.43,.60,.78,.94].map(f=>f*END);
- function create(){const p=at(MAIN,0);return {phase:'intro',x:p.x,z:p.z,y:p.y,heading:p.heading,speed:0,distance:0,routeAt:0,roadId:'ring',lateral:0,pedal:0,elapsed:0,visits:[],bells:0,cruising:true,assist:false,manual:0,boost:100,boosting:false,collisions:0,collisionCooldown:0,pivot:null,encountered:false,race:null,dialog:null,crash:null,resumePhase:null,surface:'road',routeNav:null,hotspotDwell:0,hotspotHint:null,hotspotInside:null,hotspotSuppressed:null};}
+ function create(){const p=at(MAIN,0);return {phase:'intro',x:p.x,z:p.z,y:p.y,heading:p.heading,speed:0,distance:0,routeAt:0,roadId:'ring',lateral:0,pedal:0,elapsed:0,visits:[],bells:0,cruising:true,assist:false,manual:0,boost:100,boosting:false,collisions:0,collisionCooldown:0,pivot:null,encountered:false,race:null,dialog:null,crash:null,resumePhase:null,surface:'road',routeNav:null,hotspotDwell:0,hotspotHint:null,hotspotInside:null,hotspotSuppressed:null,parkedAt:null};}
  function start(s){s.phase='ride';}
  function near(s){return STOPS.find(p=>{const w=at(MAIN,p.at);return Math.hypot(s.x-w.x,s.z-w.z)<12;})||null;}
  function nearHotspot(s){return HOTSPOTS.find(h=>{const p=at(h.road,h.at);return Math.hypot(s.x-p.x,s.z-p.z)<=h.radius;})||null;}
@@ -90,7 +90,7 @@
  function pause(s){if(s.phase==='ride'||s.phase==='crash'){s.resumePhase=s.phase;s.phase='paused';s.speed=0;}else if(s.phase==='paused'){s.phase=s.resumePhase||'ride';s.resumePhase=null;}}
  function challenge(s){s.phase='challenge';s.speed=0;s.encountered=true;}
  function decline(s){s.phase='ride';s.encountered=true;}
- function accept(s){s.routeNav=null;const p=at(MAIN,22,-1.15);Object.assign(s,{phase:'ride',x:p.x,z:p.z,y:p.y,heading:p.heading,speed:0,boost:100,encountered:true,manual:0});s.race={status:'countdown',countdown:3,time:0,gate:0,aiAt:24,aiGate:0,winner:null};}
+ function accept(s){s.routeNav=null;const p=at(MAIN,22,-1.15);Object.assign(s,{phase:'ride',x:p.x,z:p.z,y:p.y,heading:p.heading,speed:0,boost:100,encountered:true,manual:0});s.routeAt=22;s.parkedAt=null;s.race={status:'countdown',countdown:3,time:0,gate:0,aiAt:24,aiGate:0,winner:null};}
  function gatePass(x,z,g){const p=at(MAIN,GATES[g]);return Math.hypot(x-p.x,z-p.z)<12;}
  // Swept bicycle footprint against oriented boxes; catches thin posts at boost speed.
  function sweep(x,z,tx,tz,heading,obstacles,y=0){
@@ -112,11 +112,14 @@
   }
   return best;
  }
- function beginCrash(s,kind,obstacles){
+ function beginCrash(s,kind,obstacles,hitObstacle=null){
   const n=nearest(s.x,s.z);let safe={x:s.x,z:s.z,heading:s.heading,y:s.y};
   // Recover locally, preserving free-driving heading instead of snapping to the road.
   for(const d of [.75,1.25,2]){const x=s.x+Math.sin(s.heading)*d,z=s.z+Math.cos(s.heading)*d;if(!isWater(x,z)&&!sweep(x,z,x,z,s.heading,obstacles,groundY(x,z))){safe={x,z,heading:s.heading,y:groundY(x,z)};break;}}
-  const side=((s.x-n.x)*Math.cos(s.heading)-(s.z-n.z)*Math.sin(s.heading))>0?-1:1;
+  // The rider falls to local x = -side. Fall away from what was hit (never into it); a head-on hit falls toward the road.
+  // Before 2026-11-22 the side came from the road offset alone, so a bike hugging the arcade fell through the pillars.
+  const localX=(x,z)=>(x-s.x)*Math.cos(s.heading)-(z-s.z)*Math.sin(s.heading),ox=hitObstacle?localX(hitObstacle.x,hitObstacle.z):0;
+  const side=Math.abs(ox)>.15?(ox>0?1:-1):(localX(n.x,n.z)>0?-1:1);
   s.crash={time:0,kind,side,from:{x:s.x,z:s.z,heading:s.heading,y:s.y},safe};s.phase='crash';s.speed=0;s.boosting=false;s.collisions++;s.manual=0;
  }
  // Held against something: the smallest turn (either way, up to a half turn) after which the way ahead is clear: 12 m if any bearing offers it (a shorter look picks bearings that graze back into the same wall), else 4 m, else 1.2 m.
@@ -142,9 +145,12 @@
   if(race.aiGate<GATES.length&&gatePass(ai.x,ai.z,race.aiGate))race.aiGate++;
   if(race.gate===GATES.length||race.aiGate===GATES.length){race.status='finished';race.winner=race.gate===GATES.length?'orange':'calico';if(s.crash)s.crash.finishPending=true;else s.phase='result';s.speed=0;}
  }
- function updateHotspot(s,dt){
+ function updateHotspot(s,dt,input={}){
   const h=nearHotspot(s),id=h?.id||null;
-  if(id!==s.hotspotInside){s.hotspotInside=id;s.hotspotDwell=0;s.hotspotHint=null;if(!id)s.hotspotSuppressed=null;}
+  if(id!==s.hotspotInside){s.hotspotInside=id;s.hotspotDwell=0;s.hotspotHint=null;s.parkedAt=null;if(!id)s.hotspotSuppressed=null;}
+  // Braking to a near stop inside a ring parks the bike there: auto-forward stays off until ↑ is pressed,
+  // so a short tap of ↓ is enough (holding ↓ through the whole dwell was the only way in before).
+  if(id&&input.brake&&s.speed<2&&s.phase==='ride')s.parkedAt=id;
   if(!h||s.phase!=='ride'||s.race?.status==='racing')return;
   if(s.speed>=1/3.6){s.hotspotDwell=0;if(s.hotspotHint!==id)s.hotspotHint=id;return;}
   if(s.hotspotSuppressed===id)return;
@@ -172,7 +178,8 @@
   }
   const wasBoosting=s.boosting;s.boosting=!!input.boost&&!input.brake&&s.boost>(wasBoosting?0:12)&&s.speed>2;
   s.boost=clamp(s.boost+dt*(s.boosting?-25:12),0,100);
-  let target=input.brake?0:s.boosting?18:input.forward?13:s.cruising?8.5:0;
+  if(s.parkedAt&&(input.forward||input.boost||steer))s.parkedAt=null;
+  let target=input.brake?0:s.boosting?18:input.forward?13:s.cruising&&!s.parkedAt?8.5:0;
   if(surface(s.x,s.z)==='grass')target=Math.min(target,10);
   if(navTarget)target=Math.min(target,Math.abs(navTurn)>.8?1.5:Math.abs(navTurn)>.35?4:navTarget.road==='ring'?8.5:6);
   s.speed+=(target-s.speed)*(1-Math.exp(-dt*(input.brake?9:2.3)));
@@ -191,7 +198,7 @@
   }
   const ox=s.x,oz=s.z;s.x-=Math.sin(s.heading)*s.speed*dt;s.z-=Math.cos(s.heading)*s.speed*dt;
   let hit=sweep(ox,oz,s.x,s.z,s.heading,obstacles,s.y);
-  if(hit){const f=Math.max(0,hit.t-.03);s.x=ox+(s.x-ox)*f;s.z=oz+(s.z-oz)*f;if(s.speed>1.8&&s.collisionCooldown===0){beginCrash(s,hit.obstacle.kind,obstacles);advanceRace(s,dt,false);return;}s.speed=0;s.boosting=false;
+  if(hit){const f=Math.max(0,hit.t-.03);s.x=ox+(s.x-ox)*f;s.z=oz+(s.z-oz)*f;if(s.speed>1.8&&s.collisionCooldown===0){beginCrash(s,hit.obstacle.kind,obstacles,hit.obstacle);advanceRace(s,dt,false);return;}s.speed=0;s.boosting=false;
    // Stopped against it with the pedals still asked for and nobody steering: ease the front wheel round to the nearest
    // clear bearing, so ↑ (or auto-forward) alone gets the bike moving again instead of pressing on the wall for good.
    // The turn is finished standing still (see s.pivot below): setting off half-turned would only meet the wall again, faster.
@@ -203,8 +210,8 @@
   }
   s.distance+=Math.hypot(s.x-ox,s.z-oz);s.pedal+=s.speed*dt*1.1;s.roadId=n.road.id;s.surface=surface(s.x,s.z);s.y=groundY(s.x,s.z);s.routeAt=nearest(s.x,s.z,[MAIN]).at;
   s.lateral=(s.x-n.x)*Math.cos(n.heading)-(s.z-n.z)*Math.sin(n.heading);
-  if(!s.encountered&&s.distance>21&&Math.hypot(s.x-at(MAIN,30).x,s.z-at(MAIN,30).z)<10){challenge(s);return;}
-  advanceRace(s,dt);updateHotspot(s,dt);
+  if(!s.encountered&&s.visits.some(id=>HOTSPOTS.some(h=>h.id===id))&&s.distance>21&&Math.hypot(s.x-at(MAIN,30).x,s.z-at(MAIN,30).z)<10){challenge(s);return;}
+  advanceRace(s,dt);updateHotspot(s,dt,input);
  }
  const api={END,MAIN,BRANCH,ROADS,PATHS,COURT,SHORE,DESTINATIONS,HOTSPOTS,HOTSPOT_DATA,planRoute,navigate,isWater,groundY,surface,GATES,STOPS,create,start,step,near,nearHotspot,interact,close,pause,challenge,accept,decline,RIVAL,at,nearest,clamp,wrap,sweep};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.RideCore=api;
