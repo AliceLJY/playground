@@ -30,6 +30,7 @@ Open `http://127.0.0.1:8971/`. Fixed views: `?view=hero`, `?view=stage`, `?view=
 ## Checks
 
 - `src/core.js` holds the rules (economy, upgrades, events, hints, layout) and runs in Node. `tests/core.test.cjs` follows section 8 of `SPEC.md`. Run `node --test tests/*.test.cjs` in this folder.
+- `tools/work-check.cjs` checks that you can see the crew working: bricks are tossed from a coal ball's head, a mason on the plank stamps each one as it lands, and the stack on a walker's head grows with strength; it also saves a 12-frame strip.
 - `tools/browser-check.cjs` runs three screens and five fixed views in a real browser, plays the opening with touch taps, lets an autopilot finish the first building with screenshots, and checks the save across a reload.
 - Pacing was tuned with autopilots only; whether it is fun needs people. The first version is silent and has not been tried on a real phone yet.
 
