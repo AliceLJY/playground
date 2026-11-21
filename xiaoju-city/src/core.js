@@ -113,13 +113,18 @@
   return best;
  }
  function beginCrash(s,kind,obstacles,hitObstacle=null){
+  // Bounce back off what was hit (up to 1.2 m, only into clear space) so the fall happens in the open, not half under an arcade.
+  if(hitObstacle)for(const d of [1.2,.8,.4]){const x=s.x+Math.sin(s.heading)*d,z=s.z+Math.cos(s.heading)*d;if(!isWater(x,z)&&!sweep(s.x,s.z,x,z,s.heading,obstacles,s.y)){s.x=x;s.z=z;s.y=groundY(x,z);break;}}
   const n=nearest(s.x,s.z);let safe={x:s.x,z:s.z,heading:s.heading,y:s.y};
   // Recover locally, preserving free-driving heading instead of snapping to the road.
   for(const d of [.75,1.25,2]){const x=s.x+Math.sin(s.heading)*d,z=s.z+Math.cos(s.heading)*d;if(!isWater(x,z)&&!sweep(x,z,x,z,s.heading,obstacles,groundY(x,z))){safe={x,z,heading:s.heading,y:groundY(x,z)};break;}}
   // The rider falls to local x = -side. Fall away from what was hit (never into it); a head-on hit falls toward the road.
   // Before 2026-11-22 the side came from the road offset alone, so a bike hugging the arcade fell through the pillars.
   const localX=(x,z)=>(x-s.x)*Math.cos(s.heading)-(z-s.z)*Math.sin(s.heading),ox=hitObstacle?localX(hitObstacle.x,hitObstacle.z):0;
-  const side=Math.abs(ox)>.15?(ox>0?1:-1):(localX(n.x,n.z)>0?-1:1);
+  const prefer=Math.abs(ox)>.15?(ox>0?1:-1):(localX(n.x,n.z)>0?-1:1);
+  // Probe where the body lands (local x = -side, up to 1.3 m out): fall to whichever side is actually clear.
+  const clearSide=sd=>[.5,.9,1.3].every(d=>{const x=s.x-Math.cos(s.heading)*sd*d,z=s.z+Math.sin(s.heading)*sd*d;return !sweep(x,z,x,z,s.heading,obstacles,s.y);});
+  const side=clearSide(prefer)?prefer:clearSide(-prefer)?-prefer:prefer;
   s.crash={time:0,kind,side,from:{x:s.x,z:s.z,heading:s.heading,y:s.y},safe};s.phase='crash';s.speed=0;s.boosting=false;s.collisions++;s.manual=0;
  }
  // Held against something: the smallest turn (either way, up to a half turn) after which the way ahead is clear: 12 m if any bearing offers it (a shorter look picks bearings that graze back into the same wall), else 4 m, else 1.2 m.
