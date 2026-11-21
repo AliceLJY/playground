@@ -16,7 +16,7 @@ let imgReady=0;IMG.forEach(im=>{if(im.complete&&im.naturalWidth)imgReady++;else 
 // ---------- game ----------
 let g,ui;
 function fresh(seed){g=C.create({buildings:B,seed});ui=newUi();g.state.phase='play';}
-function newUi(){return{screen:'title',albumOpen:false,texts:[],flights:[],landed:0,spawned:0,reveal:[],banner:null,shine:null,doneAt:null,frozen:false,
+function newUi(){return{screen:'title',albumOpen:false,texts:[],flights:[],pend:[],instant:[],mz:[],wph:null,flash:[],dust:[],hopNow:{},allHopUntil:0,reveal:[],banner:null,shine:null,doneAt:null,frozen:false,
   wind:0,shakeT:0,lastSave:0,hadSave:false,pointerHint:0,buyPulse:{},skillFlash:0};}
 fresh(SEED);
 function trySave(){try{localStorage.setItem(KEY,JSON.stringify(g.save()));}catch(e){}}
@@ -53,9 +53,8 @@ function buildGeo(){
   geo.cache=document.createElement('canvas');geo.cache.width=cw;geo.cache.height=ch;
   geo.blue=document.createElement('canvas');geo.blue.width=cw;geo.blue.height=ch;
   drawBlueprint();
-  const landed=Math.min(ui.landed,g.state.laid);ui.landed=0;ui.flights=[];ui.spawned=Math.max(landed,0);
-  for(let i=0;i<landed;i++)paintCell(i);ui.landed=landed;
-  if(ui.spawned<landed)ui.spawned=landed;
+  ui.flights=[];ui.pend=[];ui.instant=[];ui.mz=[];ui.wph=null;ui.flash=[];ui.dust=[];
+  for(let i=0;i<g.state.laid;i++)paintCell(i);
 }
 function drawBlueprint(){
   const c=geo.blue.getContext('2d'),R=L.building,im=IMG[g.state.bi]||IMG[0];
@@ -94,7 +93,7 @@ function act(id){
   if(id==='album'){ui.albumOpen=true;return true;}
   if(id==='closeAlbum'){ui.albumOpen=false;return true;}
   if(id==='restart'){try{localStorage.removeItem(KEY);}catch(e){}fresh(Math.floor(Math.random()*1e6)+1);ui.screen='play';relayout();return true;}
-  if(id==='next'){g.next();ui.doneReady=false;ui.reveal=[];ui.landed=0;ui.spawned=0;ui.flights=[];relayout();trySave();return true;}
+  if(id==='next'){g.next();ui.doneReady=false;ui.reveal=[];relayout();trySave();return true;}
   if(id.startsWith('buy:')){const k=id.slice(4);const ok=g.buy(k);const c=L.cards.find(c=>c.kind===k);
     if(ok){ui.buyPulse[k]=now;addText(C.LABEL[k]+' Lv.'+g.state.lv[k],c.x+c.w/2,c.y-6,'#fff6e6',15);}else ui.buyPulse[k]=-now;return ok;}
   if(id==='skill'){const ok=g.useSkill();if(ok)ui.skillFlash=now;return ok;}
@@ -119,7 +118,8 @@ function toast(t,color,size,life){const act=ui.texts.filter(x=>x.lane!=null&&now
 function handleEvents(){
   const s=g.state,R=L.building;
   for(const e of s.events){
-    if(e.type==='lay'&&e.src==='tap'){const k=geo.cells[e.from];if(k)addText('+'+C.fmt(e.coins),k.x+k.w/2,k.y-4,COL.coin,13,0.8);}
+    if(e.type==='lay'){for(let i=e.from;i<e.from+e.n;i++)(e.src==='balls'?ui.pend:ui.instant).push(i);
+      if(e.src==='tap'){const k=geo.cells[e.from];if(k)addText('+'+C.fmt(e.coins),k.x+k.w/2,k.y-4,COL.coin,13,0.8);}}
     else if(e.type==='stage'){ui.reveal.push({i:e.index,t0:now});ui.banner={t:e.name+'砌好了！',sub:'奖 '+C.fmt(e.bonus)+' 工钱',t0:now};}
     else if(e.type==='built'){ui.doneAt=now;ui.doneReady=false;trySave();}
     else if(e.type==='skill'){toast('齐心一砌！+'+C.fmt(e.n)+' 块','#fff6e6',20,1.6);ui.shakeT=now;}
@@ -135,16 +135,48 @@ function handleEvents(){
 }
 
 // ---------- brick flights ----------
-const MAXFLY=48;
+const MAXFLY=60;
+function landNow(i){paintCell(i);}
+function launch(i,w,now0,stamp){
+  const k=geo.cells[i];if(!k)return;
+  const tx=k.x+k.w/2,ty=k.y+k.h/2,ox=w.head.x,oy=w.head.y,dur=0.32+Math.min(0.4,Math.max(0,oy-ty)/700);
+  if(ui.flights.length>=MAXFLY){const f=ui.flights.shift();landNow(f.i);}
+  ui.flights.push({i,t0:now0,dur,ox,oy,tx,ty});
+  if(stamp)assignStamp(tx,now0+dur);
+  if(ui.measure){let d=1e9;for(let j=0;j<walkerCount();j++){const h=walker(j).head;d=Math.min(d,Math.hypot(h.x-ox,h.y-oy));}ui.measure.launch.push(d);}
+}
 function updateFlights(){
-  const laid=g.state.laid;
-  while(ui.spawned<laid){
-    if(ui.flights.length>=MAXFLY){const f=ui.flights.shift();paintCell(f.i);ui.landed=Math.max(ui.landed,f.i+1);}
-    const i=ui.spawned++,k=geo.cells[i];if(!k)break;
-    const tx=k.x+k.w/2,ty=k.y+k.h/2,ox=clamp(tx+(Math.random()-0.5)*40,L.building.x,L.building.x+L.building.w),oy=L.ground-10;
-    ui.flights.push({i,t0:now+Math.random()*0.15,dur:0.35+Math.min(0.35,(oy-ty)/900),ox,oy,tx,ty});
+  const n=walkerCount();if(!n)return;
+  const ws=Array.from({length:n},(_,i)=>walker(i));
+  if(!ui.wph||ui.wph.length!==n)ui.wph=ws.map(w=>w.ph);
+  // instant bricks (a tap, the skill, an event): from the walker closest under the spot, or round-robin for a burst
+  if(ui.instant.length){
+    const burst=ui.instant.length>3;if(burst)ui.allHopUntil=now+0.5;
+    ui.instant.forEach((i,j)=>{const k=geo.cells[i];if(!k)return;let w=ws[j%n];
+      if(!burst){w=ws.reduce((a,b)=>Math.abs(b.x-k.x)<Math.abs(a.x-k.x)?b:a);ui.hopNow[w.i]=now;}
+      launch(i,w,now+(burst?(j%n)*0.02:0),!burst);});
+    ui.instant=[];
   }
-  for(let j=0;j<ui.flights.length;j++){const f=ui.flights[j];if(now-f.t0>=f.dur){paintCell(f.i);ui.landed=Math.max(ui.landed,f.i+1);ui.flights.splice(j--,1);}}
+  // walkers that just reached the toss point throw their bricks: the pending bricks nearest above them
+  const tossers=ws.filter(w=>{const a=ui.wph[w.i],b=w.ph;return a<TOSS&&b>=TOSS&&b-a<0.3;});
+  ui.wph=ws.map(w=>w.ph);
+  if(ui.pend.length&&tossers.length){
+    const E=Math.max(0.5,n*g.speed()/CFG.trip),per=Math.max(1,Math.ceil(ui.pend.length/Math.max(1,E*0.6)));
+    for(const w of tossers){
+      if(!ui.pend.length)break;
+      ui.pend.sort((a,b)=>Math.abs(geo.cells[a].x-w.x)-Math.abs(geo.cells[b].x-w.x));
+      for(const i of ui.pend.splice(0,Math.min(per,carryN()*4)))launch(i,w,now,true);
+    }
+  }
+  if(ui.pend.length>90){const extra=ui.pend.splice(0,ui.pend.length-60);for(const i of extra)landNow(i);}
+  for(let j=0;j<ui.flights.length;j++){const f=ui.flights[j];if(now-f.t0>=f.dur){landNow(f.i);ui.flights.splice(j--,1);
+    ui.flash.push({i:f.i,t0:now});for(let d=0;d<3;d++)ui.dust.push({x:f.tx,y:f.ty,vx:(Math.random()-0.5)*40,vy:-10-Math.random()*20,t0:now});
+    if(ui.measure)ui.measure.land.push({x:f.tx,t:now});}}
+  if(ui.flash.length>80)ui.flash.splice(0,ui.flash.length-80);if(ui.dust.length>120)ui.dust.splice(0,ui.dust.length-120);
+}
+function drawDust(){
+  ui.flash=ui.flash.filter(f=>now-f.t0<0.22);for(const f of ui.flash){const k=geo.cells[f.i];if(!k)continue;ctx.fillStyle='rgba(255,255,240,'+(0.85*(1-(now-f.t0)/0.22))+')';ctx.fillRect(k.x-0.5,k.y-0.5,k.w+1,k.h+1);}
+  ui.dust=ui.dust.filter(d=>now-d.t0<0.45);for(const d of ui.dust){const t=now-d.t0;ctx.fillStyle='rgba(200,185,160,'+(0.8*(1-t/0.45))+')';ctx.beginPath();ctx.arc(d.x+d.vx*t,d.y+d.vy*t+40*t*t,1.6,0,7);ctx.fill();}
 }
 
 // ---------- drawing helpers ----------
@@ -156,7 +188,9 @@ function wrap(t,maxW,size,weight){ctx.font=(weight||400)+' '+size+'px '+FONT;con
 function coin(x,y,r){ctx.fillStyle=COL.coin;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.strokeStyle='#b8862a';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle='#8a6420';ctx.fillRect(x-r*0.3,y-r*0.3,r*0.6,r*0.6);}
 // 小黑煤球 per ip/IP设定: matte black round body, white sticker outline, two white dot eyes, short flat white mouth,
 // thin black antenna with a #FF5DA2 ball, two thin legs, no arms. dir: 1 right, -1 left, 0 front. A brick rides on its head.
-function coalBall(x,feet,r,dir,phase,carry,hop){
+function coalBall(x,feet,r,dir,phase,carry,hop,o){
+  o=o||{};const sq=o.squash||0,tilt=o.tilt||0;
+  ctx.save();ctx.translate(x,feet);if(tilt)ctx.rotate(tilt);ctx.scale(1+sq*0.12,1-sq*0.2);ctx.translate(-x,-feet);
   const leg=r*0.75,cy=feet-leg-r-(hop||0),sw=dir?Math.sin(phase)*r*0.45:0;
   const legs=dir?[[x-r*0.15,cy+r*0.8,x-r*0.15+sw,feet-(hop||0)],[x+r*0.15,cy+r*0.8,x+r*0.15-sw,feet-(hop||0)]]
     :[[x-r*0.35,cy+r*0.8,x-r*0.38,feet-(hop||0)],[x+r*0.35,cy+r*0.8,x+r*0.38,feet-(hop||0)]];
@@ -173,6 +207,7 @@ function coalBall(x,feet,r,dir,phase,carry,hop){
   for(const l of legs){ctx.beginPath();ctx.moveTo(l[0],l[1]);ctx.lineTo(l[2],l[3]);ctx.stroke();}
   ctx.lineWidth=Math.max(0.9,r*0.13);ctx.beginPath();ctx.moveTo(ax,cy-r*0.8);ctx.quadraticCurveTo(ax,aty+r*0.3,atx,aty);ctx.stroke();
   ctx.fillStyle=COL.coal;ctx.beginPath();ctx.arc(x,cy,r,0,7);ctx.fill();
+  if(o.glow){ctx.fillStyle='rgba(255,93,162,'+(0.35*o.glow)+')';ctx.beginPath();ctx.arc(atx,aty,r*0.3+4*o.glow,0,7);ctx.fill();}
   ctx.fillStyle=COL.pink;ctx.beginPath();ctx.arc(atx,aty,r*0.3,0,7);ctx.fill();
   // face
   ctx.fillStyle='#fff';ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(0.9,r*0.13);
@@ -180,8 +215,11 @@ function coalBall(x,feet,r,dir,phase,carry,hop){
     ctx.beginPath();ctx.moveTo(x+dir*r*0.5,cy+r*0.3);ctx.lineTo(x+dir*r*0.74,cy+r*0.3);ctx.stroke();}
   else{for(const s of[-1,1]){ctx.beginPath();ctx.arc(x+s*r*0.33,cy-r*0.12,Math.max(0.9,r*0.16),0,7);ctx.fill();}
     ctx.beginPath();ctx.moveTo(x-r*0.18,cy+r*0.3);ctx.lineTo(x+r*0.18,cy+r*0.3);ctx.stroke();}
-  if(carry){const bw=r*1.5,bh=r*0.62;ctx.fillStyle=COL.brick;ctx.fillRect(bx-bw/2,cy-r-bh+r*0.12,bw,bh);ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(bx-bw/2,cy-r-bh+r*0.12,bw,bh*0.25);
-    ctx.strokeStyle='#4d555c';ctx.lineWidth=0.8;ctx.strokeRect(bx-bw/2,cy-r-bh+r*0.12,bw,bh);}
+  const nb=carry?(carry===true?1:carry):0;
+  for(let k=0;k<nb;k++){const bw=r*1.5,bh=r*0.6,by=cy-r-bh*(k+1)+r*0.12+k*0.5,bxk=bx+(k%2?r*0.12:0);
+    ctx.fillStyle=o.brick||COL.brick;ctx.fillRect(bxk-bw/2,by,bw,bh);ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(bxk-bw/2,by,bw,bh*0.25);
+    ctx.strokeStyle='rgba(40,40,40,0.75)';ctx.lineWidth=0.8;ctx.strokeRect(bxk-bw/2,by,bw,bh);}
+  ctx.restore();
 }
 
 // ---------- scene ----------
@@ -204,7 +242,8 @@ function drawScene(){
   ctx.drawImage(geo.cache,R.x,R.y,geo.cache.width/DPR,geo.cache.height/DPR);ctx.restore();
   // flights
   for(const f of ui.flights){const p=clamp((now-f.t0)/f.dur,0,1);if(p<=0)continue;const k=geo.cells[f.i],e=ease(p);
-    const x=lerp(f.ox,f.tx,e),y=lerp(f.oy,f.ty,e)-Math.sin(p*Math.PI)*30;ctx.fillStyle=k.c;ctx.fillRect(x-k.w/2,y-k.h/2,k.w,k.h);}
+    const x=lerp(f.ox,f.tx,e),y=lerp(f.oy,f.ty,e)-Math.sin(p*Math.PI)*Math.max(18,Math.min(40,(f.oy-f.ty)*0.25)),bw=Math.max(k.w,7),bh=Math.max(k.h,3.5);
+    ctx.fillStyle=k.c;ctx.fillRect(x-bw/2,y-bh/2,bw,bh);ctx.strokeStyle='rgba(40,30,20,0.5)';ctx.lineWidth=0.6;ctx.strokeRect(x-bw/2,y-bh/2,bw,bh);}
   if(revealed>0&&im&&im.naturalWidth){
     ctx.save();ctx.beginPath();ctx.rect(R.x-2,lineY,R.w+4,R.y+R.h-lineY+2);ctx.clip();
     const last=ui.reveal[ui.reveal.length-1],fa=last?clamp((now-last.t0)/0.9,0,1):1;
@@ -235,7 +274,8 @@ function drawScaffold(){
   ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(R.x-8,fy);ctx.lineTo(R.x+R.w+8,fy);ctx.stroke();
   ctx.strokeStyle='#9c7c3a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(R.x-8,fy+1.5);ctx.lineTo(R.x+R.w+8,fy+1.5);ctx.stroke();
   // two masons on the plank, front view, hopping as bricks arrive
-  const r=6;for(let m=0;m<2;m++){const x=R.x+R.w*(m?0.72:0.28)+Math.sin(now*0.7+m*2)*R.w*0.12,hop=Math.max(0,Math.sin(now*7+m*1.7))*3;coalBall(x,fy-1,r,0,now*6,false,hop);}
+  for(const a of masons())coalBall(a.x,a.feet,7,0,now*6,false,a.hop,{squash:a.stomp>0?a.stomp:0,glow:a.stomp>0?a.stomp:0});
+  drawDust();
 }
 function drawPile(){
   const p=L.pile;
@@ -243,21 +283,49 @@ function drawPile(){
   if(g.state.balls>BALLS_DRAWN){ctx.font='700 12px '+FONT;const t='煤球 ×'+g.state.balls,tw=ctx.measureText(t).width;txt(t,clamp(p.x+p.w/2-tw/2,4,W-tw-4),p.y-8,12,'#5a4630','left',700);}
 }
 const BALLS_DRAWN=60;
-function drawBalls(){
-  const s=g.state,R=L.building,n=Math.min(s.balls,BALLS_DRAWN),sp=g.speed(),r=n>30?5.4:6.5;
-  const x0=L.pile.x+L.pile.w+4;
-  for(let i=0;i<n;i++){
-    const per=CFG.trip,ph=((ballClock*sp)/per+i*0.6180339)%1;
-    const tx=R.x+10+(((i*0.381966)%1)*Math.max(20,R.w-20));
-    const lane=L.ground+1+(i%4)*2.2;
-    let x,dir,carry,hop=0;
-    if(ph<0.45){x=lerp(x0,tx,ph/0.45);dir=1;carry=true;}
-    else if(ph<0.55){x=tx;dir=1;carry=false;hop=Math.sin((ph-0.45)/0.1*Math.PI)*6;}
-    else{x=lerp(tx,x0,(ph-0.55)/0.45);dir=-1;carry=false;}
-    if(x0>tx&&ph<0.45)dir=-1;
-    coalBall(x,lane,r,dir,ballClock*12*sp+i,carry,hop);
-  }
+// where walker i is right now; the same function draws it and decides where its bricks leave from.
+// One trip: walk in with bricks on the head (0-0.42), crouch (0.42-0.5), toss at 0.5, pop up (0.5-0.6), walk back (0.6-1).
+const TOSS=0.5;
+function walkerCount(){return Math.min(g.state.balls,BALLS_DRAWN);}
+function carryN(){const p=g.power();return p>=3?3:p>=2?2:1;}
+function walker(i){
+  const s=g.state,R=L.building,n=walkerCount(),sp=g.speed(),r=n>30?6:7.5;
+  const x0=L.pile.x+L.pile.w+4,ph=((ballClock*sp)/CFG.trip+i*0.6180339)%1;
+  const tx=R.x+10+(((i*0.381966)%1)*Math.max(20,R.w-20)),lane=L.ground+1+(i%4)*2.2;
+  let x,dir,carry=0,hop=0,squash=0,tilt=0,glow=0;
+  const away=x0>tx?-1:1;
+  if(ph<0.42){const p=ph/0.42;x=lerp(x0,tx,p);dir=away;carry=carryN();hop=Math.abs(Math.sin(p*Math.PI*9))*1.4;tilt=away*0.1;}
+  else if(ph<TOSS){x=tx;dir=away;carry=carryN();squash=Math.sin((ph-0.42)/(TOSS-0.42)*Math.PI*0.5);}
+  else if(ph<0.6){const p=(ph-TOSS)/0.1;x=tx;dir=away;hop=Math.sin(p*Math.PI)*9;squash=-0.6*Math.sin(p*Math.PI);glow=1-p;}
+  else{const p=(ph-0.6)/0.4;x=lerp(tx,x0,p);dir=-away;hop=Math.abs(Math.sin(p*Math.PI*9))*1.2;}
+  const hn=ui.hopNow[i];if(hn&&now-hn<0.3){const p=(now-hn)/0.3;hop=Math.max(hop,Math.sin(p*Math.PI)*8);glow=Math.max(glow,1-p);}
+  if(now<ui.allHopUntil){const p=1-(ui.allHopUntil-now)/0.5;hop=Math.max(hop,Math.sin(p*Math.PI)*10);glow=Math.max(glow,1-p);}
+  const leg=r*0.75;return{i,x,feet:lane,r,dir,carry,hop,squash,tilt,glow,ph,carryN:carry,head:{x,y:lane-leg-2*r-hop}};
 }
+function drawBalls(){
+  const n=walkerCount(),sp=g.speed(),bc=geo.b.id==='zhenhailou'?'#a5523a':COL.brick;
+  for(let i=0;i<n;i++){const w=walker(i);coalBall(w.x,w.feet,w.r,w.dir,ballClock*12*sp+i,w.carry,w.hop,{squash:w.squash,tilt:w.tilt,glow:w.glow,brick:bc});}
+}
+function masonCount(){return clamp(2+Math.floor(walkerCount()/6),2,6);}
+function plankY(){const R=L.building;return Math.max(R.y,frontRowY()-geo.bh);}
+function masonsInit(){const M=masonCount(),R=L.building;while(ui.mz.length<M){const m=ui.mz.length;ui.mz.push({x:R.x+R.w*(m+0.5)/M,q:[],j:null});}ui.mz.length=M;}
+// a mason takes the landings in its slice of the wall; each landing: jump there, arrive with the brick, stamp it
+function assignStamp(tx,tLand){
+  masonsInit();const R=L.building,M=ui.mz.length,m=clamp(Math.floor((tx-R.x)/R.w*M),0,M-1),z=ui.mz[m];
+  const near=z.q.find(q=>Math.abs(q.x-tx)<=14&&Math.abs(q.t-tLand)<0.2)||(z.j&&Math.abs(z.j.x1-tx)<=14&&Math.abs(z.j.t1-tLand)<0.2);
+  if(!near)z.q.push({x:tx,t:tLand});
+}
+function mason(m){
+  const z=ui.mz[m],fy=plankY();
+  if(z.j&&now>z.j.t1+0.2){z.x=z.j.x1;z.j=null;}
+  if(!z.j&&z.q.length){z.q.sort((a,b)=>a.t-b.t);while(z.q.length>1&&z.q[0].t<now-0.3)z.q.shift();const nx=z.q.shift();const t1=Math.max(nx.t,now+0.12);z.j={x0:z.x,x1:nx.x,t0:Math.max(now,t1-0.26),t1};}
+  let x=z.x,hop=0,stomp=0;
+  if(z.j){const j=z.j;if(now<j.t0){x=j.x0;}else if(now<j.t1){const p=(now-j.t0)/(j.t1-j.t0);x=lerp(j.x0,j.x1,ease(p));hop=Math.sin(p*Math.PI)*Math.min(14,6+Math.abs(j.x1-j.x0)*0.08);}
+    else{x=j.x1;stomp=1-(now-j.t1)/0.2;}}
+  else hop=Math.max(0,Math.sin(now*3+m*1.7))*1.2;
+  return{x,feet:fy-1,hop,stomp};
+}
+function masons(){masonsInit();return ui.mz.map((_,m)=>mason(m));}
 let ballClock=0;
 function drawEvent(){
   const er=eventRect();if(!er)return;const x=er.x+4,y=L.ground;
@@ -426,6 +494,7 @@ function frame(t){
   if(dirtyAll){dirtyAll=false;relayout();}
   handleEvents();updateFlights();
   if(ui.screen==='play'&&!ui.frozen&&now-ui.lastSave>3){ui.lastSave=now;trySave();}
+  if(ui.measure&&s.phase==='play')ui.measure.masonAt.push({t:now,m:masons().map(a=>({x:a.x,stomp:a.stomp||0,hop:a.hop}))});
   const t0=performance.now();
   ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#1c1815';ctx.fillRect(0,0,cv.width,cv.height);
   ctx.setTransform(DPR,0,0,DPR,OX*DPR,0);ctx.save();ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
@@ -446,7 +515,7 @@ function frame(t){
 function runTo(seed,until){
   fresh(seed);const pl=C.pilot('normal',seed);let n=0;
   while(!until(g.state)&&n++<3600*30*3){pl(g);g.step(CFG.step);g.state.events.length=0;}
-  ui.screen='play';ui.landed=g.state.laid;ui.spawned=g.state.laid;relayout();
+  ui.screen='play';relayout();
   ui.reveal=[];
 }
 const views={
@@ -460,8 +529,11 @@ if(VIEW&&views[VIEW]){views[VIEW]();ui.view=VIEW;}
 else{tryLoad();if(g.state.phase==='done')ui.doneAt=-9;relayout();}
 function probe(){const s=g.state;return{screen:ui.screen,view:ui.view||null,frozen:ui.frozen,phase:s.phase,albumOpen:ui.albumOpen,t:s.t,coins:s.coins,laid:s.laid,total:curB().total,bi:s.bi,stage:s.stage,
   balls:s.balls,lv:{...s.lv},done:[...s.done],goal:g.goal(),hint:g.hint(),skillReady:g.skillReady(),event:s.event&&{...s.event},eventRect:eventRect(),
-  layout:L,ox:OX,dpr:DPR,landed:ui.landed,flights:ui.flights.length,frameMs:frameMs.length?frameMs.reduce((a,b)=>a+b,0)/frameMs.length:0,imgReady};}
+  layout:L,ox:OX,dpr:DPR,pending:ui.pend.length,flights:ui.flights.length,frameMs:frameMs.length?frameMs.reduce((a,b)=>a+b,0)/frameMs.length:0,imgReady};}
 window.__coalbuild={get ready(){return imgReady>=IMG.length&&!!L;},probe,
+  measureStart:()=>{ui.measure={launch:[],land:[],masonAt:[]};},
+  measureRead:()=>ui.measure,
+  walkers:()=>{const n=Math.min(g.state.balls,BALLS_DRAWN);return Array.from({length:n},(_,i)=>walker(i));},
   hits:()=>hitList().map(h=>({id:h.id,r:h.r})),
   autoplay:(level,secs)=>{const pl=C.pilot(level||'normal',g.state.seed);const end=g.state.t+secs;while(g.state.t<end&&g.state.phase==='play'){pl(g);g.step(CFG.step);handleEvents();}return probe();}};
 window.__PLAYTEST__={get ready(){return window.__coalbuild.ready;},snapshot:probe,
