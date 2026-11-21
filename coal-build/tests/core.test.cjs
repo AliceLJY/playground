@@ -73,6 +73,8 @@ test('spec 8.6: the goal is always on screen; the first hint points at the build
   }
   const g2=C.create({buildings:B,seed:1});g2.state.laid=B[0].total-10;
   assert.equal(g2.goal().text,'最后 10 块！','last tenth switches to 最后 N 块！');
+  g2.state.laid=B[0].total;assert.equal(g2.goal().text,'盖好了！','a finished building never says 最后 0 块');
+  const g4=C.create({buildings:B,seed:9});while(!g4.state.event)g4.step(0.1);assert.equal(g4.hint().target,'event','the tea cart outranks the first-tap hint');
 });
 
 test('spec 8.7: the sample really contains the skill, the tea cart, all three events and the stage reveals',()=>{
@@ -123,4 +125,32 @@ test('spec 8.8: buttons never overlap each other or the readouts, stay on screen
       assert.ok(!C.overlaps(er,L.skill),`${tag}: tea cart over the skill button`);
     }
   }
+});
+
+// ---- from Duet's playtest report, 2026-11-21 ----
+test('duet 1: a price pill never says 还差 0 or a negative amount, in any phase',()=>{
+  for(const seed of [1,2,3]){let n=0;C.run(B,seed,'normal',{watch:(s,g)=>{if(n++%10)return;for(const k of C.KINDS){const lb=C.cardLabel(g,k);
+    assert.ok(!/还差 (-|0 )/.test(lb.lead),`seed ${seed} t=${s.t.toFixed(1)} ${k}: "${lb.lead}"`);
+    if(s.phase!=='play')assert.notEqual(lb.kind,'short','outside play a card is just shown, not counted down');
+    if(lb.kind==='buy')assert.ok(g.canBuy(k),`${k} says buy but cannot be bought`);}}});}
+});
+test('duet 5: the tea bubble is part of the tap target; the target-line label steps out of its way',()=>{
+  for(const [w,h] of [[360,560],[390,664],[412,700],[430,760]])for(const b of B){const L=C.layout(w,h,b.aspect,0);
+    for(let p=0;p<=1;p+=0.05)for(const dir of [1,-1]){const P=C.eventParts(L,{t:p*10,event:{kind:'tea',start:0,end:10,dir}});
+      for(const part of [P.cart,P.bubble])assert.ok(part.x>=P.hit.x&&part.y>=P.hit.y&&part.x+part.w<=P.hit.x+P.hit.w&&part.y+part.h<=P.hit.y+P.hit.h,`${w}x${h}: cart or bubble outside the tap target`);
+      assert.ok(P.hit.x>=0&&P.hit.x+P.hit.w<=w&&P.hit.y>=L.stage.y,`${w}x${h}: tea tap target off stage`);
+      for(const c of L.cards)assert.ok(!C.overlaps(P.hit,c),`${w}x${h}: tea over a card`);
+      for(const st of b.stages){const lineY=L.building.y+L.building.h*(1-st.rows/b.rows);const lr=C.placeLabel(L,lineY,150,[P.hit]);
+        assert.ok(!C.overlaps(lr,P.hit),`${w}x${h} ${b.name} ${st.name}: label under the tea cart at ${p.toFixed(2)}`);
+        assert.ok(lr.x>=0&&lr.x+lr.w<=w&&lr.y>=L.stage.y,`${w}x${h}: label off screen`);}}}
+});
+test('duet 6/7: tapping the building lays a trip\'s worth of bricks; hint lines read as sentences',()=>{
+  const g=C.create({buildings:B,seed:1});g.state.lv.power=4;const before=g.state.laid;g.tap();
+  assert.equal(g.state.laid-before,Math.round(g.power()),'a tap at 力气 Lv.4 lays as many bricks as one trip carries');
+  for(const s of [1,2])C.run(B,s,'normal',{watch:(st,gg)=>{const h=gg.hint();assert.ok(!/　/.test(h.text),`hint uses a bare full-width space: "${h.text}"`);}});
+});
+test('duet 2b: on the first building the longest stretch with nothing to buy, use or catch stays under 9 s (normal pilot)',()=>{
+  for(const seed of SEEDS){let last=0,worst=0;
+    C.run(B,seed,'normal',{until:s=>s.bi>0||s.phase!=='play',watch:(s,g)=>{const any=C.KINDS.some(k=>g.canBuy(k))||g.skillReady()||(s.event&&s.event.kind==='tea');if(any)last=s.t;else worst=Math.max(worst,s.t-last);}});
+    assert.ok(worst<9,`seed ${seed}: ${worst.toFixed(1)} s with nothing to do`);}
 });
