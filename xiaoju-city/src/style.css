@@ -77,3 +77,5 @@ button.map-card{padding:8px;border:0;cursor:pointer;color:#516c59;font-family:in
  #navigation-hud{bottom:68px}
  #route-overview{max-height:34vh}
 }
+/* Duet 1: the edition line collided with the footer line on desktop; it repeated what the footer says. */
+.intro-panel .edition{display:none}
