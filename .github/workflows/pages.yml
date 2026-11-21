@@ -136,6 +136,13 @@ jobs:
           for f in src/*.js tools/*.cjs; do node --check "$f"; done
           node --test tests/*.test.cjs
 
+      - name: Check Coal Build
+        working-directory: coal-build
+        run: |
+          # 小黑煤球盖广州：core.js、buildings.js（tools/bake.py 生成）、game.js 都是普通脚本
+          for f in src/*.js tools/*.cjs; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Later Whack
         working-directory: later-whack
         run: |
@@ -408,6 +415,13 @@ jobs:
           mkdir -p _site/pixel-match
           cp pixel-match/index.html _site/pixel-match/index.html
           cp -R pixel-match/src _site/pixel-match/
+
+      - name: Assemble Coal Build
+        run: |
+          # 小黑煤球盖广州：二维画布的放置建造，三张建筑画在 assets/（ChatGPT 生成后离线抠底），没有构建步骤
+          mkdir -p _site/coal-build
+          cp coal-build/index.html _site/coal-build/index.html
+          cp -R coal-build/src coal-build/assets _site/coal-build/
 
       - name: Assemble Later Whack
         run: |
