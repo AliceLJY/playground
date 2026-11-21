@@ -4,12 +4,12 @@
 'use strict';
 const CFG={
   startBalls:3,startCap:5,trip:6,                 // seconds for one round trip, bricks per trip starts at 1
-  tapGap:0.1,
-  hire:{base:8,grow:1.2},shed:{base:25,grow:1.6,add:3},
-  power:{base:18,grow:1.7,add:0.5},wage:{base:30,grow:1.75,add:0.3},
+  tapGap:0.1,tapSecs:0.3,           // a tap lays at least this many seconds of the crew's output
+  hire:{base:8,grow:1.22},shed:{base:25,grow:1.65,add:3},
+  power:{base:18,grow:1.75,add:0.5},wage:{base:30,grow:1.8,add:0.3},
   skill:{first:25,cool:90,secs:20,min:30},
   event:{first:40,gap:[45,75],teaLife:10,teaCoinSecs:15,teaSpeed:1.5,teaBuff:15,windSpeed:2,windBuff:10,bricksSecs:10},
-  stageBonus:0.5,lastShare:0.1,step:1/30
+  stageBonus:0.1,lastShare:0.1,step:1/30
 };
 const KINDS=['hire','shed','power','wage'];
 const LABEL={hire:'招煤球',shed:'扩工棚',power:'力气',wage:'工钱'};
@@ -40,7 +40,7 @@ function create(opts){
   g.coinPerBrick=()=>(cur()?cur().price:1)*g.wageMul();
   g.cost=k=>Math.ceil(k==='hire'?CFG.hire.base*Math.pow(CFG.hire.grow,s.lv.hire):CFG[k].base*Math.pow(CFG[k].grow,s.lv[k]-1));
   g.full=()=>s.balls>=g.cap();
-  g.tapBricks=()=>Math.max(1,Math.round(g.power()/g.weight()));
+  g.tapBricks=()=>Math.max(1,Math.round(Math.max(g.power()/g.weight(),g.rate()*CFG.tapSecs)));
   g.canBuy=k=>s.phase==='play'&&!(k==='hire'&&g.full())&&s.coins>=g.cost(k);
   g.remaining=()=>cur()?cur().total-s.laid:0;
   g.skillReady=()=>s.phase==='play'&&s.t>=s.skillAt;
@@ -194,7 +194,7 @@ function layout(w,h,aspect,safeB){
   const skill={x:8,y:stage.y+8,w:64,h:64};
   const album={x:w-50,y:4,w:44,h:44};
   const ov={w:Math.min(w-32,360)};ov.x=(w-ov.w)/2;
-  const button={x:(w-220)/2,y:h-safeB-pad-56-24,w:220,h:56},noteY=cardsTop-18;
+  const button={x:(w-220)/2,y:h-safeB-pad-56-24,w:220,h:56},noteY=cardsTop-11;
   return{w,h,top,goal,stage,ground,building,skill,album,cards,button,noteY,overlay:ov,pile:{x:Math.max(6,bx-58),y:ground-26,w:46,h:26}};
 }
 // where the 糖水 cart is right now (tap target), or null
