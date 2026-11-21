@@ -46,6 +46,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Xiaoju City hub
+        working-directory: xiaoju-city
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Xiaoju Racing
         working-directory: xiaoju-racing
         run: |
@@ -267,6 +274,14 @@ jobs:
           python3 build.py
           cp '阿橘的广州慢游.html' ../_site/aju/index.html
           cp vendor/THREE-LICENSE.txt ../_site/aju/THREE-LICENSE.txt
+          cd ..
+
+          # 小橘逛花城：作品街入口，build.py 内联成一个离线 HTML（立面图已内联）
+          mkdir -p _site/xiaoju-city
+          cd xiaoju-city
+          python3 build.py
+          cp '小橘逛花城.html' ../_site/xiaoju-city/index.html
+          cp vendor/THREE-LICENSE.txt ../_site/xiaoju-city/THREE-LICENSE.txt
           cd ..
 
           # 小橘飞车：独立竞速项目，离线单文件发布

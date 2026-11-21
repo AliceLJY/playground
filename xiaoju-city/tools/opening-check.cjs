@@ -1,0 +1,9 @@
+// NODE_PATH="$(npm root -g)" node tools/opening-check.cjs <source-url> <out-dir>
+const {chromium}=require('playwright'),fs=require('node:fs');
+const [base,out]=process.argv.slice(2);if(!base||!out)throw Error('URL and output directory required');fs.mkdirSync(out,{recursive:true});
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-gpu','--ignore-gpu-blocklist','--use-angle=metal']}),context=await browser.newContext({viewport:{width:1365,height:900},recordVideo:{dir:out,size:{width:1365,height:900}}}),page=await context.newPage(),errors=[],samples=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.goto(base);await page.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100});await page.locator('#start').click();await page.keyboard.down('ArrowUp');const start=Date.now();
+ while(Date.now()-start<30000){await page.waitForTimeout(250);const s=await page.evaluate(()=>__PLAYTEST__.snapshot());if(s.phase==='challenge'){await page.keyboard.up('ArrowUp');await page.locator('#dialog-secondary').click();await page.keyboard.down('ArrowUp');}if(s.phase==='hotspot'){await page.keyboard.up('ArrowUp');await page.locator('#dialog-secondary').click();await page.keyboard.down('ArrowUp');}if(!samples.length||Date.now()-start-samples.at(-1).t>=1000)samples.push({t:Date.now()-start,phase:s.phase,x:s.x,z:s.z,speed:s.speed});}
+ await page.keyboard.up('ArrowUp');await page.screenshot({path:`${out}/opening-30s.png`});const video=page.video();await context.close();const videoPath=await video.path();await browser.close();const report={base,video:videoPath,errors,samples};fs.writeFileSync(`${out}/opening-report.json`,JSON.stringify(report,null,2));console.log(videoPath);if(errors.length)process.exitCode=1;
+})().catch(e=>{console.error(e);process.exit(1);});
