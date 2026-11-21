@@ -147,10 +147,19 @@ test('duet 5: the tea bubble is part of the tap target; the target-line label st
 test('duet 6/7: tapping the building lays a trip\'s worth of bricks; hint lines read as sentences',()=>{
   const g=C.create({buildings:B,seed:1});g.state.lv.power=4;const before=g.state.laid;g.tap();
   assert.equal(g.state.laid-before,Math.round(g.power()),'a tap at 力气 Lv.4 lays as many bricks as one trip carries');
+  // later on a tap is still worth at least 0.3 s of the whole crew (Duet second report: 中后段点楼存在感仍弱)
+  const g2=C.run(B,1,'normal',{until:s=>s.t>=200}),b2=g2.state.laid;g2.state.lastTap=-9;g2.tap();
+  assert.ok(g2.state.laid-b2>=g2.rate()*0.3-0.5,`at t=200 a tap lays ${g2.state.laid-b2}, under 0.3 s of ${g2.rate().toFixed(1)}/s`);
   for(const s of [1,2])C.run(B,s,'normal',{watch:(st,gg)=>{const h=gg.hint();assert.ok(!/　/.test(h.text),`hint uses a bare full-width space: "${h.text}"`);}});
 });
 test('duet 2b: on the first building the longest stretch with nothing to buy, use or catch stays under 9 s (normal pilot)',()=>{
   for(const seed of SEEDS){let last=0,worst=0;
     C.run(B,seed,'normal',{until:s=>s.bi>0||s.phase!=='play',watch:(s,g)=>{const any=C.KINDS.some(k=>g.canBuy(k))||g.skillReady()||(s.event&&s.event.kind==='tea');if(any)last=s.t;else worst=Math.max(worst,s.t-last);}});
     assert.ok(worst<9,`seed ${seed}: ${worst.toFixed(1)} s with nothing to do`);}
+});
+
+test('duet 2nd report: after the arcade is done, three or more cards are affordable at once under 35% of the time',()=>{
+  const share=[];for(const seed of SEEDS){let n=0,n3=0;
+    C.run(B,seed,'normal',{until:s=>s.bi>0,watch:(s,g)=>{if(s.phase!=='play'||s.stage<1)return;n++;if(C.KINDS.filter(k=>g.canBuy(k)).length>=3)n3++;}});share.push(n3/n);}
+  const m=med(share);assert.ok(m<=0.35,`median ${(m*100).toFixed(0)}% of the time after 柱廊 has 3+ cards affordable (money piles up, no choices)`);
 });
