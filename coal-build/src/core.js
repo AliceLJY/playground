@@ -40,6 +40,7 @@ function create(opts){
   g.coinPerBrick=()=>(cur()?cur().price:1)*g.wageMul();
   g.cost=k=>Math.ceil(k==='hire'?CFG.hire.base*Math.pow(CFG.hire.grow,s.lv.hire):CFG[k].base*Math.pow(CFG[k].grow,s.lv[k]-1));
   g.full=()=>s.balls>=g.cap();
+  g.tapBricks=()=>Math.max(1,Math.round(g.power()/g.weight()));
   g.canBuy=k=>s.phase==='play'&&!(k==='hire'&&g.full())&&s.coins>=g.cost(k);
   g.remaining=()=>cur()?cur().total-s.laid:0;
   g.skillReady=()=>s.phase==='play'&&s.t>=s.skillAt;
@@ -62,7 +63,7 @@ function create(opts){
   }
   g.tap=function(){
     if(s.phase!=='play'||s.t-s.lastTap<CFG.tapGap-1e-9)return false;
-    s.lastTap=s.t;s.taps++;s.stats.tap++;lay(1,'tap');return true;
+    s.lastTap=s.t;s.taps++;s.stats.tap++;lay(g.tapBricks(),'tap');return true;
   };
   g.buy=function(k){
     if(!g.canBuy(k))return false;
@@ -108,7 +109,7 @@ function create(opts){
   g.goal=function(){
     const b=cur();if(!b)return{text:'三栋都盖好了',last:false,stageName:'',stageDone:0,stageSize:0,stageUpTo:0,progress:1};const rem=b.total-s.laid;
     const st=b.stages[Math.min(s.stage,b.stages.length-1)],prev=s.stage?b.stages[Math.min(s.stage,b.stages.length)-1].upTo:0;
-    return{text:rem<=Math.ceil(b.total*CFG.lastShare)?`最后 ${rem} 块！`:`还剩 ${rem} 块`,last:rem<=Math.ceil(b.total*CFG.lastShare),
+    return{text:rem<=0?'盖好了！':rem<=Math.ceil(b.total*CFG.lastShare)?`最后 ${rem} 块！`:`还剩 ${rem} 块`,last:rem<=Math.ceil(b.total*CFG.lastShare),
       stageName:st.name,stageDone:Math.max(0,Math.min(s.laid,st.upTo)-prev),stageSize:st.upTo-prev,stageUpTo:st.upTo,
       progress:s.laid/b.total};
   };
@@ -125,18 +126,31 @@ function hint(g){
   const s=g.state;
   if(s.phase==='done')return{text:'盖好了！点下面的按钮收进图鉴',target:'next'};
   if(s.phase!=='play')return{text:'',target:null};
-  if(s.taps<5&&s.t<60)return{text:'点楼，帮煤球砌一块',target:'building'};
   if(s.event&&s.event.kind==='tea')return{text:'糖水担来了！点它，煤球喝了跑得快',target:'event'};
+  if(s.taps<5&&s.t<60)return{text:'点楼，帮煤球砌一块',target:'building'};
   if(g.skillReady())return{text:'「齐心一砌」好了，点左边圆钮',target:'skill'};
   if(g.full()&&g.canBuy('shed'))return{text:'工棚住满了，点「扩工棚」',target:'shed'};
   if(g.canBuy('hire'))return{text:'人手不够，点「招煤球」',target:'hire'};
   if(g.canBuy('power'))return{text:g.weight()>1?`这里的砖重 ×${g.weight()}，升「力气」搬得动`:'升「力气」，一趟多搬半块',target:'power'};
   if(g.canBuy('wage'))return{text:'升「工钱」，每块赚更多',target:'wage'};
   if(g.full()&&!g.canBuy('shed'))return{text:`工棚住满了，「扩工棚」还差 ${fmtNeed(g,'shed')}`,target:null};
-  const k=cheapest(g);return{text:`攒工钱中，「${LABEL[k]}」还差 ${fmtNeed(g,k)}　点楼能快一点`,target:null};
+  const k=cheapest(g);return{text:`攒工钱中，「${LABEL[k]}」还差 ${fmtNeed(g,k)}，点楼也能砌`,target:null};
 }
-const fmtNeed=(g,k)=>fmt(Math.max(1,g.cost(k)-g.state.coins));
+const fmtNeed=(g,k)=>fmt(Math.max(1,Math.ceil(g.cost(k)-g.state.coins)));
 function cheapest(g){let best=null;for(const k of KINDS){if(k==='hire'&&g.full())continue;if(best==null||g.cost(k)<g.cost(best))best=k;}return best;}
+
+// what a card's price pill says: {kind:'buy'|'short'|'full'|'idle', lead, cost}
+const num=v=>Math.abs(v-Math.round(v))<1e-6?String(Math.round(v)):v.toFixed(1);
+function cardLabel(g,k){
+  const s=g.state;
+  if(k==='hire'&&g.full())return{kind:'full',lead:'工棚住满了',cost:null};
+  const p=g.power(),cpb=g.coinPerBrick(),price=g.building()?g.building().price:1;
+  const eff=k==='hire'?'+1 只':k==='shed'?'+3 床位':k==='power'?`一趟 ${num(p)}→${num(p+CFG.power.add)} 块`:`每块 ${num(cpb)}→${num(price*(g.wageMul()+CFG.wage.add))}`;
+  const cost=g.cost(k);
+  if(s.phase!=='play')return{kind:'idle',lead:eff,cost};
+  if(s.coins>=cost)return{kind:'buy',lead:eff,cost};
+  return{kind:'short',lead:`还差 ${fmt(Math.ceil(cost-s.coins))} 工钱`,cost:null};
+}
 
 // Autopilot players for tests and fixed views. level: 'normal' (taps 1.5/s, buys late and picks at random), 'idle' (never taps, shops every 20 s)
 function pilot(level,seed){
@@ -180,16 +194,30 @@ function layout(w,h,aspect,safeB){
   const skill={x:8,y:stage.y+8,w:64,h:64};
   const album={x:w-50,y:4,w:44,h:44};
   const ov={w:Math.min(w-32,360)};ov.x=(w-ov.w)/2;
-  const button={x:(w-220)/2,y:h-safeB-pad-56-24,w:220,h:56};
-  return{w,h,top,goal,stage,ground,building,skill,album,cards,button,overlay:ov,pile:{x:Math.max(6,bx-58),y:ground-26,w:46,h:26}};
+  const button={x:(w-220)/2,y:h-safeB-pad-56-24,w:220,h:56},noteY=cardsTop-18;
+  return{w,h,top,goal,stage,ground,building,skill,album,cards,button,noteY,overlay:ov,pile:{x:Math.max(6,bx-58),y:ground-26,w:46,h:26}};
 }
 // where the 糖水 cart is right now (tap target), or null
 function eventRect(L,s){
   const e=s.event;if(!e||e.kind!=='tea')return null;
-  const p=Math.min(1,Math.max(0,(s.t-e.start)/(e.end-e.start))),span=L.w-16-68;
-  return{x:e.dir>0?8+span*p:L.w-8-68-span*p,y:L.ground-52,w:68,h:56};
+  return eventParts(L,s).hit;
+}
+function eventParts(L,s){
+  const e=s.event;if(!e||e.kind!=='tea')return null;
+  const p=Math.min(1,Math.max(0,(s.t-e.start)/(e.end-e.start))),span=L.w-16-84;
+  const x=e.dir>0?8+span*p:L.w-8-84-span*p;          // left edge of the whole thing
+  const cart={x:x+8,y:L.ground-52,w:68,h:56},bubble={x:x+2,y:L.ground-90,w:80,h:24};
+  return{cart,bubble,hit:{x,y:L.ground-94,w:84,h:98}};
+}
+function placeLabel(L,lineY,w,avoid){
+  const R=L.building,above=Math.max(L.stage.y+2,lineY-24),below=Math.min(L.ground-22,lineY+4);
+  const right=Math.max(4,Math.min(L.w-w-4,R.x+R.w-w+8)),left=Math.max(4,Math.min(L.w-w-4,R.x-8)),higher=Math.max(L.stage.y+2,lineY-48);
+  const ys=[above,below,higher,...(avoid||[]).filter(Boolean).map(r=>Math.max(L.stage.y+2,r.y-24))];
+  const xs=[right,left,L.w-w-4,4],cands=[];for(const y of ys)for(const x of xs)cands.push({x,y,w,h:20});
+  for(const c of cands)if(!(avoid||[]).some(a=>a&&overlaps(a,c))&&!overlaps(c,L.skill))return c;
+  return cands[0];
 }
 function overlaps(a,b){return a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;}
 
-return{CFG,KINDS,LABEL,create,pilot,run,layout,eventRect,overlaps,rng,fmt,hint};
+return{CFG,KINDS,LABEL,create,pilot,run,layout,eventRect,eventParts,placeLabel,cardLabel,overlaps,rng,fmt,hint};
 });
