@@ -734,6 +734,11 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           timeout: 600000
+      # Run 44812998348 (11-21): the artifact uploaded fine, but deploy-pages looked it up under a second
+      # later and got "Found 0 artifact(s)"; the immediate retry hit the same wall. Give GitHub time first.
+      - name: Wait before retrying the deploy
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
       - name: Deploy (retry after timeout)
         id: deploy_retry
         if: steps.deployment.outcome == 'failure'
