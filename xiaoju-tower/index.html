@@ -3,6 +3,7 @@
 <body><main id="game" aria-label="小橘爬塔，攀爬广州塔的小游戏">
 <div id="world"></div>
 <div id="gust-bar" aria-hidden="true"><div class="fill"></div><span class="label">起风了 · 按住抓紧</span><span class="arrow"></span></div>
+<div id="kite-bar" aria-hidden="true"><div class="fill"></div><span class="label">黑鸢锁定你了 · ← → 换柱躲开</span></div>
 <div id="flash" aria-hidden="true"></div>
 
 <section id="hud" hidden>
@@ -34,6 +35,7 @@
     <li><b>↑</b> 按住往上爬，体力会掉。松手就抓住最近的横梁歇着。</li>
     <li><b>← →</b> 在横梁上换一根柱子，绕开蹲着的鸽子。</li>
     <li><b>抓紧</b> 起风前按住，扛过去再松开。</li>
+    <li><b>黑鸢</b> 它盯上哪根柱子，就赶紧换到旁边那根。</li>
   </ul>
   <div class="start-row"><button id="start" class="primary">开始爬 <span>↑</span></button><button id="mode" class="mode" type="button"></button></div>
   <p class="credit">地图数据 © OpenStreetMap contributors · 我的AI小木屋</p>
@@ -42,7 +44,7 @@
 <section id="ending" class="panel" hidden>
   <div class="eyebrow">登顶</div>
   <h1>454 米，<br>全城亮灯。</h1>
-  <p class="result"><span>用时 <b id="e-time">0:00</b></span><span>掉落 <b id="e-falls">0</b> 次</span><span>被鸽子吓到 <b id="e-pigeons">0</b> 次</span></p>
+  <p class="result"><span>用时 <b id="e-time">0:00</b></span><span>掉落 <b id="e-falls">0</b> 次</span><span>被鸽子吓到 <b id="e-pigeons">0</b> 次</span><span>被黑鸢撞到 <b id="e-kites">0</b> 次</span></p>
   <button id="again" class="primary">再爬一次 <span>↺</span></button>
 </section>
 </main>

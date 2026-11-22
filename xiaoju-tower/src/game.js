@@ -246,6 +246,54 @@
   [pigeonBody, pigeonWing, pigeonHead].forEach(m => { m.frustumCulled = false; scene.add(m); });
   let flyers = [];
 
+  // ---------- black kite (黑鸢): big dark-brown raptor with a forked tail, exaggerated for readability ----------
+  const kite = new THREE.Group(); scene.add(kite);
+  const kBrown = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.85 }), kLight = new THREE.MeshStandardMaterial({ color: 0x8a6a4c, roughness: 0.8 });
+  const kBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.4, 6, 12), kBrown); kBody.rotation.x = Math.PI / 2; kite.add(kBody);
+  const kHead = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 10), kLight); kHead.position.z = 1.05; kite.add(kHead);
+  const kBeak = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), new THREE.MeshStandardMaterial({ color: 0xe2b23a })); kBeak.rotation.x = Math.PI / 2; kBeak.position.set(0, -0.06, 1.38); kite.add(kBeak);
+  const kWings = [-1, 1].map(sx => {
+    const root = new THREE.Group(); root.position.x = 0.3 * sx; kite.add(root);
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 1.1), kBrown); inner.position.x = 1.2 * sx; root.add(inner);
+    const tip = new THREE.Group(); tip.position.x = 2.4 * sx; root.add(tip);
+    const outer = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.8), kLight); outer.position.x = 1.0 * sx; tip.add(outer);
+    return { root, tip, sx };
+  });
+  [-1, 1].forEach(sx => { const t = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 1.2), kBrown); t.position.set(0.18 * sx, 0, -1.4); t.rotation.y = 0.28 * sx; kite.add(t); });
+  const laneMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0, depthWrite: false });
+  const lane = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1, 10, 1, true), laneMat); lane.renderOrder = 2; scene.add(lane);
+  let kiteAway = null;   // {from, dir, t}
+  const kitePos = new THREE.Vector3(0, 200, 60);
+  function updateKite(dt) {
+    const kp = X.kitePhase(S), tm = LED.uTime.value, yy = X.y(S);
+    let want, look = null, flap = 1;
+    if (kp.phase === 'warn' && kp.k.status === 'locked') {
+      const tgt = colFrame(kp.k.target, S.t), strikePt = tgt.p.clone().addScaledVector(tgt.out, 1.2).add(V3(0, 0.6, 0));
+      const side = new THREE.Vector3().crossVectors(tgt.dir, tgt.out).normalize();   // screen-right as seen by the camera
+      const hover = tgt.p.clone().addScaledVector(tgt.out, 6.5).addScaledVector(side, 2.4).add(V3(0, 5 + Math.sin(tm * 3) * 0.5, 0));
+      const d = clamp((kp.p - 0.8) / 0.2, 0, 1);
+      want = d > 0 ? hover.clone().lerp(strikePt, d * d) : hover; look = strikePt; flap = d > 0 ? 0.15 : 2.2;
+      kitePos.lerp(want, d > 0 ? 1 : 1 - Math.pow(0.02, dt));
+      // the locked column glows red above and below the cat
+      const a = colFrame(kp.k.target, clamp(S.t - 7 / C.height, 0, 1)).p, b = colFrame(kp.k.target, clamp(S.t + 9 / C.height, 0, 1)).p;
+      const dir = b.clone().sub(a); lane.position.copy(a).addScaledVector(dir, 0.5); lane.scale.set(1, dir.length(), 1); lane.quaternion.setFromUnitVectors(up, dir.normalize());
+      laneMat.opacity = 0.18 + 0.22 * Math.abs(Math.sin(tm * 9));
+    } else {
+      laneMat.opacity = Math.max(0, laneMat.opacity - dt * 3);
+      if (kiteAway) {
+        kiteAway.t += dt; kitePos.copy(kiteAway.from).addScaledVector(kiteAway.dir, kiteAway.t * 22).add(V3(0, kiteAway.t * kiteAway.t * 6, 0)); look = kitePos.clone().add(kiteAway.dir); flap = 2.5;
+        if (kiteAway.t > 2.5) kiteAway = null;
+      } else {
+        const r = Math.hypot(X.colPoint(0, S.t).x, X.colPoint(0, S.t).z) + 38, a = tm * 0.3;
+        want = V3(Math.cos(a) * r, yy + 48, Math.sin(a) * r); look = V3(Math.cos(a + 0.2) * r, yy + 48, Math.sin(a + 0.2) * r); flap = 0.5;
+        kitePos.lerp(want, 1 - Math.pow(0.3, dt));
+      }
+    }
+    kite.position.copy(kitePos); if (look) kite.lookAt(look);
+    kite.visible = yy > X.CFG.kite.minY - 30 || kiteAway !== null;
+    kWings.forEach(w => { const f = Math.sin(tm * 6 * flap) * 0.45 * Math.min(1, flap); w.root.rotation.z = w.sx * f; w.tip.rotation.z = w.sx * f * 0.6; });
+  }
+
   // ---------- wind streaks ----------
   const windN = 140, windGeo = new THREE.BufferGeometry(), windPos = new Float32Array(windN * 6);
   windGeo.setAttribute('position', new THREE.BufferAttribute(windPos, 3));
@@ -279,10 +327,11 @@
 
   // ---------- UI ----------
   const $ = id => document.getElementById(id);
+  const kiteEl = $('kite-bar');
   const introEl = $('intro'), endEl = $('ending'), hudEl = $('hud'), padEl = $('pad'), hintEl = $('hint'), gustEl = $('gust-bar'), flashEl = $('flash');
   const staminaEl = document.querySelector('.stamina'), staminaLabel = document.querySelector('.stamina span');
   const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-  const hints = { climb: '按住 <b>↑</b> 往上爬', rest: '停在横梁上不动，体力会慢慢回来', shift: '鸽子挡路？停在横梁上按 <b>← →</b> 换一根柱子', gust: '起风了！按住 <b>抓紧</b>，扛过去再松开', waist: '过了塔腰，柱子往外倒，更费体力，多歇', low: '体力不够了？松开 <b>↑</b>，小橘会抓住最近的横梁歇着' };
+  const hints = { climb: '按住 <b>↑</b> 往上爬', rest: '停在横梁上不动，体力会慢慢回来', shift: '鸽子挡路？停在横梁上按 <b>← →</b> 换一根柱子', gust: '起风了！按住 <b>抓紧</b>，扛过去再松开', waist: '过了塔腰，柱子往外倒，更费体力，多歇', low: '体力不够了？松开 <b>↑</b>，小橘会抓住最近的横梁歇着', kite: '黑鸢盯上你了！在横梁上按 <b>←</b> 或 <b>→</b> 换一根柱子躲开（在柱子中间就先松手抓横梁）' };
   const hintDone = {}; let hintNow = null, hintSince = 0;
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = S.time; hintEl.innerHTML = hints[id]; hintEl.hidden = false; }
   function clearHint(id) { hintDone[id] = true; if (hintNow === id) { hintNow = null; hintEl.hidden = true; } }
@@ -409,11 +458,18 @@
     LED.uNight.value = k.night; glassMat.emissiveIntensity = k.night * 0.6; capMat.emissiveIntensity = k.night * 1.2 + LED.uShow.value;
     beacon.material.color.setHSL(0, 1, 0.35 + 0.25 * (Math.sin(LED.uTime.value * 3) > 0 ? 1 : 0));
   }
+  function placeBanners() {   // on narrow screens the warning bars and hints sit right under the height meter, whatever its height
+    const m = document.querySelector('.meter').getBoundingClientRect();
+    if (m.height) document.documentElement.style.setProperty('--hud-bottom', Math.round(m.bottom + 8) + 'px');
+  }
+  if (window.ResizeObserver) new ResizeObserver(placeBanners).observe(document.querySelector('.meter'));
+  addEventListener('resize', placeBanners);
   function updateHUD(gp) {
     const yy = X.y(S);
     $('h-now').textContent = Math.round(yy);
     const nextCp = C.checkpoints.find(k => k > S.checkpointK);
-    $('h-next').textContent = nextCp ? `下一个歇脚台 · ${Math.round(X.ringY(nextCp))} 米` : '最后一段 · 塔顶 454 米';
+    const ci = C.checkpoints.indexOf(nextCp);
+    $('h-next').textContent = nextCp ? `下一个歇脚台 · ${C.checkpointNames[ci]}\u00a0${C.checkpointRealY[ci]}\u00a0米` : '最后一段 · 塔顶 454 米';
     const fill = $('stamina-fill'); fill.style.width = clamp(S.stamina, 0, 100) + '%'; fill.classList.toggle('low', S.stamina < 30);
     const resting = !!S.resting && S.stamina < 99.5;
     staminaEl.classList.toggle('resting', resting); staminaLabel.textContent = resting ? '歇脚中 ↑' : S.settling ? '抓横梁…' : '体力';
@@ -424,14 +480,21 @@
     gustEl.querySelector('.fill').style.width = (gp.phase === 'warn' ? gp.p * 100 : gp.phase === 'gust' ? (1 - gp.p) * 100 : 0) + '%';
     gustEl.querySelector('.label').textContent = gp.phase === 'gust' ? '刮风中 · 别松手' : '起风了 · 按住抓紧';
     padKeys.brace.classList.toggle('urgent', gp.phase === 'warn' || gp.phase === 'gust');
+    const kp = X.kitePhase(S), kOn = kp.phase === 'warn' && kp.k.status === 'locked';
+    kiteEl.classList.toggle('on', kOn); kiteEl.querySelector('.fill').style.width = (kOn ? kp.p * 100 : 0) + '%';
+    padKeys.left.classList.toggle('urgent', kOn); padKeys.right.classList.toggle('urgent', kOn);
   }
+  const eventLog = [];
   function handleEvents() {
     while (S.events.length) {
-      const e = S.events.shift();
+      const e = S.events.shift(); eventLog.push(e.type); if (eventLog.length > 200) eventLog.shift();
       if (e.type === 'pigeon') { const f = colFrame(e.col, X.ringY(e.k) / C.height); flyers.push({ p: f.p.addScaledVector(f.out, 1.0), v: f.out.clone().multiplyScalar(5).add(V3(0, 2, 0)), yaw: Math.atan2(f.out.x, f.out.z), t: 0 }); flash('hit'); shake = 0.35; }
       if (e.type === 'gust-fall' || e.type === 'lost-grip') { flash('hit'); shake = 0.6; }
       if (e.type === 'gust-held') { flash('ok'); clearHint('gust'); }
-      if (e.type === 'checkpoint') { flash('ok'); }
+      if (e.type === 'checkpoint') { flash('ok'); const i = C.checkpoints.indexOf(e.k); if (i >= 0) note(`到了 · ${C.checkpointNames[i]} ${C.checkpointRealY[i]} 米，体力回满`); }
+      if (e.type === 'kite-warn' && !hintDone.kite) showHint('kite');
+      if (e.type === 'kite-dodged') { flash('ok'); clearHint('kite'); kiteAway = { from: kitePos.clone(), dir: colFrame(e.col, S.t).out.add(V3(0, 0.3, 0)).normalize(), t: 0 }; }
+      if (e.type === 'kite-hit') { flash('hit'); shake = 0.8; if (hintNow === 'kite') { hintNow = null; hintEl.hidden = true; } kiteAway = { from: kitePos.clone(), dir: colFrame(e.col, S.t).out.add(V3(0, 0.5, 0)).normalize(), t: 0 }; }
       if (e.type === 'shifted') clearHint('shift');
       if (e.type === 'top') finish();
     }
@@ -474,8 +537,8 @@
   function finish() {
     ended = true; playing = false; showT = 0;
     endEl.querySelector('h1').innerHTML = MODE === 'day' ? '454 米，<br>整座城在脚下。' : lightProg.on ? '454 米，<br>全城亮灯。' : '23 点熄灯了，<br>城市还醒着。';
-    $('e-time').textContent = fmt(S.doneAt); $('e-falls').textContent = S.falls + S.gustFalls; $('e-pigeons').textContent = S.pigeonHits;
-    padEl.hidden = true; hintEl.hidden = true; hudEl.hidden = true; gustEl.classList.remove('on');
+    $('e-time').textContent = fmt(S.doneAt); $('e-falls').textContent = S.falls + S.gustFalls; $('e-pigeons').textContent = S.pigeonHits; $('e-kites').textContent = S.kiteHits;
+    padEl.hidden = true; hintEl.hidden = true; hudEl.hidden = true; gustEl.classList.remove('on'); kiteEl.classList.remove('on');
     setTimeout(() => { if (ended) { endEl.hidden = false; } }, 4500);
   }
 
@@ -510,7 +573,7 @@
     else LED.uShow.value = 0;
     dayP = lerp(dayP, X.skyProgress(MODE, S.maxY / C.height), Math.min(1, dt * 0.8));
     const gp = X.gustPhase(S);
-    updateLights(dt); placeCat(dt); updatePigeons(dt); updateWind(dt, gp); updateCamera(dt); applySky();
+    updateLights(dt); placeCat(dt); updateKite(dt); updatePigeons(dt); updateWind(dt, gp); updateCamera(dt); applySky();
     if (playing) { updateHUD(gp); hintLogic(gp); }
     else if (VIEW) updateHUD(gp);
     if (gp.phase === 'gust' && playing) shake = Math.max(shake, 0.08);
@@ -519,11 +582,13 @@
 
   window.__PLAYTEST__ = {
     ready: true,
-    snapshot: () => ({ timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
+    snapshot: () => ({ kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
     reset: seed => { reset(seed); },
     setSeed: n => { reset(n); },
     start: () => start(),
     step: ms => { const n = Math.round(ms / (1000 / 60)); for (let i = 0; i < n; i++) tick(1 / 60); },
+    jumpToKite: () => { S.gusts = S.gusts.filter(g => g.start > S.time + 60); const k = S.kites[S.kiteIdx]; if (k) S.time = k.warnAt - 0.2; },
+    hits: () => eventLog.slice(),
     teleport: (t, col) => { S.t = t; if (col != null) S.col = col; S.maxY = Math.max(S.maxY, X.y(S)); }
   };
 })();

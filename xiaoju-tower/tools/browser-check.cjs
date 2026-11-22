@@ -7,7 +7,7 @@ const overlap = (a, b) => a && b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < 
 async function rects(p) {
   return p.evaluate(() => {
     const r = s => { const e = document.querySelector(s); if (!e || e.hidden || e.offsetParent === null && getComputedStyle(e).position !== 'fixed') return null; const b = e.getBoundingClientRect(); return b.width ? { x: b.x, y: b.y, w: b.width, h: b.height } : null; };
-    return { meter: r('.meter'), stats: r('.stats'), brace: r('.key.brace'), up: r('.key.up'), left: r('.key.left'), right: r('.key.right'), down: r('.key.down'), hint: r('#hint'), gust: r('#gust-bar'), vw: innerWidth, vh: innerHeight };
+    return { meter: r('.meter'), stats: r('.stats'), brace: r('.key.brace'), up: r('.key.up'), left: r('.key.left'), right: r('.key.right'), down: r('.key.down'), hint: r('#hint'), gust: r('#gust-bar'), kite: r('#kite-bar'), vw: innerWidth, vh: innerHeight };
   });
 }
 (async () => {
@@ -24,12 +24,12 @@ async function rects(p) {
     ok(`${name}: 开场时 HUD 和按键真的藏起来`, introHidden.every(d => d === 'none'), introHidden.join(','));
     await p.evaluate(() => window.__PLAYTEST__.start());
     // force a visible hint + gust warning to test the worst-case layout
-    await p.evaluate(() => { const g = document.getElementById('gust-bar'); g.classList.add('on'); const h = document.getElementById('hint'); h.hidden = false; h.innerHTML = '起风了！按住 <b>抓紧</b>，扛过去再松开'; });
+    await p.evaluate(() => { document.getElementById('kite-bar').classList.add('on'); const g = document.getElementById('gust-bar'); g.classList.add('on'); const h = document.getElementById('hint'); h.hidden = false; h.innerHTML = '起风了！按住 <b>抓紧</b>，扛过去再松开'; });
     await p.waitForTimeout(500);
     const R = await rects(p);
-    const names = ['meter', 'stats', 'brace', 'up', 'left', 'right', 'down', 'hint', 'gust'];
+    const names = ['meter', 'stats', 'brace', 'up', 'left', 'right', 'down', 'hint', 'gust', 'kite'];
     const bad = [];
-    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (overlap(R[names[i]], R[names[j]])) bad.push(names[i] + '×' + names[j]);
+    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (!(names[i] === 'gust' && names[j] === 'kite') && overlap(R[names[i]], R[names[j]])) bad.push(names[i] + '×' + names[j]);
     ok(`${name}: 按钮、读数、提示互不重叠`, bad.length === 0, bad.join(', '));
     const inside = names.every(n => !R[n] || (R[n].x >= 0 && R[n].y >= 0 && R[n].x + R[n].w <= R.vw + 0.5 && R[n].y + R[n].h <= R.vh + 0.5));
     ok(`${name}: 界面元素都在可视区内`, inside);
@@ -52,6 +52,19 @@ async function rects(p) {
     ok(`${name}: 页面零报错`, errs.length === 0, errs.join(' | '));
     await ctx.close();
   }
+  // black kite with real keys: the warning shows, ← moves off the locked column, the dive misses
+  { const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } }); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
+    await p.goto(url + '?seed=5&time=day'); await p.waitForTimeout(2000);
+    await p.evaluate(() => { window.__PLAYTEST__.start(); window.__PLAYTEST__.teleport(20 / 46, 0); window.__PLAYTEST__.jumpToKite(); });
+    await p.waitForTimeout(900);
+    const warn = await p.evaluate(() => ({ s: window.__PLAYTEST__.snapshot(), bar: getComputedStyle(document.getElementById('kite-bar')).opacity, hint: document.getElementById('hint').textContent }));
+    await p.screenshot({ path: `${out}/kite-warn.png` });
+    await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(150); await p.keyboard.up('ArrowLeft'); await p.waitForTimeout(1800);
+    const ev = await p.evaluate(() => window.__PLAYTEST__.hits());
+    await p.screenshot({ path: `${out}/kite-after.png` });
+    ok('黑鸢：预警条亮、提示出现，按 ← 换柱后扑空', warn.s.kite === 'warn' && +warn.bar > 0.5 && warn.hint.includes('黑鸢') && ev.includes('kite-dodged') && !ev.includes('kite-hit'), JSON.stringify({ kite: warn.s.kite, bar: warn.bar, ev: ev.filter(x => x.startsWith('kite')) }));
+    ok('黑鸢页零报错', errs.length === 0, errs.join(' | '));
+    await ctx.close(); }
   // let go = rest, with real keys
   { const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } }); const p = await ctx.newPage();
     await p.goto(url + '?seed=5&time=day'); await p.waitForTimeout(2000);
