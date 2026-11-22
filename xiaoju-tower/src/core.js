@@ -321,7 +321,7 @@
     return { done: s.done, time: s.done ? s.doneAt : s.time, falls: s.falls, gustFalls: s.gustFalls, pigeonHits: s.pigeonHits, maxY: s.maxY, checkpointK: s.checkpointK, events: s.events };
   }
 
-  // ---------- time of day follows the player's clock ----------
+  // ---------- time of day and tower lights follow Guangzhou time (UTC+8) ----------
   // day 06:00–16:59, dusk 17:00–18:59 (the sky darkens as you climb), night 19:00–05:59.
   function timeMode(hour) {
     const h = ((hour % 24) + 24) % 24;
@@ -329,16 +329,41 @@
     if (h >= 17 && h < 19) return 'dusk';
     return 'night';
   }
-  // Map climb progress (0..1 of the height reached) to the sky curve used by the renderer (0 = afternoon, 1 = deep night).
+  function gzClock(date) {
+    const d = date || new Date();
+    const ms = d.getTime() + 8 * 3600e3;           // Guangzhou has no daylight saving
+    const secOfDay = Math.floor(ms / 1000) % 86400;
+    return { hour: Math.floor(secOfDay / 3600), sec: secOfDay };
+  }
+  // Map climb progress (0..1 of the height reached) to the sky curve (0 = afternoon, 1 = deep night).
   function skyProgress(mode, f) {
     f = clamp(f, 0, 1);
     if (mode === 'day') return f * 0.28;
     if (mode === 'night') return 0.9 + f * 0.1;
     return f;
   }
+  // The clock the tower "sees", in Guangzhou seconds of day. Following the real clock uses it directly;
+  // a mode picked by hand stands in for a typical moment of that period. Dusk runs 17:30 → 19:30 as you climb.
+  function virtualSec(mode, following, realSec, f) {
+    if (mode === 'dusk') return (17.5 + 2 * clamp(f, 0, 1)) * 3600;
+    if (following) return realSec;
+    return mode === 'day' ? 14 * 3600 : 20.5 * 3600;
+  }
+  // Canton Tower lights: on 19:00–23:00 (inferred from the 2023 Spring Festival notice "19:00-24:00（延迟1小时）").
+  const LIGHTS = { on: 19 * 3600, off: 23 * 3600, chapterLen: 260 / 6 };
+  const BAY_CHAPTERS = ['潮涌', '蹁跹', '聚势', '同心', '星河', '华章'];
+  function lightsOn(sec) { return sec >= LIGHTS.on && sec < LIGHTS.off; }
+  // 「湾区新韵」(about 4 min 20 s, six chapters) alternates with the classic programme.
+  function lightProgram(sec) {
+    if (!lightsOn(sec)) return { on: false };
+    const t = sec - LIGHTS.on, cycle = 520, inCycle = t % cycle;
+    if (inCycle >= 260) return { on: true, program: 'classic', chapter: -1, local: (inCycle - 260) / 260 };
+    const ch = Math.min(5, Math.floor(inCycle / LIGHTS.chapterLen));
+    return { on: true, program: 'bay', chapter: ch, name: BAY_CHAPTERS[ch], local: (inCycle - ch * LIGHTS.chapterLen) / LIGHTS.chapterLen };
+  }
 
   const API = { CFG, mulberry32, colPoint, colEnds, colLength, COL_LEN, radiusAt, outward, leanAt, leanMult, waist, ringT, ringY,
-    makeGusts, makePigeons, createState, step, gustPhase, atNode, segmentOf, onPlatform, makePilot, simulate, y, timeMode, skyProgress };
+    makeGusts, makePigeons, createState, step, gustPhase, atNode, segmentOf, onPlatform, makePilot, simulate, y, timeMode, skyProgress, gzClock, virtualSec, lightsOn, lightProgram, LIGHTS, BAY_CHAPTERS };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.XJT = API;
 })(typeof self !== 'undefined' ? self : this);

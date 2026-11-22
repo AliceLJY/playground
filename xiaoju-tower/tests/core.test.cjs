@@ -91,3 +91,30 @@ test('白天黑夜跟本机时钟：6–16 点白天、17–18 点黄昏、19–
   assert.ok(X.skyProgress('night', 0) >= 0.88, '夜里一开始就是夜景');
   assert.ok(X.skyProgress('dusk', 0) < 0.05 && X.skyProgress('dusk', 1) > 0.95, '黄昏模式越爬越黑');
 });
+
+test('广州时间：不管玩家在哪个时区，都按东八区算', () => {
+  const c = X.gzClock(new Date('2026-11-22T12:30:00Z'));   // 广州 20:30
+  assert.equal(c.hour, 20);
+  assert.equal(X.gzClock(new Date('2026-11-22T22:00:00Z')).hour, 6);
+});
+
+test('塔身灯光 19:00 亮、23:00 熄；「湾区新韵」六章约 4 分 20 秒，与经典版交替', () => {
+  assert.equal(X.lightsOn(18.99 * 3600), false);
+  assert.equal(X.lightsOn(19 * 3600), true);
+  assert.equal(X.lightsOn(22.99 * 3600), true);
+  assert.equal(X.lightsOn(23 * 3600), false);
+  assert.equal(X.lightsOn(1 * 3600), false, '凌晨不该亮');
+  const seen = [];
+  for (let s = 19 * 3600; s < 19 * 3600 + 260; s += 5) { const p = X.lightProgram(s); if (p.program === 'bay' && seen.at(-1) !== p.name) seen.push(p.name); }
+  assert.deepEqual(seen, ['潮涌', '蹁跹', '聚势', '同心', '星河', '华章']);
+  assert.equal(X.lightProgram(19 * 3600 + 300).program, 'classic');
+  assert.equal(X.lightProgram(19 * 3600 + 530).name, '潮涌', '第二轮又从潮涌开始');
+});
+
+test('黄昏模式越爬越晚，爬到半路赶上 19:00 亮灯', () => {
+  const on = f => X.lightsOn(X.virtualSec('dusk', true, 0, f));
+  assert.equal(on(0), false);
+  assert.equal(on(1), true);
+  const firstOn = [...Array(101).keys()].map(i => i / 100).find(on);
+  assert.ok(firstOn > 0.6 && firstOn < 0.85, `亮灯发生在 ${firstOn}`);
+});

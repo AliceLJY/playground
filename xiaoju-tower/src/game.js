@@ -5,8 +5,10 @@
   const VIEW = Q.get('view');
   let SEED = +Q.get('seed') || ((Date.now() / 1000) | 0) % 9973 + 1;
   const MODES = ['day', 'dusk', 'night'], MODE_NAME = { day: '白天', dusk: '黄昏', night: '夜晚' };
-  let MODE = MODES.includes(Q.get('time')) ? Q.get('time') : X.timeMode(new Date().getHours());
-  const clockMode = X.timeMode(new Date().getHours());
+  const clockMode = X.timeMode(X.gzClock().hour);
+  let MODE = MODES.includes(Q.get('time')) ? Q.get('time') : clockMode;
+  let following = MODE === clockMode && !Q.get('time');
+  const pageStart = performance.now();
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
   const smooth = t => t * t * (3 - 2 * t);
@@ -61,7 +63,7 @@
   scene.add(skyDome);
 
   // ---------- shared LED shader hook ----------
-  const LED = { uTime: { value: 0 }, uNight: { value: 0 }, uShow: { value: 0 } };
+  const LED = { uTime: { value: 0 }, uNight: { value: 0 }, uShow: { value: 0 }, uOn: { value: 0 }, uChapter: { value: -1 }, uLocal: { value: 0 } };
   function withLED(mat, strength) {
     mat.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, LED);
@@ -74,14 +76,31 @@
           #endif
           vWP = (modelMatrix * wpp).xyz;`);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-          varying vec3 vWP; uniform float uTime, uNight, uShow, uLedK;
+          varying vec3 vWP; uniform float uTime, uNight, uShow, uLedK, uOn, uChapter, uLocal;
           vec3 ledPal(float x){ x = fract(x); vec3 a=vec3(1.0,0.35,0.63), b=vec3(1.0,0.70,0.28), c=vec3(0.35,0.82,1.0);
-            return x<0.333 ? mix(a,b,x*3.0) : x<0.666 ? mix(b,c,(x-0.333)*3.0) : mix(c,a,(x-0.666)*3.0); }`)
+            return x<0.333 ? mix(a,b,x*3.0) : x<0.666 ? mix(b,c,(x-0.333)*3.0) : mix(c,a,(x-0.666)*3.0); }
+          float hsh(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }
+          vec3 pick5(float x, vec3 a, vec3 b, vec3 c, vec3 d, vec3 e){ x = fract(x)*5.0; float f = smoothstep(0.0,1.0,fract(x)); int i = int(floor(x));
+            if(i==0) return mix(a,b,f); if(i==1) return mix(b,c,f); if(i==2) return mix(c,d,f); if(i==3) return mix(d,e,f); return mix(e,a,f); }
+          // 「湾区新韵」six chapters, colours from the 2025-11-11 Yangcheng Evening News description
+          vec3 bay(float ch, float h, float a, float T, float loc){
+            vec3 cyan=vec3(0.2,0.75,1.0), rose=vec3(1.0,0.32,0.62), lilac=vec3(0.72,0.55,1.0), blue=vec3(0.22,0.32,1.0), purple=vec3(0.58,0.28,0.95),
+                 green=vec3(0.3,0.95,0.5), silver=vec3(0.9,0.92,1.0), deep=vec3(0.32,0.08,0.62), crimson=vec3(0.85,0.07,0.12), gold=vec3(1.0,0.78,0.28);
+            if (ch < 0.5) { float w = 0.5+0.5*sin(h*9.0 - T*1.2 + a*6.2832); vec3 c = mix(cyan, rose, w); return mix(c, lilac, pow(1.0-abs(w*2.0-1.0), 6.0)*0.6); }
+            if (ch < 1.5) { vec3 base = mix(blue, purple, h); float sp = smoothstep(0.8,1.0, sin(a*25.13 + h*20.0 - T*2.0)*sin(h*30.0 + T*1.3)); return mix(base, rose, sp); }
+            if (ch < 2.5) { return pick5(a + h*3.0 - T*0.25, blue, green, rose, purple, silver); }
+            if (ch < 3.5) { float d = abs(h - 0.61); float x = d*4.0 - T*0.3; vec3 c = pick5(x, green, purple, rose, green, purple); return c * smoothstep(0.0, 0.08, loc*1.4 - d); }
+            if (ch < 4.5) { float cur = smoothstep(1.0 - loc*1.25 - 0.06, 1.0 - loc*1.25, h); float st = pow(max(0.0, sin(h*60.0 + T*6.0 + floor(a*24.0)*1.7)), 40.0); return deep*cur*0.9 + silver*st*cur; }
+            float sp = step(0.982, hsh(floor(vWP*0.6) + floor(T*6.0))); return mix(crimson, gold*1.3, sp);
+          }`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-          float ang = atan(vWP.z, vWP.x) / 6.2831853;
-          float band = vWP.y / 70.0 - uTime * (0.08 + uShow * 0.35) + ang * (1.0 + uShow * 2.0);
-          float pulse = 0.55 + 0.45 * sin(vWP.y * 0.09 - uTime * (1.2 + uShow * 4.0));
-          totalEmissiveRadiance += ledPal(band) * pulse * uLedK * (uNight * 0.9 + uShow * 1.6);`);
+          float ang = atan(vWP.z, vWP.x) / 6.2831853 + 0.5;
+          float hh01 = clamp(vWP.y / 454.0, 0.0, 1.0);
+          float Tt = uTime * (1.0 + uShow * 1.5);
+          vec3 led;
+          if (uChapter < -0.5) { float band = vWP.y / 70.0 - Tt * 0.08 + ang; led = ledPal(band) * (0.55 + 0.45 * sin(vWP.y * 0.09 - Tt * 1.2)); }
+          else led = bay(uChapter, hh01, ang, Tt, uLocal);
+          totalEmissiveRadiance += led * uLedK * (uOn * (0.6 + uNight * 0.5) + uShow * 1.0);`);
     };
     return mat;
   }
@@ -176,9 +195,9 @@
           float win = step(0.18, f.x) * step(f.x, 0.82) * step(0.25, f.y) * step(f.y, 0.8);
           float on = step(0.55, hh(cell + vWin.z * 13.0));
           float aa = clamp(1.0 - max(fwidth(vWin.x / 3.2), fwidth(vWin.y / 3.4)) * 1.5, 0.0, 1.0);
-          float glow = mix(0.12, win * on, aa);
+          float glow = mix(0.18, win * on, aa);
           diffuseColor.rgb *= 1.0 - win * 0.25 * aa;
-          totalEmissiveRadiance += vec3(1.0, 0.78, 0.48) * glow * uNight * 0.9; }`);
+          totalEmissiveRadiance += vec3(1.0, 0.76, 0.45) * glow * uNight * 1.1; }`);
   };
   (function buildCity() {
     const pos = [], nor = [], col = [], win = [];
@@ -276,8 +295,8 @@
     Object.keys(hintDone).forEach(k => delete hintDone[k]); hintNow = null; hintEl.hidden = true;
   }
   const modeBtn = $('mode');
-  function showMode() { modeBtn.innerHTML = `${MODE_NAME[MODE]}模式 <small>${MODE === clockMode ? '跟你的时钟' : '点一下换'}</small>`; }
-  modeBtn.addEventListener('click', () => { MODE = MODES[(MODES.indexOf(MODE) + 1) % 3]; dayP = X.skyProgress(MODE, S.maxY / C.height); showMode(); });
+  function showMode() { modeBtn.innerHTML = `${MODE_NAME[MODE]}模式 <small>${following ? '跟广州时间' : '点一下换'}</small>`; }
+  modeBtn.addEventListener('click', () => { MODE = MODES[(MODES.indexOf(MODE) + 1) % 3]; following = MODE === clockMode; dayP = X.skyProgress(MODE, S.maxY / C.height); showMode(); });
   showMode();
   $('start').addEventListener('click', start);
   $('again').addEventListener('click', () => { reset(SEED + 1); start(); });
@@ -407,6 +426,26 @@
       if (e.type === 'top') finish();
     }
   }
+  // ---------- tower lights on Guangzhou time ----------
+  let lightProg = { on: false }, litSince = null, lightsSeen = null;
+  function updateLights(dt) {
+    const real = X.gzClock(), elapsed = (performance.now() - pageStart) / 1000;
+    let vsec = X.virtualSec(MODE, following, real.sec, S.maxY / C.height);
+    if (!following && MODE !== 'dusk') vsec += elapsed;
+    if (MODE === 'dusk') {
+      if (X.lightsOn(vsec)) { if (litSince === null) litSince = LED.uTime.value; lightProg = X.lightProgram(X.LIGHTS.on + (LED.uTime.value - litSince)); }
+      else { litSince = null; lightProg = { on: false }; }
+    } else lightProg = X.lightProgram(vsec + (following ? (Date.now() % 1000) / 1000 : 0));
+    if (Q.get('chapter') !== null) { const n = +Q.get('chapter'); lightProg = n < 0 ? { on: true, program: 'classic', chapter: -1, local: 0.5 } : { on: true, program: 'bay', chapter: n, name: X.BAY_CHAPTERS[n], local: 0.65 }; }   // check-only override
+    if (lightsSeen === false && lightProg.on && playing) note('19:00，广州塔亮灯了');
+    lightsSeen = lightProg.on;
+    LED.uOn.value = lerp(LED.uOn.value, lightProg.on ? 1 : 0, Math.min(1, dt * 2));
+    if (lightProg.on) { LED.uChapter.value = lightProg.program === 'bay' ? lightProg.chapter : -1; LED.uLocal.value = lightProg.local; }
+    const el = $('h-light');
+    if (lightProg.on) el.textContent = lightProg.program === 'bay' ? `塔灯 · 湾区新韵 · ${lightProg.name}` : '塔灯 · 经典小蛮腰';
+    else el.textContent = X.virtualSec(MODE, following, real.sec, S.maxY / C.height) >= X.LIGHTS.off || (MODE === 'night' && following) ? '塔灯 · 23:00 已熄' : '塔灯 · 19:00 亮';
+  }
+  function note(text) { hintNow = 'note'; hintSince = S.time; hintEl.innerHTML = text; hintEl.hidden = false; }
   let flashTimer = 0;
   function flash(kind) { flashEl.className = kind; clearTimeout(flashTimer); flashTimer = setTimeout(() => { flashEl.className = ''; }, 120); }
   function hintLogic(gp) {
@@ -420,10 +459,11 @@
     if (yy > X.waist().t * C.height + 5 && !hintDone.waist && hintNow === null) showHint('waist');
     if (hintNow === 'waist' && S.time - hintSince > 5) clearHint('waist');
     if (hintNow === 'shift' && S.time - hintSince > 10) clearHint('shift');
+    if (hintNow === 'note' && S.time - hintSince > 4) { hintNow = null; hintEl.hidden = true; }
   }
   function finish() {
     ended = true; playing = false; showT = 0;
-    endEl.querySelector('h1').innerHTML = MODE === 'day' ? '454 米，<br>整座城在脚下。' : '454 米，<br>全城亮灯。';
+    endEl.querySelector('h1').innerHTML = MODE === 'day' ? '454 米，<br>整座城在脚下。' : lightProg.on ? '454 米，<br>全城亮灯。' : '23 点熄灯了，<br>城市还醒着。';
     $('e-time').textContent = fmt(S.doneAt); $('e-falls').textContent = S.falls + S.gustFalls; $('e-pigeons').textContent = S.pigeonHits;
     padEl.hidden = true; hintEl.hidden = true; hudEl.hidden = true; gustEl.classList.remove('on');
     setTimeout(() => { if (ended) { endEl.hidden = false; } }, 4500);
@@ -456,11 +496,11 @@
   function tick(dt) {
     LED.uTime.value += dt;
     if (playing) { X.step(S, input, dt); handleEvents(); }
-    if (ended) { showT += dt; LED.uShow.value = smooth(clamp(showT / 3, 0, 1)) * (MODE === 'day' ? 0.5 : 1); tramRing.rotation.y += dt * 0.08; }
+    if (ended) { showT += dt; LED.uShow.value = smooth(clamp(showT / 3, 0, 1)) * (lightProg.on ? 1 : 0); tramRing.rotation.y += dt * 0.08; }
     else LED.uShow.value = 0;
     dayP = lerp(dayP, X.skyProgress(MODE, S.maxY / C.height), Math.min(1, dt * 0.8));
     const gp = X.gustPhase(S);
-    placeCat(dt); updatePigeons(dt); updateWind(dt, gp); updateCamera(dt); applySky();
+    updateLights(dt); placeCat(dt); updatePigeons(dt); updateWind(dt, gp); updateCamera(dt); applySky();
     if (playing) { updateHUD(gp); hintLogic(gp); }
     else if (VIEW) updateHUD(gp);
     if (gp.phase === 'gust' && playing) shake = Math.max(shake, 0.08);
@@ -469,7 +509,7 @@
 
   window.__PLAYTEST__ = {
     ready: true,
-    snapshot: () => ({ timeMode: MODE, dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
+    snapshot: () => ({ timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
     reset: seed => { reset(seed); },
     setSeed: n => { reset(n); },
     start: () => start(),
