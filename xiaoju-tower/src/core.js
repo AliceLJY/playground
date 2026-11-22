@@ -23,7 +23,11 @@
     restRate: 16,
     leanIn: 0.8,
     leanOut: 1.4,
-    checkpoints: [11, 23, 34],      // ring indices ≈ 110 m, 227 m, 336 m
+    checkpoints: [17, 34, 43],      // ring indices nearest the real stops: Spider Walk 168 m / 334.4 m, revolving restaurant 422.8 m
+    checkpointNames: ['蜘蛛侠栈道入口', '蜘蛛侠栈道出口', '旋转餐厅'],
+    checkpointRealY: [168, 334, 423],
+    // black kite (黑鸢, recorded at Haizhu Wetland): locks onto your column, dives after the warning; move to another column to dodge
+    kite: { warn: 2.0, minY: 90, firstAt: 28, minGap: 16, maxGap: 26, clearOfGust: 3.5, penalty: 20 },
     gust: { warn: 1.6, len: 1.4, grace: 0.15, minGap: 10, maxGap: 18, firstAt: 9, penalty: 25 },
     pigeon: { penalty: 20, base: 0.025, perRing: 0.0024, hopMin: 8, hopMax: 14, safeBelow: 3 },
     fallTime: 0.7,
@@ -103,6 +107,18 @@
     }
     return out;
   }
+  function makeKites(seed, gusts, horizon) {
+    const rng = mulberry32(seed * 6271 + 3), out = [], K = CFG.kite;
+    let at = K.firstAt;
+    while (at < horizon) {
+      // keep dives clear of gusts: you cannot brace and change column at once
+      let moved = true;
+      while (moved) { moved = false; for (const g of gusts) if (at > g.warnAt - K.clearOfGust && at - K.warn < g.end + K.clearOfGust) { at = g.end + K.clearOfGust + K.warn; moved = true; } }
+      out.push({ warnAt: at - K.warn, strike: at, target: null, status: null });
+      at += lerp(K.minGap, K.maxGap, rng());
+    }
+    return out;
+  }
   function makePigeons(seed) {
     const rng = mulberry32(seed * 104729 + 7), map = new Map();
     for (let k = CFG.pigeon.safeBelow; k < CFG.rings; k++) {
@@ -115,14 +131,16 @@
 
   // ---------- state ----------
   function createState(seed = 1) {
-    return {
+    return withKites({
       seed, time: 0, col: 0, t: 0, stamina: CFG.stamina,
       mode: 'climb', anim: null, checkpointK: 0, falls: 0, gustFalls: 0, pigeonHits: 0,
-      gusts: makeGusts(seed, 3600), gustIdx: 0, braceSince: -1, braced: false,
+      gusts: makeGusts(seed, 3600), gustIdx: 0, braceSince: -1, braced: false, kiteIdx: 0, kiteHits: 0,
       pigeons: makePigeons(seed), rng: mulberry32(seed * 31 + 5),
+      kites: null,
       events: [], done: false, doneAt: 0, maxY: 0, climbing: false
-    };
+    });
   }
+  function withKites(s) { s.kites = makeKites(s.seed, s.gusts, 3600); return s; }
   function y(s) { return s.t * CFG.height; }
   function nearestRing(s) { return Math.round(s.t * CFG.rings); }
   function atNode(s) { const k = nearestRing(s); return Math.abs(y(s) - ringY(k)) < CFG.nodeTol ? k : -1; }
@@ -138,6 +156,12 @@
     if (s.time < g.start) return { phase: 'warn', g, p: (s.time - g.warnAt) / CFG.gust.warn };
     if (s.time < g.end) return { phase: 'gust', g, p: (s.time - g.start) / CFG.gust.len };
     return { phase: 'calm', g, p: 1 };
+  }
+  function kitePhase(s) {
+    const k = s.kites[s.kiteIdx];
+    if (!k || k.status === 'idle' || s.time < k.warnAt) return { phase: 'calm', k: k || null, p: 0 };
+    if (s.time < k.strike) return { phase: 'warn', k, p: (s.time - k.warnAt) / CFG.kite.warn };
+    return { phase: 'calm', k, p: 1 };
   }
   function onPlatform(s) {
     const k = atNode(s);
@@ -163,6 +187,28 @@
     if (input.brace && !s.braced) { s.braced = true; s.braceSince = s.time; }
     if (!input.brace) s.braced = false;
 
+    // black kite: lock a column at the warning, dive at the strike
+    const kt = s.kites[s.kiteIdx];
+    if (kt) {
+      if (!kt.status && s.time >= kt.warnAt) {
+        if (y(s) < CFG.kite.minY || s.done) kt.status = 'idle';          // too low: it just circles
+        else { kt.target = s.mode === 'shift' && s.anim ? s.anim.to : s.col; kt.status = 'locked'; emit(s, 'kite-warn', { col: kt.target }); }
+      }
+      if (s.time >= kt.strike) {
+        if (kt.status === 'locked') {
+          const here = s.mode === 'shift' && s.anim ? s.anim.to : s.col;
+          const safe = s.mode === 'fall' || onPlatform(s) || here !== kt.target;
+          if (safe) { kt.status = 'dodged'; emit(s, 'kite-dodged', { col: kt.target }); }
+          else {
+            kt.status = 'hit'; s.kiteHits++; s.stamina -= CFG.kite.penalty; emit(s, 'kite-hit', { col: kt.target });
+            s.kiteIdx++;
+            if (s.stamina <= 0) return loseGrip(s);
+            const k = atNode(s); startFall(s, k >= 0 ? Math.max(0, k - 1) : segmentOf(s), 'fall'); return s;
+          }
+        }
+        s.kiteIdx++;
+      }
+    }
     // pigeon hops
     for (const [key, pg] of s.pigeons) {
       pg.hop -= dt;
@@ -280,11 +326,24 @@
   function makePilot(profile, seed) {
     const rng = mulberry32(seed * 9973 + 1);
     const gauss = () => { let u = 0, v = 0; while (!u) u = rng(); while (!v) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-    const mem = { resting: false, braceAt: new Map(), avoidRoll: new Map() };
+    const mem = { resting: false, braceAt: new Map(), avoidRoll: new Map(), kiteReact: new Map() };
     return function pilot(s) {
       const inp = { up: false, down: false, left: false, right: false, brace: false };
       if (s.mode !== 'climb') return inp;
       if (profile === 'reckless') { inp.up = true; return inp; }
+      // black kite: get onto a ring and change column before it dives
+      const kp = kitePhase(s);
+      if (kp.phase === 'warn' && kp.k.status === 'locked' && s.col === kp.k.target) {
+        let react = mem.kiteReact.get(kp.k.strike);
+        if (react === undefined) { react = kp.k.warnAt + (profile === 'clumsy' ? Math.max(0.2, 0.9 + gauss() * 0.5) : 0.25); mem.kiteReact.set(kp.k.strike, react); }
+        if (s.time >= react) {
+          const n = atNode(s);
+          if (n < 0) return inp;                                   // let go: grabs the nearest ring
+          const l = s.pigeons.has(n + ':' + mod(s.col + 1, CFG.cols));
+          if (!l) inp.left = true; else inp.right = true;
+          return inp;
+        }
+      }
       // bracing
       const gp = gustPhase(s);
       if (gp.g && (gp.phase === 'warn' || gp.phase === 'gust')) {
@@ -326,7 +385,7 @@
   function simulate(seed, profile, maxSeconds = 900, dt = 1 / 30) {
     const s = createState(seed), pilot = makePilot(profile, seed);
     while (!s.done && s.time < maxSeconds) step(s, pilot(s), dt);
-    return { done: s.done, time: s.done ? s.doneAt : s.time, falls: s.falls, gustFalls: s.gustFalls, pigeonHits: s.pigeonHits, maxY: s.maxY, checkpointK: s.checkpointK, events: s.events };
+    return { done: s.done, time: s.done ? s.doneAt : s.time, falls: s.falls, gustFalls: s.gustFalls, pigeonHits: s.pigeonHits, kiteHits: s.kiteHits, kiteDodged: s.events.filter(e => e.type === 'kite-dodged').length, maxY: s.maxY, checkpointK: s.checkpointK, events: s.events };
   }
 
   // ---------- time of day and tower lights follow Guangzhou time (UTC+8) ----------
@@ -371,7 +430,7 @@
   }
 
   const API = { CFG, mulberry32, colPoint, colEnds, colLength, COL_LEN, radiusAt, outward, leanAt, leanMult, waist, ringT, ringY,
-    makeGusts, makePigeons, createState, step, gustPhase, atNode, segmentOf, onPlatform, makePilot, simulate, y, timeMode, skyProgress, gzClock, virtualSec, lightsOn, lightProgram, LIGHTS, BAY_CHAPTERS };
+    makeGusts, makeKites, kitePhase, makePigeons, createState, step, gustPhase, atNode, segmentOf, onPlatform, makePilot, simulate, y, timeMode, skyProgress, gzClock, virtualSec, lightsOn, lightProgram, LIGHTS, BAY_CHAPTERS };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.XJT = API;
 })(typeof self !== 'undefined' ? self : this);

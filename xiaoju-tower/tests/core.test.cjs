@@ -150,3 +150,39 @@ test('左右键和屏幕一致：按 → 去的柱子在屏幕右边（Alice 11-
     }
   }
 });
+
+test('黑鸢：预警 ≥2 秒；锁定你的柱子，扑下来前换柱就躲开，不动就被撞下去', () => {
+  assert.ok(X.CFG.kite.warn >= 2.0);
+  const run = (dodge) => {
+    const s = X.createState(2); s.pigeons.clear(); s.gusts = [];
+    const k = s.kites[0]; s.t = X.ringT(20); s.maxY = X.y(s);         // 197 米，横梁上
+    s.time = k.warnAt - 0.05;
+    while (s.time < k.strike + 0.3) X.step(s, dodge && s.time > k.warnAt + 0.5 && s.mode === 'climb' && !s.anim ? { left: true } : {}, 1 / 30);
+    return { hit: s.events.some(e => e.type === 'kite-hit'), dodged: s.events.some(e => e.type === 'kite-dodged'), warned: s.events.some(e => e.type === 'kite-warn') };
+  };
+  const stay = run(false), move = run(true);
+  assert.ok(stay.warned && stay.hit, '不动应被撞');
+  assert.ok(move.dodged && !move.hit, '换了柱子还被撞');
+});
+
+test('黑鸢：90 米以下不扑，和阵风错开（不用同时抓紧又换柱）', () => {
+  const s = X.createState(3); s.gusts = [];
+  const k = s.kites[0]; s.t = X.ringT(5); s.time = k.warnAt - 0.05;
+  while (s.time < k.strike + 0.3) X.step(s, {}, 1 / 30);
+  assert.ok(!s.events.some(e => e.type === 'kite-warn'), '低处也扑了');
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const g = X.makeGusts(seed, 900), ks = X.makeKites(seed, g, 900);
+    for (const kk of ks) for (const gg of g) assert.ok(kk.strike < gg.warnAt - 1 || kk.warnAt > gg.end + 1, `种子 ${seed}：黑鸢 ${kk.strike.toFixed(1)} 秒和阵风 ${gg.start.toFixed(1)} 秒撞在一起`);
+  }
+});
+
+test('黑鸢难度两侧：手抖档偶尔被扑中，但多数躲得开', () => {
+  let hit = 0, dodged = 0;
+  for (const seed of [1, 2, 3, 4, 5]) { const r = X.simulate(seed, 'clumsy', 720); hit += r.kiteHits; dodged += r.kiteDodged; }
+  assert.ok(hit >= 1, '手抖档一次没被扑中，黑鸢太好躲');
+  assert.ok(hit / (hit + dodged) < 0.35, `手抖档被扑中 ${(100 * hit / (hit + dodged)).toFixed(0)}%，太难`);
+});
+
+test('歇脚台在真实位置：蜘蛛侠栈道入口 168、出口 334、旋转餐厅 423 米（离实际 ≤ 3 米）', () => {
+  X.CFG.checkpoints.forEach((k, i) => assert.ok(Math.abs(X.ringY(k) - X.CFG.checkpointRealY[i]) <= 3, `${X.CFG.checkpointNames[i]} 在 ${X.ringY(k).toFixed(1)} 米`));
+});
