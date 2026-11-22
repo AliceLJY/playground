@@ -234,7 +234,8 @@
       s.t = clamp(s.t - (CFG.downSpeed * dt) / COL_LEN, 0, 1);
       s.stamina -= CFG.drainHang * dt;
     } else if ((input.left || input.right) && node >= 0) {
-      const to = mod(s.col + (input.left ? -1 : 1), CFG.cols);
+      // seen from outside the tower, column +1 sits on the screen's LEFT, so ← goes +1 and → goes −1
+      const to = mod(s.col + (input.left ? 1 : -1), CFG.cols);
       s.t = ringT(node);
       s.anim = { kind: 'shift', from: s.col, to, dir: input.left ? -1 : 1, p: 0 };
       s.mode = 'shift';
@@ -310,7 +311,7 @@
         let avoid = true;
         if (profile === 'clumsy') { const key = node + ':' + s.col; if (!mem.avoidRoll.has(key)) mem.avoidRoll.set(key, rng() < 0.7); avoid = mem.avoidRoll.get(key); }
         if (avoid) {
-          const l = s.pigeons.has(node + ':' + mod(s.col - 1, CFG.cols)), r = s.pigeons.has(node + ':' + mod(s.col + 1, CFG.cols));
+          const l = s.pigeons.has(node + ':' + mod(s.col + 1, CFG.cols)), r = s.pigeons.has(node + ':' + mod(s.col - 1, CFG.cols));   // screen left / right
           if (!r) inp.right = true; else if (!l) inp.left = true; else inp.right = true;
           return inp;
         }
