@@ -14,6 +14,7 @@
     downSpeed: 4.0,
     shiftTime: 0.5,
     snap: 0.8,                      // m: releasing ↑ this close to a ring snaps onto it
+    settleSpeed: 5,                 // m/s: letting go mid-column moves onto the nearest ring (up or down)
     nodeTol: 0.35,                  // m: counts as standing on a ring node
     stamina: 100,
     drainClimb: 6,
@@ -210,7 +211,7 @@
     // movement
     const node = atNode(s);
     const lm = leanMult(s.col, s.t);
-    s.climbing = false;
+    s.climbing = false; s.resting = false; s.settling = false;
     if (s.braced) {
       s.stamina -= CFG.drainBrace * dt;
     } else if (input.up) {
@@ -240,11 +241,17 @@
       emit(s, 'shift-start', { to });
       return s;
     } else {
-      // idle: snap onto a nearby ring
+      // let go = rest: snap onto a ring close by, otherwise back down onto the ring below and hold on there
       const k = nearestRing(s);
       if (Math.abs(y(s) - ringY(k)) < CFG.snap) s.t = ringT(k);
+      if (atNode(s) < 0) {                           // grab whichever ring is closer, up or down
+        const target = ringT(k), step = (CFG.settleSpeed * dt) / COL_LEN;
+        if (target > s.t) { s.t = Math.min(target, s.t + step); s.stamina -= CFG.drainClimb * dt; }
+        else s.t = Math.max(target, s.t - step);
+        s.settling = true;
+      } else s.settling = false;
       const n2 = atNode(s);
-      if (n2 >= 0) s.stamina += CFG.restRate * dt;
+      if (n2 >= 0) { s.stamina += CFG.restRate * dt; s.resting = true; }
       else s.stamina -= CFG.drainHang * dt;
     }
 

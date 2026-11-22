@@ -52,6 +52,18 @@ async function rects(p) {
     ok(`${name}: 页面零报错`, errs.length === 0, errs.join(' | '));
     await ctx.close();
   }
+  // let go = rest, with real keys
+  { const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } }); const p = await ctx.newPage();
+    await p.goto(url + '?seed=5&time=day'); await p.waitForTimeout(2000);
+    await p.evaluate(() => window.__PLAYTEST__.start());
+    await p.keyboard.down('KeyW'); await p.waitForTimeout(3000); await p.keyboard.up('KeyW');
+    const a = await p.evaluate(() => window.__PLAYTEST__.snapshot());
+    await p.waitForTimeout(700);   // read while still refilling: a full bar switches the label back
+    const r = await p.evaluate(() => ({ s: window.__PLAYTEST__.snapshot(), label: document.querySelector('.stamina span').textContent, glow: document.querySelector('.stamina').classList.contains('resting') }));
+    const onRing = Math.abs(r.s.y / (454 / 46) - Math.round(r.s.y / (454 / 46))) < 0.02;
+    ok('松手就抓最近的横梁歇：没退回塔脚、体力在涨、体力条写「歇脚中」', onRing && r.s.y > 5 && r.s.stamina > a.stamina && r.label.includes('歇脚') && r.glow, JSON.stringify({ before: [a.y, a.stamina], after: [r.s.y, r.s.stamina], label: r.label }));
+    await p.screenshot({ path: `${out}/rest.png` });
+    await ctx.close(); }
   // ending: teleport just below the top and climb
   const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } }); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(url + '?seed=5'); await p.waitForTimeout(2000);

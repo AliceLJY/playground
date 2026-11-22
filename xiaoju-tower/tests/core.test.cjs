@@ -118,3 +118,20 @@ test('黄昏模式越爬越晚，爬到半路赶上 19:00 亮灯', () => {
   const firstOn = [...Array(101).keys()].map(i => i / 100).find(on);
   assert.ok(firstOn > 0.6 && firstOn < 0.85, `亮灯发生在 ${firstOn}`);
 });
+
+test('松手就歇：柱子中间松开 ↑，会去抓最近的那道横梁回体力（Alice 11-23：「体力不够的话，我要怎么歇会？」）', () => {
+  const s = X.createState(6); s.pigeons.clear(); s.gusts = [];
+  s.t = X.ringT(8) + 3 / X.CFG.height; s.stamina = 30;          // 横梁上方 3 米，下面那道更近
+  for (let i = 0; i < 30 * 4; i++) X.step(s, {}, 1 / 30);           // 什么都不按 4 秒
+  assert.ok(Math.abs(X.y(s) - X.ringY(8)) < 0.01, `没退到横梁上，现在 ${X.y(s).toFixed(1)} 米`);
+  assert.ok(s.stamina > 50, `松手 4 秒体力只有 ${s.stamina.toFixed(0)}，没在歇`);
+  assert.ok(s.resting, '歇着时 resting 应为 true，界面靠它亮「歇脚中」');
+});
+
+test('松手时上面的横梁更近，就往上够过去，不白退一大段', () => {
+  const s = X.createState(6); s.pigeons.clear(); s.gusts = [];
+  s.t = X.ringT(8) + 8.5 / X.CFG.height; s.stamina = 40;        // 离上面那道只差约 1.4 米
+  for (let i = 0; i < 30 * 3; i++) X.step(s, {}, 1 / 30);
+  assert.ok(Math.abs(X.y(s) - X.ringY(9)) < 0.01, `应停在上面那道横梁，现在 ${X.y(s).toFixed(1)} 米`);
+  assert.ok(s.resting);
+});

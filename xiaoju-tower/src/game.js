@@ -280,8 +280,9 @@
   // ---------- UI ----------
   const $ = id => document.getElementById(id);
   const introEl = $('intro'), endEl = $('ending'), hudEl = $('hud'), padEl = $('pad'), hintEl = $('hint'), gustEl = $('gust-bar'), flashEl = $('flash');
+  const staminaEl = document.querySelector('.stamina'), staminaLabel = document.querySelector('.stamina span');
   const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-  const hints = { climb: '按住 <b>↑</b> 往上爬', rest: '停在横梁上不动，体力会慢慢回来', shift: '鸽子挡路？停在横梁上按 <b>← →</b> 换一根柱子', gust: '起风了！按住 <b>抓紧</b>，扛过去再松开', waist: '过了塔腰，柱子往外倒，更费体力，多歇', low: '体力快没了，赶紧停在横梁上歇' };
+  const hints = { climb: '按住 <b>↑</b> 往上爬', rest: '停在横梁上不动，体力会慢慢回来', shift: '鸽子挡路？停在横梁上按 <b>← →</b> 换一根柱子', gust: '起风了！按住 <b>抓紧</b>，扛过去再松开', waist: '过了塔腰，柱子往外倒，更费体力，多歇', low: '体力不够了？松开 <b>↑</b>，小橘会抓住最近的横梁歇着' };
   const hintDone = {}; let hintNow = null, hintSince = 0;
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = S.time; hintEl.innerHTML = hints[id]; hintEl.hidden = false; }
   function clearHint(id) { hintDone[id] = true; if (hintNow === id) { hintNow = null; hintEl.hidden = true; } }
@@ -414,6 +415,8 @@
     const nextCp = C.checkpoints.find(k => k > S.checkpointK);
     $('h-next').textContent = nextCp ? `下一个歇脚台 · ${Math.round(X.ringY(nextCp))} 米` : '最后一段 · 塔顶 454 米';
     const fill = $('stamina-fill'); fill.style.width = clamp(S.stamina, 0, 100) + '%'; fill.classList.toggle('low', S.stamina < 30);
+    const resting = !!S.resting && S.stamina < 99.5;
+    staminaEl.classList.toggle('resting', resting); staminaLabel.textContent = resting ? '歇脚中 ↑' : S.settling ? '抓横梁…' : '体力';
     $('s-time').textContent = fmt(S.time); $('s-falls').textContent = S.falls + S.gustFalls;
     gustEl.classList.toggle('on', gp.phase === 'warn' || gp.phase === 'gust');
     gustEl.classList.toggle('blowing', gp.phase === 'gust');
@@ -461,8 +464,8 @@
     if (gp.phase === 'warn' && !hintDone.gust) showHint('gust');
     if (hintNow === 'gust' && gp.phase === 'calm') { hintNow = null; hintEl.hidden = true; }
     if (hintDone.climb && !hintDone.shift && X.atNode(S) >= 0) { const k = X.atNode(S); if (S.pigeons.has(k + ':' + S.col)) showHint('shift'); }
-    if (S.stamina < 35 && !hintDone.low && hintNow !== 'gust') showHint('low');
-    if (hintNow === 'low' && X.atNode(S) >= 0 && !input.up) { clearHint('low'); hintDone.rest = true; }
+    if (S.stamina < 60 && !hintDone.low && hintNow !== 'gust' && hintNow !== 'note') showHint('low');
+    if (hintNow === 'low' && S.resting) clearHint('low');
     if (yy > X.waist().t * C.height + 5 && !hintDone.waist && hintNow === null) showHint('waist');
     if (hintNow === 'waist' && S.time - hintSince > 5) clearHint('waist');
     if (hintNow === 'shift' && S.time - hintSince > 10) clearHint('shift');
