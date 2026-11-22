@@ -52,7 +52,28 @@ for f in feats:
             B.append([round(max(4.0, min(h, 560.0)), 1)] + [c for p in pts for c in p]); stats["buildings"] += 1
         elif t.get("natural") == "water" or t.get("waterway") == "riverbank" or "water" in t:
             W.append([c for p in pts for c in p]); stats["water"] += 1
-out = {"origin": [LAT0, LON0], "b": B, "w": W, "stats": stats, "attribution": "© OpenStreetMap contributors (ODbL)"}
+# landmarks for the 488 m postcard: names straight from OSM, height = tallest building within 70 m
+# OSM has no usable height for the two supertall towers (west 88 m, east 13 m podium), so their
+# public heights are added here and the game raises a tower on that spot: west 440.75 m, east 530 m.
+LANDMARKS = [("海心沙", "海心沙亚运公园"), ("西塔", "广州国际金融中心"), ("东塔", "广州周大福金融中心")]
+REAL_H = {"西塔": 440.75, "东塔": 530.0}
+run("osmium", "tags-filter", str(tmp / "area.pbf"), "nwr/name=" + ",".join(n for _, n in LANDMARKS), "-o", str(tmp / "lm.pbf"), "--overwrite")
+run("osmium", "export", str(tmp / "lm.pbf"), "-f", "geojsonseq", "-o", str(tmp / "lm.geojsonseq"), "--overwrite")
+lm_feats = [json.loads(l.lstrip("\x1e")) for l in (tmp / "lm.geojsonseq").read_text().splitlines() if l.strip()]
+L = []
+for label, osm_name in LANDMARKS:
+    pts = []
+    for f in lm_feats:
+        if f["properties"].get("name") != osm_name: continue
+        g = f["geometry"]
+        if g["type"] == "Point": pts = [g["coordinates"]]; break
+        ring = g["coordinates"][0] if g["type"] == "Polygon" else g["coordinates"][0][0] if g["type"] == "MultiPolygon" else g["coordinates"]
+        pts = ring
+    assert pts, osm_name
+    xs = [proj(p) for p in pts]; x = sum(p[0] for p in xs) / len(xs); z = sum(p[1] for p in xs) / len(xs)
+    near = [b[0] for b in B if math.hypot(sum(b[1::2]) / len(b[1::2]) - x, sum(b[2::2]) / len(b[2::2]) - z) < 70]
+    L.append({"label": label, "name": osm_name, "x": round(x, 1), "z": round(z, 1), "h": REAL_H.get(label, 2), "osmH": max(near) if near else None})
+out = {"origin": [LAT0, LON0], "b": B, "w": W, "l": L, "stats": stats, "attribution": "© OpenStreetMap contributors (ODbL)"}
 js = "window.XJT_CITY=" + json.dumps(out, separators=(",", ":"), ensure_ascii=False) + ";\n"
 (ROOT / "data" / "city.js").write_text(js)
 print("origin", round(LAT0, 5), round(LON0, 5), stats, len(js), "bytes")

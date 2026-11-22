@@ -186,3 +186,123 @@ test('黑鸢难度两侧：手抖档偶尔被扑中，但多数躲得开', () =>
 test('歇脚台在真实位置：蜘蛛侠栈道入口 168、出口 334、旋转餐厅 423 米（离实际 ≤ 3 米）', () => {
   X.CFG.checkpoints.forEach((k, i) => assert.ok(Math.abs(X.ringY(k) - X.CFG.checkpointRealY[i]) <= 3, `${X.CFG.checkpointNames[i]} 在 ${X.ringY(k).toFixed(1)} 米`));
 });
+
+// ---------- 第二轮：三花姐比赛、蜘蛛侠栈道、旋转餐厅点心、登顶收尾 ----------
+const RACE_SEEDS = Array.from({ length: 16 }, (_, i) => i + 1);
+const raceWins = (profile, opts) => RACE_SEEDS.filter(seed => X.simulateRace(seed, profile, opts).won).length;
+
+test('三花姐在小橘屏幕左边那根柱子起步（从塔外往里看，柱子 +1 在屏幕左边）', () => {
+  const p = X.createState(1), r = X.createRival(p);
+  const c = p.col, t = X.ringT(0) + 0.001, a = X.colPoint(c, t), b = X.colPoint(r.col, t), o = X.outward(c, t), e = X.colEnds(c);
+  const u = [e.p1.x - e.p0.x, e.p1.y - e.p0.y, e.p1.z - e.p0.z], n = Math.hypot(...u); u.forEach((v, i) => u[i] = v / n);
+  const right = [u[1] * o.z - u[2] * o.y, u[2] * o.x - u[0] * o.z, u[0] * o.y - u[1] * o.x];
+  const dot = right[0] * (b.x - a.x) + right[1] * (b.y - a.y) + right[2] * (b.z - a.z);
+  assert.ok(dot < 0, '三花姐应在屏幕左边');
+  assert.deepEqual(r.gusts.map(g => g.start), p.gusts.map(g => g.start), '同一座塔、同一阵风');
+  assert.notEqual(r.gusts[0], p.gusts[0], '阵风对象不能共用（各自记扛没扛住）');
+  assert.equal(r.pigeons, p.pigeons, '鸽子是同一群');
+});
+
+test('三花姐也会被风刮下、被黑鸢撞到（她不是开挂的）', () => {
+  let gust = 0, kite = 0, lost = 0, finished = 0;
+  for (const seed of RACE_SEEDS) { const r = X.simulateRace(seed, 'precise', { snack: true }).rival; gust += r.gustFalls; kite += r.kiteHits; lost += r.falls; if (r.done) finished++; }
+  assert.ok(gust >= 1 && kite >= 1, `16 局里三花姐刮下 ${gust}、被撞 ${kite}、滑回 ${lost}`);
+  assert.equal(finished, 16, '三花姐应每局都能登顶');
+});
+
+test('比赛两侧：精准档和手抖档对三花姐都有输有赢（SPEC 验收 11）', () => {
+  const precise = raceWins('precise', { snack: true }), clumsy = raceWins('clumsy', { snack: true });
+  assert.ok(precise >= 3 && precise <= 14, `精准档 16 局赢 ${precise}，一边倒了`);
+  assert.ok(clumsy >= 2 && clumsy <= 13, `手抖档 16 局赢 ${clumsy}，一边倒了`);
+  assert.ok(precise > clumsy, `精准档（${precise}）应比手抖档（${clumsy}）赢得多`);
+});
+
+test('什么时候歇是真选择：歇太多会被甩开，硬撑会被刮下去（SPEC 验收 12）', () => {
+  const bold = raceWins('bold', { snack: true }), cautious = raceWins('cautious', { snack: true }), pusher = raceWins('pusher', { snack: true });
+  assert.ok(bold >= cautious + 4, `早歇少歇赢 ${bold}，每道横梁都歇满赢 ${cautious}，差距不够`);
+  assert.ok(pusher <= 2, `几乎不歇也赢了 ${pusher} 局，硬撑没有代价`);
+  const p = X.simulateRace(3, 'pusher', { snack: true }).player;
+  assert.ok(p.falls >= 3, `几乎不歇只滑回 ${p.falls} 次`);
+});
+
+test('比赛读数：高度差正数是三花姐领先；登顶先后定输赢', () => {
+  const p = X.createState(1), r = X.createRival(p);
+  r.t = 0.1; p.t = 0.05;
+  assert.ok(Math.abs(X.raceGap(p, r) - 0.05 * X.CFG.height) < 1e-6);
+  assert.equal(X.raceResult(p, r), null, '没登顶就没有结果');
+  p.done = true; p.doneAt = 200; r.done = true; r.doneAt = 195;
+  assert.deepEqual(X.raceResult(p, r).won, false);
+  assert.ok(Math.abs(X.raceResult(p, r).margin - 5) < 1e-9);
+  r.done = false;
+  assert.equal(X.raceResult(p, r).won, true, '三花姐还没到顶就算赢');
+});
+
+test('蜘蛛侠栈道：只在 168 米入口能进，从 334 米出口出来，比外面慢（SPEC 验收 13）', () => {
+  const s = X.createState(1); s.t = X.ringT(10);
+  X.step(s, { act: true }, 1 / 30); assert.notEqual(s.mode, 'stairs', '不在入口也能进栈道');
+  s.t = X.ringT(17); s.checkpointK = 17;
+  assert.ok(X.atFork(s));
+  X.step(s, { act: true }, 1 / 30); assert.equal(s.mode, 'stairs');
+  while (s.mode === 'stairs') X.step(s, { up: true }, 1 / 30);
+  assert.equal(X.atNode(s), 34); assert.equal(s.checkpointK, 34); assert.equal(s.stamina, s.staminaMax);
+  let slower = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const out = X.simulate(seed, 'precise', 900, 1 / 30), st = X.simulate(seed, 'precise', 900, 1 / 30, { stairs: true });
+    assert.ok(st.done && st.stairsUsed === 1, `种子 ${seed} 走栈道没登顶`);
+    if (st.time > out.time) slower++;
+  }
+  assert.equal(slower, 5, `精准档走栈道只有 ${slower}/5 局比外面慢`);
+});
+
+test('栈道里不怕风和黑鸢：刮风不掉、黑鸢不锁定，而且这段时间里风和黑鸢真的来过', () => {
+  let gustsInside = 0, kitesInside = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const r = X.simulate(seed, 'clumsy', 900, 1 / 30, { stairs: true }), ev = r.events;
+    const a = ev.find(e => e.type === 'stairs-in').at, b = ev.find(e => e.type === 'stairs-out').at;
+    const inside = ev.filter(e => e.at > a && e.at < b);
+    assert.ok(!inside.some(e => ['gust-fall', 'kite-hit', 'kite-warn', 'lost-grip', 'pigeon'].includes(e.type)), `种子 ${seed}：栈道里出事了 ${inside.map(e => e.type).join(',')}`);
+    const s = X.createState(seed);
+    gustsInside += s.gusts.filter(g => g.start > a && g.start < b).length;
+    kitesInside += s.kites.filter(k => k.strike > a && k.strike < b).length;
+  }
+  assert.ok(gustsInside >= 5 && kitesInside >= 3, `栈道那段时间里只来过 ${gustsInside} 阵风、${kitesInside} 次黑鸢，等于空验`);
+  // 直接把人放在栈道里迎一阵风
+  const s = X.createState(1); s.t = X.ringT(17); s.checkpointK = 17; X.step(s, { act: true }, 1 / 30);
+  const g = s.gusts.find(x => x.start > s.time); s.time = g.warnAt;
+  while (s.time < g.end + 0.2) X.step(s, {}, 1 / 60);
+  assert.equal(s.mode, 'stairs'); assert.equal(s.gustFalls, 0);
+});
+
+test('旋转餐厅点心：吃了体力上限 +30，最后一段挨一阵风也能撑到顶；不吃就会滑回餐厅（SPEC 验收 14）', () => {
+  const s = X.createState(1); s.t = X.ringT(43); s.checkpointK = 43;
+  assert.ok(X.canEat(s));
+  X.step(s, { act: 'xiajiao' }, 1 / 30); assert.equal(s.mode, 'eat');
+  while (s.mode === 'eat') X.step(s, {}, 1 / 30);
+  assert.equal(s.ate, 'xiajiao'); assert.equal(s.staminaMax, 130); assert.equal(s.stamina, 130);
+  assert.ok(!X.canEat(s), '只能吃一份');
+  const lastStretch = (snack) => {
+    const s = X.createState(2); s.t = X.ringT(43); s.checkpointK = 43; s.pigeons.clear(); s.kites = [];
+    if (snack) { X.step(s, { act: 'shuangpinai' }, 1 / 30); while (s.mode === 'eat') X.step(s, {}, 1 / 30); }
+    const t0 = s.time; s.gusts = [];
+    while (X.y(s) < X.ringY(45) + 0.6) X.step(s, { up: true }, 1 / 30);            // 一口气爬过最后那道横梁
+    s.gusts = [{ warnAt: s.time - 1.6, start: s.time, end: s.time + 1.4, dir: 1 }]; s.gustIdx = 0;   // 这时挨一阵风、没抓紧
+    while (!s.done && s.time < t0 + 40 && !s.falls) X.step(s, { up: true }, 1 / 30);
+    return { top: s.done, lost: s.falls };
+  };
+  const no = lastStretch(false), yes = lastStretch(true);
+  assert.ok(!no.top && no.lost === 1, `不吃点心也撑到了顶：${JSON.stringify(no)}`);
+  assert.ok(yes.top && yes.lost === 0, `吃了点心还是滑回了：${JSON.stringify(yes)}`);
+});
+
+test('登顶收尾：摩天轮和极速云霄都能走完，最后到 488 米拍明信片（SPEC 验收 15）', () => {
+  for (const kind of ['tram', 'drop']) {
+    const F = X.FINALE[kind]; let ys = [], last;
+    for (let t = 0; t <= F.dur + X.FINALE.deckDur + 0.1; t += 1 / 30) { last = X.finalePose(kind, t); if (last.phase !== 'deck' && last.phase !== 'postcard') ys.push(last.y); }
+    assert.ok(last.done && last.phase === 'postcard' && last.y === 488, `${kind} 没走到明信片`);
+    const lo = Math.min(...ys), hi = Math.max(...ys);
+    assert.ok(lo >= F.y0 - 0.5 && hi <= F.y1 + 0.5 && hi - lo > 8, `${kind} 高度 ${lo.toFixed(0)}–${hi.toFixed(0)} 米，不在 ${F.y0}–${F.y1}`);
+  }
+  const drop = [...Array(211).keys()].map(i => X.finalePose('drop', i / 30));
+  assert.ok(drop.some(p => p.phase === 'falling'), '极速云霄没有下坠段');
+  assert.throws(() => X.finalePose('rocket', 1));
+});
