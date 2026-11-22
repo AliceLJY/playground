@@ -1,16 +1,20 @@
 """Chroma-key the 2x2 green sheet into trimmed transparent WebP frames for the game.
-Run: uv run --with pillow python tools/key-sprites.py <sheet.png>"""
+Run: uv run --with pillow python tools/key-sprites.py <sheet.png> <name1,name2,name3,name4>  (use - to skip a cell)
+Sheets used: sprites/climb-sheet-v1.png -> -,-,brace,rest ; sprites/climb-sheet-v2.png -> climbA,pullA,-,pullB ; sprites/climb-left-v1.png -> climbB"""
 import sys
 from pathlib import Path
 from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
 sheet = Image.open(sys.argv[1]).convert("RGB")
 W, H = sheet.size
-names = {0: "climb", 2: "brace", 3: "rest"}
+names = {i: n for i, n in enumerate(sys.argv[2].split(",")) if n != "-"}
 frames = {}
 for idx, name in names.items():
-    cx, cy = idx % 2, idx // 2
-    cell = sheet.crop((cx * W // 2, cy * H // 2, (cx + 1) * W // 2, (cy + 1) * H // 2))
+    if len(sys.argv[2].split(",")) == 1:      # a single-frame image
+        cell = sheet
+    else:
+        cx, cy = idx % 2, idx // 2
+        cell = sheet.crop((cx * W // 2, cy * H // 2, (cx + 1) * W // 2, (cy + 1) * H // 2))
     px = cell.load(); w, h = cell.size
     out = Image.new("RGBA", (w, h)); po = out.load()
     for y in range(h):
