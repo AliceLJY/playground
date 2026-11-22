@@ -135,3 +135,18 @@ test('松手时上面的横梁更近，就往上够过去，不白退一大段',
   assert.ok(Math.abs(X.y(s) - X.ringY(9)) < 0.01, `应停在上面那道横梁，现在 ${X.y(s).toFixed(1)} 米`);
   assert.ok(s.resting);
 });
+
+test('左右键和屏幕一致：按 → 去的柱子在屏幕右边（Alice 11-23：「怎么左右键相反的呢」）', () => {
+  // the camera sits outside the tower looking in; screen-right = column direction × outward
+  for (const [c, k] of [[0, 2], [7, 23], [15, 44]]) {
+    for (const [key, sign] of [['right', 1], ['left', -1]]) {
+      const s = X.createState(1); s.col = c; s.t = X.ringT(k); s.pigeons.clear(); s.gusts = [];
+      X.step(s, { [key]: true }, 1 / 30);
+      const to = s.anim.to, t = X.ringT(k), p = X.colPoint(c, t), q = X.colPoint(to, t), o = X.outward(c, t), e = X.colEnds(c);
+      const u = [e.p1.x - e.p0.x, e.p1.y - e.p0.y, e.p1.z - e.p0.z], n = Math.hypot(...u); u.forEach((v, i) => u[i] = v / n);
+      const r = [u[1] * o.z - u[2] * o.y, u[2] * o.x - u[0] * o.z, u[0] * o.y - u[1] * o.x];
+      const dot = r[0] * (q.x - p.x) + r[1] * (q.y - p.y) + r[2] * (q.z - p.z);
+      assert.ok(dot * sign > 0, `柱 ${c} 第 ${k} 道横梁按 ${key}，去的柱子在屏幕${dot > 0 ? '右' : '左'}边`);
+    }
+  }
+});
