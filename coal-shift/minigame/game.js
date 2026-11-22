@@ -253,5 +253,5 @@ function onTouchEnd(e) {
 function onTouchCancel(e) { pressedCard = false; for (const t of e.changedTouches || []) { if (t.identifier === pointerId) { pointerId = null; pointerTarget = null; } sideTouches.delete(t.identifier); } syncKeys(); }
 wx.onTouchStart(onTouchStart); wx.onTouchMove(onTouchMove); wx.onTouchEnd(onTouchEnd); wx.onTouchCancel(onTouchCancel);
 wx.onHide(() => { releaseControls(); if (mode === 'playing') pause(); });
-showCard('煤球下班 · 17:59 下班前的最后一分钟', '小煤球，开工啦！', ['接住咖啡，避开 bug。', '守住 3 颗小红心，撑到下班！'], '开始上班 →', '');
+showCard('17:59 · 下班前的最后一分钟', '煤球下班', ['小煤球，开工啦！接住咖啡，避开 bug。', '守住 3 颗小红心，撑到下班！'], '开始上班 →', '');
 lastTime = Date.now(); requestAnimationFrame(frame);
