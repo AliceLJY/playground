@@ -53,6 +53,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Xiaoju Tower climb
+        working-directory: xiaoju-tower
+        run: |
+          node --check src/core.js
+          node --check src/game.js
+          node --test tests/*.test.cjs
+
       - name: Check Xiaoju Racing
         working-directory: xiaoju-racing
         run: |
@@ -282,6 +289,15 @@ jobs:
           python3 build.py
           cp '小橘逛花城.html' ../_site/xiaoju-city/index.html
           cp vendor/THREE-LICENSE.txt ../_site/xiaoju-city/THREE-LICENSE.txt
+          cd ..
+
+          # 小橘爬塔：build.py 把源码、城市数据和角色贴图内联成一个离线 HTML
+          mkdir -p _site/xiaoju-tower
+          cd xiaoju-tower
+          python3 build.py
+          cp '小橘爬塔.html' ../_site/xiaoju-tower/index.html
+          cp vendor/THREE-LICENSE.txt ../_site/xiaoju-tower/THREE-LICENSE.txt
+          cp THIRD_PARTY_NOTICES.md ../_site/xiaoju-tower/THIRD_PARTY_NOTICES.md
           cd ..
 
           # 小橘飞车：独立竞速项目，离线单文件发布
