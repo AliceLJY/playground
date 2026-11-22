@@ -71,3 +71,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 .start-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .mode{background:transparent;border:1.5px solid rgba(255,207,152,.55);color:var(--cream);border-radius:20px;height:40px;padding:0 14px;font-size:14px;font-weight:600}
 .mode small{font-weight:400;opacity:.7;margin-left:4px;font-size:12px}
+.stamina.resting{box-shadow:0 0 0 2px rgba(126,211,111,.85),0 0 14px rgba(126,211,111,.6);animation:restpulse 1.2s ease-in-out infinite}
+@keyframes restpulse{50%{box-shadow:0 0 0 2px rgba(126,211,111,.5),0 0 4px rgba(126,211,111,.3)}}
+.stamina span{min-width:4.5em;text-align:right}
