@@ -1,0 +1,26 @@
+# Publish only game source, data and reproducible checks; keep local screenshots and the built file out.
+*
+!/.gitignore
+!/index.html
+!/src/
+!/src/core.js
+!/src/game.js
+!/src/style.css
+!/vendor/
+!/vendor/three.min.js
+!/vendor/THREE-LICENSE.txt
+!/data/
+!/data/city.js
+!/assets/
+!/assets/cat-*.webp
+!/build.py
+!/README.md
+!/README_CN.md
+!/SPEC.md
+!/VERIFICATION.md
+!/THIRD_PARTY_NOTICES.md
+!/tools/
+!/tools/*.cjs
+!/tools/*.py
+!/tests/
+!/tests/*.test.cjs

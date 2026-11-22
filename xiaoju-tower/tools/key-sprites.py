@@ -1,0 +1,33 @@
+"""Chroma-key the 2x2 green sheet into trimmed transparent WebP frames for the game.
+Run: uv run --with pillow python tools/key-sprites.py <sheet.png>"""
+import sys
+from pathlib import Path
+from PIL import Image
+ROOT = Path(__file__).resolve().parent.parent
+sheet = Image.open(sys.argv[1]).convert("RGB")
+W, H = sheet.size
+names = {0: "climb", 2: "brace", 3: "rest"}
+frames = {}
+for idx, name in names.items():
+    cx, cy = idx % 2, idx // 2
+    cell = sheet.crop((cx * W // 2, cy * H // 2, (cx + 1) * W // 2, (cy + 1) * H // 2))
+    px = cell.load(); w, h = cell.size
+    out = Image.new("RGBA", (w, h)); po = out.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]
+            green = g - max(r, b)                      # how "green-screen" a pixel is
+            a = 255 if green < 40 else 0 if green > 110 else int(255 * (110 - green) / 70)
+            if a and green > 0: g = max(r, b) + min(green, 10)   # despill
+            po[x, y] = (r, g, b, a)
+    bbox = out.getbbox()
+    frames[name] = out.crop(bbox)
+# common canvas, feet aligned at bottom, centred
+cw = max(f.width for f in frames.values()) + 8; ch = max(f.height for f in frames.values()) + 8
+scale = 512 / ch
+for name, f in frames.items():
+    canvas = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+    canvas.paste(f, ((cw - f.width) // 2, ch - f.height - 4), f)
+    canvas = canvas.resize((int(cw * scale), 512), Image.LANCZOS)
+    canvas.save(ROOT / "assets" / f"cat-{name}.webp", "WEBP", quality=88, method=6)
+    print(name, canvas.size, (ROOT / "assets" / f"cat-{name}.webp").stat().st_size, "bytes")
