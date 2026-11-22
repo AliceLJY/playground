@@ -20,6 +20,8 @@ async function rects(p) {
     const start = await p.evaluate(() => { const b = document.getElementById('start').getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, vw: innerWidth, vh: innerHeight, hit: document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2) === document.getElementById('start') || document.getElementById('start').contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)) }; });
     ok(`${name}: 开始按钮完整可点`, start.x >= 0 && start.y >= 0 && start.x + start.w <= start.vw && start.y + start.h <= start.vh && start.hit, JSON.stringify(start));
     await p.screenshot({ path: `${out}/${name}-intro.png` });
+    const introHidden = await p.evaluate(() => ['hud', 'pad'].map(id => getComputedStyle(document.getElementById(id)).display));
+    ok(`${name}: 开场时 HUD 和按键真的藏起来`, introHidden.every(d => d === 'none'), introHidden.join(','));
     await p.evaluate(() => window.__PLAYTEST__.start());
     // force a visible hint + gust warning to test the worst-case layout
     await p.evaluate(() => { const g = document.getElementById('gust-bar'); g.classList.add('on'); const h = document.getElementById('hint'); h.hidden = false; h.innerHTML = '起风了！按住 <b>抓紧</b>，扛过去再松开'; });
@@ -60,6 +62,8 @@ async function rects(p) {
   await p.waitForTimeout(3000); await p.screenshot({ path: `${out}/ending-show.png` });
   await p.waitForTimeout(3000); await p.screenshot({ path: `${out}/ending-panel.png` });
   const panel = await p.evaluate(() => !document.getElementById('ending').hidden);
+  const endHidden = await p.evaluate(() => ['hud', 'pad'].map(id => getComputedStyle(document.getElementById(id)).display));
+  ok('结尾时 HUD 和按键真的藏起来', endHidden.every(d => d === 'none'), endHidden.join(','));
   ok('结算面板出现', panel);
   await p.click('#again'); await p.waitForTimeout(800);
   s = await p.evaluate(() => window.__PLAYTEST__.snapshot());
