@@ -233,8 +233,8 @@
   const cat = new THREE.Group(); scene.add(cat);
   const loader = new THREE.TextureLoader();
   const catTex = {};
-  ['climb', 'brace', 'rest'].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
-  const catMat = new THREE.MeshStandardMaterial({ map: catTex.climb, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
+  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest'].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
+  const catMat = new THREE.MeshStandardMaterial({ map: catTex.climbA, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
   const CAT_H = 3.0;
   const catSprite = new THREE.Mesh(new THREE.PlaneGeometry(CAT_H / 2, CAT_H), catMat);
   cat.add(catSprite);
@@ -309,7 +309,10 @@
     const dir = V3(e.p1.x - e.p0.x, e.p1.y - e.p0.y, e.p1.z - e.p0.z).normalize();
     return { p: V3(p.x, p.y, p.z), out: V3(o.x, 0, o.z), dir };
   }
-  let frameName = 'climb', mirror = 1;
+  let frameName = 'climbA';
+  const MOVE = 1.4;   // metres gained per hand-over-hand move
+  // body pauses while the hand reaches, then pulls up: displayed progress inside one move
+  const pullEase = u => u < 0.42 ? 0.06 * u / 0.42 : 0.06 + 0.94 * smooth((u - 0.42) / 0.58);
   function placeCat(dt) {
     let f;
     if (S.mode === 'shift' && S.anim) {
@@ -320,20 +323,24 @@
     catPos.copy(f.p).addScaledVector(f.out, 1.0);
     const right = new THREE.Vector3().crossVectors(catUp, catOut).normalize();
     const out2 = new THREE.Vector3().crossVectors(right, catUp).normalize();
-    cat.position.copy(catPos).addScaledVector(catUp, 0.15);
+    const mv = climbPhase / MOVE, u = mv - Math.floor(mv);
+    const lagOff = S.mode === 'climb' ? (pullEase(u) - u) * MOVE : 0;
+    cat.position.copy(catPos).addScaledVector(catUp, 0.15 + lagOff);
     cat.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, catUp, out2));
-    const yNow = X.y(S); climbPhase += Math.abs(yNow - lastY); lastY = yNow;
+    const yNow = X.y(S); if (S.mode === 'climb' && Math.abs(yNow - lastY) < 1) climbPhase += Math.abs(yNow - lastY); lastY = yNow;
     const tm = S.time, braced = S.braced, falling = S.mode === 'fall';
     const resting = !input.up && !input.down && !falling && !braced && S.mode === 'climb' && X.atNode(S) >= 0;
     let roll = 0, bob = 0, jitter = 0;
     if (braced) { frameName = 'brace'; jitter = 0.03; }
-    else if (falling) { frameName = 'climb'; roll = Math.sin(tm * 16) * 0.35; }
+    else if (falling) { frameName = 'pullA'; roll = Math.sin(tm * 16) * 0.35; }
     else if (resting && S.stamina > 25) { frameName = 'rest'; bob = Math.sin(tm * 2) * 0.03; }
-    else { frameName = 'climb'; mirror = Math.floor(climbPhase / 0.9) % 2 ? -1 : 1; bob = Math.abs(Math.sin(climbPhase / 0.9 * Math.PI)) * 0.08; }
+    else { const side = Math.floor(mv) % 2 ? 'B' : 'A'; frameName = (u < 0.42 ? 'climb' : 'pull') + side; bob = 0; }
     if (S.mode === 'shift' && S.anim) roll = Math.sin(smooth(S.anim.p) * Math.PI) * 0.22 * -S.anim.dir;
     const gp = X.gustPhase(S); if (gp.phase === 'gust' && gp.g) roll += Math.sin(tm * 9) * 0.05 + 0.06 * gp.g.dir;
     if (catMat.map !== catTex[frameName]) { catMat.map = catTex[frameName]; catMat.needsUpdate = true; }
-    catSprite.scale.x = frameName === 'climb' ? mirror : 1;
+    const sizeFix = frameName === 'climbB' ? 0.92 : 1;   // climbB was drawn on its own and comes out a little larger
+    const im = catTex[frameName].image; if (im && im.width) catSprite.scale.x = (im.width / im.height) * 2 * sizeFix;   // frames differ in aspect
+    catSprite.scale.y = sizeFix;
     catSprite.position.set((Math.random() - 0.5) * jitter, bob, 0);
     catSprite.rotation.z = roll;
   }
