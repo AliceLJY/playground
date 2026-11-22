@@ -166,7 +166,10 @@
   const tramRing = new THREE.Group(); tramRing.position.y = C.height + 1.5; tower.add(tramRing);
   const capMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.85, emissive: 0xffb347, emissiveIntensity: 0 });
   const caps = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 14, 10), capMat, 16);
-  { const top = X.colPoint(0, 1); const rr = Math.hypot(top.x, top.z) + 2.5; for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; m4.compose(V3(Math.cos(a) * rr, 0, Math.sin(a) * rr * 0.78), q4.identity(), V3(1, 0.85, 1)); caps.setMatrixAt(i, m4); } }
+  // the track tilts: one side of the ring sits near 450 m, the other near 460 m (same curve as X.finalePose('tram'))
+  const tramY = a => { const T = X.FINALE.tram; return lerp(T.y0, T.y1, 0.5 - 0.5 * Math.cos(a - Math.PI * 0.5)) - (C.height + 1.5); };
+  const TRAM_R = Math.hypot(X.colPoint(0, 1).x, X.colPoint(0, 1).z) + 2.5;
+  for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; m4.compose(V3(Math.cos(a) * TRAM_R, tramY(a), Math.sin(a) * TRAM_R * 0.78), q4.identity(), V3(1, 0.85, 1)); caps.setMatrixAt(i, m4); }
   tramRing.add(caps);
 
   // ---------- ground, river, city ----------
@@ -199,6 +202,14 @@
           diffuseColor.rgb *= 1.0 - win * 0.25 * aa;
           totalEmissiveRadiance += vec3(1.0, 0.76, 0.45) * glow * uNight * 1.1; }`);
   };
+  // OSM has the two supertall towers only as a podium / a point: raise them at their OSM spot with their public heights
+  const LANDMARKS = CITY.l || [];
+  LANDMARKS.forEach(l => {
+    if (l.h < 100) return;
+    const n = l.label === '西塔' ? 12 : 8, r = l.label === '西塔' ? 32 : 36, rec = [l.h];
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + (n === 8 ? Math.PI / 8 : 0); rec.push(l.x + Math.cos(a) * r, l.z - Math.sin(a) * r); }
+    CITY.b.push(rec);
+  });
   (function buildCity() {
     const pos = [], nor = [], col = [], win = [];
     const pal = [0xd8d2c6, 0xc9cdd2, 0xb8bec6, 0xe2dccf, 0xa9b2bb, 0xcfc4b0];
@@ -233,11 +244,59 @@
   const cat = new THREE.Group(); scene.add(cat);
   const loader = new THREE.TextureLoader();
   const catTex = {};
-  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest'].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
+  const SH = ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', 'cheer', 'hit'].map(n => 'sanhua-' + n);
+  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', ...SH].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
   const catMat = new THREE.MeshStandardMaterial({ map: catTex.climbA, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
   const CAT_H = 3.0;
   const catSprite = new THREE.Mesh(new THREE.PlaneGeometry(CAT_H / 2, CAT_H), catMat);
   cat.add(catSprite);
+  // 三花姐: her own frames, half a head taller than 小橘
+  const rival = new THREE.Group(); scene.add(rival); rival.visible = false;
+  const rivalMat = new THREE.MeshStandardMaterial({ map: catTex['sanhua-climbA'], transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
+  const RIVAL_H = 3.5;
+  const rivalSprite = new THREE.Mesh(new THREE.PlaneGeometry(RIVAL_H / 2, RIVAL_H), rivalMat);
+  rival.add(rivalSprite);
+
+  // ---------- 蜘蛛侠栈道: open-air spiral stair round the core, 168 → 335 m ----------
+  const ST = C.stairs, STAIR_Y0 = X.ringY(ST.fromK), STAIR_Y1 = X.ringY(ST.toK), STAIR_PITCH = 14, STAIR_R = 2.6;
+  function stairPoint(yy) {   // a point on the walking line, with the outward direction
+    const a = ((yy - STAIR_Y0) / STAIR_PITCH) * Math.PI * 2 - Math.PI / 2;
+    const p = V3(Math.cos(a) * (7 + STAIR_R), yy, Math.sin(a) * (5.5 + STAIR_R));
+    return { p, out: V3(p.x, 0, p.z).normalize(), a };
+  }
+  const stairMat = new THREE.MeshStandardMaterial({ color: 0xb9bec6, metalness: 0.5, roughness: 0.5, emissive: 0xffb347, emissiveIntensity: 0 });
+  const nSteps = Math.round((STAIR_Y1 - STAIR_Y0) / 0.32);
+  const steps = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 0.12, 0.7), stairMat, nSteps);
+  for (let i = 0; i < nSteps; i++) {
+    const sp = stairPoint(STAIR_Y0 + i * 0.32), tang = Math.atan2(sp.out.x, sp.out.z);
+    m4.compose(sp.p.clone().add(V3(0, -0.06, 0)), q4.setFromAxisAngle(up, tang), V3(1, 1, 1)); steps.setMatrixAt(i, m4);
+  }
+  tower.add(steps);
+  const railPts = []; for (let yy = STAIR_Y0; yy <= STAIR_Y1; yy += 0.5) { const sp = stairPoint(yy); railPts.push(sp.p.clone().addScaledVector(sp.out, 1.25).add(V3(0, 1.1, 0))); }
+  const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), railPts.length * 2, 0.06, 5, false), stairMat); tower.add(rail);
+
+  // ---------- after the top: ride cabin, drop-ride seat ring, 488 m deck ----------
+  const mastR = yy => 6.5 + (0.8 - 6.5) * (yy - C.height) / 146;
+  const deckY = X.FINALE.deckY;
+  const DECK_OUT = mastR(deckY) + 6;
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(DECK_OUT, DECK_OUT - 0.6, 0.5, 48), new THREE.MeshStandardMaterial({ color: 0xcfd3d9, roughness: 0.7, metalness: 0.2 }));
+  deck.position.y = deckY - 0.25; tower.add(deck);
+  const deckRail = new THREE.Mesh(new THREE.CylinderGeometry(DECK_OUT - 0.1, DECK_OUT - 0.1, 1.2, 48, 1, true), new THREE.MeshStandardMaterial({ color: 0x9ad0ff, roughness: 0.1, metalness: 0.4, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
+  deckRail.position.y = deckY + 0.6; tower.add(deckRail);
+  const deckTop = new THREE.Mesh(new THREE.TorusGeometry(DECK_OUT - 0.1, 0.06, 6, 64), new THREE.MeshStandardMaterial({ color: 0xe8ebef, metalness: 0.6, roughness: 0.3 }));
+  deckTop.rotation.x = Math.PI / 2; deckTop.position.y = deckY + 1.2; tower.add(deckTop);
+  // the ride cabin she sits in on the tram
+  const cabin = new THREE.Mesh(new THREE.SphereGeometry(1.5, 18, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.3, depthWrite: false, emissive: 0xffb347, emissiveIntensity: 0.15 }));
+  cabin.scale.set(1.25, 1.1, 1.25); cabin.visible = false; scene.add(cabin);
+  // 极速云霄: a ring of seats that climbs the antenna and drops (one instanced mesh, re-placed every frame)
+  const SEATS = 20;
+  const seatRing = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.35, 0.9), new THREE.MeshStandardMaterial({ color: 0xff6a3d, roughness: 0.5, metalness: 0.3, emissive: 0xff6a3d, emissiveIntensity: 0.25 }), SEATS);
+  seatRing.visible = false; seatRing.frustumCulled = false; scene.add(seatRing);
+  function placeSeats(yy) {
+    const r = mastR(yy) + 0.6;
+    for (let i = 0; i < SEATS; i++) { const a = (i / SEATS) * Math.PI * 2; m4.compose(V3(Math.cos(a) * r, yy, Math.sin(a) * r), q4.setFromAxisAngle(up, -a), V3(1, 1, 1)); seatRing.setMatrixAt(i, m4); }
+    seatRing.instanceMatrix.needsUpdate = true;
+  }
 
   // ---------- pigeons (instanced) ----------
   const pigeonBody = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshStandardMaterial({ color: 0x8b93a1, roughness: 0.8 }), 240);
@@ -247,23 +306,45 @@
   let flyers = [];
 
   // ---------- black kite (黑鸢): big dark-brown raptor with a forked tail, exaggerated for readability ----------
-  const kite = new THREE.Group(); scene.add(kite);
-  const kBrown = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.85 }), kLight = new THREE.MeshStandardMaterial({ color: 0x8a6a4c, roughness: 0.8 });
-  const kBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.4, 6, 12), kBrown); kBody.rotation.x = Math.PI / 2; kite.add(kBody);
-  const kHead = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 10), kLight); kHead.position.z = 1.05; kite.add(kHead);
-  const kBeak = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), new THREE.MeshStandardMaterial({ color: 0xe2b23a })); kBeak.rotation.x = Math.PI / 2; kBeak.position.set(0, -0.06, 1.38); kite.add(kBeak);
-  const kWings = [-1, 1].map(sx => {
-    const root = new THREE.Group(); root.position.x = 0.3 * sx; kite.add(root);
-    const inner = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 1.1), kBrown); inner.position.x = 1.2 * sx; root.add(inner);
-    const tip = new THREE.Group(); tip.position.x = 2.4 * sx; root.add(tip);
-    const outer = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.8), kLight); outer.position.x = 1.0 * sx; tip.add(outer);
-    return { root, tip, sx };
-  });
-  [-1, 1].forEach(sx => { const t = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 1.2), kBrown); t.position.set(0.18 * sx, 0, -1.4); t.rotation.y = 0.28 * sx; kite.add(t); });
+  const kBrown = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.85 }), kLight = new THREE.MeshStandardMaterial({ color: 0x8a6a4c, roughness: 0.8 }), kGold = new THREE.MeshStandardMaterial({ color: 0xe2b23a });
+  function makeKiteModel() {
+    const kite = new THREE.Group(); scene.add(kite);
+    const kBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.4, 6, 12), kBrown); kBody.rotation.x = Math.PI / 2; kite.add(kBody);
+    const kHead = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 10), kLight); kHead.position.z = 1.05; kite.add(kHead);
+    const kBeak = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 8), kGold); kBeak.rotation.x = Math.PI / 2; kBeak.position.set(0, -0.06, 1.38); kite.add(kBeak);
+    const wings = [-1, 1].map(sx => {
+      const root = new THREE.Group(); root.position.x = 0.3 * sx; kite.add(root);
+      const inner = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 1.1), kBrown); inner.position.x = 1.2 * sx; root.add(inner);
+      const tip = new THREE.Group(); tip.position.x = 2.4 * sx; root.add(tip);
+      const outer = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.8), kLight); outer.position.x = 1.0 * sx; tip.add(outer);
+      return { root, tip, sx };
+    });
+    [-1, 1].forEach(sx => { const t = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 1.2), kBrown); t.position.set(0.18 * sx, 0, -1.4); t.rotation.y = 0.28 * sx; kite.add(t); });
+    return { group: kite, wings, pos: new THREE.Vector3(0, 200, 60), away: null };
+  }
+  const KM = makeKiteModel(), KR = makeKiteModel();   // KR dives at 三花姐
+  const kite = KM.group, kWings = KM.wings;
   const laneMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0, depthWrite: false });
   const lane = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1, 10, 1, true), laneMat); lane.renderOrder = 2; scene.add(lane);
+  function updateRivalKite(dt) {
+    const g = KR.group, kp = race && R ? X.kitePhase(R) : { phase: 'calm' }, tm = LED.uTime.value;
+    if (kp.phase === 'warn' && kp.k.status === 'locked') {
+      const tgt = colFrame(kp.k.target, R.t), strikePt = tgt.p.clone().addScaledVector(tgt.out, 1.2).add(V3(0, 0.6, 0));
+      const side = new THREE.Vector3().crossVectors(tgt.dir, tgt.out).normalize();
+      const hover = tgt.p.clone().addScaledVector(tgt.out, 6).addScaledVector(side, -2.4).add(V3(0, 5 + Math.sin(tm * 3) * 0.5, 0));
+      const d = clamp((kp.p - 0.8) / 0.2, 0, 1);
+      KR.pos.lerp(d > 0 ? hover.clone().lerp(strikePt, d * d) : hover, d > 0 ? 1 : 1 - Math.pow(0.02, dt));
+      g.position.copy(KR.pos); g.lookAt(strikePt); g.visible = true;
+      KR.wings.forEach(w => { const f = Math.sin(tm * 6 * (d > 0 ? 0.15 : 2.2)) * 0.45; w.root.rotation.z = w.sx * f; w.tip.rotation.z = w.sx * f * 0.6; });
+      if (kp.k.status === 'locked') KR.away = { dir: tgt.out.clone().add(V3(0, 0.4, 0)).normalize() };
+    } else if (KR.away && KR.away.dir) {
+      KR.away.t = (KR.away.t || 0) + dt; KR.pos.addScaledVector(KR.away.dir, dt * 22); g.position.copy(KR.pos); g.lookAt(KR.pos.clone().add(KR.away.dir));
+      KR.wings.forEach(w => { const f = Math.sin(tm * 15) * 0.45; w.root.rotation.z = w.sx * f; w.tip.rotation.z = w.sx * f * 0.6; });
+      if (KR.away.t > 2.5) KR.away = null;
+    } else g.visible = false;
+  }
   let kiteAway = null;   // {from, dir, t}
-  const kitePos = new THREE.Vector3(0, 200, 60);
+  const kitePos = KM.pos;
   function updateKite(dt) {
     const kp = X.kitePhase(S), tm = LED.uTime.value, yy = X.y(S);
     let want, look = null, flap = 1;
@@ -290,7 +371,7 @@
       }
     }
     kite.position.copy(kitePos); if (look) kite.lookAt(look);
-    kite.visible = yy > X.CFG.kite.minY - 30 || kiteAway !== null;
+    kite.visible = !finale && S.mode !== 'stairs' && (yy > X.CFG.kite.minY - 30 || kiteAway !== null);
     kWings.forEach(w => { const f = Math.sin(tm * 6 * flap) * 0.45 * Math.min(1, flap); w.root.rotation.z = w.sx * f; w.tip.rotation.z = w.sx * f * 0.6; });
   }
 
@@ -303,13 +384,18 @@
 
   // ---------- state & input ----------
   let S = X.createState(SEED);
+  let race = Q.get('race') !== '0', R = null, rivalPilot = null, rivalNoted = {};
+  function makeRival() { R = race ? X.createRival(S) : null; rivalPilot = race ? X.makePilot('rival', SEED + C.rival.seedOffset, { snack: 'xiajiao' }) : null; rivalNoted = {}; }
+  makeRival();
   let playing = false, ended = false, showT = 0, dayP = 0, camYaw = 0, camYawTarget = 0, shake = 0;
-  const input = { up: false, down: false, left: false, right: false, brace: false };
+  let finale = null, postcard = null, wantPostcard = false, pendingPick = null, choiceDismissed = null;
+  const input = { up: false, down: false, left: false, right: false, brace: false, act: false };
   const keyMap = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'brace' };
+  const pickKeys = { KeyE: 1, KeyQ: 2 };
   const padKeys = {}; document.querySelectorAll('#pad .key').forEach(b => { padKeys[b.dataset.act] = b; });
   const held = { key: {}, ptr: {} };
   function refreshInput() { for (const k of Object.keys(input)) { input[k] = !!(held.key[k] || held.ptr[k]); padKeys[k] && padKeys[k].classList.toggle('on', input[k]); } }
-  addEventListener('keydown', e => { const a = keyMap[e.code]; if (!a) return; e.preventDefault(); if (!playing && !ended && (a === 'up' || a === 'brace') && !introEl.hidden) { start(); } held.key[a] = true; refreshInput(); });
+  addEventListener('keydown', e => { if (pickKeys[e.code] && playing && !e.repeat && choiceOn) { e.preventDefault(); pick(pickKeys[e.code]); return; } const a = keyMap[e.code]; if (!a) return; e.preventDefault(); if (!playing && !ended && (a === 'up' || a === 'brace') && !introEl.hidden) { start(); } held.key[a] = true; refreshInput(); });
   addEventListener('keyup', e => { const a = keyMap[e.code]; if (!a) return; held.key[a] = false; refreshInput(); });
   addEventListener('blur', () => { held.key = {}; held.ptr = {}; refreshInput(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { held.key = {}; held.ptr = {}; refreshInput(); } });
@@ -331,18 +417,54 @@
   const introEl = $('intro'), endEl = $('ending'), hudEl = $('hud'), padEl = $('pad'), hintEl = $('hint'), gustEl = $('gust-bar'), flashEl = $('flash');
   const staminaEl = document.querySelector('.stamina'), staminaLabel = document.querySelector('.stamina span');
   const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  const raceEl = $('h-race'), choiceEl = $('choice'), pcEl = $('postcard');
   const hints = { climb: '按住 <b>↑</b> 往上爬', rest: '停在横梁上不动，体力会慢慢回来', shift: '鸽子挡路？停在横梁上按 <b>← →</b> 换一根柱子', gust: '起风了！按住 <b>抓紧</b>，扛过去再松开', waist: '过了塔腰，柱子往外倒，更费体力，多歇', low: '体力不够了？松开 <b>↑</b>，小橘会抓住最近的横梁歇着', kite: '黑鸢盯上你了！在横梁上按 <b>←</b> 或 <b>→</b> 换一根柱子躲开（在柱子中间就先松手抓横梁）' };
   const hintDone = {}; let hintNow = null, hintSince = 0;
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = S.time; hintEl.innerHTML = hints[id]; hintEl.hidden = false; }
   function clearHint(id) { hintDone[id] = true; if (hintNow === id) { hintNow = null; hintEl.hidden = true; } }
   let bestKey = 'xjt-best';
   function start() {
-    playing = true; ended = false; introEl.hidden = true; endEl.hidden = true; hudEl.hidden = false; padEl.hidden = false;
+    playing = true; ended = false; introEl.hidden = true; endEl.hidden = true; pcEl.hidden = true; hudEl.hidden = false; padEl.hidden = false;
+    raceEl.hidden = !race;
     showHint('climb');
   }
   function reset(seed) {
-    if (seed) SEED = seed; S = X.createState(SEED); dayP = X.skyProgress(MODE, 0); showT = 0; ended = false; flyers = [];
+    if (seed) SEED = seed; S = X.createState(SEED); makeRival(); dayP = X.skyProgress(MODE, 0); showT = 0; ended = false; flyers = [];
+    finale = null; postcard = null; wantPostcard = false; pendingPick = null; choiceDismissed = null; setChoice(null);
+    seatRing.visible = false; cabin.visible = false; cat.scale.setScalar(1); camInit = false; KR.away = null;
     Object.keys(hintDone).forEach(k => delete hintDone[k]); hintNow = null; hintEl.hidden = true;
+  }
+  // 自己爬 / 跟三花姐比
+  function setRace(on) {
+    race = on; $('vs-race').setAttribute('aria-pressed', on); $('vs-solo').setAttribute('aria-pressed', !on);
+    document.querySelector('.race-rule').hidden = !on; makeRival();
+  }
+  $('vs-race').addEventListener('click', () => setRace(true)); $('vs-solo').addEventListener('click', () => setRace(false));
+  setRace(race);
+  // contextual choice: the stair at 168 m, a snack at 423 m
+  let choiceOn = null;
+  const CHOICES = {
+    fork: { q: '蜘蛛侠栈道入口 · 168 米。<br>走栈道：慢，但风和黑鸢都碰不到你。爬外面：快，但险。', a: '走栈道', b: '爬外面', bk: '↑' },
+    snack: { q: '旋转餐厅 · 423 米。吃份点心，体力上限 +30，撑最后那段仰角？<br><small>吃要 2.5 秒；不吃就按 ↑ 接着爬。</small>', a: '双皮奶', b: '虾饺', bk: 'Q' }
+  };
+  function setChoice(kind) {
+    if (choiceOn === kind) return; choiceOn = kind; choiceEl.hidden = !kind;
+    if (!kind) return;
+    const c = CHOICES[kind]; choiceEl.querySelector('.q').innerHTML = c.q;
+    const [a, b] = choiceEl.querySelectorAll('.opt'); a.querySelector('b').textContent = c.a; b.querySelector('b').textContent = c.b; b.querySelector('kbd').textContent = c.bk;
+    if (hintNow && hintNow !== 'note') { hintNow = null; hintEl.hidden = true; }
+  }
+  function pick(n) {
+    if (choiceOn === 'fork') { if (n === 1) pendingPick = 'stairs'; else { choiceDismissed = 'fork'; setChoice(null); } }
+    else if (choiceOn === 'snack') pendingPick = n === 1 ? 'shuangpinai' : 'xiajiao';
+  }
+  choiceEl.querySelectorAll('.opt').forEach(b => b.addEventListener('click', () => pick(+b.dataset.pick)));
+  function updateChoice() {
+    let want = null;
+    if (playing && X.atFork(S)) want = choiceDismissed === 'fork' ? null : 'fork';
+    else if (playing && X.canEat(S)) want = 'snack';
+    if (!X.atFork(S) && choiceDismissed === 'fork' && X.atNode(S) !== C.stairs.fromK) choiceDismissed = null;
+    setChoice(want);
   }
   const modeBtn = $('mode');
   function showMode() { modeBtn.innerHTML = `${MODE_NAME[MODE]}模式 <small>${following ? '跟广州时间' : '点一下换'}</small>`; }
@@ -350,6 +472,9 @@
   showMode();
   $('start').addEventListener('click', start);
   $('again').addEventListener('click', () => { reset(SEED + 1); start(); });
+  $('again2').addEventListener('click', () => { reset(SEED + 1); start(); });
+  $('ride-tram').addEventListener('click', () => startRide('tram'));
+  $('ride-drop').addEventListener('click', () => startRide('drop'));
 
   // ---------- per-frame ----------
   const catPos = new THREE.Vector3(), catOut = new THREE.Vector3(), catUp = new THREE.Vector3(), camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
@@ -364,6 +489,22 @@
   // body pauses while the hand reaches, then pulls up: displayed progress inside one move
   const pullEase = u => u < 0.42 ? 0.06 * u / 0.42 : 0.06 + 0.94 * smooth((u - 0.42) / 0.58);
   function placeCat(dt) {
+    if (finale) return placeFinale();
+    if (S.mode === 'stairs' || (S.mode === 'eat')) {
+      if (S.mode === 'stairs') {
+        const sp = stairPoint(S.stairY), tang = V3(-Math.sin(sp.a) * (5.5 + STAIR_R), 0, Math.cos(sp.a) * (7 + STAIR_R)).normalize();
+        catOut.copy(sp.out); catUp.set(0, 1, 0);
+        catPos.copy(sp.p).add(V3(0, 1.45, 0));
+        const right = new THREE.Vector3().crossVectors(catUp, catOut).normalize();
+        cat.position.copy(catPos); cat.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, catUp, catOut));
+        const moving = S.climbing, ph = S.stairY / 0.64;
+        frameName = moving ? (Math.floor(ph) % 2 ? 'climbB' : 'climbA') : 'rest';
+        catSprite.position.set(0, moving ? Math.abs(Math.sin(ph * Math.PI)) * 0.12 : 0, 0); catSprite.rotation.z = 0;
+        void tang;
+      } else frameName = 'rest';
+      setFrame(catMat, catSprite, frameName, 1);
+      return;
+    }
     let f;
     if (S.mode === 'shift' && S.anim) {
       const a = S.anim, k = Math.round(S.t * C.rings), t = k / C.rings, A = colFrame(a.from, t), B = colFrame(a.to, t), u = smooth(a.p);
@@ -387,12 +528,130 @@
     else { const side = Math.floor(mv) % 2 ? 'B' : 'A'; frameName = (u < 0.42 ? 'climb' : 'pull') + side; bob = 0; }
     if (S.mode === 'shift' && S.anim) roll = Math.sin(smooth(S.anim.p) * Math.PI) * 0.22 * -S.anim.dir;
     const gp = X.gustPhase(S); if (gp.phase === 'gust' && gp.g) roll += Math.sin(tm * 9) * 0.05 + 0.06 * gp.g.dir;
-    if (catMat.map !== catTex[frameName]) { catMat.map = catTex[frameName]; catMat.needsUpdate = true; }
-    const sizeFix = frameName === 'climbB' ? 0.92 : 1;   // climbB was drawn on its own and comes out a little larger
-    const im = catTex[frameName].image; if (im && im.width) catSprite.scale.x = (im.width / im.height) * 2 * sizeFix;   // frames differ in aspect
-    catSprite.scale.y = sizeFix;
+    setFrame(catMat, catSprite, frameName, frameName === 'climbB' ? 0.92 : 1);   // climbB was drawn on its own and comes out a little larger
     catSprite.position.set((Math.random() - 0.5) * jitter, bob, 0);
     catSprite.rotation.z = roll;
+  }
+  function setFrame(mat, sprite, name, sizeFix) {
+    if (mat.map !== catTex[name]) { mat.map = catTex[name]; mat.needsUpdate = true; }
+    const im = catTex[name].image; if (im && im.width) sprite.scale.x = (im.width / im.height) * 2 * sizeFix;   // frames differ in aspect
+    sprite.scale.y = sizeFix;
+  }
+  // 三花姐 on her own column, same hand-over-hand rhythm
+  let rivalPhase = 0, rivalLastY = 0;
+  function placeRival() {
+    rival.visible = !!(race && R) && !finale;
+    if (!rival.visible) return;
+    let f;
+    if (R.mode === 'shift' && R.anim) {
+      const a = R.anim, t = Math.round(R.t * C.rings) / C.rings, A = colFrame(a.from, t), B = colFrame(a.to, t), u = smooth(a.p);
+      f = { p: A.p.clone().lerp(B.p, u), out: A.out.clone().lerp(B.out, u).normalize(), dir: A.dir.clone().lerp(B.dir, u).normalize() };
+    } else f = colFrame(R.col, Math.min(R.t, 1));
+    const right = new THREE.Vector3().crossVectors(f.dir, f.out).normalize(), out2 = new THREE.Vector3().crossVectors(right, f.dir).normalize();
+    const yNow = X.y(R); if (R.mode === 'climb' && Math.abs(yNow - rivalLastY) < 1) rivalPhase += Math.abs(yNow - rivalLastY); rivalLastY = yNow;
+    const mv = rivalPhase / MOVE, u = mv - Math.floor(mv);
+    const lagOff = R.mode === 'climb' && R.climbing ? (pullEase(u) - u) * MOVE : 0;
+    rival.position.copy(f.p).addScaledVector(f.out, 1.0).addScaledVector(f.dir, 0.3 + lagOff);
+    rival.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, f.dir, out2));
+    let name, roll = 0;
+    if (R.done) name = 'cheer';
+    else if (R.mode === 'fall') { name = 'hit'; roll = Math.sin(R.time * 14) * 0.25; }
+    else if (R.braced) name = 'brace';
+    else if (R.mode === 'eat' || (R.resting && R.stamina > 20)) name = 'rest';
+    else name = (u < 0.42 ? 'climb' : 'pull') + (Math.floor(mv) % 2 ? 'B' : 'A');
+    if (R.mode === 'shift' && R.anim) roll = Math.sin(smooth(R.anim.p) * Math.PI) * 0.22 * -R.anim.dir;
+    setFrame(rivalMat, rivalSprite, 'sanhua-' + name, 1);
+    rivalSprite.rotation.z = roll;
+  }
+  // ---------- after the top ----------
+  function startRide(kind) {
+    finale = { kind, t: 0 }; endEl.hidden = true; postcard = null; LED.uShow.value = 0;
+  }
+  const fwd = new THREE.Vector3(), lft = new THREE.Vector3();
+  const PC_LOOK = (() => { const L = LANDMARKS.length ? LANDMARKS : [{ x: 0, z: -1000, h: 200 }]; return V3(L.reduce((a, l) => a + l.x, 0) / L.length, 120, L.reduce((a, l) => a + l.z, 0) / L.length); })();
+  function placeFinale() {
+    const pose = X.finalePose(finale.kind, finale.t);
+    cat.scale.setScalar(0.62); seatRing.visible = false; cabin.visible = false;
+    if (pose.phase === 'deck' || pose.phase === 'postcard') {
+      // 488 m outdoor deck, looking north over 海心沙 towards 西塔 and 东塔
+      // camera held up at 2.2 m, 3 m in from the rail: the deck floor stays out of the line to 海心沙 (31° down)
+      const edge = V3(PC_LOOK.x, 0, PC_LOOK.z).normalize().multiplyScalar(DECK_OUT - 3);
+      camPos.set(edge.x, deckY + 2.2, edge.z); camLook.copy(PC_LOOK);
+      fwd.subVectors(camLook, camPos).normalize(); lft.crossVectors(up, fwd).normalize();
+      const fh = V3(fwd.x, 0, fwd.z).normalize();
+      cat.scale.setScalar(0.45);
+      catPos.copy(camPos).addScaledVector(fh, 2.4).addScaledVector(lft, 0.95 * Math.min(1, camera.aspect)); catPos.y = deckY + CAT_H / 2 * 0.45;
+      cat.position.copy(catPos); cat.lookAt(catPos.clone().sub(V3(fwd.x, 0, fwd.z)));   // plane faces the camera: we see her back and her look over the shoulder
+      catOut.copy(fwd).negate().setY(0).normalize(); catUp.set(0, 1, 0);
+      setFrame(catMat, catSprite, 'rest', 1); catSprite.position.set(0, 0, 0); catSprite.rotation.z = 0;
+      if (pose.phase === 'postcard' && !postcard && !wantPostcard) wantPostcard = true;
+      return;
+    }
+    if (finale.kind === 'tram') {
+      const rr = TRAM_R, a = pose.angle + Math.PI * 0.5;
+      catPos.set(Math.cos(a) * rr, pose.y, Math.sin(a) * rr * 0.78);
+      cabin.visible = true; cabin.position.copy(catPos);
+      catOut.set(catPos.x, 0, catPos.z).normalize(); catUp.set(0, 1, 0);
+      setFrame(catMat, catSprite, 'rest', 1);
+      camPos.copy(catPos).addScaledVector(catOut, 9).add(V3(0, 3.2, 0)); camLook.copy(catPos).add(V3(0, 0.5, 0));
+    } else {
+      const r = mastR(pose.y) + 1.1;
+      catPos.set(0, pose.y, -r); catOut.set(0, 0, -1); catUp.set(0, 1, 0);
+      seatRing.visible = true; placeSeats(pose.y - 0.95);
+      setFrame(catMat, catSprite, pose.phase === 'falling' ? 'brace' : 'rest', 1);
+      camPos.set(3.2, pose.y + (pose.phase === 'falling' ? 2.2 : 1.2), -r - 4.6); camLook.set(0, pose.y - 0.6, -r);
+      if (pose.phase === 'falling') shake = Math.max(shake, 0.25);
+    }
+    cat.position.copy(catPos);
+    const right = new THREE.Vector3().crossVectors(catUp, catOut).normalize();
+    cat.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, catUp, new THREE.Vector3().crossVectors(right, catUp).normalize()));
+    catSprite.position.set(0, 0, 0); catSprite.rotation.z = 0;
+  }
+  // the postcard: the frame just rendered, cropped, with the three landmarks named from OSM
+  function makePostcard() {
+    const src = renderer.domElement, W = src.width, H = src.height, portrait = W < H;
+    const cw = portrait ? 800 : 1200, ch = portrait ? 1200 : 800, frame = 28, foot = portrait ? 124 : 96;
+    const sw = portrait ? Math.min(W, H * 2 / 3) : W, sh = portrait ? H : Math.min(H, W * 2 / 3), sx = (W - sw) / 2, sy = (H - sh) / 2;
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const g = cv.getContext('2d');
+    g.fillStyle = '#fffaf0'; g.fillRect(0, 0, cw, ch);
+    const iw = cw - frame * 2, ih = ch - frame - foot;
+    g.drawImage(src, sx, sy, sw, sh, frame, frame, iw, ih);
+    const labels = [];
+    const v = new THREE.Vector3();
+    LANDMARKS.forEach(l => {
+      v.set(l.x, l.h < 100 ? 2 : l.h, l.z).project(camera);
+      const px = (v.x * 0.5 + 0.5) * W, py = (-v.y * 0.5 + 0.5) * H;
+      const x = frame + (px - sx) / sw * iw, y = frame + (py - sy) / sh * ih;
+      labels.push({ label: l.label, name: l.name, x, y, inside: v.z < 1 && x > frame && x < cw - frame && y > frame && y < frame + ih });
+    });
+    const fs = portrait ? 26 : 24;
+    labels.forEach(L => {
+      if (!L.inside) return;
+      const txt = L.label === '海心沙' ? '海心沙' : `${L.label} · ${L.name}`;
+      g.font = `700 ${fs}px -apple-system,"PingFang SC",sans-serif`;
+      const tw = g.measureText(txt).width, lift = L.label === '海心沙' ? 70 : 46;
+      let bx = clamp(L.x - tw / 2 - 10, frame + 6, cw - frame - tw - 26), by = clamp(L.y - lift - fs, frame + 6, frame + ih - fs - 20);
+      g.strokeStyle = '#fffaf0'; g.lineWidth = 3; g.beginPath(); g.moveTo(L.x, L.y); g.lineTo(L.x, by + fs + 14); g.stroke();
+      g.fillStyle = '#fffaf0'; g.beginPath(); g.arc(L.x, L.y, 6, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(29,26,34,.82)'; g.fillRect(bx, by, tw + 20, fs + 14);
+      g.fillStyle = '#fff6e8'; g.fillText(txt, bx + 10, by + fs + 3);
+      L.box = { x: bx, y: by, w: tw + 20, h: fs + 14 };
+    });
+    g.fillStyle = '#1d1a22'; g.font = `800 ${portrait ? 34 : 32}px -apple-system,"PingFang SC",sans-serif`;
+    g.fillText('广州塔 · 488 米', frame, ch - foot + 46);
+    const res = X.raceResult(S, R || {}), d = X.gzClock(); void d;
+    const day = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '.');
+    g.font = `500 ${portrait ? 20 : 19}px -apple-system,"PingFang SC",sans-serif`; g.fillStyle = '#5a5060';
+    const raceLine = race && res ? (res.won ? '比三花姐先到顶' : '三花姐先到一步') + ' · ' : '';
+    g.fillText(`${raceLine}${finale.kind === 'tram' ? '坐过摩天轮' : '坐过极速云霄'} · 用时 ${fmt(S.doneAt)} · ${day}`, frame, ch - foot + 78);
+    if (portrait) g.fillText('我的AI小木屋 · 地图 © OpenStreetMap', frame, ch - foot + 106);
+    else { g.textAlign = 'right'; g.fillText('我的AI小木屋 · 地图 © OpenStreetMap', cw - frame - 90, ch - foot + 78); g.textAlign = 'left'; }
+    g.strokeStyle = '#c0392b'; g.lineWidth = 3; g.beginPath(); g.arc(cw - frame - 46, ch - foot + 34, 26, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#c0392b'; g.font = '700 15px -apple-system,"PingFang SC",sans-serif'; g.textAlign = 'center'; g.fillText('广州', cw - frame - 46, ch - foot + 40); g.textAlign = 'left';
+    const url = cv.toDataURL('image/png');
+    postcard = { url, labels, w: cw, h: ch, portrait };
+    $('pc-img').src = url; $('pc-save').href = url;
+    pcEl.hidden = false;
   }
   function updatePigeons(dt) {
     let n = 0, w = 0;
@@ -433,11 +692,13 @@
     if (!drag) camYawTarget *= Math.pow(0.4, dt);
     const out = catOut.clone().applyAxisAngle(up, camYaw);
     let dist = 10.5, lift = -0.8, look = 2.2;
-    if (ended) { // orbit pull-back for the light show
+    if (finale) { /* placeFinale set camPos / camLook */ }
+    else if (ended) { // orbit pull-back for the light show
       const a = showT * 0.12, r = lerp(14, 520, smooth(clamp(showT / 9, 0, 1)));
       camPos.set(Math.cos(a) * r, C.height + lerp(2, 170, smooth(clamp(showT / 9, 0, 1))), Math.sin(a) * r);
       camLook.set(0, C.height - lerp(0, 160, smooth(clamp(showT / 9, 0, 1))), 0);
     } else {
+      if (S.mode === 'stairs') { dist = 9; lift = 0.6; }
       const want = catPos.clone().addScaledVector(out, dist).add(V3(0, lift, 0));
       if (!camInit) { camPos.copy(want); camInit = true; } else camPos.lerp(want, 1 - Math.pow(0.002, dt));
       camLook.copy(catPos).add(V3(0, look, 0));
@@ -469,10 +730,10 @@
     $('h-now').textContent = Math.round(yy);
     const nextCp = C.checkpoints.find(k => k > S.checkpointK);
     const ci = C.checkpoints.indexOf(nextCp);
-    $('h-next').textContent = nextCp ? `下一个歇脚台 · ${C.checkpointNames[ci]}\u00a0${C.checkpointRealY[ci]}\u00a0米` : '最后一段 · 塔顶 454 米';
-    const fill = $('stamina-fill'); fill.style.width = clamp(S.stamina, 0, 100) + '%'; fill.classList.toggle('low', S.stamina < 30);
+    $('h-next').textContent = S.mode === 'stairs' ? '蜘蛛侠栈道 · 出口 334 米' : nextCp ? `下一个歇脚台 · ${C.checkpointNames[ci]}\u00a0${C.checkpointRealY[ci]}\u00a0米` : '最后一段 · 塔顶 454 米';
+    const fill = $('stamina-fill'); fill.style.width = clamp(S.stamina / S.staminaMax * 100, 0, 100) + '%'; fill.classList.toggle('low', S.stamina < 30); fill.classList.toggle('boost', S.staminaMax > C.stamina);
     const resting = !!S.resting && S.stamina < 99.5;
-    staminaEl.classList.toggle('resting', resting); staminaLabel.textContent = resting ? '歇脚中 ↑' : S.settling ? '抓横梁…' : '体力';
+    staminaEl.classList.toggle('resting', resting); staminaLabel.textContent = S.mode === 'eat' ? '吃点心…' : resting ? '歇脚中 ↑' : S.settling ? '抓横梁…' : S.staminaMax > C.stamina ? '体力 +30' : '体力';
     $('s-time').textContent = fmt(S.time); $('s-falls').textContent = S.falls + S.gustFalls;
     gustEl.classList.toggle('on', gp.phase === 'warn' || gp.phase === 'gust');
     gustEl.classList.toggle('blowing', gp.phase === 'gust');
@@ -480,6 +741,13 @@
     gustEl.querySelector('.fill').style.width = (gp.phase === 'warn' ? gp.p * 100 : gp.phase === 'gust' ? (1 - gp.p) * 100 : 0) + '%';
     gustEl.querySelector('.label').textContent = gp.phase === 'gust' ? '刮风中 · 别松手' : '起风了 · 按住抓紧';
     padKeys.brace.classList.toggle('urgent', gp.phase === 'warn' || gp.phase === 'gust');
+    const shelter = X.sheltered(S);
+    if (shelter) { gustEl.classList.remove('on'); padKeys.brace.classList.remove('urgent'); }
+    if (race && R) {
+      const gap = Math.round(X.raceGap(S, R)), b = raceEl.querySelector('b'), sm = raceEl.querySelector('span');
+      sm.innerHTML = R.done ? '三花姐 <b>已登顶</b>' : `三花姐 <b>${gap > 0 ? '+' : gap < 0 ? '−' : '±'}${Math.abs(gap)}</b> 米<small>${gap > 0 ? '在你上面' : gap < 0 ? '在你下面' : '并排'}</small>`;
+      raceEl.classList.toggle('ahead', gap > 0 || R.done); raceEl.classList.toggle('behind', gap < 0 && !R.done); void b;
+    }
     const kp = X.kitePhase(S), kOn = kp.phase === 'warn' && kp.k.status === 'locked';
     kiteEl.classList.toggle('on', kOn); kiteEl.querySelector('.fill').style.width = (kOn ? kp.p * 100 : 0) + '%';
     padKeys.left.classList.toggle('urgent', kOn); padKeys.right.classList.toggle('urgent', kOn);
@@ -496,7 +764,18 @@
       if (e.type === 'kite-dodged') { flash('ok'); clearHint('kite'); kiteAway = { from: kitePos.clone(), dir: colFrame(e.col, S.t).out.add(V3(0, 0.3, 0)).normalize(), t: 0 }; }
       if (e.type === 'kite-hit') { flash('hit'); shake = 0.8; if (hintNow === 'kite') { hintNow = null; hintEl.hidden = true; } kiteAway = { from: kitePos.clone(), dir: colFrame(e.col, S.t).out.add(V3(0, 0.5, 0)).normalize(), t: 0 }; }
       if (e.type === 'shifted') clearHint('shift');
+      if (e.type === 'stairs-in') { flash('ok'); note('进了蜘蛛侠栈道：这里风和黑鸢都碰不到你。按住 <b>↑</b> 爬台阶，到 334 米出口出来'); }
+      if (e.type === 'stairs-out') note('出了栈道，334 米。外面又有风了');
+      if (e.type === 'snack') { flash('ok'); note(`吃了一份${C.snack.names[e.name]}，体力上限 +${C.snack.bonus}`); }
       if (e.type === 'top') finish();
+    }
+    if (!R) return;
+    while (R.events.length) {
+      const e = R.events.shift(), near = Math.abs(X.y(R) - X.y(S)) < 40;
+      if ((e.type === 'gust-fall' || e.type === 'kite-hit') && near && !rivalNoted[e.type]) { rivalNoted[e.type] = true; if (hintNow === null || hintNow === 'note') note(e.type === 'gust-fall' ? '三花姐没抓紧，被风刮下去一截！' : '三花姐被黑鸢撞下去一截！'); }
+      if (e.type === 'lost-grip' && !rivalNoted.lost) { rivalNoted.lost = true; if (hintNow === null || hintNow === 'note') note('三花姐硬撑过头，体力用光滑下去了'); }
+      if (e.type === 'snack' && near) note('三花姐在旋转餐厅吃了个虾饺');
+      if (e.type === 'top' && !S.done) note('三花姐先登顶了，在上面等你');
     }
   }
   // ---------- tower lights on Guangzhou time ----------
@@ -524,10 +803,10 @@
   function hintLogic(gp) {
     const yy = X.y(S);
     if (hintNow === 'climb' && yy > 6) clearHint('climb');
-    if (gp.phase === 'warn' && !hintDone.gust) showHint('gust');
+    if (gp.phase === 'warn' && !hintDone.gust && !X.sheltered(S) && !choiceOn) showHint('gust');
     if (hintNow === 'gust' && gp.phase === 'calm') { hintNow = null; hintEl.hidden = true; }
     if (hintDone.climb && !hintDone.shift && X.atNode(S) >= 0) { const k = X.atNode(S); if (S.pigeons.has(k + ':' + S.col)) showHint('shift'); }
-    if (S.stamina < 60 && !hintDone.low && hintNow !== 'gust' && hintNow !== 'note') showHint('low');
+    if (S.stamina < 60 && !hintDone.low && hintNow !== 'gust' && hintNow !== 'note' && !choiceOn) showHint('low');
     if (hintNow === 'low' && S.resting) clearHint('low');
     if (yy > X.waist().t * C.height + 5 && !hintDone.waist && hintNow === null) showHint('waist');
     if (hintNow === 'waist' && S.time - hintSince > 5) clearHint('waist');
@@ -538,8 +817,11 @@
     ended = true; playing = false; showT = 0;
     endEl.querySelector('h1').innerHTML = MODE === 'day' ? '454 米，<br>整座城在脚下。' : lightProg.on ? '454 米，<br>全城亮灯。' : '23 点熄灯了，<br>城市还醒着。';
     $('e-time').textContent = fmt(S.doneAt); $('e-falls').textContent = S.falls + S.gustFalls; $('e-pigeons').textContent = S.pigeonHits; $('e-kites').textContent = S.kiteHits;
-    padEl.hidden = true; hintEl.hidden = true; hudEl.hidden = true; gustEl.classList.remove('on'); kiteEl.classList.remove('on');
-    setTimeout(() => { if (ended) { endEl.hidden = false; } }, 4500);
+    $('e-route').textContent = S.stairsUsed ? '走了蜘蛛侠栈道' : '一路爬外面';
+    const v = $('e-verdict'), res = race && R ? X.raceResult(S, R) : null; v.hidden = !res;
+    if (res) v.textContent = res.won ? (res.margin === null ? `赢了！三花姐还在 ${Math.round(res.rivalY)} 米` : `赢了！比三花姐早 ${res.margin.toFixed(1)} 秒`) : `三花姐先到，早你 ${res.margin.toFixed(1)} 秒`;
+    padEl.hidden = true; hintEl.hidden = true; hudEl.hidden = true; gustEl.classList.remove('on'); kiteEl.classList.remove('on'); setChoice(null);
+    setTimeout(() => { if (ended && !finale) { endEl.hidden = false; } }, 4500);
   }
 
   function resize() {
@@ -563,18 +845,26 @@
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     tick(dt);
     renderer.render(scene, camera);
+    if (wantPostcard) { wantPostcard = false; makePostcard(); }
     frames++; fpsT += dt; if (fpsT > 1) { fps = frames / fpsT; frames = 0; fpsT = 0; }
     requestAnimationFrame(frame);
   }
   function tick(dt) {
     LED.uTime.value += dt;
-    if (playing) { X.step(S, input, dt); handleEvents(); }
-    if (ended) { showT += dt; LED.uShow.value = smooth(clamp(showT / 3, 0, 1)) * (lightProg.on ? 1 : 0); tramRing.rotation.y += dt * 0.08; }
+    if (playing) {
+      input.act = pendingPick || false; pendingPick = null;
+      X.step(S, input, dt);
+      if (R && !R.done) X.step(R, rivalPilot(R), dt);
+      handleEvents();
+    }
+    if (finale) finale.t += dt;
+    stairMat.emissiveIntensity = playing && X.atFork(S) ? 0.5 + 0.4 * Math.sin(LED.uTime.value * 5) : 0;
+    if (ended && !finale) { showT += dt; LED.uShow.value = smooth(clamp(showT / 3, 0, 1)) * (lightProg.on ? 1 : 0); tramRing.rotation.y += dt * 0.08; }
     else LED.uShow.value = 0;
     dayP = lerp(dayP, X.skyProgress(MODE, S.maxY / C.height), Math.min(1, dt * 0.8));
     const gp = X.gustPhase(S);
-    updateLights(dt); placeCat(dt); updateKite(dt); updatePigeons(dt); updateWind(dt, gp); updateCamera(dt); applySky();
-    if (playing) { updateHUD(gp); hintLogic(gp); }
+    updateLights(dt); placeCat(dt); placeRival(); updateKite(dt); updateRivalKite(dt); updatePigeons(dt); updateWind(dt, gp); updateCamera(dt); applySky();
+    if (playing) { updateHUD(gp); hintLogic(gp); updateChoice(); }
     else if (VIEW) updateHUD(gp);
     if (gp.phase === 'gust' && playing) shake = Math.max(shake, 0.08);
   }
@@ -582,13 +872,17 @@
 
   window.__PLAYTEST__ = {
     ready: true,
-    snapshot: () => ({ kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
+    snapshot: () => ({ race, rivalY: R ? +X.y(R).toFixed(2) : null, rivalCol: R ? R.col : null, rivalMode: R ? R.mode : null, rivalDone: R ? R.done : null, gap: R ? +X.raceGap(S, R).toFixed(1) : null, choice: choiceOn, staminaMax: S.staminaMax, ate: S.ate, stairsUsed: S.stairsUsed, finale: finale ? X.finalePose(finale.kind, finale.t).phase : null, postcard: postcard ? { labels: postcard.labels, w: postcard.w, h: postcard.h } : null, kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
     reset: seed => { reset(seed); },
     setSeed: n => { reset(n); },
     start: () => start(),
     step: ms => { const n = Math.round(ms / (1000 / 60)); for (let i = 0; i < n; i++) tick(1 / 60); },
     jumpToKite: () => { S.gusts = S.gusts.filter(g => g.start > S.time + 60); const k = S.kites[S.kiteIdx]; if (k) S.time = k.warnAt - 0.2; },
     hits: () => eventLog.slice(),
-    teleport: (t, col) => { S.t = t; if (col != null) S.col = col; S.maxY = Math.max(S.maxY, X.y(S)); }
+    teleport: (t, col) => { S.mode = 'climb'; S.anim = null; S.t = t; if (col != null) S.col = col; S.maxY = Math.max(S.maxY, X.y(S)); S.checkpointK = Math.max(S.checkpointK, ...C.checkpoints.filter(k => X.ringY(k) <= X.y(S) + 0.01)); },
+    // put 三花姐 a given number of metres above (+) or below (−) 小橘, on her own column
+    rivalAt: dy => { if (!R) return; R.t = clamp(S.t + dy / C.height, 0, 0.999); R.maxY = X.y(R); R.time = S.time; },
+    calm: () => { S.gusts = S.gusts.filter(g => g.start > S.time + 120); S.kites = S.kites.filter(k => k.warnAt > S.time + 120); S.kiteIdx = 0; S.gustIdx = 0; if (R) { R.gusts = R.gusts.filter(g => g.start > R.time + 120); R.kites = R.kites.filter(k => k.warnAt > R.time + 120); R.kiteIdx = 0; R.gustIdx = 0; } },
+    setRace: on => setRace(!!on)
   };
 })();

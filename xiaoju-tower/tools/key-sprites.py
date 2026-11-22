@@ -1,16 +1,19 @@
 """Chroma-key the 2x2 green sheet into trimmed transparent WebP frames for the game.
 Run: uv run --with pillow python tools/key-sprites.py <sheet.png> <name1,name2,name3,name4>  (use - to skip a cell)
-Sheets used: sprites/climb-sheet-v1.png -> -,-,brace,rest ; sprites/climb-sheet-v2.png -> climbA,pullA,-,pullB ; sprites/climb-left-v1.png -> climbB"""
+Sheets used: sprites/climb-sheet-v1.png -> -,-,brace,rest ; sprites/climb-sheet-v2.png -> climbA,pullA,-,pullB ; sprites/climb-left-v1.png -> climbB
+Several sheets in one run share one scale: key-sprites.py a.png n1,n2,n3,n4 b.png n5,n6,n7,n8
+三花姐: sanhua/climb-sheet.png sanhua-climbA,sanhua-pullA,sanhua-climbB,sanhua-pullB sanhua/pose-sheet.png sanhua-brace,sanhua-rest,sanhua-cheer,sanhua-hit"""
 import sys
 from pathlib import Path
 from PIL import Image
 ROOT = Path(__file__).resolve().parent.parent
-sheet = Image.open(sys.argv[1]).convert("RGB")
-W, H = sheet.size
-names = {i: n for i, n in enumerate(sys.argv[2].split(",")) if n != "-"}
 frames = {}
-for idx, name in names.items():
-    if len(sys.argv[2].split(",")) == 1:      # a single-frame image
+for sheet_path, name_list in zip(sys.argv[1::2], sys.argv[2::2]):
+  sheet = Image.open(sheet_path).convert("RGB")
+  W, H = sheet.size
+  names = {i: n for i, n in enumerate(name_list.split(",")) if n != "-"}
+  for idx, name in names.items():
+    if len(name_list.split(",")) == 1:      # a single-frame image
         cell = sheet
     else:
         cx, cy = idx % 2, idx // 2

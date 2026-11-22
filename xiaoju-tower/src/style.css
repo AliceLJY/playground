@@ -81,3 +81,33 @@ button{font:inherit;color:inherit;cursor:pointer}
 .key.urgent{border-color:#ff8a7a;box-shadow:0 0 0 4px rgba(255,90,74,.45)}
 .key.brace.urgent{border-color:var(--wind);box-shadow:0 0 0 4px rgba(90,209,255,.45)}
 @media (max-width:560px){#kite-bar{top:var(--hud-bottom,134px);width:calc(100vw - 32px)}}
+/* round 2: race readout, route / snack choice, versus toggle, rides, postcard */
+.race{display:flex;align-items:center;gap:6px;font-size:13px;margin:-2px 0 8px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.race i{width:10px;height:10px;border-radius:50%;background:linear-gradient(90deg,#2b2a2e 0 33%,#f4ead8 33% 66%,#e07a2c 66%);box-shadow:0 0 0 1.5px rgba(255,255,255,.6)}
+.race b{display:inline-block;min-width:3.2ch;text-align:right;font-size:15px}
+.race.ahead b{color:#ff9a8a}.race.behind b{color:#9be58f}
+.race small{opacity:.7;font-size:11px;margin-left:2px}
+#choice{position:absolute;left:50%;top:calc(max(14px,env(safe-area-inset-top)) + 46px);transform:translateX(-50%);width:min(420px,calc(100vw - 32px));background:var(--cream);color:var(--ink);border-radius:14px;padding:10px 12px 12px;box-shadow:0 6px 24px rgba(0,0,0,.28)}
+#choice .q{margin:0 0 8px;font-size:14px;font-weight:600;line-height:1.45;text-align:center}
+#choice .opts{display:flex;gap:8px}
+#choice .opt{flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;background:#2b2433;color:var(--cream);font-size:15px;font-weight:700;padding:6px 10px;touch-action:manipulation}
+#choice .opt[data-pick="1"]{background:var(--orange);color:#1d1408}
+#choice .opt kbd{font:600 11px/1 -apple-system,sans-serif;border:1px solid currentColor;border-radius:4px;padding:2px 4px;opacity:.7}
+#choice .opt kbd:empty{display:none}
+@media (hover:none){#choice .opt kbd{display:none}}
+@media (max-width:560px){#choice{top:calc(var(--hud-bottom,134px) + 44px)}}
+.versus{display:inline-flex;background:rgba(255,255,255,.1);border-radius:22px;padding:3px;margin:0 0 14px}
+.versus button{border:0;background:transparent;color:var(--cream);border-radius:19px;height:38px;padding:0 16px;font-size:15px;font-weight:600}
+.versus button[aria-pressed="true"]{background:var(--cream);color:var(--ink)}
+.verdict{font-size:17px;font-weight:700;margin:-6px 0 12px;color:#ffcf98}
+.rides{margin:0 0 14px}
+.rides p{margin:0 0 8px;font-size:14px;opacity:.85}
+.ride{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-height:48px;border:1.5px solid rgba(255,207,152,.6);background:rgba(255,255,255,.06);color:var(--cream);border-radius:14px;padding:6px 14px;margin:0 8px 8px 0;font-size:15px;font-weight:700;text-decoration:none}
+.ride small{font-size:11px;font-weight:400;opacity:.75}
+#postcard{width:min(560px,calc(100vw - 32px))}
+#pc-img{display:block;width:100%;max-height:min(62vh,460px);object-fit:contain;border-radius:6px;margin:10px 0 12px;background:#fff}
+.pc-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pc-row .ride{margin:0;align-items:center}
+@media (max-height:500px){#pc-img{max-height:52vh}.rides p{display:none}.ride{min-height:44px;padding:4px 12px}.versus{margin-bottom:8px}.versus button{height:34px}}
+.stamina .fill.boost{background:linear-gradient(90deg,var(--ok),#ffd36a)}.stamina .fill.boost.low{background:var(--low)}
+@media (max-height:500px) and (min-width:561px){#choice{width:calc(100vw - 500px);min-width:300px;padding:8px 10px 10px}#choice .q{font-size:12.5px;margin-bottom:6px}#choice .opt{min-height:44px;font-size:14px}}

@@ -30,6 +30,12 @@
     kite: { warn: 2.0, minY: 90, firstAt: 28, minGap: 16, maxGap: 26, clearOfGust: 3.5, penalty: 20 },
     gust: { warn: 1.6, len: 1.4, grace: 0.15, minGap: 10, maxGap: 18, firstAt: 9, penalty: 25 },
     pigeon: { penalty: 20, base: 0.025, perRing: 0.0024, hopMin: 8, hopMax: 14, safeBelow: 3 },
+    // 蜘蛛侠栈道 (Spider Walk, real 168–334.4 m): an open-air spiral stair inside the mesh. Slower, but no wind and no kites reach you there.
+    stairs: { fromK: 17, toK: 34, speed: 1.45, regen: 4 },
+    // 旋转餐厅 (422.8 m): one snack raises the stamina cap for the overhang to the top.
+    snack: { k: 43, bonus: 30, eatTime: 2.5, names: { shuangpinai: '双皮奶', xiajiao: '虾饺' } },
+    // 三花姐 races on the column to the screen-LEFT of 小橘 (column +1, see the ← note in step()).
+    rival: { col: 1, seedOffset: 1000 },
     fallTime: 0.7,
     slideTime: 2.2,
     bumpTime: 0.45
@@ -112,8 +118,9 @@
     let at = K.firstAt;
     while (at < horizon) {
       // keep dives clear of gusts: you cannot brace and change column at once
+      // (1e-6 tolerance: (x + w) - w can round below x and loop forever)
       let moved = true;
-      while (moved) { moved = false; for (const g of gusts) if (at > g.warnAt - K.clearOfGust && at - K.warn < g.end + K.clearOfGust) { at = g.end + K.clearOfGust + K.warn; moved = true; } }
+      while (moved) { moved = false; for (const g of gusts) if (at > g.warnAt - K.clearOfGust && at - K.warn < g.end + K.clearOfGust - 1e-6) { at = g.end + K.clearOfGust + K.warn; moved = true; } }
       out.push({ warnAt: at - K.warn, strike: at, target: null, status: null });
       at += lerp(K.minGap, K.maxGap, rng());
     }
@@ -132,7 +139,7 @@
   // ---------- state ----------
   function createState(seed = 1) {
     return withKites({
-      seed, time: 0, col: 0, t: 0, stamina: CFG.stamina,
+      seed, time: 0, col: 0, t: 0, stamina: CFG.stamina, staminaMax: CFG.stamina, stairY: 0, ate: null, stairsUsed: 0, ownsPigeons: true,
       mode: 'climb', anim: null, checkpointK: 0, falls: 0, gustFalls: 0, pigeonHits: 0,
       gusts: makeGusts(seed, 3600), gustIdx: 0, braceSince: -1, braced: false, kiteIdx: 0, kiteHits: 0,
       pigeons: makePigeons(seed), rng: mulberry32(seed * 31 + 5),
@@ -167,6 +174,11 @@
     const k = atNode(s);
     return k === 0 || CFG.checkpoints.includes(k);
   }
+  // inside the stair or the restaurant: wind and kites cannot reach you
+  function sheltered(s) { return s.mode === 'stairs' || s.mode === 'eat'; }
+  // standing at the Spider Walk entrance with the stair still ahead of you
+  function atFork(s) { return s.mode === 'climb' && !s.done && atNode(s) === CFG.stairs.fromK && s.checkpointK < CFG.stairs.toK; }
+  function canEat(s) { return s.mode === 'climb' && !s.done && !s.ate && atNode(s) === CFG.snack.k; }
   function emit(s, type, data) { s.events.push(Object.assign({ type, at: s.time }, data || {})); }
 
   function startFall(s, toK, kind) {
@@ -191,13 +203,13 @@
     const kt = s.kites[s.kiteIdx];
     if (kt) {
       if (!kt.status && s.time >= kt.warnAt) {
-        if (y(s) < CFG.kite.minY || s.done) kt.status = 'idle';          // too low: it just circles
+        if (y(s) < CFG.kite.minY || s.done || sheltered(s)) kt.status = 'idle';          // too low or indoors: it just circles
         else { kt.target = s.mode === 'shift' && s.anim ? s.anim.to : s.col; kt.status = 'locked'; emit(s, 'kite-warn', { col: kt.target }); }
       }
       if (s.time >= kt.strike) {
         if (kt.status === 'locked') {
           const here = s.mode === 'shift' && s.anim ? s.anim.to : s.col;
-          const safe = s.mode === 'fall' || onPlatform(s) || here !== kt.target;
+          const safe = s.mode === 'fall' || sheltered(s) || onPlatform(s) || here !== kt.target;
           if (safe) { kt.status = 'dodged'; emit(s, 'kite-dodged', { col: kt.target }); }
           else {
             kt.status = 'hit'; s.kiteHits++; s.stamina -= CFG.kite.penalty; emit(s, 'kite-hit', { col: kt.target });
@@ -209,8 +221,8 @@
         s.kiteIdx++;
       }
     }
-    // pigeon hops
-    for (const [key, pg] of s.pigeons) {
+    // pigeon hops (a rival sharing the same pigeons leaves the hopping to the player's state)
+    if (s.ownsPigeons) for (const [key, pg] of s.pigeons) {
       pg.hop -= dt;
       if (pg.hop <= 0) {
         const nc = mod(pg.c + (s.rng() < 0.5 ? -1 : 1), CFG.cols), nk = pg.k + ':' + nc;
@@ -224,7 +236,26 @@
     if (s.mode === 'fall') {
       const a = s.anim; a.p += dt / a.dur;
       s.t = lerp(a.from, a.to, Math.min(1, a.p * a.p));
-      if (a.p >= 1) { s.t = a.to; s.mode = 'climb'; s.anim = null; if (a.kind === 'slide') { s.stamina = CFG.stamina; emit(s, 'recovered', { k: a.toK }); } }
+      if (a.p >= 1) { s.t = a.to; s.mode = 'climb'; s.anim = null; if (a.kind === 'slide') { s.stamina = s.staminaMax; emit(s, 'recovered', { k: a.toK }); } }
+      return s;
+    }
+    if (s.mode === 'stairs') {
+      const St = CFG.stairs, top = ringY(St.toK), bottom = ringY(St.fromK);
+      s.climbing = false;
+      if (input.up) { s.stairY = Math.min(top, s.stairY + St.speed * dt); s.stamina += St.regen * dt; s.climbing = true; }
+      else if (input.down) { s.stairY = Math.max(bottom, s.stairY - St.speed * dt); s.stamina += St.regen * dt; }
+      else { s.stamina += CFG.restRate * dt; s.climbing = false; }
+      s.resting = !input.up && !input.down; s.settling = false;
+      s.stamina = Math.min(s.staminaMax, s.stamina);
+      s.t = s.stairY / CFG.height; s.maxY = Math.max(s.maxY, s.stairY);
+      if (s.stairY >= top) { s.mode = 'climb'; s.t = ringT(St.toK); emit(s, 'stairs-out'); }
+      else if (input.down && s.stairY <= bottom) { s.mode = 'climb'; s.t = ringT(St.fromK); emit(s, 'stairs-back'); }
+      if (s.mode === 'climb') { const k = atNode(s); if (k > s.checkpointK) { s.checkpointK = k; s.stamina = s.staminaMax; emit(s, 'checkpoint', { k }); } }
+      return s;
+    }
+    if (s.mode === 'eat') {
+      const a = s.anim; a.p += dt / CFG.snack.eatTime;
+      if (a.p >= 1) { s.ate = a.name; s.staminaMax = CFG.stamina + CFG.snack.bonus; s.stamina = s.staminaMax; s.mode = 'climb'; s.anim = null; emit(s, 'snack', { name: a.name }); }
       return s;
     }
     if (s.mode === 'shift') {
@@ -256,6 +287,14 @@
 
     // movement
     const node = atNode(s);
+    // contextual action (E / on-screen button): take the stair at its entrance, or eat at the restaurant
+    if (input.act && atFork(s)) {
+      s.mode = 'stairs'; s.stairY = ringY(CFG.stairs.fromK); s.stairsUsed++; s.anim = null; emit(s, 'stairs-in'); return s;
+    }
+    if (input.act && canEat(s)) {
+      const name = CFG.snack.names[input.act] ? input.act : 'shuangpinai';
+      s.mode = 'eat'; s.anim = { kind: 'eat', p: 0, name }; emit(s, 'eat-start', { name }); return s;
+    }
     const lm = leanMult(s.col, s.t);
     s.climbing = false; s.resting = false; s.settling = false;
     if (s.braced) {
@@ -305,10 +344,10 @@
     // platforms
     const k2 = atNode(s);
     if (k2 >= 0 && CFG.checkpoints.includes(k2) && s.checkpointK < k2) {
-      s.checkpointK = k2; s.stamina = CFG.stamina; emit(s, 'checkpoint', { k: k2 });
+      s.checkpointK = k2; s.stamina = s.staminaMax; emit(s, 'checkpoint', { k: k2 });
     }
-    if (k2 >= 0 && (k2 === 0 || CFG.checkpoints.includes(k2))) s.stamina = Math.max(s.stamina, Math.min(CFG.stamina, s.stamina + 30 * dt));
-    s.stamina = Math.min(CFG.stamina, s.stamina);
+    if (k2 >= 0 && (k2 === 0 || CFG.checkpoints.includes(k2))) s.stamina = Math.max(s.stamina, Math.min(s.staminaMax, s.stamina + 30 * dt));
+    s.stamina = Math.min(s.staminaMax, s.stamina);
     s.maxY = Math.max(s.maxY, y(s));
     if (s.t >= 1) { s.done = true; s.doneAt = s.time; emit(s, 'top'); return s; }
     if (s.stamina <= 0) return loseGrip(s);
@@ -322,20 +361,35 @@
   }
 
   // ---------- autopilots (tests + demo) ----------
-  // profile: 'precise' | 'clumsy' | 'reckless'
-  function makePilot(profile, seed) {
-    const rng = mulberry32(seed * 9973 + 1);
+  // profile: 'precise' | 'clumsy' | 'reckless' | 'rival' (三花姐) | 'cautious' (rests to full at every ring)
+  // opts: { stairs: take the Spider Walk, snack: eat at the restaurant (a snack key, or true) }
+  const PROFILES = {
+    precise: { brace: 0, kite: () => 0.25, restBelow: () => 45, restUntil: 95, avoid: 1, wander: 0 },
+    clumsy: { brace: 0.25, kite: g => Math.max(0.2, 0.9 + g * 0.5), restBelow: r => 30 + r * 15, restUntil: 80, avoid: 0.7, wander: 0.01 },
+    cautious: { brace: 0, kite: () => 0.25, restBelow: () => 92, restUntil: 100, avoid: 1, wander: 0 },
+    // 三花姐: strong and impatient — rests late and short, so wind and kites sometimes catch her low on stamina
+    rival: { brace: 0.22, kite: g => Math.max(0.2, 0.8 + g * 0.45), restBelow: r => 18 + r * 26, restUntil: 62, avoid: 0.85, wander: 0 },
+    // two more for the race tests: rests a little and early (bold) / almost never (pusher)
+    bold: { brace: 0, kite: () => 0.25, restBelow: () => 30, restUntil: 70, avoid: 1, wander: 0 },
+    pusher: { brace: 0, kite: () => 0.25, restBelow: () => 8, restUntil: 40, avoid: 1, wander: 0 }
+  };
+  function makePilot(profile, seed, opts) {
+    opts = opts || {};
+    const rng = mulberry32(seed * 9973 + 1), P = PROFILES[profile];
     const gauss = () => { let u = 0, v = 0; while (!u) u = rng(); while (!v) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-    const mem = { resting: false, braceAt: new Map(), avoidRoll: new Map(), kiteReact: new Map() };
+    const mem = { resting: false, braceAt: new Map(), avoidRoll: new Map(), kiteReact: new Map(), restBelow: null };
     return function pilot(s) {
-      const inp = { up: false, down: false, left: false, right: false, brace: false };
+      const inp = { up: false, down: false, left: false, right: false, brace: false, act: false };
+      if (s.mode === 'stairs') { inp.up = true; return inp; }
       if (s.mode !== 'climb') return inp;
+      if (opts.stairs && atFork(s)) { inp.act = true; return inp; }
+      if (opts.snack && canEat(s)) { inp.act = opts.snack === true ? 'shuangpinai' : opts.snack; return inp; }
       if (profile === 'reckless') { inp.up = true; return inp; }
       // black kite: get onto a ring and change column before it dives
       const kp = kitePhase(s);
       if (kp.phase === 'warn' && kp.k.status === 'locked' && s.col === kp.k.target) {
         let react = mem.kiteReact.get(kp.k.strike);
-        if (react === undefined) { react = kp.k.warnAt + (profile === 'clumsy' ? Math.max(0.2, 0.9 + gauss() * 0.5) : 0.25); mem.kiteReact.set(kp.k.strike, react); }
+        if (react === undefined) { react = kp.k.warnAt + P.kite(gauss()); mem.kiteReact.set(kp.k.strike, react); }
         if (s.time >= react) {
           const n = atNode(s);
           if (n < 0) return inp;                                   // let go: grabs the nearest ring
@@ -349,7 +403,7 @@
       if (gp.g && (gp.phase === 'warn' || gp.phase === 'gust')) {
         let at = mem.braceAt.get(gp.g.start);
         if (at === undefined) {
-          at = gp.g.start - 0.3 + (profile === 'clumsy' ? gauss() * 0.25 : 0);
+          at = gp.g.start - 0.3 + (P.brace ? gauss() * P.brace : 0);
           mem.braceAt.set(gp.g.start, at);
         }
         if (s.time >= at && s.time < gp.g.end) { inp.brace = true; return inp; }
@@ -361,14 +415,15 @@
       const node = atNode(s);
       const seg = segmentOf(s);
       // resting
-      const restBelow = profile === 'clumsy' ? 30 + rng() * 15 : 45;
-      const restUntil = profile === 'clumsy' ? 80 : 95;
-      if (node >= 0 && (s.stamina < restBelow || (mem.resting && s.stamina < restUntil))) { mem.resting = true; return inp; }
+      if (mem.restBelow === null) mem.restBelow = P.restBelow(rng());
+      const restUntil = P.restUntil * s.staminaMax / CFG.stamina;
+      if (node >= 0 && (s.stamina < mem.restBelow || (mem.resting && s.stamina < restUntil))) { mem.resting = true; return inp; }
+      if (mem.resting) mem.restBelow = null;   // roll a new threshold for the next stop
       mem.resting = false;
       // pigeon above on this column?
       if (node >= 0 && node < CFG.rings && s.pigeons.has(node + ':' + s.col)) {
         let avoid = true;
-        if (profile === 'clumsy') { const key = node + ':' + s.col; if (!mem.avoidRoll.has(key)) mem.avoidRoll.set(key, rng() < 0.7); avoid = mem.avoidRoll.get(key); }
+        if (P.avoid < 1) { const key = node + ':' + s.col; if (!mem.avoidRoll.has(key)) mem.avoidRoll.set(key, rng() < P.avoid); avoid = mem.avoidRoll.get(key); }
         if (avoid) {
           const l = s.pigeons.has(node + ':' + mod(s.col + 1, CFG.cols)), r = s.pigeons.has(node + ':' + mod(s.col - 1, CFG.cols));   // screen left / right
           if (!r) inp.right = true; else if (!l) inp.left = true; else inp.right = true;
@@ -376,17 +431,68 @@
         }
       }
       // clumsy pilots wander sometimes
-      if (profile === 'clumsy' && node >= 0 && rng() < 0.01) { inp.left = true; return inp; }
+      if (P.wander && node >= 0 && rng() < P.wander) { inp.left = true; return inp; }
       inp.up = true;
       void seg;
       return inp;
     };
   }
-  function simulate(seed, profile, maxSeconds = 900, dt = 1 / 30) {
-    const s = createState(seed), pilot = makePilot(profile, seed);
+  const summary = s => ({ done: s.done, time: s.done ? s.doneAt : s.time, falls: s.falls, gustFalls: s.gustFalls, pigeonHits: s.pigeonHits, kiteHits: s.kiteHits, kiteDodged: s.events.filter(e => e.type === 'kite-dodged').length, maxY: s.maxY, checkpointK: s.checkpointK, stairsUsed: s.stairsUsed, ate: s.ate, staminaMax: s.staminaMax, events: s.events });
+  function simulate(seed, profile, maxSeconds = 900, dt = 1 / 30, opts) {
+    const s = createState(seed), pilot = makePilot(profile, seed, opts);
     while (!s.done && s.time < maxSeconds) step(s, pilot(s), dt);
-    return { done: s.done, time: s.done ? s.doneAt : s.time, falls: s.falls, gustFalls: s.gustFalls, pigeonHits: s.pigeonHits, kiteHits: s.kiteHits, kiteDodged: s.events.filter(e => e.type === 'kite-dodged').length, maxY: s.maxY, checkpointK: s.checkpointK, events: s.events };
+    return summary(s);
   }
+
+  // ---------- race against 三花姐 ----------
+  // Same tower, same wind, same pigeons; her own black kite. She starts on the column to 小橘's screen-left.
+  function createRival(player) {
+    const r = createState(player.seed + CFG.rival.seedOffset);
+    r.col = CFG.rival.col;
+    r.gusts = player.gusts.map(g => ({ warnAt: g.warnAt, start: g.start, end: g.end, dir: g.dir }));
+    r.kites = makeKites(r.seed, r.gusts, 3600);
+    r.pigeons = player.pigeons; r.ownsPigeons = false;
+    return r;
+  }
+  // height gap in metres, positive = 三花姐 ahead
+  function raceGap(player, rival) { return y(rival) - y(player); }
+  function raceResult(player, rival) {
+    if (!player.done) return null;
+    const won = !rival.done || player.doneAt <= rival.doneAt;
+    return { won, margin: rival.done ? Math.abs(rival.doneAt - player.doneAt) : null, rivalY: y(rival) };
+  }
+  function simulateRace(seed, profile, opts, maxSeconds = 900, dt = 1 / 30) {
+    const p = createState(seed), r = createRival(p);
+    const pp = makePilot(profile, seed, opts), rp = makePilot('rival', seed + CFG.rival.seedOffset, { snack: 'xiajiao' });
+    while (!p.done && p.time < maxSeconds) { step(p, pp(p), dt); step(r, rp(r), dt); }
+    while (!r.done && r.time < maxSeconds) step(r, rp(r), dt);      // let her finish so both times are known
+    return { player: summary(p), rival: summary(r), won: p.done && (!r.done || p.doneAt <= r.doneAt) };
+  }
+
+  // ---------- after the top: bubble tram or the drop ride, then the 488 m outdoor deck ----------
+  // Heights from the scenic-area pages: the tram runs round the rim at about 450–460 m (sources differ),
+  // 极速云霄 rides the antenna between 455 and 485 m, the outdoor deck is at 488 m.
+  const FINALE = { tram: { dur: 9, y0: 450, y1: 460 }, drop: { dur: 7, y0: 455, y1: 485 }, deckY: 488, deckDur: 2.5 };
+  function finalePose(kind, t) {
+    const F = FINALE[kind];
+    if (!F) throw new Error('unknown ride ' + kind);
+    if (t >= F.dur + FINALE.deckDur) return { phase: 'postcard', y: FINALE.deckY, angle: 0, done: true };
+    if (t >= F.dur) return { phase: 'deck', y: FINALE.deckY, angle: 0, p: (t - F.dur) / FINALE.deckDur, done: false };
+    const u = t / F.dur;
+    if (kind === 'tram') {   // one slow lap; the track tilts, so the cabin rises on one side and dips on the other
+      const angle = u * Math.PI * 2;
+      return { phase: 'ride', y: lerp(F.y0, F.y1, 0.5 - 0.5 * Math.cos(angle)), angle, p: u, done: false };
+    }
+    // drop: 3.2 s winch up, 0.8 s hang, 1.2 s free fall, then bounce and settle
+    const up = 3.2 / F.dur, hang = 4 / F.dur, fall = 5.2 / F.dur;
+    let yy;
+    if (u < up) yy = lerp(F.y0, F.y1, smoothstep(u / up));
+    else if (u < hang) yy = F.y1;
+    else if (u < fall) { const f = (u - hang) / (fall - hang); yy = lerp(F.y1, F.y0 + 2, f * f); }
+    else { const f = (u - fall) / (1 - fall); yy = F.y0 + 2 + Math.sin(f * Math.PI * 3) * 3 * (1 - f); }
+    return { phase: u >= hang && u < fall ? 'falling' : 'ride', y: yy, angle: 0, p: u, done: false };
+  }
+  function smoothstep(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
 
   // ---------- time of day and tower lights follow Guangzhou time (UTC+8) ----------
   // day 06:00–16:59, dusk 17:00–18:59 (the sky darkens as you climb), night 19:00–05:59.
@@ -430,7 +536,8 @@
   }
 
   const API = { CFG, mulberry32, colPoint, colEnds, colLength, COL_LEN, radiusAt, outward, leanAt, leanMult, waist, ringT, ringY,
-    makeGusts, makeKites, kitePhase, makePigeons, createState, step, gustPhase, atNode, segmentOf, onPlatform, makePilot, simulate, y, timeMode, skyProgress, gzClock, virtualSec, lightsOn, lightProgram, LIGHTS, BAY_CHAPTERS };
+    makeGusts, makeKites, kitePhase, makePigeons, createState, step, gustPhase, atNode, segmentOf, onPlatform, sheltered, atFork, canEat, makePilot, simulate,
+    createRival, raceGap, raceResult, simulateRace, FINALE, finalePose, PROFILES, y, timeMode, skyProgress, gzClock, virtualSec, lightsOn, lightProgram, LIGHTS, BAY_CHAPTERS };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.XJT = API;
 })(typeof self !== 'undefined' ? self : this);
