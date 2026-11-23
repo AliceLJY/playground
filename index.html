@@ -93,6 +93,28 @@
     color: var(--muted); text-decoration: none; white-space: nowrap; min-height: 32px; display: inline-flex; align-items: center;
   }
   .boardbar .chips a.on { color: var(--card); background: var(--accent); border-color: var(--accent); }
+  /* 图墙（2026-11-23）：开了 JS 才换成封面墙，封面是 covers/<目录名>.webp，由脚本按卡片链接配上；没开 JS 仍是原来的文字卡 */
+  html.js[data-view="board"] .wrap { max-width: 1040px; }
+  html.js .board .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+  @media (min-width: 760px) { html.js .board .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; } }
+  html.js .board a.card { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  html.js .board a.card .desc, html.js .board a.card .meta, html.js .board a.card .guide { display: none; }
+  .cover { position: relative; aspect-ratio: 4 / 3; background: var(--line); overflow: hidden; }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+  a.card:hover .cover img { transform: scale(1.04); }
+  .cover.none { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--card), var(--line)); color: var(--muted); font-size: .8rem; letter-spacing: .1em; }
+  .cover .kb { position: absolute; right: .45rem; bottom: .45rem; padding: 0 .45rem; border-radius: 6px; background: rgba(0,0,0,.6); color: #fff; font-size: .7rem; line-height: 1.7; }
+  .cap { padding: .6rem .8rem .75rem; }
+  html.js .board a.card .name { font-size: .98rem; margin: 0; line-height: 1.45; }
+  html.js .board a.card .name .en { display: none; }
+  .cap .tag { margin: .15rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 639px) { .cap { padding: .5rem .6rem .6rem; } html.js .board a.card .name { font-size: .9rem; } }
+  /* 落地页方块顶上一排三张封面 */
+  a.tile { overflow: hidden; }
+  .tile .strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: -1.25rem -1.4rem .35rem; }
+  .tile .strip img { width: 100%; height: 118px; object-fit: cover; display: block; background: var(--line); }
+  @media (max-width: 639px) { .tile .strip img { height: 84px; } }
+  @media (max-width: 639px) { .tile .strip { margin: -.85rem -1.05rem .2rem; } }
   footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; }
   footer a { color: var(--accent); }
 </style>
@@ -108,88 +130,88 @@
   <nav class="boards" id="boards" aria-label="板块"></nav>
   <nav class="boardbar" id="boardbar" aria-label="切换板块"><a class="back" href="#">← 所有板块</a><span class="chips"></span></nav>
 
-  <section class="board" data-key="games" data-blurb="动手玩的：拍、打、跑、配对、破案，点开就能玩。">
+  <section class="board" data-key="games" data-hero="qilou-rain/ suisui/ yingge-pit/" data-blurb="动手玩的：拍、打、跑、配对、破案，点开就能玩。">
   <h2 class="shelf">小游戏<span class="note">上手玩</span></h2>
   <div class="grid">
-    <a class="card" href="coal-build/">
+    <a class="card" href="coal-build/" data-tag="放置建造">
       <p class="name">小黑煤球盖广州<span class="en">coal-build</span></p>
       <p class="desc">一群小黑煤球顶着青砖，一块块把骑楼、陈家祠、镇海楼从地基砌到屋脊。点楼帮着砌，攒工钱招煤球、扩工棚、练力气；砖从下往上填满虚线轮廓，砌满一段就亮出整幅画，盖完收进图鉴开下一栋。</p>
       <p class="meta">放置建造 · 三栋 · 一栋三到十分钟 · 手机竖屏单手点 · 静音也看得懂 · 建筑画是 ChatGPT 生成的</p>
     </a>
 
-    <a class="card" href="suisui/">
+    <a class="card" href="suisui/" data-tag="解压 · 点哪碎哪">
       <p class="name">碎碎平安<span class="en">suisui</span></p>
       <p class="desc">一面紫檀博古架做的展柜，射灯下摆着青花梅瓶、汝窑盏、琉璃盏、玉璧、唐三彩马、紫砂壶、红烛、鞭炮、宣德炉，还有写着烦心事的洒金红纸签。点一下按材质碎：瓷和玉崩成碎片，紫砂塌成沙，纸签烧成火星，红烛化掉，鞭炮噼里啪啦。按住蓄力炸，划一下甩飞，也能写下自己的烦心事再烧掉。</p>
       <p class="meta">解压 · 没有输赢 · Canvas 2D 加 dissolve 粒子引擎，藏品是 ChatGPT 生成的写实图，声音代码合成 · 手机竖屏单手点</p>
     </a>
 
-    <a class="card" href="muke-zhai/">
+    <a class="card" href="muke-zhai/" data-tag="京剧武戏 · 横版动作">
       <p class="name">穆柯寨 · 不打不相识<span class="en">muke-zhai</span></p>
       <p class="desc">京剧《穆柯寨》里的一段：夜里的旧戏台上，穆桂英先打掉孟良的金盔，再和来讨降龙木的杨宗保对枪。架开他一枪、两枪相交，「心动」就涨一点，涨满了两人并肩亮相。不打到谁倒地。</p>
       <p class="meta">横版动作 · Canvas 2D 逐帧图集，扮相照京剧剧照 · 出枪、架枪、翻身 · 键盘与触屏，竖屏可玩</p>
     </a>
 
-    <a class="card" href="qilou-rain/">
+    <a class="card" href="qilou-rain/" data-tag="雨夜打蟑螂 · 第一人称">
       <p class="name">骑楼雨夜<span class="en">qilou-rain</span></p>
       <p class="desc">雨夜的西关骑楼街，三个沙井盖被顶开，巨型蟑螂涌上来。第一人称，远的拿杀虫喷雾喷，贴脸了一拖鞋拍下去；把井盖逐个盖回去，再赶上渡口的末班船。</p>
       <p class="meta">Three.js 纯代码第一人称，没有图片、模型和音频 · 霓虹倒影、雨、手电筒 · 三种蟑螂 · 键鼠与触屏 · 单文件离线可玩</p>
     </a>
 
-    <a class="card" href="coal-shift/">
+    <a class="card" href="coal-shift/" data-tag="接物 · 60 秒">
       <p class="name">煤球打工记<span class="en">coal-shift</span></p>
       <p class="desc">下班前最后 60 秒，像素办公室里左右挪小煤球接咖啡、躲红色 bug，三颗心撑到 18:00。我只说了一句话，整个游戏是 Codex 自己写、自己试玩的。</p>
       <p class="meta">接物小游戏 · Codex 一句话做的 · 键盘与触屏 · 单文件离线可玩</p>
     </a>
 
-    <a class="card" href="coal-breakout/">
+    <a class="card" href="coal-breakout/" data-tag="像素生存 · 闯三关">
       <p class="name">煤球突围<span class="en">coal-breakout</span></p>
       <p class="desc">小黑煤球带着 AI 小助手，闯过幻觉怪、上下文溢出和额度重置。单指拖动走位，小助手自动开火；捡经验选工作流卡，撑过倒计时，再打掉首领。小心会咬人的假宝石。出发前可以选清场或续航，自动升级顺着你的路数走。</p>
       <p class="meta">像素生存 · 三关突围 · 单手触屏 · 合成芯片乐 · 结算图可保存</p>
     </a>
 
-    <a class="card" href="datai-teahouse/">
+    <a class="card" href="datai-teahouse/" data-tag="和陌生人搭台">
       <p class="name">搭台 · 茶楼早市<span class="en">datai-teahouse</span></p>
       <p class="desc">茶楼早市位子紧，伙计把你安排到一张还有空位的桌，和陌生人搭台。各要各的一盅两件、各看各的报纸，没有聊天框，能做的只有落座、斟茶、叩指、揭盖、翻报纸、夹一件、唔该、离席。坐下先拣茶、头泡洗杯，喊伙计拿点心纸从十四样五档里下单，点心车每半分钟到一趟全桌抢；早市五分钟过去，离席埋单。桌上的别人是最近来过的人和你自己前几次的回放，人少时坐着两个标明不是真人的灰色身影。</p>
       <p class="meta">有别人在 · 本机回放当幽灵 · 点心纸下单 · 五分钟一市 · 合成音效 · 手机竖屏</p>
     </a>
 
-    <a class="card" href="show-foyer/">
+    <a class="card" href="show-foyer/" data-tag="和陌生人等开演">
       <p class="name">候场厅 · 开演前五分钟<span class="en">show-foyer</span></p>
       <p class="desc">一出戏开演前的线上候场厅，五分钟一场：一座戏台、十二个座，和陌生人一起等开演。没有聊天框，只能落座、点灯、鼓掌、给邻座递茶、拍舞台、翻节目单、离席；厅满自动开下一厅，整点一声锣，幕后有鼓点在热身，三遍铃、场灯渐暗、幕布拉开就开演。厅里的别人是你自己前几次来的回放，人少时补三个标明「非真人」的灰色身影；散场领一张「今晚谁来过」合影图。戏名是真实巡演剧目，以后有新戏会换。第一次来，领位人会坐到你旁边要一杯茶，回赠一张盖了章的纸票。</p>
       <p class="meta">有别人在 · 本机回放当幽灵 · 三遍铃开演 · 合成音效 · 手机竖屏</p>
     </a>
 
-    <a class="card" href="yueju-pillars/">
+    <a class="card" href="yueju-pillars/" data-tag="粤剧性格小测">
       <p class="name">你是哪一根柱<span class="en">yueju-pillars</span></p>
       <p class="desc">粤剧剧团靠六位主演撑起整台戏，叫六柱制。答八道日常小题，看你是文武生、小生、正印花旦、二帮花旦、丑生还是武生，再看你在《帝女花》里演谁。每条粤剧知识都有出处。</p>
       <p class="meta">性格小测试 · 一分钟 · 手机竖屏 · 长按保存分享图</p>
     </a>
 
-    <a class="card" href="jianmen-drizzle/">
+    <a class="card" href="jianmen-drizzle/" data-tag="走进一幅山水画">
       <p class="name">细雨剑门<span class="en">jianmen-drizzle</span></p>
       <p class="desc">走进高剑父 1926 年的《山水》，站在那个骑驴人的位置。四下细雨、云在流，转头找陆游诗里写的地方，看准一处，诗笺上就写出一句；转过身去，那一面画家没有画。</p>
       <p class="meta">3D 走进画里 · AI 从一幅画生成的场景 · 两三分钟 · 拖动转头</p>
     </a>
 
-    <a class="card" href="wangchuan/">
+    <a class="card" href="wangchuan/" data-tag="走进王维的诗">
       <p class="name">辋川卧游 · 鹿柴<span class="en">wangchuan</span></p>
       <p class="desc">王维《鹿柴》，四句诗四幅照唐人勾线平涂画法的画，一幅一幅往山里走：远望空山，林边闻人语，斜阳照进深林，返照落在青苔上、树影慢慢挪。走到头，卷尾素纸上诗一行行显出来。留两秒也有两秒的收获。</p>
       <p class="meta">走进画里 · 移步换景 · 不用操作也行 · 两秒到一分半 · 手机竖屏 · 轻触有声</p>
     </a>
 
-    <a class="card" href="yingge-pit/">
+    <a class="card" href="yingge-pit/" data-tag="英歌 · 看准时机点">
       <p class="name">打回乐池<span class="en">yingge-pit</span></p>
       <p class="desc">英歌小戏台上，白衣木偶从乐池往上爬。哪道袖子鼓起就盯哪道，铁枝一亮就点它，英歌纸偶出槌把它打回去；攒满锣鼓敲大锣，三人齐槌「大英歌」。可以两个人同一台手机一起打。</p>
       <p class="meta">看准时机点 · 一局一分钟 · 双人同屏 · 竖屏横屏都行</p>
     </a>
 
-    <a class="card" href="herb-match/">
+    <a class="card" href="herb-match/" data-tag="中药分寒凉温热">
       <p class="name">药性配对<span class="en">herb-match</span></p>
       <p class="desc">薄荷、生姜、黄连、附子从药柜上一味味落下，赶在落地前分进寒、凉、温、热四个药篓。分错了，药签翻过来告诉你为什么。认错的那几味，结算后可以不计时再认一次，连对两次才算出师。</p>
       <p class="meta">认药性 · 一局 75 秒 · 触屏与鼠标 · 竖屏横屏都行 · 不是医疗建议</p>
     </a>
 
-    <a class="card" href="qilou-brawl/">
+    <a class="card" href="qilou-brawl/" data-tag="街头格斗">
       <p class="name">骑楼擂台<span class="en">qilou-brawl</span></p>
       <p class="desc">黄昏的西关骑楼街，粤剧武生阿龙从街口一路打上醒狮擂台：早茶阿婆、包租公的肚腩冲撞，最后是醒狮头。拳脚连段、翻滚格挡，攒满锣鼓开二阶段。第一次来先在街口跟阿婆讨教：挡住三掌，再一脚请她让路。</p>
       <p class="meta">3D 街头格斗 · AI 一张图生成的角色 · 键鼠与触屏</p>
@@ -204,55 +226,55 @@
       </div>
     </a>
 
-    <a class="card" href="diorama-walk/">
+    <a class="card" href="diorama-walk/" data-tag="微缩模型 · 值夜班">
       <p class="name">深夜杂货店<span class="en">diorama-walk</span></p>
       <p class="desc">雨夜街角的一块微缩模型，整条街只剩一家老杂货店还亮着灯。双指放大就走进去值夜班，收银台上贴着一张《夜班须知》。有惊吓，建议戴耳机、关灯玩。</p>
       <p class="meta">恐怖 · 放大走进微缩模型 · 键鼠与触屏 · 单文件离线可玩</p>
     </a>
 
-    <a class="card" href="shadow-gong/">
+    <a class="card" href="shadow-gong/" data-tag="皮影 · 弹反">
       <p class="name">灯影守夜<span class="en">shadow-gong</span></p>
       <p class="desc">散场后的皮影戏幕，举着小铜锣守住幕后的油灯。扑灯蛾、剪刀精、偷油鼠王轮番上幕，兵器一透光变亮就格挡，卡准了锣声一响、时间慢半拍。</p>
       <p class="meta">弹反动作 · 皮影戏幕 · 键鼠与触屏 · 单文件离线可玩</p>
     </a>
 
-    <a class="card" href="slipper-smash/">
+    <a class="card" href="slipper-smash/" data-tag="划屏拍击">
       <p class="name">凉拖拍蟑螂<span class="en">slipper-smash</span></p>
       <p class="desc">广州雨夜的小巷，蟑螂一只只蹿上来。按住划过去，一拖鞋拍扁；别碰奶茶。撑过 45 秒，肌肉蟑螂「最靓的仔」登场。另有「奶茶摊守夜」：漏掉三只就被偷喝一杯，护住奶茶才能见到最靓的仔。</p>
       <p class="meta">划屏拍击 · 一局一分钟 · 触屏与鼠标 · 竖屏横屏都行</p>
     </a>
 
-    <a class="card" href="context-snake/">
+    <a class="card" href="context-snake/" data-tag="贪吃蛇">
       <p class="name">上下文蛇<span class="en">context-snake</span></p>
       <p class="desc">贪吃蛇，蛇头是小黑煤球，蛇身就是上下文。吃文件、网页、日志会变长，越长拐弯越慢，撞到自己叫上下文污染。能压缩，砍掉最老的一截；能派子 agent，甩一截出去自己吃，回来只交一句短汇报。同时在外超过 3 个，全撞 429。</p>
       <p class="meta">贪吃蛇 · 一局最多两分钟 · 手机竖屏滑动或方向键 · 静音也看得懂</p>
     </a>
 
-    <a class="card" href="later-whack/">
+    <a class="card" href="later-whack/" data-tag="打地鼠">
       <p class="name">办公室打地鼠 · 推到以后<span class="en">later-whack</span></p>
       <p class="desc">工位后面冒出小人，橙色方牌一拖鞋敲掉；蓝色圆牌别敲，绿色菱牌不用管。漏掉 3 个就结束。牌子上写着「下次顺手」「回头再修」，敲掉就算当轮修完。</p>
       <p class="meta">打地鼠 · 一局 60 秒 · 手机竖屏单手点 · 静音也看得懂</p>
     </a>
 
-    <a class="card" href="secret-sweeper/">
+    <a class="card" href="secret-sweeper/" data-tag="扫雷">
       <p class="name">凭证扫雷<span class="en">secret-sweeper</span></p>
       <p class="desc">就是扫雷，换了层皮：格子是日志、配置和交接文件，雷是藏着的钥匙，插旗叫「打码」。第一下不会踩雷，每一步都能靠数字推出来，不用猜。踩到钥匙，像素小人抱头，再给你讲一件真实发生过的泄露小事。</p>
       <p class="meta">经典扫雷 · 三档 · 一局一到五分钟 · 点开长按插旗 · 手机竖屏</p>
     </a>
 
-    <a class="card" href="message-pipe/">
+    <a class="card" href="message-pipe/" data-tag="管道拼接">
       <p class="name">一条消息的旅程<span class="en">message-pipe</span></p>
       <p class="desc">点一格管道转 90°，把起点接到终点，小橘猫骑车载着消息跑过去。路上的站是真实流程里的环节：写公众号、派活与读回、先复现再修、推送之前，漏一站猫就卡在半路。派活那关绕开「验货」，猫会带回一个空箱子。</p>
       <p class="meta">管道拼接解谜 · 五关限时 · 手机竖屏单击 · 静音也看得懂</p>
     </a>
 
-    <a class="card" href="xiaoju-shrimp/">
+    <a class="card" href="xiaoju-shrimp/" data-tag="潜行偷虾">
       <p class="name">小橘偷虾记 · 灰盒<span class="en">xiaoju-shrimp</span></p>
       <p class="desc">又贪吃又大胆的肌肉小橘，三关偷到一只虾：客厅躲三花的视线，茶几底下能钻；走廊躲孩子的耳朵，踩地毯没声音，玩具响时她听不见；最后跳上饭桌玩一二三木头人，主人筷子一停就站住，叼着虾被撞见喊「住手！」，还能抢跑。方块代替猫和家具，边玩边改。</p>
       <p class="meta">潜行 · 三关 · 一关一两分钟 · 手机竖屏单击 · 静音也看得懂</p>
     </a>
 
-    <a class="card" href="rooftop-splash/">
+    <a class="card" href="rooftop-splash/" data-tag="水枪对战">
       <p class="name">天台水枪大战<span class="en">rooftop-splash</span></p>
       <p class="desc">夏日天台，蓝橙两队。绕过水箱和花架，和电脑队友一起打场水仗；三把水枪、两颗水球，湿透了再来。</p>
       <p class="meta">第一人称 · 电脑团队对战 · 键鼠与触屏 · 单文件离线可玩</p>
@@ -267,13 +289,13 @@
       </div>
     </a>
 
-    <a class="card" href="xiaoju-city/">
+    <a class="card" href="xiaoju-city/" data-tag="骑车逛广州">
       <p class="name">小橘逛花城<span class="en">xiaoju-city</span></p>
       <p class="desc">不知道先玩哪个，就骑车逛一圈。小橘骑车穿过卡通广州，骑楼、茶楼、戏台、江岸上有十四扇发光的门，通向这里的小游戏和 3D 展页；骑进光圈停一下就能进去，回来还停在原地。开场三栋楼在跳舞。</p>
       <p class="meta">Three.js · 作品街入口 · 键盘与触屏 · 单文件离线可玩</p>
     </a>
 
-    <a class="card" href="xiaoju-tower/">
+    <a class="card" href="xiaoju-tower/" data-tag="爬广州塔">
       <p class="name">小橘爬塔<span class="en">xiaoju-tower</span></p>
       <p class="desc">肌肉小橘顺着广州塔扭转的钢网格往上爬，跟隔壁柱子的肌肉三花姐比谁先到顶。在横梁上歇脚、换柱绕开鸽子和俯冲的黑鸢，起风前抓紧；168 米可以改走蜘蛛侠栈道，423 米旋转餐厅吃份点心；454 米看全城亮灯，再坐摩天轮或极速云霄，到 488 米拍张标着海心沙和东西塔的明信片。第二章下塔进城：在真实的珠江新城街区里跑、扫共享单车，过海心桥去这三处盖章，再跟三花姐比一场。周边 7600 多栋楼和街道取自 OpenStreetMap 真实地图。</p>
       <p class="meta">Three.js · 攀爬 · 键盘与触屏 · 单文件离线可玩</p>
@@ -290,31 +312,31 @@
       </div>
     </a>
 
-    <a class="card" href="xiaoju-racing/">
+    <a class="card" href="xiaoju-racing/" data-tag="骑车竞速">
       <p class="name">小橘飞车 · 珠江杯<span class="en">xiaoju-racing</span></p>
       <p class="desc">毛茸茸的中华田园橘猫骑车竞速。六猫同场，穿过西关骑楼、沙面绿荫和珠江大桥，漂移蓄气、氮气冲线。第一次来先考沙面三弯漂移驾照，三个弯各打出一次小喷盖章。</p>
       <p class="meta">Three.js · 三档难度 · 键盘与触屏 · 单文件离线可玩</p>
     </a>
 
-    <a class="card" href="aju/">
+    <a class="card" href="aju/" data-tag="骑车逛广州">
       <p class="name">阿橘的广州骑游<span class="en">aju-guangzhou-ride</span></p>
       <p class="desc">橘猫骑车穿过广州，三花挑战与风格街区探索。键盘操作，单文件离线可玩。</p>
       <p class="meta">Three.js · 纯前端 · 打包成一个 HTML</p>
     </a>
 
-    <a class="card" href="pixel-match/">
+    <a class="card" href="pixel-match/" data-tag="连连看">
       <p class="name">像素连连看<span class="en">pixel-match</span></p>
       <p class="desc">最普通的连连看，牌面是像素办公室里的小人。点两张一样的，线拐不超过两个弯就消掉；五关越往后长得越像，最后十三位全员上场，连无忧、无虑也在。消掉一对小人会挥手、跳一下，过关大家出来合影。</p>
       <p class="meta">二维画布 · 五关 · 倒计时与提示 · 手机竖屏单手</p>
     </a>
 
-    <a class="card" href="https://aliceljy.github.io/drug-mystery-desk/">
+    <a class="card" href="https://aliceljy.github.io/drug-mystery-desk/" data-tag="推理探案">
       <p class="name">药研悬案局<span class="en">drug-mystery-desk</span></p>
       <p class="desc">七宗临床试验悬案。七份心电图叠在一起严丝合缝；人离开公司之后，账号还在操作；只按手印的老人，同意书上却是连笔签名。读证物、连线索、击破证词，证据链完整才能结案。案件纯属虚构。</p>
       <p class="meta">推理探案 · 七案，每案 15–35 分钟 · 浏览器直接玩，不用安装 · 手机电脑都行 · 独立仓作品，点开去它自己的页面</p>
     </a>
 
-    <a class="card" href="dino-craft/">
+    <a class="card" href="dino-craft/" data-tag="挖方块搭家">
       <p class="name">方块侏罗纪<span class="en">dino-craft</span></p>
       <p class="desc">在一片史前群岛上挖方块、搭庇护所，地形走到哪生成到哪，没有地图边。霸王龙会追着你咬，小草食恐龙成群受惊乱跑，翼龙在头顶盘旋。手里是一挺子弹打不完的转管机枪；天黑了恐龙更凶，记得打开头灯，活过第一夜。</p>
       <p class="meta">Three.js 纯代码，像素纹理也是代码画的 · 无限区块地形 · 挖放、合成、昼夜 · 键鼠与触屏 · 单文件离线可玩</p>
@@ -323,46 +345,46 @@
 
   </section>
 
-  <section class="board" data-key="3d" data-blurb="代码搭出来的场景和建筑：转着看、走进去、拆开看。">
+  <section class="board" data-key="3d" data-hero="sky-citadel/ snowline-cabin/ sacred-heart-cathedral/" data-blurb="代码搭出来的场景和建筑：转着看、走进去、拆开看。">
   <h2 class="shelf">3D 展页<span class="note">转着看</span></h2>
   <div class="grid">
-    <a class="card" href="lens-lab/">
+    <a class="card" href="lens-lab/" data-tag="光学实验台">
       <p class="name">凸透镜成像 · 自己找规律<span class="en">lens-lab</span></p>
       <p class="desc">一张光具座：先用平行光找焦点，再拖蜡烛、拖光屏，把像对清楚。缩小、等大、放大、不成像、放大镜的虚像，五种情况一种种找出来，表格自己填满，最后回答「放大镜和投影仪为什么一个正一个倒」。</p>
       <p class="meta">Three.js · 薄透镜公式实时算 · 鼠标与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="mac-mini-teardown/">
+    <a class="card" href="mac-mini-teardown/" data-tag="3D 拆机">
       <p class="name">Mac mini 换硬盘 · 21 步拆解台<span class="en">mac-mini-teardown</span></p>
       <p class="desc">Mac mini 硬盘满了，有人直接拆机换大容量。我不敢，就在 3D 里按 iFixit 换 SSD 指南替我拆一遍：撬开 4 个销钉、拧下 13 颗螺丝、断开 3 个接头，读数一路涨。拔出来的那块硬盘长得像普通 M.2，其实不是。自己拖旋钮，一步步拆或装回去。</p>
       <p class="meta">Three.js 纯代码搭的机器 · 步骤与数字按 iFixit · 键鼠与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="gz-roach/">
+    <a class="card" href="gz-roach/" data-tag="看蟑螂怎么跑">
       <p class="name">最靓的仔 · 广州小强<span class="en">gz-roach</span></p>
       <p class="desc">一只放大 85 倍的美洲大蠊在红阶砖上原地跑。拖速度条，看它从六条腿跑到只用两条后腿；单看哪对腿、X 光、拆开、张翅，最后按「最靓的仔」让它立起来戴墨镜。导览看完，轮到你自己拖速度条，找出它从六条腿换成两条腿的那一刻。</p>
       <p class="meta">Three.js 纯代码搭的虫 · 速度、步态按实测 · 键鼠与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="sandworm/">
+    <a class="card" href="sandworm/" data-tag="虚构工程档案">
       <p class="name">机械沙虫<span class="en">sandworm</span></p>
       <p class="desc">一份虚构的工程设计档案：一条在沙漠地下掘进的机械沙虫。转着看、切六个机位，开 X 光看埋在沙里的部分，把装甲拆开看里面。</p>
       <p class="meta">Three.js · 程序化建模 · 键鼠与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="floorplan/">
+    <a class="card" href="floorplan/" data-tag="户型图变 3D">
       <p class="name">户型图 · 三维小样<span class="en">floorplan</span></p>
       <p class="desc">从一张公有领域的户型图读出墙、门窗和房间，拉成能转的三维模型，再配上 CAD 平面图、两套光追效果图和冬至日照。</p>
       <p class="meta">Three.js · 手机竖屏页 · 四个标签</p>
     </a>
 
-    <a class="card" href="floorplan-walk/">
+    <a class="card" href="floorplan-walk/" data-tag="自己摆家具">
       <p class="name">走进户型图<span class="en">floorplan-walk</span></p>
       <p class="desc">还是那张户型图，这次可以自己摆家具：从家具库拖进平面图，切到 3D 房子就从图上长出来。转着看，或者从入户门走进去，走近门会自己开。</p>
       <p class="meta">2D 摆家具 + Three.js 走进去 · 60 种家具 · 键鼠与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="thirteen-hongs/">
+    <a class="card" href="thirteen-hongs/" data-tag="1805 年的广州江岸">
       <p class="name">十三行江岸<span class="en">thirteen-hongs</span></p>
       <p class="desc">约 1805 年前后的广州商馆区江岸。一排西式立面的商馆、旗杆、码头石阶，江上是疍家艇、西瓜扁和帆船，六百多个人各忙各的，水面映着岸和船。从空中看，或者自己走进去，也可以跟着轿子、官员、挑夫走；每隔几分钟有一艘茶艇靠岸，挑夫把茶箱一箱箱扛上艇，升帆开往黄埔。</p>
       <p class="meta">Three.js 纯代码大场景，没有模型、图片和音频 · 俯瞰、第一人称步行、九个跟随视角 · 午后、黄昏、入夜 · 另有 WebGPU 版 · 鼠标与触屏</p>
@@ -377,73 +399,73 @@
       </div>
     </a>
 
-    <a class="card" href="sacred-heart-cathedral/">
+    <a class="card" href="sacred-heart-cathedral/" data-tag="走进石室教堂">
       <p class="name">石室圣心大教堂<span class="en">sacred-heart-cathedral</span></p>
       <p class="desc">广州一德路那座双尖塔的花岗岩教堂，整座用代码搭出来。外面看三座门、玫瑰窗、一对八角石尖塔和侧面一道道飞扶壁；从大门走上台阶进中殿，是两排束柱、红砖肋拱和后殿的长窗，彩窗的色光落在地上和柱子上。十八个视点点了就飞过去，也可以自己走或者飞。</p>
       <p class="meta">Three.js 纯代码，没有模型和图片 · 环绕、漫游、飞行 · 上午、正午、傍晚三档光 · 鼠标与触屏 · 页面里写明哪些有依据</p>
     </a>
 
-    <a class="card" href="sagrada-familia/">
+    <a class="card" href="sagrada-familia/" data-tag="走进圣家堂">
       <p class="name">圣家堂<span class="en">sagrada-familia</span></p>
       <p class="desc">巴塞罗那圣家堂，整座用代码搭出来。外面是十八座塔、三个立面和周围的切角街区；走进去是树一样分叉的柱子、带采光口的拱顶，一侧暖色一侧冷色的彩窗把光投在地上。十七个视点点了就飞过去，也可以自己走或者飞。</p>
       <p class="meta">Three.js 纯代码，没有模型和图片 · 环绕、漫游、飞行 · 早晨、正午、傍晚三档光 · 鼠标与触屏</p>
     </a>
 
-    <a class="card" href="lingnan-garden/">
+    <a class="card" href="lingnan-garden/" data-tag="走进岭南园林">
       <p class="name">岭南园林一角<span class="en">lingnan-garden</span></p>
       <p class="desc">先查清岭南园林和别处园林不一样在哪，再让 AI 按这些特征画一张图，最后用代码把图搭成能走进去的院子：青砖墙麻石脚、长方荷池接八角池、池中八角亭和廊桥、英石壁山与跌水、满洲窗和蚝壳窗、灰塑屋脊、荔枝和木棉。按一下回到和原图同一个机位，还能把原图叠上来对照。</p>
       <p class="meta">一张图 → Three.js 纯代码场景 · 第一人称步行、自动逛一圈 · 特征出处见页面「依据」 · 起始图为 AI 生成 · 鼠标与触屏</p>
     </a>
 
-    <a class="card" href="huacheng-autumn/">
+    <a class="card" href="huacheng-autumn/" data-tag="珠江南岸的秋天">
       <p class="name">花城秋岸<span class="en">huacheng-autumn</span></p>
       <p class="desc">广州海珠的珠江南岸，秋天。簕杜鹃挂满天桥，白色有轨电车从花下开过，赤岗塔下异木棉开着粉花，同岸西端是广州塔，对岸是珠江新城。把时间从白天拖到入夜。可以走一趟秋岸游记：去花桥、到塔下，等一班花电车经过，再把天色拨到入夜。</p>
       <p class="meta">Three.js 纯代码沙盘，没有模型和图片 · 鼠标与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="snowline-cabin/">
+    <a class="card" href="snowline-cabin/" data-tag="雪夜点灯">
       <p class="name">雪线小木屋<span class="en">snowline-cabin</span></p>
       <p class="desc">雪夜山顶一间亮着灯的木屋。点暗着的山头替它点灯，七座点满有流星；把时间从黄昏拖到日出；或者进屋在火炉边待一会儿。</p>
       <p class="meta">Three.js 纯代码场景，没有模型和图片 · 鼠标与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="clockwork/">
+    <a class="card" href="clockwork/" data-tag="机械钟 · 一张图生成">
       <p class="name">机械钟齿轮 · 一张图生成<span class="en">clockwork</span></p>
       <p class="desc">把一张机械钟图解交给 Gemini 4 Argon，它一次写出这个 3D 页面：三级齿轮按图上标的齿比咬合转动，中心轮一小时一圈，擒纵轮一分钟一圈。</p>
       <p class="meta">Gemini 4 Argon 一次生成 · Three.js · 键鼠与触屏</p>
     </a>
 
-    <a class="card" href="gear-repair/">
+    <a class="card" href="gear-repair/" data-tag="返修前后对照">
       <p class="name">齿轮返修<span class="en">gear-repair</span></p>
       <p class="desc">DeepSeek Harness 一次写出的齿轮页，齿形公式里一个符号写反了，两对齿轮帧帧穿模。作者没替它改，只写了症状和查法，它自己找到错处修好。一键切换原版和返修后，红点标出穿模的地方。</p>
       <p class="meta">Three.js · 原版与返修后对照 · 穿模实时计数 · 鼠标与触屏</p>
     </a>
 
-    <a class="card" href="shanhe/">
+    <a class="card" href="shanhe/" data-tag="历史长卷">
       <p class="name">山河卷<span class="en">shanhe-scroll</span></p>
       <p class="desc">可以走进去的历史长卷。宣纸时间轴点开史料卡片，再一步迈进 360° 全景现场。</p>
       <p class="meta">Three.js 全景球 · 换一个数据文件就能换题材</p>
     </a>
 
-    <a class="card" href="nanchan-temple/">
+    <a class="card" href="nanchan-temple/" data-tag="唐代木构 · 一步步搭">
       <p class="name">南禅寺大殿 · 一步步搭起来<span class="en">nanchan-temple</span></p>
       <p class="desc">国内现存最早的木构建筑（唐建中三年，782 年）。左边 11 个按钮，按一下搭一层：夯台基、立柱、斗栱、梁架、铺椽、上瓦，最后拆开再装回。尺寸取自实测，剖视窗看屋顶的重量怎么一层层传到柱子上；可切白天、黑夜。</p>
       <p class="meta">Anatomy 等轴图解 · 界画朱白配色 · 键鼠与触屏 · 单文件</p>
     </a>
 
-    <a class="card" href="xiguan-house/">
+    <a class="card" href="xiguan-house/" data-tag="推开西关大屋">
       <p class="name">西关大屋 · 推开看<span class="en">xiguan-house</span></p>
       <p class="desc">点一下，趟栊拉进墙里、大门推开，屋面折起掀到后面，三面墙倒下：门官厅、天井、满洲窗、正厅的神楼和 13 级楼梯都露出来。再点一下沿原路合上。第一次来先找门口三件头：认出脚门、趟栊、大门，屋子才请你进去。</p>
       <p class="meta">等距线稿 · 铰链机构 · 键鼠与触屏</p>
     </a>
 
-    <a class="card" href="tidal-disruption/">
+    <a class="card" href="tidal-disruption/" data-tag="黑洞撕裂恒星">
       <p class="name">潮汐之下 · 黑洞撕裂恒星<span class="en">tidal-disruption</span></p>
       <p class="desc">一颗恒星靠近超大质量黑洞，被潮汐拉成泪滴、撕成物质流，碎屑绕回来互相撞击变亮，最后环化成一圈吸积盘。黑洞边上的光真的被弯折：盘的背面被弯到黑洞上方和下方，朝你转来的一侧更亮。时间轴随时拖，镜头随时转。</p>
       <p class="meta">Three.js 加自写着色器，纯代码 · 光线弯折与碎屑在 GPU 上算 · 锁 30 帧、自动降画质，开着不烫 · 鼠标与触屏 · 单文件离线可看</p>
     </a>
 
-    <a class="card" href="sky-citadel/">
+    <a class="card" href="sky-citadel/" data-tag="云上体素小城">
       <p class="name">浮空之城<span class="en">sky-citadel</span></p>
       <p class="desc">一座停在云海上方的体素小城：倒锥形岩体托着城墙和街巷，顶上是金线青铜穹顶的主殿，四座卫星岛用石桥和索桥连着，一道瀑布从岛边垂下散成水雾。把时间从黎明拨到深夜，窗子一扇扇亮起来；点一下铜色飞艇，跟着它绕岛飞一圈。</p>
       <p class="meta">Three.js 纯代码，近 48 万个体素，没有模型和图片 · 只画看得见的面，十几次绘制 · 锁 30 帧 · 鼠标与触屏 · 单文件离线可看</p>
@@ -452,40 +474,40 @@
 
   </section>
 
-  <section class="board" data-key="ai" data-blurb="AI 干活的过程，做成放着就能看懂的小片子和小场景。">
+  <section class="board" data-key="ai" data-hero="dispatch-replay/ ai-office/ daomadan-sprite/" data-blurb="AI 干活的过程，做成放着就能看懂的小片子和小场景。">
   <h2 class="shelf">AI 幕后<span class="note">放着看</span></h2>
   <div class="grid">
-    <a class="card" href="dispatch-replay/">
+    <a class="card" href="dispatch-replay/" data-tag="一次真实派活">
       <p class="name">派活回放<span class="en">dispatch-replay</span></p>
       <p class="desc">真实的 Claude Code 工作压成一分半：总调度把 15 篇文章的事实核查拆给 21 个子 agent，每个都读进十几万 token 的网页，交回来却只有几百字。另一份是做短片，派子 agent 之外还叫了 8 次外部 AI 画图。</p>
       <p class="meta">真实会话记录 · 二维画布动画 · 可暂停拖动 · 手机电脑都行</p>
     </a>
 
-    <a class="card" href="agent-engine/">
+    <a class="card" href="agent-engine/" data-tag="讲清 agent 三层">
       <p class="name">agent 引擎是什么<span class="en">agent-engine</span></p>
       <p class="desc">六个镜头讲清 API、引擎、harness 三层：只有 API 会卡在哪，加上循环能做什么，循环之外还要接住哪些失败。页面里转的循环是真跑的教学小实现。</p>
       <p class="meta">讲解页 · 六个镜头 · 手动翻页或自动播放 · 手机电脑都行</p>
     </a>
 
-    <a class="card" href="handwritten-board/">
+    <a class="card" href="handwritten-board/" data-tag="板书一笔笔写出来">
       <p class="name">手写板书<span class="en">handwritten-board</span></p>
       <p class="desc">两页手写板书一笔一笔写出来，讲的就是它自己怎么做出来的：逐字揭示的手写字体、跟着笔尖走的手、圈重点的红笔。</p>
       <p class="meta">DOM 文字加 SVG · GSAP 时间线 · 可暂停、倍速、换字体 · 手机电脑都行</p>
     </a>
 
-    <a class="card" href="daomadan-sprite/">
+    <a class="card" href="daomadan-sprite/" data-tag="原画变游戏动作">
       <p class="name">刀马旦精灵<span class="en">daomadan-sprite</span></p>
       <p class="desc">一张粤剧刀马旦原画，AI 变出待机、走、出枪、跳、受击五个游戏动作：先查戏服资料改对颜色，再让每个动作从同一张画出发演一段视频、切成帧，最后放到舞台上试玩。跑步没做成，页面里写了为什么。</p>
       <p class="meta">讲解页加试玩 · Canvas 2D 逐帧图集 · 方向键或按钮 · 手机电脑都行</p>
     </a>
 
-    <a class="card" href="memory-fade/">
+    <a class="card" href="memory-fade/" data-tag="记忆怎么褪色">
       <p class="name">记忆褪色<span class="en">memory-fade</span></p>
       <p class="desc">AI 记忆系统忘东西的公式，挂在一根弹簧上：拖时间轴，记忆卡片一天天下沉变淡；点它一下就是想起它一次，往上一蹿、之后掉得更慢；钉住就不再掉。公式照 RecallNest 原样搬来。看完规则可以做个小实验：只给三次想起的机会，把一条记忆留到第 180 天。</p>
       <p class="meta">讲解页 · SVG 加弹簧 · 拖、点、钉 · 手机电脑都行</p>
     </a>
 
-    <a class="card" href="ai-office/">
+    <a class="card" href="ai-office/" data-tag="AI 伙伴在上班">
       <p class="name">像素办公室<span class="en">ai-office</span></p>
       <p class="desc">十一位 AI 伙伴各坐一张工位：干活时敲键盘，交活了蹦一下撒彩带去沙发，要人拍板的走到老板桌前排队敲门；送信员把推送当纸条递过来，公告板留底。这里是演示版，真实版跑在自己机器上读本机状态。</p>
       <p class="meta">Canvas 2D 像素风 · 演示剧本一分钟循环 · 白天傍晚夜晚换灯 · 手机电脑都行</p>
@@ -494,16 +516,16 @@
 
   </section>
 
-  <section class="board" data-key="tools" data-blurb="自己日常在用的小东西，装上就能用。">
+  <section class="board" data-key="tools" data-hero="phone-keyboard/" data-blurb="自己日常在用的小东西，装上就能用。">
   <h2 class="shelf">小工具<span class="note">装上用</span></h2>
   <div class="grid">
-    <a class="card" href="phone-keyboard/">
+    <a class="card" href="phone-keyboard/" data-tag="手机当键盘">
       <p class="name">手机键盘<span class="en">phone-keyboard</span></p>
       <p class="desc">出门带 iPad 不想背键盘：安卓手机展开当蓝牙键盘加触控板，上面数字键和触控板，下面整块键盘，按 MacBook 的手势习惯来。OPPO Find N6 专属版。</p>
       <p class="meta">安卓 App · 安装包 25 KB · iPad 免装任何东西</p>
     </a>
 
-    <a class="card" href="https://github.com/AliceLJY/phone-remote/blob/main/README_CN.md">
+    <a class="card" href="https://github.com/AliceLJY/phone-remote/blob/main/README_CN.md" data-tag="手机语音输入给 Mac">
       <p class="name">手机遥控 Mac<span class="en">phone-remote</span></p>
       <p class="desc">远程桌面连另一台 Mac 时，语音输入打不进去。手机浏览器打开一个网页，用手机自带的输入法说话打字，方向键、Tab、Ctrl+C、⌘ 组合都做成按钮，字直接打进 Mac 最前面的窗口。顶上一排点一下就开出 Claude Code、Codex 这类工具。</p>
       <p class="meta">Mac 上跑一个零依赖小服务 · 手机不用装 App，加到主屏幕就行 · 局域网或 Tailscale · 独立仓作品，点开去 GitHub 看装法</p>
@@ -525,11 +547,35 @@
   var home = document.getElementById('boards'), chips = document.querySelector('#boardbar .chips'), baseTitle = document.title;
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function nameOf(a) { return a.querySelector('.name').firstChild.textContent.trim(); }
+  // 封面：covers/<目录名>.webp。站内卡片取链接的第一段，本站的外链 Pages 取仓名；GitHub 外链没有封面，画一块占位
+  function coverOf(a) {
+    var h = a.getAttribute('href'), m = /^https:\/\/aliceljy\.github\.io\/([^\/]+)/.exec(h);
+    if (m) return 'covers/' + m[1] + '.webp';
+    if (/^https?:/.test(h)) return null;
+    return 'covers/' + h.replace(/\/.*$/, '') + '.webp';
+  }
+  function img(src, eager) { var i = el('img'); i.src = src; i.alt = ''; i.decoding = 'async'; if (!eager) i.loading = 'lazy'; return i; }
+  [].forEach.call(document.querySelectorAll('section.board a.card'), function (a) {
+    var src = coverOf(a), box = el('div', 'cover'), desc = a.querySelector('.desc'), meta = a.querySelector('.meta'), name = a.querySelector('.name');
+    if (src) { var i = img(src); i.onerror = function () { box.classList.add('none'); box.textContent = '还没有封面'; }; box.appendChild(i); }
+    else { box.classList.add('none'); box.textContent = 'GitHub'; }
+    if (a.querySelector('.guide')) box.appendChild(el('span', 'kb', '⌨ 键盘可玩'));
+    if (desc) a.title = desc.textContent.trim();
+    var cap = el('div', 'cap'); cap.appendChild(name);
+    var tag = a.dataset.tag || (meta ? meta.textContent.split(' · ')[0].trim() : '');   // data-tag 是图墙上那行短标签，加卡片时顺手写
+    if (tag) cap.appendChild(el('p', 'tag', tag));
+    a.insertBefore(cap, a.firstChild); a.insertBefore(box, cap);
+  });
   boards.forEach(function (b) {
     var h = b.querySelector('h2.shelf'), title = h.firstChild.textContent.trim(), note = (h.querySelector('.note') || {}).textContent || '';
     var cards = [].slice.call(b.querySelectorAll('a.card')), names = cards.slice(0, 3).map(nameOf);
     b.dataset.title = title;
     var t = el('a', 'tile'); t.href = '#' + b.dataset.key;
+    // 落地页方块顶上的三张封面：data-hero 里写的卡片链接（空格分隔），没写就取前三张
+    var hero = (b.dataset.hero || '').split(/\s+/).filter(Boolean).map(function (h) { return b.querySelector('a.card[href="' + h + '"]'); }).filter(Boolean);
+    var strip = el('div', 'strip'); (hero.length ? hero : cards.slice(0, 3)).forEach(function (a) { var src = coverOf(a); if (src) strip.appendChild(img(src, true)); });
+    strip.style.gridTemplateColumns = 'repeat(' + Math.max(strip.children.length, 1) + ', 1fr)';
+    if (strip.children.length) t.appendChild(strip);
     var top = el('div', 'top'), tt = el('span', 'tt', title), n = el('span', 'n', String(cards.length));
     tt.appendChild(el('small', null, note)); n.appendChild(el('small', null, '个')); top.append(tt, n);
     t.append(top, el('p', 'bl', b.dataset.blurb || ''));
