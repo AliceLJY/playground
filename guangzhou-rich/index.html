@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.deepseek.com https://dashscope.aliyuncs.com https:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>花城收租佬</title>
+<meta name="description" content="一圈广州街区的收租桌游：掷骰、买地、加盖、交租，十五轮比身家。对手是规则机器人，也可以换成你自己的 DeepSeek 或通义千问。">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<main id="app">
+
+<section id="setup" class="screen" aria-labelledby="title">
+  <header class="masthead">
+    <h1 id="title">花城收租佬</h1>
+    <p class="tag">一圈广州街区，掷骰、买地、收租，十五轮比身家。</p>
+  </header>
+  <ol class="howto">
+    <li>点「掷两颗」或「掷一颗」走格子，走到空地选买不买。</li>
+    <li>别人走到你的地要交租；走回自己的地能加盖，租更贵。</li>
+    <li>交不起租就出局；十五轮后钱加地最多的赢。</li>
+  </ol>
+  <div class="seats" id="seats">
+    <div class="seat seat-me">
+      <span class="dot c0"></span>
+      <label class="nm">你叫<input id="me-name" maxlength="6" value="你" autocomplete="off"></label>
+    </div>
+  </div>
+  <p class="keynote">key 只在你的浏览器里，直连 DeepSeek/千问，本站不经手。</p>
+  <div class="remember" id="remember-row" hidden>
+    <label><input type="checkbox" id="remember"> 在这台设备上记住 key（同一网站的其他页面也读得到）</label>
+    <button type="button" id="forget" class="link">清掉记住的 key</button>
+  </div>
+  <button type="button" id="start" class="primary big">开局</button>
+  <p class="fine">原创规则与文案 · 公众号「我的AI小木屋」 · GitHub @AliceLJY</p>
+</section>
+
+<section id="play" class="screen" hidden>
+  <div class="topbar">
+    <span id="round" class="round">第 1 / 15 轮</span>
+    <button type="button" id="back" class="link">换座位</button>
+  </div>
+  <div class="layout">
+    <div class="board-wrap">
+      <div id="board" class="board" aria-label="棋盘">
+        <div class="center" id="center">
+          <p class="brand">花城收租佬</p>
+          <div class="dice" id="dice" aria-live="polite"><span class="die">·</span><span class="die">·</span></div>
+          <p class="event" id="event">轮到你。</p>
+          <p class="bubble" id="bubble" hidden></p>
+          <div class="legend" id="legend" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="players" id="players"></div>
+      <div class="notes" id="notes" aria-live="polite"></div>
+      <div class="actions" id="actions">
+        <button type="button" id="act-a" class="primary">掷骰子</button>
+        <button type="button" id="act-b" class="secondary" hidden>不买</button>
+      </div>
+      <ol class="log" id="log" aria-live="polite"></ol>
+    </div>
+  </div>
+</section>
+
+<section id="over" class="screen overlay" hidden aria-labelledby="over-title">
+  <div class="paper">
+    <h2 id="over-title">这局完了</h2>
+    <p id="over-reason" class="reason"></p>
+    <ol id="ranking" class="ranking"></ol>
+    <div class="over-actions">
+      <button type="button" id="again" class="primary">再来一局</button>
+      <button type="button" id="reseat" class="secondary">换座位</button>
+    </div>
+  </div>
+</section>
+
+</main>
+<script src="src/core.js"></script>
+<script src="src/ai.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>

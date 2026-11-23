@@ -1,0 +1,117 @@
+@charset "UTF-8";
+:root{--paper:#f3ead8;--card:#fbf5e8;--ink:#355847;--ink2:#47695b;--orange:#dc8d35;--accent:#c27b3c;--line:#cbbd9f;--muted:#6e7f73;
+  --p0:#dc8d35;--p1:#4f8f86;--p2:#a34f7c;--p3:#3f6fa8;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:var(--ink);font-synthesis:none}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#e4ddc9}
+body{overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+#app{position:fixed;inset:0;display:flex;justify-content:center}
+.screen{width:100%;max-width:560px;height:100%;overflow:auto;padding:12px 12px calc(12px + env(safe-area-inset-bottom))}
+
+/* 选座页 */
+#setup{display:flex;flex-direction:column;gap:10px;background:var(--paper)}
+.masthead h1{font-family:"Songti SC","STSong","Noto Serif CJK SC",serif;font-weight:600;font-size:30px;letter-spacing:4px;margin:6px 0 2px}
+.masthead .tag{margin:0;font-size:14px;color:var(--ink2)}
+.howto{margin:0;padding:10px 12px 10px 30px;background:var(--card);border-radius:8px;font-size:14px;line-height:1.6;border:1px solid #e3d6b8}
+.seats{display:flex;flex-direction:column;gap:8px}
+.seat{background:var(--card);border:1px solid #e3d6b8;border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:14px 1fr 1fr;gap:6px 8px;align-items:center}
+.seat-me{grid-template-columns:14px 1fr}
+.seat .nm{display:flex;align-items:center;gap:6px;font-size:14px;min-width:0}
+.seat input,.seat select{font:inherit;font-size:15px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:6px;height:40px;padding:0 8px;min-width:0;width:100%}
+.seat .nm input{width:6em}
+.seat .more{grid-column:2 / -1;display:grid;gap:6px}
+.seat .more label{display:flex;align-items:center;gap:6px;font-size:13px}
+.seat .more label span{flex:none;width:4.2em;color:var(--muted)}
+.seat details{grid-column:2 / -1;font-size:13px;color:var(--muted)}
+.seat details summary{cursor:pointer;padding:4px 0}
+.seat details label{margin-top:6px}
+.dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px #0002}
+.c0{background:var(--p0)}.c1{background:var(--p1)}.c2{background:var(--p2)}.c3{background:var(--p3)}
+.keynote{margin:0;font-size:13px;color:var(--ink2);background:#e8f0e4;border-radius:6px;padding:6px 10px}
+.remember{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:13px;color:var(--muted)}
+.remember input{width:18px;height:18px;vertical-align:-3px}
+.link{background:none;border:0;padding:8px 4px;color:var(--accent);text-decoration:underline;font-size:13px;min-height:44px}
+.primary{background:var(--orange);color:#fff;border:0;border-radius:10px;min-height:52px;padding:0 20px;font-size:18px;font-weight:600;letter-spacing:2px;box-shadow:0 3px 0 #b06d22}
+.primary:active{transform:translateY(2px);box-shadow:0 1px 0 #b06d22}
+.primary:disabled{background:#c9bfa9;box-shadow:none;color:#fffd;cursor:default}
+.secondary{background:var(--card);color:var(--ink);border:2px solid var(--ink2);border-radius:10px;min-height:52px;padding:0 16px;font-size:17px}
+.big{width:100%}
+.fine{margin:0;font-size:12px;color:var(--muted)}
+
+/* 游玩页 */
+#play{display:flex;flex-direction:column;gap:8px;padding-top:6px;background:var(--paper)}
+.topbar{display:flex;justify-content:space-between;align-items:center;min-height:36px}
+.round{font-weight:600;font-variant-numeric:tabular-nums;font-size:15px}
+.topbar .link{min-height:36px}
+.layout{display:flex;flex-direction:column;gap:8px}
+.board{position:relative;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(7,1fr);aspect-ratio:1/1;width:100%;gap:2px;background:var(--ink);border:3px solid var(--ink);border-radius:8px;overflow:hidden}
+.cell{position:relative;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:4px 1px 0;min-width:0;overflow:hidden;text-align:center}
+.cell .band{position:absolute;left:0;right:0;top:0;height:5px}
+.cell .nm{font-size:11px;line-height:1.15;font-weight:600;margin-top:3px;word-break:keep-all}
+.cell .pr{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cell.corner{background:#efe2c3}
+.cell.corner .nm{font-size:12px}
+.cell.chance{background:#f7e7c9}
+.cell.chance .nm{color:var(--accent);font-size:16px;margin-top:6px}
+.cell.owned{box-shadow:inset 0 -5px 0 var(--own)}
+.cell.near{outline:2px dashed var(--orange);outline-offset:-4px}
+.cell .lv{font-size:9px;letter-spacing:1px;color:var(--own);line-height:1}
+.cell.hit{animation:hit .6s ease-out}
+@keyframes hit{0%{background:#fff4c8}100%{background:var(--card)}}
+.tokens{position:absolute;left:2px;right:2px;bottom:5px;display:flex;justify-content:center;gap:1px;flex-wrap:wrap}
+.tok{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 2px #0004}
+.tok.now{width:15px;height:15px}
+.center{grid-row:2 / 7;grid-column:2 / 7;background:#f6efdf;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-align:center}
+.brand{margin:0;font-family:"Songti SC","STSong","Noto Serif CJK SC",serif;font-size:13px;letter-spacing:4px;color:var(--ink2);opacity:.8}
+.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;font-size:10px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:3px}
+.legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.dice{display:flex;gap:8px}
+.die{width:40px;height:40px;border-radius:8px;background:#fff;border:2px solid var(--ink);display:grid;place-items:center;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.dice.rolling .die{animation:shake .25s linear 2}
+@keyframes shake{25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+.event{margin:0;font-size:14px;line-height:1.45;min-height:2.9em;max-width:16em}
+.bubble{margin:0;font-size:13px;line-height:1.4;background:#fff;border:2px solid var(--ink2);border-radius:12px;padding:5px 10px;max-width:17em;position:relative}
+.bubble b{color:var(--bub,var(--ink))}
+.players{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pl{background:var(--card);border:2px solid transparent;border-radius:8px;padding:5px 6px;min-width:0;font-size:12px;line-height:1.3}
+.pl.now{border-color:var(--orange)}
+.pl.out{opacity:.45}
+.pl .who{display:flex;align-items:center;gap:4px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .cash{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.pl .kind{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notes:empty{display:none}
+.notes .warn{margin:0;color:#a2512a;font-size:12px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actions{display:flex;gap:8px}
+.actions button{flex:1}
+.log{margin:0;padding:0 0 0 18px;font-size:12px;color:var(--muted);line-height:1.5;max-height:4.6em;overflow:hidden}
+
+/* 结算 */
+.overlay{position:fixed;inset:0;max-width:none;background:#21483d66;display:grid;place-items:center;padding:16px}
+.paper{width:min(440px,100%);background:var(--card);border-radius:12px;padding:20px 18px;box-shadow:0 12px 50px #173c3250}
+.paper h2{font-family:"Songti SC","STSong",serif;margin:0 0 6px;font-size:24px;letter-spacing:2px}
+.reason{margin:0 0 10px;color:var(--ink2);font-size:14px}
+.ranking{margin:0 0 14px;padding:0;list-style:none;display:grid;gap:6px}
+.ranking li{display:flex;align-items:center;gap:8px;background:#fff;border-radius:8px;padding:8px 10px;font-size:15px}
+.ranking li b{margin-left:auto;font-variant-numeric:tabular-nums}
+.ranking li.first{background:#fbe6c4}
+.over-actions{display:flex;gap:8px}
+.over-actions button{flex:1}
+
+@media (min-width:900px){
+  .screen{max-width:1100px}
+  #setup{max-width:560px}
+  .layout{flex-direction:row;align-items:flex-start;gap:20px}
+  .board-wrap{flex:none;width:min(640px,calc(100dvh - 70px))}
+  .side{flex:1;display:flex;flex-direction:column;gap:12px;min-width:300px}
+  .players{grid-template-columns:repeat(2,1fr)}
+  .cell .nm{font-size:14px}.cell .pr{font-size:12px}.cell.corner .nm{font-size:15px}
+  .tok{width:16px;height:16px}.tok.now{width:20px;height:20px}
+  .die{width:56px;height:56px;font-size:30px}
+  .event{font-size:17px}.bubble{font-size:16px}.brand{font-size:18px}.legend{font-size:13px}.legend i{width:11px;height:11px}
+  .log{max-height:none;font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){.dice.rolling .die,.cell.hit{animation:none}}
