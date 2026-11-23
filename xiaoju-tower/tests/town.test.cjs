@@ -130,7 +130,7 @@ test('打卡赛：精准档三处都打到、用时 3–7 分钟，骑车比全�
   }
 });
 
-test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 4–12 局；精准档至少赢 12 局，且赢得比手抖档多（SPEC 第二章 5）', () => {
+test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 2–12 局；精准档至少赢 12 局，且赢得比手抖档多（SPEC 第二章 5）', () => {
   // 2026-11-23 Duet 真人两局（电脑 11:18、手机 6:25）都比手抖档慢，三花姐因此放慢；最接近真人的是手抖档，两侧断言放在它身上
   let wp = 0, wc = 0, skipped = 0, beatClumsy = 0, posedLong = 0;
   for (const seed of SEEDS16) {
@@ -141,7 +141,7 @@ test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 4–12 局
     if (b.rival.time < b.player.time) beatClumsy++;
     if (a.rival.time > 420) posedLong++;
   }
-  assert.ok(wc >= 4 && wc <= 12, `手抖档赢 ${wc}/16`);
+  assert.ok(wc >= 2 && wc <= 12, `手抖档赢 ${wc}/16`);   // Duet round 4 (humans 5:03–5:20) is already faster than the clumsy pilot
   assert.ok(wp >= 12 && wp > wc, `精准档赢 ${wp}/16，手抖档 ${wc}`);
   // the sample really contains both kinds of day (guards against an empty pass)
   assert.ok(skipped >= 1 && beatClumsy >= 4, `三花姐不骑车 ${skipped} 局、赢手抖档 ${beatClumsy} 局，两样都要有`);
@@ -198,4 +198,16 @@ test('骑车照着路线走，草地上骑不到 1.5 秒（Duet 第三轮：西�
     if (green > 1.5) bad.push(`${st[a].label}→${st[b].label} 草地上骑了 ${green.toFixed(1)} 秒`);
   }
   assert.deepStrictEqual(bad, [], bad.join('；'));
+});
+
+test('三花姐每局用时收得住：16 局里至少 12 局落在 5:10–6:40，自拍每次不超过 10 秒（Duet 第四轮：单跑 5:17–7:37、自拍 32–34 秒）', () => {
+  let inBand = 0, longest = 0;
+  for (const seed of SEEDS16) {
+    const p = T.createTown(G, seed), r = T.createTownRival(G, p), rp = T.makePilot(G, nav, 'rival', seed + T.TCFG.rival.seedOffset);
+    let poseStart = -1;
+    while (!r.done && r.time < 900) { T.stepTown(G, r, rp(r), 1 / 30); if (r.posing && poseStart < 0) poseStart = r.time; if (!r.posing && poseStart >= 0) { longest = Math.max(longest, r.time - poseStart); poseStart = -1; } }
+    if (r.time >= 310 && r.time <= 400) inBand++;
+  }
+  assert.ok(inBand >= 12, `只有 ${inBand}/16 局在 5:10–6:40`);
+  assert.ok(longest <= 10.5, `最长一次自拍 ${longest.toFixed(1)} 秒`);
 });

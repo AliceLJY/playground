@@ -327,7 +327,7 @@
 
   // ---------- state ----------
   let T = null, R = null, rivalPilot = null, race = true, active = false, ended = false, seed = 1, hintDone = {}, hintNow = null, hintSince = 0;
-  let grassAt = -99, waitStart = false, pull = 1, countdown = 0, introT = 0, introSwing = 0, camYaw = 0, camInit = false, stepPhase = 0, rStepPhase = 0, lastStampN = 0, rivalNoted = {}, endTimer = 0;
+  let sideOff = 0, onGrassT = 0, dtNow = 0, grassAt = -99, waitStart = false, pull = 1, countdown = 0, introT = 0, introSwing = 0, camYaw = 0, camInit = false, stepPhase = 0, rStepPhase = 0, lastStampN = 0, rivalNoted = {}, endTimer = 0;
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
   const input = E.input;
   function enter(opts) {
@@ -336,7 +336,8 @@
     seed = opts.seed || E.seed(); race = opts.race !== undefined ? opts.race : E.race();
     T = TC.createTown(G, seed); R = race ? TC.createTownRival(G, T) : null;
     rivalPilot = race ? TC.makePilot(G, nav, 'rival', seed + TC.TCFG.rival.seedOffset) : null;
-    active = true; ended = false; introT = opts.quick ? 3 : 0; waitStart = !opts.quick; countdown = COUNT; hintDone = {}; hintNow = null; lastStampN = 0; rivalNoted = {}; camInit = false; camYaw = T.h;
+    active = true; ended = false; grassAt = -99; onGrassT = 0; introT = opts.quick ? 3 : 0;   // a restart brings the one-off hints back
+    waitStart = !opts.quick; countdown = COUNT; hintDone = {}; hintNow = null; lastStampN = 0; rivalNoted = {}; camInit = false; camYaw = T.h;
     bikeTaken = []; placeBikes(); resetStops();
     world.visible = true; E.setChapter(2);
     $('t-end').hidden = true; $('t-race').hidden = !race;
@@ -382,11 +383,11 @@
 
   // key names follow the device: a phone has the 扫车 / 锁车 button, not an E key (Duet round 3)
   const TOUCH = window.matchMedia && matchMedia('(hover: none)').matches;
-  const scanKey = TOUCH ? '点<b>「扫车」</b>' : '按 <b>E</b>', lockKey = TOUCH ? '点<b>「锁车」</b>' : '按 <b>E</b>';
+  const scanKey = TOUCH ? '点<b>「扫车」</b>' : '按 <b>E</b> ', lockKey = TOUCH ? '点<b>「锁车」</b>' : '按 <b>E</b> ';
   const hints = {
     start: TOUCH ? '按住右下 <b>↑</b> 跑，左下 <b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱' : '按住 <b>↑</b> 跑，<b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱',
     dock: `这是共享单车点：${scanKey}扫一辆，路上快很多`,
-    ride: `骑车松手会溜、转弯要早；${lockKey}随时锁车`,
+    ride: TOUCH ? '骑车松手会溜、转弯要早；随时点<b>「锁车」</b>下车' : '骑车松手会溜、转弯要早；按 <b>E</b> 随时锁车',
     nobike: `海心桥不让骑车：${lockKey}，走过去`,
     grass: `前面一大片草地，骑车比跑还慢：${lockKey}下来跑更快`,
     stop: '跑进红圈就盖章'
@@ -398,6 +399,7 @@
   // ---------- per frame ----------
   function tick(dt) {
     if (!active) return;
+    dtNow = dt;
     if (waitStart || countdown > 0) { E.takeAct(); updateCountdown(dt); }
     else if (!ended) {
       const inp = { up: input.up, down: input.down, left: input.left, right: input.right, act: E.takeAct() };
@@ -433,8 +435,11 @@
   function hintLogic() {
     if (hintNow === 'start' && (T.time > 9 || T.dist > 40)) clearHint('start');
     if (!hintDone.dock && TC.actionAt(G, T) === 'scan' && hintNow !== 'nobike') showHint('dock');
-    if (T.riding && T.speed > 2 && hintNow !== 'nobike' && hintNow !== 'grass' && T.time - grassAt > 20) {
-      const f = fwdV(T.h); if ([4, 8, 12, 16].every(d => TC.surf(G, T.x + f.x * d, T.z + f.z * d) === S2.GREEN)) { grassAt = T.time; hintDone.grass = false; showHint('grass'); }
+    // grass: only after a full second really riding on it, with grass still ahead along the heading
+    // (Duet round 4: judging by the nose alone fired while cornering past a lawn, 130 m from the stop)
+    onGrassT = T.riding && T.speed > 2 && TC.surf(G, T.x, T.z) === S2.GREEN ? onGrassT + dtNow : 0;
+    if (onGrassT >= 1 && hintNow !== 'nobike' && hintNow !== 'grass' && T.time - grassAt > 20) {
+      const f = fwdV(T.h); if ([4, 8].every(d => TC.surf(G, T.x + f.x * d, T.z + f.z * d) === S2.GREEN)) { grassAt = T.time; hintDone.grass = false; showHint('grass'); }
     }
     if (hintNow === 'grass' && (!T.riding || T.time - hintSince > 5)) { hintNow = null; $('hint').hidden = true; }
     if (hintNow === 'dock' && !TC.nearDock(G, T)) { hintNow = null; $('hint').hidden = true; }
@@ -464,7 +469,11 @@
     }
     // a block right beside the camera (riding along a row of towers): shift away from it and come in a little (Duet round 3)
     { const rx = -f.z, rz = f.x; let side = 0; for (const d of [1.5, 3, 4.5]) { if (TC.surf(G, target.x + rx * d, target.z + rz * d) === S2.BUILDING) side -= 1 / d; if (TC.surf(G, target.x - rx * d, target.z - rz * d) === S2.BUILDING) side += 1 / d; }
-      if (side) { const sh = clamp(side * 2.2, -2.5, 2.5); target.x += rx * sh; target.z += rz * sh; if (TC.surf(G, target.x, target.z) === S2.BUILDING) { target.x -= rx * sh; target.z -= rz * sh; } keep = Math.min(keep, 0.8); target.lerp(V3(T.x, target.y, T.z), 0.2); } }
+      let want = side ? clamp(side * 2.2, -2.5, 2.5) : 0;
+      if (want && TC.surf(G, target.x + rx * want, target.z + rz * want) === S2.BUILDING) want = 0;
+      sideOff = lerp(sideOff, want, Math.min(1, dt * 2.5));
+      target.x += rx * sideOff; target.z += rz * sideOff;
+      if (Math.abs(sideOff) > 0.3) { keep = Math.min(keep, 1 - Math.abs(sideOff) * 0.08); target.lerp(V3(T.x, target.y, T.z), Math.abs(sideOff) * 0.08); } }
     pull = lerp(pull, keep, Math.min(1, dt * 6));
     if (!camInit) { camPos.copy(target); camInit = true; } else camPos.lerp(target, 1 - Math.pow(0.0005, dt));
     camLook.set(T.x, 1.0, T.z).addScaledVector(f, 4 * pull);     // pulled in against a wall: look at her, not past her
@@ -512,7 +521,7 @@
     else { const fc = facing(R.h); rn = (R.riding ? 'ride' : 'run') + fc + ((Math.floor(rStepPhase / (R.riding ? 1.6 : 0.9)) % 2) ? 'B' : 'A'); }
     E.setFrame(E.rivalMat, E.rivalSprite, 'sanhua-town-' + rn, 1);
     E.rivalSprite.rotation.z = 0;
-    E.shadows[1].position.set(R.x, 0.12, R.z); E.shadows[1].scale.setScalar(R.riding ? 1.3 : 1.05);
+    E.shadows[1].position.set(rv.position.x, 0.12, rv.position.z); E.shadows[1].scale.setScalar(R.riding ? 1.3 : 1.05);
     E.rivalFrame = rn;
   }
   const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -629,6 +638,8 @@
     skipCountdown: () => { countdown = 0; waitStart = false; $('t-ready').hidden = true; $('t-hud').hidden = false; $('pad').hidden = false; },
     countdown: () => countdown,
     waiting: () => waitStart,
+    setRiding: on => { T.riding = !!on; },
+    screenGap: () => { const a = new THREE.Vector3(), b = new THREE.Vector3(); E.cat.getWorldPosition(a); E.rival.getWorldPosition(b); a.project(camera); b.project(camera); return Math.abs(a.x - b.x) * innerWidth / 2; },
     route: () => ({ len: routeLen, pts: route.length, steer: steerPt }),
     calmRival: () => { if (R) { R.x = TOWN.start.x - 300; R.z = TOWN.start.z + 100; } },
     result: () => (T && R ? TC.townResult(T, R) : null)
