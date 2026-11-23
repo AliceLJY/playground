@@ -9,7 +9,7 @@
     // running: quick to start and turn, same speed everywhere you can stand (a little slower on grass)
     run: { top: 9.5, green: 0.85, accel: 24, decel: 30, back: 3, turn: 3.0, radius: 0.6 },   // radius > 0.5: the body cannot slip into the 1 m notches of a stair-stepped diagonal wall
     // shared bike: fast on roads, slower on plazas, crawls on grass; slow to pick up speed, wide turns, rolls on when you let go
-    bike: { top: { 1: 15, 2: 10, 3: 4.5 }, accel: 5.5, brake: 14, coast: 1.0, turn: 1.8, turnLow: 2.6, radius: 0.7 },
+    bike: { top: { 1: 15, 2: 10, 3: 4.5 }, accel: 5.5, brake: 14, coast: 2.8, back: 1.5, turn: 1.8, turnLow: 2.6, radius: 0.7 },   // coast 2.8: let go at 15 m/s, stops in ~5 s / ~40 m (Duet: 1.0 rolled 110 m into the river)
     scanTime: 2.0, lockTime: 0.6, dockReach: 4.5, stopReach: 7, stampTime: 1.2, bumpKeep: 0.3,
     nav: 2,                              // metres per path-finding cell
     rival: { seedOffset: 2000 }
@@ -117,7 +117,7 @@
     let target, rate;
     if (s.riding) {
       if (input.up) { target = top; rate = s.speed > top ? TCFG.bike.brake * 0.5 : TCFG.bike.accel; }
-      else if (input.down) { target = 0; rate = TCFG.bike.brake; }
+      else if (input.down) { target = s.speed > 0.3 ? 0 : -TCFG.bike.back; rate = s.speed > 0.3 ? TCFG.bike.brake : 3; }   // brake, then walk the bike back
       else { target = 0; rate = TCFG.bike.coast; }
     } else {
       if (input.up) { target = top; rate = TCFG.run.accel; }
@@ -128,30 +128,41 @@
     // move with wall sliding
     if (Math.abs(s.speed) > 1e-4) {
       const f = fwd(s.h), dx = f.x * s.speed * dt, dz = f.z * s.speed * dt;
-      // blocked straight ahead: slide along the wall by trying directions turned away a little at a time (diagonal walls included)
+      // blocked straight ahead: take the wall's normal from the body's surroundings (averaged over a ring, so the 1 m
+      // stair-steps of a rasterised shore read as one smooth wall), drop the part of the step that goes into it and slide
+      // along the rest; then try small turns; wedged in a corner, ease out towards the open side.
       let nx = s.x + dx, nz = s.z + dz, hit = false;
+      const L = Math.hypot(dx, dz);
       if (blockedAt(G, nx, nz, s.riding)) {
         hit = true; s.hits = (s.hits || 0) + 1; nx = s.x; nz = s.z;
-        const L = Math.hypot(dx, dz);
-        for (const a of [0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.75, -1.75]) {
-          const c = Math.cos(a), sn = Math.sin(a), k = Math.cos(a) * L;
-          const ux = (dx * c - dz * sn) / L * k, uz = (dx * sn + dz * c) / L * k;
-          if (!blockedAt(G, s.x + ux, s.z + uz, s.riding)) { nx = s.x + ux; nz = s.z + uz; break; }
+        const r = (s.riding ? TCFG.bike.radius : TCFG.run.radius) + 0.9, ok = s.riding ? canRide : canRun;
+        let wx = 0, wz = 0;
+        for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a); if (!ok(surf(G, s.x + c * r, s.z + sn * r))) { wx -= c; wz -= sn; } }
+        const wl = Math.hypot(wx, wz), cands = [];
+        if (wl > 0.1) {
+          const ux = wx / wl, uz = wz / wl, into = dx * ux + dz * uz;
+          if (into < 0) { const tx = dx - into * ux, tz = dz - into * uz; cands.push([tx, tz], [tx + ux * L * 0.15, tz + uz * L * 0.15]); }
         }
-        if (nx === s.x && nz === s.z) {      // wedged in a corner: ease out towards the open side
-          const r = (s.riding ? TCFG.bike.radius : TCFG.run.radius) + 0.25, ok = s.riding ? canRide : canRun;
-          let ex = 0, ez = 0;
-          for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8, cx = Math.cos(a), cz = Math.sin(a); if (ok(surf(G, s.x + cx * r, s.z + cz * r))) { ex += cx; ez += cz; } }
-          const el = Math.hypot(ex, ez), step = Math.min(0.06, L);
-          if (el > 0.1 && !blockedAt(G, s.x + ex / el * step, s.z + ez / el * step, s.riding)) { nx = s.x + ex / el * step; nz = s.z + ez / el * step; }
+        for (const a of [0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.75, -1.75]) {
+          const c = Math.cos(a), sn = Math.sin(a), k = Math.max(0.6, Math.cos(a));     // keep a usable sliding speed even at a steep angle
+          cands.push([(dx * c - dz * sn) * k, (dx * sn + dz * c) * k]);
+        }
+        // keep sliding the way it slid last frame, so a sharp tip cannot flip it back and forth on the spot
+        const prev = s.time - (s.slideT || -9) < 0.25 ? s.slide : null;
+        const free = cands.filter(([ux, uz]) => Math.hypot(ux, uz) > L * 0.05 && !blockedAt(G, s.x + ux, s.z + uz, s.riding));
+        const pick = (prev && free.find(([ux, uz]) => ux * prev.x + uz * prev.z > 0)) || free[0];
+        if (pick) { nx = s.x + pick[0]; nz = s.z + pick[1]; const pl = Math.hypot(pick[0], pick[1]); s.slide = { x: pick[0] / pl, z: pick[1] / pl }; s.slideT = s.time; }
+        if (nx === s.x && nz === s.z && wl > 0.1) {      // wedged in a corner: ease out towards the open side
+          const step = Math.min(0.06, L), ex = wx / wl * step, ez = wz / wl * step;
+          if (!blockedAt(G, s.x + ex, s.z + ez, s.riding)) { nx = s.x + ex; nz = s.z + ez; }
         }
       }
       const moved = Math.hypot(nx - s.x, nz - s.z);
       s.dist += moved; if (s.riding) s.bikeDist += moved;
       s.x = nx; s.z = nz;
       if (hit) {
-        const full = Math.hypot(dx, dz);
-        s.speed *= moved < full * 0.3 ? TCFG.bumpKeep : 0.9;     // head-on: lose most speed; sliding along a wall: a little
+        const full = L;
+        s.speed *= moved < full * 0.05 ? TCFG.bumpKeep : moved < full * 0.8 ? 0.96 : 1;     // stopped dead: lose most speed; sliding: a little
         if (moved < full * 0.3 && s.time - s.lastBump > 0.6) { s.bumps++; s.lastBump = s.time; emit(s, 'bump'); }
         if (s.riding && surf(G, s.x + f.x * 2.5, s.z + f.z * 2.5) === SURF.FOOTBRIDGE && s.time - s.bridgeNag > 3) { s.bridgeNag = s.time; emit(s, 'no-bike'); }
       }
@@ -274,6 +285,22 @@
     }
     return keep;
   }
+  // the whole route down a field from here, as world points (for the minimap line and the route length)
+  function tracePath(G, nav, stopIdx, x, z, layer, maxCells) {
+    const f = field(G, nav, stopIdx), DI = [1, -1, 0, 0, 1, 1, -1, -1], DJ = [0, 0, 1, -1, 1, -1, 1, -1], pts = [[x, z]];
+    let id = navId(G, nav, x, z), off = layer * nav.n; if (id < 0) return pts;
+    for (let s = 0; s < maxCells; s++) {
+      const i = id % nav.NW, j = (id - i) / nav.NW; let best = id, bv = f[off + id], bo = off;
+      for (let d = 0; d < 8; d++) { const ni = i + DI[d], nj = j + DJ[d]; if (ni < 0 || nj < 0 || ni >= nav.NW || nj >= nav.NH) continue; const k = nj * nav.NW + ni; if (f[off + k] < bv - 1e-6) { bv = f[off + k]; best = k; bo = off; } }
+      // the cheaper way on from here is to change layer (scan a bike / lock it): follow the other layer
+      const other = (1 - off / nav.n) * nav.n;
+      if (best === id && f[other + id] < f[off + id] - 1e-6) { off = other; continue; }
+      if (best === id) break; id = best;
+      const ci = id % nav.NW, cj = (id - ci) / nav.NW; pts.push([G.X0 + (ci + 0.5) * TCFG.nav, G.Z0 + (cj + 0.5) * TCFG.nav]);
+      if (f[off + id] <= 0) break;
+    }
+    return pts;
+  }
   function clearLine(G, x0, z0, x1, z1, riding) {
     const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 0.5);
     for (let k = 1; k <= n; k++) { const u = k / n; if (blockedAt(G, x0 + (x1 - x0) * u, z0 + (z1 - z0) * u, riding)) return false; }
@@ -298,13 +325,14 @@
   // ---------- autopilots: they press the same keys a player does ----------
   // precise: best route, takes bikes when the field says so, no dithering.
   // clumsy: reacts late (0.25 s), oversteers, sometimes ignores bikes or picks the worse tower first, dawdles at docks.
-  // rival (三花姐): drives clean and is up to 16% quicker on her feet and pedals than 小橘 (it changes day to day), but a third of the
+  // rival (三花姐): drives clean; most days 10–20% slower than 小橘's top speed, now and then a fast day up to 14% quicker
+  // (power 0.80 + 0.34·r³; slowed after Duet's 2026-11-23 playtest lost both rounds to her 5:10–5:40), but a third of the
   // time she skips the bikes, a third of the time she does the towers in the slower order, and she poses for photos at every stop —
-  // usually a couple of seconds, now and then over a minute.
+  // usually a couple of seconds, now and then up to a minute.
   const PROFILES = {
     precise: { lag: 0, noise: 0, bike: 1, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 },
     clumsy: { lag: 0.18, noise: 0.12, bike: 0.6, hesitate: r => 0.6 + r * 2.4, wander: 0.04, orderMiss: 0.4, deadband: 0.12 },
-    rival: { lag: 0, noise: 0, bike: 0.65, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.3, deadband: 0.06, power: r => 1.0 + r * 0.16, linger: r => 1.5 + 90 * r * r * r },
+    rival: { lag: 0, noise: 0, bike: 0.65, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.3, deadband: 0.06, power: r => 0.8 + 0.34 * r * r * r, linger: r => 1.5 + 60 * r * r * r },
     walker: { lag: 0, noise: 0, bike: 0, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 }
   };
   function makePilot(G, nav, profile, seed) {
@@ -368,7 +396,7 @@
     }
     return Object.assign(tsummary(s), { stalls, inside });
   }
-  function createTownRival(G, player) { return createTown(G, player.seed + TCFG.rival.seedOffset, { dx: -3 }); }
+  function createTownRival(G, player) { const r = createTown(G, player.seed + TCFG.rival.seedOffset, { dx: -5 }); r.z -= 3; return r; }   // beside and a little ahead of 小橘, out of the camera's face
   function townResult(player, rival) {
     if (!player.done) return null;
     return { won: !rival.done || player.doneAt <= rival.doneAt, margin: rival.done ? Math.abs(rival.doneAt - player.doneAt) : null, rivalStamps: rival.stamps.length };
@@ -381,7 +409,7 @@
   }
 
   const API = { SURF, TCFG, ORDER_NAMES, decodeGrid, surf, canRun, canRide, blockedAt, createTown, stepTown, actionAt, nearDock, stopAt, topSpeed,
-    buildNav, field, timeTo, lookahead, nextStop, PROFILES, makePilot, simulateTown, createTownRival, townResult, simulateTownRace, fwd, screenRight, wrapAngle };
+    buildNav, field, timeTo, lookahead, tracePath, nextStop, PROFILES, makePilot, simulateTown, createTownRival, townResult, simulateTownRace, fwd, screenRight, wrapAngle };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else root.XJTOWN = API;
 })(typeof self !== 'undefined' ? self : this);

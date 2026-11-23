@@ -142,3 +142,18 @@ button{font:inherit;color:inherit;cursor:pointer}
 body.ch2 #hint{top:calc(max(14px,env(safe-area-inset-top)) + 150px)}
 @media (max-width:560px){body.ch2 #hint{top:calc(max(14px,env(safe-area-inset-top)) + 170px)}}
 @media (max-height:500px) and (min-width:561px){body.ch2 #hint{top:auto;bottom:max(16px,env(safe-area-inset-bottom));max-width:calc(100vw - 480px)}}
+
+/* chapter 2 round 2 (Duet playtest): start card + countdown, steering on the left thumb, slow-ground chip */
+#t-ready{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none;background:rgba(20,16,28,.28)}
+.t-ready-card{width:min(420px,calc(100vw - 32px));background:rgba(22,18,30,.82);border-radius:18px;padding:16px 18px 6px;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.t-ready-card h2{margin:4px 0 10px;font-size:28px;font-weight:800}
+.t-ready-card .rules{font-size:14px;gap:6px;margin-bottom:10px}
+.t-ready-card kbd{font:600 11px/1 -apple-system,sans-serif;border:1px solid currentColor;border-radius:4px;padding:1px 4px}
+#t-count{font-size:76px;line-height:1;font-weight:900;color:#ffcf98;text-shadow:0 4px 18px rgba(0,0,0,.45);font-variant-numeric:tabular-nums}
+#t-ready.go #t-count{color:#7ed36f}
+.steer{display:grid;grid-template-columns:58px 58px;gap:8px;grid-template-areas:"act act" "left right";pointer-events:none}
+.steer .act{grid-area:act;width:auto;height:58px;border-radius:29px}.steer .left{grid-area:left}.steer .right{grid-area:right}
+body.ch2 .dpad{grid-template-columns:58px;grid-template-rows:58px 58px;grid-template-areas:"up" "down"}
+.t-mode.slow{background:#e6b85c;color:#2a1d08}
+@media (max-height:500px){.steer{grid-template-columns:50px 50px;gap:6px}.steer .act{height:50px}body.ch2 .dpad{grid-template-columns:50px;grid-template-rows:50px 50px}.t-ready-card{padding:10px 14px 2px}.t-ready-card h2{font-size:22px;margin:2px 0 6px}.t-ready-card .rules{font-size:12.5px;gap:3px;margin-bottom:6px}#t-count{font-size:52px}#t-ready{flex-direction:row;gap:20px}}
+@media (max-height:500px) and (min-width:561px){.t-card{width:200px;padding:6px 10px}.t-stops li{font-size:11.5px;padding:2px 0}.t-next{font-size:11.5px;margin-bottom:4px}.t-next b{font-size:13px}.t-row,.t-race{font-size:11px}.t-race{margin-top:4px}}
