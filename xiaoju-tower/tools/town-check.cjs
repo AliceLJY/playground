@@ -134,6 +134,15 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   const sw = await snap(p);
   ok('锁车后走上海心桥（途中踩到桥面、往北走了 15 米以上）', !sw.riding && onDeckSeen && z0 - sw.z > 15, JSON.stringify([sw.x, sw.z, z0]));
   await p.screenshot({ path: `${out}/town-bridge-walk.png` });
+  // Duet round 4: cornering past the lawn by 东塔 at (32,−1148) popped the grass hint; brushing it must not, a real ride across must
+  await p.evaluate(() => { const V = window.XJT_TOWNVIEW; V.setRiding(true); V.teleport(32, -1148, 0.35); });
+  await hold(p, 'KeyW', 500);
+  const g1 = (await snap(p)).hint;
+  await p.evaluate(() => { const V = window.XJT_TOWNVIEW; let s = null; for (let z = -1110; z > -1124 && !s; z -= 2) for (let x = 40; x < 70 && !s; x += 2) if ([0, -6, -12, -18, -24].every(d => V.surf(x, z + d) === 3)) s = { x, z }; V.teleport(s.x, s.z, 0); });
+  await hold(p, 'KeyW', 1800);
+  const g2 = (await snap(p)).hint;
+  ok('擦着草坪拐弯不提示下车；真骑进大片草地 1 秒后才提示', g1 !== 'grass' && g2 === 'grass', `${g1} / ${g2}`);
+  await p.evaluate(() => window.XJT_TOWNVIEW.setRiding(false));
   // a stop: run into the ring for the stamp
   await p.evaluate(() => window.XJT_TOWNVIEW.jump(1)); await p.waitForTimeout(400);
   await hold(p, 'KeyW', 1400);
@@ -151,6 +160,12 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
     facings.push(fr + (fr.includes(want) ? '' : '≠' + want));
   }
   ok('三花姐跑起来按镜头里的朝向换前、后、左、右帧', facings.every(f => !f.includes('≠')), facings.join(','));
+  // side by side (half a metre apart) the two sprites still stand apart on screen
+  await p.evaluate(([y]) => window.XJT_TOWNVIEW.rivalAt(Math.cos(y) * 0.5, Math.sin(y) * 0.5, y, 8, 0.6), [camYaw]);
+  await p.waitForTimeout(150);
+  const gap = await p.evaluate(() => window.XJT_TOWNVIEW.screenGap());
+  ok('两只猫并排（相距半米）时贴图在屏幕上分得开', gap > 60, `${gap.toFixed(0)} px`);
+  await p.screenshot({ path: `${out}/town-side-by-side.png` });
   await p.evaluate(([y]) => window.XJT_TOWNVIEW.rivalAt(Math.sin(y) * 10 + 3, -Math.cos(y) * 10, y + Math.PI / 2, 8, 0.6), [camYaw]);
   await p.waitForTimeout(150);
   await p.screenshot({ path: `${out}/town-rival-side.png` });

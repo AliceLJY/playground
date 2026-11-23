@@ -333,14 +333,14 @@
   // ---------- autopilots: they press the same keys a player does ----------
   // precise: best route, takes bikes when the field says so, no dithering.
   // clumsy: reacts late (0.25 s), oversteers, sometimes ignores bikes or picks the worse tower first, dawdles at docks.
-  // rival (三花姐): drives clean; most days 10–20% slower than 小橘's top speed, now and then a fast day up to 14% quicker
-  // (power 0.80 + 0.34·r³; slowed after Duet's 2026-11-23 playtest lost both rounds to her 5:10–5:40), but a third of the
-  // time she skips the bikes, a third of the time she does the towers in the slower order, and she poses for photos at every stop —
-  // usually a couple of seconds, at most about half a minute (Duet round 3: a minute-long pose was too much).
+  // rival (三花姐): drives clean at 82–98% of 小橘's top speed; about one race in seven she skips the bikes, one in five she does
+  // the towers in the slower order, and she poses for a photo at every stop for 1.5–10 s. Tuned over Duet's four playtests on
+  // 2026-11-23: round 1 she won 5:10–5:40; round 4 her solo times spread 5:17–7:37 with 32–34 s selfies and the no-bike races
+  // too easy, so now most races land between about 5:20 and 6:30.
   const PROFILES = {
     precise: { lag: 0, noise: 0, bike: 1, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 },
     clumsy: { lag: 0.18, noise: 0.12, bike: 0.6, hesitate: r => 0.6 + r * 2.4, wander: 0.04, orderMiss: 0.4, deadband: 0.12 },
-    rival: { lag: 0, noise: 0, bike: 0.65, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.3, deadband: 0.06, power: r => 0.8 + 0.34 * r * r * r, linger: r => 1.5 + 35 * r * r * r },
+    rival: { lag: 0, noise: 0, bike: 0.85, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.2, deadband: 0.06, power: r => 0.82 + 0.16 * r, linger: r => 1.5 + 8.5 * r * r * r },
     walker: { lag: 0, noise: 0, bike: 0, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 }
   };
   function makePilot(G, nav, profile, seed) {
