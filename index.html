@@ -516,7 +516,7 @@
 
   </section>
 
-  <section class="board" data-key="tools" data-hero="phone-keyboard/" data-blurb="自己日常在用的小东西，装上就能用。">
+  <section class="board" data-key="tools" data-hero="phone-keyboard/ https://github.com/AliceLJY/phone-remote/blob/main/README_CN.md" data-blurb="自己日常在用的小东西，装上就能用。">
   <h2 class="shelf">小工具<span class="note">装上用</span></h2>
   <div class="grid">
     <a class="card" href="phone-keyboard/" data-tag="手机当键盘">
@@ -525,7 +525,7 @@
       <p class="meta">安卓 App · 安装包 25 KB · iPad 免装任何东西</p>
     </a>
 
-    <a class="card" href="https://github.com/AliceLJY/phone-remote/blob/main/README_CN.md" data-tag="手机语音输入给 Mac">
+    <a class="card" href="https://github.com/AliceLJY/phone-remote/blob/main/README_CN.md" data-tag="手机语音输入给 Mac" data-cover="covers/phone-remote.webp">
       <p class="name">手机遥控 Mac<span class="en">phone-remote</span></p>
       <p class="desc">远程桌面连另一台 Mac 时，语音输入打不进去。手机浏览器打开一个网页，用手机自带的输入法说话打字，方向键、Tab、Ctrl+C、⌘ 组合都做成按钮，字直接打进 Mac 最前面的窗口。顶上一排点一下就开出 Claude Code、Codex 这类工具。</p>
       <p class="meta">Mac 上跑一个零依赖小服务 · 手机不用装 App，加到主屏幕就行 · 局域网或 Tailscale · 独立仓作品，点开去 GitHub 看装法</p>
@@ -549,6 +549,7 @@
   function nameOf(a) { return a.querySelector('.name').firstChild.textContent.trim(); }
   // 封面：covers/<目录名>.webp。站内卡片取链接的第一段，本站的外链 Pages 取仓名；GitHub 外链没有封面，画一块占位
   function coverOf(a) {
+    if (a.dataset.cover) return a.dataset.cover;   // 外链作品（如 GitHub README）没有目录名可推，直接写 data-cover
     var h = a.getAttribute('href'), m = /^https:\/\/aliceljy\.github\.io\/([^\/]+)/.exec(h);
     if (m) return 'covers/' + m[1] + '.webp';
     if (/^https?:/.test(h)) return null;
