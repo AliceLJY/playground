@@ -119,10 +119,22 @@
       if (TC.surf(G, jx, jz) === S2.GREEN && rnd2() < 0.45 && Math.hypot(jx - TOWN.start.x, jz - TOWN.start.z) > 10 && !TC.blockedAt(G, jx, jz, true)) trees.push([jx, jz, 0.9 + rnd2() * 0.7]);
     }
     const N = Math.min(trees.length, 4000);
+    const treeU = E.treeU = { uCat: { value: new THREE.Vector3() } };
     // trees between the camera and her dissolve (screen-door) instead of filling the frame
     const nearFade = mat => { mat.onBeforeCompile = sh => {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTW;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvec4 twp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\ntwp = instanceMatrix * twp;\n#endif\nvTW = (modelMatrix * twp).xyz;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTW;').replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n{ float d = distance(vTW, cameraPosition); float keep = smoothstep(4.0, 9.0, d); vec2 q = floor(gl_FragCoord.xy); if (keep < 0.999 && fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453) > keep) discard; }');
+      sh.uniforms.uCat = treeU.uCat;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+        varying vec3 vTW; uniform vec3 uCat;
+        float bayer4(vec2 p){ vec2 q = mod(floor(p), 4.0); int i = int(q.x) + int(q.y) * 4;
+          float m[16]; m[0]=0.;m[1]=8.;m[2]=2.;m[3]=10.;m[4]=12.;m[5]=4.;m[6]=14.;m[7]=6.;m[8]=3.;m[9]=11.;m[10]=1.;m[11]=9.;m[12]=15.;m[13]=7.;m[14]=13.;m[15]=5.;
+          for (int k = 0; k < 16; k++) if (k == i) return (m[k] + 0.5) / 16.0; return 0.5; }`).replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        { vec2 c = cameraPosition.xz, d = uCat.xz - c, p = vTW.xz - c; float L2 = max(dot(d, d), 1e-3), t = dot(p, d) / L2;
+          float side = length(p - d * clamp(t, 0.0, 1.0));
+          float block = (1.0 - smoothstep(1.6, 3.2, side)) * step(-0.05, t) * step(t, 1.0);      // between the camera and her
+          float near = 1.0 - smoothstep(2.5, 4.5, distance(vTW, cameraPosition));                 // right in the lens
+          float keep = 1.0 - max(block * 0.75, near);
+          if (keep < 0.999 && bayer4(gl_FragCoord.xy) > keep) discard; }`);
     }; return mat; };
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.22, 2.6, 6), nearFade(new THREE.MeshStandardMaterial({ color: 0x6b5140, roughness: 0.9 })), N);
     const crownGeo = new THREE.IcosahedronGeometry(1.45, 1); crownGeo.scale(1, 0.9, 1);
@@ -288,11 +300,16 @@
       route.forEach(([x, z], k) => { const [px, py] = toMap(x, z); if (k) g.lineTo(px, py); else g.moveTo(px, py); });
       g.stroke(); g.setLineDash([]);
     }
-    TOWN.stops.forEach((st, i) => {
-      let [x, y] = toMap(st.x, st.z); const r = W / 2 - 12 * dpr, dx = x - W / 2, dy = y - W / 2, L = Math.hypot(dx, dy);
-      const out = L > r; if (out) { x = W / 2 + dx / L * r; y = W / 2 + dy / L * r; }
-      g.beginPath(); g.arc(x, y, (out ? 5 : 7) * dpr, 0, Math.PI * 2);
-      g.fillStyle = T.stamps.includes(i) ? '#ffcf6a' : '#ff5a5a'; g.fill(); g.lineWidth = 2 * dpr; g.strokeStyle = '#fff'; g.stroke();
+    // stop dots carry their initial (海 / 西 / 东); off-map ones sit on the rim, pushed apart so they never stack
+    const rr = W / 2 - 12 * dpr, marks = TOWN.stops.map((st, i) => { const [x, y] = toMap(st.x, st.z), dx = x - W / 2, dy = y - W / 2, L = Math.hypot(dx, dy); return { i, x, y, out: L > rr, a: Math.atan2(dy, dx) }; });
+    const outs = marks.filter(m => m.out).sort((a, b) => a.a - b.a), gap = 18 * dpr / rr;
+    for (let pass = 0; pass < 4; pass++) for (let k = 1; k < outs.length; k++) { const d = outs[k].a - outs[k - 1].a; if (d < gap) { outs[k].a += (gap - d) / 2; outs[k - 1].a -= (gap - d) / 2; } }
+    outs.forEach(m => { m.x = W / 2 + Math.cos(m.a) * rr; m.y = W / 2 + Math.sin(m.a) * rr; });
+    marks.forEach(m => {
+      g.beginPath(); g.arc(m.x, m.y, 8 * dpr, 0, Math.PI * 2);
+      g.fillStyle = T.stamps.includes(m.i) ? '#ffcf6a' : '#ff5a5a'; g.fill(); g.lineWidth = 2 * dpr; g.strokeStyle = '#fff'; g.stroke();
+      g.fillStyle = T.stamps.includes(m.i) ? '#5a3a10' : '#fff'; g.font = `800 ${10 * dpr}px -apple-system,"PingFang SC",sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(TOWN.stops[m.i].label[0], m.x, m.y + 0.5 * dpr); g.textBaseline = 'alphabetic';
     });
     if (R) { const [x, y] = toMap(R.x, R.z); g.beginPath(); g.arc(x, y, 5 * dpr, 0, Math.PI * 2); g.fillStyle = '#f4ead8'; g.fill(); g.strokeStyle = '#2b2a2e'; g.lineWidth = 2.5 * dpr; g.stroke(); }
     // 小橘: an arrow pointing the way she faces
@@ -307,7 +324,7 @@
 
   // ---------- state ----------
   let T = null, R = null, rivalPilot = null, race = true, active = false, ended = false, seed = 1, hintDone = {}, hintNow = null, hintSince = 0;
-  let pull = 1, countdown = 0, introT = 0, introSwing = 0, camYaw = 0, camInit = false, stepPhase = 0, rStepPhase = 0, lastStampN = 0, rivalNoted = {}, endTimer = 0;
+  let waitStart = false, pull = 1, countdown = 0, introT = 0, introSwing = 0, camYaw = 0, camInit = false, stepPhase = 0, rStepPhase = 0, lastStampN = 0, rivalNoted = {}, endTimer = 0;
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
   const input = E.input;
   function enter(opts) {
@@ -316,19 +333,29 @@
     seed = opts.seed || E.seed(); race = opts.race !== undefined ? opts.race : E.race();
     T = TC.createTown(G, seed); R = race ? TC.createTownRival(G, T) : null;
     rivalPilot = race ? TC.makePilot(G, nav, 'rival', seed + TC.TCFG.rival.seedOffset) : null;
-    active = true; ended = false; introT = 0; countdown = COUNT; hintDone = {}; hintNow = null; lastStampN = 0; rivalNoted = {}; camInit = false; camYaw = T.h;
+    active = true; ended = false; introT = 0; waitStart = !opts.quick; countdown = COUNT; hintDone = {}; hintNow = null; lastStampN = 0; rivalNoted = {}; camInit = false; camYaw = T.h;
     bikeTaken = []; placeBikes(); resetStops();
     world.visible = true; E.setChapter(2);
-    $('t-hud').hidden = false; $('pad').hidden = false; $('t-end').hidden = true; $('t-race').hidden = !race;
+    $('t-end').hidden = true; $('t-race').hidden = !race;
     document.body.classList.add('ch2'); padFor(2);
-    $('t-ready').hidden = false; $('t-count').textContent = '3'; $('hint').hidden = true;
+    $('t-ready').hidden = false; $('hint').hidden = true; showReady();
     const q = new URLSearchParams(location.search); q.set('ch', '2'); q.delete('view'); history.replaceState(null, '', '?' + q.toString());   // a reload stays in chapter 2
   }
   // the start: a card that says what to do, and 3-2-1 before anyone moves (Duet: the clock and 三花姐 used to start at once)
-  const COUNT = 3.6;
+  // (Duet round 2: 3.5 s was too short to read the card, and in landscape it covered her: now the card waits for 开跑,
+  // the HUD and keys stay hidden behind it, and the 3-2-1 that follows sits over her head with the HUD back.)
+  const COUNT = 2.7;
+  function showReady() {
+    $('t-ready').querySelector('.t-ready-card').hidden = !waitStart; $('t-count').hidden = waitStart;
+    $('t-hud').hidden = waitStart; $('pad').hidden = waitStart;
+    $('t-count').textContent = '3'; $('t-ready').classList.remove('go');
+  }
+  function go() { if (!active || !waitStart) return; waitStart = false; countdown = COUNT; showReady(); }
+  $('t-go').addEventListener('click', go);
   function updateCountdown(dt) {
+    if (waitStart) { if (input.up) go(); return; }
     countdown -= dt;
-    const n = Math.ceil(countdown - 0.6);
+    const n = Math.ceil((countdown - 0.45) / 0.75);
     $('t-count').textContent = n > 0 ? String(n) : '跑！';
     $('t-ready').classList.toggle('go', n <= 0);
     if (countdown <= 0) { $('t-ready').hidden = true; showHint('start'); }
@@ -354,6 +381,7 @@
     dock: '这是共享单车点：按 <b>E</b> 扫一辆，路上快很多',
     ride: '骑车松手会溜、转弯要早；按 <b>E</b> 随时锁车',
     nobike: '海心桥不让骑车：按 <b>E</b> 锁车，走过去',
+    grass: '草地上骑车比跑还慢：按 <b>E</b> 锁车，下来跑更快',
     stop: '跑进红圈就盖章'
   };
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = T.time; const el = $('hint'); el.innerHTML = hints[id]; el.hidden = false; }
@@ -363,7 +391,7 @@
   // ---------- per frame ----------
   function tick(dt) {
     if (!active) return;
-    if (countdown > 0) { E.takeAct(); updateCountdown(dt); }
+    if (waitStart || countdown > 0) { E.takeAct(); updateCountdown(dt); }
     else if (!ended) {
       const inp = { up: input.up, down: input.down, left: input.left, right: input.right, act: E.takeAct() };
       TC.stepTown(G, T, inp, dt);
@@ -398,6 +426,8 @@
   function hintLogic() {
     if (hintNow === 'start' && (T.time > 9 || T.dist > 40)) clearHint('start');
     if (!hintDone.dock && TC.actionAt(G, T) === 'scan' && hintNow !== 'nobike') showHint('dock');
+    if (T.riding && TC.surf(G, T.x, T.z) === S2.GREEN && T.speed > 2 && hintNow !== 'nobike') showHint('grass');
+    if (hintNow === 'grass' && (!T.riding || TC.surf(G, T.x, T.z) !== S2.GREEN)) { hintNow = null; $('hint').hidden = true; if (!T.riding) hintDone.grass = true; }
     if (hintNow === 'dock' && !TC.nearDock(G, T)) { hintNow = null; $('hint').hidden = true; }
     if (hintNow === 'ride' && T.time - hintSince > 6) clearHint('ride');
     if (!hintDone.stop && T.stamps.length === 0 && TOWN.stops.some(s => Math.hypot(s.x - T.x, s.z - T.z) < 40) && hintNow === null) showHint('stop');
@@ -441,6 +471,7 @@
     const cat = E.cat, rv = E.rival;
     cat.visible = true; cat.scale.setScalar(XJ_SCALE);
     cat.position.set(T.x, 3.0 * XJ_SCALE / 2 + 0.05, T.z); billboard(cat);
+    if (E.treeU) E.treeU.uCat.value.set(T.x, 1, T.z);
     stepPhase += Math.abs(T.speed) * dt;
     let name;
     if (T.done) name = 'win';
@@ -482,7 +513,9 @@
     route = TC.tracePath(G, nav, nt, T.x, T.z, layer, 900);
     routeLen = 0; for (let k = 1; k < route.length; k++) routeLen += Math.hypot(route[k][0] - route[k - 1][0], route[k][1] - route[k - 1][1]);
     steerPt = TC.lookahead(G, nav, nt, T.x, T.z, layer, 40);
+    viaBridge = route.some(([x, z]) => TC.surf(G, x, z) === S2.FOOTBRIDGE);
   }
+  let viaBridge = false;
   function updateHUD() {
     const list = $('t-stops');
     TOWN.stops.forEach((st, i) => { const li = list.children[i]; li.classList.toggle('done', T.stamps.includes(i)); });
@@ -490,7 +523,7 @@
     updateRoute(nt);
     if (nt >= 0) {
       const st = TOWN.stops[nt], p = steerPt || st, dx = p.x - T.x, dz = p.z - T.z;
-      $('t-next').innerHTML = `${T.stamps.length ? '再去' : '先去'} <b>${st.label}</b> <span>路程约 ${Math.max(0, Math.round(routeLen / 10) * 10)} 米</span>`;
+      $('t-next').innerHTML = `${T.stamps.length ? '再去' : '先去'} <b>${st.label}</b>${viaBridge ? '（经海心桥）' : ''} <span>路程约 ${Math.max(0, Math.round(routeLen / 10) * 10)} 米</span>`;
       const ang = Math.atan2(dx, -dz) - camYaw;     // points at the next stretch of the route, not straight at the stop
       $('t-arrow').style.transform = `rotate(${ang}rad)`;
     } else $('t-next').innerHTML = '三处都打完了';
@@ -558,7 +591,7 @@
   }
   function applyView(v) {
     if (v === 'start') return 'start';
-    countdown = 0; $('t-ready').hidden = true;
+    countdown = 0; waitStart = false; $('t-ready').hidden = true; $('t-hud').hidden = false; $('pad').hidden = false;
     if (v === 'ride') { let rode = 0; autoplay(() => { if (T.riding && T.speed > 12 && TC.surf(G, T.x, T.z) === S2.ROAD) rode++; return rode > 30; }); return T.riding ? 'ride' : 'ride-failed'; }
     if (v === 'stop') { autoplay(() => T.stamps.length >= 1 && T.mode !== 'stamp'); T.time += 0; return T.stamps.length ? 'stop' : 'stop-failed'; }
     if (v === 'bridge') { autoplay(() => TC.surf(G, T.x, T.z) === S2.FOOTBRIDGE && T.z < -250); return TC.surf(G, T.x, T.z) === S2.FOOTBRIDGE ? 'bridge' : 'bridge-failed'; }
@@ -579,14 +612,15 @@
     docks: () => TOWN.docks.slice(), stops: () => TOWN.stops.slice(),
     surf: (x, z) => TC.surf(G, x, z), blocked: (x, z, r) => TC.blockedAt(G, x, z, r),
     rivalFinish: t => { if (R) { R.done = true; R.doneAt = t; R.stamps = [0, 1, 2]; } },
-    skipCountdown: () => { countdown = 0; $('t-ready').hidden = true; },
+    skipCountdown: () => { countdown = 0; waitStart = false; $('t-ready').hidden = true; $('t-hud').hidden = false; $('pad').hidden = false; },
     countdown: () => countdown,
+    waiting: () => waitStart,
     route: () => ({ len: routeLen, pts: route.length, steer: steerPt }),
     calmRival: () => { if (R) { R.x = TOWN.start.x - 300; R.z = TOWN.start.z + 100; } },
     result: () => (T && R ? TC.townResult(T, R) : null)
   };
   window.XJT_TOWNVIEW = API;
-  $('t-again').addEventListener('click', () => enter({ seed: E.seed() + 1 }));
+  $('t-again').addEventListener('click', () => enter({ seed: seed + 1, quick: true }));
   $('t-tower').addEventListener('click', () => { exit(); E.backToTower(); });
 })();
 // direct entry for checks and links: ?ch=2 (with &view=start|ride|bridge|stop|end for the fixed views)
@@ -595,6 +629,6 @@
   if (Q.get('ch') !== '2' || !window.XJT_TOWNVIEW) return;
   const V = window.XJT_TOWNVIEW;
   document.getElementById('intro').hidden = true;
-  V.enter({ seed: +Q.get('seed') || 1, race: Q.get('race') !== '0' });
+  V.enter({ seed: +Q.get('seed') || window.XJT_ENGINE.seed(), race: Q.get('race') !== '0' });
   window.__townView = Q.get('view') ? V.applyView(Q.get('view')) : 'play';
 })();

@@ -9,7 +9,8 @@
     // running: quick to start and turn, same speed everywhere you can stand (a little slower on grass)
     run: { top: 9.5, green: 0.85, accel: 24, decel: 30, back: 3, turn: 3.0, radius: 0.6 },   // radius > 0.5: the body cannot slip into the 1 m notches of a stair-stepped diagonal wall
     // shared bike: fast on roads, slower on plazas, crawls on grass; slow to pick up speed, wide turns, rolls on when you let go
-    bike: { top: { 1: 15, 2: 10, 3: 4.5 }, accel: 5.5, brake: 14, coast: 2.8, back: 1.5, turn: 1.8, turnLow: 2.6, radius: 0.7 },   // coast 2.8: let go at 15 m/s, stops in ~5 s / ~40 m (Duet: 1.0 rolled 110 m into the river)
+    bike: { top: { 1: 15, 2: 10, 3: 7 },   // grass 7 (was 4.5, Duet round 2: a route across grass on a bike crawled) — still below running on grass (8.1)
+            accel: 5.5, brake: 14, coast: 2.8, back: 1.5, turn: 1.8, turnLow: 2.6, radius: 0.7 },   // coast 2.8: let go at 15 m/s, stops in ~5 s / ~40 m (Duet: 1.0 rolled 110 m into the river)
     scanTime: 2.0, lockTime: 0.6, dockReach: 4.5, stopReach: 7, stampTime: 1.2, bumpKeep: 0.3,
     nav: 2,                              // metres per path-finding cell
     rival: { seedOffset: 2000 }
@@ -396,7 +397,7 @@
     }
     return Object.assign(tsummary(s), { stalls, inside });
   }
-  function createTownRival(G, player) { const r = createTown(G, player.seed + TCFG.rival.seedOffset, { dx: -5 }); r.z -= 3; return r; }   // beside and a little ahead of 小橘, out of the camera's face
+  function createTownRival(G, player) { const r = createTown(G, player.seed + TCFG.rival.seedOffset, { dx: 5 }); r.z -= 3; return r; }   // to 小橘's right and a little ahead: the opening camera swings round her left side, so it never passes through 三花姐
   function townResult(player, rival) {
     if (!player.done) return null;
     return { won: !rival.done || player.doneAt <= rival.doneAt, margin: rival.done ? Math.abs(rival.doneAt - player.doneAt) : null, rivalStamps: rival.stamps.length };
