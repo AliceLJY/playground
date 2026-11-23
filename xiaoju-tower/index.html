@@ -17,11 +17,22 @@
   <div class="stats"><span>用时 <b id="s-time">0:00</b></span><span>掉落 <b id="s-falls">0</b></span></div>
 </section>
 
+<section id="t-hud" hidden aria-label="打卡赛">
+  <div class="t-card">
+    <ol id="t-stops" class="t-stops"><li>海心沙</li><li>西塔</li><li>东塔</li></ol>
+    <div class="t-next"><i id="t-arrow" aria-hidden="true"></i><span id="t-next">下一站</span></div>
+    <div class="t-row"><span id="t-mode" class="t-mode">跑步</span><span class="t-time">用时 <b id="t-time">0:00</b></span></div>
+    <div class="race t-race" id="t-race" hidden><i></i><span>三花姐 <b>0/3</b></span></div>
+  </div>
+  <canvas id="t-map" class="t-map" aria-label="小地图：红点是打卡点，青点是共享单车"></canvas>
+</section>
+
 <div id="hint" role="status" aria-live="polite" hidden></div>
 <div id="choice" hidden><p class="q"></p><div class="opts"><button type="button" class="opt" data-pick="1"><b></b><kbd>E</kbd></button><button type="button" class="opt" data-pick="2"><b></b><kbd></kbd></button></div></div>
 
 <section id="pad" hidden aria-label="操作键">
   <button class="key brace" data-act="brace"><b>抓紧</b><kbd>空格</kbd></button>
+  <button class="key act" data-act="act" hidden aria-label="扫码骑车或锁车"><b>扫车</b><kbd>E</kbd></button>
   <div class="dpad">
     <button class="key up" data-act="up" aria-label="往上爬"><b>↑</b><kbd>W</kbd></button>
     <button class="key left" data-act="left" aria-label="换到左边的柱子"><b>←</b><kbd>A</kbd></button>
@@ -42,6 +53,7 @@
   </ul>
   <div class="versus" role="group" aria-label="玩法"><button type="button" id="vs-solo" aria-pressed="false">自己爬</button><button type="button" id="vs-race" aria-pressed="true">跟三花姐比</button></div>
   <div class="start-row"><button id="start" class="primary">开始爬 <span>↑</span></button><button id="mode" class="mode" type="button"></button></div>
+  <button type="button" id="to-town2" class="chapter">第二章 · 下塔进城 <small>在真实珠江新城里打卡</small></button>
   <p class="credit">地图数据 © OpenStreetMap contributors · 我的AI小木屋</p>
 </section>
 
@@ -57,11 +69,22 @@
 <section id="postcard" class="panel" hidden>
   <div class="eyebrow">488 米户外观景平台</div>
   <img id="pc-img" alt="从广州塔 488 米往北拍的明信片，标着海心沙、西塔和东塔">
-  <div class="pc-row"><a id="pc-save" class="ride" download="小橘爬塔-明信片.png">存下明信片</a><button id="again2" class="primary">再爬一次 <span>↺</span></button></div>
+  <div class="pc-row"><a id="pc-save" class="ride" download="小橘爬塔-明信片.png">存下明信片</a><button id="to-town" class="primary">下塔进城 <span>→</span></button><button id="again2" class="ride">再爬一次</button></div>
+</section>
+
+<section id="t-end" class="panel" hidden>
+  <div class="eyebrow">下塔进城 · 打卡完成</div>
+  <p class="verdict" id="t-verdict" hidden></p>
+  <img id="t-card" alt="打卡明信片：海心沙、西塔、东塔三个红色印章">
+  <p class="result"><span>用时 <b id="t-e-time">0:00</b></span><span>骑车 <b id="t-e-bike">0</b> 米</span><span>跑步 <b id="t-e-run">0</b> 米</span><span>顺序 <b id="t-e-order"></b></span></p>
+  <div class="pc-row"><a id="t-save" class="ride" download="小橘爬塔-打卡明信片.png">存下打卡明信片</a><button id="t-again" class="primary">再跑一次 <span>↺</span></button><button id="t-tower" class="ride">回塔上爬</button></div>
 </section>
 </main>
 <script src="vendor/three.min.js"></script>
 <script src="data/city.js"></script>
 <script src="src/core.js"></script>
+<script src="data/town.js"></script>
+<script src="src/town-core.js"></script>
 <script src="src/game.js"></script>
+<script src="src/town.js"></script>
 </body></html>

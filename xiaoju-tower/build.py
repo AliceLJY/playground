@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parent
 html = (ROOT / "index.html").read_text()
 css = (ROOT / "src/style.css").read_text()
 html = html.replace('<link rel="stylesheet" href="src/style.css">', '<style>\n' + css + '\n</style>')
-for name in ("vendor/three.min.js", "data/city.js", "src/core.js", "src/game.js"):
+for name in ("vendor/three.min.js", "data/city.js", "src/core.js", "data/town.js", "src/town-core.js", "src/game.js", "src/town.js"):
     js = (ROOT / name).read_text().replace('</script', '<\\/script')
     if name == "src/game.js":
         loader = "'assets/cat-' + n + '.webp'"

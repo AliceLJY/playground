@@ -5,12 +5,15 @@
 !/src/
 !/src/core.js
 !/src/game.js
+!/src/town-core.js
+!/src/town.js
 !/src/style.css
 !/vendor/
 !/vendor/three.min.js
 !/vendor/THREE-LICENSE.txt
 !/data/
 !/data/city.js
+!/data/town.js
 !/assets/
 !/assets/cat-*.webp
 !/build.py

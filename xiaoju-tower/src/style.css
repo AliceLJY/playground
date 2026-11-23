@@ -111,3 +111,34 @@ button{font:inherit;color:inherit;cursor:pointer}
 @media (max-height:500px){#pc-img{max-height:52vh}.rides p{display:none}.ride{min-height:44px;padding:4px 12px}.versus{margin-bottom:8px}.versus button{height:34px}}
 .stamina .fill.boost{background:linear-gradient(90deg,var(--ok),#ffd36a)}.stamina .fill.boost.low{background:var(--low)}
 @media (max-height:500px) and (min-width:561px){#choice{width:calc(100vw - 500px);min-width:300px;padding:8px 10px 10px}#choice .q{font-size:12.5px;margin-bottom:6px}#choice .opt{min-height:44px;font-size:14px}}
+/* chapter 2: 下塔进城 */
+.chapter{display:flex;flex-direction:column;align-items:flex-start;gap:1px;margin:12px 0 0;border:1.5px solid rgba(255,207,152,.6);background:rgba(255,255,255,.06);color:var(--cream);border-radius:14px;padding:7px 14px;font-size:15px;font-weight:700;min-height:48px}
+.chapter small{font-size:11px;font-weight:400;opacity:.75}
+#t-hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));pointer-events:none}
+.t-card{background:var(--panel);border-radius:14px;padding:10px 14px 10px;width:236px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.t-stops{display:flex;gap:6px;margin:0 0 8px;padding:0;list-style:none}
+.t-stops li{flex:1;text-align:center;font-size:13px;font-weight:700;border:1.5px dashed rgba(255,90,90,.75);border-radius:9px;padding:4px 0;color:#ffb0a8}
+.t-stops li.done{border:1.5px solid #c0392b;background:#c0392b;color:#fff6e8}
+.t-next{display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 6px;white-space:nowrap}
+.t-next b{font-size:15px;color:#ffcf98}
+.t-next span span{font-variant-numeric:tabular-nums;opacity:.85}
+#t-arrow{flex:none;width:22px;height:22px;border-radius:50%;background:#ff5a5a;position:relative}
+#t-arrow::after{content:"";position:absolute;left:6px;top:3px;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:11px solid #fff6e8}
+.t-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-variant-numeric:tabular-nums;gap:8px}
+.t-row b{display:inline-block;min-width:3.2ch}
+.t-mode{border-radius:8px;padding:2px 8px;background:rgba(255,255,255,.14);font-weight:700;white-space:nowrap}
+.t-mode.riding{background:#5fd3c0;color:#123}
+.t-race{margin:8px 0 0;white-space:normal;font-size:12px}
+.t-race b{min-width:0;font-size:13px}
+.t-map{width:140px;height:140px;flex:none;border-radius:50%;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.key.act{width:104px;height:72px;border-radius:36px;opacity:.55}
+.key.act b{font-size:20px}
+.key.act.ready{opacity:1;border-color:#5fd3c0;box-shadow:0 0 0 4px rgba(95,211,192,.45)}
+#t-end{width:min(560px,calc(100vw - 32px))}
+#t-card{display:block;width:100%;max-height:min(46vh,360px);object-fit:contain;border-radius:6px;margin:4px 0 12px;background:#fff}
+#t-end .result b{max-width:16em}
+@media (max-width:560px){.t-card{width:auto;flex:1;min-width:0;padding:8px 10px}.t-map{width:110px;height:110px}.t-stops li{font-size:12px}.t-next{font-size:12px;white-space:normal}}
+@media (max-height:500px){.t-card{padding:6px 10px}.t-stops{margin-bottom:4px}.t-map{width:104px;height:104px}.key.act{width:92px;height:62px}#t-card{max-height:40vh}.chapter{margin-top:8px;min-height:44px;padding:4px 12px}}
+body.ch2 #hint{top:calc(max(14px,env(safe-area-inset-top)) + 150px)}
+@media (max-width:560px){body.ch2 #hint{top:calc(max(14px,env(safe-area-inset-top)) + 170px)}}
+@media (max-height:500px) and (min-width:561px){body.ch2 #hint{top:auto;bottom:max(16px,env(safe-area-inset-bottom));max-width:calc(100vw - 480px)}}

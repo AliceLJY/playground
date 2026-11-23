@@ -58,6 +58,8 @@ jobs:
         run: |
           node --check src/core.js
           node --check src/game.js
+          node --check src/town-core.js
+          node --check src/town.js
           node --test tests/*.test.cjs
 
       - name: Check Xiaoju Racing

@@ -245,7 +245,11 @@
   const loader = new THREE.TextureLoader();
   const catTex = {};
   const SH = ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', 'cheer', 'hit'].map(n => 'sanhua-' + n);
-  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', 'runA', 'runB', 'runC', 'runD', ...SH].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
+  function loadCat(n) {
+    if (catTex[n]) return catTex[n];
+    const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.userData.name = n; catTex[n] = t; return t;
+  }
+  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', 'runA', 'runB', 'runC', 'runD', ...SH].forEach(loadCat);
   const catMat = new THREE.MeshStandardMaterial({ map: catTex.climbA, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
   const CAT_H = 3.0;
   const catSprite = new THREE.Mesh(new THREE.PlaneGeometry(CAT_H / 2, CAT_H), catMat);
@@ -394,12 +398,19 @@
   const pickKeys = { KeyE: 1, KeyQ: 2 };
   const padKeys = {}; document.querySelectorAll('#pad .key').forEach(b => { padKeys[b.dataset.act] = b; });
   const held = { key: {}, ptr: {} };
-  function refreshInput() { for (const k of Object.keys(input)) { input[k] = !!(held.key[k] || held.ptr[k]); padKeys[k] && padKeys[k].classList.toggle('on', input[k]); } }
-  addEventListener('keydown', e => { if (pickKeys[e.code] && playing && !e.repeat && choiceOn) { e.preventDefault(); pick(pickKeys[e.code]); return; } const a = keyMap[e.code]; if (!a) return; e.preventDefault(); if (!playing && !ended && (a === 'up' || a === 'brace') && !introEl.hidden) { start(); } held.key[a] = true; refreshInput(); });
-  addEventListener('keyup', e => { const a = keyMap[e.code]; if (!a) return; held.key[a] = false; refreshInput(); });
+  function refreshInput() { for (const k of Object.keys(input)) { if (k === 'act') continue; input[k] = !!(held.key[k] || held.ptr[k]); padKeys[k] && padKeys[k].classList.toggle('on', input[k]); } }
+  let chapter = 1, pendingAct = false;
+  addEventListener('keydown', e => { if (chapter === 2) { if (e.code === 'KeyE') { e.preventDefault(); if (!e.repeat) pendingAct = true; padKeys.act && padKeys.act.classList.add('on'); return; } if (e.code === 'Space') return; } if (pickKeys[e.code] && playing && !e.repeat && choiceOn) { e.preventDefault(); pick(pickKeys[e.code]); return; } const a = keyMap[e.code]; if (!a) return; e.preventDefault(); if (!playing && !ended && (a === 'up' || a === 'brace') && !introEl.hidden) { start(); } held.key[a] = true; refreshInput(); });
+  addEventListener('keyup', e => { if (e.code === 'KeyE' && padKeys.act) padKeys.act.classList.remove('on'); const a = keyMap[e.code]; if (!a) return; held.key[a] = false; refreshInput(); });
   addEventListener('blur', () => { held.key = {}; held.ptr = {}; refreshInput(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) { held.key = {}; held.ptr = {}; refreshInput(); } });
   Object.entries(padKeys).forEach(([act, b]) => {
+    if (act === 'act') {   // chapter 2: one tap = one scan / lock, same intent as the E key
+      b.addEventListener('pointerdown', e => { e.preventDefault(); pendingAct = true; b.classList.add('on'); });
+      ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave'].forEach(ev => b.addEventListener(ev, () => b.classList.remove('on')));
+      b.addEventListener('contextmenu', e => e.preventDefault());
+      return;
+    }
     const on = e => { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (_) {} held.ptr[act] = true; refreshInput(); };
     const off = () => { held.ptr[act] = false; refreshInput(); };
     b.addEventListener('pointerdown', on); ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave'].forEach(ev => b.addEventListener(ev, off));
@@ -534,6 +545,7 @@
     catSprite.rotation.z = roll;
   }
   function setFrame(mat, sprite, name, sizeFix) {
+    loadCat(name);
     if (mat.map !== catTex[name]) { mat.map = catTex[name]; mat.needsUpdate = true; }
     const im = catTex[name].image; if (im && im.width) sprite.scale.x = (im.width / im.height) * 2 * sizeFix;   // frames differ in aspect
     sprite.scale.y = sizeFix;
@@ -852,6 +864,13 @@
   }
   function tick(dt) {
     LED.uTime.value += dt;
+    if (chapter === 2) {
+      updateLights(dt);
+      dayP = lerp(dayP, X.skyProgress(MODE, 1), Math.min(1, dt * 0.8));
+      window.XJT_TOWNVIEW.tick(dt);
+      applySky();
+      return;
+    }
     if (playing) {
       input.act = pendingPick || false; pendingPick = null;
       X.step(S, input, dt);
@@ -871,9 +890,41 @@
   }
   requestAnimationFrame(frame);
 
+  // ---------- chapter 2 hooks (town.js drives the street level on this same scene) ----------
+  const ch1Only = [KM.group, KR.group, lane, pigeonBody, pigeonWing, pigeonHead, windLines, cabin, seatRing];
+  function setChapter(n) {
+    chapter = n;
+    const two = n === 2;
+    ch1Only.forEach(o => { if (two) { o.userData.wasVisible = o.visible; o.visible = false; } });
+    // the river: chapter 1 sees it from far above (metallic reads fine), at street level it went black, so it is matt blue-green there
+    waterMat.color.set(two ? 0x4f7f99 : 0x3d5f78); waterMat.metalness = two ? 0.05 : 0.6; waterMat.roughness = two ? 0.32 : 0.15;
+    if (two) {
+      playing = false; ended = false; finale = null; setChoice(null);
+      [introEl, endEl, pcEl, hudEl].forEach(el => { el.hidden = true; }); gustEl.classList.remove('on'); kiteEl.classList.remove('on');
+      S.maxY = C.height; cat.scale.setScalar(1); rival.visible = false; LED.uShow.value = 0;
+      padKeys.brace.hidden = true; padKeys.act.hidden = false; hintEl.hidden = true;
+    } else {
+      [KM.group, KR.group].forEach(o => { o.visible = false; }); pigeonBody.visible = pigeonWing.visible = pigeonHead.visible = windLines.visible = lane.visible = true;
+      padKeys.brace.hidden = false; padKeys.act.hidden = true;
+    }
+  }
+  const catPosVec = new THREE.Vector3();
+  window.XJT_ENGINE = {
+    scene, camera, renderer, LED, loadCat, setFrame, cat, rival, catMat, rivalMat, catSprite, rivalSprite, input, padKeys, townStats: {}, catPosVec,
+    seed: () => SEED, race: () => race, setChapter,
+    takeAct: () => { const a = pendingAct; pendingAct = false; return a; },
+    setCatPos: v => { catPos.copy(v); },
+    flash: k => flash(k), shake: v => { shake = Math.max(shake, v); },
+    applyShake: cam => { if (shake > 0) { cam.position.x += (Math.random() - 0.5) * shake; cam.position.y += (Math.random() - 0.5) * shake; shake = Math.max(0, shake - 1 / 60 * 1.5); } },
+    camFillAt: (p, t) => { camFill.position.copy(p); camFill.target.position.copy(t); },
+    backToTower: () => { setChapter(1); reset(SEED + 1); introEl.hidden = false; hudEl.hidden = true; padEl.hidden = true; cat.quaternion.identity(); camInit = false; }
+  };
+  function goTown() { pcEl.hidden = true; endEl.hidden = true; introEl.hidden = true; window.XJT_TOWNVIEW.enter({ seed: SEED, race }); }
+  $('to-town').addEventListener('click', goTown); $('to-town2').addEventListener('click', goTown);
+
   window.__PLAYTEST__ = {
     ready: true,
-    snapshot: () => ({ frame: frameName, race, rivalY: R ? +X.y(R).toFixed(2) : null, rivalCol: R ? R.col : null, rivalMode: R ? R.mode : null, rivalDone: R ? R.done : null, gap: R ? +X.raceGap(S, R).toFixed(1) : null, choice: choiceOn, staminaMax: S.staminaMax, ate: S.ate, stairsUsed: S.stairsUsed, finale: finale ? X.finalePose(finale.kind, finale.t).phase : null, postcard: postcard ? { labels: postcard.labels, w: postcard.w, h: postcard.h } : null, kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
+    snapshot: () => chapter === 2 ? window.XJT_TOWNVIEW.snapshot() : ({ frame: frameName, race, rivalY: R ? +X.y(R).toFixed(2) : null, rivalCol: R ? R.col : null, rivalMode: R ? R.mode : null, rivalDone: R ? R.done : null, gap: R ? +X.raceGap(S, R).toFixed(1) : null, choice: choiceOn, staminaMax: S.staminaMax, ate: S.ate, stairsUsed: S.stairsUsed, finale: finale ? X.finalePose(finale.kind, finale.t).phase : null, postcard: postcard ? { labels: postcard.labels, w: postcard.w, h: postcard.h } : null, kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
     reset: seed => { reset(seed); },
     setSeed: n => { reset(n); },
     start: () => start(),
@@ -884,6 +935,9 @@
     // put 三花姐 a given number of metres above (+) or below (−) 小橘, on her own column
     rivalAt: dy => { if (!R) return; R.t = clamp(S.t + dy / C.height, 0, 0.999); R.maxY = X.y(R); R.time = S.time; },
     calm: () => { S.gusts = S.gusts.filter(g => g.start > S.time + 120); S.kites = S.kites.filter(k => k.warnAt > S.time + 120); S.kiteIdx = 0; S.gustIdx = 0; if (R) { R.gusts = R.gusts.filter(g => g.start > R.time + 120); R.kites = R.kites.filter(k => k.warnAt > R.time + 120); R.kiteIdx = 0; R.gustIdx = 0; } },
-    setRace: on => setRace(!!on)
+    setRace: on => setRace(!!on),
+    chapter: () => chapter,
+    town: () => window.XJT_TOWNVIEW,
+    goTown: () => goTown()
   };
 })();
