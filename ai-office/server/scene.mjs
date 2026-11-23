@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 
 // The wrappers CC (or a subagent) calls to hand work to another engine; Alice's own terminal runs and the TG bridges
 // call the CLIs directly, so a live wrapper means work CC sent out. Script basename -> roster id.
-export const DISPATCH = { 'codex-run.sh': 'codex', 'kimi-run.sh': 'kimi', 'agy-gui-run.sh': 'agy', 'grok-clean.sh': 'grok', 'muse-vm.py': 'muse' };
+export const DISPATCH = { 'codex-run.sh': 'codex', 'kimi-run.sh': 'kimi', 'agy-gui-run.sh': 'agy', 'agy-acp-run.sh': 'agy', 'grok-clean.sh': 'grok', 'muse-vm.py': 'muse' };
 
 // Which engines have a wrapper alive, from `ps -axo pid,ppid,args` (or `pid,args`). A wrapper forks watchdog subshells
 // that show the same args, so this is a set of engines, not a count of processes. With ppid, `windows` groups them by
