@@ -8,6 +8,7 @@
 
 | 玩意 | 是什么 | 技术 |
 |---|---|---|
+| [花城收租佬](guangzhou-rich/) · [玩](https://aliceljy.github.io/playground/guangzhou-rich/) | 一圈广州街区的收租桌游：挑掷一颗还是两颗，买地、交租、回自己的地加盖，十五轮后比身家；对手是规则机器人，也可以填你自己的 key 换成 DeepSeek / 千问，在合法选项里替对手做决定、顺带说句嘴炮 | 纯 HTML/CSS/JS，规则全在带种子的代码里，模型只在合法选项里选；key 从你的浏览器直连服务商 |
 | [穆柯寨 · 不打不相识](muke-zhai/) · [玩](https://aliceljy.github.io/playground/muke-zhai/) | 京剧《穆柯寨》的一段做成横版动作小游戏：穆桂英先打掉孟良的金盔，再和杨宗保对枪，架开与对枪攒「心动」，攒满两人并肩亮相；三个角色的扮相照京剧剧照出原画，18 段动作由图生视频切帧 | Canvas 2D 逐帧图集，逻辑可无头跑，零依赖 |
 | [煤球打工记](coal-shift/) · [玩](https://aliceljy.github.io/playground/coal-shift/) | 像素办公室里左右挪小煤球接咖啡、躲红色 bug，撑满 60 秒准点下班；只说了一句话，游戏由 Codex 自己写、自己试玩 | 二维画布，代码画的像素画，Web Audio 合成音效，键盘与触屏，单文件离线可玩 |
 | [煤球突围](coal-breakout/) · [玩](https://aliceljy.github.io/playground/coal-breakout/) | 小黑煤球带着人工智能小助手闯三关：幻觉宝石会咬人、文字墙挤压空间、额度重置强制停火。单指拖动，自动开火，升级选工作流卡，击败首领后保存结算图 | 二维像素图集由代码生成，实时合成芯片音乐，固定步长确定性模拟，零运行时依赖，无外部素材 |

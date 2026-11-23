@@ -116,6 +116,12 @@ jobs:
           for f in src/*.js; do node --check "$f"; done
           node --test tests/*.test.cjs
 
+      - name: Check Guangzhou Rich
+        working-directory: guangzhou-rich
+        run: |
+          for f in src/*.js; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Memory Fade
         working-directory: memory-fade
         run: |
@@ -386,6 +392,17 @@ jobs:
           V="${GITHUB_SHA::8}"
           sed -i -E "s#\"(src/[a-z]+\.js)\"#\"\1?v=$V\"#g" _site/muke-zhai/index.html
           test "$(grep -o "?v=$V" _site/muke-zhai/index.html | wc -l)" -eq 4
+
+      - name: Assemble Guangzhou Rich
+        run: |
+          # 花城收租佬：纯 HTML/CSS/JS 的收租桌游，没有构建步骤，页面与源码原样发布（不带测试、工具和截图）
+          mkdir -p _site/guangzhou-rich
+          cp guangzhou-rich/index.html _site/guangzhou-rich/index.html
+          cp -R guangzhou-rich/src _site/guangzhou-rich/
+          # 同穆柯寨：脚本和样式引用带上本次提交号，免得新 index.html 配到缓存里的旧文件
+          V="${GITHUB_SHA::8}"
+          sed -i -E "s#\"(src/[a-z]+\.(js|css))\"#\"\1?v=$V\"#g" _site/guangzhou-rich/index.html
+          test "$(grep -o "?v=$V" _site/guangzhou-rich/index.html | wc -l)" -eq 4
 
       - name: Check Wangchuan
         working-directory: wangchuan
