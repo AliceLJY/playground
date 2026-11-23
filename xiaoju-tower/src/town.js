@@ -131,9 +131,8 @@
           for (int k = 0; k < 16; k++) if (k == i) return (m[k] + 0.5) / 16.0; return 0.5; }`).replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
         { vec2 c = cameraPosition.xz, d = uCat.xz - c, p = vTW.xz - c; float L2 = max(dot(d, d), 1e-3), t = dot(p, d) / L2;
           float side = length(p - d * clamp(t, 0.0, 1.0));
-          float block = (1.0 - smoothstep(1.6, 3.2, side)) * step(-0.05, t) * step(t, 1.0);      // between the camera and her
-          float near = 1.0 - smoothstep(2.5, 4.5, distance(vTW, cameraPosition));                 // right in the lens
-          float keep = 1.0 - max(block * 0.75, near);
+          float block = (1.0 - smoothstep(1.2, 2.4, side)) * step(-0.05, t) * step(t, 1.0);      // on the line of sight between the camera and her
+          float keep = 1.0 - block * 0.75;
           if (keep < 0.999 && bayer4(gl_FragCoord.xy) > keep) discard; }`);
     }; return mat; };
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.22, 2.6, 6), nearFade(new THREE.MeshStandardMaterial({ color: 0x6b5140, roughness: 0.9 })), N);
@@ -303,7 +302,11 @@
     // stop dots carry their initial (海 / 西 / 东); off-map ones sit on the rim, pushed apart so they never stack
     const rr = W / 2 - 12 * dpr, marks = TOWN.stops.map((st, i) => { const [x, y] = toMap(st.x, st.z), dx = x - W / 2, dy = y - W / 2, L = Math.hypot(dx, dy); return { i, x, y, out: L > rr, a: Math.atan2(dy, dx) }; });
     const outs = marks.filter(m => m.out).sort((a, b) => a.a - b.a), gap = 18 * dpr / rr;
-    for (let pass = 0; pass < 4; pass++) for (let k = 1; k < outs.length; k++) { const d = outs[k].a - outs[k - 1].a; if (d < gap) { outs[k].a += (gap - d) / 2; outs[k - 1].a -= (gap - d) / 2; } }
+    for (let pass = 0; pass < 6; pass++) {
+      for (let k = 1; k < outs.length; k++) { const d = outs[k].a - outs[k - 1].a; if (d < gap) { outs[k].a += (gap - d) / 2; outs[k - 1].a -= (gap - d) / 2; } }
+      for (const m of outs) { const d = TC.wrapAngle(m.a + Math.PI / 2); if (Math.abs(d) < gap * 1.1) m.a = -Math.PI / 2 + Math.sign(d || 1) * gap * 1.1; }   // keep clear of 北 at the top
+    }
+    for (const m of marks) if (!m.out && Math.hypot(m.x - W / 2, m.y - 10 * dpr) < 17 * dpr) m.y = 10 * dpr + 17 * dpr;   // on-map dot under 北: drop it below the badge
     outs.forEach(m => { m.x = W / 2 + Math.cos(m.a) * rr; m.y = W / 2 + Math.sin(m.a) * rr; });
     marks.forEach(m => {
       g.beginPath(); g.arc(m.x, m.y, 8 * dpr, 0, Math.PI * 2);
@@ -324,7 +327,7 @@
 
   // ---------- state ----------
   let T = null, R = null, rivalPilot = null, race = true, active = false, ended = false, seed = 1, hintDone = {}, hintNow = null, hintSince = 0;
-  let waitStart = false, pull = 1, countdown = 0, introT = 0, introSwing = 0, camYaw = 0, camInit = false, stepPhase = 0, rStepPhase = 0, lastStampN = 0, rivalNoted = {}, endTimer = 0;
+  let grassAt = -99, waitStart = false, pull = 1, countdown = 0, introT = 0, introSwing = 0, camYaw = 0, camInit = false, stepPhase = 0, rStepPhase = 0, lastStampN = 0, rivalNoted = {}, endTimer = 0;
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
   const input = E.input;
   function enter(opts) {
@@ -333,7 +336,7 @@
     seed = opts.seed || E.seed(); race = opts.race !== undefined ? opts.race : E.race();
     T = TC.createTown(G, seed); R = race ? TC.createTownRival(G, T) : null;
     rivalPilot = race ? TC.makePilot(G, nav, 'rival', seed + TC.TCFG.rival.seedOffset) : null;
-    active = true; ended = false; introT = 0; waitStart = !opts.quick; countdown = COUNT; hintDone = {}; hintNow = null; lastStampN = 0; rivalNoted = {}; camInit = false; camYaw = T.h;
+    active = true; ended = false; introT = opts.quick ? 3 : 0; waitStart = !opts.quick; countdown = COUNT; hintDone = {}; hintNow = null; lastStampN = 0; rivalNoted = {}; camInit = false; camYaw = T.h;
     bikeTaken = []; placeBikes(); resetStops();
     world.visible = true; E.setChapter(2);
     $('t-end').hidden = true; $('t-race').hidden = !race;
@@ -352,6 +355,7 @@
   }
   function go() { if (!active || !waitStart) return; waitStart = false; countdown = COUNT; showReady(); }
   $('t-go').addEventListener('click', go);
+  addEventListener('keydown', e => { if ((e.code === 'ArrowUp' || e.code === 'KeyW') && waitStart) go(); });
   function updateCountdown(dt) {
     if (waitStart) { if (input.up) go(); return; }
     countdown -= dt;
@@ -376,12 +380,15 @@
     const q = new URLSearchParams(location.search); q.delete('ch'); q.delete('view'); history.replaceState(null, '', q.toString() ? '?' + q.toString() : location.pathname);
   }
 
+  // key names follow the device: a phone has the 扫车 / 锁车 button, not an E key (Duet round 3)
+  const TOUCH = window.matchMedia && matchMedia('(hover: none)').matches;
+  const scanKey = TOUCH ? '点<b>「扫车」</b>' : '按 <b>E</b>', lockKey = TOUCH ? '点<b>「锁车」</b>' : '按 <b>E</b>';
   const hints = {
-    start: '按住 <b>↑</b> 跑，<b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱',
-    dock: '这是共享单车点：按 <b>E</b> 扫一辆，路上快很多',
-    ride: '骑车松手会溜、转弯要早；按 <b>E</b> 随时锁车',
-    nobike: '海心桥不让骑车：按 <b>E</b> 锁车，走过去',
-    grass: '草地上骑车比跑还慢：按 <b>E</b> 锁车，下来跑更快',
+    start: TOUCH ? '按住右下 <b>↑</b> 跑，左下 <b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱' : '按住 <b>↑</b> 跑，<b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱',
+    dock: `这是共享单车点：${scanKey}扫一辆，路上快很多`,
+    ride: `骑车松手会溜、转弯要早；${lockKey}随时锁车`,
+    nobike: `海心桥不让骑车：${lockKey}，走过去`,
+    grass: `前面一大片草地，骑车比跑还慢：${lockKey}下来跑更快`,
     stop: '跑进红圈就盖章'
   };
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = T.time; const el = $('hint'); el.innerHTML = hints[id]; el.hidden = false; }
@@ -426,8 +433,10 @@
   function hintLogic() {
     if (hintNow === 'start' && (T.time > 9 || T.dist > 40)) clearHint('start');
     if (!hintDone.dock && TC.actionAt(G, T) === 'scan' && hintNow !== 'nobike') showHint('dock');
-    if (T.riding && TC.surf(G, T.x, T.z) === S2.GREEN && T.speed > 2 && hintNow !== 'nobike') showHint('grass');
-    if (hintNow === 'grass' && (!T.riding || TC.surf(G, T.x, T.z) !== S2.GREEN)) { hintNow = null; $('hint').hidden = true; if (!T.riding) hintDone.grass = true; }
+    if (T.riding && T.speed > 2 && hintNow !== 'nobike' && hintNow !== 'grass' && T.time - grassAt > 20) {
+      const f = fwdV(T.h); if ([4, 8, 12, 16].every(d => TC.surf(G, T.x + f.x * d, T.z + f.z * d) === S2.GREEN)) { grassAt = T.time; hintDone.grass = false; showHint('grass'); }
+    }
+    if (hintNow === 'grass' && (!T.riding || T.time - hintSince > 5)) { hintNow = null; $('hint').hidden = true; }
     if (hintNow === 'dock' && !TC.nearDock(G, T)) { hintNow = null; $('hint').hidden = true; }
     if (hintNow === 'ride' && T.time - hintSince > 6) clearHint('ride');
     if (!hintDone.stop && T.stamps.length === 0 && TOWN.stops.some(s => Math.hypot(s.x - T.x, s.z - T.z) < 40) && hintNow === null) showHint('stop');
@@ -453,6 +462,9 @@
       const u = k / 16, x = lerp(T.x, target.x, u), z = lerp(T.z, target.z, u);
       if (TC.surf(G, x, z) === S2.BUILDING) { keep = Math.max(0.4, (k - 1.5) / 16); target.set(lerp(T.x, target.x, keep), h + (1 - keep) * 1.6, lerp(T.z, target.z, keep)); break; }
     }
+    // a block right beside the camera (riding along a row of towers): shift away from it and come in a little (Duet round 3)
+    { const rx = -f.z, rz = f.x; let side = 0; for (const d of [1.5, 3, 4.5]) { if (TC.surf(G, target.x + rx * d, target.z + rz * d) === S2.BUILDING) side -= 1 / d; if (TC.surf(G, target.x - rx * d, target.z - rz * d) === S2.BUILDING) side += 1 / d; }
+      if (side) { const sh = clamp(side * 2.2, -2.5, 2.5); target.x += rx * sh; target.z += rz * sh; if (TC.surf(G, target.x, target.z) === S2.BUILDING) { target.x -= rx * sh; target.z -= rz * sh; } keep = Math.min(keep, 0.8); target.lerp(V3(T.x, target.y, T.z), 0.2); } }
     pull = lerp(pull, keep, Math.min(1, dt * 6));
     if (!camInit) { camPos.copy(target); camInit = true; } else camPos.lerp(target, 1 - Math.pow(0.0005, dt));
     camLook.set(T.x, 1.0, T.z).addScaledVector(f, 4 * pull);     // pulled in against a wall: look at her, not past her
@@ -488,7 +500,9 @@
     E.shadows[1].visible = !!R;
     if (!R) return;
     rv.scale.setScalar(SH_SCALE);
-    rv.position.set(R.x, 3.5 * SH_SCALE / 2 + 0.05, R.z); billboard(rv);
+    rv.position.set(R.x, 3.5 * SH_SCALE / 2 + 0.05, R.z);
+    { const dx = R.x - T.x, dz = R.z - T.z, d = Math.hypot(dx, dz); if (d < 1.6) { const ux = d > 0.05 ? dx / d : 1, uz = d > 0.05 ? dz / d : 0; rv.position.x = T.x + ux * 1.6; rv.position.z = T.z + uz * 1.6; } }   // side by side: draw her a body's width apart
+    billboard(rv);
     rStepPhase += Math.abs(R.speed) * dt;
     let rn;
     if (R.done) rn = 'win';
@@ -523,7 +537,7 @@
     updateRoute(nt);
     if (nt >= 0) {
       const st = TOWN.stops[nt], p = steerPt || st, dx = p.x - T.x, dz = p.z - T.z;
-      $('t-next').innerHTML = `${T.stamps.length ? '再去' : '先去'} <b>${st.label}</b>${viaBridge ? '（经海心桥）' : ''} <span>路程约 ${Math.max(0, Math.round(routeLen / 10) * 10)} 米</span>`;
+      $('t-next').innerHTML = `${T.stamps.length ? '再去' : '先去'} <b>${st.label}</b>${viaBridge ? '（经海心桥）' : ''} <span>路程约&nbsp;${Math.max(0, Math.round(routeLen / 10) * 10)}&nbsp;米</span>`;
       const ang = Math.atan2(dx, -dz) - camYaw;     // points at the next stretch of the route, not straight at the stop
       $('t-arrow').style.transform = `rotate(${ang}rad)`;
     } else $('t-next').innerHTML = '三处都打完了';
@@ -538,7 +552,7 @@
     actKey.setAttribute('aria-disabled', act ? 'false' : 'true');
     if (R) {
       const d = Math.round(Math.hypot(R.x - T.x, R.z - T.z)), ahead = R.stamps.length > T.stamps.length || (R.stamps.length === T.stamps.length && R.done);
-      $('t-race').querySelector('span').innerHTML = R.done ? '三花姐 <b>已打完</b>' : `三花姐 <b>${R.stamps.length}/3</b> · ${R.posing ? '在自拍' : R.riding ? '骑车中' : '跑着'} · 离你 ${d} 米`;
+      $('t-race').querySelector('span').innerHTML = R.done ? '三花姐 <b>已打完</b>' : `三花姐 <b>${R.stamps.length}/3</b> · ${R.posing ? '在自拍' : R.riding ? '骑车中' : '跑着'} · 离你&nbsp;${d}&nbsp;米`;
       $('t-race').classList.toggle('ahead', ahead);
     }
   }
@@ -602,7 +616,7 @@
   const API = {
     enter, exit, tick, applyView,
     active: () => active,
-    snapshot: () => T ? ({ chapter: 2, x: +T.x.toFixed(2), z: +T.z.toFixed(2), h: +T.h.toFixed(3), speed: +T.speed.toFixed(2), riding: T.riding, mode: T.mode, stamps: T.stamps.slice(), done: T.done, time: +T.time.toFixed(2), ended,
+    snapshot: () => T ? ({ chapter: 2, seed, x: +T.x.toFixed(2), z: +T.z.toFixed(2), h: +T.h.toFixed(3), speed: +T.speed.toFixed(2), riding: T.riding, mode: T.mode, stamps: T.stamps.slice(), done: T.done, time: +T.time.toFixed(2), ended,
       action: TC.actionAt(G, T), hint: hintNow, rival: R ? { x: +R.x.toFixed(1), z: +R.z.toFixed(1), stamps: R.stamps.slice(), riding: R.riding, posing: !!R.posing, done: R.done, frame: E.rivalFrame } : null, frame: E.catMat.map && E.catMat.map.userData.name,
       camYaw: +camYaw.toFixed(3), bumps: T.bumps, hits: T.hits || 0, trees: E.townStats.trees }) : { chapter: 2, ready: false },
     teleport: (x, z, h) => { T.x = x; T.z = z; if (h !== undefined) T.h = h; T.speed = 0; camInit = false; },
@@ -620,7 +634,7 @@
     result: () => (T && R ? TC.townResult(T, R) : null)
   };
   window.XJT_TOWNVIEW = API;
-  $('t-again').addEventListener('click', () => enter({ seed: seed + 1, quick: true }));
+  $('t-again').addEventListener('click', () => enter({ seed: 1 + Math.floor(Math.random() * 9973), quick: true }));   // a fresh race each time, straight to the count
   $('t-tower').addEventListener('click', () => { exit(); E.backToTower(); });
 })();
 // direct entry for checks and links: ?ch=2 (with &view=start|ride|bridge|stop|end for the fixed views)

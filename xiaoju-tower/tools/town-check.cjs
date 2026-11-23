@@ -42,6 +42,10 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
     const R = await rects(p), names = ['card', 'map', 'act', 'up', 'left', 'right', 'down', 'hint'], bad = [];
     for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (overlap(R[names[i]], R[names[j]])) bad.push(names[i] + '×' + names[j]);
     ok(`${name}: 打卡清单、小地图、提示、五个键互不重叠`, bad.length === 0, bad.join(', '));
+    const spill = await p.evaluate(() => { const c = document.querySelector('.t-card').getBoundingClientRect(); return [...document.querySelectorAll('.t-card *')].filter(e => e.children.length === 0 && e.textContent.trim()).map(e => e.getBoundingClientRect()).filter(r => r.width && (r.right > c.right + 0.5 || r.bottom > c.bottom + 0.5)).length; });
+    await p.evaluate(() => { document.getElementById('t-next').innerHTML = '先去 <b>西塔</b>（经海心桥） <span>路程约&nbsp;1860&nbsp;米</span>'; });
+    const spill2 = await p.evaluate(() => { const c = document.querySelector('.t-card').getBoundingClientRect(); return [...document.querySelectorAll('.t-card *')].filter(e => e.children.length === 0 && e.textContent.trim()).map(e => e.getBoundingClientRect()).filter(r => r.width && (r.right > c.right + 0.5 || r.bottom > c.bottom + 0.5)).length; });
+    ok(`${name}: 左上面板里最长的一行（经海心桥 + 路程）不溢出面板`, spill === 0 && spill2 === 0, `${spill}/${spill2}`);
     ok(`${name}: 都在可视区内`, names.every(n => R[n] && R[n].x >= 0 && R[n].y >= 0 && R[n].x + R[n].w <= R.vw + 0.5 && R[n].y + R[n].h <= R.vh + 0.5), names.filter(n => !R[n]).join(','));
     ok(`${name}: 触控键不小于 44px，抓紧键在第二章藏起来`, ['act', 'up', 'left', 'right', 'down'].every(k => R[k].w >= 44 && R[k].h >= 44) && !R.brace);
     ok(`${name}: ← → 和 E 在左半边、↑ ↓ 在右半边（两只拇指分工）`, [R.left, R.right, R.act].every(b => b.x + b.w <= R.vw / 2) && [R.up, R.down].every(b => b.x >= R.vw / 2), [R.left.x, R.right.x, R.act.x, R.up.x].map(Math.round).join(','));
@@ -157,8 +161,10 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   const end = await p.evaluate(() => ['#t-save', '#t-again', '#t-tower'].map(s => { const e = document.querySelector(s), b = e.getBoundingClientRect(), c = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); return { s, x: b.x, y: b.y, w: b.width, h: b.height, hit: e.contains(c) }; }));
   ok('三处盖完出结尾面板，三个按钮完整可点', !(await p.evaluate(() => document.getElementById('t-end').hidden)) && end.every(e => e.hit && e.h >= 44 && e.x >= 0 && e.y + e.h <= 760), JSON.stringify(end.map(e => e.hit)));
   await p.screenshot({ path: `${out}/town-end.png` });
+  const seedBefore = (await snap(p)).seed;
   await p.click('#t-again'); await p.waitForTimeout(600);
-  ok('「再跑一次」不再出说明卡，直接 3-2-1', await p.evaluate(() => !window.XJT_TOWNVIEW.waiting() && window.XJT_TOWNVIEW.countdown() > 0 && document.querySelector('.t-ready-card').hidden));
+  const again = await snap(p);
+  ok('「再跑一次」不再出说明卡，直接 3-2-1，换一局新的、镜头已在身后', await p.evaluate(() => !window.XJT_TOWNVIEW.waiting() && window.XJT_TOWNVIEW.countdown() > 0 && document.querySelector('.t-ready-card').hidden) && again.seed !== seedBefore && Math.abs(again.camYaw - again.h) < 0.3, `seed ${seedBefore}→${again.seed}, camYaw ${again.camYaw}`);
   await p.waitForTimeout(2600);
   const sa = await snap(p);
   ok('点「再跑一次」回到塔脚、清单清空', sa.stamps.length === 0 && Math.hypot(sa.x, sa.z + 40) < 3, JSON.stringify([sa.x, sa.z, sa.stamps]));

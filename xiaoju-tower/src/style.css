@@ -167,3 +167,9 @@ body.ch2 .dpad{grid-template-columns:58px;grid-template-rows:58px 58px;grid-temp
 .tp{display:none}
 @media (hover:none){.kb{display:none}.tp{display:inline}}
 @media (max-height:500px){#t-ready{padding-top:10px}.t-ready-card{width:min(520px,calc(100vw - 32px))}.t-ready-card .eyebrow{display:none}.t-ready-card h2{font-size:20px;margin:0 0 4px}.t-ready-card .rules{font-size:12px;line-height:1.4}#t-go{height:44px;margin:0 0 8px}#t-ready{flex-direction:column;gap:0}#t-count{top:26%}}
+
+/* chapter 2 round 4 (Duet round 3): the route line wraps instead of spilling past the panel */
+.t-next{white-space:normal;flex-wrap:wrap;row-gap:2px}
+.t-next > span{display:inline-flex;flex-wrap:wrap;gap:0 4px;align-items:baseline}
+.t-card{width:auto;min-width:236px;max-width:280px}
+@media (max-height:500px) and (min-width:561px){.t-card{min-width:200px;max-width:250px}}

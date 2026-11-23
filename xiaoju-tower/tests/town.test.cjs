@@ -188,3 +188,14 @@ test('单车松手不会溜出几十米：全速松手 6 秒内停住、溜不�
   const back = (s.x - x1) * -T.fwd(s.h).x + (s.z - z1) * -T.fwd(s.h).z;
   assert.ok(back > 1, `骑车停住后按 ↓ 2 秒只往后挪了 ${back.toFixed(2)} 米`);
 });
+
+test('骑车照着路线走，草地上骑不到 1.5 秒（Duet 第三轮：西塔↔东塔、海心沙→西塔几段都在草坪上骑了十几秒）', () => {
+  const st = town.stops, bad = [];
+  for (const [a, b] of [[1, 2], [2, 1], [0, 2], [0, 1]]) {
+    const s = T.createTown(G, 1); s.x = st[a].x; s.z = st[a].z; s.riding = true; s.stamps = [0, 1, 2].filter(k => k !== b);
+    const p = T.makePilot(G, nav, 'precise', 1); let green = 0;
+    while (!s.done && s.time < 200) { T.stepTown(G, s, p(s), 1 / 30); if (s.riding && T.surf(G, s.x, s.z) === T.SURF.GREEN) green += 1 / 30; }
+    if (green > 1.5) bad.push(`${st[a].label}→${st[b].label} 草地上骑了 ${green.toFixed(1)} 秒`);
+  }
+  assert.deepStrictEqual(bad, [], bad.join('；'));
+});

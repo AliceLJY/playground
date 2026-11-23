@@ -190,7 +190,8 @@
       if (run >= 4 && blockedAt(G, cx, cz, false)) run = 0;
       if (ride >= 4 && blockedAt(G, cx, cz, true)) ride = 0;
       if (run >= 4) walkSp[id] = TCFG.run.top * (green >= 2 ? TCFG.run.green : 1);
-      if (ride >= 4) rideSp[id] = road >= 2 ? TCFG.bike.top[1] : green >= 2 ? TCFG.bike.top[3] : TCFG.bike.top[2];
+      // planning prices any grass at a quarter of the bike's real grass speed, so suggested bike routes keep to roads and paving (Duet round 3)
+      if (ride >= 4) rideSp[id] = road >= 2 ? TCFG.bike.top[1] : green >= 1 ? TCFG.bike.top[3] * 0.25 : TCFG.bike.top[2];
     }
     // thin the passable set by the body radius: drop cells that touch a blocked neighbour (keeps paths off the walls)
     const erode = sp => { const out = sp.slice(); for (let j = 1; j < NH - 1; j++) for (let i = 1; i < NW - 1; i++) { const id = j * NW + i; if (!sp[id]) continue; if (!sp[id - 1] || !sp[id + 1] || !sp[id - NW] || !sp[id + NW]) out[id] = sp[id] * 0.55; } return out; };
@@ -302,9 +303,15 @@
     }
     return pts;
   }
+  // riding, the straight line to steer along must also stay off grass: cutting a corner across a lawn is what put
+  // Duet on the grass for 15 s following the arrow (unless she is already on grass and needs a way off)
   function clearLine(G, x0, z0, x1, z1, riding) {
-    const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 0.5);
-    for (let k = 1; k <= n; k++) { const u = k / n; if (blockedAt(G, x0 + (x1 - x0) * u, z0 + (z1 - z0) * u, riding)) return false; }
+    const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / 0.5), onGrass = riding && surf(G, x0, z0) === SURF.GREEN;
+    for (let k = 1; k <= n; k++) {
+      const u = k / n, x = x0 + (x1 - x0) * u, z = z0 + (z1 - z0) * u;
+      if (blockedAt(G, x, z, riding)) return false;
+      if (riding && !onGrass && surf(G, x, z) === SURF.GREEN) return false;
+    }
     return true;
   }
   // best order for the two towers once 海心沙 is done, judged on foot from where you stand
@@ -329,11 +336,11 @@
   // rival (三花姐): drives clean; most days 10–20% slower than 小橘's top speed, now and then a fast day up to 14% quicker
   // (power 0.80 + 0.34·r³; slowed after Duet's 2026-11-23 playtest lost both rounds to her 5:10–5:40), but a third of the
   // time she skips the bikes, a third of the time she does the towers in the slower order, and she poses for photos at every stop —
-  // usually a couple of seconds, now and then up to a minute.
+  // usually a couple of seconds, at most about half a minute (Duet round 3: a minute-long pose was too much).
   const PROFILES = {
     precise: { lag: 0, noise: 0, bike: 1, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 },
     clumsy: { lag: 0.18, noise: 0.12, bike: 0.6, hesitate: r => 0.6 + r * 2.4, wander: 0.04, orderMiss: 0.4, deadband: 0.12 },
-    rival: { lag: 0, noise: 0, bike: 0.65, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.3, deadband: 0.06, power: r => 0.8 + 0.34 * r * r * r, linger: r => 1.5 + 60 * r * r * r },
+    rival: { lag: 0, noise: 0, bike: 0.65, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.3, deadband: 0.06, power: r => 0.8 + 0.34 * r * r * r, linger: r => 1.5 + 35 * r * r * r },
     walker: { lag: 0, noise: 0, bike: 0, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 }
   };
   function makePilot(G, nav, profile, seed) {
