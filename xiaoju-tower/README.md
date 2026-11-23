@@ -36,4 +36,4 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/ s
 ## Who opens this, AI material
 
 - Who opens this: anyone who has looked up at Canton Tower and wanted to climb it once.
-- AI material: the model sheets and climbing frames of Xiaoju and Sanhua were generated with web ChatGPT; the tower, city, sky, pigeons, stair, rides and deck are built in code, the city footprints and the postcard place names come from OpenStreetMap; code written by a human with AI. Credit: 我的AI小木屋 / GitHub @AliceLJY.
+- AI material: the model sheets and climbing frames of Xiaoju and Sanhua, and Xiaoju's stair-running frames, were generated with web ChatGPT; the tower, city, sky, pigeons, stair, rides and deck are built in code, the city footprints and the postcard place names come from OpenStreetMap; code written by a human with AI. Credit: 我的AI小木屋 / GitHub @AliceLJY.

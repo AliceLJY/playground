@@ -118,12 +118,14 @@ async function rects(p) {
     await p.click('#start'); await p.evaluate(() => window.__PLAYTEST__.teleport(17 / 46, 0)); await p.waitForTimeout(500);
     const c0 = await p.evaluate(() => window.__PLAYTEST__.snapshot().choice);
     await p.keyboard.press('KeyE'); await p.waitForTimeout(300);
-    await p.keyboard.down('KeyW'); await p.waitForTimeout(2500);
+    await p.keyboard.down('KeyW'); await p.waitForTimeout(1500);
+    const frames = new Set(); for (let i = 0; i < 12; i++) { frames.add(await p.evaluate(() => window.__PLAYTEST__.snapshot().frame)); await p.waitForTimeout(80); }
     const g = await p.evaluate(() => { const T = window.__PLAYTEST__, s = T.snapshot(); return s; });
     await p.screenshot({ path: `${out}/stairs.png` });
     await p.keyboard.up('KeyW');
     await p.evaluate(() => window.__PLAYTEST__.step(40000));        // ride out several gusts inside
     const s2 = await p.evaluate(() => ({ s: window.__PLAYTEST__.snapshot(), ev: window.__PLAYTEST__.hits() }));
+    ok('栈道上是跑台阶的姿势，不是攀爬帧（Alice 11-23：「不是爬楼梯么，应该是跑的姿势啊」）', [...frames].every(f => f.startsWith('run')) && frames.size >= 3, [...frames].join(','));
     ok('蜘蛛侠栈道（真实按键 E）：岔路出现，进了栈道往上走，里面刮风不掉', c0 === 'fork' && g.mode === 'stairs' && g.y > 170 && s2.ev.includes('stairs-in') && !s2.ev.includes('gust-fall') && s2.s.gustFalls === 0, JSON.stringify({ c0, mode: g.mode, y: g.y, falls: s2.s.gustFalls }));
     ok('栈道页零报错', errs.length === 0, errs.join(' | '));
     await ctx.close(); }

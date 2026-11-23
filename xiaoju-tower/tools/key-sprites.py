@@ -2,6 +2,7 @@
 Run: uv run --with pillow python tools/key-sprites.py <sheet.png> <name1,name2,name3,name4>  (use - to skip a cell)
 Sheets used: sprites/climb-sheet-v1.png -> -,-,brace,rest ; sprites/climb-sheet-v2.png -> climbA,pullA,-,pullB ; sprites/climb-left-v1.png -> climbB
 Several sheets in one run share one scale: key-sprites.py a.png n1,n2,n3,n4 b.png n5,n6,n7,n8
+跑台阶: sprites/run-stairs-v1.png runA,runB,runC,runD
 三花姐: sanhua/climb-sheet.png sanhua-climbA,sanhua-pullA,sanhua-climbB,sanhua-pullB sanhua/pose-sheet.png sanhua-brace,sanhua-rest,sanhua-cheer,sanhua-hit"""
 import sys
 from pathlib import Path
