@@ -130,19 +130,61 @@ test('打卡赛：精准档三处都打到、用时 3–7 分钟，骑车比全�
   }
 });
 
-test('跟三花姐比，两侧都写：16 局里精准档赢 3–14 局、手抖档赢 2–13 局，且精准档赢得更多（SPEC 第二章 5）', () => {
-  let wp = 0, wc = 0, posed = 0, skipped = 0, fast = 0;
+test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 4–12 局；精准档至少赢 12 局，且赢得比手抖档多（SPEC 第二章 5）', () => {
+  // 2026-11-23 Duet 真人两局（电脑 11:18、手机 6:25）都比手抖档慢，三花姐因此放慢；最接近真人的是手抖档，两侧断言放在它身上
+  let wp = 0, wc = 0, skipped = 0, beatClumsy = 0, posedLong = 0;
   for (const seed of SEEDS16) {
     const a = T.simulateTownRace(G, nav, seed, 'precise'), b = T.simulateTownRace(G, nav, seed, 'clumsy');
     if (a.won) wp++; if (b.won) wc++;
     assert.ok(a.rival.done && a.rival.stamps.length === 3, `种子 ${seed} 三花姐没打完`);
     if (a.rival.rides === 0) skipped++;
-    if (a.rival.time < a.player.time) fast++;
-    posed += a.rival.time - a.player.time > 60 ? 1 : 0;
+    if (b.rival.time < b.player.time) beatClumsy++;
+    if (a.rival.time > 420) posedLong++;
   }
-  assert.ok(wp >= 3 && wp <= 14, `精准档赢 ${wp}/16`);
-  assert.ok(wc >= 2 && wc <= 13, `手抖档赢 ${wc}/16`);
-  assert.ok(wp > wc, `精准档 ${wp} 局应多于手抖档 ${wc} 局`);
-  // the sample really contains what makes her beatable and what makes her dangerous (guards against an empty pass)
-  assert.ok(skipped >= 1 && fast >= 2, `三花姐不骑车 ${skipped} 局、比精准档快 ${fast} 局，样本里两样都要有`);
+  assert.ok(wc >= 4 && wc <= 12, `手抖档赢 ${wc}/16`);
+  assert.ok(wp >= 12 && wp > wc, `精准档赢 ${wp}/16，手抖档 ${wc}`);
+  // the sample really contains both kinds of day (guards against an empty pass)
+  assert.ok(skipped >= 1 && beatClumsy >= 4, `三花姐不骑车 ${skipped} 局、赢手抖档 ${beatClumsy} 局，两样都要有`);
+});
+
+// ---------- Duet 试玩反馈（2026-11-23）先写成检查 ----------
+// 在 Duet 卡住的三处（海心沙内湖东头、岛上海心桥头护栏、西塔旁楼角），朝 16 个方向按住 ↑ 2 秒：
+// 只要不是几乎正对着墙（与墙法线夹角 > 35°），就得顺着墙滑出去至少 3 米。
+function wallNormal(x, z, riding) {
+  let nx = 0, nz = 0;
+  for (let k = 0; k < 32; k++) { const a = k / 32 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a); if (!(riding ? T.canRide : T.canRun)(T.surf(G, x + c * 2.2, z + s * 2.2))) { nx -= c; nz -= s; } }
+  const L = Math.hypot(nx, nz); return L ? { x: nx / L, z: nz / L } : null;
+}
+function freeNear(x, z, riding) {
+  for (let r = 0; r < 6; r += 0.25) for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (!T.blockedAt(G, px, pz, riding) && wallNormal(px, pz, riding)) return { x: px, z: pz }; }
+}
+test('Duet 卡住的三处：贴着锯齿岸边和楼角按 ↑，不是正对墙就能滑出去（跑、骑都算）', () => {
+  const spots = [[191, -547], [191, -573], [-350, -518], [-185, -1065]];
+  const stuck = [];
+  for (const [sx, sz] of spots) for (const riding of [false, true]) {
+    const p = freeNear(sx, sz, riding); if (!p) continue;
+    const n = wallNormal(p.x, p.z, riding);
+    for (let k = 0; k < 16; k++) {
+      const h = k / 16 * Math.PI * 2, f = T.fwd(h), into = -(f.x * n.x + f.z * n.z);   // 1 = straight into the wall
+      if (into > Math.cos(35 * Math.PI / 180)) continue;
+      const s = T.createTown(G, 1); s.x = p.x; s.z = p.z; s.h = h; s.riding = riding;
+      for (let i = 0; i < 60; i++) T.stepTown(G, s, { up: true }, 1 / 30);
+      const d = Math.hypot(s.x - p.x, s.z - p.z);
+      if (d < 3) stuck.push(`${sx},${sz} ${riding ? '骑' : '跑'} 朝向${(h * 180 / Math.PI).toFixed(0)}° 只走了 ${d.toFixed(2)} 米`);
+    }
+  }
+  assert.deepStrictEqual(stuck, [], stuck.slice(0, 6).join('；'));
+});
+
+test('单车松手不会溜出几十米：全速松手 6 秒内停住、溜不到 45 米；停住后按 ↓ 能慢慢往后推', () => {
+  const road = (() => { for (const r of town.roads) if (r.k === 'secondary') for (let i = 0; i + 3 < r.p.length; i += 2) { const x = r.p[i], z = r.p[i + 1], L = Math.hypot(r.p[i + 2] - x, r.p[i + 3] - z); if (L > 80 && !T.blockedAt(G, x, z, true)) return { x, z, h: Math.atan2(r.p[i + 2] - x, -(r.p[i + 3] - z)) }; } })();
+  const s = Object.assign(T.createTown(G, 1), road, { riding: true }); s.speed = T.topSpeed(G, s);
+  const x0 = s.x, z0 = s.z; let t = 0;
+  while (s.speed > 0.05 && t < 20) { T.stepTown(G, s, {}, 1 / 30); t += 1 / 30; }
+  const d = Math.hypot(s.x - x0, s.z - z0);
+  assert.ok(t <= 6 && d < 45, `松手 ${t.toFixed(1)} 秒才停、溜了 ${d.toFixed(0)} 米`);
+  const x1 = s.x, z1 = s.z;
+  for (let i = 0; i < 60; i++) T.stepTown(G, s, { down: true }, 1 / 30);
+  const back = (s.x - x1) * -T.fwd(s.h).x + (s.z - z1) * -T.fwd(s.h).z;
+  assert.ok(back > 1, `骑车停住后按 ↓ 2 秒只往后挪了 ${back.toFixed(2)} 米`);
 });

@@ -21,10 +21,11 @@ Chapter 2, "Down into Town": take the lift down and, in the **real** OpenStreetM
 ### Chapter 2 · Down into Town
 
 - Tap 下塔进城 on the postcard, 第二章 · 下塔进城 on the start panel, or open `?ch=2`.
-- Same keys: ↑ / W run forward, ↓ / S brake or step back, ← → / A D turn (the camera sits behind her, so ← turns to the screen's left).
-- The mint bikes at the kerb are shared-bike docks: stand on one and press E (扫车 on a phone) to scan a bike, 2 s. On roads a bike is more than half again as fast as running, but it is slow to pick up speed, turns wide and rolls on when you let go; on grass it is slower than running. E again locks it, anywhere.
+- A short card and a 3-2-1 count come first; nobody moves until it ends.
+- Same keys: ↑ / W run forward, ↓ / S brake or step back, ← → / A D turn (the camera sits behind her, so ← turns to the screen's left). On a phone ← → and 扫车 sit bottom-left, ↑ ↓ bottom-right, one thumb each.
+- The mint bikes at the kerb are shared-bike docks: stand on one and press E (扫车 on a phone) to scan a bike, 2 s. On roads a bike is more than half again as fast as running, but it is slow to pick up speed, turns wide and rolls on when you let go; on grass it is slower than running. E again locks it, anywhere, and the bike stays where you left it; once stopped, ↓ walks the bike backwards.
 - The Haixin Bridge is the only crossing and bikes are not allowed on it (OpenStreetMap tags it `bicycle=no`): ride up to it and you are stopped; lock the bike and walk across.
-- Stops are the red light columns in the street and the red dots on the minimap. Run into the red ring to get the stamp; any order works, and the top-left panel suggests the next stop on the way.
+- Stops are the red light columns in the street and the red dots on the minimap. Run into the red ring to get the stamp; any order works. The top-left panel suggests where to go next and how far it is along the way, its red arrow points at the next stretch of that route, and the dashed orange line on the minimap is the route itself.
 - Sanhua runs too: she knows the city and may be fitter than you, but she does not always take a bike or the best order, and she stops for a selfie at every stop. Stamp all three for a postcard with three red seals you can save.
 
 ## Run and check locally
