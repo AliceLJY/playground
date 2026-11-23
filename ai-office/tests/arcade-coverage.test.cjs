@@ -14,6 +14,7 @@ const NOT_A_WORK={
   'tools':'共用检查脚本',
   'interaction-lab':'交互实验的规格与提示词，没有可玩页面',
   'shadow-gong-flow':'旧版跳转页，已并入 shadow-gong',
+  'covers':'首页图墙的封面图',
 };
 
 test('every playground work has an entry in the pixel office',()=>{
