@@ -51,6 +51,9 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
     ok(`${name}: ← → 和 E 在左半边、↑ ↓ 在右半边（两只拇指分工）`, [R.left, R.right, R.act].every(b => b.x + b.w <= R.vw / 2) && [R.up, R.down].every(b => b.x >= R.vw / 2), [R.left.x, R.right.x, R.act.x, R.up.x].map(Math.round).join(','));
     const catBox = { x: R.vw * 0.4, y: R.vh * 0.5, w: R.vw * 0.2, h: R.vh * 0.28 };
     ok(`${name}: 提示不挡小橘`, !overlap(R.hint, catBox), JSON.stringify(R.hint));
+    // the riding hint on this device: no line left holding a single character (Duet round 5, landscape)
+    const lines = await p.evaluate(() => { const h = document.getElementById('hint'); h.hidden = false; h.innerHTML = window.XJT_TOWNVIEW.hintText('ride'); const r = document.createRange(); r.selectNodeContents(h); const rects = [...r.getClientRects()]; const rows = {}; rects.forEach(q => { const k = Math.round(q.top); rows[k] = (rows[k] || 0) + q.width; }); return Object.values(rows); });
+    ok(`${name}: 骑车提示没有只剩一个字的一行`, lines.every(w => w > 24), lines.map(Math.round).join(','));
     await p.screenshot({ path: `${out}/town-${name}-hud.png` });
     // touch: the on-screen E really scans, the on-screen ↑ really moves
     if (touch) {
@@ -119,6 +122,9 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   // 海心桥: ride up to the south bridge head and get stopped with the hint
   const head = await p.evaluate(() => { const V = window.XJT_TOWNVIEW; for (let z = -60; z > -700; z--) for (let x = -620; x < 0; x++) if (V.surf(x, z) === 6 && V.surf(x, z + 3) !== 6 && !V.blocked(x, z + 5, true)) return { x, z: z + 5 }; });
   await p.evaluate(() => { const V = window.XJT_TOWNVIEW, d = V.docks()[0]; V.teleport(d.x, d.z, 0); }); await p.keyboard.press('KeyE'); await p.waitForTimeout(2300);
+  await p.evaluate(h => window.XJT_TOWNVIEW.teleport(h.x, h.z + 1, Math.PI / 2), head);   // stopped about 6 m off the bridge, facing along the bank
+  await p.waitForTimeout(600);
+  ok('骑车停在海心桥头几米外（不撞桥）也提示桥上不能骑（Duet 第五轮）', (await snap(p)).hint === 'nobike', (await snap(p)).hint);
   await p.evaluate(h => window.XJT_TOWNVIEW.teleport(h.x, h.z, 0), head);
   await hold(p, 'KeyW', 2500);
   const sb = await snap(p);

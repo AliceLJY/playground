@@ -333,14 +333,14 @@
   // ---------- autopilots: they press the same keys a player does ----------
   // precise: best route, takes bikes when the field says so, no dithering.
   // clumsy: reacts late (0.25 s), oversteers, sometimes ignores bikes or picks the worse tower first, dawdles at docks.
-  // rival (三花姐): drives clean at 82–98% of 小橘's top speed; about one race in seven she skips the bikes, one in five she does
+  // rival (三花姐): drives clean at 82–98% of 小橘's top speed; about one race in seven she skips the bikes (then her legs are 6% quicker: Duet round 5 found those races 6:30+), one in five she does
   // the towers in the slower order, and she poses for a photo at every stop for 1.5–10 s. Tuned over Duet's four playtests on
   // 2026-11-23: round 1 she won 5:10–5:40; round 4 her solo times spread 5:17–7:37 with 32–34 s selfies and the no-bike races
   // too easy, so now most races land between about 5:20 and 6:30.
   const PROFILES = {
     precise: { lag: 0, noise: 0, bike: 1, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 },
     clumsy: { lag: 0.18, noise: 0.12, bike: 0.6, hesitate: r => 0.6 + r * 2.4, wander: 0.04, orderMiss: 0.4, deadband: 0.12 },
-    rival: { lag: 0, noise: 0, bike: 0.85, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.2, deadband: 0.06, power: r => 0.82 + 0.16 * r, linger: r => 1.5 + 8.5 * r * r * r },
+    rival: { lag: 0, noise: 0, bike: 0.85, hesitate: r => 0.2 + r * 1.6, wander: 0, orderMiss: 0.2, deadband: 0.06, power: r => 0.82 + 0.16 * r, walkBoost: 1.06, linger: r => 1.5 + 8.5 * r * r * r },
     walker: { lag: 0, noise: 0, bike: 0, hesitate: () => 0, wander: 0, orderMiss: 0, deadband: 0.06 }
   };
   function makePilot(G, nav, profile, seed) {
@@ -348,7 +348,7 @@
     const gauss = () => { let u = 0, v = 0; while (!u) u = rng(); while (!v) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
     const mem = { target: -1, queue: [], wanderUntil: -1, wanderDir: 0, waitUntil: -1, skipBike: rng() > P.bike, order: null, noiseNow: 0, noiseAt: 0 };
     if (rng() < P.orderMiss) mem.order = [0, 2, 1];      // the slower order: 海心沙, then 东塔, then 西塔
-    const power = P.power ? P.power(rng()) : 1;
+    const power = (P.power ? P.power(rng()) : 1) * (mem.skipBike && P.walkBoost ? P.walkBoost : 1);   // on foot all race: a little quicker legs
     function pilot(s) {
       if (s.power === undefined) s.power = power;      // 三花姐's legs: a little faster or slower than 小橘 depending on the day
       const inp = { up: false, down: false, left: false, right: false, act: false };

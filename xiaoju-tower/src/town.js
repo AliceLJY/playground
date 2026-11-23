@@ -387,9 +387,9 @@
   const hints = {
     start: TOUCH ? '按住右下 <b>↑</b> 跑，左下 <b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱' : '按住 <b>↑</b> 跑，<b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱',
     dock: `这是共享单车点：${scanKey}扫一辆，路上快很多`,
-    ride: TOUCH ? '骑车松手会溜、转弯要早；随时点<b>「锁车」</b>下车' : '骑车松手会溜、转弯要早；按 <b>E</b> 随时锁车',
-    nobike: `海心桥不让骑车：${lockKey}，走过去`,
-    grass: `前面一大片草地，骑车比跑还慢：${lockKey}下来跑更快`,
+    ride: TOUCH ? '骑车松手会溜、转弯要早；<span class="nw">随时点<b>「锁车」</b>下车</span>' : '骑车松手会溜、转弯要早；按 <b>E</b> 随时锁车',
+    nobike: `海心桥不让骑车：<span class="nw">${lockKey}，走过去</span>`,
+    grass: `前面一大片草地，骑车比跑还慢：<span class="nw">${lockKey}下来跑更快</span>`,
     stop: '跑进红圈就盖章'
   };
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = T.time; const el = $('hint'); el.innerHTML = hints[id]; el.hidden = false; }
@@ -435,6 +435,8 @@
   function hintLogic() {
     if (hintNow === 'start' && (T.time > 9 || T.dist > 40)) clearHint('start');
     if (!hintDone.dock && TC.actionAt(G, T) === 'scan' && hintNow !== 'nobike') showHint('dock');
+    // riding up to 海心桥: say it as soon as she is within a few metres of the deck, not only when she bumps it (Duet round 5)
+    if (T.riding && hintNow !== 'nobike' && !hintDone.nobike) { let near = false; for (const r of [3, 6]) for (let k = 0; k < 16 && !near; k++) { const a = k / 16 * Math.PI * 2; near = TC.surf(G, T.x + Math.cos(a) * r, T.z + Math.sin(a) * r) === S2.FOOTBRIDGE; } if (near) showHint('nobike'); }
     // grass: only after a full second really riding on it, with grass still ahead along the heading
     // (Duet round 4: judging by the nose alone fired while cornering past a lawn, 130 m from the stop)
     onGrassT = T.riding && T.speed > 2 && TC.surf(G, T.x, T.z) === S2.GREEN ? onGrassT + dtNow : 0;
@@ -638,6 +640,7 @@
     skipCountdown: () => { countdown = 0; waitStart = false; $('t-ready').hidden = true; $('t-hud').hidden = false; $('pad').hidden = false; },
     countdown: () => countdown,
     waiting: () => waitStart,
+    hintText: id => hints[id],
     setRiding: on => { T.riding = !!on; },
     screenGap: () => { const a = new THREE.Vector3(), b = new THREE.Vector3(); E.cat.getWorldPosition(a); E.rival.getWorldPosition(b); a.project(camera); b.project(camera); return Math.abs(a.x - b.x) * innerWidth / 2; },
     route: () => ({ len: routeLen, pts: route.length, steer: steerPt }),

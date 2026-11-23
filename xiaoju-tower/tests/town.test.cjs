@@ -130,7 +130,7 @@ test('打卡赛：精准档三处都打到、用时 3–7 分钟，骑车比全�
   }
 });
 
-test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 2–12 局；精准档至少赢 12 局，且赢得比手抖档多（SPEC 第二章 5）', () => {
+test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 1–12 局（不全输）；精准档至少赢 12 局，且赢得比手抖档多（SPEC 第二章 5）', () => {
   // 2026-11-23 Duet 真人两局（电脑 11:18、手机 6:25）都比手抖档慢，三花姐因此放慢；最接近真人的是手抖档，两侧断言放在它身上
   let wp = 0, wc = 0, skipped = 0, beatClumsy = 0, posedLong = 0;
   for (const seed of SEEDS16) {
@@ -141,7 +141,7 @@ test('跟三花姐比，两侧写在手抖档上：16 局手抖档赢 2–12 局
     if (b.rival.time < b.player.time) beatClumsy++;
     if (a.rival.time > 420) posedLong++;
   }
-  assert.ok(wc >= 2 && wc <= 12, `手抖档赢 ${wc}/16`);   // Duet round 4 (humans 5:03–5:20) is already faster than the clumsy pilot
+  assert.ok(wc >= 1 && wc <= 12, `手抖档赢 ${wc}/16`);   // not shut out, not winning everything; Duet rounds 4–5 (humans 5:00–5:20) are well past the clumsy pilot
   assert.ok(wp >= 12 && wp > wc, `精准档赢 ${wp}/16，手抖档 ${wc}`);
   // the sample really contains both kinds of day (guards against an empty pass)
   assert.ok(skipped >= 1 && beatClumsy >= 4, `三花姐不骑车 ${skipped} 局、赢手抖档 ${beatClumsy} 局，两样都要有`);
