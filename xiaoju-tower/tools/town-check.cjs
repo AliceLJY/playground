@@ -21,12 +21,21 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   for (const [name, w, h, touch] of viewports) {
     const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
     const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
-    await p.goto(url + '?ch=2&seed=3'); await p.waitForTimeout(900);
-    const rd = await p.evaluate(() => { const r = s => { const b = document.querySelector(s).getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; }; return { card: r('.t-ready-card'), count: r('#t-count'), shown: !document.getElementById('t-ready').hidden, vw: innerWidth, vh: innerHeight }; });
-    const inV = b => b.x >= 0 && b.y >= 0 && b.x + b.w <= rd.vw + 0.5 && b.y + b.h <= rd.vh + 0.5;
-    ok(`${name}: 开局说明卡和 3-2-1 都在可视区内`, rd.shown && inV(rd.card) && inV(rd.count) && !overlap(rd.card, rd.count), JSON.stringify(rd.card));
+    await p.goto(url + '?ch=2&seed=3'); await p.waitForTimeout(1200);
+    const rd = await p.evaluate(() => { const r = s => { const e = document.querySelector(s); if (!e || e.hidden || e.closest('[hidden]')) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; };
+      const E = window.XJT_ENGINE, v = new THREE.Vector3(); E.cat.getWorldPosition(v); const top = v.clone().add(new THREE.Vector3(0, 0.9, 0)).project(E.camera), bot = v.clone().add(new THREE.Vector3(0, -0.9, 0)).project(E.camera);
+      const cat = { x: (top.x * 0.5 + 0.5) * innerWidth - 20, y: (-top.y * 0.5 + 0.5) * innerHeight, w: 40, h: ((top.y - bot.y) * 0.5) * innerHeight };
+      return { card: r('.t-ready-card'), go: r('#t-go'), hud: r('#t-hud'), pad: r('#pad'), cat, tp: getComputedStyle(document.querySelector('.tp')).display !== 'none', vw: innerWidth, vh: innerHeight }; });
+    const inV = b => b && b.x >= 0 && b.y >= 0 && b.x + b.w <= rd.vw + 0.5 && b.y + b.h <= rd.vh + 0.5;
+    ok(`${name}: 说明卡等「开跑」：卡和按钮在可视区内、不盖住小橘，读数和按键先藏起来`, inV(rd.card) && inV(rd.go) && rd.go.h >= 44 && !overlap(rd.card, rd.cat) && !rd.hud && !rd.pad, JSON.stringify({ card: rd.card, cat: rd.cat }));
+    ok(`${name}: 说明卡里单车的说法跟设备对上（触屏说「点『扫车』」，键盘说「按 E」）`, rd.tp === touch);
     await p.screenshot({ path: `${out}/town-${name}-ready.png` });
-    await p.waitForTimeout(3600);
+    if (touch) await p.touchscreen.tap(rd.go.x + rd.go.w / 2, rd.go.y + rd.go.h / 2); else await p.click('#t-go');
+    await p.waitForTimeout(500);
+    const cd = await p.evaluate(() => { const b = document.getElementById('t-count').getBoundingClientRect(); return { y: b.y, h: b.height, shown: !document.getElementById('t-count').hidden, hud: !document.getElementById('t-hud').hidden }; });
+    ok(`${name}: 点「开跑」后 3-2-1 在画面上半、读数回来`, cd.shown && cd.hud && cd.y + cd.h < h * 0.5, JSON.stringify(cd));
+    await p.screenshot({ path: `${out}/town-${name}-count.png` });
+    await p.waitForTimeout(2600);
     // worst case: the longest hint up, standing on a dock so the E key is lit
     await p.evaluate(() => { const V = window.XJT_TOWNVIEW, d = V.docks()[0]; V.teleport(d.x, d.z, 0); const h = document.getElementById('hint'); h.hidden = false; h.innerHTML = '这是共享单车点：按 <b>E</b> 扫一辆，路上快很多（海心桥不让骑车：按 <b>E</b> 锁车，走过去）'; });
     await p.waitForTimeout(400);
@@ -56,17 +65,19 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   const ctx = await b.newContext({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 1 });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(url + '?ch=2&seed=3'); await p.waitForTimeout(500);
+  await p.waitForTimeout(4000);
+  ok('说明卡一直等着（4 秒后还在，没有自己开始）', await p.evaluate(() => window.XJT_TOWNVIEW.waiting() && !document.getElementById('t-ready').hidden));
   const c0 = await snap(p);
   await hold(p, 'KeyW', 1500);
   const c1 = await snap(p);
-  ok('倒数期间按 W 不动、计时不走、三花姐也不动', Math.hypot(c1.x - c0.x, c1.z - c0.z) < 0.01 && c1.time === c0.time && Math.hypot(c1.rival.x - c0.rival.x, c1.rival.z - c0.rival.z) < 0.01 && await p.evaluate(() => !document.getElementById('t-ready').hidden), `time ${c0.time}→${c1.time}`);
+  ok('按 W 开始 3-2-1，倒数期间不动、计时不走、三花姐也不动', Math.hypot(c1.x - c0.x, c1.z - c0.z) < 0.01 && c1.time === c0.time && Math.hypot(c1.rival.x - c0.rival.x, c1.rival.z - c0.rival.z) < 0.01 && await p.evaluate(() => !window.XJT_TOWNVIEW.waiting() && window.XJT_TOWNVIEW.countdown() > 0), `time ${c0.time}→${c1.time}`);
   await p.screenshot({ path: `${out}/town-countdown.png` });
-  await p.waitForTimeout(2400);
+  await p.waitForTimeout(1600);
   ok('倒数结束说明卡收起', await p.evaluate(() => document.getElementById('t-ready').hidden && window.XJT_TOWNVIEW.countdown() <= 0));
   ok('进第二章后网址带上 ?ch=2（刷新还在第二章）', await p.evaluate(() => new URLSearchParams(location.search).get('ch') === '2'));
   // the guide follows the route: at the start it points west towards the bridge, not north across the river
   const rt = await p.evaluate(() => { const V = window.XJT_TOWNVIEW, s = window.__PLAYTEST__.snapshot(), r = V.route(), st = V.stops()[1]; const v = new THREE.Vector3(r.steer.x, 1, r.steer.z).project(window.XJT_ENGINE.camera); return { len: r.len, straight: Math.hypot(st.x - s.x, st.z - s.z), steerX: r.steer.x, screenX: v.x, text: document.getElementById('t-next').textContent }; });
-  ok('开局指路按路线：往西去海心桥（指向画面左边），路程比直线长', rt.steerX < -5 && rt.screenX < 0 && rt.len > rt.straight * 1.2, JSON.stringify(rt));
+  ok('开局指路按路线：往西去海心桥（指向画面左边），路程比直线长，写着「经海心桥」', rt.steerX < -5 && rt.screenX < 0 && rt.len > rt.straight * 1.2 && rt.text.includes('经海心桥'), JSON.stringify(rt));
   const gpu = await p.evaluate(() => { const gl = document.querySelector('#world canvas').getContext('webgl2'); const e = gl.getExtension('WEBGL_debug_renderer_info'); return gl.getParameter(e.UNMASKED_RENDERER_WEBGL); });
   ok('渲染器不是 SwiftShader', !/swiftshader/i.test(gpu), gpu);
   const s0 = await snap(p);
@@ -147,6 +158,8 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   ok('三处盖完出结尾面板，三个按钮完整可点', !(await p.evaluate(() => document.getElementById('t-end').hidden)) && end.every(e => e.hit && e.h >= 44 && e.x >= 0 && e.y + e.h <= 760), JSON.stringify(end.map(e => e.hit)));
   await p.screenshot({ path: `${out}/town-end.png` });
   await p.click('#t-again'); await p.waitForTimeout(600);
+  ok('「再跑一次」不再出说明卡，直接 3-2-1', await p.evaluate(() => !window.XJT_TOWNVIEW.waiting() && window.XJT_TOWNVIEW.countdown() > 0 && document.querySelector('.t-ready-card').hidden));
+  await p.waitForTimeout(2600);
   const sa = await snap(p);
   ok('点「再跑一次」回到塔脚、清单清空', sa.stamps.length === 0 && Math.hypot(sa.x, sa.z + 40) < 3, JSON.stringify([sa.x, sa.z, sa.stamps]));
   // performance at street level, looking up the 花城广场 axis
@@ -163,7 +176,7 @@ async function hold(p, key, ms) { await p.keyboard.down(key); await p.waitForTim
   const q = await c2.newPage(); const e2 = []; q.on('pageerror', e => e2.push(e.message));
   await q.goto(url + '?seed=5'); await q.waitForTimeout(2000);
   await q.click('#to-town2'); await q.waitForTimeout(800);
-  ok('开场面板点「第二章 · 下塔进城」进到第二章', await q.evaluate(() => window.__PLAYTEST__.chapter()) === 2 && !(await q.evaluate(() => document.getElementById('t-hud').hidden)));
+  ok('开场面板点「第二章 · 下塔进城」进到第二章，说明卡等着', await q.evaluate(() => window.__PLAYTEST__.chapter()) === 2 && await q.evaluate(() => !document.getElementById('t-ready').hidden && window.XJT_TOWNVIEW.waiting()));
   await q.click('#t-tower').catch(() => {});
   await q.evaluate(() => { window.XJT_TOWNVIEW.exit(); window.XJT_ENGINE.backToTower(); }); await q.waitForTimeout(500);
   ok('回塔上：回到第一章开场，网址去掉 ch', await q.evaluate(() => window.__PLAYTEST__.chapter()) === 1 && !(await q.evaluate(() => document.getElementById('intro').hidden)) && await q.evaluate(() => !new URLSearchParams(location.search).has('ch')));

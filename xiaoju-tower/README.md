@@ -21,7 +21,7 @@ Chapter 2, "Down into Town": take the lift down and, in the **real** OpenStreetM
 ### Chapter 2 · Down into Town
 
 - Tap 下塔进城 on the postcard, 第二章 · 下塔进城 on the start panel, or open `?ch=2`.
-- A short card and a 3-2-1 count come first; nobody moves until it ends.
+- A short card comes first and waits: tap 开跑 (or press ↑) for a 3-2-1; 再跑一次 goes straight to the count. Nobody moves until it ends.
 - Same keys: ↑ / W run forward, ↓ / S brake or step back, ← → / A D turn (the camera sits behind her, so ← turns to the screen's left). On a phone ← → and 扫车 sit bottom-left, ↑ ↓ bottom-right, one thumb each.
 - The mint bikes at the kerb are shared-bike docks: stand on one and press E (扫车 on a phone) to scan a bike, 2 s. On roads a bike is more than half again as fast as running, but it is slow to pick up speed, turns wide and rolls on when you let go; on grass it is slower than running. E again locks it, anywhere, and the bike stays where you left it; once stopped, ↓ walks the bike backwards.
 - The Haixin Bridge is the only crossing and bikes are not allowed on it (OpenStreetMap tags it `bicycle=no`): ride up to it and you are stopped; lock the bike and walk across.
