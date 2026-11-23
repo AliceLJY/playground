@@ -245,7 +245,7 @@
   const loader = new THREE.TextureLoader();
   const catTex = {};
   const SH = ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', 'cheer', 'hit'].map(n => 'sanhua-' + n);
-  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', ...SH].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
+  ['climbA', 'pullA', 'climbB', 'pullB', 'brace', 'rest', 'runA', 'runB', 'runC', 'runD', ...SH].forEach(n => { const t = loader.load('assets/cat-' + n + '.webp'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; catTex[n] = t; });
   const catMat = new THREE.MeshStandardMaterial({ map: catTex.climbA, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
   const CAT_H = 3.0;
   const catSprite = new THREE.Mesh(new THREE.PlaneGeometry(CAT_H / 2, CAT_H), catMat);
@@ -497,12 +497,13 @@
         catPos.copy(sp.p).add(V3(0, 1.45, 0));
         const right = new THREE.Vector3().crossVectors(catUp, catOut).normalize();
         cat.position.copy(catPos); cat.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, catUp, catOut));
-        const moving = S.climbing, ph = S.stairY / 0.64;
-        frameName = moving ? (Math.floor(ph) % 2 ? 'climbB' : 'climbA') : 'rest';
-        catSprite.position.set(0, moving ? Math.abs(Math.sin(ph * Math.PI)) * 0.12 : 0, 0); catSprite.rotation.z = 0;
+        // going up the spiral she moves to the screen-LEFT (tangent · screen-right < 0), and the run frames face left
+        const moving = S.climbing || (S.mode === 'stairs' && input.down), ph = Math.floor(S.stairY / 0.1);
+        frameName = moving ? 'run' + 'ABCD'[ph % 4] : 'rest';
+        catSprite.position.set(0, moving && ph % 2 ? 0.08 : 0, 0); catSprite.rotation.z = moving ? 0.06 : 0;
         void tang;
       } else frameName = 'rest';
-      setFrame(catMat, catSprite, frameName, 1);
+      setFrame(catMat, catSprite, frameName, frameName.startsWith('run') ? 0.86 : 1);
       return;
     }
     let f;
@@ -764,7 +765,7 @@
       if (e.type === 'kite-dodged') { flash('ok'); clearHint('kite'); kiteAway = { from: kitePos.clone(), dir: colFrame(e.col, S.t).out.add(V3(0, 0.3, 0)).normalize(), t: 0 }; }
       if (e.type === 'kite-hit') { flash('hit'); shake = 0.8; if (hintNow === 'kite') { hintNow = null; hintEl.hidden = true; } kiteAway = { from: kitePos.clone(), dir: colFrame(e.col, S.t).out.add(V3(0, 0.5, 0)).normalize(), t: 0 }; }
       if (e.type === 'shifted') clearHint('shift');
-      if (e.type === 'stairs-in') { flash('ok'); note('进了蜘蛛侠栈道：这里风和黑鸢都碰不到你。按住 <b>↑</b> 爬台阶，到 334 米出口出来'); }
+      if (e.type === 'stairs-in') { flash('ok'); note('进了蜘蛛侠栈道：这里风和黑鸢都碰不到你。按住 <b>↑</b> 跑台阶，到 334 米出口出来'); }
       if (e.type === 'stairs-out') note('出了栈道，334 米。外面又有风了');
       if (e.type === 'snack') { flash('ok'); note(`吃了一份${C.snack.names[e.name]}，体力上限 +${C.snack.bonus}`); }
       if (e.type === 'top') finish();
@@ -872,7 +873,7 @@
 
   window.__PLAYTEST__ = {
     ready: true,
-    snapshot: () => ({ race, rivalY: R ? +X.y(R).toFixed(2) : null, rivalCol: R ? R.col : null, rivalMode: R ? R.mode : null, rivalDone: R ? R.done : null, gap: R ? +X.raceGap(S, R).toFixed(1) : null, choice: choiceOn, staminaMax: S.staminaMax, ate: S.ate, stairsUsed: S.stairsUsed, finale: finale ? X.finalePose(finale.kind, finale.t).phase : null, postcard: postcard ? { labels: postcard.labels, w: postcard.w, h: postcard.h } : null, kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
+    snapshot: () => ({ frame: frameName, race, rivalY: R ? +X.y(R).toFixed(2) : null, rivalCol: R ? R.col : null, rivalMode: R ? R.mode : null, rivalDone: R ? R.done : null, gap: R ? +X.raceGap(S, R).toFixed(1) : null, choice: choiceOn, staminaMax: S.staminaMax, ate: S.ate, stairsUsed: S.stairsUsed, finale: finale ? X.finalePose(finale.kind, finale.t).phase : null, postcard: postcard ? { labels: postcard.labels, w: postcard.w, h: postcard.h } : null, kite: X.kitePhase(S).phase, kiteHits: S.kiteHits, timeMode: MODE, following, lights: lightProg.on ? (lightProg.name || 'classic') : 'off', dayP: +dayP.toFixed(3), y: +X.y(S).toFixed(2), col: S.col, mode: S.mode, stamina: +S.stamina.toFixed(1), falls: S.falls, gustFalls: S.gustFalls, pigeonHits: S.pigeonHits, time: +S.time.toFixed(2), done: S.done, playing, ended, hint: hintNow, gust: X.gustPhase(S).phase, fps: +fps.toFixed(1), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, cityTris: window.__cityTris, input: Object.assign({}, input) }),
     reset: seed => { reset(seed); },
     setSeed: n => { reset(n); },
     start: () => start(),
