@@ -48,7 +48,8 @@
       `<label><span>key</span><input class="s-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-……"></label>` +
       `<details><summary>改接口地址或模型（可选）</summary>` +
       `<label><span>接口地址</span><input class="s-url" inputmode="url" autocomplete="off" spellcheck="false"></label>` +
-      `<label><span>模型名</span><input class="s-model" autocomplete="off" spellcheck="false"></label></details></div>`;
+      `<label><span>模型名</span><input class="s-model" autocomplete="off" spellcheck="false"></label>` +
+      `<button class="s-reset" type="button">恢复默认地址和模型</button></details></div>`;
     const sel = row.querySelector('.s-kind');
     const kinds = Object.keys(A.PROVIDERS).map((p) => [p, A.PROVIDERS[p].label]);
     if (k > 0) kinds.push(['none', '空着']);
@@ -68,7 +69,13 @@
     };
     if (saved && saved.url) row.querySelector('.s-url').value = saved.url;
     if (saved && saved.model) row.querySelector('.s-model').value = saved.model;
-    sel.addEventListener('change', fillDefaults);
+    const resetDefaults = () => {
+      const p = A.PROVIDERS[sel.value];
+      if (p && p.url) { row.querySelector('.s-url').value = p.url; row.querySelector('.s-model').value = p.model; }
+    };
+    // 换了服务商就回到那家的默认地址和模型（Alice 11-23：不然要自己去找来填）；页面初次载入仍保留记住的自定义值
+    sel.addEventListener('change', () => { resetDefaults(); fillDefaults(); });
+    row.querySelector('.s-reset').addEventListener('click', resetDefaults);
     $('seats').appendChild(row);
     fillDefaults();
   }

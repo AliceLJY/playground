@@ -221,6 +221,35 @@ async function layoutCheck(page, vp) {
     await ctx.close();
   }
 
+  // ---- 换服务商时地址和模型名回到该家的默认值；「恢复默认」按钮同理（Alice 11-23：换模型后默认地址要重新出来）----
+  {
+    const DS = { url: 'https://api.deepseek.com/chat/completions', model: 'deepseek-chat' };
+    const QW = { url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', model: 'qwen-plus' };
+    const { ctx, page } = await newPage(browser, { width: 390, height: 844 }, { touch: true });
+    await page.goto(`${BASE}?seed=5&fast=1`);
+    await ready(page);
+    const row = '.seat[data-seat="1"]';
+    const read = async () => ({ url: await page.inputValue(`${row} .s-url`), model: await page.inputValue(`${row} .s-model`) });
+    await page.selectOption(`${row} .s-kind`, 'deepseek');
+    await page.click(`${row} details summary`);
+    await page.fill(`${row} .s-url`, 'https://relay.example.com/v1/chat/completions');
+    await page.fill(`${row} .s-model`, 'my-model');
+    await page.selectOption(`${row} .s-kind`, 'qwen');
+    const toQwen = await read();
+    await page.fill(`${row} .s-url`, 'https://relay.example.com/v1/chat/completions');
+    await page.selectOption(`${row} .s-kind`, 'deepseek');
+    const backDs = await read();
+    await page.fill(`${row} .s-url`, 'https://relay.example.com/v1/chat/completions');
+    await page.fill(`${row} .s-model`, 'my-model');
+    const btn = await page.$(`${row} .s-reset`);
+    if (btn) await btn.click();
+    const reset = await read();
+    const lay = await layoutCheck(page, { width: 390, height: 844 });
+    const ok = toQwen.url === QW.url && toQwen.model === QW.model && backDs.url === DS.url && backDs.model === DS.model && !!btn && reset.url === DS.url && reset.model === DS.model && !lay.overlaps.length;
+    check('K6', '换服务商后接口地址与模型名回到该家默认；「恢复默认」一点就回到当前这家的默认值', ok, { toQwen, backDs, hasResetButton: !!btn, reset, overlaps: lay.overlaps });
+    await ctx.close();
+  }
+
   await browser.close();
   const report = { base: BASE, browser: 'Playwright Chromium (headless)', at: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), pass: results.filter((r) => r.ok).length, fail: results.filter((r) => !r.ok).length, results };
   // 报告里同样不许有 key
