@@ -2,6 +2,8 @@
 
 爱攀岩的肌肉小橘顺着广州塔扭转的白色钢网格往上爬，旁边那根柱子上是来比赛的肌肉三花姐。路线自己挑，看准时机在横梁上歇脚；起风前按住抓紧，绕开蹲着的鸽子。走不走蜘蛛侠栈道、在旋转餐厅吃不吃点心，都是自己的选择。天色随高度从午后走到入夜，爬到 454 米看全城亮灯，再坐摩天轮或极速云霄，在 488 米拍一张明信片。
 
+第二章「下塔进城」：坐电梯下到塔脚，在**真实的** OpenStreetMap 珠江新城街区里，跑去明信片上那三处——海心沙、西塔、东塔——各盖一个章，跟三花姐比谁先盖完。过江只有海心桥，路边有共享单车。
+
 ## 怎么玩
 
 - 按住 ↑ / W 沿柱子往上爬，↓ / S 往下。往上爬会掉体力，松开 ↑ 小橘会去抓最近的那道横梁，抱住歇着回体力，体力条会写「歇脚中」。
@@ -16,24 +18,34 @@
 - 登顶后选坐摩天轮或极速云霄，最后到 488 米户外观景平台拍一张明信片，上面标着海心沙、西塔、东塔（名字来自 OpenStreetMap），可以存下来。
 - 手机上，左下是「抓紧」，右下是方向键。拖动画面可以左右转一下镜头。
 
+### 第二章 · 下塔进城
+
+- 明信片上点「下塔进城」，或开场面板点「第二章 · 下塔进城」，或者直接打开 `?ch=2`。
+- 同一套键：↑ / W 往前跑，↓ / S 刹车或后退，← → / A D 转弯（镜头在身后，按 ← 就往屏幕左边转）。
+- 路边青绿色的是共享单车点：站上去按 E（手机点「扫车」）扫一辆，2 秒。路上骑车比跑快一半以上，但起步慢、转弯大、松手还会溜；草地上骑车反而比跑慢。再按 E 锁车，哪里都能锁。
+- 过珠江只有海心桥，桥上不让骑车（OpenStreetMap 里海心桥标着 `bicycle=no`）：骑到桥头会被拦下，锁车走过去。
+- 打卡点是街上的红光柱、小地图上的红点。跑进红圈自动盖章，三处顺序随意，左上角有建议的顺路下一站。
+- 三花姐也在跑：她认路、体能可能比你好，但不一定骑车、不一定走最顺的顺序，每到一处还要停下来自拍。三处盖完出一张盖着三个红章的打卡明信片，可以存下来。
+
 ## 本地运行与检查
 
 ```sh
 python3 -m http.server 8765    # 在 xiaoju-tower 目录里
 ```
 
-打开 `http://localhost:8765/`。固定机位：`?view=base`、`?view=waist`、`?view=top`，加 `&seed=3` 可以固定鸽子和阵风。
+打开 `http://localhost:8765/`。固定机位：`?view=base`、`?view=waist`、`?view=top`，加 `&seed=3` 可以固定鸽子和阵风。第二章：`?ch=2&view=start|ride|bridge|stop|end`（精准自动驾驶真跑到那一刻再定格）。
 
 ```sh
-node --check src/core.js && node --check src/game.js
+node --check src/core.js && node --check src/game.js && node --check src/town-core.js && node --check src/town.js
 node --test tests/*.test.cjs
 python3 build.py                                   # 生成单文件 小橘爬塔.html
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/ shots
+NODE_PATH="$(npm root -g)" node tools/town-check.cjs http://127.0.0.1:8765/index.html shots   # 第二章
 ```
 
-城市数据由 `tools/build-city.py` 从 OSM 广东分省包切出来（需要 osmium-tool），以广州塔为原点，取半径 4.2 公里。角色贴图由 `tools/key-sprites.py` 从绿幕动作表抠出。实测数字和没覆盖到的项目见 [VERIFICATION.md](VERIFICATION.md)。
+城市数据由 `tools/build-city.py` 从 OSM 广东分省包切出来（需要 osmium-tool），以广州塔为原点，取半径 4.2 公里。第二章的街区网格由 `tools/build-town.py` 从同一个包切出（1 米一格，需要 Pillow：`uv run --with pillow python tools/build-town.py`）。角色贴图由 `tools/key-sprites.py` 从绿幕动作表抠出。实测数字和没覆盖到的项目见 [VERIFICATION.md](VERIFICATION.md)。
 
 ## 谁会点开、AI 素材
 
-- 谁会点开：在广州塔下仰头看过它的人，想自己爬上去一回。
-- AI 素材：小橘、三花姐的设定图、攀爬动作帧和小橘跑台阶的四帧是网页版 ChatGPT 生成的；塔身、城市、天色、鸽子都是代码搭的，城市楼群和明信片上的地名来自 OpenStreetMap；栈道、摩天轮、极速云霄、观景平台都是代码搭的；代码由人与 AI 协作完成。署名：我的AI小木屋 / GitHub @AliceLJY。
+- 谁会点开：在广州塔下仰头看过它的人，想自己爬上去一回；走过海心桥、在花城广场打过卡的人，想在真实的地图上再跑一趟。
+- AI 素材：小橘、三花姐的设定图、攀爬动作帧、小橘跑台阶的四帧，以及第二章两只猫的跑步、骑共享单车、扫码、打卡、自拍、庆祝帧，都是网页版 ChatGPT 生成的；第二章的街区地面、路、桥、行道树、单车点由代码按 OpenStreetMap 数据搭出；塔身、城市、天色、鸽子都是代码搭的，城市楼群和明信片上的地名来自 OpenStreetMap；栈道、摩天轮、极速云霄、观景平台都是代码搭的；代码由人与 AI 协作完成。署名：我的AI小木屋 / GitHub @AliceLJY。

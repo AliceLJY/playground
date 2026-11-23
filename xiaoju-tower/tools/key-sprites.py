@@ -3,6 +3,8 @@ Run: uv run --with pillow python tools/key-sprites.py <sheet.png> <name1,name2,n
 Sheets used: sprites/climb-sheet-v1.png -> -,-,brace,rest ; sprites/climb-sheet-v2.png -> climbA,pullA,-,pullB ; sprites/climb-left-v1.png -> climbB
 Several sheets in one run share one scale: key-sprites.py a.png n1,n2,n3,n4 b.png n5,n6,n7,n8
 跑台阶: sprites/run-stairs-v1.png runA,runB,runC,runD
+第二章 小橘: town/x1-run-back.png town-runA..D town/x2-ride-back.png town-rideA,town-rideB,town-rideC,town-rideStop town/x3-misc.png town-stand,town-cheer,town-scan,town-win (one run)
+第二章 三花姐: town/s1..s5 -> sanhua-town-run{Back,Front}{A,B}, run{Left,Right}{A,B}, ride{Back,Front}{A,B}, ride{Left,Right}{A,B}, scan,selfie,stand,win (one run)
 三花姐: sanhua/climb-sheet.png sanhua-climbA,sanhua-pullA,sanhua-climbB,sanhua-pullB sanhua/pose-sheet.png sanhua-brace,sanhua-rest,sanhua-cheer,sanhua-hit"""
 import sys
 from pathlib import Path

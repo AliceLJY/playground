@@ -2,6 +2,8 @@
 
 Xiaoju, a muscular orange tabby who loves climbing, scales the twisted white steel lattice of Canton Tower in Guangzhou, racing Sanhua, a muscular calico, on the next column. Pick your own route, rest on the ring beams at the right moments, brace before the wind hits and steer around the pigeons; decide whether to take the Spider Walk stair and whether to stop for a snack at the revolving restaurant. The sky turns from afternoon to night as you rise, at 454 m the whole city lights up, and after a ride on the bubble tram or the drop ride you take a postcard from the 488 m outdoor deck.
 
+Chapter 2, "Down into Town": take the lift down and, in the **real** OpenStreetMap streets of Zhujiang New Town, race Sanhua to stamp the three places on that postcard — Haixinsha, the West Tower and the East Tower. The only way across the Pearl River is the Haixin Bridge, and shared bikes wait at the kerb.
+
 ## How to play
 
 - Hold ↑ / W to climb along a column, ↓ / S to go down. Climbing costs stamina, let go mid-column and Xiaoju grabs the nearest ring beam, up or down, to rest; the stamina bar reads 歇脚中 (resting) while it refills.
@@ -16,24 +18,34 @@ Xiaoju, a muscular orange tabby who loves climbing, scales the twisted white ste
 - After the top, ride the bubble tram or the drop ride, then take a postcard at the 488 m outdoor deck with Haixinsha, the West Tower and the East Tower labelled (names from OpenStreetMap); you can save it.
 - On phones, Brace is bottom-left and the arrows bottom-right. Drag the scene to swing the camera a little.
 
+### Chapter 2 · Down into Town
+
+- Tap 下塔进城 on the postcard, 第二章 · 下塔进城 on the start panel, or open `?ch=2`.
+- Same keys: ↑ / W run forward, ↓ / S brake or step back, ← → / A D turn (the camera sits behind her, so ← turns to the screen's left).
+- The mint bikes at the kerb are shared-bike docks: stand on one and press E (扫车 on a phone) to scan a bike, 2 s. On roads a bike is more than half again as fast as running, but it is slow to pick up speed, turns wide and rolls on when you let go; on grass it is slower than running. E again locks it, anywhere.
+- The Haixin Bridge is the only crossing and bikes are not allowed on it (OpenStreetMap tags it `bicycle=no`): ride up to it and you are stopped; lock the bike and walk across.
+- Stops are the red light columns in the street and the red dots on the minimap. Run into the red ring to get the stamp; any order works, and the top-left panel suggests the next stop on the way.
+- Sanhua runs too: she knows the city and may be fitter than you, but she does not always take a bike or the best order, and she stops for a selfie at every stop. Stamp all three for a postcard with three red seals you can save.
+
 ## Run and check locally
 
 ```sh
 python3 -m http.server 8765    # inside xiaoju-tower
 ```
 
-Open `http://localhost:8765/`. Fixed views: `?view=base`, `?view=waist`, `?view=top`; add `&seed=3` to pin pigeons and gusts.
+Open `http://localhost:8765/`. Fixed views: `?view=base`, `?view=waist`, `?view=top`; add `&seed=3` to pin pigeons and gusts. Chapter 2: `?ch=2&view=start|ride|bridge|stop|end` (the precise autopilot really plays up to that moment, then holds).
 
 ```sh
-node --check src/core.js && node --check src/game.js
+node --check src/core.js && node --check src/game.js && node --check src/town-core.js && node --check src/town.js
 node --test tests/*.test.cjs
 python3 build.py                                   # single-file 小橘爬塔.html
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/ shots
+NODE_PATH="$(npm root -g)" node tools/town-check.cjs http://127.0.0.1:8765/index.html shots   # chapter 2
 ```
 
-`tools/build-city.py` cuts the city out of the OpenStreetMap Guangdong extract (needs osmium-tool), 4.2 km around the tower. `tools/key-sprites.py` keys the character frames out of a green-screen sheet. Measured numbers and gaps are in [VERIFICATION.md](VERIFICATION.md).
+`tools/build-city.py` cuts the city out of the OpenStreetMap Guangdong extract (needs osmium-tool), 4.2 km around the tower. `tools/build-town.py` cuts the chapter-2 street grid from the same extract, 1 m per cell (needs Pillow: `uv run --with pillow python tools/build-town.py`). `tools/key-sprites.py` keys the character frames out of a green-screen sheet. Measured numbers and gaps are in [VERIFICATION.md](VERIFICATION.md).
 
 ## Who opens this, AI material
 
-- Who opens this: anyone who has looked up at Canton Tower and wanted to climb it once.
-- AI material: the model sheets and climbing frames of Xiaoju and Sanhua, and Xiaoju's stair-running frames, were generated with web ChatGPT; the tower, city, sky, pigeons, stair, rides and deck are built in code, the city footprints and the postcard place names come from OpenStreetMap; code written by a human with AI. Credit: 我的AI小木屋 / GitHub @AliceLJY.
+- Who opens this: anyone who has looked up at Canton Tower and wanted to climb it once, or walked the Haixin Bridge and wants to run those streets again on the real map.
+- AI material: the model sheets and climbing frames of Xiaoju and Sanhua, Xiaoju's stair-running frames, and both cats' chapter-2 running, shared-bike riding, scanning, stamping, selfie and victory frames, were generated with web ChatGPT; the chapter-2 ground, roads, bridges, street trees and bike docks are built in code from OpenStreetMap data; the tower, city, sky, pigeons, stair, rides and deck are built in code, the city footprints and the postcard place names come from OpenStreetMap; code written by a human with AI. Credit: 我的AI小木屋 / GitHub @AliceLJY.
