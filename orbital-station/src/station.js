@@ -195,7 +195,8 @@ function buildHub(mat, rng) {
   hub.add(tag(new THREE.Mesh(adapter, mat.hubMetal), 'metal', 'port-adapter'));
   const collar = new THREE.TorusGeometry(PORT.radius, 0.42, 12, 48).rotateX(Math.PI / 2).translate(0, PORT.y - 0.45, 0);
   hub.add(tag(new THREE.Mesh(collar, mat.hullDark), 'metal', 'port-collar'));
-  const face = new THREE.CylinderGeometry(PORT.radius + 0.4, HUB.adapterRadius, 0.9, 40); face.translate(0, PORT.y - 1.1, 0);
+  // Its lower rim stays just inside the tunnel wall: at exactly the tunnel radius the two surfaces flickered as a dashed ring.
+  const face = new THREE.CylinderGeometry(PORT.radius + 0.4, HUB.adapterRadius - 0.05, 0.9, 40); face.translate(0, PORT.y - 1.1, 0);
   hub.add(tag(new THREE.Mesh(face, mat.hullDark), 'metal', 'port-collar'));
   const petals = [];
   for (let i = 0; i < 3; i++) { const a = i * 120 * D; const p = new THREE.Vector3(Math.cos(a) * 2.1, PORT.y + 0.35, Math.sin(a) * 2.1); const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -a, 0.38, 'YZX')); petals.push(M().compose(p, q, new THREE.Vector3(0.12, 1.3, 1.1))); }
