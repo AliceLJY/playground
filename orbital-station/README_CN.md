@@ -12,11 +12,11 @@
 npm ci
 node tools/build.mjs            # 生成单文件 dist/index.html
 node --test tests/*.test.cjs    # Node 测试：对接、旋转、构图、镜头连续、材质分层、预算
-node tools/browser-check.cjs    # 真实 Chrome：20 张固定机位截图、手机布局、页面报错
+node tools/browser-check.cjs    # 真实 Chrome：20 张固定机位截图、手机布局、画面像素读数、鼠标拖动、页面报错
 node tools/preview.cjs          # 没有 WebGL 时的 CPU 构图预览（不是渲染截图）
 ```
 
-源码入口：`node tools/serve.cjs . 8941` 后打开 `http://127.0.0.1:8941/dev.html`。固定机位用 `?view=establish` 或 `?view=1` 到 `?view=10`，进入后暂停在该机位的定格时刻。`window.__PLAYTEST__` 提供 `ready`、`snapshot()`、`reset()`、`setSeed(n)`、`step(ms)`，快照回报实际机位、时间、对接读数、绘制次数与渲染器字符串。规格与验收条目见 [SPEC.md](SPEC.md)。Three.js 固定为 0.186.1，MIT 许可保留在生成页面里。
+源码入口：`node tools/serve.cjs . 8941` 后打开 `http://127.0.0.1:8941/dev.html`。固定机位用 `?view=establish` 或 `?view=1` 到 `?view=10`，进入后暂停在该机位的定格时刻。`window.__PLAYTEST__` 提供 `ready`、`snapshot()`、`reset()`、`setSeed(n)`、`step(ms)`，快照回报实际机位、时间、对接读数、绘制次数与渲染器字符串。规格与验收条目见 [SPEC.md](SPEC.md)，文末有 2026-11-24 在真实浏览器和 GPU 下复核的记录，对应的截图在 `shots/`。Three.js 固定为 0.186.1，MIT 许可保留在生成页面里。
 
 作者：公众号「我的AI小木屋」· GitHub @AliceLJY
 
