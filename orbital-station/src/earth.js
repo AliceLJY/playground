@@ -24,9 +24,12 @@ export function buildEarth() {
       ${NOISE}
       void main(){
         vec3 n = normalize(vN), v = normalize(uCam - vW);
+        // Latitude is measured from a pole tilted well away from the station's axis: the station hangs over
+        // +Y, so using vP.y as latitude put the whole visible cap (about ±35°) inside the polar ice.
+        float lat = abs(dot(vP, normalize(vec3(0.95, 0.30, 0.08))));
         float land = smoothstep(0.52, 0.56, fbm(vP * 2.2 + 3.0) + 0.08 * fbm(vP * 9.0));
-        float dry = smoothstep(0.45, 0.65, fbm(vP * 4.0 + 20.0)) * (1.0 - smoothstep(0.55, 0.85, abs(vP.y)));
-        float ice = smoothstep(0.82, 0.9, abs(vP.y) + 0.06 * fbm(vP * 6.0));
+        float dry = smoothstep(0.45, 0.65, fbm(vP * 4.0 + 20.0)) * (1.0 - smoothstep(0.55, 0.85, lat));
+        float ice = smoothstep(0.82, 0.9, lat + 0.06 * fbm(vP * 6.0));
         vec3 ocean = mix(vec3(0.010, 0.045, 0.12), vec3(0.03, 0.14, 0.26), smoothstep(0.42, 0.53, fbm(vP * 2.2 + 3.0)));
         vec3 ground = mix(vec3(0.07, 0.13, 0.045), vec3(0.34, 0.26, 0.15), dry);
         vec3 albedo = mix(ocean, ground, land); albedo = mix(albedo, vec3(0.85, 0.9, 0.95), ice);
