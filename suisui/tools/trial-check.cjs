@@ -86,6 +86,33 @@ sections.push(async(c)=>{
   }
 });
 
+// 5. "While smash-all cools down, the button gets wider and nudges the buttons next to it every second."
+//    Every label the cooldown can show (and the idle one) must leave all three buttons exactly where they are.
+sections.push(async(c)=>{
+  if(!c.want(5))return;
+  for(const name of Object.keys(VIEWPORTS)){
+    const p=await c.open(name,'');
+    await c.inRoom(p);
+    const labels=['全砸了','全砸了 · 30s','全砸了 · 29s','全砸了 · 20s','全砸了 · 10s','全砸了 · 9s','全砸了 · 1s'];
+    const rows=await p.page.evaluate(labels=>{
+      const all=document.querySelector('#all'),sel=['#write','#all','#mute'];
+      const keep=all.textContent,out=[];
+      for(const t of labels){all.textContent=t;out.push({t,b:sel.map(s=>{const r=document.querySelector(s).getBoundingClientRect();return[Math.round(r.left*10)/10,Math.round(r.width*10)/10];})});}
+      all.textContent=keep;return out;
+    },labels);
+    const key=r=>JSON.stringify(r.b),moved=rows.filter(r=>key(r)!==key(rows[0])).map(r=>r.t);
+    c.check(`5. ${name}: every cooldown label leaves #write, #all and #mute where they are`,moved.length===0,{idle:rows[0].b,moved,example:moved.length?rows.find(r=>r.t===moved[0]).b:null});
+    // and for real: press it, then watch the shift of the neighbours over a few ticks
+    await p.page.click('#all');
+    await p.page.waitForFunction(()=>window.__suisui.probe().cd>25000,null,{timeout:4000});
+    const xs=[];
+    for(let k=0;k<3;k++){xs.push(await p.page.evaluate(()=>['#write','#all','#mute'].map(s=>{const r=document.querySelector(s).getBoundingClientRect();return[Math.round(r.left*10)/10,Math.round(r.width*10)/10];})));await p.page.waitForTimeout(1100);}
+    await p.page.screenshot({path:c.path.join(c.out,`5-${name}-cooldown.png`)});
+    c.check(`5. ${name}: during the real cooldown the three buttons stay put (and match the idle layout)`,xs.every(x=>JSON.stringify(x)===key(rows[0])),{idle:rows[0].b,xs});
+    await p.ctx.close();
+  }
+});
+
 // 3. "With the 5 s limit, closing the dialog loses the words." The room can turn a note down (too soon / already one
 //    waiting); the words must not vanish with the dialog.
 sections.push(async(c)=>{
