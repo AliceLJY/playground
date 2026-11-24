@@ -130,7 +130,9 @@ function frame(now) {
   if (document.hidden) return;
   wall += dt;
   if (playing) time += dt;
-  else if (!dirty && mode !== 'free' && !view.moving) return;
+  // A paused fixed view (?view=…) only skips redraws once the page has reported ready: the first frames
+  // must all be drawn, or `ready` (set after the third frame) never comes true and checks wait forever.
+  else if (ready && !dirty && mode !== 'free' && !view.moving) return;
   render();
 }
 let dirty = true; function kick() { dirty = true; }
