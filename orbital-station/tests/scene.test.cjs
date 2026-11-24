@@ -133,6 +133,29 @@ test('A1 hook lamps show their state: dark while free, amber once captured, gree
   assert.ok(red.r > 3 * red.g && grn.g > 3 * grn.r, 'shuttle navigation lamps are red on one fin and green on the other');
 });
 
+test('A1 the robotic arm never sweeps through the shuttle', async () => {
+  const THREE = await three, { CYCLE } = await core, { st, meshes } = await build(0);
+  const arm = meshes.filter(m => /^arm/.test(m.userData.role)), v = new THREE.Vector3(), inv = new THREE.Matrix4();
+  assert.ok(arm.length >= 6, 'arm links found');
+  // Shuttle envelope in its own frame: hull as a 2.3 m cylinder over its 10 m length, plus the two radiator fins.
+  let worst = Infinity, at = 0, moved = 0, first = null;
+  for (let t = 0; t < CYCLE; t += 0.05) {
+    st.update(t); st.root.updateMatrixWorld(true); inv.copy(st.shuttle.matrixWorld).invert();
+    const tip = arm.at(-1).getWorldPosition(new THREE.Vector3()); if (first) moved = Math.max(moved, tip.distanceTo(first)); else first = tip;
+    for (const m of arm) {
+      const pos = m.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+        const hull = Math.hypot(Math.max(0, Math.hypot(v.x, v.z) - 2.3), Math.max(0, -v.y, v.y - 10));
+        const fin = Math.hypot(Math.max(0, Math.abs(v.x) - 4.4), Math.max(0, Math.abs(v.y - 7.2) - 1.3), Math.max(0, Math.abs(v.z) - 0.1));
+        const d = Math.min(hull, fin); if (d < worst) { worst = d; at = t; }
+      }
+    }
+  }
+  assert.ok(moved > 5, `the arm must actually move during the cycle (tip travelled ${moved.toFixed(1)} m), or this check proves nothing`);
+  assert.ok(worst >= 0.5, `arm comes within ${worst.toFixed(2)} m of the shuttle at ${at.toFixed(2)} s (0 = inside it); spec ≥ 0.5 m`);
+});
+
 test('A7 approach lights are mounted on the docking tunnel, not floating beside it', async () => {
   const THREE = await three, { HUB } = await core, { meshes } = await build(0);
   const lights = meshes.find(m => m.userData.role === 'port-lights'), im = new THREE.Matrix4(), p = new THREE.Vector3(), s = new THREE.Vector3();

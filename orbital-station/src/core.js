@@ -180,7 +180,9 @@ export function shuttleVelocity(t, h = 1 / 120) { return scale(sub(shuttleAt(t +
 export const stationRcs = (t) => { const c = mod(t); return c > TOUCH + 0.05 && c < TOUCH + 0.75 ? 1 - (c - TOUCH - 0.05) / 0.7 : 0; };
 export function armAt(t) {
   const c = mod(t);
-  const out = smooth((c - 22) / 5) * (1 - smooth((c - 40.5) / 3.5));
+  // Reaches out before the shuttle arrives and folds back only after it has backed away (it undocks at
+  // 44 s): folding at 40.5 s swept the arm 2 m deep through the docked shuttle.
+  const out = smooth((c - 22) / 5) * (1 - smooth((c - 47) / 3));
   return { yaw: lerp(-0.4, 0.9, out), shoulder: lerp(0.25, 1.05, out), elbow: lerp(2.55, 1.35, out), wrist: lerp(-1.2, -0.25, out), out };
 }
 
