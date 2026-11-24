@@ -150,3 +150,17 @@ test('B6 fixed views are deterministic and each has a name, an English kicker an
   }
   assert.deepEqual(SHOTS.map(s => s.key), ['overview', 'cutaway', 'reef', 'trench', 'beach', 'summit']);
 });
+
+// 2026-11-25 real-GPU review: at each end of the walk the plant-eaters flipped 180° in one frame. They turn
+// round over a couple of seconds now; no frame may turn one by more than 3°.
+test('B3 the plant-eaters turn round at the ends of their walk instead of flipping', async () => {
+  const c = await core;
+  for (let i = 0; i < c.HERD.length; i++) {
+    let prev = c.herdAt(i, 0).heading;
+    for (let t = 1 / 60; t <= c.CYCLE; t += 1 / 60) {
+      const h = c.herdAt(i, t).heading; let d = Math.abs(h - prev) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d;
+      assert.ok(d * 180 / Math.PI <= 3, `herd ${i} turned ${(d * 180 / Math.PI).toFixed(1)}° in one frame at ${t.toFixed(2)} s`);
+      prev = h;
+    }
+  }
+});

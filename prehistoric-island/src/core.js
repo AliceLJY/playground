@@ -132,9 +132,11 @@ export const HERD = [{ s: 0.9, th0: -0.44, size: 1.0, lag: 0 }, { s: 0.92, th0: 
 const herdPoint = (th, s) => { const r = coastRadius(th) * s; return [ISLAND.cx + r * Math.cos(th), ISLAND.cz + r * Math.sin(th)]; };
 export function herdAt(i, t) {
   const a = HERD[i], w = Math.sin(TAU * mod(t) / CYCLE + a.lag);    // there and back once a cycle
-  const th = a.th0 + 0.18 * w, dir = Math.cos(TAU * mod(t) / CYCLE + a.lag) >= 0 ? 1 : -1;
-  const [x, z] = herdPoint(th, a.s), [x2, z2] = herdPoint(th + 0.01 * dir, a.s);
-  const heading = Math.atan2(z2 - z, x2 - x);
+  const c = Math.cos(TAU * mod(t) / CYCLE + a.lag), th = a.th0 + 0.18 * w;
+  const [x, z] = herdPoint(th, a.s), [x2, z2] = herdPoint(th + 0.01, a.s);
+  // Facing along the shore, turned round at each end of the walk over about two seconds (while it slows to
+  // a stop) instead of flipping 180° in one frame, which read as a model spun on its axis.
+  const heading = Math.atan2(z2 - z, x2 - x) + Math.PI * (1 - Math.tanh(c / 0.15)) / 2;
   const step = TAU * mod(t) / 1.6 + i;                                  // stride phase
   return { position: [x, height(x, z), z], heading, size: a.size, step, neck: 0.25 * Math.sin(TAU * mod(t) / 7 + i * 2) };
 }
