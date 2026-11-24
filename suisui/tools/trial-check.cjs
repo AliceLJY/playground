@@ -86,6 +86,35 @@ sections.push(async(c)=>{
   }
 });
 
+// 7. Phone 390x664: no sideways overflow, and with the input focused the 「贴上去」 button is not under a ~300 px soft
+//    keyboard. A real keyboard cannot be had here, so this is geometry only: the button's bottom edge against 664 - 300,
+//    for a keyboard that covers the bottom of the page (the common case where the layout viewport does not shrink).
+sections.push(async(c)=>{
+  if(!c.want(7))return;
+  const KEYBOARD=300;
+  for(const [label,query] of [['room','' ],['solo','&solo=1']]){
+    const p=await c.open('phone',query);
+    if(label==='room')await c.inRoom(p);
+    const over=await p.page.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,bw:document.body.scrollWidth}));
+    c.check(`7. phone ${label}: nothing overflows sideways`,over.sw<=over.iw&&over.bw<=over.iw,over);
+    await p.page.click('#write');
+    await p.page.focus('#noteText');
+    await p.page.keyboard.type('又要开会');
+    const b=await c.rect(p,'#noteForm button[type=submit]'),inp=await c.rect(p,'#noteText'),d=await c.rect(p,'#dlg');
+    const limit=664-KEYBOARD;
+    const wide=await p.page.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth}));
+    c.check(`7. phone ${label}: dialog open, nothing overflows sideways`,wide.sw<=wide.iw,wide);
+    c.check(`7. phone ${label}: input focused, 「贴上去」 bottom edge is above a ${KEYBOARD} px keyboard`,b.y+b.h<=limit,{buttonBottom:Math.round(b.y+b.h),inputBottom:Math.round(inp.y+inp.h),dialog:[Math.round(d.y),Math.round(d.y+d.h)],limit});
+    await p.page.screenshot({path:c.path.join(c.out,`7-${label}-dialog.png`)});
+    // the other model: the layout viewport itself shrinks to what the keyboard leaves
+    await p.page.setViewportSize({width:390,height:limit});
+    await p.page.waitForTimeout(400);
+    const b2=await c.rect(p,'#noteForm button[type=submit]'),d2=await c.rect(p,'#dlg');
+    c.check(`7. phone ${label}: with the viewport shrunk to ${limit} px the whole dialog is inside it`,d2.y>=0&&d2.y+d2.h<=limit&&b2.y+b2.h<=limit,{dialog:[Math.round(d2.y),Math.round(d2.y+d2.h)],limit});
+    await p.ctx.close();
+  }
+});
+
 // 6. "The 候贴区 only takes one slip, and 'tear someone else's to get yours up' has no way in." Not changed: one waiting
 //    slip each is the room's rule (README). This section only proves the way in exists and is a plain tap on a shelf note,
 //    on a phone, whether the note is a visitor's or one of the shelf's own (大家的).
