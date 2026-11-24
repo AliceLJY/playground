@@ -24,3 +24,13 @@ node tools/preview.cjs          # 没有 WebGL 的机器上看构图的 CPU 预�
 
 - 谁会点开：喜欢海岛、珊瑚礁和史前动物，想在手机上安静看一两分钟水上水下的人。
 - AI 素材：代码和文档由 AI 协作完成。所有几何、颜色和动画都是程序生成，没有使用 AI 生成或导入的图片、模型、动作文件和声音。没有声音。
+
+## 演示片
+
+`tools/demo.cjs` 把页面自己的一键连播逐帧录成竖屏 1080×1920、30 帧的短片（360×640 手机视口、3 倍像素，不套手机外框）：页面自己的动画循环被拦住，每帧用 `__PLAYTEST__.step()` 推进 1/30 秒，所以不会掉帧；另外只在页面外放开了 1.5 倍像素比的上限，让三维画面按 1080×1920 原生渲染。`tools/demo-sound.py` 加上代码合成的配乐和环境声（没有采样素材）、接署名页、把响度做到 -12 LUFS 左右。`src/` 一行没改。
+
+```sh
+node tools/serve.cjs . 8961
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <目录>      # 几分钟，写 <目录>/screen.mp4 和 timeline.json
+<装了 numpy、scipy 的 python> -I tools/demo-sound.py <目录> <成片.mp4> --endcard <署名页.mp4>
+```

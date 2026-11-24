@@ -24,3 +24,13 @@ By 我的AI小木屋 (WeChat official account) · GitHub @AliceLJY
 
 - Who it's for: anyone who likes space stations and wants a quiet minute on a phone watching a docking and a sunrise over Earth.
 - AI assets: code and documentation were completed through AI collaboration. All geometry, materials, the Earth, the stars and the animation are procedural. No AI-generated or imported images, models, motion files or sounds are used. No audio.
+
+## Demo video
+
+`tools/demo.cjs` records the page's own auto tour frame by frame as a portrait 1080×1920, 30 fps clip for short-video platforms (a 360×640 phone viewport at 3× pixels, no phone frame). The page's own animation loop is held and each frame is advanced with `__PLAYTEST__.step()`, so dropped frames are impossible; the only other change, made from outside the page, lifts the 1.5 pixel-ratio cap so the 3D view renders at the full 1080×1920. By default it records 0–15 s and 20–45 s of the tour: the garden-deck shot is left out (both ends of that gap are full black, so the join is invisible) and the clip ends on the sunrise; `--segments 0-45` keeps the garden. `tools/demo-sound.py` adds a procedurally synthesised score and docking sound effects timed from the recorded readouts (no samples), the signature end card and loudness to about −12 LUFS. Nothing in `src/` is changed.
+
+```sh
+node tools/serve.cjs . 8962
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <dir>      # a few minutes; writes <dir>/screen.mp4 and timeline.json
+<python with numpy + scipy> -I tools/demo-sound.py <dir> <film.mp4> --endcard <endcard.mp4>
+```

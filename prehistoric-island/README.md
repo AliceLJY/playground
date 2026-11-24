@@ -24,3 +24,13 @@ By 我的AI小木屋 (WeChat official account) · GitHub @AliceLJY
 
 - Who it's for: anyone who likes islands, reefs and prehistoric animals and wants a quiet minute on a phone looking above and below the waterline.
 - AI assets: code and documentation were completed through AI collaboration. All geometry, colours and animation are procedural. No AI-generated or imported images, models, motion files or sounds are used. No audio.
+
+## Demo video
+
+`tools/demo.cjs` records the page's own auto tour frame by frame as a portrait 1080×1920, 30 fps clip for short-video platforms (a 360×640 phone viewport at 3× pixels, no phone frame). The page's own animation loop is held and each frame is advanced with `__PLAYTEST__.step()`, so dropped frames are impossible; the only other change, made from outside the page, lifts the 1.5 pixel-ratio cap so the 3D view renders at the full 1080×1920. `tools/demo-sound.py` adds a procedurally synthesised score and ambience (no samples), the signature end card and loudness to about −12 LUFS. Nothing in `src/` is changed.
+
+```sh
+node tools/serve.cjs . 8961
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <dir>      # a few minutes; writes <dir>/screen.mp4 and timeline.json
+<python with numpy + scipy> -I tools/demo-sound.py <dir> <film.mp4> --endcard <endcard.mp4>
+```
