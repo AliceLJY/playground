@@ -41,6 +41,37 @@ async function layout(page, name) {
   });
   check('A10 layout ' + name, !result.outside.length && !result.overlaps.length && !result.small.length && !result.blocked.length, result);
 }
+// Readings from the drawn frame itself (the WebGL buffer, without the page's text and buttons). Each one
+// was calibrated on a build that was known to be wrong: the first version passed every Node test while the
+// Earth rendered flat white and all twelve hook lamps stayed white.
+async function pixels(page, base) {
+  await go(page, base, 'view=establish');
+  const grab = (view, time, points) => page.evaluate(([view, time, points]) => {
+    __ORBITAL__.setView(view); if (time != null) __ORBITAL__.setTime(time);
+    // Read in the same task as the draw: the buffer is not preserved once the frame is presented.
+    const canvas = document.querySelector('#scene'), gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const at = (x, y) => { const i = 4 * ((h - 1 - Math.round(y)) * w + Math.round(x)); return [px[i], px[i + 1], px[i + 2]]; };
+    // Band under the station in the establishing view: what share is near-white, what share is clearly blue.
+    let white = 0, blue = 0, n = 0;
+    for (let y = Math.round(h * 0.62); y < h * 0.82; y += 3) for (let x = Math.round(w * 0.08); x < w * 0.92; x += 3) { const [r, g, b] = at(x, y); n++; if (Math.min(r, g, b) > 205) white++; if (b > r + 25 && b > 60) blue++; }
+    const lamps = points.map(p => {
+      const s = __ORBITAL__.pointScreen(p); if (s.z > 1 || s.x < 0 || s.x > 1 || s.y < 0 || s.y > 1) return 'off-screen';
+      let r = 0, g = 0, b = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const c = at(s.x * w + dx, s.y * h + dy); r += c[0] / 9; g += c[1] / 9; b += c[2] / 9; }
+      return g > 150 && g > 1.6 * r && g > 1.6 * b ? 'green' : r > 200 && g > 120 && g < 0.85 * r && b < 0.6 * g ? 'amber' : r > 200 && g > 200 && b > 200 ? 'white' : 'other';
+    });
+    return { white: white / n, blue: blue / n, lamps };
+  }, [view, time, points]);
+  const tally = (list) => list.reduce((a, k) => (a[k] = (a[k] || 0) + 1, a), {});
+  const earth = await grab('establish', null, []);
+  check('A4 pixels: the Earth below the station is ocean and cloud, not a white disc', earth.white < 0.5 && earth.blue > 0.2, { nearWhite: +earth.white.toFixed(2), blue: +earth.blue.toFixed(2) });
+  // Hook lamp centres from the model: 12 on a 3.48 m circle just under the port face (see buildHub in src/station.js).
+  const hooks = Array.from({ length: 12 }, (_, i) => { const a = (i * 30 + 15) * Math.PI / 180; return [Math.cos(a) * 3.48, 18 - 0.55, Math.sin(a) * 3.48]; });
+  const captured = tally((await grab('settle', 35.2, hooks)).lamps), closed = tally((await grab('settle', 39.5, hooks)).lamps);
+  check('A1 pixels: hook lamps are amber right after capture', (captured.amber || 0) >= 3 && !captured.green && !captured.white, captured);
+  check('A1 pixels: hook lamps are green once all hooks are closed', (closed.green || 0) >= 3 && !closed.amber && !closed.white, closed);
+}
 async function main() {
   let base = process.argv.find(v => /^https?:/.test(v));
   if (!base) {
@@ -77,6 +108,7 @@ async function main() {
       check(`A8 ${vp} ${key} draw calls ≤ 160`, s.drawCalls > 0 && s.drawCalls <= 160, { drawCalls: s.drawCalls, triangles: s.triangles });
     }
     check(`A8 ${vp} single-file: no requests besides the page`, requests.every(u => u.startsWith('data:') || new URL(u).pathname === new URL(base).pathname), [...new Set(requests.map(u => new URL(u).pathname))]);
+    if (vp === 'desktop') await pixels(page, base);
     // Normal entry: tour plays; a button press keeps the clock and every part where it was.
     await go(page, base, '');
     let s = await snapshot(page);
