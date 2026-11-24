@@ -78,9 +78,25 @@ test('A2 the ring and everything on it turn together; the hub, port and truss st
     const moved = v.p.distanceTo(b[k].p);
     if (!v.ring && ['hub-core', 'port-collar', 'truss', 'engines', 'antenna'].includes(v.role)) assert.ok(moved < 1e-9, `${v.role} must not move`);
   }
-  // A ring-mounted mesh with an off-axis centre sweeps the expected arc.
   const glass = st.ring.children.find(m => m.userData.role === 'ring-glass');
   assert.ok(glass, 'ring glass is a child of the rotating ring');
+  // Ring meshes are centred on the axis, so their own positions never move. Follow one off-axis instance of
+  // every instanced part on the ring (a porthole, a tree, a spoke, a lamp …): between 3 s and 7 s each must
+  // sweep exactly the ring's angle about +Y at an unchanged radius and height.
+  const THREE = await three, im = new THREE.Matrix4(), turn = ringAngle(7) - ringAngle(3);
+  const at = (t, m) => { st.update(t); st.root.updateMatrixWorld(true); m.getMatrixAt(0, im); return new THREE.Vector3().setFromMatrixPosition(im).applyMatrix4(m.matrixWorld); };
+  let followed = 0;
+  st.ring.traverse(m => {
+    if (!m.isInstancedMesh) return;
+    const p = at(3, m), q = at(7, m), r = Math.hypot(p.x, p.z);
+    if (r < 5) return;
+    // rotation.y = +angle turns a point from azimuth a (x = cos a, z = sin a) to a - angle
+    const swept = Math.atan2(Math.sin(Math.atan2(p.z, p.x) - Math.atan2(q.z, q.x) - turn), Math.cos(Math.atan2(p.z, p.x) - Math.atan2(q.z, q.x) - turn));
+    assert.ok(Math.abs(swept) < 1e-6 && Math.abs(Math.hypot(q.x, q.z) - r) < 1e-6 && Math.abs(q.y - p.y) < 1e-6, `${m.userData.role} on the ring does not turn with it (off by ${(swept * 180 / Math.PI).toFixed(3)}°)`);
+    assert.ok(p.distanceTo(q) > 0.2 * r, `${m.userData.role} barely moved in 4 s`);
+    followed++;
+  });
+  assert.ok(followed >= 8, `only ${followed} ring parts were followed; the rotation check would prove little`);
 });
 
 test('A5 parts are driven only by scene time: the same t gives the same scene, whatever came before', async () => {
