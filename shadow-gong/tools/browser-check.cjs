@@ -151,6 +151,56 @@ const shot=name=>path.join(out,name+'.png');
       check('touch 390x664: zero page errors and external requests',errors.length===0&&external.length===0,{errors,external});
       await page.screenshot({path:shot('align-touch-play')});await ctx.close();
     }
+    // 5. second play report: every hint the game can show, at every viewport: no orphaned last line (under three
+    //    characters wide), still clear of the action band, the readouts and the buttons; and where the box sits
+    for(const [width,height,touch] of [[1280,521,false],[1280,720,false],[390,664,false],[390,664,true],[320,568,true],[844,390,true],[667,375,true]]){
+      const tag=`${width}x${height}${touch?' touch':''}`;
+      const {ctx,page}=await open('?view=hero&seed=11',{viewport:{width,height},deviceScaleFactor:touch?2:1,hasTouch:touch,isMobile:touch});
+      const texts=await page.evaluate(()=>__duel.hintTexts()),rows=[];
+      for(const [id,text] of Object.entries(texts)){
+        await page.evaluate(id=>__duel.showHint(id),id);await page.waitForTimeout(60);
+        const m=await page.evaluate(()=>{const el=document.getElementById('hint'),r=document.createRange();r.selectNodeContents(el);
+          const lines=[],em=parseFloat(getComputedStyle(el).fontSize),add=b=>{const l=lines.find(q=>Math.abs(q.top-b.top)<3);if(l){l.left=Math.min(l.left,b.left);l.right=Math.max(l.right,b.right);}else lines.push({top:b.top,left:b.left,right:b.right});};
+          for(const tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);tw.nextNode();)for(let i=0;i<tw.currentNode.length;i++){r.setStart(tw.currentNode,i);r.setEnd(tw.currentNode,i+1);const b=r.getClientRects()[0];if(b)add(b);}
+          lines.sort((a,b)=>a.top-b.top);
+          // the text of the last line, read back by walking the characters
+          // walk the characters: the text of the last line, and every place a line starts in the middle of a clause
+          // (a new line may only begin after a comma, full stop, colon, exclamation mark or dash)
+          const text=el.textContent,tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),bottom=lines[lines.length-1].top,split=[];let last='',k=0,prevTop=null;
+          for(let node=tw.nextNode();node;node=tw.nextNode())for(let i=0;i<node.length;i++,k++){r.setStart(node,i);r.setEnd(node,i+1);const b=r.getClientRects()[0];if(!b)continue;
+            if(Math.abs(b.top-bottom)<3)last+=text[k];
+            if(prevTop!==null&&b.top-prevTop>3&&!/[，。：！—]/.test(text[k-1]))split.push(text.slice(Math.max(0,k-4),k)+' / '+text.slice(k,k+3));
+            prevTop=b.top;}
+          return{lines:lines.length,lastEm:(lines[lines.length-1].right-lines[lines.length-1].left)/em,last,split,a:__duel.align()};});
+        const a=m.a,b=band(a),clear=!hits(a.hint,b)&&!a.hud.some(k=>hits(a.hint,k))&&!a.buttons.some(k=>hits(a.hint,k))&&a.hint.left>=0&&a.hint.top>=0&&a.hint.right<=width&&a.hint.bottom<=height;
+        const gap=a.buttons.length?Math.min(...a.buttons.map(k=>Math.max(k.left-a.hint.right,a.hint.left-k.right,k.top-a.hint.bottom,a.hint.top-k.bottom))):null;
+        rows.push({id,lines:m.lines,lastEm:n1(m.lastEm),last:m.last,split:m.split,clear,where:a.hint.bottom<=b.top?'above the action band':a.hint.top>=b.bottom?'below the standing line':'inside the band',top:n1(a.hint.top),bottom:n1(a.hint.bottom),gapToButtonsPx:gap===null?null:n1(gap)});
+      }
+      const orphans=rows.filter(r=>r.lines>1&&r.lastEm<3),blocked=rows.filter(r=>!r.clear),splits=rows.filter(r=>r.split.length);
+      check(`${tag}: hints only break after punctuation, never inside a clause`,!splits.length,splits.map(r=>`${r.id}: ${r.split.join('; ')}`));
+      check(`${tag}: no hint ends on an orphaned line (last line at least three characters wide), all ${rows.length} texts`,rows.length>=11&&!orphans.length,orphans.map(r=>`${r.id}: …/${r.last}`));
+      check(`${tag}: every hint is clear of the action band, the readouts and the buttons, and inside the viewport`,!blocked.length,blocked.map(r=>r.id));
+      const where=[...new Set(rows.map(r=>r.where))],ys=[Math.min(...rows.map(r=>r.top)),Math.max(...rows.map(r=>r.bottom))],gaps=rows.map(r=>r.gapToButtonsPx).filter(v=>v!==null);
+      console.log(`     ${tag} hint box: ${where.join(' / ')}, y ${ys[0]}..${ys[1]} px, ${gaps.length?`nearest button ${Math.min(...gaps)} px away, `:''}up to ${Math.max(...rows.map(r=>r.lines))} lines`);
+      report.runs.push({name:'hints '+tag,rows});
+      await page.evaluate(()=>__duel.showHint('hurt'));await page.waitForTimeout(60);await page.screenshot({path:shot(`align-hints-${width}x${height}${touch?'-touch':''}`)});await ctx.close();
+    }
+    // 6. the ticket: every line of the key list starts at the same left edge, measured on the ink of its first glyph
+    //    (a full-width bracket carries half a character of blank on its left and reads as an indent)
+    for(const [touch,list] of [[true,'.touch-keys'],[false,'.desk-keys']]){
+      const {ctx,page}=await open('',{viewport:touch?{width:390,height:664}:{width:1280,height:720},deviceScaleFactor:touch?2:1,hasTouch:touch,isMobile:touch});
+      const edges=await page.evaluate(list=>{const g=document.createElement('canvas').getContext('2d'),out=[];
+        for(const tagName of ['dt','dd'])for(const el of document.querySelectorAll(`${list} ${tagName}`)){
+          const node=el.firstChild,text=node.data,i=text.search(/\S/),r=document.createRange();r.setStart(node,i);r.setEnd(node,i+1);
+          const cs=getComputedStyle(el);g.font=`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+          out.push({col:tagName,text,ink:r.getBoundingClientRect().left-g.measureText(text[i]).actualBoundingBoxLeft});}
+        return out;},list);
+      for(const col of ['dt','dd']){
+        const rows=edges.filter(e=>e.col===col),lo=Math.min(...rows.map(e=>e.ink)),spread=Math.max(...rows.map(e=>e.ink))-lo;
+        check(`ticket ${touch?'touch':'keyboard'} ${col==='dt'?'labels':'keys'}: first glyphs line up within 2 px`,rows.length===4&&spread<=2,{spreadPx:n1(spread),lines:rows.map(e=>`${e.text} +${n1(e.ink-lo)}`)});
+      }
+      await page.screenshot({path:shot('align-ticket-'+(touch?'touch':'keyboard'))});await ctx.close();
+    }
     report.checks=checks;await browser.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,1));
     console.log(`${checks.length-failures}/${checks.length} alignment checks passed`);process.exitCode=failures?1:0;return;
   }

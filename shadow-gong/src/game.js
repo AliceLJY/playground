@@ -84,24 +84,41 @@ function toMenu(){s=C.create({seed:1+Math.floor(Math.random()*1e6)});audio.ambie
 // ---- HUD and hints --------------------------------------------------------------------
 const shownHints=new Set();let hintUntil=0,orientationUntil=0,hintStun=false;
 const T=()=>document.body.classList.contains('touchy');
-function hint(id,text,seconds=4.5){if(id&&shownHints.has(id))return;if(id)shownHints.add(id);$('orientation').hidden=true;$('hint').textContent=text;$('hint').classList.add('on');hintUntil=real+seconds;hintStun=id==='stun';}
+// A hint is laid out clause by clause: each stretch up to a comma, full stop, colon, exclamation mark or dash is one
+// unbreakable piece, so a line never starts with the tail of a clause ("白光亮起 / 后，").
+function setHint(text){$('hint').replaceChildren(...(text.match(/.+?(?:——|[，。：！]|$)/g)||[text]).map(t=>{const el=document.createElement('span');el.textContent=t;return el;}));}
+function hint(id,text,seconds=4.5){if(id&&shownHints.has(id))return;if(id)shownHints.add(id);$('orientation').hidden=true;setHint(text);$('hint').classList.add('on');hintUntil=real+seconds;hintStun=id==='stun';}
 function call(text){const el=$('call');el.textContent=text;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');}
 function plate(title,name){$('plate-title').textContent=title;$('plate-name').textContent=name;const el=$('plate');el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
 const key=(k,t)=>T()?t:k;
+// Every hint the game can show, in one table: play reads from it and the layout check walks all of it.
+const HINTS={
+  red:()=>`红光挡不住——按 ${key('L / Shift','「闪」')} 闪开`,
+  perfect:()=>`锵！对手露出空当，趁这一下按 ${key('J / 左键','「槌」')} 回击`,
+  block:()=>'挡住了，但不完美：看见白光再按一下，别一直按住',
+  hurt:()=>'没挡住。白光亮起后，等一拍再按锣',
+  deflect:()=>'刃面把槌挡开了——先完美弹反，再趁空当打',
+  flit:()=>'蛾子在空中会躲开，只能先弹反，打晕了再处决',
+  stun:()=>`它晕了！靠近按 ${key('J / 左键','「槌」')} 处决`,
+  wave0:()=>`兵器一透光变亮，就按一下 ${key('K / 空格 / 右键','「锣」')}`,
+  wave1:()=>'剪刀精第二剪会慢半拍——别连按',
+  wave2:()=>'两边都有人时，按锣会自动转向先落下的那一招',
+  wave3:()=>'鼠王只怕处决：弹反攒满他的架势，再上前处决，灭掉三盏灯油'
+};
 function handleEvents(){
   for(const ev of s.events){
     world.fx(ev,s);
     if(trap&&ev.type===trap.type&&(!trap.when||trap.when(ev))){freezeAt=real+trap.delay;trap=null;}
     switch(ev.type){
-      case 'telegraph':audio.play(ev.unblockable?'drum':'clap');if(ev.unblockable)hint('red',`红光挡不住——按 ${key('L / Shift','「闪」')} 闪开`);break;
+      case 'telegraph':audio.play(ev.unblockable?'drum':'clap');if(ev.unblockable)hint('red',HINTS.red());break;
       case 'parry':audio.play(ev.sound);
-        if(ev.perfect)hint('perfect',`锵！对手露出空当，趁这一下按 ${key('J / 左键','「槌」')} 回击`,4);
-        else{hint('block','挡住了，但不完美：看见白光再按一下，别一直按住',4);if(ev.broken){call('破防');audio.play('clang');}}
+        if(ev.perfect)hint('perfect',HINTS.perfect(),4);
+        else{hint('block',HINTS.block(),4);if(ev.broken){call('破防');audio.play('clang');}}
         break;
       case 'strike':if(ev.kind==='scissors'&&ev.outcome!=='perfect'&&ev.outcome!=='block')audio.play('snip');
-        if(ev.outcome==='hurt')hint('hurt','没挡住。白光亮起后，等一拍再按锣',4);break;
+        if(ev.outcome==='hurt')hint('hurt',HINTS.hurt(),4);break;
       case 'hit':audio.play(ev.sound);break;
-      case 'deflect':audio.play('clang');hint('deflect','刃面把槌挡开了——先完美弹反，再趁空当打',4);break;
+      case 'deflect':audio.play('clang');hint('deflect',HINTS.deflect(),4);break;
       case 'hurt':audio.play('hurt');break;
       case 'execute':audio.play('gongBig');call('处决');break;
       case 'bossDown':audio.play('gongBig');break;
@@ -109,13 +126,12 @@ function handleEvents(){
       case 'swing':audio.play('swing');break;
       case 'nearMiss':break;
       case 'moveStart':if(ev.kind==='moth')audio.play('flutter');else if(ev.kind==='rat'&&ev.move!=='ladle')audio.play('squeak');break;
-      case 'flit':audio.play('flutter');hint('flit','蛾子在空中会躲开，只能先弹反，打晕了再处决',4);break;
-      case 'stun':audio.play('ding');hint('stun',`它晕了！靠近按 ${key('J / 左键','「槌」')} 处决`,4);break;
+      case 'flit':audio.play('flutter');hint('flit',HINTS.flit(),4);break;
+      case 'stun':audio.play('ding');hint('stun',HINTS.stun(),4);break;
       case 'intro':plate('开锣','灯影守夜');audio.play('open');break;
       case 'wave':{
         plate(ev.title,ev.name);call(ev.name);
-        const lines=[`兵器一透光变亮，就按一下 ${key('K / 空格 / 右键','「锣」')}`,'剪刀精第二剪会慢半拍——别连按','两边都有人时，按锣会自动转向先落下的那一招',`鼠王只怕处决：弹反攒满他的架势，再上前处决，灭掉三盏灯油`];
-        hint('wave'+ev.index,lines[ev.index]||'',6);if(C.WAVES[ev.index].boss)$('boss').hidden=false;break;}
+        hint('wave'+ev.index,(HINTS['wave'+ev.index]||(()=>''))(),6);if(C.WAVES[ev.index].boss)$('boss').hidden=false;break;}
       case 'breather':plate('场间歇','灯油 +15');break;
       case 'phase2':audio.play('roar');call('最后一盏');break;
       case 'bossReady':audio.play('roar');break;
@@ -239,6 +255,9 @@ window.__duel={
     pixelRatio:world.renderer.getPixelRatio(),defaultPixelRatio:defaultPR,devicePixelRatio:window.devicePixelRatio,adaptiveLocked,css:[window.innerWidth,window.innerHeight],buffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],
     antialias:gl.getContextAttributes().antialias,samples:gl.getParameter(gl.SAMPLES),gpu:gpu()};},
   probe,align,start:wave=>startGame(wave),
+  // layout checks: every hint text for this device, and a way to put one on screen without playing up to it
+  hintTexts:()=>Object.fromEntries(Object.entries(HINTS).map(([id,f])=>[id,f()])),
+  showHint(id){$('orientation').hidden=true;setHint(HINTS[id]());$('hint').classList.add('on');hintUntil=real+60;hintStun=false;},
   autopilot(on=true,opts={}){autoMode=on?opts:null;},
   freezeOn(type,delayMs=60,when){trap={type,delay:delayMs/1000,when};},
   unfreeze(){frozen=false;freezeAt=0;},
