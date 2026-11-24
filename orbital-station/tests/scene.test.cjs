@@ -111,6 +111,28 @@ test('A9 the garden deck shows through the inner windows from the outside shots'
   }
 });
 
+test('A1 hook lamps show their state: dark while free, amber once captured, green one by one as hooks close', async () => {
+  const { PORT } = await core, { st, meshes } = await build(20);
+  const lamps = meshes.find(m => m.userData.role === 'latch-lights'), nav = meshes.find(m => m.userData.role === 'nav-lights');
+  // Three.js applies instanceColor to the base colour only. A lit material whose light comes from `emissive`
+  // would show every lamp in the emissive colour (the first version: twelve white lamps in every state).
+  for (const m of [lamps, nav]) {
+    assert.ok(m.instanceColor, `${m.name} needs per-lamp colours`);
+    const e = m.material.emissive, glow = e ? (e.r + e.g + e.b) * (m.material.emissiveIntensity ?? 1) : 0;
+    const c = m.material.color;
+    assert.ok(glow < 0.05 && c.r + c.g + c.b > 2.9, `${m.name}: per-lamp colours must reach the screen (white base colour, no emissive drowning them)`);
+  }
+  const kind = (i) => { const c = new (lamps.material.color.constructor)(); lamps.getColorAt(i, c); return c.g > 1.5 * c.r && c.g > 0.3 ? 'green' : c.r > 0.6 && c.g > 0.25 && c.b < 0.2 ? 'amber' : c.r + c.g + c.b < 0.2 ? 'off' : 'other'; };
+  const count = (t) => { st.update(t); const n = { green: 0, amber: 0, off: 0, other: 0 }; for (let i = 0; i < PORT.latches; i++) n[kind(i)]++; return n; };
+  assert.deepEqual(count(20), { green: 0, amber: 0, off: 12, other: 0 }, 'approach: all lamps dark');
+  assert.deepEqual(count(34.6), { green: 0, amber: 12, off: 0, other: 0 }, 'contact: captured, all amber');
+  const mid = count(37);
+  assert.ok(mid.green >= 3 && mid.amber >= 3 && mid.green + mid.amber === 12, `mid-settle must mix green and amber, got ${JSON.stringify(mid)}`);
+  assert.deepEqual(count(39.9), { green: 12, amber: 0, off: 0, other: 0 }, 'settled: all green');
+  const red = new (lamps.material.color.constructor)(), grn = red.clone(); nav.getColorAt(0, red); nav.getColorAt(1, grn);
+  assert.ok(red.r > 3 * red.g && grn.g > 3 * grn.r, 'shuttle navigation lamps are red on one fin and green on the other');
+});
+
 test('A4 the garden camera walks under the trees: never inside a crown, with crowns ahead in frame', async () => {
   const THREE = await three, { shotPoseAt, project, SHOTS } = await core;
   const g = SHOTS.find(s => s.key === 'garden'), { st, meshes } = await build(g.start);

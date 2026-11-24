@@ -188,7 +188,9 @@ function partScreen(name) {
   const o = station.root.getObjectByName(name); if (!o) return null;
   o.getWorldPosition(tmp); tmp.project(camera); return { x: (tmp.x + 1) / 2, y: (1 - tmp.y) / 2, z: tmp.z };
 }
-window.__ORBITAL__ = { setView: (k) => { mode = 'shot'; view.mode = 'shot'; view.key = k; view.from = null; view.pending = null; view.fadeAt = -1; time = SHOTS.find(s => s.key === k).at; playing = false; shownShot = ''; syncButtons(); render(); return snapshot(); },
+// Screen position (0..1, y down) of a world point through the current camera, for pixel checks.
+function pointScreen(p) { tmp.set(...p).project(camera); return { x: (tmp.x + 1) / 2, y: (1 - tmp.y) / 2, z: tmp.z }; }
+window.__ORBITAL__ = { pointScreen, setView: (k) => { mode = 'shot'; view.mode = 'shot'; view.key = k; view.from = null; view.pending = null; view.fadeAt = -1; time = SHOTS.find(s => s.key === k).at; playing = false; shownShot = ''; syncButtons(); render(); return snapshot(); },
   setTime: (t) => { time = t; render(); return snapshot(); }, play: () => { playing = true; syncButtons(); }, pause: () => { playing = false; syncButtons(); render(); }, tour: startTour, partScreen };
 window.__PLAYTEST__ = {
   get ready() { return ready; }, snapshot,

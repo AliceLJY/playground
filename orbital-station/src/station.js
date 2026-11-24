@@ -96,9 +96,12 @@ export function createMaterials() {
   return {
     hull, hullDark, frame, hubMetal, blanket, radiator, glass, cells, soil, leaf, bark,
     window: emissive('#ffc98a', 2.6), strip: emissive('#fff1d6', 3.2), lamp: emissive('#ffe2a8', 3.4), cyan: emissive('#6fe3ff', 3.0),
-    latch: new THREE.MeshStandardMaterial({ color: '#111111', emissive: '#ffffff', emissiveIntensity: 2.6, metalness: 0, roughness: 0.6 }),
+    // Per-lamp colours come from instanceColor, which Three.js multiplies into the base colour only, never into
+    // `emissive`: on a white-emissive standard material every lamp stayed white whatever its state. An unlit
+    // material outside the tone mapping shows exactly the instance colour (amber #ffb340, green #34c759, …).
+    latch: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }),
     plume: new THREE.MeshBasicMaterial({ color: '#cfe9ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
-    nav: new THREE.MeshStandardMaterial({ color: '#111111', emissive: '#ffffff', emissiveIntensity: 3, roughness: 0.6 }),
+    nav: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }),
   };
 }
 
