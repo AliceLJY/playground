@@ -13,7 +13,7 @@ const all = [
   ['_bad-control', 'tools/csp-check-bad.html'],
   ['dino-craft', 'dino-craft/dist/'], ['diorama-walk', 'diorama-walk/dist/'], ['floorplan-walk', 'floorplan-walk/dist/'],
   ['gz-roach', 'gz-roach/dist/'], ['huacheng-autumn', 'huacheng-autumn/dist/'], ['lens-lab', 'lens-lab/dist/'],
-  ['lingnan-garden', 'lingnan-garden/dist/'], ['mac-mini-teardown', 'mac-mini-teardown/dist/'], ['qilou-rain', 'qilou-rain/dist/'],
+  ['lingnan-garden', 'lingnan-garden/dist/'], ['mac-mini-teardown', 'mac-mini-teardown/dist/'], ['orbital-station', 'orbital-station/dist/'], ['qilou-rain', 'qilou-rain/dist/'],
   ['sacred-heart', 'sacred-heart-cathedral/dist/'], ['sagrada-familia', 'sagrada-familia/dist/'], ['sky-citadel', 'sky-citadel/dist/'],
   ['snowline-cabin', 'snowline-cabin/dist/'], ['thirteen-hongs', 'thirteen-hongs/dist/index.html'],
   ['thirteen-webgpu', 'thirteen-hongs/dist/webgpu.html'], ['tidal-disruption', 'tidal-disruption/dist/'],
