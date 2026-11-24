@@ -47,6 +47,13 @@ NODE_PATH="$(npm root -g)" node tools/room-check.cjs <输出目录>      # 两�
 
 页面加 `?room=ws://127.0.0.1:8798/room/ws` 连本地服务。线上房间是同一个 `server/room.mjs` 跑在 Cloudflare Durable Object 里，地址 `wss://suisui.aliceljy.xyz/room/ws`（发布：`cd worker && npx wrangler@4 deploy`；本地：`npx wrangler@4 dev --port 8799 --var SEED:1`，再带 `ROOM_URL=ws://127.0.0.1:8799/room/ws` 跑 room-check）。规格与验收条目见 [SPEC.md](SPEC.md)。砸起来爽不爽、声音好不好听、震屏会不会晕，要人在手机上试。
 
+竖屏演示片（1080×1920，手动跑，不进检查，只用单人版 `?solo=1`）：
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <输出目录> --endcard <署名页模板目录>   # 接管页面时钟逐帧录，模拟手指真实触摸，录下页面自己的声音
+python3 tools/demo-score.py <输出目录> <成片.mp4>                                     # 垫配乐、接署名页、响度归到 -12 LUFS（要 numpy）
+```
+
 ## 素材与来源
 
 - 粒子引擎是 [rs-4/dissolve](https://github.com/rs-4/dissolve) 网页版的 Canvas 2D 移植（MIT），原样放在 `vendor/dissolve-atlas.js`，许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
