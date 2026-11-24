@@ -581,7 +581,7 @@ function onRoom(m) {
       if (m.n) {                                        // my worry got an id: keep the words here, under that id
         if (S.pendingNote) myNotes.set(m.n, S.pendingNote);
         S.pendingNote = '';
-        if (m.wait) { S.mine = { id: m.n, pos: m.wait }; toast(`便签贴满了，你的排在候贴区第 ${m.wait} 张；也可以撕一张别人的换上`); }
+        if (m.wait) { S.mine = { id: m.n, pos: m.wait }; toast(`便签满了，你排候贴区第 ${m.wait} 张；可撕别人的换上`); }
       }
       if (m.cd) S.cdUntil = Date.now() + m.cd;
       if (m.q) toast(`有人在砸，你排第 ${m.q} 位`);
@@ -664,7 +664,7 @@ function probe() {
   };
 }
 window.__suisui = {
-  get ready() { return S.ready; }, probe, smashAll, openNote, pasteNote,
+  get ready() { return S.ready; }, probe, smashAll, openNote, pasteNote, toast,
   // tap a slot at a point given as a fraction of the item box (tests and fixed views)
   tap(i, fx = 0.5, fy = 0.5) { const s = S.slots[i], r = s.cv.getBoundingClientRect(); return !!smash(s, 'tap', { x: r.left + r.width * fx, y: r.top + r.height * fy }); },
   // put a given kind into a slot (fixed views and per-effect checks); single-player only, ignored while busy

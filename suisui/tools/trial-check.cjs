@@ -63,3 +63,25 @@ sections.push(async(c)=>{
     await p.ctx.close();
   }
 });
+
+// 4. "The toast sits on top of the title." A toast must not cover the title, the hint, the count or the buttons, and must
+//    not eat taps. Checked with the entry toast and the longest one (two lines on a phone).
+sections.push(async(c)=>{
+  if(!c.want(4))return;
+  for(const name of Object.keys(VIEWPORTS)){
+    const p=await c.open(name,'');
+    await c.inRoom(p);
+    const longest='便签贴满了，你的排在候贴区第 3 张；也可以撕一张别人的换上';
+    for(const [label,text] of [['entry toast',null],['longest toast',longest]]){
+      if(text)await p.page.evaluate(t=>window.__suisui.toast(t),text);
+      await p.page.waitForTimeout(350);   // past the fade-in
+      const boxes={};for(const s of ['#toast','h1','#hint','#count','#write','#all','#mute'])boxes[s]=await c.rect(p,s);
+      const covered=['h1','#hint','#count','#write','#all','#mute'].filter(s=>c.hit(boxes['#toast'],boxes[s]));
+      const pe=await p.page.evaluate(()=>getComputedStyle(document.querySelector('#toast')).pointerEvents);
+      await p.page.screenshot({path:c.path.join(c.out,`4-${name}-${label.replace(' ','-')}.png`)});
+      c.check(`4. ${name}: ${label} covers none of title, hint, count, buttons`,boxes['#toast']&&covered.length===0,{covered,toast:boxes['#toast']&&[boxes['#toast'].y,boxes['#toast'].h].map(Math.round)});
+      c.check(`4. ${name}: ${label} lets taps through`,pe==='none',{pe});
+    }
+    await p.ctx.close();
+  }
+});
