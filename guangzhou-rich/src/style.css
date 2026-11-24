@@ -16,6 +16,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .masthead h1{font-family:"Songti SC","STSong","Noto Serif CJK SC",serif;font-weight:600;font-size:30px;letter-spacing:4px;margin:6px 0 2px}
 .masthead .tag{margin:0;font-size:14px;color:var(--ink2)}
 .howto{margin:0;padding:10px 12px 10px 30px;background:var(--card);border-radius:8px;font-size:14px;line-height:1.6;border:1px solid #e3d6b8}
+.howto li,.keynote,.masthead .tag{text-wrap:pretty}
 .seats{display:flex;flex-direction:column;gap:8px}
 .seat{background:var(--card);border:1px solid #e3d6b8;border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:14px 1fr 1fr;gap:6px 8px;align-items:center}
 .seat-me{grid-template-columns:14px 1fr}
@@ -48,22 +49,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .topbar .link{min-height:36px}
 .layout{display:flex;flex-direction:column;gap:8px}
 .board{position:relative;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(7,1fr);aspect-ratio:1/1;width:100%;gap:2px;background:var(--ink);border:3px solid var(--ink);border-radius:8px;overflow:hidden}
-.cell{position:relative;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:4px 1px 0;min-width:0;overflow:hidden;text-align:center}
+.cell{position:relative;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:3px 1px 0;min-width:0;overflow:hidden;text-align:center}
 .cell .band{position:absolute;left:0;right:0;top:0;height:5px}
-.cell .nm{font-size:11px;line-height:1.15;font-weight:600;margin-top:3px;word-break:keep-all}
+.cell .nm{font-size:11px;line-height:1.15;font-weight:600;margin-top:2px;word-break:keep-all}
 .cell .pr{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
 .cell.corner{background:#efe2c3}
 .cell.corner .nm{font-size:12px}
 .cell.chance{background:#f7e7c9}
-.cell.chance .nm{color:var(--accent);font-size:16px;margin-top:6px}
+.cell.chance .nm{color:var(--accent);font-size:14px;margin-top:3px}
 .cell.owned{box-shadow:inset 0 -5px 0 var(--own)}
 .cell.near{outline:2px dashed var(--orange);outline-offset:-4px}
-.cell .lv{font-size:9px;letter-spacing:1px;color:var(--own);line-height:1}
+.cell .lv{position:absolute;left:3px;bottom:6px;font-size:8px;letter-spacing:0;color:var(--own);line-height:1}
 .cell.hit{animation:hit .6s ease-out}
 @keyframes hit{0%{background:#fff4c8}100%{background:var(--card)}}
-.tokens{position:absolute;left:2px;right:2px;bottom:5px;display:flex;justify-content:center;gap:1px;flex-wrap:wrap}
-.tok{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 2px #0004}
-.tok.now{width:15px;height:15px}
+.tokens{position:absolute;left:2px;right:2px;bottom:1px;display:flex;justify-content:flex-end;align-items:flex-end;flex-wrap:nowrap}
+.tok{flex:none;width:11px;height:11px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 1px 2px #0004}
+.tok+.tok{margin-left:-5px}
+.tok.now{width:13px;height:13px}
 .center{grid-row:2 / 7;grid-column:2 / 7;background:#f6efdf;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-align:center}
 .brand{margin:0;font-family:"Songti SC","STSong","Noto Serif CJK SC",serif;font-size:13px;letter-spacing:4px;color:var(--ink2);opacity:.8}
 .legend{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;font-size:10px;color:var(--muted)}
@@ -103,6 +105,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .over-actions{display:flex;gap:8px}
 .over-actions button{flex:1}
 
+@media (max-width:380px){.tok{width:9px;height:9px}.tok+.tok{margin-left:-3px}.tok.now{width:11px;height:11px}}
 @media (min-width:900px){
   .screen{max-width:1100px}
   #setup{max-width:560px}

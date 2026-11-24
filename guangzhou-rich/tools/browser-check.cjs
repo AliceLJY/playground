@@ -137,6 +137,65 @@ async function extra(browser) {
       { items: r.items, missing, newestFirst, listStyle: r.listStyle, errors: log.errors });
     await ctx.close();
   }
+
+  // ---- T1 竖屏棋子不盖字（外部试玩：开局四棋子盖住「出发」、棋子盖价格）----
+  // 开局四个棋子叠在出发格，再快速打一段，每个采样时刻：棋子外框与格内文字（地名、价格、楼层标记）的重叠面积为 0（容许 1px 抗锯齿），棋子不出格。
+  const tokenOverlaps = (page) => page.evaluate(() => {
+    const bad = [];
+    document.querySelectorAll('#board .cell').forEach((c) => {
+      const cr = c.getBoundingClientRect();
+      const toks = [...c.querySelectorAll('.tok')].map((t) => t.getBoundingClientRect());
+      if (!toks.length) return;
+      toks.forEach((t) => { if (t.left < cr.left - 1 || t.right > cr.right + 1 || t.bottom > cr.bottom + 1) bad.push({ sq: c.dataset.sq, what: 'outside-cell' }); });
+      [...c.querySelectorAll('.nm,.pr,.lv')].filter((e) => e.textContent.trim()).forEach((e) => {
+        const rg = document.createRange(); rg.selectNodeContents(e);
+        const x = rg.getBoundingClientRect();
+        toks.forEach((t) => { const ix = Math.min(x.right, t.right) - Math.max(x.left, t.left), iy = Math.min(x.bottom, t.bottom) - Math.max(x.top, t.top); if (ix > 1 && iy > 1) bad.push({ sq: c.dataset.sq, text: e.textContent.trim(), area: Math.round(ix * iy) }); });
+      });
+    });
+    return bad;
+  });
+  for (const vp of [{ width: 390, height: 664 }, { width: 390, height: 844 }, { width: 360, height: 640 }]) {
+    const { ctx, page, log } = await newPage(browser, vp, { touch: true });
+    await page.goto(`${BASE}?seed=7&fast=1`);
+    await ready(page);
+    await page.click('#start');
+    await page.waitForTimeout(100);
+    const atStart = await tokenOverlaps(page);
+    const sampled = []; let samples = 0;
+    const until = Date.now() + 14000;
+    while (Date.now() < until) {
+      const s = await snap(page);
+      if (s.phase === 'over') break;
+      if (s.turn === 0 && !s.busy && s.pending) await page.tap('#act-a').catch(() => {});
+      const b = await tokenOverlaps(page);
+      samples++;
+      if (b.length) sampled.push(...b);
+      await page.waitForTimeout(90);
+    }
+    check(`T1-${vp.width}x${vp.height}`, `竖屏棋子不盖字：开局四个棋子叠在出发格、再打一段共 ${samples} 个采样，棋子与地名/价格/楼层标记重叠为 0（${vp.width}×${vp.height}）`, !atStart.length && !sampled.length && !log.errors.length,
+      { atStart: atStart.slice(0, 4), atStartCount: atStart.length, sampledCount: sampled.length, firstSampled: sampled.slice(0, 3), samples, errors: log.errors });
+    await ctx.close();
+  }
+
+  // ---- H1 规则行不留单字尾行（外部试玩：规则行尾单字成行）----
+  // 选座页三行怎么玩，在几种窄屏宽度下，每一行折行后最后一行至少 3 个字宽（标点也算一字，不许「买。」这种孤字尾巴），且不横向溢出。
+  for (const w of [390, 375, 360, 320]) {
+    const { ctx, page, log } = await newPage(browser, { width: w, height: 664 }, { touch: true });
+    await page.goto(`${BASE}?seed=7`);
+    await ready(page);
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.howto li, .keynote, .masthead .tag')].map((li) => {
+      const rg = document.createRange(); rg.selectNodeContents(li);
+      const lines = {};
+      [...rg.getClientRects()].forEach((r) => { const k = Math.round(r.top); lines[k] = (lines[k] || 0) + r.width; });
+      const ws = Object.values(lines);
+      const fs = parseFloat(getComputedStyle(li).fontSize);
+      return { text: li.textContent.slice(0, 8), lines: ws.length, lastChars: Math.round((ws[ws.length - 1] / fs) * 10) / 10, overflow: li.scrollWidth > li.clientWidth + 1 };
+    }));
+    const orphan = rows.filter((r) => r.lines > 1 && r.lastChars < 3);
+    check(`H1-${w}`, `规则行（三行怎么玩、key 说明、副标题）折行后最后一行不少于 3 个字宽、不溢出（${w} 宽）`, !orphan.length && !rows.some((r) => r.overflow) && !log.errors.length, { rows, orphan, errors: log.errors });
+    await ctx.close();
+  }
 }
 
 (async () => {
