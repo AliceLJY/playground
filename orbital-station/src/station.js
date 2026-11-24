@@ -205,8 +205,9 @@ function buildHub(mat, rng) {
   hub.add(instanced(new THREE.BoxGeometry(1, 1, 1), mat.frame, latches, 'metal', 'port-latches'));
   const latchLights = instanced(new THREE.SphereGeometry(1, 8, 6), mat.latch, lamps, 'emissive', 'latch-lights');
   latchLights.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PORT.latches * 3), 3); hub.add(latchLights);
+  // Approach lights are mounted on the tunnel wall (they used to hang 0.65 m out in space).
   const approach = [];
-  for (let i = 0; i < 8; i++) { const a = i * 45 * D; approach.push(M().compose(new THREE.Vector3(Math.cos(a) * 4.25, PORT.y - 1.45, Math.sin(a) * 4.25), new THREE.Quaternion(), new THREE.Vector3(0.22, 0.18, 0.22))); }
+  for (let i = 0; i < 8; i++) { const a = i * 45 * D; approach.push(M().compose(new THREE.Vector3(Math.cos(a) * (HUB.adapterRadius + 0.07), PORT.y - 1.45, Math.sin(a) * (HUB.adapterRadius + 0.07)), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(0.22, 0.18, 0.22))); }
   hub.add(instanced(new THREE.BoxGeometry(1, 1, 1), mat.cyan, approach, 'emissive', 'port-lights'));
   // Alignment target on a short post beside the port: dark plate, lit cross.
   const post = new THREE.Group(); post.position.set(-4.2, HUB.top + 1.6, 1.2);

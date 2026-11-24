@@ -133,6 +133,17 @@ test('A1 hook lamps show their state: dark while free, amber once captured, gree
   assert.ok(red.r > 3 * red.g && grn.g > 3 * grn.r, 'shuttle navigation lamps are red on one fin and green on the other');
 });
 
+test('A7 approach lights are mounted on the docking tunnel, not floating beside it', async () => {
+  const THREE = await three, { HUB } = await core, { meshes } = await build(0);
+  const lights = meshes.find(m => m.userData.role === 'port-lights'), im = new THREE.Matrix4(), p = new THREE.Vector3(), s = new THREE.Vector3();
+  assert.equal(lights.count, 8);
+  for (let i = 0; i < lights.count; i++) {
+    lights.getMatrixAt(i, im); im.premultiply(lights.matrixWorld); p.setFromMatrixPosition(im); s.setFromMatrixScale(im);
+    const gap = Math.hypot(p.x, p.z) - s.x / 2 - HUB.adapterRadius;
+    assert.ok(gap <= 0.01 && gap > -s.x, `approach light ${i} sits ${gap.toFixed(2)} m off the tunnel wall (must touch it without being buried)`);
+  }
+});
+
 test('A4 the garden camera walks under the trees: never inside a crown, with crowns ahead in frame', async () => {
   const THREE = await three, { shotPoseAt, project, SHOTS } = await core;
   const g = SHOTS.find(s => s.key === 'garden'), { st, meshes } = await build(g.start);
