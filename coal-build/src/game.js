@@ -4,6 +4,9 @@
 const C=window.CoalCore,B=window.COAL_BUILDINGS,CFG=C.CFG;
 const cv=document.getElementById('stage'),ctx=cv.getContext('2d');
 const Q=new URLSearchParams(location.search),VIEW=Q.get('view'),SEED=+(Q.get('seed')||0)||Math.floor(Math.random()*1e6)+1;
+// ?demo=1 is only for recording the vertical demo film (tools/demo.cjs): the recorder may speed up the rules and the walkers
+// separately and reads an event log. Without it nothing below changes: SPD and WSPD stay 1 and nothing is logged.
+const DEMO=Q.get('demo')==='1';let SPD=1,WSPD=1;const DEMO_LOG=DEMO?[]:null;
 const ALPHA='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',KEY='coal-build-v1',FONT='"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif';
 const COL={sky0:'#f3cf9b',sky1:'#fbeed6',ground:'#cdb48a',groundLine:'#a88d64',panel:'#2b2622',text:'#fff6e6',sub:'#d8c9b0',
   btn:'#f08a3c',btnEdge:'#8a4a1c',off:'#8d847a',coin:'#f2c14e',target:'#d2483c',coal:'#111111',pink:'#FF5DA2',brick:'#7f8a94',bamboo:'#c8a45a'};
@@ -121,6 +124,7 @@ function toast(t,color,size,life){const act=ui.texts.filter(x=>x.lane!=null&&now
   ui.texts.push({t,x:W/2,y:L.stage.y+92+lane*30,color:color||'#fff6e6',size:size||17,t0:now,life:life||1.8,lane});}
 function handleEvents(){
   const s=g.state,R=L.building;
+  if(DEMO_LOG)for(const e of s.events)DEMO_LOG.push({type:e.type,src:e.src,n:e.n,kind:e.kind,index:e.index,name:e.name,gt:e.t});
   for(const e of s.events){
     if(e.type==='lay'){for(let i=e.from;i<e.from+e.n;i++)(e.src==='balls'?ui.pend:ui.instant).push(i);
       if(e.src==='tap'){const k=geo.cells[e.from];if(k)addText('+'+C.fmt(e.coins),k.x+k.w/2,k.y-4,COL.coin,13,0.8);}}
@@ -500,7 +504,7 @@ let acc=0,last=performance.now(),frameMs=[];
 function frame(t){
   const dt=Math.min(0.1,(t-last)/1000);last=t;now+=dt;
   const s=g.state;
-  if(ui.screen==='play'&&!ui.frozen&&!ui.albumOpen){acc+=dt;while(acc>=CFG.step){g.step(CFG.step);acc-=CFG.step;}ballClock+=dt;}
+  if(ui.screen==='play'&&!ui.frozen&&!ui.albumOpen){acc+=dt*SPD;while(acc>=CFG.step){g.step(CFG.step);acc-=CFG.step;}ballClock+=dt*WSPD;}
   else if(ui.screen!=='play')ballClock+=dt*0.5;
   if(dirtyAll){dirtyAll=false;relayout();}
   handleEvents();updateFlights();
@@ -550,6 +554,7 @@ window.__coalbuild={get ready(){return imgReady>=IMG.length&&!!L;},probe,
   walkers:()=>{const n=Math.min(g.state.balls,BALLS_DRAWN);return Array.from({length:n},(_,i)=>walker(i));},
   hits:()=>hitList().map(h=>({id:h.id,r:h.r})),
   autoplay:(level,secs)=>{const pl=C.pilot(level||'normal',g.state.seed);const end=g.state.t+secs;while(g.state.t<end&&g.state.phase==='play'){pl(g);g.step(CFG.step);handleEvents();}ui.texts=[];ui.banner=null;return probe();}};
+if(DEMO){window.__coalbuild.demoSpeed=(k,v)=>{SPD=k;WSPD=v==null?k:v;};window.__coalbuild.demoLog=()=>DEMO_LOG.splice(0);}
 window.__PLAYTEST__={get ready(){return window.__coalbuild.ready;},snapshot:probe,
   reset:()=>{try{localStorage.removeItem(KEY);}catch(e){}fresh(SEED);ui.screen='play';relayout();},
   setSeed:n=>{fresh(n);ui.screen='play';relayout();},
