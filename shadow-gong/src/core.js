@@ -43,7 +43,8 @@ const S=(hit,reach,dmg,posture,extra)=>Object.assign({hit,reach,dmg,posture,lead
 // so the opponent's body has to stay beyond it, and its weapon has to be able to end on the gong from there.
 //   blades: the tip (1.18 from a screw 1.02 up) rests on the gong from 1.59 to 2.32 away; 1.8 leaves room both ways.
 //   rat king: 2.1 puts his belly (0.62 forward of centre) just past the gong's rim even when the gong swings out.
-// Walking, lunges and the leap all stop at `stand`; reaches are measured from the attacker's centre as before.
+// Walking, lunges and the leap all stop at `stand`; reaches are measured from the attacker's centre as before and
+// grew by what `stand` added to the old spacing (the thrown oil too: walking away from it must still not be enough).
 // The moth flies: `head` is how far its head leads its body in a dive, so the head, not the body, ends on the target.
 const KINDS={
   moth:{hp:2,posture:30,speed:3.2,rate:1,flying:true,keep:2.3,wait:3.6,clamp:6.2,cool:[1.3,2.3],gain:999,stun:1.5,regen:30,width:.9,head:[.34,.23],
@@ -56,7 +57,7 @@ const KINDS={
   rat:{hp:3,posture:140,speed:1.5,rate:1,keep:2.2,wait:2.4,clamp:5.6,cool:[.8,1.5],gain:18,stun:2.2,regen:10,width:1.1,stand:2.1,boss:true,marks:true,
     moves:{
       ladle:{dur:2.5,type:'melee',strikes:[S(.74,3.2,13,20,{lunge:.35}),S(1.26,3.2,13,20,{lunge:.3}),S(2,3.2,14,22,{lunge:.45,finisher:true})]},
-      fling:{dur:1.5,type:'fling',strikes:[S(.95,3.4,22,0,{unblockable:true,lead:FEEL.leadRed})]},
+      fling:{dur:1.5,type:'fling',strikes:[S(.95,4.2,22,0,{unblockable:true,lead:FEEL.leadRed})]},
       leap:{dur:1.6,type:'leap',range:[3.6,99],strikes:[S(1,2.5,16,26,{gain:28,finisher:true})]}}}
 };
 const WAVES=[

@@ -152,14 +152,14 @@ test('perfect parry and plain block feel different: hit-stop, slow motion, spark
 });
 
 test('red blows ignore the gong; a dodge slips through them',()=>{
-  // the rat king throws from where he stands, 2.2 away; a dodge 0.12 s before the oil lands is still inside its 3.4 reach
+  // the rat king throws from where he stands, 2.2 away
   const hit=strikeStep('rat','fling',0,2.2);
   const guard=play('rat','fling',i=>({blockPressed:i===at(.08,hit),blockDown:i>=at(.08,hit)}),{x:2.2});
   assert.equal(guard.out[0],'hurt');
-  const dodge=play('rat','fling',i=>({dodgePressed:i===at(.12,hit),left:i===at(.12,hit)}),{x:2.2});
+  const dodge=play('rat','fling',i=>({dodgePressed:i===at(.18,hit),left:i===at(.18,hit)}),{x:2.2});
   assert.equal(dodge.out[0],'evade');
-  const away=play('rat','fling',i=>({dodgePressed:i===at(.3,hit),left:i===at(.3,hit)}),{x:2.2});
-  assert.equal(away.out[0],'whiff','rolling away early enough leaves the reach altogether');
+  const walk=play('rat','fling',i=>({left:i>=at(C.FEEL.leadRed,hit)}),{x:2.2});
+  assert.equal(walk.out[0],'hurt','walking away once the red light shows is not enough: the oil reaches 4.2');
 });
 
 test('only an opened opponent takes the drumstick; a turned blow still lets you guard',()=>{
