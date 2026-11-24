@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>油彩孔雀 · Painterly Peacock</title><link rel="icon" href="data:,">
+<meta name="description" content="一只油画质感的三维孔雀，跟着鼠标走，悬停开屏；点一根尾羽，它会把落下的羽毛衔回原处。全部由代码生成，示意造型。">
+<style>
+:root{color-scheme:light;--ivory:#efe6d3;--ink:#2a2924;--dim:#6d6455;--teal:#0f4c4f;--gold:#8c6a26;--line:#2a292433;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--ivory);color:var(--ink);overflow:hidden}
+button{font:inherit;font-size:14px;color:var(--ink);background:#f7f1e4e6;border:1px solid var(--line);border-radius:999px;min-height:44px;min-width:44px;cursor:pointer;padding:0 16px;letter-spacing:.06em}
+button:hover{border-color:#0f4c4f88}button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+button[aria-pressed=true]{background:#0f4c4f;color:#f7f1e4;border-color:#0f4c4f}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;inset:0;pointer-events:none}.ui button{pointer-events:auto}
+.intro{position:absolute;top:34px;left:44px;max-width:320px}
+.eyebrow{font-size:11px;letter-spacing:.22em;color:var(--gold)}
+.intro h1{font-family:"Songti SC","STSong","Noto Serif CJK SC",Georgia,serif;font-weight:400;font-size:46px;letter-spacing:.14em;margin:10px 0 6px;line-height:1.1;color:var(--ink)}
+.english{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-size:12px;letter-spacing:.16em;color:var(--dim)}
+#b-sound{position:absolute;top:30px;right:40px}
+.hints{position:absolute;left:44px;bottom:30px;font-size:12px;line-height:1.9;color:var(--dim);letter-spacing:.04em;max-width:520px}
+.hints b{font-weight:500;color:var(--teal)}
+.note{position:absolute;right:40px;bottom:30px;font-size:11px;color:var(--dim);letter-spacing:.06em}
+.pad{display:none}
+.fail{position:fixed;inset:0;display:grid;place-content:center;padding:32px;background:var(--ivory);color:var(--ink);line-height:1.9;text-align:center}
+[hidden]{display:none!important}
+@media (max-width:700px),(pointer:coarse) and (max-width:1000px){
+  .intro{top:12px;left:16px;right:96px}.eyebrow{font-size:9px;letter-spacing:.16em}.intro h1{font-size:26px;margin:4px 0 2px}.english{font-size:10px}
+  #b-sound{top:12px;right:12px;padding:0 12px;font-size:13px}
+  .hints{left:16px;right:16px;bottom:72px;font-size:11px;line-height:1.5;text-align:center}.hints .desk{display:none}
+  .note{display:none}
+  .pad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;position:absolute;left:12px;right:12px;bottom:14px}
+  .pad button{padding:0;min-height:48px;font-size:14px}
+}
+@media (min-width:701px) and (pointer:fine){.hints .touch{display:none}}
+@media (max-height:520px) and (min-width:701px){.hints,.note{display:none}.intro h1{font-size:30px}}
+</style></head><body>
+<canvas id="scene" aria-label="油彩孔雀三维画面：移动鼠标领它走，悬停开屏，点尾羽让它衔回去"></canvas>
+<main class="ui">
+<section class="intro"><div class="eyebrow">示意造型 · 纯代码油画</div><h1>油彩孔雀</h1><div class="english">Painterly Peacock — a pocket of oil paint that walks</div></section>
+<button id="b-sound" type="button" aria-pressed="false">声音 关</button>
+<p class="hints"><span class="desk">移动鼠标领它走 · 停在它身上开屏 · <b>点一根尾羽</b>，它会衔回原处 · 滚轮走近 / 后退 · 空格跳</span><span class="touch">点地面领它走 · <b>点一根尾羽</b>，它会衔回原处</span></p>
+<p class="note">示意造型，不对应真实品种</p>
+<nav class="pad" aria-label="触屏按钮"><button id="b-fan" type="button" aria-pressed="false">开屏</button><button id="b-near" type="button">走近</button><button id="b-back" type="button">后退</button><button id="b-jump" type="button">跳</button></nav>
+</main><div class="fail" id="fail" hidden></div>
+<noscript><div class="fail">这个页面需要打开 JavaScript 和 WebGL 才能显示三维画面。</div></noscript>
+<!--BUNDLE-->
+</body></html>
