@@ -7,9 +7,9 @@
 //      这里只把 Math.min(devicePixelRatio, 1.5) 这一处放开，三维画面按 1080×1920 原生渲染；真手机上看到的比片里略软。
 //   node tools/serve.cjs . 8962
 //   NODE_PATH="$(npm root -g)" node tools/demo.cjs <输出目录> [--base http://127.0.0.1:8962/dist/index.html]
-//     [--segments 0-15,20-45] 录哪几段场景时间（秒，逗号分隔多段；段与段之间直接跳，只该在黑场处接）。
-//                             默认跳过 15–20 秒的「花园甲板」（树冠是粗的低多边形、插进舱壁）：15 秒和 20 秒都是全黑，接上看不出跳；
-//                             要把花园录进去就写 --segments 0-45
+//     [--segments 0-45]       录哪几段场景时间（秒，逗号分隔多段；段与段之间直接跳，只该在黑场处接）。
+//                             默认录连播 0–45 秒（2026-11-25 花园甲板的树修好后不再跳过）；要跳过某段就写多段，
+//                             例如 0-15,20-45（15、20 秒都是黑场，接上看不出跳）
 //     [--dry]                 不出视频，只每半秒打印一行状态
 //     [--stills 3,9.5,20]     这几个视频时刻另存原尺寸静帧（--dry 时也存）
 // 产物：<输出目录>/screen.mp4（1080×1920、30 fps，无声）、timeline.json（每帧的场景时间、机位、黑场，配乐对时用）。
@@ -21,7 +21,7 @@ const fs = require('fs'), path = require('path');
 const args = process.argv.slice(2), flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; }, has = n => args.includes('--' + n);
 const out = args[0]; if (!out || out.startsWith('--')) { console.error('usage: demo.cjs <输出目录> [--segments a-b,c-d] [--dry] [--stills t1,t2]'); process.exit(2); }
 const base = flag('base', 'http://127.0.0.1:8962/dist/index.html'), DRY = has('dry');
-const SEGMENTS = flag('segments', '0-15,20-45').split(',').map(s => s.split('-').map(Number));
+const SEGMENTS = flag('segments', '0-45').split(',').map(s => s.split('-').map(Number));
 const STILLS = (flag('stills', '') || '').split(',').filter(Boolean).map(Number);
 const W = 360, H = 640, DPR = 3, FPS = 30, SETTLE = 12;
 fs.mkdirSync(out, { recursive: true });
