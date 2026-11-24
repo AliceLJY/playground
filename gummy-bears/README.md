@@ -12,7 +12,7 @@ Every shape, colour and shadow is generated in code; there are no image, model o
 npm ci
 node tools/build.mjs              # single file dist/index.html
 node --test tests/*.test.cjs      # Node tests: back to shape after a full pull, no pass-through, pile settles, reset, same seed, framing, mesh, single file
-node tools/browser-check.cjs      # real Chrome: 8 screenshots, layout, pixels, mouse and touch drag, page errors (not run yet)
+node tools/browser-check.cjs      # real Chrome: 8 screenshots, layout, pixels, mouse and touch drag, page errors
 node tools/preview.mjs            # CPU composition preview for machines without WebGL (not a rendered screenshot)
 ```
 

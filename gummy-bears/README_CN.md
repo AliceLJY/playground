@@ -12,7 +12,7 @@
 npm ci
 node tools/build.mjs              # 打成单文件 dist/index.html
 node --test tests/*.test.cjs      # Node 测试：拉到最大回原形、不穿透、倒满静止、reset、同种子、构图、网格、单文件
-node tools/browser-check.cjs      # 真实 Chrome：8 张截图、布局、像素、鼠标和触屏拖动、页面报错（还没跑过）
+node tools/browser-check.cjs      # 真实 Chrome：8 张截图、布局、像素、鼠标和触屏拖动、页面报错
 node tools/preview.mjs            # 没有 WebGL 的机器上看构图的 CPU 预览（不是渲染截图）
 ```
 

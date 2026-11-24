@@ -102,7 +102,10 @@ async function pointerDrag(page, vp, touch) {
     held = await hook(page, 'snapshot');
     await page.mouse.up();
   }
-  check(`B5 ${vp} ${touch ? 'touch' : 'mouse'} drag grabs and stretches a bear`, held.grabbing && held.stretch > 1.15, { grabbing: held.grabbing, stretch: held.stretch });
+  // Judge the peak, not the reading 300 ms after the drag stops: by then the body has followed the head and
+  // the stretch has relaxed (first real-GPU run, 2026-11-24: phone touch peaked at 1.23, read 1.04 afterwards).
+  // The page is reloaded above, so maxStretch covers this drag only.
+  check(`B5 ${vp} ${touch ? 'touch' : 'mouse'} drag grabs and stretches a bear`, held.grabbing && held.maxStretch > 1.15, { grabbing: held.grabbing, peak: held.maxStretch, afterHold: held.stretch });
   const id = held.grabbing ? held.grabbing.bear : 2;
   await page.waitForFunction((id) => { const b = __PLAYTEST__.snapshot().bears[id]; return b && !b.moving; }, id, { polling: 200, timeout: 10000 }).catch(() => {});
   const after = await hook(page, 'snapshot'), b = after.bears[id];
