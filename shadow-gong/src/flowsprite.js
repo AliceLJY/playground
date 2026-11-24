@@ -47,6 +47,15 @@ function placeX(i,x,face,left,right,margin=.15){
   if(hi>right-margin)return x-(hi-(right-margin));
   return x;
 }
-root.GongFlow={META,frameFor,placeX,ownRotation:s=>OWN_ROTATION.has(s),url:'assets/'+META.image};
+// What the sprite puts on the cloth for this hero state: the frame, where it is drawn, its body box and the gong's
+// centre and radius, all in world units. The renderer, the sparks and the tests read the same numbers.
+// pose is the rig's pose for the same state (x, y bob, facing); a knocked-down clip brings its own rotation.
+function drawn(p,t,pose,left,right){
+  const i=frameFor(p,t),w=META.worldPerPx,f=pose.face||1,b=META.box[i],g=META.gong[i],[rx,ry]=META.root;
+  const x=placeX(i,pose.x,f,left,right),y=pose.y||0,xa=x+f*(b[0]-rx)*w,xb=x+f*(b[2]-rx)*w;
+  return{frame:i,x,y,face:f,box:{minX:Math.min(xa,xb),maxX:Math.max(xa,xb),minY:y+(ry-b[3])*w,maxY:y+(ry-b[1])*w},
+    gong:g?{x:x+f*(g[0]-rx)*w,y:y+(ry-g[1])*w,r:g[2]*w}:null};
+}
+root.GongFlow={META,frameFor,placeX,drawn,ownRotation:s=>OWN_ROTATION.has(s),url:'assets/'+META.image};
 if(typeof module!=='undefined')module.exports=root.GongFlow;
 })(typeof globalThis!=='undefined'?globalThis:this);

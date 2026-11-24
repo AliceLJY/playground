@@ -1,11 +1,13 @@
 // Browser acceptance for 灯影守夜, run by hand (not part of CI or the build).
 // Needs an existing Playwright install and Google Chrome; this repository does not install either.
 //   python3 -m http.server 8917 --bind 127.0.0.1          (inside shadow-gong/)
-//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [base-url] [--full | --orientation-only]
+//   NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <output-dir> [base-url] [--full | --orientation-only | --align-only]
 // Writes screenshots and report.json into <output-dir>. --full also plays a whole match in real time (about 3 minutes).
+// --align-only checks that the picture agrees with the verdict (hero facing, weapon on the gong, sparks on the gong,
+// standing room, hints clear of the action, touch buttons); it prints PASS/FAIL lines and exits 1 on any failure.
 const {chromium}=require('playwright');
 const fs=require('fs'),path=require('path');
-const args=process.argv.slice(2),full=args.includes('--full'),orientationOnly=args.includes('--orientation-only'),pos=args.filter(a=>!a.startsWith('--'));
+const args=process.argv.slice(2),full=args.includes('--full'),orientationOnly=args.includes('--orientation-only'),alignOnly=args.includes('--align-only'),pos=args.filter(a=>!a.startsWith('--'));
 const out=pos[0]||'browser-check',base=pos[1]||'http://127.0.0.1:8917/index.html',origin=new URL(base).origin;
 fs.mkdirSync(out,{recursive:true});
 const shot=name=>path.join(out,name+'.png');
@@ -52,6 +54,104 @@ const shot=name=>path.join(out,name+'.png');
       report.runs.push({width,height,checks,metrics:await page.evaluate(()=>__duel.metrics)});await ctx.close();
     }
     await browser.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));process.exitCode=failures?1:0;return;
+  }
+
+  // 2026-11-24 play report: "the new hero's moves and the judgement do not line up". Seeded matches driven by the
+  // in-page autopilot are frozen on the frame a blow is judged, and __duel.align() reports what is on screen in CSS pixels.
+  if(alignOnly){
+    let failures=0;const checks=[];
+    const check=(name,ok,data)=>{checks.push({name,ok:!!ok,data});if(!ok)failures++;console.log(`${ok?'PASS':'FAIL'} ${name}${data===undefined?'':'  '+JSON.stringify(data)}`);};
+    const n1=v=>Math.round(v*10)/10,dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+    const hits=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
+    const share=(hero,t)=>t.top<hero.bottom&&hero.top<t.bottom?Math.max(0,Math.min(hero.right,t.right)-Math.max(hero.left,t.left))/(hero.right-hero.left):0;
+    // everything from the standing line up to the tallest head (the rat king's crown is 4.2 world units up), across the cloth
+    const band=a=>({left:a.cloth.left,right:a.cloth.right,top:a.floorY-4.4*a.unit,bottom:a.floorY+2});
+    const frozen=async(page,ms=120000)=>{const t0=Date.now();while(Date.now()-t0<ms){if(await page.evaluate(()=>window.__duel.frozen))return true;await page.waitForTimeout(100);}return false;};
+    {const {ctx,page}=await open('?view=hero');report.gpu=await page.evaluate(()=>__duel.metrics.gpu);await ctx.close();console.log('renderer: '+report.gpu);}
+
+    // 1. perfect parries from the right and from the left, at the reporter's desktop viewport (1280x521)
+    for(const [name,wave,kind,from] of [['moth-from-right',0,'moth',1],['moth-from-left',0,'moth',-1],['blade-from-right',1,'scissors',1],['blade-from-left',1,'scissors',-1],['ratking',3,'rat',0]]){
+      const {ctx,page,errors,external}=await open('?seed=11',{viewport:{width:1280,height:521}});
+      await page.evaluate(([wave,kind,from])=>{__duel.start(wave);__duel.autopilot(true,{});
+        __duel.freezeOn('parry',0,ev=>{if(!ev.perfect||ev.kind!==kind)return false;const e=__duel.state.enemies.find(x=>x.id===ev.id);if(!e||(from&&-e.face!==from))return false;window.__blow=ev.id;return true;});},[wave,kind,from]);
+      const ok=await frozen(page);await page.waitForTimeout(120);
+      const a=await page.evaluate(()=>({...__duel.align(),blow:window.__blow})),e=ok&&a.enemies.find(x=>x.id===a.blow),h=a.hero;
+      check(`${name}: froze on a perfect parry`,ok&&e&&h&&h.gong,ok?{hero:h&&h.state,attacker:e&&`${e.kind} ${e.state} ${e.move}`}:undefined);
+      if(ok&&e&&h&&h.gong){
+        const side=-e.face,g=[h.gong.x,h.gong.y];
+        check(`${name}: sprite faces the blow and the weapon is in front of him`,h.mirror===side&&(e.tip[0]-h.x)*h.mirror>0,{mirror:h.mirror,blowFrom:side,weaponAheadPx:n1((e.tip[0]-h.x)*h.mirror)});
+        check(`${name}: weapon tip within one gong radius of the gong`,dist(e.tip,g)<=h.gong.r,{tipToGongPx:n1(dist(e.tip,g)),gongRadiusPx:n1(h.gong.r)});
+        check(`${name}: sparks burst on the gong (centre of the live sparks within half a radius)`,a.sparks.n>=20&&dist(a.sparks.at,g)<=.5*h.gong.r,{sparks:a.sparks.n,sparksToGongPx:n1(dist(a.sparks.at,g)),gongRadiusPx:n1(h.gong.r)});
+        if(kind!=='moth')check(`${name}: hero box overlaps the attacker's trunk by at most 10% of his width`,share(h.box,e.trunk)<=.10,{overlap:n1(share(h.box,e.trunk)*100)+'%'});
+        if(a.hint)check(`${name}: hint stays out of the action band`,!hits(a.hint,band(a)),{hint:[n1(a.hint.top),n1(a.hint.bottom)],band:[n1(band(a).top),n1(band(a).bottom)],text:a.hint.text});
+      }
+      check(`${name}: zero page errors and external requests`,errors.length===0&&external.length===0,{errors,external});
+      await page.screenshot({path:shot('align-'+name)});report.runs.push({name,align:a});await ctx.close();
+    }
+    // 2. the hero's own blow on the rat king: he must not stand inside him
+    {
+      const {ctx,page}=await open('?seed=11',{viewport:{width:1280,height:521}});
+      await page.evaluate(()=>{__duel.start(3);__duel.autopilot(true,{});__duel.freezeOn('hit',0,ev=>{if(ev.kind!=='rat')return false;window.__blow=ev.id;return true;});});
+      const ok=await frozen(page);await page.waitForTimeout(120);
+      const a=await page.evaluate(()=>({...__duel.align(),blow:window.__blow})),e=ok&&a.enemies.find(x=>x.id===a.blow);
+      check('ratking-struck: froze on the hero hitting the rat king',ok&&e&&a.hero);
+      if(ok&&e&&a.hero)check('ratking-struck: hero box overlaps the rat king\'s trunk by at most 10% of his width',share(a.hero.box,e.trunk)<=.10,{overlap:n1(share(a.hero.box,e.trunk)*100)+'%',heroState:a.hero.state});
+      await page.screenshot({path:shot('align-ratking-struck')});report.runs.push({name:'ratking-struck',align:a});await ctx.close();
+    }
+    // 3. hints never cover the action: the frozen perfect-parry view (its hint is up) at desktop, phone portrait and landscape
+    for(const [width,height,touch] of [[1280,521,false],[1280,720,false],[390,664,true],[844,390,true],[667,375,true]]){
+      const tag=`${width}x${height}${touch?' touch':''}`;
+      const {ctx,page}=await open('?view=hero&seed=11',{viewport:{width,height},deviceScaleFactor:touch?2:1,hasTouch:touch,isMobile:touch});
+      await page.waitForTimeout(400);
+      const a=await page.evaluate(()=>__duel.align()),b=band(a),box=r=>[n1(r.left),n1(r.top),n1(r.right),n1(r.bottom)];
+      check(`${tag}: perfect-parry hint is showing`,!!a.hint,a.hint&&a.hint.text);
+      if(a.hint){
+        check(`${tag}: hint stays out of the action band (standing line up to the tallest head, across the cloth)`,!hits(a.hint,b),{hint:box(a.hint),band:box(b)});
+        check(`${tag}: hint is inside the viewport`,a.hint.left>=0&&a.hint.top>=0&&a.hint.right<=width&&a.hint.bottom<=height,{hint:box(a.hint)});
+        if(touch)check(`${tag}: hint does not sit on a touch button`,a.buttons.length===5&&!a.buttons.some(k=>hits(a.hint,k)),{buttons:a.buttons.length});
+      }
+      const stage={heroHeightPx:n1(a.hero.box.bottom-a.hero.box.top),heroShareOfViewport:n1((a.hero.box.bottom-a.hero.box.top)/height*100)+'%',clothWidthShare:n1((a.cloth.right-a.cloth.left)/width*100)+'%',clothTopPx:n1(a.cloth.top),clothBottomPx:n1(a.cloth.bottom),floorPx:n1(a.floorY)};
+      report.runs.push({name:'hint '+tag,stage,align:a});console.log('     '+tag+' stage: '+JSON.stringify(stage));
+      await page.screenshot({path:shot(`align-hint-${width}x${height}`)});await ctx.close();
+    }
+    // 4. phone portrait with a real touch screen: the ticket lists touch controls, and every button sends its intent
+    {
+      const {ctx,page,errors,external}=await open('?seed=11',{viewport:{width:390,height:664},deviceScaleFactor:2,hasTouch:true,isMobile:true});
+      const vis=sel=>page.locator(sel).isVisible();
+      check('touch 390x664: the ticket lists the touch controls, not the keyboard',await vis('.touch-keys')&&!await vis('.desk-keys'),{touchKeys:await vis('.touch-keys'),deskKeys:await vis('.desk-keys')});
+      const note=await page.locator('#start-note').innerText();
+      check('touch 390x664: the note under the start button names no keyboard key',!/Esc/i.test(note),note);
+      await page.screenshot({path:shot('align-touch-ticket')});
+      const state=()=>page.evaluate(()=>{const s=__duel.state,p=s.player;return{state:p.state,x:p.x,paused:s.paused,phase:s.phase};});
+      const centre=async key=>{const b=await page.locator(key.startsWith('#')?key:`#touch button[data-key="${key}"]`).boundingBox();return[b.x+b.width/2,b.y+b.height/2];};
+      const seen=async(want,ms=400)=>{const t0=Date.now();let s;while(Date.now()-t0<ms){s=await state();if(s.state===want)return s;await page.waitForTimeout(16);}return s;};
+      const restart=async()=>{await page.evaluate(()=>__duel.start(0));await page.waitForTimeout(250);};
+      const cdp=await ctx.newCDPSession(page);
+      const down=async key=>{const [x,y]=await centre(key);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});};
+      const up=()=>cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      await page.tap('#start');await page.waitForTimeout(250);
+      check('touch 390x664: tapping the start button starts the match',(await state()).phase!=='menu',await state());
+      for(const [key,label,want] of [['block','锣','guard'],['attack','槌','attack'],['dodge','闪','dodge']]){
+        await restart();const [x,y]=await centre(key);await page.touchscreen.tap(x,y);const s=await seen(want);
+        check(`touch 390x664: a tap on 「${label}」 puts the hero in ${want}`,s.state===want,s);
+      }
+      await restart();await down('block');await page.waitForTimeout(450);const held=await state();await up();await page.waitForTimeout(450);const released=await state();
+      check('touch 390x664: holding 「锣」 keeps the guard up, letting go drops it',held.state==='guard'&&released.state==='idle',{held:held.state,after:released.state});
+      await restart();const x0=(await state()).x;await down('right');await page.waitForTimeout(500);await up();const x1=(await state()).x;await page.waitForTimeout(300);const x2=(await state()).x;
+      check('touch 390x664: holding ▶ walks right and stops on release',x1-x0>1&&Math.abs(x2-x1)<.1,{walked:n1(x1-x0),driftAfterRelease:n1(x2-x1)});
+      await down('left');await page.waitForTimeout(400);const x3=(await state()).x;await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await page.waitForTimeout(300);const x4=(await state()).x;await page.waitForTimeout(300);const x5=(await state()).x;
+      check('touch 390x664: holding ◀ walks left; a cancelled touch releases it',x3-x2<-.8&&Math.abs(x5-x4)<.1,{walked:n1(x3-x2),driftAfterCancel:n1(x5-x4)});
+      const [px,py]=await centre('#pause-button');await page.touchscreen.tap(px,py);await page.waitForTimeout(200);const paused=(await state()).paused;
+      await page.tap('#resume');await page.waitForTimeout(200);
+      check('touch 390x664: 「歇」 pauses and 「接着演」 resumes',paused&&!(await state()).paused,{paused});
+      const a=await page.evaluate(()=>__duel.align()),small=a.buttons.filter(b=>b.right-b.left<44||b.bottom-b.top<44),clash=[];
+      for(let i=0;i<a.buttons.length;i++)for(let j=i+1;j<a.buttons.length;j++)if(hits(a.buttons[i],a.buttons[j]))clash.push(a.buttons[i].key+'/'+a.buttons[j].key);
+      check('touch 390x664: five buttons, each at least 44 px, none overlapping',a.buttons.length===5&&!small.length&&!clash.length,{buttons:a.buttons.map(b=>`${b.key} ${n1(b.right-b.left)}x${n1(b.bottom-b.top)}`),clash});
+      check('touch 390x664: zero page errors and external requests',errors.length===0&&external.length===0,{errors,external});
+      await page.screenshot({path:shot('align-touch-play')});await ctx.close();
+    }
+    report.checks=checks;await browser.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,1));
+    console.log(`${checks.length-failures}/${checks.length} alignment checks passed`);process.exitCode=failures?1:0;return;
   }
 
   // 1. fixed camera views (adaptive resolution locked, nothing else changed)

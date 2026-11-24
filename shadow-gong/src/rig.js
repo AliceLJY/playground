@@ -82,6 +82,19 @@ function bounds(kind,pose){
   for(const k in solved){const {m,part}=solved[k];if(!part.art)continue;for(const c of corners(part,m)){minX=Math.min(minX,c.x);maxX=Math.max(maxX,c.x);minY=Math.min(minY,c.y);maxY=Math.max(maxY,c.y);}}
   return{minX,minY,maxX,maxY};
 }
+// Tight boxes around the art of the parts that make up a body (the quads carry a margin): [part, x0, y0, x1, y1]
+// in the part's own frame. trunk() is the box a neighbour must not stand inside; weapons, arms and tails are left out.
+const trunks={
+  rat:[['body',-.66,0,.62,1.86],['thighF',-.26,-.8,.26,.08],['thighB',-.26,-.8,.26,.08]],
+  scissors:[['screw',-.16,-.16,.16,.16],['handleF',-.21,-1,.21,.02],['handleB',-.21,-1,.21,.02]],
+  moth:[['body',-.36,-.1,.36,.11]]
+};
+function trunk(kind,solved){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const [part,x0,y0,x1,y1] of trunks[kind])for(const [x,y] of [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]){
+    const q=apply(solved[part].m,x,y);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);}
+  return{minX,minY,maxX,maxY};
+}
 // --- poses -------------------------------------------------------------------------------
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;
 const ease=t=>t*t*(3-2*t);
@@ -177,6 +190,6 @@ function ratPose(e,t){
 }
 const posers={player:playerPose,moth:mothPose,scissors:scissorsPose,rat:ratPose};
 function pose(kind,actor,t){return posers[kind](actor,t||0);}
-const api={rigs,byName,points,solve,point,corners,bounds,pose,kf,mul,trs,apply};
+const api={rigs,byName,points,solve,point,corners,bounds,trunk,pose,kf,mul,trs,apply};
 if(typeof module!=='undefined')module.exports=api;root.GongRig=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

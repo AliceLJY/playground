@@ -312,10 +312,9 @@ function createWorld(canvas){
     const pose=R.pose(pp.kind,actor,t),solved=R.solve(pp.kind,pose),z=actorLayer[pp.kind]+(actor.id||0)*.0013;
     const depth=actor.depth||0,fade=1-.72*depth,dark=1-.55*depth;
     if(pp.flow){
-      const FL=root.GongFlow,F=FL.META,i=FL.frameFor(actor,t),m=pp.meshes[0].m,w=F.worldPerPx;
+      const FL=root.GongFlow,F=FL.META,d=FL.drawn(actor,t,pose,G.screen.left,G.screen.right),i=d.frame,m=pp.meshes[0].m,w=F.worldPerPx;
       m.material.map.offset.set((i%F.cols)/F.cols,1-(Math.floor(i/F.cols)+1)/F.rows);
-      const r=FL.ownRotation(actor.state)?0:(pose.rot||0),c=Math.cos(r),sn=Math.sin(r),f=pose.face||1;
-      const px=FL.placeX(i,pose.x,f,G.screen.left,G.screen.right);
+      const r=FL.ownRotation(actor.state)?0:(pose.rot||0),c=Math.cos(r),sn=Math.sin(r),f=d.face,px=d.x;
       m.matrix.set(f*c,-f*sn,0,px,sn,c,0,pose.y,0,0,1,z+.01,0,0,0,1);m.matrixWorldNeedsUpdate=true;
       const k=lamp*dark*(1+pp.flash*.8);m.material.color.setRGB(k*(1+pp.tint*.6),k*(1-pp.tint*.35),k*(1-pp.tint*.4));m.material.opacity=fade;
       const g=F.gong[i],gm=pp.glows[0].m;
@@ -342,12 +341,15 @@ function createWorld(canvas){
   sparkGeo.setAttribute('position',new THREE.BufferAttribute(sparkPos,3));sparkGeo.setAttribute('color',new THREE.BufferAttribute(sparkCol,4));
   const sparkPts=new THREE.Points(sparkGeo,new THREE.PointsMaterial({size:.2,map:dotTex,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
   sparkPts.renderOrder=60;sparkPts.frustumCulled=false;scene.add(sparkPts);
+  let bursts=0;
   function burst(at,n,palette,speed=5,life=.45,size=1){
+    const id=++bursts;
     for(let i=0;i<n;i++){
       const a=rnd()*Math.PI*2,v=speed*(.35+rnd()*.9),c=col(palette[i%palette.length]);
-      const r0=rnd()*.32*size;sparks.push({x:at.x+Math.cos(a)*r0,y:at.y+Math.sin(a)*r0*.8,z:.13,vx:Math.cos(a)*v,vy:Math.sin(a)*v*.8+1.2,life:life*(.6+rnd()*.7),age:0,r:c.r,g:c.g,b:c.b,size});
+      const r0=rnd()*.32*size;sparks.push({id,x:at.x+Math.cos(a)*r0,y:at.y+Math.sin(a)*r0*.8,z:.13,vx:Math.cos(a)*v,vy:Math.sin(a)*v*.8+1.2,life:life*(.6+rnd()*.7),age:0,r:c.r,g:c.g,b:c.b,size});
     }
     while(sparks.length>SPARKS)sparks.shift();
+    return id;
   }
   const starTex=tex('star',()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.translate(64,64);
     const gr=g.createRadialGradient(0,0,0,0,0,60);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(.2,'rgba(255,255,255,.5)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;
@@ -365,15 +367,23 @@ function createWorld(canvas){
   const wound=overlay('uniform float uA;varying vec2 vUv;void main(){float v=smoothstep(.25,.75,length(vUv-.5)*1.25);gl_FragColor=vec4(.25,0.,0.,v*uA);}',THREE.NormalBlending);
 
   // ---- per-frame sync --------------------------------------------------------------------
-  let gongGlow=0,hurtTint=0;
+  let gongGlow=0,hurtTint=0,lastBurst=null;
   const glintOf=(e)=>{const k=e.state==='attack'?e.tel.findIndex((v,i)=>v&&!e.done[i]):-1;if(k<0)return null;const st=e.move.strikes[k];return{red:!!st.unblockable,eta:(st.hit-e.clock)/e.rate};};
+  // The gong as the hero is drawn this frame: the sprite's own gong when he comes from the atlas, the rig's otherwise.
+  // Sparks, the parry star and the camera's push all start here, so they sit on the gong the player is looking at.
+  function heroGong(s){
+    const p=s.player,pose=R.pose('player',p,s.time);
+    if(useFlow){const g=root.GongFlow.drawn(p,s.time,pose,left,right).gong;if(g)return g;}
+    const q=R.point('player',R.solve('player',pose),'gong');return{x:q.x,y:q.y,r:.4};
+  }
   function fx(ev,s){
     const solvedOf=id=>{const a=id===0?s.player:s.enemies.find(e=>e.id===id);if(!a)return null;return{a,solved:R.solve(id===0?'player':a.kind,R.pose(id===0?'player':a.kind,a,s.time))};};
     if(ev.type==='telegraph'){const o=solvedOf(ev.id);if(o){const q=R.point(o.a.kind,o.solved,o.a.kind==='moth'?'eye':ev.unblockable?'jar':'weapon');star(q,ev.unblockable?PAL.danger:PAL.glint,ev.id,ev.unblockable?2.2:1.7);}}
     else if(ev.type==='parry'){
-      const o=solvedOf(0),q=o?R.point('player',o.solved,'gong'):ev.at;
-      if(ev.perfect){burst(q,ev.sparks,['#FFFFFF',PAL.spark,PAL.spark,'#FFE8B0'],6.5,.55);star(q,'#FFFFFF',0,2.6);gongGlow=1;}
-      else burst(q,ev.sparks,[PAL.sparkDull,'#8A4F22'],3.2,.3);
+      const q=heroGong(s),k=q.r/.4;   // the burst is sized to the gong it comes from (the rig gong has radius 0.4)
+      const id=ev.perfect?burst(q,ev.sparks,['#FFFFFF',PAL.spark,PAL.spark,'#FFE8B0'],6.5,.55,k):burst(q,ev.sparks,[PAL.sparkDull,'#8A4F22'],3.2,.3,k);
+      if(ev.perfect){star(q,'#FFFFFF',0,2.6);gongGlow=1;}
+      lastBurst={id,x:q.x,y:q.y,perfect:!!ev.perfect};
     }
     else if(ev.type==='hit')burst(ev.at,ev.sparks,['#F2E4C6','#E8C98E',PAL.spark],ev.counter?4.5:3,.35);
     else if(ev.type==='deflect')burst(ev.at,ev.sparks,['#DCE3E8','#FFFFFF',PAL.sparkDull],4,.3);
@@ -428,7 +438,22 @@ function createWorld(canvas){
     if(feel&&feel.shake>0){const h=2*Math.tan(f.fov*Math.PI/360)*f.pos.z,a=feel.shake*h;const sx=Math.sin(real*91)*a,sy=Math.cos(real*77)*a;px+=sx;tx+=sx;py+=sy;ty+=sy;}
     camera.position.set(px,py,pz);camera.lookAt(tx,ty,0);camera.updateProjectionMatrix();
   }
-  return{renderer,scene,camera,cloth,puppets,fx,sync,frameCamera,
+  // Acceptance readings: the hero as actually drawn (mirror sign, position and gong ring read back from the mesh
+  // matrices), plus the live sparks. World units; not used by play.
+  function drawn(s){
+    const pp=puppets.get(0),p=s.player,pose=R.pose('player',p,s.time);let hero=null;
+    if(pp&&pp.flow){
+      const d=root.GongFlow.drawn(p,s.time,pose,left,right),me=pp.meshes[0].m.matrix.elements,re=pp.ring.matrix.elements;
+      hero={flow:true,frame:d.frame,mirror:Math.sign(me[0]),x:me[12],box:d.box,gong:pp.ring.visible?{x:re[12],y:re[13],r:d.gong.r}:null};
+    }else if(pp){
+      const g=R.point('player',R.solve('player',pose),'gong');
+      hero={flow:false,mirror:p.face,x:p.x,box:R.bounds('player',pose),gong:{x:g.x,y:g.y,r:.4}};
+    }
+    // the sparks of the latest parry only: earlier bursts may still be in the air
+    let sx=0,sy=0,n=0;for(const q of sparks)if(lastBurst&&q.id===lastBurst.id){sx+=q.x;sy+=q.y;n++;}
+    return{hero,sparks:{n,x:n?sx/n:0,y:n?sy/n:0},burst:lastBurst};
+  }
+  return{renderer,scene,camera,cloth,puppets,fx,sync,frameCamera,drawn,
     render(){renderer.render(scene,camera);},
     resize(w,h,pr){renderer.setPixelRatio(pr);renderer.setSize(w,h,false);},
     // for render readings: the hero's body, and every other moving thing that could stand between it and the cloth

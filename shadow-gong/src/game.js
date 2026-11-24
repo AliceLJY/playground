@@ -197,6 +197,24 @@ function probe(){
   let mb=0,mc=0;for(let i=0;i<base.lum.length;i++){mb+=base.lum[i];mc+=calm.lum[i];}
   return{buffer:[w,h],silhouettePixels:n,silhouetteRatio:n?withP/without:null,meanLum:mb/base.lum.length,meanLumNoFlare:mc/calm.lum.length,flare,flareGain:(mb-mc)/Math.max(1e-9,mc)};
 }
+// Screen geometry of the current frame in CSS pixels, for acceptance checks: the hero as drawn (mirror sign, body box,
+// gong circle), every opponent's box, trunk and weapon tip, the live sparks, the hint box and the standing line.
+function align(){
+  const R=window.GongRig,v=new THREE.Vector3(),W=window.innerWidth,H=window.innerHeight;
+  const px=(x,y)=>{v.set(x,y,.1).project(world.camera);return[(v.x+1)/2*W,(1-v.y)/2*H];};
+  const rect=b=>{const [l,t]=px(b.minX,b.maxY),[r,bm]=px(b.maxX,b.minY);return{left:l,top:t,right:r,bottom:bm};};
+  const dom=el=>{const b=el.getBoundingClientRect();return{left:b.left,top:b.top,right:b.right,bottom:b.bottom};};
+  const d=world.drawn(s),unit=px(1,0)[0]-px(0,0)[0],h=d.hero;
+  const hero=h&&{flow:h.flow,frame:h.frame,face:s.player.face,mirror:h.mirror,state:s.player.state,x:px(h.x,0)[0],box:rect(h.box),world:h,
+    gong:h.gong&&{x:px(h.gong.x,h.gong.y)[0],y:px(h.gong.x,h.gong.y)[1],r:h.gong.r*unit}};
+  const enemies=s.enemies.map(e=>{const pose=R.pose(e.kind,e,s.time),solved=R.solve(e.kind,pose),tip=R.point(e.kind,solved,'weapon');
+    return{id:e.id,kind:e.kind,state:e.state,move:e.move&&e.move.name,face:e.face,x:px(e.x,0)[0],depth:e.depth||0,
+      box:rect(R.bounds(e.kind,pose)),trunk:rect(R.trunk(e.kind,solved)),tip:px(tip.x,tip.y),tipWorld:[tip.x,tip.y]};});
+  const hintEl=$('hint'),buttons=[...document.querySelectorAll('#touch button')].filter(b=>b.offsetParent).map(b=>({key:b.dataset.key,...dom(b)}));
+  return{viewport:[W,H],unit,floorY:px(0,0)[1],cloth:rect({minX:window.GongStage.screen.left,maxX:window.GongStage.screen.right,minY:window.GongStage.screen.bottom,maxY:window.GongStage.screen.top}),
+    hero,enemies,sparks:{n:d.sparks.n,at:px(d.sparks.x,d.sparks.y),origin:d.burst&&px(d.burst.x,d.burst.y)},
+    hint:hintEl.classList.contains('on')?{text:hintEl.textContent,...dom(hintEl)}:null,buttons,touchy:document.body.classList.contains('touchy')};
+}
 function gpu(){const gl=world.renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);}
 window.__duel={
   get ready(){return ready;},get view(){return view;},get frozen(){return frozen;},
@@ -204,7 +222,7 @@ window.__duel={
   get metrics(){const gl=world.renderer.getContext(),mem=world.renderer.info.memory;return{fps,drawCalls:info.calls,triangles:info.triangles,geometries:mem.geometries,textures:mem.textures,
     pixelRatio:world.renderer.getPixelRatio(),defaultPixelRatio:defaultPR,devicePixelRatio:window.devicePixelRatio,adaptiveLocked,css:[window.innerWidth,window.innerHeight],buffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],
     antialias:gl.getContextAttributes().antialias,samples:gl.getParameter(gl.SAMPLES),gpu:gpu()};},
-  probe,start:wave=>startGame(wave),
+  probe,align,start:wave=>startGame(wave),
   autopilot(on=true,opts={}){autoMode=on?opts:null;},
   freezeOn(type,delayMs=60,when){trap={type,delay:delayMs/1000,when};},
   unfreeze(){frozen=false;freezeAt=0;},
