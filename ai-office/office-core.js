@@ -67,8 +67,7 @@
   const mealTime = time => { const d=new Date(time+8*3600000), m=d.getUTCHours()*60+d.getUTCMinutes(); return m>=690 && m<780 ? '午餐' : m>=1050 && m<1140 ? '晚餐' : null; };
   // The boss's own day in the tower (Alice 11-03: 「给我安排点事儿……老板在唱歌、游泳、撸猫」). Beijing minutes → what she does when
   // nothing needs her (no queue, no note, no guest). Spots are local to a room offset (see BOSS_SPOTS); 'desk' and 'stroll' wander.
-  // 11-05 mornings in the tower:
-  // the cats wait outside till 07:30, come in and wake her, follow her meowing while she washes, get fed, she leaves at 07:45.
+  // 11-05 mornings in the tower: the cats wait outside till 07:30, come in and wake her, follow her meowing while she washes, get fed, then she is at the desk.
   const BOSS_DAY = [[30,'sleep','在医务室睡觉'],[450,'wake','被猫叫醒'],[452,'wash','洗漱，两只猫跟着喵喵叫'],[462,'feed','出门前喂猫'],[465,'desk','在老板桌上班'],[480,'tea','吃早茶'],[540,'desk','在老板桌办公'],[570,'games','玩游戏'],[630,'stroll','抱着小橘到处走'],[660,'desk','在老板桌办公'],
     [690,'kitchen','吃午饭'],[750,'pet','撸猫'],[780,'bath','给小橘洗澡'],[810,'desk','在老板桌办公'],[900,'swim','游泳'],[940,'tea','喝下午茶'],[990,'gym','撸铁'],
     [1050,'kitchen','吃晚饭'],[1110,'farm','浇菜'],[1170,'theatre','看剧'],[1290,'bbq','撸串涮火锅'],[1350,'sing','唱K'],[1380,'dance','跳舞'],[1410,'read','看书']];
