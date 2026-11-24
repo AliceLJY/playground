@@ -533,8 +533,7 @@ function enterRoom(w) {
   for (const [pid, n, c] of w.people) S.people.set(pid, [n, c]);
   S.live = new Set(w.people.map(([pid]) => pid));
   S.online = w.online; S.wait = w.wait; S.mine = w.mine; S.cdUntil = Date.now() + (w.cd || 0);
-  build(null, w.slots);
-  hint.classList.add('gone');
+  build(null, w.slots);   // the how-to hint stays until the first smash, same as single-player
   toast('进了房间：大家砸的是同一面架子');
 }
 function leaveRoom() {
