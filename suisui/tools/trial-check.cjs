@@ -86,6 +86,31 @@ sections.push(async(c)=>{
   }
 });
 
+// 6. "The 候贴区 only takes one slip, and 'tear someone else's to get yours up' has no way in." Not changed: one waiting
+//    slip each is the room's rule (README). This section only proves the way in exists and is a plain tap on a shelf note,
+//    on a phone, whether the note is a visitor's or one of the shelf's own (大家的).
+sections.push(async(c)=>{
+  if(!c.want(6))return;
+  const p=await c.open('phone','');
+  await c.inRoom(p);
+  const write=async t=>{await p.page.click('#write');await p.page.fill('#noteText',t);await p.page.click('#noteForm button[type=submit]');};
+  await write('先贴的');
+  await p.page.waitForFunction(()=>window.__suisui.probe().slots.some(s=>s.text==='先贴的'&&s.shown),null,{timeout:5000});
+  await p.page.waitForTimeout(5300);
+  await write('排队的');
+  await p.page.waitForFunction(()=>!!window.__suisui.probe().mine,null,{timeout:4000});
+  let st=await c.P(p);
+  c.check('6. with a note waiting, the strip shows it as mine and the tip names the way in',/我的/.test(st.waitbar)&&/撕/.test(st.waitbar),{waitbar:st.waitbar});
+  const target=st.slots.findIndex(s=>s.kind==='note'&&s.owner==='大家的'&&s.shown);
+  const r=await p.page.evaluate(i=>window.__suisui.rect(i),target);
+  await p.page.screenshot({path:c.path.join(c.out,'6-waiting.png')});
+  await p.page.touchscreen.tap(r.x+r.w/2,r.y+r.h/2);
+  const up=await p.page.waitForFunction(([i,w])=>{const s=window.__suisui.probe();return !s.mine&&s.slots[i].text===w&&s.slots[i].shown;},[target,'排队的'],{timeout:8000}).then(()=>true,()=>false);
+  await p.page.screenshot({path:c.path.join(c.out,'6-after-tap.png')});
+  c.check('6. tapping one of the shelf\'s own notes brings the waiting note up in that slot',up,{target});
+  await p.ctx.close();
+});
+
 // 5. "While smash-all cools down, the button gets wider and nudges the buttons next to it every second."
 //    Every label the cooldown can show (and the idle one) must leave all three buttons exactly where they are.
 sections.push(async(c)=>{
