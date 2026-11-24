@@ -317,8 +317,10 @@ export function buildIsland(seed = 7) {
   const water = buildWater(); root.add(water.surface, ...water.walls, water.line);
 
   // Crater: lava pool and smoke.
-  const lavaY = height(CRATER[0], CRATER[2]) + 0.7;
-  const lava = mesh('lava', 'lava', 'emissive', new THREE.CircleGeometry(2.9, 18).rotateX(-Math.PI / 2).translate(CRATER[0], lavaY, CRATER[2]), new THREE.MeshStandardMaterial({ color: '#100604', emissive: '#ff5a1a', emissiveIntensity: 2.8, roughness: 0.6 }));
+  // The crater is a bowl (floor 34.6 m, 37.7 m at 3 m out, rim 38.6 m at its lowest): 2.6 m of lava floods the floor
+  // about 2.5 m out and the bowl walls trim the disc's edge, still well below the rim.
+  const lavaY = height(CRATER[0], CRATER[2]) + 2.6;
+  const lava = mesh('lava', 'lava', 'emissive', new THREE.CircleGeometry(3.4, 20).rotateX(-Math.PI / 2).translate(CRATER[0], lavaY, CRATER[2]), new THREE.MeshStandardMaterial({ color: '#100604', emissive: '#ff4400', emissiveIntensity: 2.0, roughness: 0.6 }));
   const smoke = instanced('smoke', 'smoke', 'air', new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: '#a8a199', roughness: 1, transparent: true, opacity: 0.3, depthWrite: false }), 7);
   smoke.renderOrder = 4;
   root.add(lava, smoke);
@@ -359,10 +361,10 @@ export function buildIsland(seed = 7) {
     // Waves (only near the surface; the island hides the water under it).
     for (let i = 0; i < surfPos.count; i++) surfPos.setY(i, WATER + waveAt(surfPos.getX(i), surfPos.getZ(i), t));
     surfPos.needsUpdate = true; water.surface.geometry.computeVertexNormals();
-    // Smoke: seven puffs on staggered loops of 7 s.
+    // Smoke: seven puffs on staggered loops of 7 s, born above the rim so they never sit on the lava.
     for (let k = 0; k < 7; k++) {
-      const u = mod(t / 7 + k / 7, 1), r = lerp(1.6, 6.5, u);
-      place(smoke, k, [CRATER[0] + 3 * u * Math.sin(k * 2.1) + 6 * u, lavaY + 2 + 28 * u, CRATER[2] + 3 * u * Math.cos(k * 2.1) - 2 * u], k, r);
+      const u = mod(t / 7 + k / 7, 1), r = lerp(1.2, 6.5, u);
+      place(smoke, k, [CRATER[0] + 3 * u * Math.sin(k * 2.1) + 6 * u, lavaY + 9 + 26 * u, CRATER[2] + 3 * u * Math.cos(k * 2.1) - 2 * u], k, r);
     }
     smoke.instanceMatrix.needsUpdate = true;
     // Herd.

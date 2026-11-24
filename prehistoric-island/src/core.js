@@ -127,11 +127,12 @@ export function crown(p) {
 // ---- Creatures (all schematic shapes; loops close every CYCLE seconds) ----
 const TAU = Math.PI * 2;
 // Herd: three long-necked plant-eaters walking slowly up and down the east beach.
-export const HERD = [{ s: 0.9, th0: -0.28, size: 1.0, lag: 0 }, { s: 0.93, th0: -0.18, size: 0.8, lag: 0.7 }, { s: 0.88, th0: -0.08, size: 0.55, lag: 1.3 }];
+// Spaced about 11 m apart along the shore and walking nearly in step, so the three never run into one another.
+export const HERD = [{ s: 0.9, th0: -0.44, size: 1.0, lag: 0 }, { s: 0.92, th0: -0.10, size: 0.8, lag: 0.08 }, { s: 0.89, th0: 0.24, size: 0.55, lag: 0.16 }];
 const herdPoint = (th, s) => { const r = coastRadius(th) * s; return [ISLAND.cx + r * Math.cos(th), ISLAND.cz + r * Math.sin(th)]; };
 export function herdAt(i, t) {
   const a = HERD[i], w = Math.sin(TAU * mod(t) / CYCLE + a.lag);    // there and back once a cycle
-  const th = a.th0 + 0.26 * w, dir = Math.cos(TAU * mod(t) / CYCLE + a.lag) >= 0 ? 1 : -1;
+  const th = a.th0 + 0.18 * w, dir = Math.cos(TAU * mod(t) / CYCLE + a.lag) >= 0 ? 1 : -1;
   const [x, z] = herdPoint(th, a.s), [x2, z2] = herdPoint(th + 0.01 * dir, a.s);
   const heading = Math.atan2(z2 - z, x2 - x);
   const step = TAU * mod(t) / 1.6 + i;                                  // stride phase
@@ -139,7 +140,7 @@ export function herdAt(i, t) {
 }
 function nearHerdWalk(x, z) {
   let d = Infinity;
-  for (const a of HERD) for (let th = a.th0 - 0.32; th <= a.th0 + 0.32; th += 0.04) { const [hx, hz] = herdPoint(th, a.s); d = Math.min(d, Math.hypot(hx - x, hz - z)); }
+  for (const a of HERD) for (let th = a.th0 - 0.24; th <= a.th0 + 0.24; th += 0.04) { const [hx, hz] = herdPoint(th, a.s); d = Math.min(d, Math.hypot(hx - x, hz - z)); }
   return d;
 }
 // Flyers: five gliding reptiles circling the volcano.
@@ -236,7 +237,9 @@ export const shotPose = {
   },
   trench(t, aspect, u) {
     const k = tall(aspect);
-    return { position: [70 - 6 * u, -28 + 2 * k, 124 + 18 * k], target: [74, -49 + 2 * k, 10], up: Y, fov: widen(40, aspect, 56) };
+    // From above the water off the front-right corner, looking down the trench as it runs back into the block,
+    // so the trench and its swimmer fill the frame instead of the cut face of the bank beside it.
+    return { position: [128 - 8 * u, 18 + 4 * k, 104 + 18 * k], target: [80, -56 + 2 * k, 18], up: Y, fov: widen(42, aspect, 58) };
   },
   beach(t, aspect, u) {
     // Out over the lagoon east of the beach, low, looking up the shore at the herd with the forest and cone behind.
@@ -245,8 +248,9 @@ export const shotPose = {
     return { position, target: [lead[0] - 6, lead[1] + 6 + 3 * k, lead[2] - 2], up: Y, fov: widen(42, aspect, 58) };
   },
   summit(t, aspect, u) {
-    const k = tall(aspect), target = [CRATER[0] + 4, CRATER[1] + 6 - 2 * k, CRATER[2] + 6];
-    return { position: around((118 + 14 * u) * D, (24 + 4 * k) * D, 112 + 30 * k, target), target, up: Y, fov: widen(40, aspect, 56) };
+    // Steep enough to see down into the 7 m deep crater and its lava pool; a low angle only shows the rim.
+    const k = tall(aspect), target = [CRATER[0] + 2, CRATER[1] + 3 - 2 * k, CRATER[2] + 4];
+    return { position: around((118 + 14 * u) * D, (50 + 4 * k) * D, 96 + 30 * k, target), target, up: Y, fov: widen(40, aspect, 56) };
   },
 };
 export function shotPoseAt(key, t, aspect) {

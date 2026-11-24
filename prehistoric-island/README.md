@@ -16,7 +16,7 @@ node tools/browser-check.cjs    # real Chrome: 12 fixed-view screenshots, layout
 node tools/preview.cjs          # CPU composition preview for machines without WebGL (not a rendered screenshot)
 ```
 
-Source entry: run `node tools/serve.cjs . 8941` and open `http://127.0.0.1:8941/dev.html`. Fixed views use `?view=overview` or `?view=1` to `?view=6` and pause at that shot's still time. `window.__PLAYTEST__` provides `ready`, `snapshot()`, `setView(name)`, `reset()`, `setSeed(n)` and `step(ms)`. See [SPEC.md](SPEC.md) for the acceptance criteria and for what has not been verified yet (the look on a real GPU, draw calls and frame rate). Three.js is pinned at 0.186.1; its MIT licence is kept in the generated page.
+Source entry: run `node tools/serve.cjs . 8941` and open `http://127.0.0.1:8941/dev.html`. Fixed views use `?view=overview` or `?view=1` to `?view=6` and pause at that shot's still time. `window.__PLAYTEST__` provides `ready`, `snapshot()`, `setView(name)`, `reset()`, `setSeed(n)` and `step(ms)`. See [SPEC.md](SPEC.md) for the acceptance criteria and for what has been measured on a real GPU and what is still unverified (phone hardware). Three.js is pinned at 0.186.1; its MIT licence is kept in the generated page.
 
 By 我的AI小木屋 (WeChat official account) · GitHub @AliceLJY
 

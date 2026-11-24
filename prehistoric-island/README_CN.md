@@ -16,7 +16,7 @@ node tools/browser-check.cjs    # 真实 Chrome：12 张固定机位截图、布
 node tools/preview.cjs          # 没有 WebGL 的机器上看构图的 CPU 预览（不是渲染截图）
 ```
 
-源码入口：`node tools/serve.cjs . 8941`，打开 `http://127.0.0.1:8941/dev.html`。固定机位用 `?view=overview` 或 `?view=1` 到 `?view=6`，进入后暂停在该机位的定格时刻。`window.__PLAYTEST__` 提供 `ready`、`snapshot()`、`setView(名字)`、`reset()`、`setSeed(n)`、`step(ms)`。验收条目和还没验证的部分（真实显卡下的样子、绘制次数、帧率）见 [SPEC.md](SPEC.md)。Three.js 锁定 0.186.1，MIT 许可保留在生成的页面里。
+源码入口：`node tools/serve.cjs . 8941`，打开 `http://127.0.0.1:8941/dev.html`。固定机位用 `?view=overview` 或 `?view=1` 到 `?view=6`，进入后暂停在该机位的定格时刻。`window.__PLAYTEST__` 提供 `ready`、`snapshot()`、`setView(名字)`、`reset()`、`setSeed(n)`、`step(ms)`。验收条目和真显卡上的实测结果和还没验证的部分（手机真机）见 [SPEC.md](SPEC.md)。Three.js 锁定 0.186.1，MIT 许可保留在生成的页面里。
 
 我的AI小木屋（公众号）· GitHub @AliceLJY
 
