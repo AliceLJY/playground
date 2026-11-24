@@ -19,6 +19,7 @@ export const ARENA = { x: 5, z: 3.2, ceiling: 9 };
 export const ARENAS = { high: ARENA, low: { x: 3.4, z: 3.4, ceiling: 9 } };
 export const DT = 1 / 60;
 export const GRAVITY = 28;
+export const MIN_SQUASH = 0.8;             // and squashed no closer than this
 export const MAX_STRETCH = 2.2;           // a grabbed point may be pulled at most this far from the rest of the bear, × its rest distance
 export const CAP = { high: 30, low: 18 }; // most bears at once; "low" is the phone tier
 export const POUR = 6;                    // bears per pour
@@ -171,7 +172,11 @@ export class World {
     // Rest distance from the grab point to the far side of the bear, the yardstick for stretch.
     const far = farSide(R, li, this.n);
     const restDist = Math.hypot(R[li * 3] - far.c[0], R[li * 3 + 1] - far.c[1], R[li * 3 + 2] - far.c[2]);
-    this.grabState = { bi, li, cluster, offsets, far: far.ids.map(i => o + i), restDist, from: c, to: c.slice(), target: (target || c).slice() };
+    // How low the hand may press: half the height the held patch had when it was grabbed. A gummy squashes
+    // under a finger but a finger cannot push through it; pressing the patch all the way to the table
+    // turned its tetrahedra inside out (spikes and dark creases, 2026-11-25 real-GPU review).
+    const pressFloor = Math.max(this.r, c[1] * 0.5);
+    this.grabState = { bi, li, cluster, offsets, far: far.ids.map(i => o + i), restDist, pressFloor, from: c, to: c.slice(), target: (target || c).slice() };
     this.moveGrab(target || c);
     return true;
   }
@@ -180,12 +185,16 @@ export class World {
     const t = target.slice();
     // Never into the table or through the walls.
     const A = this.arena;
-    t[1] = Math.max(this.r, Math.min(A.ceiling - this.r, t[1]));
+    t[1] = Math.max(g.pressFloor, Math.min(A.ceiling - this.r, t[1]));
     t[0] = Math.max(-A.x + this.r, Math.min(A.x - this.r, t[0]));
     t[2] = Math.max(-A.z + this.r, Math.min(A.z - this.r, t[2]));
     // At most MAX_STRETCH × the rest distance from the far side of the bear.
-    const f = centroid(this.x, g.far), d = [t[0] - f[0], t[1] - f[1], t[2] - f[2]], L = Math.hypot(...d), lim = g.restDist * MAX_STRETCH;
+    // And never squashed closer than MIN_SQUASH × that distance: pressed harder, the patch under the finger
+    // turned its tetrahedra inside out.
+    const f = centroid(this.x, g.far), d = [t[0] - f[0], t[1] - f[1], t[2] - f[2]], L = Math.hypot(...d), lim = g.restDist * MAX_STRETCH, low = g.restDist * MIN_SQUASH;
     if (L > lim) for (let k = 0; k < 3; k++) t[k] = f[k] + (d[k] * lim) / L;
+    else if (L < low && L > 1e-6) for (let k = 0; k < 3; k++) t[k] = f[k] + (d[k] * low) / L;
+    t[1] = Math.max(g.pressFloor, t[1]);
     g.target = t;
   }
   release() { this.grabState = null; }
@@ -223,7 +232,7 @@ export class World {
         const u = s / S, tx = g.from[0] + (g.target[0] - g.from[0]) * u, ty = g.from[1] + (g.target[1] - g.from[1]) * u, tz = g.from[2] + (g.target[2] - g.from[2]) * u, R = g.R;
         g.cluster.forEach((j, k) => { const o = g.offsets[k]; x[j * 3] = tx + R[0] * o[0] + R[1] * o[1] + R[2] * o[2]; x[j * 3 + 1] = Math.max(this.r, ty + R[3] * o[0] + R[4] * o[1] + R[5] * o[2]); x[j * 3 + 2] = tz + R[6] * o[0] + R[7] * o[1] + R[8] * o[2]; });
       }
-      this.solveEdges(h); this.solveVolumes(h); this.solveShape();
+      this.solveEdges(h); this.solveVolumes(h); if (g) { this.solveVolumes(h); this.solveVolumes(h); } this.solveShape();
       this.solveContacts(h);
       for (let i = 0; i < N; i++) {
         const j = i * 3;
@@ -476,7 +485,9 @@ export class World {
     for (const b of this.bears) {
       if (!b.com) continue;
       const vy = b.vel[1];
-      if (b.falling && vy > 0.4) { b.rising = true; b.falling = false; b.base = b.com[1]; b.peak = b.com[1]; }
+      // Touchdown: a falling bear that turns back up. 'land' carries how fast it came down (for the sound).
+      if (b.falling && vy > 0.4) { b.rising = true; b.falling = false; b.base = b.com[1]; b.peak = b.com[1]; this.events.push({ t: this.time, kind: 'land', bear: this.bears.indexOf(b), speed: -(b.vMin || 0) }); b.vMin = 0; }
+      if (b.falling) b.vMin = Math.min(b.vMin || 0, vy);
       if (b.rising) { b.peak = Math.max(b.peak, b.com[1]); if (vy < 0) { b.rising = false; const hgt = b.peak - b.base; if (hgt > 0.03) { this.stats.bounce = hgt; this.events.push({ t: this.time, kind: 'bounce', h: hgt }); } } }
       if (vy < -4) b.falling = true;
     }

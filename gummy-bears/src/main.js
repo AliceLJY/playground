@@ -206,6 +206,58 @@ function draw() {
   if (++frames >= 3 && !ready) { ready = true; document.documentElement.dataset.ready = '1'; }
 }
 
+// ---------- sound: short, cute, synthesised on the spot (no audio files) ----------
+// A soft "boop" when a bear lands (louder for a harder landing, pitch by flavour and size), a little upward
+// "chirp" when one is picked up, and a springy "boing" with a wobble when a stretched bear is let go.
+// Browsers only allow sound after a tap or click, so it starts on the first touch of a bear or a button.
+const sound = (() => {
+  let ac = null, out = null, on = true, lastAt = 0, live = 0;
+  const PITCH = [660, 590, 740, 520, 820];             // cherry, orange, lemon, apple, pineapple
+  function start() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    ac = new AC(); out = ac.createGain(); out.gain.value = 0.5; out.connect(ac.destination);
+  }
+  // One voice: a sine (plus a quieter octave) gliding from f0 to f1, with an optional decaying wobble.
+  function voice(f0, f1, dur, gain, wobble = 0) {
+    if (!on || !ac || ac.state !== 'running' || live > 8) return;
+    const t = ac.currentTime + 0.005, g = ac.createGain(), o = ac.createOscillator(), o2 = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'sine'; o2.type = 'triangle';
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8);
+    o2.frequency.setValueAtTime(f0 * 2, t); o2.frequency.exponentialRampToValueAtTime(f1 * 2, t + dur * 0.8);
+    if (wobble) {
+      const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 16;
+      lg.gain.setValueAtTime(f0 * wobble, t); lg.gain.exponentialRampToValueAtTime(1, t + dur);
+      lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + dur + 0.02);
+    }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g2.gain.value = 0.18;
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(out);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    live++; o.onended = () => { live--; };
+  }
+  const pitchOf = (b) => { const bear = world.bears[b]; const f = bear ? PITCH[bear.flavor] || 640 : 640; const sz = bear && bear.scale ? bear.scale : 1; return f / sz; };
+  return {
+    start,
+    get on() { return on; }, set on(v) { on = v; },
+    land(b, speed) {
+      const now = performance.now(); if (now - lastAt < 35) return; lastAt = now;   // a pour is a patter, not a roar
+      const k = Math.min(1, speed / 14); if (k < 0.08) return;
+      const f = pitchOf(b) * (0.94 + 0.12 * Math.random());
+      voice(f, f * 0.62, 0.09 + 0.05 * k, 0.05 + 0.25 * k);
+    },
+    grab(b) { const f = pitchOf(b); voice(f * 0.8, f * 1.25, 0.07, 0.12); },
+    release(b, stretch) { if (stretch < 1.12) return; const f = pitchOf(b) / Math.min(1.8, stretch); voice(f * 1.1, f * 0.8, 0.32, 0.22, 0.12); },
+  };
+})();
+let heardTo = 0, grabPeak = 1;   // grabPeak: the most this hold has stretched; by release the stretch has relaxed
+function playEvents() {
+  if (world.grabState) grabPeak = Math.max(grabPeak, world.stats.stretch);
+  for (const e of world.events) if (e.t > heardTo) { if (e.kind === 'land') sound.land(e.bear, e.speed); }
+  heardTo = world.time;
+}
+addEventListener('pointerdown', () => sound.start(), { capture: true });
+
 // ---------- time ----------
 let manual = false, last = performance.now(), acc = 0, uiTick = 0;
 function loop(now) {
@@ -216,6 +268,7 @@ function loop(now) {
     // At most two physics steps per drawn frame: a slow device runs in slow motion rather than falling behind.
     while (acc >= DT && k < 2) { world.step(); acc -= DT; k++; }
     if (k === 2) acc = Math.min(acc, DT);
+    if (k) playEvents();
   }
   draw();
   if (++uiTick % 6 === 0) updateCard();
@@ -233,6 +286,7 @@ canvas.addEventListener('pointerdown', (e) => {
   manual = false;
   const bi = Math.floor(hit.particle / N), li = hit.particle % N;
   world.grab(bi, li, hit.point);
+  grabPeak = 1; sound.grab(bi);
   drag = { id: e.pointerId, anchor: hit.point };
   canvas.setPointerCapture(e.pointerId);
   setCursor(e, 'grab');
@@ -241,7 +295,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag && e.pointerId === drag.id) { world.moveGrab(screenToPlane(cam, e.clientX, e.clientY, drag.anchor)); setCursor(e, 'grab'); return; }
   if (e.pointerType === 'mouse') setCursor(e, pickAt(e.clientX, e.clientY) ? 'hover' : '');
 });
-const end = (e) => { if (!drag || e.pointerId !== drag.id) return; world.release(); drag = null; setCursor(e, e.pointerType === 'mouse' ? 'hover' : 'off'); };
+const end = (e) => { if (!drag || e.pointerId !== drag.id) return; if (world.grabState) sound.release(world.grabState.bi, Math.max(grabPeak, world.stats.stretch)); world.release(); drag = null; setCursor(e, e.pointerType === 'mouse' ? 'hover' : 'off'); };
 canvas.addEventListener('pointerup', end);
 canvas.addEventListener('pointercancel', end);
 canvas.addEventListener('pointerleave', (e) => { if (!drag) setCursor(e, 'off'); });
@@ -271,9 +325,13 @@ $('#flavor-note').textContent = FLAVORS.map(f => f.name).join(' · ');
 const soft = $('#softness');
 soft.value = String(Math.round(world.softness * 100));
 soft.addEventListener('input', () => world.setSoftness(Number(soft.value) / 100));
+const soundBtn = $('#sound');
+function syncSound() { soundBtn.setAttribute('aria-pressed', String(sound.on)); soundBtn.textContent = sound.on ? '声音 开' : '声音 关'; }
+soundBtn.addEventListener('click', () => { sound.on = !sound.on; sound.start(); syncSound(); });
+syncSound();
 $('#pour').addEventListener('click', () => { manual = false; world.pour(POUR, [...enabled]); updateCard(); });
 $('#reset').addEventListener('click', () => { manual = false; resetWorld(); });
-function resetWorld() { world.release(); drag = null; world.reset(); resetSlots(); updateCard(); }
+function resetWorld() { world.release(); drag = null; world.reset(); heardTo = 0; resetSlots(); updateCard(); }
 const BODY = 2.1; // nose-to-toe length of a bear in table units, for the bounce reading
 function updateCard() {
   const s = world.stats;
