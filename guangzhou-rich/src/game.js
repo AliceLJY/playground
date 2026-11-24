@@ -301,12 +301,15 @@
     return s;
   }
 
-  function showDice() {
-    if (!g.dice) return;
+  // 骰面只认「掷出来的那条记录」。掷完当场没有决定要做时，规则核心在同一次调用里就把 g.dice 清成 null、换下一位，
+  // 界面若读 g.dice 就永远看不到这一手的点，骰面停在上一手（2026-11-24 外部试玩：骰面偶尔不是刚掷的点）。
+  function showDice(d) {
+    d = d || g.dice;
+    if (!d) return;
     const ds = document.querySelectorAll('#dice .die');
-    ds[0].textContent = g.dice[0];
-    ds[1].textContent = g.dice[1] == null ? '' : g.dice[1];
-    ds[1].hidden = g.dice[1] == null;
+    ds[0].textContent = d[0];
+    ds[1].textContent = d[1] == null ? '' : d[1];
+    ds[1].hidden = d[1] == null;
   }
 
   function setEvent(text) { $('event').textContent = text; }
@@ -327,10 +330,13 @@
   async function animateRoll(myGen, i) {
     const roll = g.log.slice().reverse().find((e) => e.t === 'roll' && e.who === i);
     const dice = $('dice');
+    // 骰面在掷出的那一刻就换成这一手的点，摇动只是动画；摇骰的 300ms 里不再留着上一手的点
+    if (roll) showDice(roll.dice);
     dice.classList.add('rolling');
     if (!FAST) await wait(300);
     dice.classList.remove('rolling');
     if (!roll || myGen !== gen) return;
+    showDice(roll.dice);
     let pos = roll.from;
     while (pos !== roll.to) {
       pos = (pos + 1) % M.BOARD.length;
@@ -511,6 +517,7 @@
     get ready() { return ready; },
     snapshot: () => Object.assign(g ? M.snapshot(g) : {}, {
       view: VIEW, screen, busy,
+      lastRoll: g ? (g.log.slice().reverse().find((e) => e.t === 'roll') || null) : null,
       seats: seats.map((s) => ({ provider: s.provider, name: s.name, hasKey: !!s.key, failures: s.failures || 0, note: s.note || '' })),
       bubble: $('bubble').hidden ? '' : $('bubble').textContent,
     }),

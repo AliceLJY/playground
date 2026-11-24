@@ -250,6 +250,47 @@ async function layoutCheck(page, vp) {
     await ctx.close();
   }
 
+  // ---- D1 骰面与实际点数同源（2026-11-24 外部试玩：骰面偶尔不是刚掷的点）----
+  // 正常速度（带摇骰动画）下，点完「掷两颗 / 掷一颗」的当下、动画中途、走完之后，DOM 上的骰面都要等于规则核心刚掷出的点；
+  // 两颗只显示一颗、一颗显示两颗都算错。走完后棋子所在格要等于核心的位置。旧代码：摇骰那 300ms 里显示的是上一次的点。
+  {
+    const { ctx, page, log } = await newPage(browser, { width: 1280, height: 800 }, { dpr: 1 });
+    await page.goto(`${BASE}?seed=11`);
+    await ready(page);
+    await page.click('#start');
+    const bad = [];
+    let rolls = 0, ones = 0, twos = 0, tokenBad = 0;
+    const domDice = () => page.evaluate(() => [...document.querySelectorAll('#dice .die')].filter((d) => !d.hidden).map((d) => d.textContent).join(','));
+    const until = Date.now() + 120000;
+    while (rolls < 6 && Date.now() < until) {
+      const s = await snap(page);
+      if (s.phase === 'over') break;
+      if (s.turn === 0 && !s.busy && s.pending) {
+        if (s.pending.type !== 'dice') { await page.click('#act-a'); await page.waitForTimeout(100); continue; }
+        const one = rolls % 2 === 1;
+        await page.click(one ? '#act-b' : '#act-a');
+        rolls++; if (one) ones++; else twos++;
+        const real = (await snap(page)).lastRoll.dice.join(',');
+        for (const wait of [0, 120, 250]) {
+          if (wait) await page.waitForTimeout(wait === 120 ? 120 : 130);
+          const dom = await domDice();
+          if (dom !== real) bad.push({ roll: rolls, atMs: wait, dom, real });
+        }
+        // 等这一手走完（busy 放开），骰面仍对、棋子在核心给的位置上
+        await page.waitForFunction(() => !self.__PLAYTEST__.snapshot().busy, null, { polling: 50, timeout: 8000 }).catch(() => {});
+        const after = await snap(page);
+        const domEnd = await domDice();
+        if (domEnd !== after.lastRoll.dice.join(',') && after.turn === 0) bad.push({ roll: rolls, atMs: 'end', dom: domEnd, real: after.lastRoll.dice.join(',') });
+        const cell = await page.evaluate(() => { const t = document.querySelector('#board .tok[title="你"]'); return t ? Number(t.closest('.cell').dataset.sq) : -1; });
+        if (cell !== after.players[0].pos) tokenBad++;
+      }
+      await page.waitForTimeout(60);
+    }
+    check('D1', '骰面与实际点数同源：点完立刻、摇骰中途、走完，DOM 骰面都等于刚掷的点（两颗不缺、一颗不多）；棋子停在核心给的格上', rolls === 6 && ones === 3 && twos === 3 && !bad.length && !tokenBad && !log.errors.length,
+      { rolls, ones, twos, bad: bad.slice(0, 4), badCount: bad.length, tokenBad, errors: log.errors });
+    await ctx.close();
+  }
+
   await browser.close();
   const report = { base: BASE, browser: 'Playwright Chromium (headless)', at: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), pass: results.filter((r) => r.ok).length, fail: results.filter((r) => !r.ok).length, results };
   // 报告里同样不许有 key
