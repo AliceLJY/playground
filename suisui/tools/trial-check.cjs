@@ -77,11 +77,11 @@ sections.push(async(c)=>{
     for(const [label,text] of [['entry toast',null],['longest toast',longest]]){
       if(text)await p.page.evaluate(t=>window.__suisui.toast(t),text);
       await p.page.waitForTimeout(350);   // past the fade-in
-      const boxes={};for(const s of ['#toast','h1','#hint','#count','#write','#all','#mute'])boxes[s]=await c.rect(p,s);
-      const covered=['h1','#hint','#count','#write','#all','#mute'].filter(s=>c.hit(boxes['#toast'],boxes[s]));
+      const boxes={};for(const s of ['#toast','#roomline','h1','#hint','#count','#write','#all','#mute'])boxes[s]=await c.rect(p,s);
+      const covered=['#roomline','h1','#hint','#count','#write','#all','#mute'].filter(s=>c.hit(boxes['#toast'],boxes[s]));
       const pe=await p.page.evaluate(()=>getComputedStyle(document.querySelector('#toast')).pointerEvents);
       await p.page.screenshot({path:c.path.join(c.out,`4-${name}-${label.replace(' ','-')}.png`)});
-      c.check(`4. ${name}: ${label} covers none of title, hint, count, buttons`,boxes['#toast']&&covered.length===0,{covered,toast:boxes['#toast']&&[boxes['#toast'].y,boxes['#toast'].h].map(Math.round)});
+      c.check(`4. ${name}: ${label} covers none of title, hint, count, status line, buttons`,boxes['#toast']&&covered.length===0,{covered,toast:boxes['#toast']&&[boxes['#toast'].y,boxes['#toast'].h].map(Math.round)});
       c.check(`4. ${name}: ${label} lets taps through`,pe==='none',{pe});
     }
     await p.ctx.close();
