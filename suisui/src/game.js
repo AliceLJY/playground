@@ -35,7 +35,9 @@ const inRoom = () => S.mode === 'room';
 
 /* ---------- layout and items ---------- */
 
-function setVH() { document.documentElement.style.setProperty('--vh', innerHeight + 'px'); }
+// The title row, status line and waiting strip are always as wide as the room's shelf, so the title never moves when the
+// offline shelf (different width) is swapped for the room's.
+function setVH() { document.documentElement.style.setProperty('--vh', innerHeight + 'px'); document.documentElement.style.setProperty('--shelf-w', C.roomLayout(innerWidth, innerHeight).shelfW + 'px'); document.documentElement.classList.add('sized'); }
 const layoutNow = () => (inRoom() ? C.roomLayout(innerWidth, innerHeight) : C.layout(innerWidth, innerHeight));
 
 // Build the shelf. `from` is either a list of {kind, text} to keep (resize, leaving the room) or the room's slot views.
@@ -44,7 +46,8 @@ function build(from, roomSlots) {
   for (const h of S.charging) h.hum.stop();
   S.charging.clear(); S.active = 0; S.gen++;
   const L = layoutNow(); S.L = L;
-  document.documentElement.style.setProperty('--shelf-w', L.shelfW + 'px');
+  holding = false; clearTimeout(holdT); setHold(false);
+  shelf.style.width = ''; shelf.style.height = '';
   document.body.classList.toggle('room', inRoom());
   shelf.style.gridTemplateColumns = `repeat(${L.cols}, ${L.cell}px)`;
   shelf.style.gridAutoRows = L.cell + 'px';
@@ -62,7 +65,34 @@ function build(from, roomSlots) {
     else { const kept = from && from[i]; put(slot, kept ? kept.kind : init.kinds[i], kept ? kept.text : init.notes[i], false, kept && kept.mine ? { who: 'me' } : null); }
     bind(slot);
   }
+  S.ready = true;
   paintRoom();
+}
+
+// While a room is expected (normal page, not ?solo=1) the shelf area is a quiet placeholder of the room shelf's size,
+// so the visitor never sees an offline shelf that is then swapped away. If the room has not answered within HOLD_MS, or
+// refuses, the offline shelf goes up and the status line says so.
+const HOLD_MS = 1500;
+let holding = false, holdT = 0;
+function setHold(on) {
+  shelf.classList.toggle('holding', on);
+  $('#write').disabled = on; $('#all').disabled = on;
+}
+function hold() {
+  holding = true; setHold(true);
+  cancelAll(); S.slots = []; S.gen++;
+  const L = C.roomLayout(innerWidth, innerHeight); S.L = L;
+  document.body.classList.add('room');
+  shelf.replaceChildren();
+  shelf.style.gridTemplateColumns = 'none'; shelf.style.gridAutoRows = 'auto';
+  shelf.style.width = L.shelfW + 'px'; shelf.style.height = L.shelfH + 'px';
+  const msg = document.createElement('div'); msg.className = 'holdmsg'; msg.textContent = '正在进房间……'; shelf.append(msg);
+}
+function giveUpHold(conn) {
+  if (!holding) return;
+  if (conn) S.conn = conn;
+  document.body.classList.remove('room');
+  build();
 }
 
 function pickNote() { return C.pickNote(S.r, S.slots.map((s) => s.text)); }
@@ -523,7 +553,7 @@ function paintWaitbar() {
 function paintRoom() {
   document.body.classList.toggle('room', inRoom());
   paintStatus(); paintWaitbar();
-  if (!inRoom()) { $('#all').textContent = '全砸了'; $('#all').disabled = false; for (const s of S.slots) paintSlot(s); return; }
+  if (!inRoom()) { $('#all').textContent = '全砸了'; $('#all').disabled = holding; for (const s of S.slots) paintSlot(s); return; }
   const left = Math.ceil((S.cdUntil - Date.now()) / 1000);
   const all = $('#all');
   all.textContent = left > 0 ? `全砸了 · ${left}s` : '全砸了';
@@ -648,6 +678,7 @@ function onRoom(m) {
 function startRoom() {
   if (!ROOM_URL || typeof WebSocket !== 'function') { S.conn = 'off'; paintRoom(); return; }
   S.conn = 'connecting'; paintRoom();
+  if (holding) holdT = setTimeout(() => giveUpHold('down'), HOLD_MS);
   S.room = connect(ROOM_URL, {
     onUp: (w) => {
       // switch when nothing of mine is mid-flight; otherwise wait for the current break to finish
@@ -655,8 +686,8 @@ function startRoom() {
       const go = () => (S.charging.size ? setTimeout(go, 300) : enterRoom(w));
       go();
     },
-    onMessage: (m) => { if (m.t === 'F') S.conn = 'full'; if (inRoom()) onRoom(m); else if (m.t === 'F') onRoom(m); paintRoom(); },
-    onDown: (wasUp) => { if (S.conn !== 'full') S.conn = 'down'; if (wasUp) leaveRoom(); paintRoom(); },
+    onMessage: (m) => { if (m.t === 'F') { S.conn = 'full'; giveUpHold(); } if (inRoom()) onRoom(m); else if (m.t === 'F') onRoom(m); paintRoom(); },
+    onDown: (wasUp) => { if (S.conn !== 'full') S.conn = 'down'; giveUpHold(); if (wasUp) leaveRoom(); paintRoom(); },
   });
 }
 
@@ -667,6 +698,7 @@ function onResize() {
   clearTimeout(rt);
   rt = setTimeout(() => {
     setVH();
+    if (holding) { hold(); return; }
     const L = layoutNow();
     if (L.cols === S.L.cols && L.rows === S.L.rows && L.cell === S.L.cell) return;
     if (inRoom()) {
@@ -709,10 +741,10 @@ window.__PLAYTEST__ = {
 
 async function start() {
   setVH();
+  if (ROOM_URL && typeof WebSocket === 'function') hold();
   try { await Promise.race([document.fonts?.ready, new Promise((r) => setTimeout(r, 800))]); } catch { /* fonts API missing */ }
   await loadArt(C.SPRITES);
-  build();
-  S.ready = true;
+  if (!holding) build();
   if (VIEW === 'burst') requestAnimationFrame(() => window.__suisui.tap(0, 0.4, 0.45));
   if (VIEW === 'note') openNote('又要开会');
   startRoom();

@@ -27,6 +27,9 @@ main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
 .shelf{display:grid;padding:10px;border-radius:4px;position:relative;touch-action:none;
   background:repeating-linear-gradient(93deg,rgba(255,210,170,.025) 0 1px,transparent 1px 7px),repeating-linear-gradient(88deg,rgba(0,0,0,.10) 0 2px,transparent 2px 19px),linear-gradient(180deg,#43231a,#30180f 55%,#26130c);
   box-shadow:0 30px 70px rgba(0,0,0,.7),0 3px 0 #120805,inset 0 1px 0 rgba(224,170,110,.35),inset 0 0 0 1px rgba(200,150,80,.18),inset 0 -2px 0 #120805}
+html:not(.sized) header,html:not(.sized) .roomline{visibility:hidden}   /* until the script has set the row width, so the title is never seen at a provisional x */
+.shelf.holding{display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.holdmsg{font-size:14px;color:var(--ink2);letter-spacing:.08em}
 .slot{position:relative;box-sizing:border-box;border:4px solid;border-color:#1c0d08 #4a271b #5c3223 #26120b;outline:none;cursor:pointer;overflow:hidden;
   background:radial-gradient(90% 75% at 50% 0%,#2a1c17 0%,#170f0c 58%,#0e0806 100%);
   box-shadow:inset 0 14px 20px rgba(0,0,0,.7),inset 8px 0 14px rgba(0,0,0,.35),inset -6px 0 10px rgba(0,0,0,.3)}
@@ -141,6 +144,6 @@ noscript{position:fixed;inset:0;display:grid;place-items:center;font-size:16px}
 <div class="toast" id="toast" role="status" hidden></div>
 <noscript>这个小玩意需要打开 JavaScript 才能玩。</noscript>
 <script src="src/core.js?v=5"></script>
-<script type="module" src="src/game.js?v=6"></script>
+<script type="module" src="src/game.js?v=7"></script>
 </body>
 </html>

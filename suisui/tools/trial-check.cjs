@@ -20,14 +20,18 @@ const want=n=>!only||only.has(String(n));
   let seed=1;for(;seed<500;seed++){const r=M.createRoom({seed});if(r.slots.filter(s=>s.kind==='note').length===2)break;}
   let srv=null,roomUrl='';   // every section gets its own fresh room, so what one writes does not change what the next sees
   const browser=await chromium.launch();
-  const open=async(name,query,{delay=0}={})=>{
+  const open=async(name,query,{delay=0,raw=false,room=null}={})=>{
     const ctx=await browser.newContext(VIEWPORTS[name]),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     // delay > 0: the room answers late, like a slow phone connection (the offline shelf is up in the meantime)
     if(delay)await page.routeWebSocket(/room\/ws/,ws=>{const buf=[];ws.onMessage(m=>buf.push(m));setTimeout(()=>{const up=ws.connectToServer();up.onMessage(m=>ws.send(m));ws.onMessage(m=>up.send(m));buf.forEach(m=>up.send(m));},delay);});
-    await page.goto(`${base}?room=${encodeURIComponent(roomUrl)}${query||''}`);
-    await page.waitForFunction(()=>window.__suisui&&window.__suisui.ready);
+    // raw: install a per-frame recorder from the very first frame and do not wait for the page to say it is ready
+    if(raw)await page.addInitScript(()=>{window.__frames=[];const h=()=>{const s=document.querySelectorAll('#shelf .slot').length,t=document.querySelector('h1'),
+      st=document.querySelector('#roomline');window.__frames.push({t:Math.round(performance.now()),slots:s,room:document.body?document.body.classList.contains('room'):false,
+      x:t&&getComputedStyle(t).visibility!=='hidden'?Math.round(t.getBoundingClientRect().left*10)/10:null,status:st?st.textContent:''});requestAnimationFrame(h);};requestAnimationFrame(h);});
+    await page.goto(`${base}?room=${encodeURIComponent(room||roomUrl)}${query||''}`);
+    if(!raw)await page.waitForFunction(()=>window.__suisui&&window.__suisui.ready);
     return{name,ctx,page,errors};
   };
   const P=p=>p.page.evaluate(()=>window.__suisui.probe());
@@ -232,6 +236,54 @@ sections.push(async(c)=>{
     c.check(`2. ${name}: a short note is untouched and the counter is quiet`,ok.v==='又要开会'&&/4\s*\/\s*10/.test(ok.n)&&!/\bfull\b/.test(ok.cls),ok);
     await p.page.click('#noteForm button[type=submit]');
     await p.page.waitForFunction(()=>window.__suisui.probe().slots.some(s=>s.text==='又要开会'),null,{timeout:4000}).then(()=>c.check(`2. ${name}: the short note reaches the shelf`,true),()=>c.check(`2. ${name}: the short note reaches the shelf`,false));
+    await p.ctx.close();
+  }
+});
+
+// 8. "The offline shelf shows first, then the whole thing is swapped for the room's, and the title jumps sideways."
+//    With a room that answers in time the visitor never sees offline things and the title never moves; a room that is too
+//    slow or refuses leads to the offline shelf and the status line says so; ?solo=1 has its shelf at once.
+sections.push(async(c)=>{
+  if(!c.want(8))return;
+  const frames=p=>p.page.evaluate(()=>window.__frames);
+  for(const name of Object.keys(VIEWPORTS)){
+    for(const delay of [300,1200]){
+      const p=await c.open(name,'',{delay,raw:true});
+      await p.page.waitForFunction(()=>window.__suisui&&window.__suisui.probe().mode==='room',null,{polling:30,timeout:8000});
+      await p.page.waitForTimeout(300);
+      const f=await frames(p),offline=f.filter(x=>x.slots>0&&!x.room),xs=f.map(x=>x.x).filter(x=>x!=null);
+      const firstShelf=f.find(x=>x.slots>0);
+      c.check(`8. ${name} room after ${delay} ms: no frame ever shows an offline shelf`,offline.length===0&&!!firstShelf,{frames:f.length,offline:offline.length,firstShelfAt:firstShelf&&firstShelf.t});
+      c.check(`8. ${name} room after ${delay} ms: the title stays within 1 px sideways`,Math.max(...xs)-Math.min(...xs)<=1,{min:Math.min(...xs),max:Math.max(...xs)});
+      if(delay===1200)await p.page.screenshot({path:c.path.join(c.out,`8-${name}-room.png`)});
+      await p.ctx.close();
+    }
+    // too slow: held for ~1.5 s, then the offline shelf and 没连上房间; the title does not move on the way
+    let p=await c.open(name,'',{delay:5000,raw:true});
+    await p.page.waitForTimeout(900);
+    const mid=await frames(p),during=mid[mid.length-1];
+    await p.page.screenshot({path:c.path.join(c.out,`8-${name}-holding.png`)});
+    c.check(`8. ${name} slow room: during the wait there is a placeholder, no offline things`,mid.every(x=>x.slots===0),{slots:during.slots});
+    await p.page.waitForFunction(()=>document.querySelectorAll('#shelf .slot').length>0,null,{polling:30,timeout:4000}).catch(()=>{});
+    await p.page.waitForTimeout(150);
+    const all=await frames(p),firstSlots=all.find(x=>x.slots>0),last=all[all.length-1];
+    c.check(`8. ${name} slow room: after the wait the offline shelf is up (by 2.6 s) and says 没连上房间`,!!firstSlots&&firstSlots.t<=2600&&/^没连上房间/.test(last.status),{firstSlotsAt:firstSlots&&firstSlots.t,status:last.status});
+    const xs=all.map(x=>x.x).filter(x=>x!=null);
+    c.check(`8. ${name} slow room: the title does not move when the offline shelf appears`,Math.max(...xs)-Math.min(...xs)<=1,{min:Math.min(...xs),max:Math.max(...xs)});
+    await p.page.screenshot({path:c.path.join(c.out,`8-${name}-gave-up.png`)});
+    await p.ctx.close();
+    // refused: no waiting at all
+    p=await c.open(name,'',{raw:true,room:'ws://127.0.0.1:9/room/ws'});
+    await p.page.waitForFunction(()=>document.querySelectorAll('#shelf .slot').length>0,null,{polling:30,timeout:4000});
+    await p.page.waitForTimeout(150);
+    const rf=await frames(p),rs=rf.find(x=>x.slots>0);
+    c.check(`8. ${name} refused room: offline shelf at once (within 1.2 s) with 没连上房间`,rs.t<=1200&&/^没连上房间/.test(rf[rf.length-1].status),{at:rs.t,status:rf[rf.length-1].status});
+    await p.ctx.close();
+    // ?solo=1: the shelf is just there
+    p=await c.open(name,'&solo=1',{raw:true});
+    await p.page.waitForFunction(()=>document.querySelectorAll('#shelf .slot').length>0,null,{polling:30,timeout:4000});
+    const sf=await frames(p),ss=sf.find(x=>x.slots>0);
+    c.check(`8. ${name} ?solo=1: the shelf is up within 200 ms of opening`,ss.t<=200,{at:ss.t});
     await p.ctx.close();
   }
 });
