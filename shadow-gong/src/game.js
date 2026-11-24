@@ -14,7 +14,18 @@ let pr=defaultPR,adaptiveLocked=!!view,fpsWin={t:0,n:0},goodFor=0,fps=0,fpsAcc={
 
 function fail(err){console.error(err);$('error-text').textContent=String(err&&err.message||err);$('error').hidden=false;}
 try{world=window.GongWorld.createWorld($('view'));}catch(err){fail(err);return;}
-function resize(){const w=window.innerWidth,h=window.innerHeight;aspect=w/Math.max(1,h);world.resize(w,h,pr);}
+// Where the stage sits on screen, from the game's own framing: the hint and the boss bar are laid out around it in CSS.
+function layout(w,h){
+  const G=window.GongStage,css=document.documentElement.style,r=restFrame(w,h);
+  css.setProperty('--floor-y',r.floorY.toFixed(1)+'px');css.setProperty('--stage-top',r.y(G.need.top).toFixed(1)+'px');css.setProperty('--stage-bottom',r.y(G.need.bottom).toFixed(1)+'px');
+}
+// The stage as the resting camera frames it (no hit push, no shake), on the puppets' plane just in front of the cloth.
+function restFrame(w,h){
+  const G=window.GongStage,f=G.frame(aspect,view==='wide'?'wide':'play'),at=(x,y)=>G.project(f,aspect,{x,y,z:.1});
+  const X=x=>at(x,0).x*w,y=v=>(1-at(0,v).y)*h;
+  return{y,floorY:y(G.floor),unit:X(1)-X(0),cloth:{left:X(G.screen.left),right:X(G.screen.right),top:y(G.screen.top),bottom:y(G.screen.bottom)}};
+}
+function resize(){const w=window.innerWidth,h=window.innerHeight;aspect=w/Math.max(1,h);world.resize(w,h,pr);layout(w,h);}
 window.addEventListener('resize',resize);resize();
 
 // ---- input -----------------------------------------------------------------------------
@@ -214,9 +225,11 @@ function align(){
     return{id:e.id,kind:e.kind,state:e.state,move:e.move&&e.move.name,face:e.face,x:px(e.x,0)[0],depth:e.depth||0,
       box:rect(R.bounds(e.kind,pose)),trunk:rect(R.trunk(e.kind,solved)),into:into([e.kind,solved]),tip:px(tip.x,tip.y),tipWorld:[tip.x,tip.y]};});
   const hintEl=$('hint'),buttons=[...document.querySelectorAll('#touch button')].filter(b=>b.offsetParent).map(b=>({key:b.dataset.key,...dom(b)}));
-  return{viewport:[W,H],unit,floorY:px(0,0)[1],cloth:rect({minX:window.GongStage.screen.left,maxX:window.GongStage.screen.right,minY:window.GongStage.screen.bottom,maxY:window.GongStage.screen.top}),
+  const hud=[['vitals',document.querySelector('.vitals')],['plate',$('plate')],['buttons',document.querySelector('.hud-right')],['boss',$('boss')]].filter(([,el])=>el&&el.offsetParent).map(([name,el])=>({name,...dom(el)}));
+  const rest=restFrame(W,H);
+  return{viewport:[W,H],unit,floorY:px(0,0)[1],rest:{floorY:rest.floorY,unit:rest.unit,cloth:rest.cloth},cloth:rect({minX:window.GongStage.screen.left,maxX:window.GongStage.screen.right,minY:window.GongStage.screen.bottom,maxY:window.GongStage.screen.top}),
     hero,enemies,sparks:{n:d.sparks.n,at:px(d.sparks.x,d.sparks.y),origin:d.burst&&px(d.burst.x,d.burst.y)},
-    hint:hintEl.classList.contains('on')?{text:hintEl.textContent,...dom(hintEl)}:null,buttons,touchy:document.body.classList.contains('touchy')};
+    hint:hintEl.classList.contains('on')?{text:hintEl.textContent,...dom(hintEl)}:null,buttons,hud,touchy:document.body.classList.contains('touchy')};
 }
 function gpu(){const gl=world.renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);}
 window.__duel={

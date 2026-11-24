@@ -63,8 +63,9 @@ const shot=name=>path.join(out,name+'.png');
     const check=(name,ok,data)=>{checks.push({name,ok:!!ok,data});if(!ok)failures++;console.log(`${ok?'PASS':'FAIL'} ${name}${data===undefined?'':'  '+JSON.stringify(data)}`);};
     const n1=v=>Math.round(v*10)/10,dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
     const hits=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
-    // everything from the standing line up to the tallest head (the rat king's crown is 4.2 world units up), across the cloth
-    const band=a=>({left:a.cloth.left,right:a.cloth.right,top:a.floorY-4.4*a.unit,bottom:a.floorY+2});
+    // everything from the standing line up to the tallest head (the rat king's crown is 4.2 world units up), across the
+    // cloth, as the resting camera frames it: a hint is fixed on the page, the hit push and shake last a fraction of a second
+    const band=a=>({left:a.rest.cloth.left,right:a.rest.cloth.right,top:a.rest.floorY-4.4*a.rest.unit,bottom:a.rest.floorY+2});
     const frozen=async(page,ms=120000)=>{const t0=Date.now();while(Date.now()-t0<ms){if(await page.evaluate(()=>window.__duel.frozen))return true;await page.waitForTimeout(100);}return false;};
     {const {ctx,page}=await open('?view=hero');report.gpu=await page.evaluate(()=>__duel.metrics.gpu);await ctx.close();console.log('renderer: '+report.gpu);}
 
@@ -82,7 +83,7 @@ const shot=name=>path.join(out,name+'.png');
         check(`${name}: weapon tip within one gong radius of the gong`,dist(e.tip,g)<=h.gong.r,{tipToGongPx:n1(dist(e.tip,g)),gongRadiusPx:n1(h.gong.r)});
         check(`${name}: sparks burst on the gong (centre of the live sparks within half a radius)`,a.sparks.n>=20&&dist(a.sparks.at,g)<=.5*h.gong.r,{sparks:a.sparks.n,sparksToGongPx:n1(dist(a.sparks.at,g)),gongRadiusPx:n1(h.gong.r)});
         if(kind!=='moth')check(`${name}: the hero's body is clear of the attacker's trunk and his gong reaches in by less than its radius`,e.into.body<=.5&&e.into.gong<=h.gong.r,{bodyIntoTrunkPx:n1(e.into.body),gongIntoTrunkPx:n1(e.into.gong),gongRadiusPx:n1(h.gong.r)});
-        if(a.hint)check(`${name}: hint stays out of the action band`,!hits(a.hint,band(a)),{hint:[n1(a.hint.top),n1(a.hint.bottom)],band:[n1(band(a).top),n1(band(a).bottom)],text:a.hint.text});
+        if(a.hint)check(`${name}: hint stays out of the action band and off the readouts`,!hits(a.hint,band(a))&&!a.hud.some(k=>hits(a.hint,k)),{hint:[n1(a.hint.top),n1(a.hint.bottom)],band:[n1(band(a).top),n1(band(a).bottom)],readouts:a.hud.map(k=>k.name),text:a.hint.text});
       }
       check(`${name}: zero page errors and external requests`,errors.length===0&&external.length===0,{errors,external});
       await page.screenshot({path:shot('align-'+name)});report.runs.push({name,align:a});await ctx.close();
@@ -107,7 +108,8 @@ const shot=name=>path.join(out,name+'.png');
       if(a.hint){
         check(`${tag}: hint stays out of the action band (standing line up to the tallest head, across the cloth)`,!hits(a.hint,b),{hint:box(a.hint),band:box(b)});
         check(`${tag}: hint is inside the viewport`,a.hint.left>=0&&a.hint.top>=0&&a.hint.right<=width&&a.hint.bottom<=height,{hint:box(a.hint)});
-        if(touch)check(`${tag}: hint does not sit on a touch button`,a.buttons.length===5&&!a.buttons.some(k=>hits(a.hint,k)),{buttons:a.buttons.length});
+        check(`${tag}: hint does not cover a readout (lamp oil, scene plate, sound and pause)`,!a.hud.some(k=>hits(a.hint,k)),{readouts:a.hud.map(k=>k.name)});
+        if(touch)check(`${tag}: hint does not sit on a touch button, and no button covers a readout`,a.buttons.length===5&&!a.buttons.some(k=>hits(a.hint,k))&&!a.buttons.some(k=>a.hud.some(r=>hits(k,r))),{buttons:a.buttons.length});
       }
       const stage={heroHeightPx:n1(a.hero.box.bottom-a.hero.box.top),heroShareOfViewport:n1((a.hero.box.bottom-a.hero.box.top)/height*100)+'%',clothWidthShare:n1((a.cloth.right-a.cloth.left)/width*100)+'%',clothTopPx:n1(a.cloth.top),clothBottomPx:n1(a.cloth.bottom),floorPx:n1(a.floorY)};
       report.runs.push({name:'hint '+tag,stage,align:a});console.log('     '+tag+' stage: '+JSON.stringify(stage));

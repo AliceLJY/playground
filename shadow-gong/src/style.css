@@ -23,6 +23,8 @@ h1{margin:0;font-size:clamp(40px,7vw,64px);line-height:1.05;letter-spacing:.12em
 .secondary{background:transparent;color:var(--ink);border:1.5px solid var(--ink);border-radius:4px;padding:10px 22px;font-size:15px;letter-spacing:.15em}
 .text{background:none;border:0;color:var(--muted);font-size:14px;text-decoration:underline;padding:8px}
 .note{margin:12px 0 0;font-size:12px;color:var(--muted);letter-spacing:.05em}
+.note .touch-note,body.touchy .note .desk-note{display:none}
+body.touchy .note .touch-note{display:inline}
 .stub-no{font-size:12px;letter-spacing:.18em;color:var(--muted)}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px}
 .keys dt{font-weight:700;color:var(--stamp)}
@@ -55,7 +57,10 @@ body.touchy .touch-keys{display:grid}
 #boss-marks i{width:14px;height:18px;border-radius:50% 50% 45% 45%;background:radial-gradient(circle at 50% 70%,#FFE08A,#E8A33A 60%,#8A4F22);box-shadow:0 0 6px rgba(244,194,122,.9)}
 #boss-marks i.out{background:#5A4334;box-shadow:none}
 .boss-posture i{background:linear-gradient(90deg,var(--stamp),#E26A3C)}
-.hint{position:absolute;left:50%;bottom:calc(max(16px,env(safe-area-inset-bottom)) + 78px);transform:translateX(-50%);max-width:min(560px,86vw);text-align:center;font-size:15px;line-height:1.6;letter-spacing:.06em;background:rgba(20,12,9,.72);color:var(--paper);padding:7px 16px;border-radius:4px;opacity:0;transition:opacity .25s}
+/* Hints stay out of the band where the fight is read (standing line up to the tallest head, across the cloth).
+   game.js measures the stage with the game's own camera and sets --floor-y / --stage-top in pixels from the top:
+   on wide screens the hint sits on the carved rail under the puppets' feet. */
+.hint{position:absolute;left:50%;top:calc(var(--floor-y,78vh) + 12px);transform:translateX(-50%);max-width:min(560px,86vw);text-align:center;font-size:15px;line-height:1.6;letter-spacing:.06em;background:rgba(20,12,9,.72);color:var(--paper);padding:7px 16px;border-radius:4px;opacity:0;transition:opacity .25s;text-wrap:balance}
 .hint.on{opacity:1}
 .call{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:clamp(26px,5vw,44px);font-weight:900;letter-spacing:.3em;color:var(--paper);text-shadow:0 2px 0 var(--stamp),0 0 24px rgba(244,194,122,.65);opacity:0;pointer-events:none}
 .call.show{animation:call 1.1s ease forwards}
@@ -72,9 +77,20 @@ body.touchy .touch-keys{display:grid}
 .pad-right .small{right:24px;bottom:104px;width:60px;height:60px;font-size:17px}
 .orientation{display:none}
 body.touchy .touch{display:block}
-body.touchy .hint{bottom:46vh}
+/* phone held sideways: the same rail, in the gap between the two pads */
+body.touchy .hint{left:calc(max(18px,env(safe-area-inset-left)) + 156px);right:calc(max(18px,env(safe-area-inset-right)) + 196px);top:calc(var(--floor-y,78vh) + 8px);transform:none;width:fit-content;max-width:none;margin:0 auto;font-size:13px;line-height:1.45;padding:5px 10px}
 body.touchy .boss{top:calc(max(12px,env(safe-area-inset-top)) + 66px);bottom:auto;width:min(380px,46vw);padding:5px 12px 8px}
-@media (max-width:560px){.plate{top:calc(max(12px,env(safe-area-inset-top)) + 72px)}body.touchy .boss{top:calc(max(12px,env(safe-area-inset-top)) + 128px);width:min(380px,80vw)}}
+/* a short window has no room for both the hint and the boss bar under the stage: the bar moves up beside the plate */
+@media (max-height:560px){.boss{top:calc(max(12px,env(safe-area-inset-top)) + 66px);bottom:auto;width:min(380px,46vw);padding:5px 12px 8px}}
+@media (max-width:600px) and (orientation:landscape){body.touchy .hint{font-size:12px}}
+@media (max-width:560px){.plate{top:calc(max(12px,env(safe-area-inset-top)) + 72px)}}
+/* phone held upright: the pads own everything under the stage, so the hint goes into the dark above it, the boss bar
+   onto the valance and the shouted call just under that */
+@media (orientation:portrait) and (max-width:700px){
+  body.touchy .hint{left:50%;right:auto;top:auto;bottom:calc(100% - var(--stage-top,32vh) + 8px);transform:translateX(-50%);width:auto;max-width:86vw;margin:0;font-size:14px;line-height:1.5;padding:6px 12px}
+  body.touchy .boss{top:calc(var(--stage-top,32vh) + 6px);width:min(380px,80vw)}
+  body.touchy .call{top:calc(var(--stage-top,32vh) + 58px)}
+}
 @media (orientation:portrait) and (max-width:700px){body.touchy .orientation{display:block;position:absolute;top:42%;left:50%;transform:translateX(-50%);background:rgba(242,228,198,.92);color:var(--ink);padding:8px 16px;border-radius:4px;font-weight:700;letter-spacing:.15em}}
 
 /* overlays */
