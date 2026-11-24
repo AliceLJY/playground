@@ -78,7 +78,7 @@ const ui = { kicker: $('#shot-en'), name: $('#shot-name'), caption: $('#shot-cap
 const view = new ViewController();
 let time = requested ? requested.at : 0, wall = 0, playing = !requested, last = performance.now(), ready = false, mode = requested ? 'shot' : 'tour', frames = 0;
 let seed = 2026;
-const controls = new OrbitControls(camera, canvas); controls.enabled = false; controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 14; controls.maxDistance = 420; controls.enablePan = false;
+const controls = new OrbitControls(camera, canvas); controls.enabled = false; controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 8; controls.maxDistance = 420; controls.enablePan = false;
 let lastPose = null;
 if (requested) { view.mode = 'shot'; view.key = requested.key; }
 function selectView(key) {
@@ -89,10 +89,15 @@ function startTour() { mode = 'tour'; controls.enabled = false; view.tour(time);
 tourBtn.addEventListener('click', () => (mode === 'tour' ? selectView(view.key) : startTour()));
 playBtn.addEventListener('click', () => { playing = !playing; syncButtons(); kick(); });
 addEventListener('keydown', (e) => { if (e.code === 'Space' && !/INPUT|SELECT|BUTTON/.test(document.activeElement?.tagName || '')) { e.preventDefault(); playing = !playing; syncButtons(); kick(); } });
+// Capture phase: this must run before OrbitControls' own pointerdown listener (registered first, on the same
+// canvas), or the controls are still disabled when they see the press and the first drag does nothing.
+// Orbit around what the shot was looking at, so pressing does not swing the view to the hub; the one shot
+// that is not upright (spin axis, looking straight down) falls back to the hub as before.
 canvas.addEventListener('pointerdown', () => {
   if (mode === 'free' || !lastPose || view.key === 'garden' || view.key === 'sunrise') return;
-  mode = 'free'; controls.target.set(0, 4, 0); camera.up.set(0, 1, 0); controls.enabled = true; controls.update(); syncButtons();
-});
+  const upright = lastPose.up[1] > 0.99;
+  mode = 'free'; controls.target.set(...(upright ? lastPose.target : [0, 4, 0])); camera.up.set(0, 1, 0); controls.enabled = true; controls.update(); syncButtons();
+}, { capture: true });
 controls.addEventListener('change', kick);
 function syncButtons() {
   for (const b of shotNav.children) b.setAttribute('aria-current', mode !== 'free' && b.dataset.view === view.key ? 'true' : 'false');

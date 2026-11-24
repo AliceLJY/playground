@@ -108,7 +108,18 @@ async function main() {
       check(`A8 ${vp} ${key} draw calls ≤ 160`, s.drawCalls > 0 && s.drawCalls <= 160, { drawCalls: s.drawCalls, triangles: s.triangles });
     }
     check(`A8 ${vp} single-file: no requests besides the page`, requests.every(u => u.startsWith('data:') || new URL(u).pathname === new URL(base).pathname), [...new Set(requests.map(u => new URL(u).pathname))]);
-    if (vp === 'desktop') await pixels(page, base);
+    if (vp === 'desktop') {
+      await pixels(page, base);
+      // Free orbit with a real mouse: pressing must not swing the view, and the very first drag must orbit.
+      for (const key of ['establish', 'truss']) {
+        await go(page, base, 'view=' + key);
+        const cam = () => page.evaluate(() => ({ mode: __PLAYTEST__.snapshot().mode, pos: __PLAYTEST__.snapshot().camera.position, hub: __ORBITAL__.pointScreen([0, 0, 0]) }));
+        const a = await cam(); await page.mouse.move(720, 380); await page.mouse.down(); await page.waitForTimeout(150);
+        const b = await cam(); await page.mouse.move(840, 400, { steps: 8 }); await page.waitForTimeout(250); await page.mouse.up();
+        const c = await cam(), jump = Math.hypot(a.hub.x - b.hub.x, a.hub.y - b.hub.y), moved = Math.hypot(...c.pos.map((v, i) => v - a.pos[i]));
+        check(`A5 desktop drag from ${key}: no jump on press, first drag orbits`, b.mode === 'free' && jump < 0.01 && moved > 3, { jumpOnPress: +jump.toFixed(3), cameraMoved: +moved.toFixed(1) });
+      }
+    }
     // Normal entry: tour plays; a button press keeps the clock and every part where it was.
     await go(page, base, '');
     let s = await snapshot(page);
