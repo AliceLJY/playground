@@ -91,6 +91,22 @@ async function extra(browser) {
     await ctx.close();
   }
 
+  // ---- L-desktop-521 矮桌面视口（外部试玩环境 1280×521）：游玩、结算两个机位按钮读数不重叠、不出屏、棋盘完整 ----
+  // 选座页在 521 高时「开局」在首屏之外要滚一下（页面本身可滚），这不在本次 5 条里，没有列为检查。
+  for (const view of ['play', 'over']) {
+    const vp = { width: 1280, height: 521 };
+    const { ctx, page, log } = await newPage(browser, vp, { dpr: 1 });
+    await page.goto(`${BASE}?view=${view}&seed=7`);
+    await ready(page);
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: path.join(OUT, `desktop-521-${view}.png`) });
+    const lay = await layoutCheck(page, vp);
+    // 游玩页的棋盘不能被截：棋盘底边在视口内
+    const boardBottom = await page.evaluate(() => document.getElementById('board').getBoundingClientRect().bottom);
+    check(`L-desktop521-${view}`, `机位 ${view} 在 1280×521 下布局不重叠不出屏，棋盘完整在视口内`, !lay.overlaps.length && !lay.outside.length && !lay.small.length && boardBottom <= vp.height && !log.errors.length, { overlaps: lay.overlaps, outside: lay.outside, small: lay.small, boardBottom, errors: log.errors });
+    await ctx.close();
+  }
+
   // ---- O1 结算遮罩盖满整个视口（外部试玩：1280 宽下遮罩只有 1100px，右边「换座位」仍能点）----
   // 结算页出现时，遮罩要铺满视口；游玩页的每个按钮中心点点下去，命中的必须是遮罩里的东西，不能是底下的按钮。
   for (const vp of [{ width: 1280, height: 521 }, { width: 1280, height: 800 }, { width: 1600, height: 900 }, { width: 390, height: 664 }]) {
