@@ -86,6 +86,35 @@ sections.push(async(c)=>{
   }
 });
 
+// 3. "With the 5 s limit, closing the dialog loses the words." The room can turn a note down (too soon / already one
+//    waiting); the words must not vanish with the dialog.
+sections.push(async(c)=>{
+  if(!c.want(3))return;
+  const p=await c.open('desktop','');
+  await c.inRoom(p);
+  const write=async t=>{await p.page.click('#write');await p.page.fill('#noteText',t);await p.page.click('#noteForm button[type=submit]');};
+  const dlgState=()=>p.page.evaluate(()=>({open:document.querySelector('#dlg').open,v:document.querySelector('#noteText').value,msg:document.querySelector('#noteMsg')?.textContent||''}));
+  await write('第一张');
+  await p.page.waitForFunction(()=>window.__suisui.probe().slots.some(s=>s.text==='第一张'&&s.shown),null,{timeout:5000});
+  await write('第二张心事');                                   // well inside 5 s of the first
+  await p.page.waitForTimeout(1200);
+  let d=await dlgState();
+  await p.page.screenshot({path:c.path.join(c.out,'3-too-soon.png')});
+  c.check('3. a note turned down for being too soon is not lost: the dialog comes back with the words in it',d.open&&d.v==='第二张心事',d);
+  c.check('3. ...and says why',/五秒|慢一点/.test(d.msg),d);
+  if(d.open)await p.page.click('#noteCancel');
+  await p.page.waitForTimeout(4500);                          // 5 s since the first one has passed
+  await write('第三张');                                       // three worries are up, so this one waits in the 候贴区
+  await p.page.waitForFunction(()=>!!window.__suisui.probe().mine,null,{timeout:4000});
+  await p.page.waitForTimeout(5300);
+  await write('第四张');                                       // only one waiting note each: turned down
+  await p.page.waitForFunction(()=>/已经有一张/.test(window.__suisui.probe().toast),null,{timeout:4000});
+  await p.page.click('#write');
+  d=await dlgState();
+  c.check('3. a note turned down for "already one waiting" is kept: the next time the box opens it is still there',d.open&&d.v==='第四张',d);
+  await p.ctx.close();
+});
+
 // 2. "The dialog says at most ten characters, the input allows twenty and silently cuts the rest." Whatever the visitor
 //    sees in the box must be what lands on the shelf, and going over has to be said out loud.
 sections.push(async(c)=>{

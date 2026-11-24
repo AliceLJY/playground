@@ -130,7 +130,7 @@ noscript{position:fixed;inset:0;display:grid;place-items:center;font-size:16px}
 <dialog id="dlg">
   <form method="dialog" id="noteForm">
     <h2>写下烦心事</h2>
-    <p>最多十个字，贴上架子，然后砸了它。</p>
+    <p id="noteMsg">最多十个字，贴上架子，然后砸了它。</p>
     <input id="noteText" name="t" maxlength="20" autocomplete="off" enterkeyhint="done" placeholder="比如：又要开会">
     <div class="left" id="noteLeft" aria-live="polite">0/10</div>
     <div class="row"><button class="ghost" value="cancel" type="button" id="noteCancel">算了</button><button class="primary" value="ok" type="submit">贴上去</button></div>

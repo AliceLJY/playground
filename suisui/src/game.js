@@ -24,7 +24,7 @@ const S = {
   L: null, slots: [], r: Math.random, gen: 0,
   count: Number(store.get('suisui.count', '0')) || 0, smashes: 0, active: 0,
   ready: false, allBusy: false, charging: new Set(),
-  mode: 'solo', room: null, me: null, people: new Map(), live: new Set(), conn: 'off', online: 0, wait: 0, mine: null, cdUntil: 0, pendingNote: '', deferred: null,
+  mode: 'solo', room: null, me: null, people: new Map(), live: new Set(), conn: 'off', online: 0, wait: 0, mine: null, cdUntil: 0, pendingNote: '', draft: '', deferred: null,
 };
 const sound = new Sound();
 sound.muted = store.get('suisui.muted', '0') === '1';
@@ -397,7 +397,12 @@ function clipNote() {
 noteText.addEventListener('compositionstart', () => { composing = true; });
 noteText.addEventListener('compositionend', () => { composing = false; clipNote(); });
 noteText.addEventListener('input', (e) => { if (composing || e.isComposing) paintLeft(false); else clipNote(); });
-function openNote(prefill = '') {
+// A note the room turned down comes back to the visitor: reopened at once (too soon), or kept as the next prefill.
+const noteMsg = $('#noteMsg'), NOTE_MSG = noteMsg.textContent;
+function openNote(prefill = '', msg = '') {
+  if (!prefill && S.draft) prefill = S.draft;
+  S.draft = '';
+  noteMsg.textContent = msg || NOTE_MSG;
   noteText.value = prefill; composing = false; clipNote();
   if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   setTimeout(() => noteText.focus(), 30);
@@ -421,7 +426,7 @@ $('#noteForm').addEventListener('submit', (e) => {
   dlg.close?.(); dlg.removeAttribute('open');
   if (t) { sound.unlock(); pasteNote(t); }
 });
-$('#noteCancel').addEventListener('click', () => { dlg.close?.(); dlg.removeAttribute('open'); });
+$('#noteCancel').addEventListener('click', () => { S.draft = ''; dlg.close?.(); dlg.removeAttribute('open'); });
 $('#write').addEventListener('click', () => openNote());
 $('#all').addEventListener('click', smashAll);
 
@@ -618,7 +623,11 @@ function onRoom(m) {
       if (m.why === 'too-soon') toast('慢一点，五秒后再贴');
       if (m.why === 'waitlist-full') toast('候贴区也满了，先砸点别的');
       if (m.why === 'queue-full') toast('这一格排满了，换一格吧');
-      if (['already-waiting', 'too-soon', 'waitlist-full'].includes(m.why)) S.pendingNote = '';
+      if (['already-waiting', 'too-soon', 'waitlist-full'].includes(m.why)) {
+        const lost = S.pendingNote; S.pendingNote = '';
+        if (lost && m.why === 'too-soon' && !dlg.open) openNote(lost, '慢一点，五秒后再点「贴上去」');
+        else if (lost) S.draft = lost;
+      }
       break;
     case 'T': {
       const text = myNotes.get(m.id);
