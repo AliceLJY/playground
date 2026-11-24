@@ -139,60 +139,121 @@ function playerPose(p,t){
   if(p.recoil>0&&(p.state==='guard'||p.state==='idle'||p.state==='walk')){a.torso+=.16*p.recoil;a.armFu-=.25*p.recoil;}
   return{x:p.x,y:(p.y||0)+y,rot,face:p.face,angles:a};
 }
+// --- aiming -------------------------------------------------------------------------------------
+// The simulation says where a blow is headed (aimX, aimY: the hero's gong when he is turned towards the attacker, his
+// back otherwise). The strike keyframes below end on that point instead of on fixed angles, so at the moment a blow
+// is judged the weapon is on the gong whatever the distance. Actors posed by hand without an aim keep the old angles.
+const TAU=Math.PI*2,hasAim=e=>typeof e.aimX==='number'&&typeof e.aimY==='number';
+const near=(angle,ref)=>angle+TAU*Math.round((ref-angle)/TAU);
+// A blow that has just been judged holds its strike pose for an instant before the stun or the recoil takes over,
+// so the frame the hit-stop freezes on still shows the weapon on the gong. Returns the weight of the strike pose.
+const HOLD=.12,held=(e,t)=>e.state!=='attack'&&e.move&&typeof e.contactT==='number'?1-ease(clamp((t-e.contactT)/HOLD,0,1)):0;
+const blend=(a,b,w)=>{for(const n in b)a[n]=lerp(a[n],b[n],w);};
+
 // wings open and close together; fully open reads as a spread moth, nearly closed as a flick
 const flap=(f,lo=.32)=>{const v=lo+(1-lo)*(.5+.5*Math.cos(f));return[1,v];};
+const DIVE={rot:-.6,wing:[.9,.36],wingF:-.35,wingB:.35};   // head down, wings swept back
 function mothPose(e,t){
   const a={body:0,wingB:.06,wingF:-.06},sc={wingF:flap(e.flap),wingB:flap(e.flap)};
   let rot=.08*Math.sin(t*3+e.id),y=e.y+.07*Math.sin(t*3.1+e.id*1.7);
   if(e.state==='attack'){
     const u=e.clock,tel=e.move.strikes[0].hit-e.move.strikes[0].lead*e.rate,hit=e.move.strikes[0].hit;
     if(u<tel){const k=ease(clamp(u/tel,0,1)),o=lerp(sc.wingF[1],1.12,k)+.04*Math.sin(u*80)*k;rot=.4*k;sc.wingF=[1,o];sc.wingB=[1,o];y=e.y;}
-    else if(u<hit){rot=-.6;sc.wingF=[.9,.36];sc.wingB=[.9,.36];a.wingF=-.35;a.wingB=.35;y=e.y;}
-    else{const k=clamp((u-hit)/.3,0,1);rot=lerp(-.4,.2,k);y=e.y;}
+    else if(u<hit){rot=DIVE.rot;sc.wingF=DIVE.wing.slice();sc.wingB=DIVE.wing.slice();a.wingF=DIVE.wingF;a.wingB=DIVE.wingB;y=e.y;}
+    else{const k=clamp((u-hit)/.3,0,1);rot=lerp(DIVE.rot,.2,k);y=e.y;}
   }else if(e.state==='stun'){rot=.12*Math.sin(e.st*14)*Math.exp(-e.st*2);sc.wingF=[1,.95];sc.wingB=[1,.95];a.wingF=-.15;a.wingB=.15;y=e.y;}
   else if(e.state==='recoil'){rot=.5*Math.exp(-e.st*4);}
   else if(e.state==='dead'){rot=e.st*9;sc.wingF=[1,.5];sc.wingB=[1,.5];y=e.y;}
+  const w=held(e,t);
+  if(w>0&&e.state!=='dead'){rot=lerp(rot,DIVE.rot,w);blend(a,{wingF:DIVE.wingF,wingB:DIVE.wingB},w);for(const n of ['wingF','wingB'])sc[n]=[lerp(sc[n][0],DIVE.wing[0],w),lerp(sc[n][1],DIVE.wing[1],w)];y=lerp(y,e.y,w);}
   return{x:e.x,y,rot,face:e.face,scale:1.15*(1+1.3*(e.depth||0)),angles:a,scales:sc};   // moth parts are drawn at 1/1.15 scale
 }
+// The blades turn on the screw 1.02 above the ground and reach 1.18 from it. Aim the pair at the point, and hop a
+// little when the point is further off than the blade reaches level; closer than that the tip passes just beyond it.
+function bladeAim(e){
+  if(!hasAim(e))return null;
+  const L=1.18,up=e.aimY-(e.y||0)-1.02,tx=Math.max(.05,(e.aimX-e.x)*e.face),lift=clamp(up-Math.sqrt(Math.max(0,L*L-tx*tx)),0,.45);
+  return{core:-Math.atan2(tx,up-lift),lift};
+}
+// Angles of the current attack at its clock; returns the hop that goes with them.
+function scissorsStrike(e,a){
+  const A=bladeAim(e),u=e.clock,m=e.move;
+  if(m.name==='snip'){
+    const [s1,s2]=m.strikes,h1=s1.hit,h2=s2.hit,c=A?A.core:-.87,o=kf(u,[[0,.06],[h1-.4,.66],[h1-.06,.66],[h1,.02],[h1+.14,.1],[h2-.4,.66],[h2-.06,.66],[h2,.02],[m.dur,.06]]);
+    a.core=kf(u,[[0,0],[h1-.42,c+.52],[h1,c],[h1+.18,c+.42],[h2,c],[h2+.16,c+.4],[m.dur,0]]);a.handleF=.3;a.handleB=-.4;
+    a.bladeF=2*o-.02;a.bladeB=-.02;   // the near blade stays on the line to the target and the far one opens away from the hero: neither reaches under the gong
+    return A?kf(u,[[h1-.14,0],[h1,A.lift],[h1+.18,0],[h2-.14,0],[h2,A.lift],[h2+.16,0]]):0;
+  }
+  const h=m.strikes[0].hit,c=A?A.core:-1.5;
+  a.core=kf(u,[[0,0],[h-.4,-.5],[h-.06,c+.05],[h,c],[h+.2,c+.3],[m.dur,0]]);a.bladeF=.03;a.bladeB=-.03;a.handleF=kf(u,[[0,.12],[h,.9],[m.dur,.12]]);a.handleB=kf(u,[[0,-.12],[h,.5],[m.dur,-.12]]);
+  return A?kf(u,[[h-.14,0],[h,A.lift],[h+.2,0]]):0;
+}
 function scissorsPose(e,t){
-  const a={core:0,bladeF:.06,bladeB:-.06,handleF:.12,handleB:-.12,screw:0};
+  const a={core:0,bladeF:.06,bladeB:-.06,handleF:.12,handleB:-.12,screw:0};let y=e.y||0;
   if(e.state==='walk'||e.state==='enter'){const f=e.walkPhase;a.handleF=.12+.35*Math.sin(f);a.handleB=-.12-.35*Math.sin(f);a.core=.05*Math.sin(f*2);const o=.12+.05*Math.sin(f*2);a.bladeF=o;a.bladeB=-o;}
   else if(e.state==='idle'){const o=.1+.04*Math.sin(t*3+e.id);a.bladeF=o;a.bladeB=-o;a.core=.03*Math.sin(t*2+e.id);}
-  else if(e.state==='attack'&&e.move.name==='snip'){
-    const u=e.clock,[s1,s2]=e.move.strikes,h1=s1.hit,h2=s2.hit,o=kf(u,[[0,.06],[h1-.4,.66],[h1-.06,.66],[h1,.02],[h1+.14,.1],[h2-.4,.66],[h2-.06,.66],[h2,.02],[e.move.dur,.06]]);
-    a.core=kf(u,[[0,0],[h1-.42,-.35],[h1,-.85],[h1+.18,-.45],[h2,-.9],[h2+.16,-.5],[e.move.dur,0]]);a.bladeF=o;a.bladeB=-o;a.handleF=.3;a.handleB=-.4;
-  }else if(e.state==='attack'&&e.move.name==='thrust'){
-    const u=e.clock,h=e.move.strikes[0].hit;a.core=kf(u,[[0,0],[h-.4,-.5],[h-.06,-1.45],[h,-1.5],[h+.2,-1.2],[e.move.dur,0]]);a.bladeF=.03;a.bladeB=-.03;a.handleF=kf(u,[[0,.12],[h,.9],[e.move.dur,.12]]);a.handleB=kf(u,[[0,-.12],[h,.5],[e.move.dur,-.12]]);
-  }else if(e.state==='stun'){a.core=.3*Math.sin(e.st*10);a.bladeF=.9;a.bladeB=-.9;a.handleF=.5;a.handleB=-.5;}
+  else if(e.state==='attack')y+=scissorsStrike(e,a);
+  else if(e.state==='stun'){a.core=.3*Math.sin(e.st*10);a.bladeF=.9;a.bladeB=-.9;a.handleF=.5;a.handleB=-.5;}
   else if(e.state==='recoil'){a.core=.45*Math.exp(-e.st*5);a.bladeF=.3;a.bladeB=-.3;}
   else if(e.state==='dead'){a.core=Math.min(1.5,e.st*4);a.bladeF=.7;a.bladeB=-.7;}
-  return{x:e.x,y:e.y||0,rot:0,face:e.face,scale:1+1.3*(e.depth||0),angles:a};
+  const w=held(e,t);
+  if(w>0&&e.state!=='dead'){const b={...a},lift=scissorsStrike(e,b);blend(a,b,w);y+=lift*w;}
+  return{x:e.x,y,rot:0,face:e.face,scale:1+1.3*(e.depth||0),angles:a};
+}
+// The rat king's ladle: 1.7 from his hand to the bowl, on an arm of 0.78 + 0.72 from the shoulder. Pick how steeply
+// the shaft comes down (as close to `slant` as the arm allows), put the hand where that shaft starts, and fold the
+// arm to reach it with the elbow up. `lean` is the body angle the strike keyframe uses. Angles are the parts' own.
+// `above` raises the point: the swing first brings the bowl over the gong (HOVER) and then drops it, so the bowl
+// comes down onto the gong, and lifts off it the same way, instead of sweeping through the hero's head.
+const HOVER={above:1.3,back:.1,slant:.9,lead:.12};
+function ladleAim(e,lean,slant,above=0,back=0){
+  if(!hasAim(e))return null;
+  const U=.78,F=.72,LAD=1.7,c=Math.cos(lean),s=Math.sin(lean),sx=.28*c-1.5*s,sy=1.55+.28*s+1.5*c;   // shoulder, in the rat's own frame
+  const tx=(e.aimX-e.x)*e.face-back-sx,ty=e.aimY+above-(e.y||0)-sy,dir=(x,y)=>Math.atan2(x,-y);   // a link at angle φ points (sin φ, −cos φ)
+  let phi=null,wx=0,wy=0,d=0;
+  for(let i=0;i<=120&&phi===null;i++){
+    const q=slant+(i%2?1:-1)*Math.ceil(i/2)*.02;wx=tx-LAD*Math.sin(q);wy=ty+LAD*Math.cos(q);d=Math.hypot(wx,wy);
+    if(d>=.2&&d<=U+F-.04)phi=q;
+  }
+  if(phi===null){const q=dir(tx,ty);return{armFu:near(q,2.6)-lean,armFl:0,ladle:0};}   // out of reach: stretch towards it
+  const al=Math.acos(clamp((U*U+d*d-F*F)/(2*U*d),-1,1)),base=dir(wx,wy);
+  const p1=-Math.cos(base+al)>=-Math.cos(base-al)?base+al:base-al,ex=U*Math.sin(p1),ey=-U*Math.cos(p1),p2=dir(wx-ex,wy-ey);
+  const armFu=near(p1,2.6)-lean;
+  return{armFu,armFl:p2-(armFu+lean),ladle:phi-p2};
+}
+// Angles of the current attack at its clock.
+function ratStrike(e,a){
+  const u=e.clock,m=e.move,d=m.dur;
+  if(m.name==='ladle'){const [h1,h2,h3]=m.strikes.map(s=>s.hit),V=HOVER,v=V.lead;
+    const A=ladleAim(e,-.2,.45)||{armFu:.9,armFl:.2,ladle:.2},B=ladleAim(e,-.28,.45)||{armFu:.7,armFl:.1,ladle:.2};
+    const O=ladleAim(e,-.12,V.slant,V.above,V.back)||A,P=ladleAim(e,-.18,V.slant,V.above,V.back)||B;
+    a.armFu=kf(u,[[0,.35],[h1-.4,2.5],[h1-v,O.armFu],[h1,A.armFu],[h1+.06,O.armFu],[h1+.12,2.2],[h2-v,O.armFu],[h2,A.armFu],[h2+.08,O.armFu],[h2+.34,2.6],[h3-v,P.armFu],[h3,B.armFu],[d,.35]]);
+    a.armFl=kf(u,[[0,.75],[h1-.4,.3],[h1-v,O.armFl],[h1,A.armFl],[h1+.06,O.armFl],[h1+.12,.4],[h2-v,O.armFl],[h2,A.armFl],[h2+.08,O.armFl],[h2+.34,.2],[h3-v,P.armFl],[h3,B.armFl],[d,.75]]);
+    a.ladle=kf(u,[[0,1.6],[h1-.4,.4],[h1-v,O.ladle],[h1,A.ladle],[h1+.06,O.ladle],[h1+.12,.4],[h2-v,O.ladle],[h2,A.ladle],[h2+.08,O.ladle],[h2+.34,.45],[h3-v,P.ladle],[h3,B.ladle],[d,1.6]]);
+    a.body=kf(u,[[0,-.04],[h1-.4,.12],[h1,-.2],[h1+.12,.08],[h2,-.2],[h2+.34,.16],[h3,-.28],[d,-.04]]);
+  }else if(m.name==='fling'){const h=m.strikes[0].hit;
+    a.armBu=kf(u,[[0,-.2],[h-.55,-1.05],[h-.15,-1.2],[h,1.4],[h+.15,1.5],[d,-.2]]);a.jar=kf(u,[[0,0],[h-.15,.4],[h,-1.4],[d,0]]);
+    a.body=kf(u,[[0,-.04],[h-.15,.2],[h,-.25],[d,-.04]]);a.head=kf(u,[[0,0],[h-.15,.2],[h,-.1],[d,0]]);
+  }else if(m.name==='leap'){const h=m.strikes[0].hit,V=HOVER,A=ladleAim(e,-.35,.6)||{armFu:.7,armFl:.75,ladle:.2},O=ladleAim(e,-.25,V.slant,V.above,V.back)||A;
+    a.thighF=kf(u,[[0,.3],[.4,.8],[.5,.1],[h-.1,.9],[h,.5],[d,.3]]);a.shinF=kf(u,[[0,-.55],[.4,-1.3],[.5,-.3],[h-.1,-1.4],[h,-.9],[d,-.55]]);
+    a.thighB=kf(u,[[0,.2],[.4,.7],[.5,-.2],[h-.1,.8],[h,.4],[d,.2]]);a.shinB=kf(u,[[0,-.45],[.4,-1.2],[.5,-.2],[h-.1,-1.3],[h,-.8],[d,-.45]]);
+    a.armFu=kf(u,[[0,.35],[.45,1.6],[h-.3,2.7],[h-V.lead,O.armFu],[h,A.armFu],[d,.35]]);a.armFl=kf(u,[[0,.75],[h-.3,.75],[h-V.lead,O.armFl],[h,A.armFl],[d,.75]]);
+    a.ladle=kf(u,[[0,1.6],[.45,.8],[h-.3,.45],[h-V.lead,O.ladle],[h,A.ladle],[d,1.6]]);a.body=kf(u,[[0,-.04],[.4,-.3],[.6,.1],[h,-.35],[d,-.04]]);
+  }
 }
 function ratPose(e,t){
   const sw=Math.sin(t*2+e.id);
   // the ladle rests upright like a staff; the tail curls up so the silhouette stays compact
-  const a={thighF:.3,shinF:-.55,thighB:.2,shinB:-.45,body:-.04,head:0,armFu:.35,armFl:.75,ladle:1.6,armBu:-.2,armBl:.6,jar:0,tail1:-.75+.1*sw,tail2:-.55+.15*Math.sin(t*2.6+1),tail3:-.45+.2*Math.sin(t*3.1+2)};
-  let rot=0,y=e.y||0;
+  const rest=()=>({thighF:.3,shinF:-.55,thighB:.2,shinB:-.45,body:-.04,head:0,armFu:.35,armFl:.75,ladle:1.6,armBu:-.2,armBl:.6,jar:0,tail1:-.75+.1*sw,tail2:-.55+.15*Math.sin(t*2.6+1),tail3:-.45+.2*Math.sin(t*3.1+2)});
+  const a=rest();let rot=0,y=e.y||0;
   if(e.state==='walk'||e.state==='enter'){const f=e.walkPhase;a.thighF=.3+.35*Math.sin(f);a.thighB=.2-.35*Math.sin(f);a.shinF=-.55-.2*Math.max(0,Math.sin(f));a.shinB=-.45-.2*Math.max(0,-Math.sin(f));y+=-.05*Math.abs(Math.sin(f));}
-  else if(e.state==='attack'){
-    const u=e.clock,m=e.move,d=m.dur;
-    if(m.name==='ladle'){const [h1,h2,h3]=m.strikes.map(s=>s.hit);
-      a.armFu=kf(u,[[0,.35],[h1-.4,2.5],[h1,.9],[h1+.12,2.2],[h2,.8],[h2+.34,2.6],[h3,.7],[d,.35]]);
-      a.armFl=kf(u,[[0,.75],[h1-.4,.3],[h1,.2],[h1+.12,.4],[h2,.2],[h2+.34,.2],[h3,.1],[d,.75]]);
-      a.ladle=kf(u,[[0,1.6],[h1-.4,.4],[h1,.2],[h1+.12,.4],[h2,.2],[h2+.34,.45],[h3,.2],[d,1.6]]);
-      a.body=kf(u,[[0,-.04],[h1-.4,.12],[h1,-.2],[h1+.12,.08],[h2,-.2],[h2+.34,.16],[h3,-.28],[d,-.04]]);
-    }else if(m.name==='fling'){const h=m.strikes[0].hit;
-      a.armBu=kf(u,[[0,-.2],[h-.55,-1.05],[h-.15,-1.2],[h,1.4],[h+.15,1.5],[d,-.2]]);a.jar=kf(u,[[0,0],[h-.15,.4],[h,-1.4],[d,0]]);
-      a.body=kf(u,[[0,-.04],[h-.15,.2],[h,-.25],[d,-.04]]);a.head=kf(u,[[0,0],[h-.15,.2],[h,-.1],[d,0]]);
-    }else if(m.name==='leap'){const h=m.strikes[0].hit;
-      a.thighF=kf(u,[[0,.3],[.4,.8],[.5,.1],[h-.1,.9],[h,.5],[d,.3]]);a.shinF=kf(u,[[0,-.55],[.4,-1.3],[.5,-.3],[h-.1,-1.4],[h,-.9],[d,-.55]]);
-      a.thighB=kf(u,[[0,.2],[.4,.7],[.5,-.2],[h-.1,.8],[h,.4],[d,.2]]);a.shinB=kf(u,[[0,-.45],[.4,-1.2],[.5,-.2],[h-.1,-1.3],[h,-.8],[d,-.45]]);
-      a.armFu=kf(u,[[0,.35],[.45,1.6],[h-.12,2.7],[h,.7],[d,.35]]);a.ladle=kf(u,[[0,1.6],[.45,.8],[h-.12,.45],[h,.2],[d,1.6]]);a.body=kf(u,[[0,-.04],[.4,-.3],[.6,.1],[h,-.35],[d,-.04]]);
-    }
-  }else if(e.state==='stun'){a.body=.2*Math.sin(e.st*5)+.15;a.head=-.35+.1*Math.sin(e.st*7);a.armFu=-.2;a.armFl=.4;a.ladle=.9;a.armBu=-.1;}
+  else if(e.state==='attack')ratStrike(e,a);
+  else if(e.state==='stun'){a.body=.2*Math.sin(e.st*5)+.15;a.head=-.35+.1*Math.sin(e.st*7);a.armFu=-.2;a.armFl=.4;a.ladle=.9;a.armBu=-.1;}
   else if(e.state==='recoil'){const r=Math.exp(-e.st*4);a.body=-.04+.32*r;a.head=.2*r;a.armFu=.35+.8*r;}
   else if(e.state==='intro'){const r=clamp(e.st/2,0,1);a.armFu=lerp(.5,2.2,ease(clamp((e.st-1.2)/.5,0,1)));a.head=.3*ease(clamp((e.st-1.3)/.4,0,1));a.body=-.04+.1*r;}
   else if(e.state==='dead'){rot=kf(e.st,[[0,0],[.5,1.4]]);a.head=.4;a.armFu=1.3;a.ladle=1;}
+  const w=held(e,t);
+  if(w>0&&e.state!=='dead'){const b=rest();ratStrike(e,b);blend(a,b,w);}
   return{x:e.x,y,rot,face:e.face,scale:1+1.3*(e.depth||0),angles:a};
 }
 const posers={player:playerPose,moth:mothPose,scissors:scissorsPose,rat:ratPose};

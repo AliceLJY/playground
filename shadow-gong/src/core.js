@@ -44,8 +44,9 @@ const S=(hit,reach,dmg,posture,extra)=>Object.assign({hit,reach,dmg,posture,lead
 //   blades: the tip (1.18 from a screw 1.02 up) rests on the gong from 1.59 to 2.32 away; 1.8 leaves room both ways.
 //   rat king: 2.1 puts his belly (0.62 forward of centre) just past the gong's rim even when the gong swings out.
 // Walking, lunges and the leap all stop at `stand`; reaches are measured from the attacker's centre as before.
+// The moth flies: `head` is how far its head leads its body in a dive, so the head, not the body, ends on the target.
 const KINDS={
-  moth:{hp:2,posture:30,speed:3.2,rate:1,flying:true,keep:2.3,wait:3.6,clamp:6.2,cool:[1.3,2.3],gain:999,stun:1.5,regen:30,width:.9,
+  moth:{hp:2,posture:30,speed:3.2,rate:1,flying:true,keep:2.3,wait:3.6,clamp:6.2,cool:[1.3,2.3],gain:999,stun:1.5,regen:30,width:.9,head:[.34,.23],
     moves:{pounce:{dur:1.15,type:'dive',strikes:[S(.64,1.05,7,14)]}}},
   scissors:{hp:6,posture:100,speed:1.7,rate:.92,keep:1.9,wait:3.4,clamp:6.6,cool:[1.1,1.9],gain:35,stun:1.8,regen:14,width:.6,stand:1.8,
     moves:{
@@ -163,7 +164,8 @@ function spawn(s,kind,side,opts={}){
   const e={id:s.nextId++,kind,x:opts.x!==undefined?opts.x:side*(kind==='rat'?4.6:8.9),y:K.flying?2.3:0,face:-side,side,
     hp:K.hp,maxHp:K.hp,posture:0,maxPosture:K.posture,postureT:-9,state:kind==='rat'?'intro':'enter',st:0,stateDur:0,
     rate:K.rate,cool:.5+s.rand()*.6,walkPhase:s.rand()*6,flap:s.rand()*6,move:null,clock:0,prevClock:0,tel:[],done:[],telT:[],
-    lockX:0,lockY:0,startX:0,startY:0,landX:0,depth:kind==='rat'?1:0,hover:K.flying?1.9+s.rand()*.6:0,phase2:false,gone:false,parries:0};
+    lockX:0,lockY:0,startX:0,startY:0,landX:0,aimX:null,aimY:null,aimK:0,contactT:-9,kb:0,
+    depth:kind==='rat'?1:0,hover:K.flying?1.9+s.rand()*.6:0,phase2:false,gone:false,parries:0};
   if(opts.state){e.state=opts.state;e.depth=0;}
   s.enemies.push(e);s.events.push({type:'spawn',id:e.id,kind,side});
   return e;
@@ -330,9 +332,9 @@ function addPosture(s,e,v){
   if(e.posture>=e.maxPosture&&e.state!=='stun'&&e.state!=='dead'){stun(s,e);return true;}
   return false;
 }
-function stun(s,e){
+function stun(s,e,back=1.4){
   const K=KINDS[e.kind];endMove(s,e);setState(e,'stun',K.stun);e.posture=e.maxPosture;
-  if(K.flying){e.fallFrom=e.y;e.fallFromX=e.x;e.fallToX=clamp(e.x-e.face*1.4,-K.clamp,K.clamp);}   // knocked back the way it came, landing in front of the hero
+  if(K.flying){e.fallFrom=e.y;e.fallFromX=e.x;e.fallToX=clamp(e.x-e.face*back,-K.clamp,K.clamp);}   // knocked back the way it came, landing in front of the hero
   s.events.push({type:'stun',id:e.id,kind:e.kind});
 }
 function endMove(s,e){releaseToken(s,e);if(e.state==='attack'){const K=KINDS[e.kind];e.cool=K.cool[0]+s.rand()*(K.cool[1]-K.cool[0]);}}
@@ -357,23 +359,40 @@ function chooseMove(s,e,dist){
   if(s.rand()<(e.phase2?.34:.22))return dist<=3.2?'fling':null;
   return dist<=2.6?'ladle':null;
 }
+// Where a blow is headed: the gong when the hero is turned towards the attacker, the spot between his shoulders when
+// he is not. It follows the hero, so the weapon ends where he is; whether the blow lands is still decided from the
+// positions locked at the telegraph (inReach), and a weapon simply falls short of a hero who has stepped out of reach.
+function aim(s,e,dt){
+  const p=s.player,G=PLAYER.gong,B=PLAYER.back;
+  e.aimK=clamp(e.aimK+(p.face===-e.face?1:-1)*dt*25,0,1);
+  const k=e.aimK*e.aimK*(3-2*e.aimK);
+  e.aimX=p.x-e.face*(B.x+(G.x-B.x)*k);e.aimY=(p.y||0)+B.y+(G.y-B.y)*k;
+}
 function startMove(s,e,name){
   const m=KINDS[e.kind].moves[name];
-  setState(e,'attack');e.move={name,...m};e.moveT=s.time;e.clock=0;e.prevClock=0;e.tel=[];e.done=[];e.telT=[];
+  setState(e,'attack');e.move={name,...m};e.moveT=s.time;e.clock=0;e.prevClock=0;e.tel=[];e.done=[];e.telT=[];e.kb=0;
   e.startX=e.x;e.startY=e.y;e.lockX=s.player.x;e.lockY=1.35;e.landX=e.x;
+  e.aimK=s.player.face===-e.face?1:0;aim(s,e,0);
   s.events.push({type:'moveStart',id:e.id,kind:e.kind,move:name});
 }
 function inReach(s,e,st){
   const p=s.player,t=e.move.type,dx=(p.x-e.x)*e.face;
-  if(t==='dive'||t==='leap')return Math.abs(p.x-e.x)<=st.reach&&dx>=-st.reach;
+  if(t==='dive')return Math.abs(p.x-e.lockX)<=st.reach;   // the dive ends in front of the spot it locked on; the hero must have left that spot to be missed
+  if(t==='leap')return Math.abs(p.x-e.x)<=st.reach&&dx>=-st.reach;
   if(t==='fling')return dx>=-.2&&dx<=st.reach;
   return dx>=-.3&&dx<=st.reach;
+}
+// A dive carries the moth's head onto the point the blow is aimed at. It follows the hero only as far as the blow can
+// still land, so a side-step of more than the reach leaves it short.
+function diveTo(s,e,st,k){
+  const p=s.player,H=KINDS[e.kind].head,off=clamp(p.x,e.lockX-st.reach,e.lockX+st.reach)-p.x,ease=k*k;
+  e.x=e.startX+(e.aimX+off-e.face*H[0]-e.startX)*ease;e.y=e.startY+(e.aimY+H[1]-e.startY)*ease;
 }
 function resolveStrike(s,e,k){
   const st=e.move.strikes[k],p=s.player;
   const ev={type:'strike',id:e.id,kind:e.kind,move:e.move.name,strike:k,t:s.time,telT:e.telT[k],unblockable:!!st.unblockable};
   if(p.state==='dead'||!inReach(s,e,st)){ev.outcome='whiff';s.events.push(ev);return;}
-  const at={x:p.x+p.face*.85,y:e.kind==='moth'?Math.max(1.2,e.y):1.7};ev.at=at;
+  const at={x:e.aimX,y:e.aimY};ev.at=at;
   const D=PLAYER.dodge;
   if(p.state==='execute'){ev.outcome='evade';s.events.push(ev);return;}   // a deathblow is never interrupted
   if(p.state==='dodge'&&p.st>=D.i0&&p.st<=D.i1){
@@ -382,7 +401,10 @@ function resolveStrike(s,e,k){
     return;
   }
   const facing=p.face===-e.face,guarding=(p.state==='parry'||p.state==='guard')&&facing;
+  e.contactT=s.time;
   if(guarding&&!st.unblockable){
+    // met by the gong: the weapon is on it at this instant, however late the hero turned to face it
+    e.aimK=1;aim(s,e,0);if(e.move.type==='dive')diveTo(s,e,st,1);at.x=e.aimX;at.y=e.aimY;
     const delta=s.time-p.blockPressT,perfect=p.state==='parry'||delta<=p.pressWindow+1e-9;
     ev.outcome=perfect?'perfect':'block';ev.delta=delta;s.events.push(ev);
     if(perfect)perfectParry(s,e,st,at);else normalBlock(s,e,st,at);
@@ -396,9 +418,9 @@ function perfectParry(s,e,st,at){
   p.counterUntil=s.time+FEEL.counter;s.stats.perfect++;s.stats.chain++;s.stats.bestChain=Math.max(s.stats.bestChain,s.stats.chain);
   s.events.push({type:'parry',perfect:true,id:e.id,kind:e.kind,move:e.move.name,at,...FEEL.perfect});addFeel(s,FEEL.perfect,at);
   e.parries++;
-  if(e.kind==='moth'){stun(s,e);return;}
+  if(e.kind==='moth'){stun(s,e,.25);return;}   // it was stopped on the gong: it drops just beyond it
   const broke=addPosture(s,e,st.gain||KINDS[e.kind].gain);
-  if(!broke&&st.finisher){endMove(s,e);setState(e,'recoil',.7);e.x-=e.face*.5;}
+  if(!broke&&st.finisher){endMove(s,e);setState(e,'recoil',.7);e.kb=-e.face*.5;}   // thrown back over the first moments of the recoil
 }
 function normalBlock(s,e,st,at){
   const p=s.player;s.stats.block++;
@@ -444,7 +466,11 @@ function updateAttack(s,e,dt){
       if(m.type==='leap')e.landX=clamp(e.lockX-e.face*KINDS[e.kind].stand,-KINDS[e.kind].clamp,KINDS[e.kind].clamp);
       s.events.push({type:'telegraph',id:e.id,kind:e.kind,move:m.name,strike:k,t:s.time,hitAt:s.time+(st.hit-e.clock)/e.rate,unblockable:!!st.unblockable});
     }
-    if(!e.done[k]&&e.clock>=st.hit){e.done[k]=true;resolveStrike(s,e,k);if(e.state!=='attack')return;}
+    aim(s,e,k?0:dt);
+    if(!e.done[k]&&e.clock>=st.hit){
+      e.done[k]=true;if(m.type==='dive')diveTo(s,e,st,1);   // the blow is judged with the head where the dive ends
+      resolveStrike(s,e,k);if(e.state!=='attack')return;
+    }
   }
   const K=KINDS[e.kind],u=e.clock;
   if(m.type==='melee'){
@@ -454,7 +480,7 @@ function updateAttack(s,e,dt){
   }else if(m.type==='dive'){
     const st=m.strikes[0],tel=st.hit-st.lead*e.rate;
     if(u<tel){e.y+=(e.hover+.35-e.y)*Math.min(1,dt*4);e.x-=e.face*.4*dt;e.startX=e.x;e.startY=e.y;}
-    else if(u<st.hit){const k=(u-tel)/(st.hit-tel),ease=k*k;e.x=e.startX+(e.lockX-e.startX)*ease;e.y=e.startY+(e.lockY-e.startY)*ease;}
+    else if(u<st.hit)diveTo(s,e,st,(u-tel)/(st.hit-tel));
     else{e.y+=(e.hover-e.y)*Math.min(1,dt*2.5);e.x-=e.face*1.6*dt;}
   }else if(m.type==='leap'){
     const st=m.strikes[0],t0=.45;
@@ -481,7 +507,9 @@ function updateEnemy(s,e,dt){
       return;}
     case 'idle':case 'walk':think(s,e,dt);break;
     case 'attack':updateAttack(s,e,dt);break;
-    case 'recoil':if(e.st>=e.stateDur)setState(e,'idle');break;
+    case 'recoil':
+      if(e.kb){if(e.st<=.15+1e-9)e.x+=e.kb*dt/.15;else e.kb=0;}
+      if(e.st>=e.stateDur)setState(e,'idle');break;
     case 'stun':
       if(K.flying){const k=Math.min(1,e.st/.35),q=1-(1-k)*(1-k);e.y=Math.max(.45,e.fallFrom-(e.fallFrom-.45)*k);e.x=e.fallFromX+(e.fallToX-e.fallFromX)*q;}
       if(e.st>=e.stateDur&&!e.execBy){e.posture=e.maxPosture*.6;e.postureT=s.time;setState(e,'idle');if(K.flying)e.y=.6;}

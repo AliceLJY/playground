@@ -50,6 +50,8 @@ function sample(){
   }
   return cache={blows,crowd};
 }
+const perfects=()=>sample().blows.filter(b=>b.outcome==='perfect');
+const worst=(list,key)=>list.reduce((a,b)=>b[key]>a[key]?b:a);
 
 test('the gong the simulation aims at is the gong the sprite holds up while guarding',()=>{
   const want=C.PLAYER.gong;assert.ok(want,'core.js states where the gong is held');
@@ -66,6 +68,34 @@ test('the sprite mirrors with the hero: gong and body box swap sides, nothing el
   assert.ok(a.gong.x>1&&b.gong.x<1,'the gong is on the side the hero faces');
   assert.ok(Math.abs((a.gong.x-1)+(b.gong.x-1))<1e-9&&Math.abs(a.gong.y-b.gong.y)<1e-9);
   assert.ok(Math.abs((a.box.maxX-1)+(b.box.minX-1))<1e-9,'the body box mirrors about the feet');
+});
+
+test('at a perfect parry the hero faces the blow: attacker and weapon are in front of him, from the left and from the right',()=>{
+  const list=perfects(),left=list.filter(b=>b.from<0),right=list.filter(b=>b.from>0);
+  assert.ok(left.length>=40&&right.length>=40,`perfect parries sampled from the left ${left.length}, from the right ${right.length}`);
+  for(const b of list){
+    assert.equal(b.face,b.from,`${b.where}: the hero faces ${b.face}, the blow came from ${b.from}`);
+    assert.ok(b.bodyAhead>0,`${b.where}: the attacker's body is ${(-b.bodyAhead).toFixed(2)} behind the hero's feet`);
+    assert.ok(b.tipAhead>0,`${b.where}: the weapon is ${(-b.tipAhead).toFixed(2)} behind the hero's feet (${b.state})`);
+  }
+});
+
+test('at a perfect parry the weapon rests on the gong: its tip is within one gong radius of the gong centre',()=>{
+  const list=perfects(),by={};
+  for(const b of list)(by[b.kind]=by[b.kind]||[]).push(b);
+  for(const kind of ['moth','scissors','rat'])assert.ok((by[kind]||[]).length>=30,`perfect parries against ${kind}: ${(by[kind]||[]).length}`);
+  assert.ok(list.some(b=>b.move==='thrust')&&list.some(b=>b.move==='snip'&&b.strike===1)&&list.some(b=>b.move==='ladle'&&b.strike===2),'thrusts, second snips and third ladle swings were all parried');
+  for(const kind of Object.keys(by)){
+    const w=worst(by[kind],'gap');
+    assert.ok(w.gap<=w.r,`${w.where}: weapon tip ${w.gap.toFixed(2)} from the gong centre, gong radius ${w.r.toFixed(2)} (${w.state})`);
+  }
+});
+
+test('a plain block also meets the gong, before the push-back: tip within two gong radii',()=>{
+  const list=sample().blows.filter(b=>b.outcome==='block');
+  assert.ok(list.length>=40,'plain blocks sampled: '+list.length);
+  const w=worst(list,'gap');
+  assert.ok(w.gap<=2*w.r,`${w.where}: weapon tip ${w.gap.toFixed(2)} from the gong centre, gong radius ${w.r.toFixed(2)}`);
 });
 
 test('the hero is not drawn inside a grounded opponent: the gong may touch the rat king or a blade, its centre never goes in',()=>{
