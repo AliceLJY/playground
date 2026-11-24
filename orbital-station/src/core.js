@@ -241,7 +241,10 @@ export const shotPose = {
     return fit(pose, aspect, [0, 30, 0], 21);
   },
   port(t, aspect, u) {
-    return { position: [8.6 - 0.8 * u, 21.6, 6.9 + 0.5 * u], target: [0, 19.1, 0], up: Y, fov: widen(42, aspect, 60) };
+    // Portrait aims lower and stands a little further back: the title and readouts take the top of a phone
+    // screen and the buttons the bottom, and the contact line was sitting behind the caption.
+    const tall = aspect < 1 ? 1 : 0;
+    return { position: [(8.6 - 0.8 * u) * (1 + 0.25 * tall), 21.6 + 2 * tall, (6.9 + 0.5 * u) * (1 + 0.25 * tall)], target: [0, 19.1 - 1.2 * tall, 0], up: Y, fov: widen(42, aspect, 60) };
   },
   settle(t, aspect, u) {
     const pose = { position: around((152 + 8 * u) * D, 14 * D, 30, [0, 20, 0]), target: [0, 20.5, 0], up: Y, fov: widen(40, aspect, 56) };
