@@ -414,6 +414,9 @@
     const before = g.turn;
     M.decide(g, choice);
     const evs = g.events.slice();
+    const rollEv = evs.find((e) => e.t === 'roll');
+    // 骰子一出，中间那段话立刻换成这一手的，不再留着上一位的「轮到你：掷……」
+    if (rollEv) setEvent(`${rollEv.text}，走着……`);
     await animateRoll(myGen, before);
     if (myGen !== gen) return;
     syncPositions();
@@ -424,7 +427,8 @@
       if (rent && seats[i].provider === 'bot' && uiRand() < 0.5) setBubble(i, pick(BOT_LINES.rent));
       if (evs.find((e) => e.t === 'jail') && seats[i].provider === 'bot') setBubble(i, pick(BOT_LINES.jail));
     }
-    setEvent(eventTextFrom(evs, before));
+    const after = eventTextFrom(evs, before);
+    setEvent(rollEv && g.turn === 0 && g.phase === 'decide' && before === 0 ? `${rollEv.text}。${after}` : after);
     render();
   }
 

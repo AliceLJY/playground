@@ -253,6 +253,22 @@ async function extra(browser) {
     check(`M2-${cfg.name}`, `放开后立即生效：按钮可点后 50ms 的点击就买下（${cfg.name}）`, s.owner.includes(0), { unlockedAfterMs: unlockedAfter, owner: s.owner.filter((o) => o === 0).length });
     await ctx.close();
   }
+
+  // ---- B1 中间那段话跟着这一手走（第二轮复测：自己骰子已出，中间还停在上一位「阿强 买下……轮到你」）----
+  {
+    const { ctx, page, log } = await newPage(browser, { width: 1280, height: 800 }, { dpr: 1 });
+    await page.goto(`${BASE}?seed=11`);
+    await ready(page);
+    await page.click('#start');
+    await page.click('#act-a');
+    await page.waitForTimeout(60);
+    const early = await page.textContent('#event');
+    await page.waitForFunction(() => !self.__PLAYTEST__.snapshot().busy, null, { polling: 30, timeout: 8000 });
+    const settled = await page.textContent('#event');
+    const stale = (t) => /轮到你：掷|阿发|阿珍|阿强/.test(t);
+    check('B1', '自己掷完后中间那段话换成这一手的：刚掷出时含「你 掷」、不含「轮到你：掷」和别人的名字；停下后含掷出的点数与「买不买」', /你 掷/.test(early) && !stale(early) && /你 掷两颗：5\+5/.test(settled) && /买不买/.test(settled) && !/轮到你：掷/.test(settled) && !log.errors.length, { early, settled, errors: log.errors });
+    await ctx.close();
+  }
 }
 
 (async () => {
