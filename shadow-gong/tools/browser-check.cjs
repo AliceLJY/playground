@@ -63,7 +63,6 @@ const shot=name=>path.join(out,name+'.png');
     const check=(name,ok,data)=>{checks.push({name,ok:!!ok,data});if(!ok)failures++;console.log(`${ok?'PASS':'FAIL'} ${name}${data===undefined?'':'  '+JSON.stringify(data)}`);};
     const n1=v=>Math.round(v*10)/10,dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
     const hits=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
-    const share=(hero,t)=>t.top<hero.bottom&&hero.top<t.bottom?Math.max(0,Math.min(hero.right,t.right)-Math.max(hero.left,t.left))/(hero.right-hero.left):0;
     // everything from the standing line up to the tallest head (the rat king's crown is 4.2 world units up), across the cloth
     const band=a=>({left:a.cloth.left,right:a.cloth.right,top:a.floorY-4.4*a.unit,bottom:a.floorY+2});
     const frozen=async(page,ms=120000)=>{const t0=Date.now();while(Date.now()-t0<ms){if(await page.evaluate(()=>window.__duel.frozen))return true;await page.waitForTimeout(100);}return false;};
@@ -82,7 +81,7 @@ const shot=name=>path.join(out,name+'.png');
         check(`${name}: sprite faces the blow and the weapon is in front of him`,h.mirror===side&&(e.tip[0]-h.x)*h.mirror>0,{mirror:h.mirror,blowFrom:side,weaponAheadPx:n1((e.tip[0]-h.x)*h.mirror)});
         check(`${name}: weapon tip within one gong radius of the gong`,dist(e.tip,g)<=h.gong.r,{tipToGongPx:n1(dist(e.tip,g)),gongRadiusPx:n1(h.gong.r)});
         check(`${name}: sparks burst on the gong (centre of the live sparks within half a radius)`,a.sparks.n>=20&&dist(a.sparks.at,g)<=.5*h.gong.r,{sparks:a.sparks.n,sparksToGongPx:n1(dist(a.sparks.at,g)),gongRadiusPx:n1(h.gong.r)});
-        if(kind!=='moth')check(`${name}: hero box overlaps the attacker's trunk by at most 10% of his width`,share(h.box,e.trunk)<=.10,{overlap:n1(share(h.box,e.trunk)*100)+'%'});
+        if(kind!=='moth')check(`${name}: the hero's body is clear of the attacker's trunk and his gong reaches in by less than its radius`,e.into.body<=.5&&e.into.gong<=h.gong.r,{bodyIntoTrunkPx:n1(e.into.body),gongIntoTrunkPx:n1(e.into.gong),gongRadiusPx:n1(h.gong.r)});
         if(a.hint)check(`${name}: hint stays out of the action band`,!hits(a.hint,band(a)),{hint:[n1(a.hint.top),n1(a.hint.bottom)],band:[n1(band(a).top),n1(band(a).bottom)],text:a.hint.text});
       }
       check(`${name}: zero page errors and external requests`,errors.length===0&&external.length===0,{errors,external});
@@ -95,7 +94,7 @@ const shot=name=>path.join(out,name+'.png');
       const ok=await frozen(page);await page.waitForTimeout(120);
       const a=await page.evaluate(()=>({...__duel.align(),blow:window.__blow})),e=ok&&a.enemies.find(x=>x.id===a.blow);
       check('ratking-struck: froze on the hero hitting the rat king',ok&&e&&a.hero);
-      if(ok&&e&&a.hero)check('ratking-struck: hero box overlaps the rat king\'s trunk by at most 10% of his width',share(a.hero.box,e.trunk)<=.10,{overlap:n1(share(a.hero.box,e.trunk)*100)+'%',heroState:a.hero.state});
+      if(ok&&e&&a.hero)check('ratking-struck: the hero\'s body is clear of the rat king\'s trunk and his gong reaches in by less than its radius',e.into.body<=.5&&e.into.gong<=a.hero.gong.r,{bodyIntoTrunkPx:n1(e.into.body),gongIntoTrunkPx:n1(e.into.gong),gongRadiusPx:n1(a.hero.gong.r),heroState:a.hero.state});
       await page.screenshot({path:shot('align-ratking-struck')});report.runs.push({name:'ratking-struck',align:a});await ctx.close();
     }
     // 3. hints never cover the action: the frozen perfect-parry view (its hint is up) at desktop, phone portrait and landscape

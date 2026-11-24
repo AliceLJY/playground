@@ -23,6 +23,10 @@ const FEEL={
 };
 const PLAYER={
   hp:100,posture:100,walk:3.4,guardWalk:1.5,clamp:6.9,
+  // Where the hero holds the gong while guarding, measured from his feet towards the side he faces, and its radius:
+  // read off the sprite atlas's guard frames (tests/align.test.cjs keeps the two in step). Blows are aimed here.
+  // `back` is the spot between his shoulders that a blow from behind lands on. `shove` is how fast bodies slide apart.
+  gong:{x:1.02,y:1.71,r:.29},back:{x:.25,y:1.5},shove:10,
   dodge:{dur:.38,i0:.04,i1:.30,dist:2.4,cool:.12},
   hurt:.32,down:.9,broken:1.1,
   exec:{dur:.55,hit:.24,reach:2,heal:6},
@@ -35,19 +39,24 @@ const PLAYER={
   buffer:.22,waveHeal:15
 };
 const S=(hit,reach,dmg,posture,extra)=>Object.assign({hit,reach,dmg,posture,lead:FEEL.lead},extra);
+// `stand` is how close a grounded opponent's centre comes to the hero's: the hero holds his gong 1.02 out in front,
+// so the opponent's body has to stay beyond it, and its weapon has to be able to end on the gong from there.
+//   blades: the tip (1.18 from a screw 1.02 up) rests on the gong from 1.59 to 2.32 away; 1.8 leaves room both ways.
+//   rat king: 2.1 puts his belly (0.62 forward of centre) just past the gong's rim even when the gong swings out.
+// Walking, lunges and the leap all stop at `stand`; reaches are measured from the attacker's centre as before.
 const KINDS={
   moth:{hp:2,posture:30,speed:3.2,rate:1,flying:true,keep:2.3,wait:3.6,clamp:6.2,cool:[1.3,2.3],gain:999,stun:1.5,regen:30,width:.9,
     moves:{pounce:{dur:1.15,type:'dive',strikes:[S(.64,1.05,7,14)]}}},
-  scissors:{hp:6,posture:100,speed:1.7,rate:.92,keep:1.8,wait:3.4,clamp:6.6,cool:[1.1,1.9],gain:35,stun:1.8,regen:14,width:.6,
+  scissors:{hp:6,posture:100,speed:1.7,rate:.92,keep:1.9,wait:3.4,clamp:6.6,cool:[1.1,1.9],gain:35,stun:1.8,regen:14,width:.6,stand:1.8,
     moves:{
-      snip:{dur:1.95,type:'melee',strikes:[S(.72,1.95,11,18,{lunge:.5}),S(1.44,1.95,11,18,{lunge:.5})]},
-      thrust:{dur:1.05,type:'melee',range:[2.2,3.4],strikes:[S(.56,2.05,13,22,{lunge:1.2})]}}},
+      snip:{dur:1.95,type:'melee',strikes:[S(.72,2.3,11,18,{lunge:.5}),S(1.44,2.3,11,18,{lunge:.5})]},
+      thrust:{dur:1.05,type:'melee',range:[2.2,3.4],strikes:[S(.56,2.3,13,22,{lunge:1.2})]}}},
   // the boss carries three lamp-oil marks; only an execution puts one out
-  rat:{hp:3,posture:140,speed:1.5,rate:1,keep:2.2,wait:2.4,clamp:5.6,cool:[.8,1.5],gain:18,stun:2.2,regen:10,width:1.1,boss:true,marks:true,
+  rat:{hp:3,posture:140,speed:1.5,rate:1,keep:2.2,wait:2.4,clamp:5.6,cool:[.8,1.5],gain:18,stun:2.2,regen:10,width:1.1,stand:2.1,boss:true,marks:true,
     moves:{
-      ladle:{dur:2.5,type:'melee',strikes:[S(.74,2.45,13,20,{lunge:.35}),S(1.26,2.45,13,20,{lunge:.3}),S(2,2.45,14,22,{lunge:.45,finisher:true})]},
+      ladle:{dur:2.5,type:'melee',strikes:[S(.74,3.2,13,20,{lunge:.35}),S(1.26,3.2,13,20,{lunge:.3}),S(2,3.2,14,22,{lunge:.45,finisher:true})]},
       fling:{dur:1.5,type:'fling',strikes:[S(.95,3.4,22,0,{unblockable:true,lead:FEEL.leadRed})]},
-      leap:{dur:1.6,type:'leap',range:[3.6,99],strikes:[S(1,1.9,16,26,{gain:28,finisher:true})]}}}
+      leap:{dur:1.6,type:'leap',range:[3.6,99],strikes:[S(1,2.5,16,26,{gain:28,finisher:true})]}}}
 };
 const WAVES=[
   {title:'第一场',name:'扑灯',spawns:[['moth',-1,.6],['moth',1,2.4],['moth',-1,4.2],['moth',1,9]]},
@@ -198,8 +207,10 @@ function pressBlock(s,p){
   if(p.state!=='parry'&&p.state!=='guard')setState(p,'guard');
   s.events.push({type:'press',t:s.time,window:p.pressWindow});
 }
+// A stunned opponent can be finished from wherever the hero is allowed to stand next to it.
+const execReach=e=>Math.max(PLAYER.exec.reach,(KINDS[e.kind].stand||0)+.15);
 function executableNear(s,p){
-  let best=null;for(const e of s.enemies){if(e.state!=='stun')continue;const d=Math.abs(e.x-p.x);if(d<=PLAYER.exec.reach&&(!best||d<best.d))best={e,d};}
+  let best=null;for(const e of s.enemies){if(e.state!=='stun')continue;const d=Math.abs(e.x-p.x);if(d<=execReach(e)&&(!best||d<best.d))best={e,d};}
   return best&&best.e;
 }
 function startAttack(s,p,combo){
@@ -256,10 +267,11 @@ function updatePlayer(s,inp,dt){
     p.x+=dir*speed*dt;
     if(p.state!=='guard'){if(dir){p.face=dir;if(p.state!=='walk')setState(p,'walk');p.walkPhase+=dt*speed*2.6;}else if(p.state==='walk')setState(p,'idle');}
   }
-  // bodies do not walk through each other; a dodge rolls through, and a stunned opponent can be stepped up to
+  // Bodies keep their standing room. A dodge rolls through and the hero then slides clear instead of jumping; an
+  // opponent walking on, or the rat king taking shape out of the dark, eases him aside before it is solid.
   if(p.state!=='dodge')for(const e of s.enemies){
-    const K=KINDS[e.kind];if(!alive(e)||K.flying||e.state==='stun')continue;
-    const gap=.45+K.width*.8,d=p.x-e.x;if(Math.abs(d)<gap)p.x=e.x+(sign(d)||-e.face)*gap;
+    const K=KINDS[e.kind];if(K.flying||e.state==='dead'||e.gone)continue;
+    const d=p.x-e.x,short=K.stand*(1-(e.depth||0))-Math.abs(d);if(short>0)p.x+=(sign(d)||-e.face)*Math.min(short,PLAYER.shove*dt);
   }
   p.x=clamp(p.x,-PLAYER.clamp,PLAYER.clamp);
   // posture recovers when the guard is not being pressed
@@ -429,7 +441,7 @@ function updateAttack(s,e,dt){
     if(!e.tel[k]&&e.clock>=tel){
       e.tel[k]=true;e.telT[k]=s.time;e.lockX=p.x;e.lockY=clamp(p.y+1.35,1.1,1.6);
       if(Math.abs(p.x-e.x)>.05)e.face=sign(p.x-e.x);
-      if(m.type==='leap')e.landX=clamp(e.lockX-e.face*(.6+KINDS[e.kind].width*.8),-KINDS[e.kind].clamp,KINDS[e.kind].clamp);
+      if(m.type==='leap')e.landX=clamp(e.lockX-e.face*KINDS[e.kind].stand,-KINDS[e.kind].clamp,KINDS[e.kind].clamp);
       s.events.push({type:'telegraph',id:e.id,kind:e.kind,move:m.name,strike:k,t:s.time,hitAt:s.time+(st.hit-e.clock)/e.rate,unblockable:!!st.unblockable});
     }
     if(!e.done[k]&&e.clock>=st.hit){e.done[k]=true;resolveStrike(s,e,k);if(e.state!=='attack')return;}
@@ -437,8 +449,8 @@ function updateAttack(s,e,dt){
   const K=KINDS[e.kind],u=e.clock;
   if(m.type==='melee'){
     const k=nextStrike(e),st=m.strikes[Math.max(0,k)];
-    if(k>=0&&!e.tel[k]){const want=p.x-e.face*K.keep*.9;e.x+=clamp(want-e.x,-1,1)*K.speed*.45*dt;if(Math.abs(p.x-e.x)>.05)e.face=sign(p.x-e.x);}
-    else if(k>=0&&u>st.hit-.14){const room=Math.max(0,(e.lockX-e.x)*e.face-(.55+K.width*.7));e.x+=e.face*Math.min(room,st.lunge/.14*dt*e.rate);}  // stop short of the body, never on top of it
+    if(k>=0&&!e.tel[k]){const want=p.x-e.face*Math.max(K.keep*.9,K.stand);e.x+=clamp(want-e.x,-1,1)*K.speed*.45*dt;if(Math.abs(p.x-e.x)>.05)e.face=sign(p.x-e.x);}
+    else if(k>=0&&u>st.hit-.14){const room=Math.max(0,(e.lockX-e.x)*e.face-K.stand);e.x+=e.face*Math.min(room,st.lunge/.14*dt*e.rate);}  // stop where the weapon reaches the gong, never on top of the hero
   }else if(m.type==='dive'){
     const st=m.strikes[0],tel=st.hit-st.lead*e.rate;
     if(u<tel){e.y+=(e.hover+.35-e.y)*Math.min(1,dt*4);e.x-=e.face*.4*dt;e.startX=e.x;e.startY=e.y;}
@@ -446,7 +458,7 @@ function updateAttack(s,e,dt){
     else{e.y+=(e.hover-e.y)*Math.min(1,dt*2.5);e.x-=e.face*1.6*dt;}
   }else if(m.type==='leap'){
     const st=m.strikes[0],t0=.45;
-    if(!e.tel[0])e.landX=clamp(p.x-e.face*(.6+K.width*.8),-K.clamp,K.clamp);
+    if(!e.tel[0])e.landX=clamp(p.x-e.face*K.stand,-K.clamp,K.clamp);
     if(u<t0)e.startX=e.x;
     else if(u<st.hit){const k=(u-t0)/(st.hit-t0);e.x=e.startX+(e.landX-e.startX)*k;e.y=1.5*Math.sin(Math.PI*k);}
     else e.y=0;
@@ -524,9 +536,9 @@ function autopilot(s,opts={}){
   let near=null;for(const e of s.enemies)if(alive(e)){const d=Math.abs(e.x-p.x);if(!near||d<near.d)near={e,d};}
   if(!near)return input;
   if(near.e.state==='stun'){input[near.e.x>p.x?'right':'left']=true;return input;}
-  const reach=near.e.kind==='rat'?2.2:1.8;
-  if(near.d<=reach&&isOpen(s,near.e)&&(!soon||s.time<=p.counterUntil)){if(s.time-ap.swing>.4){input.attackPressed=true;ap.swing=s.time;}}
-  else if(near.d>1.7&&!soon)input[near.e.x>p.x?'right':'left']=true;
+  const room=KINDS[near.e.kind].stand||1.5;   // as close as the hero can stand; a moth has no body in the way
+  if(near.d<=room+.3&&isOpen(s,near.e)&&(!soon||s.time<=p.counterUntil)){if(s.time-ap.swing>.4){input.attackPressed=true;ap.swing=s.time;}}
+  else if(near.d>room+.2&&!soon)input[near.e.x>p.x?'right':'left']=true;
   return input;
 }
 // Run real frames with the autopilot until a condition on this frame's events holds.

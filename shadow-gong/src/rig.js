@@ -83,17 +83,24 @@ function bounds(kind,pose){
   return{minX,minY,maxX,maxY};
 }
 // Tight boxes around the art of the parts that make up a body (the quads carry a margin): [part, x0, y0, x1, y1]
-// in the part's own frame. trunk() is the box a neighbour must not stand inside; weapons, arms and tails are left out.
+// in the part's own frame. trunk() is the space a neighbour must not stand inside; weapons, arms and tails are left
+// out. Given a height band it measures only what lies inside it: a rat king leaning over the hero has his shoulders
+// above the hero's head, and that is not standing inside him.
 const trunks={
   rat:[['body',-.66,0,.62,1.86],['thighF',-.26,-.8,.26,.08],['thighB',-.26,-.8,.26,.08]],
   scissors:[['screw',-.16,-.16,.16,.16],['handleF',-.21,-1,.21,.02],['handleB',-.21,-1,.21,.02]],
   moth:[['body',-.36,-.1,.36,.11]]
 };
-function trunk(kind,solved){
+function trunk(kind,solved,y0=-Infinity,y1=Infinity){
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const [part,x0,y0,x1,y1] of trunks[kind])for(const [x,y] of [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]){
-    const q=apply(solved[part].m,x,y);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);}
-  return{minX,minY,maxX,maxY};
+  const cut=(poly,keep,at)=>{const out=[];poly.forEach((a,i)=>{const b=poly[(i+1)%poly.length],ia=keep(a.y),ib=keep(b.y);
+    if(ia)out.push(a);if(ia!==ib){const t=(at-a.y)/(b.y-a.y);out.push({x:a.x+(b.x-a.x)*t,y:at});}});return out;};
+  for(const [part,ax,ay,bx,by] of trunks[kind]){
+    let poly=[[ax,ay],[bx,ay],[bx,by],[ax,by]].map(([x,y])=>apply(solved[part].m,x,y));
+    if(y0>-Infinity)poly=cut(poly,y=>y>=y0,y0);if(y1<Infinity)poly=cut(poly,y=>y<=y1,y1);
+    for(const q of poly){minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);}
+  }
+  return minX>maxX?null:{minX,minY,maxX,maxY};
 }
 // --- poses -------------------------------------------------------------------------------
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;

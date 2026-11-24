@@ -207,9 +207,12 @@ function align(){
   const d=world.drawn(s),unit=px(1,0)[0]-px(0,0)[0],h=d.hero;
   const hero=h&&{flow:h.flow,frame:h.frame,face:s.player.face,mirror:h.mirror,state:s.player.state,x:px(h.x,0)[0],box:rect(h.box),world:h,
     gong:h.gong&&{x:px(h.gong.x,h.gong.y)[0],y:px(h.gong.x,h.gong.y)[1],r:h.gong.r*unit}};
+  // how far each part of the hero's silhouette reaches into an opponent's trunk, measured at that part's own heights
+  const into=solvedKind=>{const out={};if(h&&h.parts)for(const [name,part] of Object.entries(h.parts)){
+    const t=R.trunk(solvedKind[0],solvedKind[1],part.minY,part.maxY);out[name]=t?Math.max(0,Math.min(part.maxX,t.maxX)-Math.max(part.minX,t.minX))*unit:0;}return out;};
   const enemies=s.enemies.map(e=>{const pose=R.pose(e.kind,e,s.time),solved=R.solve(e.kind,pose),tip=R.point(e.kind,solved,'weapon');
     return{id:e.id,kind:e.kind,state:e.state,move:e.move&&e.move.name,face:e.face,x:px(e.x,0)[0],depth:e.depth||0,
-      box:rect(R.bounds(e.kind,pose)),trunk:rect(R.trunk(e.kind,solved)),tip:px(tip.x,tip.y),tipWorld:[tip.x,tip.y]};});
+      box:rect(R.bounds(e.kind,pose)),trunk:rect(R.trunk(e.kind,solved)),into:into([e.kind,solved]),tip:px(tip.x,tip.y),tipWorld:[tip.x,tip.y]};});
   const hintEl=$('hint'),buttons=[...document.querySelectorAll('#touch button')].filter(b=>b.offsetParent).map(b=>({key:b.dataset.key,...dom(b)}));
   return{viewport:[W,H],unit,floorY:px(0,0)[1],cloth:rect({minX:window.GongStage.screen.left,maxX:window.GongStage.screen.right,minY:window.GongStage.screen.bottom,maxY:window.GongStage.screen.top}),
     hero,enemies,sparks:{n:d.sparks.n,at:px(d.sparks.x,d.sparks.y),origin:d.burst&&px(d.burst.x,d.burst.y)},

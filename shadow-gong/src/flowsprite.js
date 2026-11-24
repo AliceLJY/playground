@@ -50,11 +50,17 @@ function placeX(i,x,face,left,right,margin=.15){
 // What the sprite puts on the cloth for this hero state: the frame, where it is drawn, its body box and the gong's
 // centre and radius, all in world units. The renderer, the sparks and the tests read the same numbers.
 // pose is the rig's pose for the same state (x, y bob, facing); a knocked-down clip brings its own rotation.
+const BODY=.9;
 function drawn(p,t,pose,left,right){
   const i=frameFor(p,t),w=META.worldPerPx,f=pose.face||1,b=META.box[i],g=META.gong[i],[rx,ry]=META.root;
   const x=placeX(i,pose.x,f,left,right),y=pose.y||0,xa=x+f*(b[0]-rx)*w,xb=x+f*(b[2]-rx)*w;
-  return{frame:i,x,y,face:f,box:{minX:Math.min(xa,xb),maxX:Math.max(xa,xb),minY:y+(ry-b[3])*w,maxY:y+(ry-b[1])*w},
-    gong:g?{x:x+f*(g[0]-rx)*w,y:y+(ry-g[1])*w,r:g[2]*w}:null};
+  const box={minX:Math.min(xa,xb),maxX:Math.max(xa,xb),minY:y+(ry-b[3])*w,maxY:y+(ry-b[1])*w};
+  const gong=g?{x:x+f*(g[0]-rx)*w,y:y+(ry-g[1])*w,r:g[2]*w}:null;
+  // A coarse silhouette for standing-room checks: the column of his robe and skirt (0.9 wide about the feet), and the
+  // square around the gong. The whole box is too blunt: it is as wide as the outstretched arm at every height.
+  const parts={body:{minX:x-BODY/2,maxX:x+BODY/2,minY:box.minY,maxY:box.maxY}};
+  if(gong)parts.gong={minX:gong.x-gong.r,maxX:gong.x+gong.r,minY:gong.y-gong.r,maxY:gong.y+gong.r};
+  return{frame:i,x,y,face:f,box,gong,parts};
 }
 root.GongFlow={META,frameFor,placeX,drawn,ownRotation:s=>OWN_ROTATION.has(s),url:'assets/'+META.image};
 if(typeof module!=='undefined')module.exports=root.GongFlow;

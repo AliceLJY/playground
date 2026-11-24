@@ -444,10 +444,11 @@ function createWorld(canvas){
     const pp=puppets.get(0),p=s.player,pose=R.pose('player',p,s.time);let hero=null;
     if(pp&&pp.flow){
       const d=root.GongFlow.drawn(p,s.time,pose,left,right),me=pp.meshes[0].m.matrix.elements,re=pp.ring.matrix.elements;
-      hero={flow:true,frame:d.frame,mirror:Math.sign(me[0]),x:me[12],box:d.box,gong:pp.ring.visible?{x:re[12],y:re[13],r:d.gong.r}:null};
+      hero={flow:true,frame:d.frame,mirror:Math.sign(me[0]),x:me[12],box:d.box,parts:d.parts,gong:pp.ring.visible?{x:re[12],y:re[13],r:d.gong.r}:null};
     }else if(pp){
       const g=R.point('player',R.solve('player',pose),'gong');
-      hero={flow:false,mirror:p.face,x:p.x,box:R.bounds('player',pose),gong:{x:g.x,y:g.y,r:.4}};
+      const box=R.bounds('player',pose);
+      hero={flow:false,mirror:p.face,x:p.x,box,gong:{x:g.x,y:g.y,r:.4},parts:{body:{minX:p.x-.45,maxX:p.x+.45,minY:box.minY,maxY:box.maxY},gong:{minX:g.x-.4,maxX:g.x+.4,minY:g.y-.4,maxY:g.y+.4}}};
     }
     // the sparks of the latest parry only: earlier bursts may still be in the air
     let sx=0,sy=0,n=0;for(const q of sparks)if(lastBurst&&q.id===lastBurst.id){sx+=q.x;sy+=q.y;n++;}
