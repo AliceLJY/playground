@@ -63,6 +63,9 @@ const rotY = (p, a) => { const c = Math.cos(a), s = Math.sin(a); return [c * p[0
 export const ringAngle = (t) => 2 * Math.PI * t / RING_PERIOD;
 // Ring-local point (azimuth psi measured from +X toward +Z) to world at time t.
 export function ringPoint(psi, r, y, t) { const a = psi - ringAngle(t); return [r * Math.cos(a), y, r * Math.sin(a)]; }
+// Centre line of the garden footpath across the deck (y, metres) at ring-local azimuth psi.
+export const gardenPath = (psi) => -0.6 * Math.sin(9 * psi);
+export const EYE = 1.75;                   // garden camera height above the deck, metres
 export function phaseAt(t) { const c = mod(t); return PHASES.find(p => c >= p.start && c < p.end) || PHASES[PHASES.length - 1]; }
 export function shotAt(t) { const c = mod(t); return SHOTS.find(s => c >= s.start && c < s.end) || SHOTS[SHOTS.length - 1]; }
 
@@ -217,8 +220,9 @@ export const shotPose = {
   },
   garden(t, aspect, u) {
     // Co-rotating with the habitat: a slow walk along the deck, head toward the spin axis.
-    const psi = 200 * D + u * 2.4 * D;
-    const position = ringPoint(psi, 63.6, -0.3, t), ahead = ringPoint(psi + 13 * D, 66.4, 0.4, t);
+    // Eye height on the footpath itself: higher up the camera sat inside the tree crowns.
+    const psi = 200 * D + u * 2.4 * D, look = psi + 12 * D;
+    const position = ringPoint(psi, RING.floor - EYE, gardenPath(psi), t), ahead = ringPoint(look, RING.floor - 2.2, gardenPath(look) * 0.6, t);
     const up = norm(scale([position[0], 0, position[2]], -1));
     return { position, target: ahead, up, fov: widen(58, aspect, 74), frame: 'ring' };
   },

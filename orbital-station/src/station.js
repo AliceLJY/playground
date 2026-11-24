@@ -1,7 +1,7 @@
 // Procedural station, shuttle and robotic arm. Every mesh carries userData.layer (metal / glass /
 // emissive) and userData.role (what the part is for); tests read both, so nothing is decoration.
 import * as THREE from 'three';
-import { RING, HUB, PORT, TRUSS, mulberry, armAt, shuttleAt, stationRcs, ringAngle, sunDir } from './core.js';
+import { RING, HUB, PORT, TRUSS, mulberry, armAt, shuttleAt, stationRcs, ringAngle, sunDir, gardenPath } from './core.js';
 
 export const ROLES = {
   'ring-hull': 'pressurised habitat torus', 'ring-ribs': 'hull frames between the 24 modules', 'ring-glass': 'inner window band onto the garden',
@@ -142,11 +142,12 @@ function buildRing(mat, rng) {
   const trunks = [], crowns = [];
   for (let i = 0; i < 260; i++) {
     const a = rng() * Math.PI * 2, y = (rng() - 0.5) * 7.4;
-    if (Math.abs(y + 0.6 * Math.sin(a * 9)) < 1.3) continue;
+    if (Math.abs(y - gardenPath(a)) < 1.3) continue;
     const h = 1.6 + rng() * 2.4, r = RING.floor - h / 2;
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)));
     trunks.push(M().compose(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r), q, new THREE.Vector3(0.16, h, 0.16)));
-    const cr = RING.floor - h - 0.4, s = 0.8 + rng() * 0.9;
+    // Crowns stay off the footpath: a tree beside the path is a sapling, so the garden camera never sits inside one.
+    const cr = RING.floor - h - 0.4, s = Math.min(0.8 + rng() * 0.9, 0.35 + 0.33 * h, Math.abs(y - gardenPath(a)) - 0.75);
     crowns.push(M().compose(new THREE.Vector3(Math.cos(a) * cr, y, Math.sin(a) * cr), q, new THREE.Vector3(s, s * 1.25, s)));
   }
   ring.add(instanced(new THREE.CylinderGeometry(0.5, 0.7, 1, 5), mat.bark, trunks, 'organic', 'garden-trees'));

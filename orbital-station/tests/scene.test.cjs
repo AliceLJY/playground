@@ -110,3 +110,43 @@ test('A9 the garden deck shows through the inner windows from the outside shots'
     void st;
   }
 });
+
+test('A4 the garden camera walks under the trees: never inside a crown, with crowns ahead in frame', async () => {
+  const THREE = await three, { shotPoseAt, project, SHOTS } = await core;
+  const g = SHOTS.find(s => s.key === 'garden'), { st, meshes } = await build(g.start);
+  const crowns = meshes.find(m => m.userData.role === 'garden-trees' && m.geometry.type.startsWith('Icosahedron'));
+  const trees = meshes.filter(m => m.userData.role === 'garden-trees');
+  const im = new THREE.Matrix4(), world = new THREE.Matrix4(), scale = new THREE.Vector3(), ray = new THREE.Raycaster();
+  const { norm, sub, cross, add, scale: mul } = await core;
+  for (const aspect of [1280 / 720, 390 / 664]) {
+    for (let t = g.start; t <= g.end + 1e-9; t += 0.25) {
+      st.update(t); st.root.updateMatrixWorld(true);
+      const pose = shotPoseAt('garden', t, aspect), eye = new THREE.Vector3(...pose.position);
+      // Rays through a 16×12 grid of the frame: how much of the picture is a tree closer than 4 m.
+      // The first version stood at 3.7 m, level with the crowns: 52 % of the desktop frame (29 % of its
+      // middle) was one or two giant leaf polygons. Walking at eye height it is at most about a third.
+      const f = norm(sub(pose.target, pose.position)), r = norm(cross(f, pose.up)), u = cross(r, f), th = Math.tan(pose.fov * Math.PI / 360);
+      let near = 0, mid = 0, midAll = 0; ray.far = 4;
+      for (let iy = 0; iy < 12; iy++) for (let ix = 0; ix < 16; ix++) {
+        const sx = (ix + 0.5) / 8 - 1, sy = (iy + 0.5) / 6 - 1;
+        ray.set(eye, new THREE.Vector3(...add(f, add(mul(r, sx * th * aspect), mul(u, sy * th)))).normalize());
+        const hit = ray.intersectObjects(trees, false).length > 0; if (hit) near++;
+        if (Math.abs(sx) < 0.4 && Math.abs(sy) < 0.4) { midAll++; if (hit) mid++; }
+      }
+      assert.ok(near / 192 <= 0.4, `garden @${t.toFixed(2)} s (aspect ${aspect.toFixed(2)}): trees closer than 4 m fill ${(near / 1.92).toFixed(0)} % of the frame (spec ≤ 40 %)`);
+      assert.ok(mid / midAll <= 0.15, `garden @${t.toFixed(2)} s (aspect ${aspect.toFixed(2)}): trees closer than 4 m fill ${(100 * mid / midAll).toFixed(0)} % of the middle of the frame (spec ≤ 15 %)`);
+      let gap = Infinity, ahead = 0;
+      for (let i = 0; i < crowns.count; i++) {
+        crowns.getMatrixAt(i, im); world.multiplyMatrices(crowns.matrixWorld, im);
+        // Crowns are unit icosahedra scaled per tree: in crown space the camera must stay outside radius 1.
+        const local = eye.clone().applyMatrix4(world.clone().invert());
+        scale.setFromMatrixScale(world);
+        gap = Math.min(gap, (local.length() - 1) * Math.min(scale.x, scale.y, scale.z));
+        const q = project(pose, aspect, new THREE.Vector3().setFromMatrixPosition(world).toArray());
+        if (q.z > 3 && q.z < 40 && q.x > 0 && q.x < 1 && q.y > 0 && q.y < 1) ahead++;
+      }
+      assert.ok(gap >= 0.3, `garden @${t.toFixed(2)} s (aspect ${aspect.toFixed(2)}): camera is ${gap.toFixed(2)} m from a tree crown (inside it when negative); spec ≥ 0.3 m`);
+      assert.ok(ahead >= 5, `garden @${t.toFixed(2)} s (aspect ${aspect.toFixed(2)}): only ${ahead} tree crowns in frame 3–40 m ahead (need ≥ 5)`);
+    }
+  }
+});
