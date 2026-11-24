@@ -14,6 +14,10 @@ export const STEP = 1 / 120;         // fixed simulation step, seconds
 export const BODY = { y: 0.72, rx: 0.17, ry: 0.19, rz: 0.34 };
 export const NECK = { n: 7, seg: 0.13, base: [0, 0.14, 0.27] };
 export const NECK_LEN = NECK.n * NECK.seg;
+// Bone length for a given base-to-head distance: 12 % longer than the straight line, never shorter than
+// NECK_MIN of the full neck, never longer than the full neck.
+export const NECK_MIN = 0.5;
+export const neckSeg = (d) => clamp(d * 1.12, NECK_MIN * NECK_LEN, NECK_LEN) / NECK.n;
 export const BEAK = 0.16;            // head joint to beak tip
 export const LEG = { hip: [0.085, -0.09, 0.03], thigh: 0.30, shank: 0.36, foot: 0.10 };
 export const WING = { shoulder: [0.15, 0.07, 0.13], len: 0.36 };
@@ -558,7 +562,7 @@ export function createSim({ seed = 7, aspect = 1.6 } = {}) {
     const bob = S.speed > 0.05 ? 0.04 * Math.sin(t * 2 * Math.PI * 1.9) : 0.006 * Math.sin(t * 1.7);
     const rest = () => ({ h: toWorld(hf, restHead(lift, bob)), f: headDir(hf, 0, REST_PITCH) });
     let goal = rest();
-    if (P && P.phase !== 'wait') goal = pickupNeck(P, hf, rest);
+    if (P && P.phase !== 'wait') goal = pickupNeck(P, hf, rest, bf);
     else if (P && P.phase === 'wait' && !S.peck) {
       const f = S.feathers[P.id], v = dirLocal(hf, sub(f.quill, toWorld(hf, restHead(lift))));
       const yaw = clamp(Math.atan2(v[0], v[2]), -1.2, 1.2), pitch = clamp(Math.atan2(v[1], Math.hypot(v[0], v[2])), -1.0, 0.3);
@@ -581,25 +585,34 @@ export function createSim({ seed = 7, aspect = 1.6 } = {}) {
     return goal;
   }
 
-  function pickupNeck(P, hf, rest) {
+  function pickupNeck(P, hf, rest, bf) {
+    // Swing the head out in front of the body between a high point and the ground, instead of along the
+    // straight line between them: that line passes within 0.27 m of the neck base, where any neck folds.
+    const base = toWorld(bf, NECK.base);
+    const swing = (a, b, k) => {
+      const mid = mix(a, b, 0.5); let h = [mid[0] - base[0], 0, mid[2] - base[2]];
+      if (len(h) < 0.15) h = dirWorld(hf, [0, 0, 1]);
+      const c = add(base, add(scale(norm(h), 0.8), [0, 0.15, 0]));
+      return bez2(a, c, b, k);
+    };
     const f = S.feathers[P.id], u = P.t;
     const pickF = headDir(hf, 0, -1.05);
     const F = FEATHERS[P.id];
     const sideSign = F.u >= 0 ? 1 : -1;
     const insF = headDir(hf, sideSign * 0.85 * Math.PI, -0.95);
-    const liftH = toWorld(hf, [0, 1.25, 0.42]), liftF = headDir(hf, 0, -0.35);
+    const liftH = toWorld(hf, [0, 1.55, 0.5]), liftF = headDir(hf, 0, -0.35);   // high enough that the neck is not left with slack to loop
     const slot = () => slotWorld(P.id);
     if (!P.from) P.from = { h: S.pose.neck[S.pose.neck.length - 1], f: S.pose.head.z };
     if (P.phase === 'reach') {
       const k = ease(u / PICK.reach), gh = sub(f.quill, scale(pickF, BEAK));
-      return { h: mix(P.from.h, gh, k), f: slerp(P.from.f, pickF, k) };
+      return { h: swing(P.from.h, gh, k), f: slerp(P.from.f, pickF, k) };
     }
     if (P.phase === 'grip') return { h: sub(S.pose.beak, scale(pickF, BEAK)), f: pickF };
-    if (P.phase === 'lift') { const k = ease(u / PICK.lift); return { h: mix(P.from.h, liftH, k), f: slerp(P.from.f, liftF, k) }; }
+    if (P.phase === 'lift') { const k = ease(u / PICK.lift); return { h: swing(P.from.h, liftH, k), f: slerp(P.from.f, liftF, k) }; }
     if (P.phase === 'turn') {
       const k = ease(u / PICK.turn), s = slot();
       const pre = sub(add(s.q, scale(s.d, SLIDE)), scale(insF, BEAK));
-      const over = toWorld(hf, [sideSign * 0.12, 1.45, 0.02]);
+      const over = toWorld(hf, [sideSign * 0.15, 1.7, 0.12]);   // arch high over the back on the way to the train
       const yaw = lerp(0, sideSign * 0.85 * Math.PI, k), pitch = lerp(-0.35, -0.95, k);
       return { h: bez2(P.from.h, over, pre, k), f: headDir(hf, yaw, pitch) };
     }
@@ -614,19 +627,32 @@ export function createSim({ seed = 7, aspect = 1.6 } = {}) {
   }
 
   function solveNeck(base, target, fwd, bf) {
-    const n = NECK.n, l = NECK.seg;
+    const n = NECK.n;
     // Keep the target within reach (the tests check that the beak still meets the quill).
     let tgt = target; const d0 = dist(base, tgt);
-    if (d0 > n * l * 0.995) tgt = add(base, scale(norm(sub(tgt, base)), n * l * 0.995));
-    // Start from a smooth S-shaped guide curve whose length matches the chain, so a slack neck curves
-    // gently instead of folding into a zigzag, and the result does not depend on the previous frame.
-    const d1 = norm(add(scale(bf.z, 0.55), scale(bf.y, 0.85))), d2 = norm(add(scale(fwd, 0.45), [0, 0.9, 0]));
-    const curve = (m) => { const p1 = add(base, scale(d1, m)), p2 = sub(tgt, scale(d2, m)); return (u) => bez3(base, p1, p2, tgt, u); };
+    if (d0 > NECK_LEN * 0.995) tgt = add(base, scale(norm(sub(tgt, base)), NECK_LEN * 0.995));
+    // A bird pulls its neck in when the head comes close to the body (the vertebrae fold into an S under
+    // the feathers), so the drawn neck is only a little longer than the straight line to the head. With a
+    // fixed 0.91 m neck and the head 0.4-0.7 m away, the spare length had nowhere to go but into loops.
+    const l = neckSeg(dist(base, tgt));
+    // Start from a smooth guide curve whose length matches the chain, sampled at equal arc length, so the
+    // result does not depend on the previous frame. The guide is a quadratic (a parabola arc, which cannot
+    // loop or form a cusp) whose control point is pushed out from the middle of the base-to-head line, so
+    // the bend peaks mid-neck and every joint shares it. The bulge goes toward the base's usual
+    // forward-up direction, taken square to that line. (Until 2026-11-25 this was a cubic with both end
+    // directions fixed; reaching down or back it looped, single joints bending 165-180°, and standing it
+    // showed a small Z mid-neck.)
     const arc = (c) => { const ps = Array.from({ length: 41 }, (_, i) => c(i / 40)); let L = 0; const acc = [0]; for (let i = 1; i < ps.length; i++) { L += dist(ps[i], ps[i - 1]); acc.push(L); } return { ps, acc, L }; };
     const want = n * l * 1.015;
-    let lo = 0.02, hi = 1.2;
-    for (let k = 0; k < 22; k++) { const mid = (lo + hi) / 2; if (arc(curve(mid)).L < want) lo = mid; else hi = mid; }
-    const A = arc(curve((lo + hi) / 2));
+    const d1r = norm(add(scale(bf.z, 0.55), scale(bf.y, 0.85)));
+    const ch = sub(tgt, base), chn = norm(ch), mid = add(base, scale(ch, 0.5));
+    let side = sub(d1r, scale(chn, dot(d1r, chn)));
+    if (len(side) < 0.2) side = sub(bf.z, scale(chn, dot(bf.z, chn)));
+    side = norm(side);
+    const curve = (m) => { const c = add(mid, scale(side, m)); return (u) => bez2(base, c, tgt, u); };
+    let lo = 0, hi = 2;
+    for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (arc(curve(m)).L < want) lo = m; else hi = m; }
+    const A = arc(curve(lo));
     let pts = Array.from({ length: n + 1 }, (_, i) => {
       const s = (i / n) * A.L; let j = 1; while (j < A.acc.length - 1 && A.acc[j] < s) j++;
       const u = (s - A.acc[j - 1]) / Math.max(1e-9, A.acc[j] - A.acc[j - 1]);
@@ -713,7 +739,11 @@ export function posePoints(pose) {
 // Broken-body readings: bone lengths, joints that should coincide, feet under the ground.
 export function integrity(pose) {
   let bone = 0, joint = 0, ground = 0;
-  for (let i = 1; i < pose.neck.length; i++) bone = Math.max(bone, Math.abs(dist(pose.neck[i], pose.neck[i - 1]) - NECK.seg));
+  // Neck bones are all the same length (the neck shortens as a whole when the head comes in, see neckSeg).
+  const segs = []; for (let i = 1; i < pose.neck.length; i++) segs.push(dist(pose.neck[i], pose.neck[i - 1]));
+  const seg0 = segs.reduce((a, b) => a + b, 0) / segs.length;
+  for (const sg of segs) bone = Math.max(bone, Math.abs(sg - seg0));
+  bone = Math.max(bone, Math.max(0, NECK_MIN * NECK.seg - seg0 - 1e-9), Math.max(0, seg0 - NECK.seg - 1e-9));
   joint = Math.max(joint, dist(pose.neck[0], toWorld(pose.bodyFrame, NECK.base)));
   joint = Math.max(joint, Math.abs(dist(pose.beak, pose.neck[pose.neck.length - 1]) - BEAK));
   for (const L of pose.legs) {

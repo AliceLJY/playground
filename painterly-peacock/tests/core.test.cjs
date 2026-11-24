@@ -234,3 +234,26 @@ test('P9 the same seed and the same inputs give the same snapshot; the five URL 
     checkBody(C, sim, name);
   }
 });
+
+// 2026-11-24 real-GPU review: while fetching a feather the neck folded double (single joints 165-180°, the
+// whole neck turning more than a full circle), which looked like it was about to snap. A bird's neck curves
+// along its length; this pins that down for every pickup the P1 matrix plays.
+test('P10 while fetching a feather the neck curves along its length and never kinks', async () => {
+  const C = await core;
+  const bend = (n) => { let m = 0; for (let j = 1; j < n.length - 1; j++) m = Math.max(m, C.angleBetween(C.sub(n[j], n[j - 1]), C.sub(n[j + 1], n[j]))); return m * 180 / Math.PI; };
+  const CORE = new Set(['reach', 'grip', 'lift', 'turn', 'insert']);
+  for (const [vp, aspect] of ASPECTS) for (const seed of [1, 7, 23]) for (const id of [0, 5, 12, 16, 25]) for (const open of [true, false]) {
+    const label = `${vp} seed ${seed} feather ${id} fan ${open ? 'open' : 'folded'}`;
+    const sim = C.createSim({ seed, aspect });
+    sim.setHoverOverride(open); sim.step(open ? 3.4 : 1);
+    sim.pluck(id);
+    let worstCore = 0, worstAll = 0, at = '';
+    runUntil(sim, () => !sim.state.pickup, 30, 1 / 120, () => {
+      const b = bend(sim.state.pose.neck), ph = sim.state.pickup ? sim.state.pickup.phase : 'done';
+      if (b > worstAll) { worstAll = b; at = ph; }
+      if (CORE.has(ph)) worstCore = Math.max(worstCore, b);
+    });
+    assert.ok(worstCore <= 30, `${label}: a neck joint bent ${worstCore.toFixed(0)}° while reaching, holding or putting back`);
+    assert.ok(worstAll <= 60, `${label}: a neck joint bent ${worstAll.toFixed(0)}° (${at})`);
+  }
+});
