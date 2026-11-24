@@ -158,6 +158,7 @@ function eyeGeometry() {
   return mergeGeometries(parts);
 }
 
+const NECK_SUB = 4, NECK_DRAWN = NECK.n * NECK_SUB;
 // ---------- the whole bird ----------
 export function buildPeacock() {
   const root = new THREE.Group(); root.name = 'peacock';
@@ -171,8 +172,8 @@ export function buildPeacock() {
   const parts = {
     body: mk('body', 'body', bodyGeometry(), paintMaterial({ brush: 0.26, scale: 22, roughness: 0.7, metalness: 0.06 })),
     wings: [-1, 1].map(s => mk('wing-' + (s < 0 ? 'right' : 'left'), 'wing', wingGeometry(), paintMaterial({ brush: 0.18, scale: 30 }))),
-    neckSeg: mk('neck-segments', 'neck-seg', paint(new THREE.CylinderGeometry(1, 1, 1, 12, 1, true), PALETTE.neck), paintMaterial({ brush: 0.25, scale: 6, roughness: 0.6, metalness: 0.1 }), NECK.n),
-    neckJoint: mk('neck-joints', 'neck-joint', paint(new THREE.SphereGeometry(1, 14, 10), PALETTE.neck), paintMaterial({ brush: 0.25, scale: 6, roughness: 0.6, metalness: 0.1 }), NECK.n + 1),
+    neckSeg: mk('neck-segments', 'neck-seg', paint(new THREE.CylinderGeometry(1, 1, 1, 12, 1, true), PALETTE.neck), paintMaterial({ brush: 0.25, scale: 6, roughness: 0.6, metalness: 0.1 }), NECK_DRAWN),
+    neckJoint: mk('neck-joints', 'neck-joint', paint(new THREE.SphereGeometry(1, 12, 8), PALETTE.neck), paintMaterial({ brush: 0.25, scale: 6, roughness: 0.6, metalness: 0.1 }), NECK_DRAWN + 1),
     head: mk('head', 'head', headGeometry(), paintMaterial({ brush: 0.2, scale: 40, roughness: 0.6, metalness: 0.08 })),
     thighs: mk('thighs', 'thighs', paint(new THREE.SphereGeometry(0.5, 12, 8), PALETTE.thigh), paintMaterial({ brush: 0.3, scale: 30 }), 2),
     legs: mk('legs', 'legs', paint(new THREE.CylinderGeometry(1, 1, 1, 8), PALETTE.leg), paintMaterial({ brush: 0.15 }), 2),
@@ -193,14 +194,27 @@ export function buildPeacock() {
     Q.setFromUnitVectors(up, B.clone().sub(A).normalize());
     M.compose(T.copy(A).add(B).multiplyScalar(0.5), Q, Sv.set(r, L, r)); im.setMatrixAt(i, M);
   };
-  const neckR = (i) => 0.075 - 0.04 * Math.min(1, i / NECK.n);
+  // The neck is drawn along a Catmull-Rom curve through the solver's joints, NECK_SUB short pieces per bone,
+  // so the bones' corners read as one smooth S instead of a bent pipe; it tapers from 0.05 m to 0.026 m.
+  // Only the drawing changes: the solver, the head frame and the beak still come from the joints themselves.
+  const neckR = (u) => 0.05 - 0.024 * Math.min(1, u);
+  const neckPts = Array.from({ length: NECK_DRAWN + 1 }, () => [0, 0, 0]);
+  const catmull = (p0, p1, p2, p3, t, out) => {
+    const t2 = t * t, t3 = t2 * t;
+    for (let k = 0; k < 3; k++) out[k] = 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * t3);
+    return out;
+  };
   function update(pose) {
     const bf = pose.bodyFrame;
     setBasis(parts.body, bf.x, bf.y, bf.z, bf.o);
     pose.wings.forEach((w, i) => { const z = w.z, y = w.up, x = [y[1] * z[2] - y[2] * z[1], y[2] * z[0] - y[0] * z[2], y[0] * z[1] - y[1] * z[0]]; setBasis(parts.wings[i], x, y, z, w.o); });
     const n = pose.neck;
-    for (let i = 0; i < NECK.n; i++) segment(parts.neckSeg, i, n[i], n[i + 1], neckR(i + 0.5));
-    for (let i = 0; i <= NECK.n; i++) { const r = neckR(i); M.compose(T.set(...n[i]), Q.identity(), Sv.set(r, r, r)); parts.neckJoint.setMatrixAt(i, M); }
+    for (let j = 0; j <= NECK_DRAWN; j++) {
+      const i = Math.min(NECK.n - 1, Math.floor(j / NECK_SUB)), t = j / NECK_SUB - i;
+      catmull(n[Math.max(0, i - 1)], n[i], n[i + 1], n[Math.min(NECK.n, i + 2)], t, neckPts[j]);
+    }
+    for (let j = 0; j < NECK_DRAWN; j++) segment(parts.neckSeg, j, neckPts[j], neckPts[j + 1], neckR((j + 0.5) / NECK_DRAWN));
+    for (let j = 0; j <= NECK_DRAWN; j++) { const r = neckR(j / NECK_DRAWN); M.compose(T.set(...neckPts[j]), Q.identity(), Sv.set(r, r, r)); parts.neckJoint.setMatrixAt(j, M); }
     const h = pose.head; setBasis(parts.head, h.x, h.y, h.z, h.o);
     pose.legs.forEach((L, i) => {
       segment(parts.thighs, i, L.hip, L.knee, 0.1); segment(parts.legs, i, L.knee, L.foot, 0.017);

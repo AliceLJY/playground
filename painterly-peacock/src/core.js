@@ -182,7 +182,7 @@ export function cameraFor(aspect) {
 }
 
 // ---------- the simulation ----------
-const restHead = (lift, bob = 0) => [0, 1.56 + lift, 0.36 + bob];   // head joint in the heading frame
+const restHead = (lift, bob = 0) => [0, 1.68 + lift, 0.40 + bob];   // head joint in the heading frame; ~91 % of the neck chain, so it stands as a gentle curve, not a looped S
 const REST_PITCH = -0.12;
 // At rest it stands three-quarter on, turned toward the middle of the stage, so the folded train shows.
 export const IDLE_TURN = 0.8;

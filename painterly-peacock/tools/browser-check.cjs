@@ -128,10 +128,10 @@ async function main() {
       await page.mouse.move(viewport.width * body.x, viewport.height * body.y, { steps: 4 });
       await page.waitForTimeout(2500);
       s = await snapshot(page);
-      check('B5 desktop hover on the bird opens the train gradually', s.hover && s.fan > 0.6, { hover: s.hover, fan: s.fan });
+      check('B5 desktop hover on the bird opens the train gradually', s.hover && s.peacock.fan > 0.6, { hover: s.hover, fan: s.peacock.fan });
       await page.mouse.move(viewport.width * 0.95, viewport.height * 0.2, { steps: 4 });
       await page.waitForTimeout(400); const closing = await snapshot(page);
-      check('B5 desktop leaving starts closing', !closing.hover, { hover: closing.hover, fan: closing.fan });
+      check('B5 desktop leaving starts closing', !closing.hover, { hover: closing.hover, fan: closing.peacock.fan });
       // Click a feather's eye: that feather comes off and the bird goes for it.
       await page.evaluate(() => __PLAYTEST__.hover(true)); await page.evaluate(() => __PLAYTEST__.step(3000)); await page.evaluate(() => __PLAYTEST__.play());
       const e = (await snapshot(page)).eyes[12];
@@ -156,7 +156,7 @@ async function main() {
     } else {
       await page.locator('#b-fan').tap(); await page.waitForTimeout(2600);
       let s = await snapshot(page);
-      check('B5 phone 开屏 button opens the train', s.fanLatch && s.fan > 0.7, { fan: s.fan });
+      check('B5 phone 开屏 button opens the train', s.fanLatch && s.peacock.fan > 0.7, { fan: s.peacock.fan });
       const e = s.eyes[8];
       await page.touchscreen.tap(viewport.width * e.x, viewport.height * e.y); await page.waitForTimeout(200);
       s = await snapshot(page);
