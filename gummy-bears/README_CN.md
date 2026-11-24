@@ -18,9 +18,18 @@ node tools/preview.mjs            # 没有 WebGL 的机器上看构图的 CPU �
 
 源码入口：`node tools/serve.cjs . 8941`，打开 `http://127.0.0.1:8941/dev.html`。`?seed=n` 换种子，`?quality=low` 强制手机档。`window.__PLAYTEST__` 提供 `ready`、`snapshot()`、`reset()`、`setSeed(n)`、`step(ms)`、`grab(熊编号, 部位, [x, y])`、`release()`、`pour()` 等。上限、降档内容、预算、验收条目和还没验证的部分（真显卡观感、帧率、手机真机）见 [SPEC.md](SPEC.md)。Three.js 锁定 0.186.1，MIT 许可保留在生成的页面里。
 
+竖屏演示片（1080×1920，手动跑，不进检查；手机视口下页面自动用低画质档，和手机上一样），先起 `node tools/serve.cjs . 8982`：
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <输出目录> --endcard <署名页模板目录>   # 接管页面时钟逐帧录，真实触摸（拉、甩、点「再倒一些」），录下页面自己的声音
+~/.local/share/sweety-statechart-video/venv/bin/python -I tools/demo-sound.py <输出目录> <成片.mp4>   # 配乐垫在页面声音下面、响度归到 -12 LUFS（要 numpy 和 ffmpeg）
+```
+
+片里只拉、甩、倒，不往下按（往下按熊表面还会起皱，见 SPEC.md）。
+
 我的AI小木屋（公众号）· GitHub @AliceLJY
 
 ## 谁会点开、AI 素材
 
 - 谁会点开：喜欢捏东西、玩果冻和橡皮泥手感的人，想在电脑或手机上随手抓几只软糖熊拉一拉、甩一甩、倒一堆看它们抖。
-- AI 素材：代码和文档由 AI 协作完成。所有几何、颜色、影子和物理都是程序生成，没有使用 AI 生成或导入的图片、模型、动作文件和声音。没有声音。
+- AI 素材：代码和文档由 AI 协作完成。所有几何、颜色、影子和物理都是程序生成，没有使用 AI 生成或导入的图片、模型、动作文件和声音。声音（落地、抓起、松手）是 Web Audio 当场合成的，没有音频文件。

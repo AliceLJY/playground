@@ -18,6 +18,13 @@ node tools/preview.cjs          # 没有 WebGL 的机器上看构图的 CPU 预�
 
 源码入口：`node tools/serve.cjs . 8941`，打开 `http://127.0.0.1:8941/dev.html`。固定状态用 `?scene=stand`（收屏站立）、`display`（满屏）、`fallen`（羽毛落地）、`carrying`（衔着往回插）、`returned`（插回之后），都是从固定种子真实玩出来的，进入后暂停。`window.__PLAYTEST__` 提供 `ready`、`snapshot()`、`reset()`、`setSeed(n)`、`step(ms)`、`hover(true/false)`、`walkTo(屏幕 x, y)`、`pluck(id)`、`jump()`、`peck()`、`setScene(名字)`。验收条目、还没验证的部分见 [SPEC.md](SPEC.md)。Three.js 锁定 0.186.1，MIT 许可保留在生成的页面里。
 
+竖屏演示片（1080×1920，手动跑，不进检查），先起 `node tools/serve.cjs . 8981`：
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <输出目录> --endcard <署名页模板目录>   # 接管页面时钟逐帧录，真实鼠标事件（悬停开屏、点尾羽、点按钮），录下页面自己的声音
+~/.local/share/sweety-statechart-video/venv/bin/python -I tools/demo-sound.py <输出目录> <成片.mp4>   # 垫配乐、署名页落定音、响度归到 -12 LUFS（要 numpy 和 ffmpeg）
+```
+
 我的AI小木屋（公众号）· GitHub @AliceLJY
 
 ## 谁会点开、AI 素材

@@ -18,9 +18,18 @@ node tools/preview.mjs            # CPU composition preview for machines without
 
 Source entry: run `node tools/serve.cjs . 8941` and open `http://127.0.0.1:8941/dev.html`. `?seed=n` changes the seed and `?quality=low` forces the phone tier. `window.__PLAYTEST__` provides `ready`, `snapshot()`, `reset()`, `setSeed(n)`, `step(ms)`, `grab(bear, part, [x, y])`, `release()`, `pour()` and more. See [SPEC.md](SPEC.md) (in Chinese) for the bear cap, what the phone tier drops, the budget, the acceptance criteria and what is still unverified (look on a real GPU, frame rate, phone hardware). Three.js is pinned at 0.186.1; its MIT licence is kept in the generated page.
 
+Vertical demo video (1080×1920, run by hand, not a check; the phone viewport picks the low tier, as on a phone). Start `node tools/serve.cjs . 8982` first:
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <output-dir> --endcard <endcard-template-dir>   # takes over the page clock, steps frame by frame, real touches (pull, fling, pour), records the page's own sound
+~/.local/share/sweety-statechart-video/venv/bin/python -I tools/demo-sound.py <output-dir> <film.mp4>   # music bed under the page's sounds, loudness to -12 LUFS (needs numpy and ffmpeg)
+```
+
+The demo only pulls, flings and pours; it never presses a bear down (pressed bears still wrinkle, see SPEC.md).
+
 By 我的AI小木屋 (WeChat official account) · GitHub @AliceLJY
 
 ## Who it's for, AI assets
 
 - Who it's for: anyone who likes squishing things, jelly and putty, and wants to grab a few gummy bears on a computer or phone, pull them, fling them and pour a pile to watch it wobble.
-- AI assets: code and documentation were completed through AI collaboration. All geometry, colours, shadows and physics are procedural. No AI-generated or imported images, models, motion files or sounds are used. No audio.
+- AI assets: code and documentation were completed through AI collaboration. All geometry, colours, shadows and physics are procedural. No AI-generated or imported images, models, motion files or sounds are used. The sounds (landing, grab, release) are synthesised on the spot with Web Audio; there are no audio files.

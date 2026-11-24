@@ -18,6 +18,13 @@ node tools/preview.cjs          # CPU composition preview for machines without W
 
 Source entry: run `node tools/serve.cjs . 8941` and open `http://127.0.0.1:8941/dev.html`. Fixed states use `?scene=stand` (folded, standing), `display` (full fan), `fallen` (feather on the ground), `carrying` (feather in the beak on its way back), `returned` (after the insert); each is reached by real play from a fixed seed and then paused. `window.__PLAYTEST__` provides `ready`, `snapshot()`, `reset()`, `setSeed(n)`, `step(ms)`, `hover(true/false)`, `walkTo(screenX, screenY)`, `pluck(id)`, `jump()`, `peck()` and `setScene(name)`. See [SPEC.md](SPEC.md) for the acceptance criteria and for what is still unverified. Three.js is pinned at 0.186.1; its MIT licence is kept in the generated page.
 
+Vertical demo video (1080×1920, run by hand, not a check). Start `node tools/serve.cjs . 8981` first:
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <output-dir> --endcard <endcard-template-dir>   # takes over the page clock, steps frame by frame, real mouse events (hover, pluck, buttons), records the page's own sound
+~/.local/share/sweety-statechart-video/venv/bin/python -I tools/demo-sound.py <output-dir> <film.mp4>   # music bed, end card sounds, loudness to -12 LUFS (needs numpy and ffmpeg)
+```
+
 By 我的AI小木屋 (WeChat official account) · GitHub @AliceLJY
 
 ## Who it's for, AI assets
