@@ -17,6 +17,7 @@ const all = [
   ['sacred-heart', 'sacred-heart-cathedral/dist/'], ['sagrada-familia', 'sagrada-familia/dist/'], ['sky-citadel', 'sky-citadel/dist/'],
   ['prehistoric-island', 'prehistoric-island/dist/'],
   ['painterly-peacock', 'painterly-peacock/dist/'],
+  ['gummy-bears', 'gummy-bears/dist/'],
   ['snowline-cabin', 'snowline-cabin/dist/'], ['thirteen-hongs', 'thirteen-hongs/dist/index.html'],
   ['thirteen-webgpu', 'thirteen-hongs/dist/webgpu.html'], ['tidal-disruption', 'tidal-disruption/dist/'],
 ];

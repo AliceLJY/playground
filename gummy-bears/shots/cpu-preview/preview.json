@@ -1,0 +1,130 @@
+{
+  "note": "CPU preview from tools/preview.mjs, not WebGL screenshots: no refraction, reflections or tone mapping; title and card only outlined.",
+  "seed": 7,
+  "results": [
+    {
+      "scene": "row",
+      "viewport": "desktop",
+      "quality": "high",
+      "file": "01-row-desktop.png",
+      "simTime": 1.2,
+      "bears": 5,
+      "stretch": 1,
+      "maxStretch": 1,
+      "moving": 0,
+      "volume": [
+        0.9984,
+        0.9984
+      ]
+    },
+    {
+      "scene": "stretch",
+      "viewport": "desktop",
+      "quality": "high",
+      "file": "02-stretch-desktop.png",
+      "simTime": 0.4,
+      "bears": 5,
+      "stretch": 1.388,
+      "maxStretch": 1.397,
+      "moving": 5,
+      "volume": [
+        0.9963,
+        0.9983
+      ]
+    },
+    {
+      "scene": "fling",
+      "viewport": "desktop",
+      "quality": "high",
+      "file": "03-fling-desktop.png",
+      "simTime": 2.25,
+      "bears": 5,
+      "stretch": 1.002,
+      "maxStretch": 1.916,
+      "moving": 1,
+      "volume": [
+        0.9476,
+        0.9984
+      ],
+      "landedAt": 2.25
+    },
+    {
+      "scene": "pile",
+      "viewport": "desktop",
+      "quality": "high",
+      "file": "04-pile-desktop.png",
+      "simTime": 6.9833,
+      "bears": 30,
+      "stretch": 1,
+      "maxStretch": 1,
+      "moving": 0,
+      "volume": [
+        0.9836,
+        0.9988
+      ],
+      "settledAt": 6.983
+    },
+    {
+      "scene": "row",
+      "viewport": "phone",
+      "quality": "low",
+      "file": "01-row-phone.png",
+      "simTime": 1.2,
+      "bears": 5,
+      "stretch": 1,
+      "maxStretch": 1,
+      "moving": 0,
+      "volume": [
+        0.9984,
+        0.9984
+      ]
+    },
+    {
+      "scene": "stretch",
+      "viewport": "phone",
+      "quality": "low",
+      "file": "02-stretch-phone.png",
+      "simTime": 0.4,
+      "bears": 5,
+      "stretch": 1.388,
+      "maxStretch": 1.397,
+      "moving": 5,
+      "volume": [
+        0.9963,
+        0.9983
+      ]
+    },
+    {
+      "scene": "fling",
+      "viewport": "phone",
+      "quality": "low",
+      "file": "03-fling-phone.png",
+      "simTime": 2.2667,
+      "bears": 5,
+      "stretch": 1.002,
+      "maxStretch": 1.922,
+      "moving": 2,
+      "volume": [
+        0.8824,
+        0.9984
+      ],
+      "landedAt": 2.267
+    },
+    {
+      "scene": "pile",
+      "viewport": "phone",
+      "quality": "low",
+      "file": "04-pile-phone.png",
+      "simTime": 4.7667,
+      "bears": 18,
+      "stretch": 1,
+      "maxStretch": 1,
+      "moving": 0,
+      "volume": [
+        0.9907,
+        0.9978
+      ],
+      "settledAt": 4.767
+    }
+  ]
+}

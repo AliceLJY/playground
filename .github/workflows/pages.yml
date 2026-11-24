@@ -794,6 +794,17 @@ jobs:
           mkdir -p ../_site/painterly-peacock
           cp dist/index.html ../_site/painterly-peacock/index.html
 
+      - name: Check, bundle and assemble Gummy Bears
+        working-directory: gummy-bears
+        run: |
+          # 软糖熊：白桌面上一把半透明软糖熊，能抓能拉能甩，软体物理自己写（四面体格子加位置式约束），没有模型和贴图；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node tools/build.mjs
+          node --test tests/*.test.cjs
+          mkdir -p ../_site/gummy-bears
+          cp dist/index.html ../_site/gummy-bears/index.html
+
       - name: Check, bundle and assemble Dino Craft
         working-directory: dino-craft
         run: |

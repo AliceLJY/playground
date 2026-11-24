@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>软糖熊 · Gummy Bears</title><link rel="icon" href="data:,">
+<meta name="description" content="白桌面上的一把半透明软糖熊：抓住任意部位拉长、往下压、甩出去，松手会回弹；还能再倒一把堆成会抖的糖堆。全部由代码生成，软体物理也是自己写的。">
+<style>
+:root{color-scheme:light;--paper:#fbfaf7;--ink:#1d1b18;--muted:#6f6a62;--line:#e6e1d8;--accent:#c4162b;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua","Songti SC","STSong","Noto Serif CJK SC",Georgia,serif;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;color:var(--ink)}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--paper);overflow:hidden;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+@media (pointer:fine){canvas{cursor:none}}
+button{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:999px;min-height:44px;min-width:44px;cursor:pointer;padding:0 18px}
+button:hover{border-color:#b9b2a6}button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button:disabled{cursor:default;color:var(--muted);background:#f3f1ec}
+/* masthead: big italic serif, top left */
+.masthead{position:fixed;top:36px;left:40px;max-width:540px;pointer-events:none}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
+h1{font-family:var(--serif);font-style:italic;font-weight:400;font-size:96px;line-height:.92;letter-spacing:-.02em;margin:10px 0 6px}
+.cn{font-family:var(--serif);font-size:26px;letter-spacing:.12em;margin:0}
+.dek{margin:8px 0 0;font-size:14px;line-height:1.6;color:var(--muted);max-width:440px}
+/* the card: right side on wide screens */
+.card{position:fixed;top:36px;right:36px;width:300px;padding:18px 20px 16px;background:#ffffffeb;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px #3a2c1a12;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.card h2{margin:0 0 8px;font-size:11px;font-weight:500;letter-spacing:.16em;color:var(--muted)}
+.card section+section{margin-top:16px}
+.swatches{display:flex;gap:8px}
+.swatch{width:44px;height:44px;padding:0;display:grid;place-items:center;border-radius:50%}
+.swatch::before{content:"";width:26px;height:26px;border-radius:50%;background:var(--c);box-shadow:inset 0 -4px 8px #0002,inset 0 3px 5px #fff8}
+.swatch.clear::before{box-shadow:inset 0 -4px 8px #0001,inset 0 3px 5px #fff,0 0 0 1px #d8cfae}
+.swatch[aria-pressed=true]{border-color:var(--ink)}.swatch[aria-pressed=false]::before{opacity:.25}
+.note{margin:6px 0 0;font-size:12px;color:var(--muted);min-height:1em}
+.slider{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+input[type=range]{flex:1;min-width:0;height:44px;margin:0;accent-color:var(--ink);cursor:pointer}
+dl{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:0;font-size:13px}
+dt{color:var(--muted)}dd{margin:0;text-align:right;font-family:var(--serif);font-style:italic;font-size:16px;font-variant-numeric:tabular-nums}
+.actions{display:flex;gap:8px}
+#pour{flex:1;background:var(--ink);color:#fff;border-color:var(--ink)}#pour:disabled{background:#d9d4ca;border-color:#d9d4ca;color:#fff}
+.hint{margin:12px 0 0;font-size:12px;line-height:1.6;color:var(--muted)}
+/* the cursor: a ring that grows while holding a bear */
+#cursor{position:fixed;left:0;top:0;width:24px;height:24px;margin:-12px 0 0 -12px;pointer-events:none;z-index:5}
+#cursor::before{content:"";position:absolute;inset:0;border:1.5px solid var(--ink);border-radius:50%;transition:transform .14s ease,background .14s ease}
+#cursor[data-state=off],#cursor:not([data-state]){display:none}
+#cursor[data-state=hover]::before{transform:scale(1.5)}
+#cursor[data-state=grab]::before{transform:scale(2.4);background:#1d1b1814}
+.fail{position:fixed;inset:0;display:grid;place-content:center;padding:32px;background:var(--paper);line-height:1.9;text-align:center}
+[hidden]{display:none!important}
+/* narrow or portrait screens: card under the bears (kept in step with src/view.js LAYOUT) */
+@media (max-width:699px),(max-aspect-ratio:20/23){
+  .masthead{top:12px;left:16px;right:16px;max-width:none}
+  .eyebrow{font-size:9px;letter-spacing:.16em}
+  h1{font-size:40px;margin:4px 0 0;display:inline-block}
+  .cn{display:inline-block;font-size:17px;margin-left:10px}
+  .dek{display:none}
+  .card{top:auto;right:10px;left:10px;bottom:10px;width:auto;padding:10px 12px;border-radius:14px;display:grid;grid-template-columns:1fr;gap:6px}
+  .card section+section{margin-top:0}
+  .card h2,.note,.hint{display:none}
+  .flavors{display:flex;align-items:center;gap:8px}.swatches{gap:6px}
+  dl{grid-template-columns:auto auto auto auto auto auto;gap:0 6px;font-size:12px;align-items:baseline}dd{font-size:14px;text-align:left}
+  dl .wide{display:none}
+}
+</style></head><body>
+<canvas id="scene" aria-label="软糖熊三维画面：按住一只熊可以拖动、拉长、往下压和甩出去"></canvas>
+<header class="masthead">
+  <div class="eyebrow">Soft-body study · 软体习作</div>
+  <h1>Gummy Bears</h1><p class="cn">软糖熊</p>
+  <p class="dek">一把半透明软糖熊。按住任意部位拉长、往下压、甩出去，松手它会自己弹回原形。</p>
+</header>
+<aside class="card" aria-label="控制">
+  <section class="flavors"><h2>口味 · FLAVORS</h2><div class="swatches" id="swatches" role="group" aria-label="倒出来的口味"></div><p class="note" id="flavor-note"></p></section>
+  <section><h2>软硬 · FIRMNESS</h2><label class="slider">硬<input id="softness" type="range" min="0" max="100" step="1" aria-label="软硬">软</label></section>
+  <section><h2>读数 · LIVE</h2><dl>
+    <dt>拉伸</dt><dd id="r-stretch">×1.00</dd>
+    <dt>最大</dt><dd id="r-max">×1.00</dd>
+    <dt>弹跳</dt><dd id="r-bounce">0%</dd>
+    <dt class="wide">桌上</dt><dd class="wide" id="r-count">5 / 30</dd>
+  </dl></section>
+  <section class="actions"><button id="pour" type="button">再倒一些</button><button id="reset" type="button">重摆</button></section>
+  <p class="hint">按住熊的任意部位拖动；往下压；用力一甩再松手。弹跳按熊身长的百分比算。</p>
+</aside>
+<div id="cursor" data-state="off" aria-hidden="true"></div>
+<div class="fail" id="fail" hidden></div>
+<noscript><div class="fail">这个页面需要打开 JavaScript 和 WebGL 才能显示三维的软糖熊。</div></noscript>
+<!--BUNDLE-->
+</body></html>
