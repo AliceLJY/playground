@@ -85,3 +85,41 @@ sections.push(async(c)=>{
     await p.ctx.close();
   }
 });
+
+// 2. "The dialog says at most ten characters, the input allows twenty and silently cuts the rest." Whatever the visitor
+//    sees in the box must be what lands on the shelf, and going over has to be said out loud.
+sections.push(async(c)=>{
+  if(!c.want(2))return;
+  const long='明天又要交周报了啊真烦人呀',emoji='😀😀😀😀😀😀😀😀😀😀😀😀';   // 13 characters; 12 emoji (24 UTF-16 units)
+  for(const name of Object.keys(VIEWPORTS)){
+    const p=await c.open(name,'&solo=1');
+    const count=s=>Array.from(s).length;
+    await p.page.click('#write');
+    await p.page.keyboard.type(long);
+    let v=await p.page.inputValue('#noteText');
+    const typed=await p.page.evaluate(()=>({n:document.querySelector('#noteLeft')?.textContent||'',cls:document.querySelector('#noteLeft')?.className||''}));
+    await p.page.screenshot({path:c.path.join(c.out,`2-${name}-typed.png`)});
+    c.check(`2. ${name}: typing 13 characters leaves at most 10 in the box (what you see is what lands)`,count(v)<=10,{shown:v,n:count(v)});
+    c.check(`2. ${name}: going over 10 is said out loud (counter reads 10/10 and is marked full)`,/10\s*\/\s*10/.test(typed.n)&&/\bfull\b/.test(typed.cls),typed);
+    await p.page.fill('#noteText','');
+    await p.page.fill('#noteText',emoji);
+    v=await p.page.inputValue('#noteText');
+    c.check(`2. ${name}: pasting 12 emoji also stops at 10 characters`,count(v)<=10,{n:count(v)});
+    // an IME composition (pinyin being typed) must not be cut mid-way; once committed it is clipped like anything else
+    await p.page.fill('#noteText','');
+    const cdp=await p.ctx.newCDPSession(p.page);
+    await p.page.focus('#noteText');
+    await cdp.send('Input.imeSetComposition',{text:'mingtianyaojiaozhoubaole',selectionStart:24,selectionEnd:24});
+    const mid=await p.page.inputValue('#noteText');
+    await cdp.send('Input.insertText',{text:long});
+    v=await p.page.inputValue('#noteText');
+    c.check(`2. ${name}: a composition in progress is left alone, the committed text is clipped to 10`,mid.length>10&&count(v)===10,{mid,committed:v});
+    await p.page.fill('#noteText','');
+    await p.page.keyboard.type('又要开会');
+    const ok=await p.page.evaluate(()=>({v:document.querySelector('#noteText').value,n:document.querySelector('#noteLeft')?.textContent||'',cls:document.querySelector('#noteLeft')?.className||''}));
+    c.check(`2. ${name}: a short note is untouched and the counter is quiet`,ok.v==='又要开会'&&/4\s*\/\s*10/.test(ok.n)&&!/\bfull\b/.test(ok.cls),ok);
+    await p.page.click('#noteForm button[type=submit]');
+    await p.page.waitForFunction(()=>window.__suisui.probe().slots.some(s=>s.text==='又要开会'),null,{timeout:4000}).then(()=>c.check(`2. ${name}: the short note reaches the shelf`,true),()=>c.check(`2. ${name}: the short note reaches the shelf`,false));
+    await p.ctx.close();
+  }
+});

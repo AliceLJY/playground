@@ -379,8 +379,26 @@ function smashAll() {
 }
 
 const dlg = $('#dlg'), noteText = $('#noteText');
+// The box allows 20 UTF-16 units so a pinyin composition is not cut while it is still being typed; the real limit is
+// G.noteMax characters, enforced as soon as the text is committed, and the counter says so out loud.
+const noteLeft = $('#noteLeft');
+let composing = false;
+function paintLeft(clipped) {
+  const n = Array.from(noteText.value).length;
+  noteLeft.textContent = clipped ? `${n}/${G.noteMax} · 多出来的没写进去` : `${n}/${G.noteMax}`;
+  noteLeft.classList.toggle('full', n >= G.noteMax);
+}
+function clipNote() {
+  const chars = Array.from(noteText.value);
+  const clipped = chars.length > G.noteMax;
+  if (clipped) noteText.value = chars.slice(0, G.noteMax).join('');
+  paintLeft(clipped);
+}
+noteText.addEventListener('compositionstart', () => { composing = true; });
+noteText.addEventListener('compositionend', () => { composing = false; clipNote(); });
+noteText.addEventListener('input', (e) => { if (composing || e.isComposing) paintLeft(false); else clipNote(); });
 function openNote(prefill = '') {
-  noteText.value = prefill;
+  noteText.value = prefill; composing = false; clipNote();
   if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   setTimeout(() => noteText.focus(), 30);
 }

@@ -99,7 +99,9 @@ dialog h2{margin:0 0 4px;font:700 20px var(--hand)}
 dialog p{margin:0 0 14px;font-size:13px;color:var(--ink2)}
 dialog input{box-sizing:border-box;width:100%;font:700 24px var(--hand);padding:14px 14px;border:0;border-radius:4px;background:linear-gradient(180deg,#fbe27a,#f2cd4b);color:#3a2914;outline:none;box-shadow:0 2px 0 #c99a22;-webkit-user-select:text;user-select:text}
 dialog input::placeholder{color:rgba(58,41,20,.4)}
-dialog .row{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+dialog .left{margin-top:6px;text-align:right;font-size:12px;line-height:16px;color:var(--ink2);font-variant-numeric:tabular-nums}
+dialog .left.full{color:#f0a37a}
+dialog .row{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
 noscript{position:fixed;inset:0;display:grid;place-items:center;font-size:16px}
 @media (prefers-reduced-motion:reduce){.float{animation:none;opacity:0}}
 @media (max-width:420px){h1{font-size:23px}.hint{font-size:11.5px}button{padding:0 16px;font-size:15px}footer{gap:10px}}
@@ -130,6 +132,7 @@ noscript{position:fixed;inset:0;display:grid;place-items:center;font-size:16px}
     <h2>写下烦心事</h2>
     <p>最多十个字，贴上架子，然后砸了它。</p>
     <input id="noteText" name="t" maxlength="20" autocomplete="off" enterkeyhint="done" placeholder="比如：又要开会">
+    <div class="left" id="noteLeft" aria-live="polite">0/10</div>
     <div class="row"><button class="ghost" value="cancel" type="button" id="noteCancel">算了</button><button class="primary" value="ok" type="submit">贴上去</button></div>
   </form>
 </dialog>
