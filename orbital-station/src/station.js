@@ -90,7 +90,8 @@ export function createMaterials() {
   const glass = new THREE.MeshStandardMaterial({ color: '#9fd4ff', metalness: 0.1, roughness: 0.06, transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.6 });
   const cells = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.35, roughness: 0.22, envMapIntensity: 1.4, side: THREE.DoubleSide });
   const soil = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 0.95, side: THREE.DoubleSide });
-  const leaf = new THREE.MeshStandardMaterial({ color: '#4f8a3c', metalness: 0, roughness: 0.85, flatShading: true });
+  // Leaf colour comes from vertex colours (darker underneath, lighter on top), never instanceColor.
+  const leaf = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 0.85, flatShading: true });
   const bark = new THREE.MeshStandardMaterial({ color: '#6a4a33', metalness: 0, roughness: 0.9 });
   const emissive = (c, k) => new THREE.MeshStandardMaterial({ color: '#111111', emissive: c, emissiveIntensity: k, metalness: 0, roughness: 0.7 });
   return {
@@ -142,19 +143,42 @@ function buildRing(mat, rng) {
   floor.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   ring.add(tag(new THREE.Mesh(floor, mat.soil), 'organic', 'garden-floor'));
   // Trees grow toward the axis. Trunks and canopies share instance matrices.
-  const trunks = [], crowns = [];
+  // 2026-11-25 (AGY on the recording, checked frame by frame): crowns were 20-face balls that poked through the
+  // deck's side walls. Now every crown stays 0.35 m inside the walls (|y| + radius <= half - 0.35), round
+  // crowns are 80-face icosahedra shaded darker underneath, and about a quarter of the trees are two-tier
+  // conifers, so the deck reads as a planted garden rather than a row of green dice.
+  const trunks = [], crowns = [], firs = [], WALL = RING.half - 0.35;
   for (let i = 0; i < 260; i++) {
     const a = rng() * Math.PI * 2, y = (rng() - 0.5) * 7.4;
     if (Math.abs(y - gardenPath(a)) < 1.3) continue;
     const h = 1.6 + rng() * 2.4, r = RING.floor - h / 2;
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(-Math.cos(a), 0, -Math.sin(a)));
+    // Crowns stay off the footpath (a tree beside the path is a sapling, so the garden camera never sits inside
+    // one) and off the side walls.
+    const s = Math.min(0.8 + rng() * 0.9, 0.35 + 0.33 * h, Math.abs(y - gardenPath(a)) - 0.75, WALL - Math.abs(y));
+    const fir = rng() < 0.25;
+    if (s < 0.3) continue;
     trunks.push(M().compose(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r), q, new THREE.Vector3(0.16, h, 0.16)));
-    // Crowns stay off the footpath: a tree beside the path is a sapling, so the garden camera never sits inside one.
-    const cr = RING.floor - h - 0.4, s = Math.min(0.8 + rng() * 0.9, 0.35 + 0.33 * h, Math.abs(y - gardenPath(a)) - 0.75);
-    crowns.push(M().compose(new THREE.Vector3(Math.cos(a) * cr, y, Math.sin(a) * cr), q, new THREE.Vector3(s, s * 1.25, s)));
+    if (fir) {
+      // Two stacked cones, narrower than a round crown of the same size.
+      for (const [lift, w, tall] of [[0, 1, 1.4], [0.9, 0.7, 1.1]]) {
+        const c = RING.floor - h * 0.55 - lift * s - tall * s * 0.5;
+        firs.push(M().compose(new THREE.Vector3(Math.cos(a) * c, y, Math.sin(a) * c), q, new THREE.Vector3(s * 0.75 * w, s * tall, s * 0.75 * w)));
+      }
+    } else {
+      const cr = RING.floor - h - 0.4;
+      crowns.push(M().compose(new THREE.Vector3(Math.cos(a) * cr, y, Math.sin(a) * cr), q, new THREE.Vector3(s, s * 1.25, s)));
+    }
   }
-  ring.add(instanced(new THREE.CylinderGeometry(0.5, 0.7, 1, 5), mat.bark, trunks, 'organic', 'garden-trees'));
-  ring.add(instanced(new THREE.IcosahedronGeometry(1, 0), mat.leaf, crowns, 'organic', 'garden-trees'));
+  // Vertex colours along the crown's own up axis (toward the ring axis): shaded underneath, sunlit on top.
+  const shade = (geo, lo, hi) => {
+    const p = geo.attributes.position, c = [], A = new THREE.Color(lo), B = new THREE.Color(hi), C = new THREE.Color();
+    for (let i = 0; i < p.count; i++) { const k = Math.min(1, Math.max(0, (p.getY(i) + 1) / 2)), j = 0.92 + 0.16 * Math.sin(i * 12.9898); C.copy(A).lerp(B, k).multiplyScalar(j); c.push(C.r, C.g, C.b); }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3)); return geo;
+  };
+  ring.add(instanced(new THREE.CylinderGeometry(0.5, 0.7, 1, 6), mat.bark, trunks, 'organic', 'garden-trees'));
+  ring.add(instanced(shade(new THREE.IcosahedronGeometry(1, 1), '#2f5f2a', '#7fb055'), mat.leaf, crowns, 'organic', 'garden-trees'));
+  ring.add(instanced(shade(new THREE.ConeGeometry(1, 1, 8, 1), '#244a26', '#5f8f48'), mat.leaf, firs, 'organic', 'garden-trees'));
   // Daylight strips on the deck ceiling and path lamps.
   const strips = [];
   for (let i = 0; i < 48; i++) { const a = (i * 7.5 + 3.75) * D; strips.push(M().compose(new THREE.Vector3(Math.cos(a) * 60.5, RING.half - 0.25, -Math.sin(a) * 60.5), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), new THREE.Vector3(1.1, 0.1, 5.2))); }
