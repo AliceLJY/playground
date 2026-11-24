@@ -100,7 +100,18 @@ test('every fact names sources that exist, and unverified claims stay off the pa
   });
 });
 
-// The identity word check for page data runs outside this repo; a public test file must not carry the word list.
+// Real-identity words must not appear in the page data (spec 7 / AGENTS 7). The word list is private, so it lives in a
+// local file outside the repo (one word per line) and never in this public test file. Where the file is missing (CI,
+// someone else's machine) the test is skipped and says so; it is not a pass.
+test('no real-identity details on the page data',t=>{
+  const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+  const file=process.env.PLAYGROUND_IDENTITY_WORDS||path.join(os.homedir(),'.config','playground','identity-words.txt');
+  if(!fs.existsSync(file))return t.skip('private word list not on this machine; run where it exists before publishing');
+  const words=fs.readFileSync(file,'utf8').split('\n').map(w=>w.trim()).filter(Boolean);
+  assert.ok(words.length>=1,'the private word list is empty, so this check would prove nothing');
+  const all=JSON.stringify(C);
+  words.forEach((w,i)=>assert.ok(!all.includes(w),`spec 7 / AGENTS 7: private word #${i+1} must not appear`));
+});
 
 test('the share-card fact points at a real fact and every colour is a full hex',()=>{
   PILLARS.forEach(p=>{
