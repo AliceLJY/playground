@@ -100,10 +100,7 @@ test('every fact names sources that exist, and unverified claims stay off the pa
   });
 });
 
-test('no real-identity details on the page data',()=>{
-  const all=JSON.stringify(C);
-  for(const w of ['<redacted>','<redacted>','<redacted>'])assert.ok(!all.includes(w),`spec 7 / AGENTS 7: "${w}" must not appear`);
-});
+// The identity word check for page data runs outside this repo; a public test file must not carry the word list.
 
 test('the share-card fact points at a real fact and every colour is a full hex',()=>{
   PILLARS.forEach(p=>{
