@@ -1,4 +1,8 @@
 node_modules/
 dist/
-shots/
 .intermediate/
+# tools/preview.cjs output (CPU composition previews, not rendered screenshots)
+shots/preview/
+# tools/browser-check.cjs output; the dated review sheets in shots/ are kept
+shots/[0-9][0-9]-*.png
+shots/report.json
