@@ -49,6 +49,13 @@ NODE_PATH="$(npm root -g)" node tools/room-check.cjs <output-dir>     # two brow
 
 Point the page at it with `?room=ws://127.0.0.1:8798/room/ws`. The public room is the same `server/room.mjs` in a Cloudflare Durable Object at `wss://suisui.aliceljy.xyz/room/ws` (`cd worker && npx wrangler@4 deploy`; locally `npx wrangler@4 dev --port 8799 --var SEED:1`, then run room-check with `ROOM_URL=ws://127.0.0.1:8799/room/ws`). Spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese). Whether it feels good, sounds good and whether the shake is too much still needs a person with a phone.
 
+Vertical demo video (1080×1920, run by hand, not a check, single-player `?solo=1` only):
+
+```bash
+NODE_PATH="$(npm root -g)" node tools/demo.cjs <output-dir> --endcard <endcard-template-dir>   # frame-stepped capture with simulated touches and the page's own audio
+python3 tools/demo-score.py <output-dir> <film.mp4>                                          # music bed, end card, loudness to -12 LUFS (needs numpy)
+```
+
 ## Assets and sources
 
 - The particle engine is the Canvas 2D port from [rs-4/dissolve](https://github.com/rs-4/dissolve) (MIT), kept unmodified in `vendor/dissolve-atlas.js`; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
