@@ -1,0 +1,8 @@
+{
+  "name": "orbital-station",
+  "private": true,
+  "type": "module",
+  "description": "A procedural ring space station above Earth with a ten-shot camera tour",
+  "scripts": {"build": "node tools/build.mjs", "test": "node --test tests/*.test.cjs"},
+  "devDependencies": {"esbuild": "0.28.2", "three": "0.186.1"}
+}
