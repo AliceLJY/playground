@@ -212,6 +212,47 @@ async function extra(browser) {
     check(`H1-${w}`, `规则行（三行怎么玩、key 说明、副标题）折行后最后一行不少于 3 个字宽、不溢出（${w} 宽）`, !orphan.length && !rows.some((r) => r.overflow) && !log.errors.length, { rows, orphan, errors: log.errors });
     await ctx.close();
   }
+
+  // ---- M1 迟到的点击不许误买（第二轮复测：掷骰后约 1 秒再点同一位置，落在刚出现的「买下 ¥280」上买下了）----
+  // 固定种子 11：第一手点「掷两颗」掷 5+5 停在沙面（可买）。点完后在 100ms…1600ms 每隔 100ms 在同一坐标补点一次（每个延迟各开一局），
+  // 补点不是冲着新按钮来的，所有延迟都不许买下；等按钮放开后 50ms 的点击必须马上买下。桌面用鼠标，手机用真 tap。
+  for (const cfg of [{ name: 'desktop', vp: { width: 1280, height: 800 }, touch: false }, { name: 'mobile', vp: { width: 390, height: 664 }, touch: true }]) {
+    const bought = [], errs = [];
+    const delays = Array.from({ length: 16 }, (_, k) => (k + 1) * 100);
+    for (const d of delays) {
+      const { ctx, page, log } = await newPage(browser, cfg.vp, { dpr: 1, touch: cfg.touch });
+      await page.goto(`${BASE}?seed=11`);
+      await ready(page);
+      await page.click('#start');
+      const box = await page.locator('#act-a').boundingBox();
+      const x = box.x + box.width / 2, y = box.y + box.height / 2;
+      await page.mouse.click(x, y);
+      await page.waitForTimeout(d);
+      if (cfg.touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+      await page.waitForTimeout(150);
+      const s = await snap(page);
+      if (s.owner.includes(0)) bought.push(d);
+      errs.push(...log.errors);
+      await ctx.close();
+    }
+    check(`M1-${cfg.name}`, `迟到的补点不误买：点「掷两颗」后 100–1600ms 每隔 100ms 在原位补点一次（${cfg.name}），16 个延迟全都没买下`, !bought.length && !errs.length, { boughtAtDelayMs: bought, errors: errs });
+    const { ctx, page } = await newPage(browser, cfg.vp, { dpr: 1, touch: cfg.touch });
+    await page.goto(`${BASE}?seed=11`);
+    await ready(page);
+    await page.click('#start');
+    const box = await page.locator('#act-a').boundingBox();
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    const t0 = Date.now();
+    await page.mouse.click(x, y);
+    await page.waitForFunction(() => { const a = document.getElementById('act-a'); return /买下/.test(a.textContent) && !a.disabled; }, null, { polling: 10, timeout: 6000 });
+    const unlockedAfter = Date.now() - t0;
+    await page.waitForTimeout(50);
+    if (cfg.touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+    await page.waitForTimeout(100);
+    const s = await snap(page);
+    check(`M2-${cfg.name}`, `放开后立即生效：按钮可点后 50ms 的点击就买下（${cfg.name}）`, s.owner.includes(0), { unlockedAfterMs: unlockedAfter, owner: s.owner.filter((o) => o === 0).length });
+    await ctx.close();
+  }
 }
 
 (async () => {

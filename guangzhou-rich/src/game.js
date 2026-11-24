@@ -32,6 +32,11 @@
   let displayPos = null;
   let ready = false;
   let screen = 'setup';
+  // 花钱的决定（买下、加盖、付钱打车）刚出现时，按钮先禁用一小段：掷骰那一下的迟到补点、连点落在原位的新按钮上会误花钱。
+  // 放开时刻 = max(按钮出现后 LOCK_AFTER_SHOW, 点掷骰后 LOCK_SINCE_ROLL)。实测按钮出现在点掷骰后 0.4–1.6 秒（300ms 摇骰 + 每格 110ms），
+  // 点击延迟约 1 秒的试玩里补点落在 1.1 秒；快速模式（?fast=1）不设禁用。
+  const LOCK_AFTER_SHOW = 500, LOCK_SINCE_ROLL = 1900;
+  let lockUntil = 0, rollClickAt = 0, decisionKey = '', lockTimer = null;
 
   // ---------- 选座页 ----------
   function seatRow(k, saved) {
@@ -200,6 +205,7 @@
     g = M.create({ seed, seats: seats.map((s) => ({ name: s.name })), maxRounds: (opts && opts.maxRounds) || M.DEFAULT_ROUNDS });
     displayPos = g.players.map((p) => p.pos);
     busy = false;
+    lockUntil = 0; rollClickAt = 0; decisionKey = '';
     buildBoard();
     $('bubble').hidden = true;
     showScreen('play');
@@ -297,8 +303,20 @@
       b.hidden = true;
       return;
     }
-    a.disabled = false;
     const pd = g.pending;
+    const key = `${g.round}:${pd.type}:${pd.square}`;
+    if (key !== decisionKey) {
+      decisionKey = key;
+      const now = performance.now();
+      lockUntil = !FAST && pd.type !== 'dice' ? Math.max(now + LOCK_AFTER_SHOW, rollClickAt + LOCK_SINCE_ROLL) : 0;
+      clearTimeout(lockTimer);
+      if (lockUntil > now) lockTimer = setTimeout(() => { if (g) renderActions(); }, lockUntil - now + 20);
+    }
+    const locked = performance.now() < lockUntil;
+    a.disabled = locked;
+    b.disabled = locked;
+    a.classList.toggle('locked', locked);
+    b.classList.toggle('locked', locked);
     const label = { two: '掷两颗', one: '掷一颗', buy: `买下 ¥${pd.cost}`, skip: pd.type === 'buy' ? '不买' : '先不盖', build: `加盖一层 ¥${pd.cost}`, pay: '付 50 打车走', wait: '等一轮' };
     a.textContent = label[pd.options[0]];
     if (pd.options[1]) { b.hidden = false; b.textContent = label[pd.options[1]]; } else b.hidden = true;
@@ -420,8 +438,10 @@
 
   async function human(btn) {
     if (!g || g.turn !== 0 || busy || g.phase === 'over') return;
+    if (performance.now() < lockUntil) return;
     const myGen = gen;
     busy = true;
+    if (g.pending && g.pending.type === 'dice') rollClickAt = performance.now();
     renderActions();
     try {
       const choice = g.pending && g.pending.options[btn];

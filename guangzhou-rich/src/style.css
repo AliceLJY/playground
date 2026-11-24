@@ -122,3 +122,5 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media (prefers-reduced-motion:reduce){.dice.rolling .die,.cell.hit{animation:none}}
 
 .seat .s-reset{margin-top:8px;min-height:44px;padding:0 14px;border:1px solid var(--line, #c9b99a);border-radius:10px;background:transparent;color:inherit;font:inherit;font-size:13px}
+
+.actions button.locked{opacity:.55;cursor:default;box-shadow:none}
