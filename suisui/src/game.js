@@ -384,14 +384,13 @@ const dlg = $('#dlg'), noteText = $('#noteText');
 const noteLeft = $('#noteLeft');
 let composing = false;
 function paintLeft(clipped) {
-  const n = Array.from(noteText.value).length;
+  const n = Array.from(C.cleanNote(noteText.value, Infinity)).length;   // counted the way the shelf will see it: trimmed, spaces collapsed
   noteLeft.textContent = clipped ? `${n}/${G.noteMax} · 多出来的没写进去` : `${n}/${G.noteMax}`;
   noteLeft.classList.toggle('full', n >= G.noteMax);
 }
 function clipNote() {
-  const chars = Array.from(noteText.value);
-  const clipped = chars.length > G.noteMax;
-  if (clipped) noteText.value = chars.slice(0, G.noteMax).join('');
+  const v = noteText.value, clipped = Array.from(C.cleanNote(v, Infinity)).length > G.noteMax;
+  if (clipped) noteText.value = v.match(/^\s*/)[0] + C.cleanNote(v);
   paintLeft(clipped);
 }
 noteText.addEventListener('compositionstart', () => { composing = true; });

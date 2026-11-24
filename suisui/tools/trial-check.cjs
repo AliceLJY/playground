@@ -18,8 +18,7 @@ const want=n=>!only||only.has(String(n));
   const S=await import('../server/room-server.mjs'),M=await import('../server/room.mjs');
   // a seed whose shelf starts with exactly two worries, so one more can still be put up and the next must wait
   let seed=1;for(;seed<500;seed++){const r=M.createRoom({seed});if(r.slots.filter(s=>s.kind==='note').length===2)break;}
-  const srv=await S.startRoom({port:0,seed});
-  const roomUrl=`ws://127.0.0.1:${srv.port}/room/ws`;
+  let srv=null,roomUrl='';   // every section gets its own fresh room, so what one writes does not change what the next sees
   const browser=await chromium.launch();
   const open=async(name,query,{delay=0}={})=>{
     const ctx=await browser.newContext(VIEWPORTS[name]),page=await ctx.newPage(),errors=[];
@@ -35,11 +34,14 @@ const want=n=>!only||only.has(String(n));
   const inRoom=p=>p.page.waitForFunction(()=>window.__suisui.probe().mode==='room',null,{polling:50,timeout:15000});
   const rect=(p,sel)=>p.page.evaluate(s=>{const e=document.querySelector(s);if(!e)return null;const b=e.getBoundingClientRect();return{x:b.left,y:b.top,w:b.width,h:b.height};},sel);
   const hit=(a,b)=>a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h;
-  const ctx={check,note,open,P,inRoom,rect,hit,out,path,srv,roomUrl,browser,want};
+  const ctx={check,note,open,P,inRoom,rect,hit,out,path,browser,want};
   try{
-    for(const sec of sections)await sec(ctx);
+    for(const sec of sections){
+      srv=await S.startRoom({port:0,seed});roomUrl=`ws://127.0.0.1:${srv.port}/room/ws`;
+      try{await sec(ctx);}finally{await srv.stop().catch(()=>{});}
+    }
   }catch(e){check('trial check ran to the end',false,e.stack||e.message);}
-  finally{await browser.close();await srv.stop().catch(()=>{});}
+  finally{await browser.close();}
   fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,1));
   console.log(failed?`${failed} check(s) failed`:'all checks passed');
   process.exit(failed?1:0);

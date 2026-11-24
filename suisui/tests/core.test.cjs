@@ -104,6 +104,8 @@ test('spec 2: typed worries are one clean line of at most ten characters',()=>{
   assert.equal(C.cleanNote('一二三四五六七八九十十一'),'一二三四五六七八九十');
   assert.equal(C.cleanNote('\u0007'),'');
   assert.equal(Array.from(C.cleanNote('😤😤😤😤😤😤😤😤😤😤😤')).length,10,'emoji count as one character each, never split in half');
+  // the dialog counts with no cap so it can say 「n/10」 the way the shelf will see the text (trimmed, spaces collapsed)
+  assert.equal(Array.from(C.cleanNote('  一二三四五六七八九十 十一十二  ',Infinity)).length,15,'uncapped count ignores the outer spaces, keeps one inner space');
 });
 
 test('every collectible has its sprite on disk, the worry slip is the only thing drawn in code',()=>{

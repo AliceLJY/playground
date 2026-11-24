@@ -126,7 +126,7 @@ function cascadeGrain(kinds,item){
 function words(kind,r){const w=KINDS[kind].words;return w[Math.floor((r||Math.random)()*w.length)];}
 
 // A worry typed by the visitor: one line, no control characters, at most noteMax characters.
-function cleanNote(s){const t=String(s||'').replace(/\s+/g,' ').replace(/[\u0000-\u001f\u007f]/g,'').trim();return Array.from(t).slice(0,G.noteMax).join('');}
+function cleanNote(s,max=G.noteMax){const t=String(s||'').replace(/\s+/g,' ').replace(/[\u0000-\u001f\u007f]/g,'').trim();return Array.from(t).slice(0,max).join('');}
 
 return{ENGINE_FX,KINDS,KIND_IDS,SPRITES,NOTES,G,HEADER,FOOTER,MAX_SAME,MAX_NOTES,ROOM_SLOTS,ROOM_BAR,WAIT_BAR,rng,layout,roomLayout,pickKind,pickNote,neighbours,avoidFor,createShelf,classify,clampSpeed,plan,grainsFor,cascadeGrain,words,cleanNote};
 });
