@@ -66,6 +66,27 @@ test('every telegraph shows the whole attacker inside the 4–96% safe area at 1
   assert.ok(count>200,'telegraphs checked: '+count);
 });
 
+// Phone portrait (390x664 once the browser's bars are taken off). The frame is fitted to the stage's width there, so the
+// hero is small. This is why it is not cropped to enlarge him: attackers telegraph out to 7.6 of the cloth's 8 units,
+// and a tighter frame would push those telegraphs to the edge or off it. A crop to the cloth's edge is shown failing.
+test('phone portrait shows the whole stage: every telegraph stays inside 4–96% of the width, which a tighter crop would break',()=>{
+  const aspect=390/664,play=G.frame(aspect,'play'),tight={...play,pos:{...play.pos,z:play.pos.z*(G.screen.right-G.screen.left)/(G.need.right-G.need.left)}};
+  let count=0,worst=.5,worstTight=.5;
+  for(const human of [false,true])for(const seed of [2,9,15])sample(seed,human,s=>{
+    for(const ev of s.events){
+      if(ev.type!=='telegraph')continue;
+      const e=s.enemies.find(x=>x.id===ev.id),b=R.bounds(e.kind,R.pose(e.kind,e,s.time));count++;
+      for(const x of [b.minX,b.maxX]){
+        const f=G.project(play,aspect,{x,y:1}).x,t=G.project(tight,aspect,{x,y:1}).x;
+        assert.ok(f>=.04&&f<=.96,`${e.kind}.${ev.move} telegraph in portrait: edge at ${pct(f)}`);
+        worst=Math.max(worst,Math.abs(f-.5)+.5);worstTight=Math.max(worstTight,Math.abs(t-.5)+.5);
+      }
+    }
+  });
+  assert.ok(count>200,'telegraphs checked: '+count);
+  assert.ok(worstTight>.96,`cropped to the cloth's edge (hero 10% larger) the furthest telegraph would sit at ${pct(worstTight)}; as framed it is at ${pct(worst)}`);
+});
+
 test('empty chairs in the foreground stay out of the play shot and below the standing line',()=>{
   for(const [name,aspect] of Object.entries(ASPECTS)){
     const floor=frac(aspect,{x:0,y:G.floor}).y;
