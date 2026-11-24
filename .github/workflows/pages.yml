@@ -772,6 +772,17 @@ jobs:
           mkdir -p ../_site/orbital-station
           cp dist/index.html ../_site/orbital-station/index.html
 
+      - name: Check, bundle and assemble Prehistoric Island
+        working-directory: prehistoric-island
+        run: |
+          # 史前岛屿：火山小岛连同海水一起切开，礁盘、陡坎、海沟和示意的史前动物，六个机位，全部程序化建模；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node tools/build.mjs
+          node --test tests/*.test.cjs
+          mkdir -p ../_site/prehistoric-island
+          cp dist/index.html ../_site/prehistoric-island/index.html
+
       - name: Check, bundle and assemble Dino Craft
         working-directory: dino-craft
         run: |

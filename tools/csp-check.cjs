@@ -15,6 +15,7 @@ const all = [
   ['gz-roach', 'gz-roach/dist/'], ['huacheng-autumn', 'huacheng-autumn/dist/'], ['lens-lab', 'lens-lab/dist/'],
   ['lingnan-garden', 'lingnan-garden/dist/'], ['mac-mini-teardown', 'mac-mini-teardown/dist/'], ['orbital-station', 'orbital-station/dist/'], ['qilou-rain', 'qilou-rain/dist/'],
   ['sacred-heart', 'sacred-heart-cathedral/dist/'], ['sagrada-familia', 'sagrada-familia/dist/'], ['sky-citadel', 'sky-citadel/dist/'],
+  ['prehistoric-island', 'prehistoric-island/dist/'],
   ['snowline-cabin', 'snowline-cabin/dist/'], ['thirteen-hongs', 'thirteen-hongs/dist/index.html'],
   ['thirteen-webgpu', 'thirteen-hongs/dist/webgpu.html'], ['tidal-disruption', 'tidal-disruption/dist/'],
 ];

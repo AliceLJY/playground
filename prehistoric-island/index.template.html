@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>史前岛屿 · Prehistoric Island</title><link rel="icon" href="data:,">
+<meta name="description" content="一座史前火山小岛连同海水一起切开：岛上的森林和沙滩，水下的礁盘、陡坎和海沟，六个机位，全部由代码生成，示意造型。">
+<style>
+:root{color-scheme:dark;--paper:#f2eee6;--dim:#9aa3b2;--line:#ffffff22;--accent:#7fe0c8;--warm:#ffc98a;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:#1a2430;color:var(--paper);overflow:hidden}
+button{font:inherit;color:var(--paper);background:#0b0f18c4;border:1px solid var(--line);border-radius:6px;min-height:44px;min-width:44px;cursor:pointer;padding:0 14px}
+button:hover{border-color:#7fe0c888}button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.ui{position:fixed;inset:0;pointer-events:none}.ui button{pointer-events:auto}
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
+/* text laid straight over the picture: the pale sky, the sand and the surf are near white, so it carries its own dark edge */
+.intro,.caption,.time,.note{text-shadow:0 0 2px #000,0 1px 3px #000d,0 0 14px #000b}
+.intro{position:absolute;top:28px;left:36px;max-width:340px}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--accent)}
+.intro h1{font-family:"Songti SC","STSong",Georgia,serif;font-weight:400;font-size:44px;letter-spacing:.08em;margin:12px 0 6px;line-height:1.15}
+.english{font-family:Georgia,serif;font-size:11px;letter-spacing:.2em;color:#b8b2a8}
+.tele{position:absolute;top:28px;right:36px;min-width:208px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:#070a12b8;font-size:12px;line-height:1.9}
+.tele h2{margin:0 0 4px;font-size:13px;font-weight:500;color:var(--warm);letter-spacing:.08em}
+.tele dl{display:grid;grid-template-columns:auto 1fr;gap:0 16px;margin:0}.tele dt{color:var(--dim)}.tele dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace}
+.caption{position:absolute;left:36px;bottom:150px;max-width:460px}
+.caption .kicker{font-size:10px;letter-spacing:.18em;color:var(--accent)}
+.caption h2{font-weight:400;font-size:24px;letter-spacing:.08em;margin:8px 0}
+.caption p{margin:0;font-size:13px;line-height:1.8;color:#c3c0bb}
+.dock{position:absolute;left:36px;right:36px;bottom:22px;pointer-events:auto}
+.shots{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.shots button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;padding:6px 9px;text-align:left;font-size:12px;min-height:50px}
+.shots .num{font-size:9px;letter-spacing:.12em;color:var(--dim);font-family:ui-monospace,Menlo,monospace}
+.shots button[aria-current=true]{border-color:#7fe0c8cc;background:#0d2a26d0}.shots button[aria-current=true] .num{color:var(--accent)}
+.row{display:flex;align-items:center;gap:10px;margin-top:10px}
+#tour{background:#0f2a2ae6;border-color:#7fe0c877}#tour[aria-pressed=true]{color:var(--accent)}
+.time{font:12px/1 ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;color:#b7b3ad;min-width:104px}
+.note{margin-left:auto;font-size:11px;color:#b9c0c8}
+.fail{position:fixed;inset:0;display:grid;place-content:center;padding:32px;background:#05070d;color:var(--paper);line-height:1.9;text-align:center}
+[hidden]{display:none!important}
+@media (max-width:700px){
+  .intro{top:14px;left:16px;right:16px}.eyebrow{font-size:9px}.intro h1{font-size:28px;margin:6px 0 2px}.english{font-size:9px}
+  .tele{top:88px;left:16px;right:16px;min-width:0;padding:6px 10px;font-size:11px;line-height:1.55}
+  .tele h2{font-size:12px;margin-bottom:1px}.tele dl{grid-template-columns:auto 1fr auto 1fr;gap:0 8px}
+  .caption{left:16px;right:16px;bottom:164px}.caption h2{font-size:19px;margin:4px 0}.caption p{display:none}
+  .dock{left:12px;right:12px;bottom:12px}
+  .shots{grid-template-columns:repeat(3,1fr);gap:5px}
+  .shots button{padding:4px 6px;font-size:11px;min-height:48px}
+  .row{gap:8px;margin-top:8px}.note{display:none}.time{min-width:0;margin-left:auto}
+}
+@media (max-height:480px) and (min-width:701px){.caption p{display:none}.caption{bottom:136px}.tele{display:none}}
+@media (max-height:480px) and (max-width:700px){.tele,.caption{display:none}.intro h1{font-size:22px}}
+</style></head><body>
+<canvas id="scene" aria-label="史前岛屿三维画面，拖动可环绕"></canvas>
+<div id="fade"></div>
+<main class="ui">
+<section class="intro"><div class="eyebrow">火山岛与海底剖面 · 示意</div><h1>史前岛屿</h1><div class="english">PREHISTORIC ISLAND</div></section>
+<section class="tele" aria-label="岛上和水下的动物"><h2>岛上 · 水下</h2><dl><dt>长颈植食恐龙</dt><dd id="n-herd">3</dd><dt>翼龙</dt><dd id="n-flyer">5</dd><dt>蛇颈龙类</dt><dd id="n-swim">2</dd><dt>菊石</dt><dd id="n-shell">14</dd><dt>鱼</dt><dd id="n-fish">130</dd></dl></section>
+<section class="caption" aria-live="polite"><div class="kicker" id="shot-en"></div><h2 id="shot-name"></h2><p id="shot-caption"></p></section>
+<section class="dock" aria-label="机位"><nav class="shots" id="shots" aria-label="六个机位"></nav>
+<div class="row"><button id="tour" type="button" aria-pressed="true">一键连播</button><button id="play" type="button">Ⅱ 暂停</button><span class="time" id="clock">00:00 / 00:48</span><span class="note">示意造型，不是真实复原，也不代表这些动物生活在同一时期 · 拖动画面可环绕</span></div></section>
+</main><div class="fail" id="fail" hidden></div>
+<noscript><div class="fail">这个页面需要打开 JavaScript 和 WebGL 才能显示三维画面。</div></noscript>
+<!--BUNDLE-->
+</body></html>
