@@ -261,10 +261,30 @@
       notes.appendChild(li);
     });
     showDice();
+    renderLog();
+    renderActions();
+  }
+
+  // 记录栏：一个回合一行，最新的在最上面，留最近 8 个回合，所以机器人这一圈做了什么都看得到。
+  // 以前是「先截最后 4 条原始记录、再滤掉掷骰和落点」，一个机器人的回合就能把它占满甚至滤空；而且用 <ol> 从 1 数起，
+  // 配上最新在上就像倒序（2026-11-24 外部试玩）。
+  function renderLog() {
     const log = $('log');
     log.innerHTML = '';
-    g.log.slice(-4).reverse().forEach((e) => { if (e.t === 'land' || e.t === 'roll') return; const li = document.createElement('li'); li.textContent = e.text; log.appendChild(li); });
-    renderActions();
+    const turns = [];
+    g.log.forEach((e) => {
+      const last = turns[turns.length - 1];
+      if (last && last.round === e.round && last.who === e.who) last.events.push(e);
+      else turns.push({ round: e.round, who: e.who, events: [e] });
+    });
+    turns.slice(-8).reverse().forEach((t) => {
+      const informative = t.events.some((e) => !['land', 'roll', 'salary'].includes(e.t));
+      const texts = t.events.filter((e) => e.t !== 'roll' && !(e.t === 'land' && informative)).map((e) => e.text);
+      if (!texts.length) return;
+      const li = document.createElement('li');
+      li.textContent = texts.join('；');
+      log.appendChild(li);
+    });
   }
 
   function renderActions() {

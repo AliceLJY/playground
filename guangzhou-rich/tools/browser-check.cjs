@@ -107,6 +107,36 @@ async function extra(browser) {
     check(`O1-${vp.width}x${vp.height}`, `结算遮罩盖满 ${vp.width}×${vp.height}，底下的按钮点不到`, covered && !leaked.length && !log.errors.length, { overlay: [r.left, r.right, r.top, r.bottom], viewport: [r.vw, r.vh], leaked, errors: log.errors });
     await ctx.close();
   }
+
+  // ---- G1 记录栏：机器人回合要看得到，最新在上就不能从 1 开始数（外部试玩：记录栏像倒序；机器人回合不显示）----
+  // 打到又轮回自己：记录里要能看到三个机器人各自这一圈做了什么；最新的在最上面；条目前不带从 1 数起的序号。
+  for (const vp of [{ width: 1280, height: 800, dpr: 1 }, { width: 390, height: 664, touch: true }]) {
+    const { ctx, page, log } = await newPage(browser, vp, vp);
+    await page.goto(`${BASE}?seed=11&fast=1`);
+    await ready(page);
+    await page.click('#start');
+    // 一路点主按钮打到第 3 轮轮到自己掷骰（此前三个机器人至少各走过两次）
+    const until = Date.now() + 30000;
+    for (;;) {
+      const s = await snap(page);
+      if (s.phase === 'over' || Date.now() > until || (s.round >= 3 && s.turn === 0 && !s.busy && s.pending && s.pending.type === 'dice')) break;
+      if (s.turn === 0 && !s.busy && s.pending) await page.click('#act-a').catch(() => {});
+      await page.waitForTimeout(60);
+    }
+    const r = await page.evaluate(() => {
+      const items = [...document.querySelectorAll('#log li')].map((li) => li.textContent);
+      const st = getComputedStyle(document.getElementById('log'));
+      const rows = [...document.querySelectorAll('#log li')].map((li) => getComputedStyle(li).listStyleType);
+      return { items, listStyle: st.listStyleType, rows };
+    });
+    const names = ['阿发', '阿珍', '阿强'];
+    const missing = names.filter((n) => !r.items.some((t) => t.includes(n)));
+    const newestFirst = r.items.length > 0 && r.items[0].includes('阿强');
+    const numbered = r.listStyle !== 'none' && r.listStyle !== 'disc' && r.listStyle !== 'circle' && r.listStyle !== 'square';
+    check(`G1-${vp.width}x${vp.height}`, `记录栏：三个机器人这一圈的动作都在、最新在最上、不带从 1 数起的序号（${vp.width}×${vp.height}）`, !missing.length && newestFirst && !numbered && !log.errors.length,
+      { items: r.items, missing, newestFirst, listStyle: r.listStyle, errors: log.errors });
+    await ctx.close();
+  }
 }
 
 (async () => {

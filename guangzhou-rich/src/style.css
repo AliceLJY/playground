@@ -87,7 +87,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .notes .warn{margin:0;color:#a2512a;font-size:12px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .actions{display:flex;gap:8px}
 .actions button{flex:1}
-.log{margin:0;padding:0 0 0 18px;font-size:12px;color:var(--muted);line-height:1.5;max-height:4.6em;overflow:hidden}
+.log{margin:0;padding:0;list-style:none;font-size:12px;color:var(--muted);line-height:1.5;max-height:100px;overflow:auto}
+.log li{padding:1px 0}
+.log li:first-child{color:var(--ink)}
 
 /* 结算 */
 .screen.overlay{position:fixed;inset:0;width:auto;max-width:none;background:#21483d66;display:grid;place-items:center;padding:16px}
