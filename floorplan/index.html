@@ -16,7 +16,7 @@
   #area { font: 700 20px/1 "SF Mono", Menlo, monospace; color: #ff9a6a; }
   .src { margin-top: 6px; font-size: 11px; color: #8a867f; }
   nav { display: flex; gap: 6px; margin: 10px 14px 0; background: #1b1b21; border-radius: 12px; padding: 4px; }
-  nav button { flex: 1; border: 0; background: transparent; color: #a9a49b; font: 600 14px/1 "PingFang SC", sans-serif; padding: 10px 0; border-radius: 9px; }
+  nav button { flex: 1; border: 0; background: transparent; color: #a9a49b; font: 600 14px/1 "PingFang SC", sans-serif; padding: 10px 0; min-height: 44px; border-radius: 9px; }
   nav button.on { background: #efece6; color: #16161b; }
   main { flex: 1; position: relative; margin: 12px 14px 0; }
   .pane { display: none; }
@@ -46,33 +46,33 @@
 <header>
   <div class="kick">FLOOR PLAN · 3D SAMPLE</div>
   <div class="top"><div id="title"></div><div id="area"></div></div>
-  <div class="src">首层八间房 · 房间面积合计</div>
+  <div class="src">房间面积合计 · 比例尺按楼梯踏步宽估算</div>
 </header>
-<nav>
-  <button id="tab-three" class="on">三维</button>
-  <button id="tab-plan">平面</button>
-  <button id="tab-render">效果图</button>
-  <button id="tab-sun">日照</button>
+<nav role="tablist" aria-label="看法">
+  <button id="tab-three" class="on" role="tab" aria-selected="true" aria-controls="pane-three">三维</button>
+  <button id="tab-plan" role="tab" aria-selected="false" aria-controls="pane-plan">平面</button>
+  <button id="tab-render" role="tab" aria-selected="false" aria-controls="pane-render">效果图</button>
+  <button id="tab-sun" role="tab" aria-selected="false" aria-controls="pane-sun">日照</button>
 </nav>
 <main>
-  <section class="pane on" id="pane-three">
+  <section class="pane on" id="pane-three" role="tabpanel" aria-labelledby="tab-three">
     <canvas id="c3d"></canvas>
     <div class="hint">拖动旋转 · 双指或滚轮缩放 · 下方可查看各房间面积</div>
     <a class="action" href="../floorplan-walk/">去布置家具、走进去 →</a>
     <div class="rooms" id="rooms"></div>
   </section>
-  <section class="pane" id="pane-plan">
+  <section class="pane" id="pane-plan" role="tabpanel" aria-labelledby="tab-plan">
     <div class="card"><a href="assets/plan-A01.png" target="_blank" rel="noopener" aria-label="打开首层平面图原图"><img src="assets/plan-A01.png" alt="首层平面图"></a><div class="cap"><b>首层平面图 A-01 · 1:100</b><br>尺寸单位：毫米<br><a class="action" href="assets/plan-A01.png" target="_blank" rel="noopener">放大看尺寸 ↗</a></div></div>
   </section>
-  <section class="pane" id="pane-render">
+  <section class="pane" id="pane-render" role="tabpanel" aria-labelledby="tab-render">
     <div class="renders">
       <div class="card"><img src="assets/render-oak.jpg" alt="橡木"><div class="cap"><b>客餐厅 · 橡木</b> · 路径追踪 256 采样</div></div>
       <div class="card"><img src="assets/render-walnut.jpg" alt="胡桃木"><div class="cap"><b>客餐厅 · 胡桃木</b> · 同一机位，只换材质</div></div>
     </div>
   </section>
-  <section class="pane" id="pane-sun">
+  <section class="pane" id="pane-sun" role="tabpanel" aria-labelledby="tab-sun">
     <div class="card"><img src="assets/sun.png" alt="日照热力图"><div class="cap"><b>地面每点直射时长</b>（单点最长 <span id="sunmax"></span> 小时；无色 = 全天没有直射）</div></div>
-    <div class="rule">下面各房间：地面被直射 ≥ 0.5 ㎡ 的时长。光斑会在地上移动，所以房间时长比任一点都长</div>
+    <div class="rule">下面各房间：地面被直射 ≥ 0.5 ㎡ 的时长。光斑会在地上移动，房间时长常比其中任一点都长；但光斑不到 0.5 ㎡ 的时段不算，所以家庭室、储藏间记 0 h，过道也短于晒得最久的那一点。</div>
     <div id="sunlist"></div>
     <div id="sunmeta"></div>
   </section>

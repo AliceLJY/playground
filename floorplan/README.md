@@ -26,6 +26,8 @@ On 2026-11-03, two changes were made directly to this publishing copy:
 
 On 2026-11-11, one more change was made directly in `share.js`: when the 3D renderer cannot be created (the browser has no WebGL), the page now covers itself with a short explanation instead of stopping silently. The source in the original project does not have this, so it must be re-applied if the bundle is rebuilt from there.
 
+On 2026-11-25 two more changes went into `share.js`, to be re-applied the same way: the 3D view draws first instead of waiting for all four images, and the tabs keep `aria-selected` in step.
+
 ## Sources
 
 - Floor plan: [Sample Floorplan.jpg](https://commons.wikimedia.org/wiki/File:Sample_Floorplan.jpg) by Boereck on Wikimedia Commons, public domain.

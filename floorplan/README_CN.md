@@ -26,6 +26,8 @@
 
 2026-11-11 直接在 `share.js` 里补了一处：创建三维渲染器失败（浏览器打不开 WebGL）时盖一层说明文字；出片工程那边的源码没有这一段，下次从工程重新打包要补回来。
 
+2026-11-25 又在 `share.js` 里改了两处，重新打包同样要补回：三维先画、不再等四张图下完；标签页切换时同步 `aria-selected`。
+
 ## 素材
 
 - 户型图：Wikimedia Commons 的 [Sample Floorplan.jpg](https://commons.wikimedia.org/wiki/File:Sample_Floorplan.jpg)，Boereck 绘，公有领域。

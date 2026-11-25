@@ -8,7 +8,7 @@ const [base,out]=process.argv.slice(2);if(!base||!out)throw Error('Provide page 
   const ctx=await browser.newContext({viewport:{width,height},hasTouch:width<900,deviceScaleFactor:width<900?2:1});const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base);await page.waitForFunction(()=>window.__ready,null,{polling:100});
   const copy=await page.locator('header,.hint').allTextContents();
-  check(`${width} visitor copy replaces filenames`,!copy.join('').includes('.json')&&copy.join('').includes('八'),copy);
+  check(`${width} visitor copy replaces filenames`,!copy.join('').includes('.json')&&copy.join('').includes('房间'),copy);
   const walk=page.locator('a[href="../floorplan-walk/"]');check(`${width} link to furniture and walk-in page`,await walk.count()>0,await walk.allTextContents());
   if(await walk.count()) {const response=await page.request.get(new URL('../floorplan-walk/dist/',base).href);check(`${width} local walk-in build available`,response.ok(),response.status());}
   await page.screenshot({path:path.join(out,`${width}-three.png`)});

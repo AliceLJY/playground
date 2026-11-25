@@ -40859,6 +40859,7 @@ void main() {
   function show(tab) {
     for (const t of TABS) {
       $("tab-" + t).classList.toggle("on", t === tab);
+      $("tab-" + t).setAttribute("aria-selected", String(t === tab));
       $("pane-" + t).classList.toggle("on", t === tab);
     }
     if (tab === "three") {
@@ -40884,12 +40885,13 @@ void main() {
     show(tab);
     return true;
   };
+  // playground 发布副本改动（2026-11-25）：三维先画，不等平面图、效果图那几张图（约 1 MB）下完；__ready 仍等图片，检查脚本照旧
+  show("three");
+  setView(-0.55);
+  render();
   Promise.all([...document.images].map((im) => im.complete ? Promise.resolve() : new Promise((r) => {
     im.onload = im.onerror = r;
   }))).then(() => {
-    show("three");
-    setView(-0.55);
-    render();
     window.__ready = true;
   });
 })();
