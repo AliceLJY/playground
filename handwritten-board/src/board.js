@@ -231,6 +231,7 @@
   frame.addEventListener('click', toggle);
   document.addEventListener('keydown', function (e) {
     if ((e.key === ' ' || e.key === 'Spacebar') && !e.target.closest('button, select, input, label, a')) { e.preventDefault(); toggle(); }
+    else if (e.key === 'Enter' && e.target === frame) { e.preventDefault(); toggle(); }   // the frame is role=button: Enter acts like a click
   });
   var resizing = 0;
   function onResize() {

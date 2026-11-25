@@ -13,7 +13,7 @@
     { title: "两种容器,一套机制",
       lines: [
         { text: "翻页模式:一页一页讲,像 PPT", doodle: "arrow" },
-        { text: "自由模式:长卷往下写,镜头跟笔", doodle: "underline", target: "镜头跟笔" },
+        { text: "长卷模式:不翻页,镜头跟笔", doodle: "underline", target: "镜头跟笔" },
         { text: "本页按字数定时,也能接旁白时间轴", doodle: "circle", target: "按字数定时" },
       ] },
   ];
