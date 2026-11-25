@@ -131,3 +131,13 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs "$OUT/views" "$BASE"
 原 record.cjs 实际输出 390×664、4 秒／240 帧 MP4，保留原标题停留并进入轻松拍 waves 阶段，零页面错误；每秒抽看一帧，共 4 帧。本轮只验录片入口兼容，未重录整支演示片或试听音轨。
 
 - 2026-11-03 CC review fix: on narrow short phones (320×568) the stacked mode buttons covered the third rules line drawn on the canvas; a max-width 480 / max-height 600 rule lowers and slims them (56 px buttons, still above 44 px). Checked by screenshot at 320×568, 390×664, 412×700, 844×340, 1365×900; `tests/` 22/22 and `tools/entry-check.cjs` rerun.
+
+## 2026-11-25 Duet 小游戏巡检复核
+
+外部 AI 测试员 Duet 报：「守夜规则浮层半透明，标题页规则从后面透出来。」
+
+- 真浏览器复现：新加 `tools/rules-backdrop-check.cjs`，清空 localStorage 后从标题点「奶茶摊守夜」进规则页，截图后在浏览器里逐像素读回，规则卡片（外扩 8 px）以外的每个像素和规则页底色 `#0b0d12` 比，任一通道差超过 6 算透出。390×664（带触屏、不带触屏）、320×568、844×340、1365×900 五档。改之前五档全红：透出 9,595–87,300 个像素，最大通道差 19（读到 rgb(30,26,22)）；截图里标题「凉拖拍蟑螂」、副标题、拖鞋图和画布上的轻松模式规则字都隔着一层薄黑透出来，其中两行规则字压在守夜规则和两个按钮的同一高度上。
+- 结论：成立。规则页底色是 `#0b0d12eb`（不透明度约 92%），而标题画布在规则页打开时照常绘制。SPEC、README 与以往验证记录都没写过这层要半透明。
+- 改法：`index.html` 里 `#night-menu` 的底色改成不透明的 `#0b0d12`，只改这一处。暂停面板的半透明（`#0b0d12cc`）是局内暂停时看得见场面用的，没动。
+- 检查：`NODE_PATH="$(npm root -g)" node tools/rules-backdrop-check.cjs <base-url> <out-dir>`，改之前退出码 1、五档 FAIL，改之后退出码 0、五档都是「透出 0 个像素（最大通道差 0）」。
+- 全套复跑（源码目录，即发布的同一批文件）：`node --test tests/*.test.cjs` 22 条全过；`tools/browser-check.cjs` 64 项全过；`tools/controls-check.cjs` 63 项全过；`tools/entry-check.cjs` 四档各 24 项全过；`tools/night-check.cjs` 72 项全过；零页面错误。
