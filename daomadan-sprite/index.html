@@ -35,9 +35,10 @@ h2 .n{display:inline-block;width:28px;height:28px;border-radius:50%;background:v
 .stage-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 #stage{display:block;width:100%;height:auto;touch-action:none}
 .pad{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:12px}
-.pad button{background:var(--btn);color:var(--btn-fg);border:0;border-radius:12px;padding:12px 18px;font-size:16px;min-width:64px;font-family:inherit;user-select:none;-webkit-user-select:none}
+.pad button{background:var(--btn);color:var(--btn-fg);border:0;border-radius:12px;padding:12px 18px;font-size:16px;min-width:64px;font-family:inherit;user-select:none;-webkit-user-select:none;touch-action:none}
 .pad button[aria-pressed="true"]{background:var(--accent);color:#fff}
 .keys{font-size:14px;color:var(--muted);text-align:center;margin:0 12px 12px}
+@media (hover:none) and (pointer:coarse){.keys{display:none}}
 .how{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 18px;margin-top:36px;font-size:15px}
 .how li{margin:6px 0}
 footer{margin-top:28px;font-size:13px;color:var(--muted)}

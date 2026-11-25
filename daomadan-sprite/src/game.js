@@ -41,13 +41,15 @@
   const stage = document.getElementById('stage'), sg = stage.getContext('2d');
   const GROUND = 380;
   const keys = { left: false, right: false, run: false };
+  const runBtn = document.querySelector('.pad [data-k=run]');
+  const setRun = (v) => { keys.run = v; runBtn.setAttribute('aria-pressed', String(v)); };   // Shift 和「跑」按钮共用一个状态
   let player = D.create(CLIPS, { x: 300, minX: 90, maxX: stage.width - 90 });
 
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     if (k === 'arrowleft') keys.left = true;
     else if (k === 'arrowright') keys.right = true;
-    else if (k === 'shift') keys.run = true;
+    else if (k === 'shift') setRun(true);
     else if (k === 'j') D.trigger(player, 'attack');
     else if (k === 'k' || k === ' ') D.trigger(player, 'jump');
     else if (k === 'h') D.trigger(player, 'hurt');
@@ -58,20 +60,25 @@
     const k = e.key.toLowerCase();
     if (k === 'arrowleft') keys.left = false;
     if (k === 'arrowright') keys.right = false;
-    if (k === 'shift') keys.run = false;
+    if (k === 'shift') setRun(false);
   });
   addEventListener('blur', () => { keys.left = keys.right = false; });
   document.querySelectorAll('.pad button').forEach((b) => {
     const k = b.dataset.k;
     b.addEventListener('contextmenu', (e) => e.preventDefault());
     if (k === 'run') {
-      b.addEventListener('click', () => { keys.run = !keys.run; b.setAttribute('aria-pressed', String(keys.run)); });
+      b.addEventListener('click', () => setRun(!keys.run));
     } else if (k === 'left' || k === 'right') {
       const set = (v) => { keys[k] = v; };
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); set(true); });
       for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => set(false));
+      // 键盘聚焦在按钮上：按住回车走，松开停
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); set(true); } });
+      b.addEventListener('keyup', (e) => { if (e.key === 'Enter') set(false); });
+      b.addEventListener('blur', () => set(false));
     } else {
       b.addEventListener('pointerdown', (e) => { e.preventDefault(); D.trigger(player, k); });
+      b.addEventListener('click', (e) => { if (e.detail === 0) D.trigger(player, k); });   // 键盘回车：没有 pointerdown，只有 click
     }
   });
 
