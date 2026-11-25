@@ -239,7 +239,10 @@ function toggleMute(){muted=!muted;try{localStorage.setItem('yingge-muted',muted
 pauseButton.addEventListener('click',setPause);resumeButton.addEventListener('click',resume);muteButton.addEventListener('click',toggleMute);
 addEventListener('blur',setPause);document.addEventListener('visibilitychange',()=>{if(document.hidden)setPause();});
 function muteBox(){const v=L.vis;return{x:v.x1-170,y:v.y0+24,w:150,h:64};}
-function modeBoxes(){return[{x:250,y:1790,w:270,h:104,mode:'solo'},{x:560,y:1790,w:270,h:104,mode:'duo'}];}
+// Landscape only shows world y 200-1790, so the choices move into the side margins (always ≥300 wide), level with 「点一下开始」.
+function modeBoxes(){if(L.land){const cu=dpr/L.scale,h=Math.max(104,48*cu),w=Math.max(270,Math.min(96*cu,-L.vis.x0-30)),y=1608-h/2;
+  return[{x:-20-w,y,w,h,mode:'solo'},{x:1100,y,w,h,mode:'duo'}];}
+  return[{x:250,y:1790,w:270,h:104,mode:'solo'},{x:560,y:1790,w:270,h:104,mode:'duo'}];}
 const inBox=(p,b)=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;
 function laneAt(p){
   for(const pad of L.pads)if(inBox(p,pad))return{lane:pad.lane,player:pad.player<0?0:pad.player};
@@ -678,7 +681,7 @@ const hook=window.__yingge={ready:false,metrics,log,
       assets:Object.fromEntries(Object.keys(img).map(k=>[k,ok(img[k])])),
       pads:L.pads.map(p=>({lane:p.lane,player:p.player,...cssBox({x:p.x,y:p.y,w:p.w,h:p.h})})),
       gong:(()=>{const g=GEO.gong,c=toCss(g.x,g.y);return{x:c.x,y:c.y,r:g.r*L.scale/dpr};})(),
-      stage:cssBox({x:186,y:582,w:708,h:690}),
+      stage:cssBox({x:186,y:582,w:708,h:690}),modes:modeBoxes().map(b=>({mode:b.mode,...cssBox(b)})),
       texts:frameText.map(cssBox),puppets:[0,1,2].map(laneBoxCss),
       boss:boxes.boss?{head:toCss(boxes.boss.cx,boxes.boss.cy),arms,panel}:null,
       state:s?{t:+s.t.toFixed(3),phase:s.phase,wave:s.wave,level:s.level,meter:s.meter,score:s.score.slice(),
