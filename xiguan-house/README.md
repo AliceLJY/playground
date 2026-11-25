@@ -9,7 +9,7 @@ An isometric line drawing of a Xiguan house, the traditional courtyard townhouse
 ## Controls
 
 - First visits open “Find the three gates” immediately, with three targets and clues on the closed facade. Find all three for a welcome, or choose “直接打开” (open directly) to skip. Other house clicks explain these choices. Completing or skipping (including Escape) marks this browser as visited; later visits restore click-to-open. The top-right hunt button remains available for replay and returning to the previous pose. Unavailable storage means every visit uses the first-visit entry.
-- Click the house, click the button, or press Space or Enter. Touch works the same way.
+- Click the house, click the button, or press Space or Enter. Touch works the same way; on touch screens the bottom bar only says to tap the house.
 - Opening takes about 3.4 seconds, then the house stays open until you close it. Repeated open/close requests during motion are ignored. The stop/resume button pauses either direction and continues from the same pose.
 - Once open, the entrance hall, courtyard and main hall labels open a magnified overhead detail with a short explanation based on `facts.md`. Escape or the return button closes it; the house stays open.
 - With reduced motion turned on in the system, it jumps straight to the result.

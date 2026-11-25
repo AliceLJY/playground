@@ -22,6 +22,7 @@
   #toggle:hover { background: rgba(255,255,255,.7); }
   #toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .hint { font-size: 12px; letter-spacing: .14em; color: var(--muted); white-space: nowrap; text-align: right; }
+  @media (pointer: coarse) { .hint-keys { display: none; } } /* 触屏没有键盘，只说「点屋子」 */
   .note { position: fixed; top: 26px; left: 40px; right: 40px; font-size: 12px; letter-spacing: .08em; color: var(--muted); line-height: 1.7; pointer-events: none; max-width: 520px; }
   @media (max-width: 640px) {
     .bar { flex-wrap: wrap; justify-content: center; padding: 0 16px calc(18px + env(safe-area-inset-bottom)); gap: 8px 14px; }
@@ -78,7 +79,7 @@
 <div class="bar">
   <div class="title"><b>西关大屋</b><span>门官厅 · 天井 · 正厅</span></div>
   <div class="actions"><button id="toggle" type="button" aria-pressed="false">推开</button><button id="inspect-pause" type="button" disabled>停在这儿</button></div>
-  <div class="hint">点屋子，或按空格 / 回车</div>
+  <div class="hint">点屋子<span class="hint-keys">，或按空格 / 回车</span></div>
 </div>
 <div id="landmarks" aria-label="展开后的细节"></div>
 <button id="hunt-start" type="button" aria-controls="hunt-dialog">找三件头</button>

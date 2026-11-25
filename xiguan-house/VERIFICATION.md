@@ -65,3 +65,22 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <页面地址>
 按发布流程原样复制文件并核对字节一致，发布副本四档入口与跳过开合 **4/4**，零错误，8 张截图已读。此次仅入口调整，未重新导出完整演示片，录片入口的 bypass 已随原自动化流程验证。
 
 - 2026-11-03 CC review fix: pin letters now follow the pins top to bottom on screen instead of the clue order (the answer was always A, B, C in turn), and opening the hunt focuses the dialog title instead of pin A (the focus ring sat on the first answer). `tests/` 13/13, `tools/hunt-check.cjs` and `tools/entry-check.cjs` (44/44) rerun.
+
+## 2026-11-25 Duet 展页巡检复核
+
+外部测试员 Duet 修理单第 13 节只有一条：手机底栏写「点屋子，或按空格 / 回车」，手机没有键盘。
+
+复现：仓根 `python3 -m http.server 8784`，Playwright Chromium，390×664 hasTouch=true（`pointer: coarse` 成立）时底栏仍是整句；390×664 无触屏与 1440×900 显示整句是对的（有鼠标键盘）。Duet 是在桌面 Chrome 的 iframe 里看的，那里无触屏，整句其实没错；真触屏手机上才是缺陷。结论：成立已修。
+
+改法：`index.html` 把「，或按空格 / 回车」包进 `.hint-keys`，`@media (pointer: coarse)` 时隐藏，触屏只显示「点屋子」。README 中英各补半句。
+
+```sh
+NODE_PATH="$(npm root -g)" node xiguan-house/tools/duet-check.cjs http://127.0.0.1:8784/xiguan-house/ <截图目录>  # 修前 1 FAIL（390 触屏），修后 6/6 PASS
+cd xiguan-house && node --check src/model.js && node --check src/view.js && node --test tests/*.test.cjs         # 13/13
+NODE_PATH="$(npm root -g)" node xiguan-house/tools/hunt-check.cjs <输出目录> http://127.0.0.1:8784/xiguan-house/     # 64 ok，exit 0
+NODE_PATH="$(npm root -g)" node xiguan-house/tools/b3-check.cjs <输出目录> http://127.0.0.1:8784/xiguan-house/       # 70 ok，exit 0
+NODE_PATH="$(npm root -g)" node xiguan-house/tools/browser-check.cjs http://127.0.0.1:8784/xiguan-house/             # 5 视口 ✔，exit 0
+NODE_PATH="$(npm root -g)" node xiguan-house/tools/entry-check.cjs http://127.0.0.1:8784/xiguan-house/ <输出目录>     # report.json 44/44，exit 0
+```
+
+真手机、Safari 未测。
