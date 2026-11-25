@@ -11,7 +11,7 @@ One master still of a Cantonese opera daomadan (a female warrior general) turned
 - **Where it is played**: mostly a phone in portrait, usually muted, one thumb on the buttons; keyboard on a computer. Two or three minutes.
 - **Shape**: an arc, seen once; no clear rate to test.
 - **Colours** (sRGB): light page `#f7f1ec`, cards `#fffaf6`, accent pink `#c2416b` (the "chosen" tag and step numbers); dark page `#1b1a20`, accent `#f07ea3`. Stage sky `#f8dccb → #eab8a3`, floor `#7a4a3a → #5a3428`; the character's feet sit at `y = 380 / 420`.
-- **Composition**: the stage is 960×420, the character about 256 px tall (60% of the stage), spawning at `x = 300`, with 90 px kept clear on each side; in the action tiles the character is scaled to fit with an 8 px bottom margin.
+- **Composition**: the stage is 960×420, the character about 256 px tall (60% of the stage), spawning at `x = 300`, walking within 257 px of each side (the spear tip reaches 257 px past the feet), so the whole spear stays on stage wherever she attacks; in the action tiles the character is scaled to fit with an 8 px bottom margin.
 - **Performance budget**: five WebP atlases of about 4.9 MB and three stills of about 0.14 MB; Canvas 2D draws six images per frame (one stage, five tiles), aiming at 60 fps on phone Chrome (not measured on a real device).
 
 ### Acceptance
@@ -23,7 +23,7 @@ One master still of a Cantonese opera daomadan (a female warrior general) turned
 | 3 | Arrow keys walk and turn; releasing returns to idle | test 3; real key presses in the browser check | correct state and facing |
 | 4 | Running is faster than walking | test 4 | distance ratio 2.2–2.8 over 1 s |
 | 5 | A move plays once and returns to idle, takes no second move mid-way, and does not slide | tests 5, 6; browser check | all pass |
-| 6 | The character cannot leave the stage | test 7 | `x ∈ [90, 870]` |
+| 6 | The character cannot leave the stage, and an attack at either edge keeps the spear tip on stage | test 7; `tools/edge-check.cjs` runs to both edges with real keys and measures every frame's tip from the atlas | `x ∈ [257, 703]`, tip within 0–960 |
 | 7 | No page errors, every asset loads, no horizontal scroll | `tools/browser-check.cjs`, three viewports | 0 errors, 0 4xx |
 | 8 | On phones all six buttons are fully visible and hittable | browser check (390×664 and 412×700, browser bars removed) | all inside |
 | 9 | All five action tiles draw the character | browser check reads pixels | > 8% opaque pixels per tile |
@@ -59,6 +59,7 @@ Hook `window.__PLAYTEST__`: `ready`, `snapshot()` (state, frame, position, facin
 cd daomadan-sprite && python3 -m http.server 8790
 node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8790/ shots
+NODE_PATH="$(npm root -g)" node tools/edge-check.cjs http://127.0.0.1:8790/ shots
 ```
 
 The character and artwork are AI-generated.

@@ -43,7 +43,10 @@
   const keys = { left: false, right: false, run: false };
   const runBtn = document.querySelector('.pad [data-k=run]');
   const setRun = (v) => { keys.run = v; runBtn.setAttribute('aria-pressed', String(v)); };   // Shift 和「跑」按钮共用一个状态
-  let player = D.create(CLIPS, { x: 300, minX: 90, maxX: stage.width - 90 });
+  // 可走范围左右各留 257：出枪第 9 帧枪尖离脚底锚点 257 px（从 assets/attack.webp 量，tools/edge-check.cjs 现量复核），
+  // 人站在哪里、朝哪边出枪，整杆枪都在台内。不挪人、不让舞台跟着走。
+  const EDGE = 257;
+  let player = D.create(CLIPS, { x: 300, minX: EDGE, maxX: stage.width - EDGE });
 
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
@@ -100,7 +103,7 @@
   self.__PLAYTEST__ = {
     get ready() { return ready; },
     snapshot: () => ({ state: player.state, frame: player.frame, x: Math.round(player.x), face: player.face, run: keys.run, plays: { ...player.plays } }),
-    reset: () => { player = D.create(CLIPS, { x: 300, minX: 90, maxX: stage.width - 90 }); },
+    reset: () => { player = D.create(CLIPS, { x: 300, minX: EDGE, maxX: stage.width - EDGE }); },
     step: (ms) => { paused = true; for (let t = 0; t < ms; t += 16) { D.step(player, keys, 16); minis.forEach((m) => stepMini(m, 16)); } drawStage(); minis.forEach(drawMini); },
     trigger: (a) => D.trigger(player, a),
   };
