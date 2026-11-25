@@ -49,3 +49,15 @@ NODE_PATH="$(npm root -g)" node nanchan-temple/tools/browser-check.cjs http://12
 ```
 
 真手机、Safari 未测。
+
+### 同日后续
+
+上面「另见未改」那条（图注把没画的生起说成「示意」）作者 11-25 定为改。
+
+- 原因：`src/build.mjs:36` 注释和 README「已知简化」都写明生起没画（只有 2 分，画出来槫和椽会在角上互相穿插），但第 978 行图注把它列进「……为示意」清单。
+- 改法：只改图注这一句，其余不动。
+  - 改前：「出檐、台基外轮廓、生起、阑额截面、门钉与椽的数量为示意。」
+  - 改后：「出檐、台基外轮廓、阑额截面、门钉与椽的数量为示意；未画生起。」
+- 构建：改前先在未改动代码（ce20e76）上 `node build.mjs --light`（本机 Anatomy），`cmp src/nanchan-light.html index.html` 逐字节相同；改后重建，`cp nanchan-light.html ../index.html`，两者逐字节相同。新旧 `index.html` 只差这一句（1,866,044 → 1,866,046 字符）。几何未动，没有重跑 `--audit`。
+- 红→绿：一个最小 Playwright 检查（会话草稿，不进仓库），打开页面读 `document.body.innerText`，要求新句出现、旧句不出现、没有「生起……为示意」，且图注元素可见。对改前的 `index.html`：`hasNew false, hasOld true` → FAIL，exit 1；对改后的发布页 `http://127.0.0.1:8795/nanchan-temple/`：`hasNew true, hasOld false`，图注框 1240×43.75 → PASS，exit 0。图注截图看过。
+- 改后已有检查：`tools/duet-check.cjs` 7/7 PASS；`tools/browser-check.cjs` 124/124 PASS（均 exit 0）。真手机、Safari 未测。
