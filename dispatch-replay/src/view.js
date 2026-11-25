@@ -210,6 +210,26 @@
   }
 
   // ---- layout -----------------------------------------------------------------------------------
+  function fillSummary() {
+    const end = $('summary');
+    if (end.dataset.filled) return;
+    const span = model.reply && model.task ? model.reply.t - model.task.t : model.duration;
+    const parts = [Math.round(span / 60) + ' 分钟里，' + model.nSub + ' 个子 agent 调了 ' + C.fmtInt(model.subTools)
+      + ' 次工具，交回的报告一共 ' + C.fmtInt(model.subReport) + ' 字'];
+    if (model.nExt) parts.push('外部 AI 被叫了 ' + model.nExt + ' 次');
+    if (model.reply) parts.push('总调度最后写给作者 ' + C.fmtInt(model.reply.chars) + ' 字');
+    $('s-line1').textContent = parts.join('；');
+    end.dataset.filled = '1';
+  }
+  // Height of the end summary as it will show on this screen, measured even while it is hidden.
+  function summaryHeight() {
+    const end = $('summary'), hidden = end.hidden, vis = end.style.visibility;
+    fillSummary();
+    end.style.visibility = 'hidden'; end.hidden = false;
+    const h = end.getBoundingClientRect().height;
+    end.hidden = hidden; end.style.visibility = vis;
+    return h;
+  }
   function resize() {
     const W = window.innerWidth, H = window.innerHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -218,6 +238,9 @@
     const headerHeight = document.querySelector('header').getBoundingClientRect().height;
     document.documentElement.style.setProperty('--header-height', headerHeight + 'px');
     L = C.layout(model, W, H, { picker: index.length > 1, headerHeight });
+    document.body.classList.toggle('compact', L.compact);   // the summary's font sizes depend on it
+    document.body.classList.toggle('portrait', L.portrait);
+    L = C.layout(model, W, H, { picker: index.length > 1, headerHeight, summaryH: summaryHeight() });
     shortLabels = null;
     const cap = $('caption');
     cap.style.top = (L.stage.y + L.stage.h - L.captionH) + 'px';
@@ -724,15 +747,7 @@
     const end = $('summary');
     end.hidden = ending < 0.6;
     end.style.opacity = Math.max(0, (ending - 0.6) / 0.4);
-    if (!end.hidden && !end.dataset.filled) {
-      const span = model.reply && model.task ? model.reply.t - model.task.t : model.duration;
-      const parts = [Math.round(span / 60) + ' 分钟里，' + model.nSub + ' 个子 agent 调了 ' + C.fmtInt(model.subTools)
-        + ' 次工具，交回的报告一共 ' + C.fmtInt(model.subReport) + ' 字'];
-      if (model.nExt) parts.push('外部 AI 被叫了 ' + model.nExt + ' 次');
-      if (model.reply) parts.push('总调度最后写给作者 ' + C.fmtInt(model.reply.chars) + ' 字');
-      $('s-line1').textContent = parts.join('；');
-      end.dataset.filled = '1';
-    }
+    if (!end.hidden) fillSummary();
     $('play').textContent = playing ? '暂停' : t >= endT ? '再看一遍' : '播放';
 
     const d = $('detail');

@@ -166,6 +166,20 @@ for (const { slug, src, data } of SETS) {
     }
   });
 
+  // The end summary (B3 added its 44px 「查看本次任务」 button) rises above the caption band on short landscape screens.
+  // Heights measured in Chrome on 2026-11-25: 89.8 px on 844×390 and 844×340, 95.7–152.2 px elsewhere.
+  test(`${slug}: the end ruler line and dispatcher labels stay above the end summary (spec §9.6)`, () => {
+    for (const [W, H] of VIEWPORTS) {
+      const summaryH = H < 520 && W > H ? 90 : 153;
+      const L = C.layout(model, W, H, { picker: SETS.length > 1, summaryH }), tag = `${W}×${H}`, f = Math.max(12, L.font);
+      const summaryTop = L.stage.y + L.stage.h - summaryH;
+      const rulerY = L.endBig.y + L.endBig.r + f + 6, ccLabelY = L.endCc.y + L.endCc.r + 2 * f + 10;
+      assert.ok(rulerY + 2 <= summaryTop, `${tag}: ruler line at ${rulerY.toFixed(1)} runs into the summary at ${summaryTop.toFixed(1)}`);
+      assert.ok(ccLabelY + 2 <= summaryTop, `${tag}: dispatcher label at ${ccLabelY.toFixed(1)} runs into the summary at ${summaryTop.toFixed(1)}`);
+      assert.ok(L.endBig.y - L.endBig.r >= L.gridArea.y - 0.5 && L.endBig.r > 0, `${tag}: summed circle leaves the top of the stage`);
+    }
+  });
+
   test(`${slug}: at most ${C.MAX_SPARKS} sparks at any moment (spec §9.7)`, () => {
     for (const playback of C.PLAYBACK) {
       const clock = C.makeClock(model, playback), end = clock.end;

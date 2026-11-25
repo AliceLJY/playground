@@ -441,8 +441,22 @@
     // End view: the summed peaks and the dispatcher on one shared scale that fits the stage.
     const gridArea = { x: 16, y: live.y + 8, w: W - 32, h: live.h - 16 };
     const sumRatio = Math.sqrt(Math.max(model.sumPeak, 1) / model.maxPeak);
-    const endUnit = Math.min(rUnit, (Math.min(gridArea.h - 40, gridArea.w * 0.5) / 2 - 16) / sumRatio);
+    let endUnit = Math.min(rUnit, (Math.min(gridArea.h - 40, gridArea.w * 0.5) / 2 - 16) / sumRatio);
     const endBig = { x: gridArea.x + gridArea.w * 0.4, y: gridArea.y + gridArea.h / 2 - 10, r: endUnit * sumRatio };
+    // The end summary (its button and two lines, measured by the view) rises from the stage's bottom edge above the
+    // caption band on short screens. Keep the 「同一把尺」 line and the dispatcher's two labels above it: lift both
+    // circles first, shrink them only if lifting is not enough.
+    if (opts && opts.summaryH > 0) {
+      const f = Math.max(12, font), floor = stage.y + stage.h - opts.summaryH - 4;
+      const drop = (u) => Math.max(u * sumRatio + f + 6, u * ccRatio + 2 * f + 10);   // centre to lowest text baseline
+      if (endBig.y + drop(endUnit) > floor) {
+        const top = gridArea.y + 8;
+        const fit = (u) => top + u * sumRatio + drop(u) <= floor;
+        if (!fit(endUnit)) { let lo = 0, hi = endUnit; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (fit(m)) lo = m; else hi = m; } endUnit = lo; }
+        endBig.r = endUnit * sumRatio;
+        endBig.y = Math.max(top + endBig.r, floor - drop(endUnit));
+      }
+    }
     const endCc = { x: gridArea.x + gridArea.w * 0.82, y: endBig.y, r: endUnit * ccRatio };
     return {
       W, H, portrait, compact, tall, narrow, oneLine, listOnly, labelBlock, header, footer, captionH, stage, gridArea, author, authorBox, readout,
