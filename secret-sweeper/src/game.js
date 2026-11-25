@@ -139,7 +139,8 @@ function showCard(){
     $('card-title').textContent='🎉 全部打码！';
     body.innerHTML='';
     const p=document.createElement('p');p.className='tale';p.style.textAlign='center';
-    p.textContent='用时 '+fmt(s.t)+' · '+s.level.mines+' 把钥匙全插上旗'+(s.newBest?' · 新纪录':'');
+    // 每一段整段不断开，只在「·」处折行：不认 text-wrap:pretty 的浏览器也不会把「新纪录」的「录」单独甩到下一行
+    ['用时 '+fmt(s.t),s.level.mines+' 把钥匙全插上旗'].concat(s.newBest?['新纪录']:[]).forEach((t,i)=>{if(i)p.append(' · ');const sp=document.createElement('span');sp.style.whiteSpace='nowrap';sp.textContent=t;p.append(sp);});
     const n=document.createElement('p');n.className='never';n.textContent='先看线索再动手。';
     body.append(p,n);
   }
