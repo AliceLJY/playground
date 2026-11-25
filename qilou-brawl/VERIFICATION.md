@@ -1,5 +1,16 @@
 # 骑楼擂台 · 验收记录
 
+## 2026-11-25 Duet 小游戏巡检复核
+
+外部 AI 测试员 Duet 报：「手机宽度无触屏时，标题页按键提示折行，『翻滚』『声音』掉到下一行。」
+
+- 真浏览器复现：新加 `tools/keyhint-check.cjs`，对打包产物（`dist/`）在 390×844、360×740、320×568（不带触屏）、390×664（带触屏）、1365×900 打开标题页，把 `.keys` 的文字按「·」和换行切成八组「键 + 动作」，每组用 Range 取行盒，组内出现两行就算拆开。改之前：390×844 下「空格 翻滚」「M 声音」都被拆开——「空格」留在上一行行尾，「翻滚」单独掉到下一行，「声音」同样；320×568 下「K/右键 脚」「拖动鼠标转镜头」被拆开；360×740 与 1365×900 没拆；带触屏时键盘提示本来就隐藏（显示触屏说明）。
+- 结论：成立，但只在「窄窗口 + 没有触屏」时出现（电脑上把窗口拉窄、或不带触屏的手机模拟框）；真手机走 `pointer:coarse`，看到的是触屏说明，不受影响。
+- 改法：`index.html` 里每组「键 + 动作」包一层 `<span>`，`.keys span{white-space:nowrap}`，折行只发生在组与组之间的「·」处。文字、字号、顺序都没变；390 宽下提示仍是四行，只是不再把键和动作拆开。
+- 检查：`NODE_PATH="$(npm root -g)" node tools/keyhint-check.cjs <打包后的页面地址> <输出目录>`，改之前退出码 1（390×844、320×568 两档 FAIL），改之后退出码 0，五档 ok，提示整块在屏内、不压「开锣」「街口讨教」。
+- 打包：`npm ci --ignore-scripts && npm rebuild esbuild && node tools/build.mjs`，输出「dist ready 14.5 MB」；`dist/` 在 `.gitignore` 里，不提交。
+- 全套复跑（对打包产物）：`node --test tests/*.test.cjs` 23 条全过；`tools/entry-check.cjs` 四档各 18 项全过；`tools/practice-check.cjs` 113 项全过；`tools/input-check.cjs` 60 项全过；`tools/browser-check.cjs <base> <out> 1280 720` 五个机位（hero、wide、stress、boss、auto）零页面错误；`tools/facing-check.cjs` 四项 ok。没有重跑 `playthrough`、`record`、`default-perf`（与标题页文字无关，耗时长）。
+
 ## 2026-11-11 台边软影回归（Node 已验，浏览器待测）
 
 对应冷读发现④：`src/main.js` 原先按角色中心是否进入擂台，在 0.014 / 0.075 m 间切换整块软影。实际底板从 z=40.9 开始，顶面 0.05 m，地毯 0.056 m；站在 z=40.5 时，影子前部已进入台面但仍在其下方，中心跨边后又整体抬高。代码与新增检查确认该问题存在。

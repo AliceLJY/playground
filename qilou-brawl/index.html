@@ -20,6 +20,7 @@ h1{font-size:clamp(44px,12vw,72px);margin:.15em 0;letter-spacing:.12em;color:var
 button.big{margin-top:22px;background:var(--red);color:#fff;border:2px solid var(--gold);border-radius:999px;padding:12px 40px;font-size:18px;letter-spacing:.2em;cursor:pointer;box-shadow:0 4px 0 #7d1015}
 button.big:active{transform:translateY(3px);box-shadow:0 1px 0 #7d1015}
 .keys{margin-top:20px;font-size:12px;opacity:.75;line-height:1.9}
+.keys span{white-space:nowrap}
 .keys b{display:inline-block;min-width:1.6em;padding:0 .4em;border:1px solid rgba(246,235,211,.5);border-radius:4px;margin:0 2px}
 body.touch .keys{display:none}
 .touch-help{display:none;font-size:14px;line-height:1.7;margin-top:18px}
@@ -112,7 +113,7 @@ body.touch #stick.on{opacity:1}
     <p class="touch-help">左下方拖动走位，右半屏拖动看方向，锣鼓满了再按锣。</p>
     <button id="start" class="big">开 锣</button>
     <button id="practice" class="practice-entry" type="button">街口讨教 <small>· 一分钟练挡与脚</small></button>
-    <div class="keys"><b>W</b><b>A</b><b>S</b><b>D</b> 移动 · <b>J</b>/左键 拳 · <b>K</b>/右键 脚 · <b>空格</b> 翻滚<br><b>Q</b> 按住格挡 · <b>E</b> 锣鼓满了开二阶段 · 拖动鼠标转镜头 · <b>M</b> 声音</div>
+    <div class="keys"><span><b>W</b><b>A</b><b>S</b><b>D</b> 移动</span> · <span><b>J</b>/左键 拳</span> · <span><b>K</b>/右键 脚</span> · <span><b>空格</b> 翻滚</span><br><span><b>Q</b> 按住格挡</span> · <span><b>E</b> 锣鼓满了开二阶段</span> · <span>拖动鼠标转镜头</span> · <span><b>M</b> 声音</span></div>
   </div>
 </div>
 
