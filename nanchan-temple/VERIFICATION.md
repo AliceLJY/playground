@@ -26,3 +26,26 @@ Chrome 156.0.8078.80：390×664、320×568、844×340 触屏模拟 / DPR 2，136
 另录了正常入口约 31 秒：真实点击走完 11 步，再回看斗栱及拆开，未用钩子推进状态，页面错误 0。录像在验收输出的 `opening-final/nanchan-temple/`，按每秒一帧抽样复看；这不是全帧视觉验收。
 
 真手机、Safari、实际触屏手感及真人首次理解未测。页面用拟声文字表达落件，无音频；没有声效听测结论。
+
+## 2026-11-25 Duet 展页巡检复核
+
+外部测试员 Duet 的修理单第 8 节逐条复核。本地 `python3 -m http.server 8784`（仓根），Playwright 自带 Chromium，1440×900 与 390×664（hasTouch true / false 各一次）。新增 `tools/duet-check.cjs`，在原代码上 7 项中 6 项 FAIL，修后 7/7 PASS。
+
+| # | Duet 说法 | 复现 / 查证 | 结论 | 怎么改的 |
+|---|---|---|---|---|
+| 1 | 尺子拨到 13/15/17/19 mm，「装回」读数仍是 12 mm 的面阔进深 | 复现，且不止这四档：12–20 mm 共 17 档里只有 12/14/16.5/18/20 对，其余 12 档都退回 12 mm 的数；回看斗栱在 13 mm 显示 114 cm（应 124 cm）。原因 `build.mjs` 只预算 5 档 | 成立已修 | `build.mjs` 改为预算滑杆全部 17 档（12–20，步长 0.5） |
+| 2 | 第 4 步前展开斗栱剖视窗是空白 | 复现：桌面默认展开，`[data-inset]` 在第 4 步前 hidden，展开区里没有可见元素 | 成立已修 | 剖视窗里加一行「搭到第 4 步斗栱，这里放大看一朵柱头铺作。」，`inset.mjs` 的 start/stop 同步隐藏 / 显示它 |
+| 3 | 手机「从头来」13px、只有 19px 高 | 复现：390 宽 334×19，触屏与非触屏相同 | 成立已修 | 窄屏 `.nc-reset` 改为 44px 高、14px 字 |
+| 4 | 16.5 mm 档注「实测（张荣 2022）」，facts.md 列为推算 | 查证：张荣等 2022 第 3.2 节用卡尺实测华栱厚等，再按「单材厚 10 分°、足材高 21 分°」等假定算出 16.3–16.5 mm/分°，称「初步判断」，3.3 节取 16.5（澎湃转载全文 https://m.thepaper.cn/newsDetail_forward_18883877 ）。是推算值 | 成立已修 | 页面注改「推算（张荣 2022）」；README / README_CN 同句改为「张荣等 2022 按实测尺寸推算的分值」 |
+| 5 | facts.md 与页面三处不一：坡度、通面阔、生起 | 对照页面：举高 chip 为 `1:5.34`（= 694 ÷ 130，Z 体系），面阔按 700 分（16.5 mm 时 11.55 m），生起没画（`build.mjs:36` 注释与 README「已知简化」）。facts.md 前半写的是补核前的旧方案 | 成立已修（文档） | facts.md 三处与「示意」清单一处改为实际做法，保留原句并注明 2026-11-25 订正 |
+
+另见未改：页面图注小字「出檐、台基外轮廓、生起……为示意」里的「生起」，实际是没画而不是示意画。只改这一词要重建，留给作者定。
+
+构建：`src/` 下 `node build.mjs --light`（本机 Anatomy `1482e84`），改前先在 aaf1c1b 上重建确认产物与 `index.html` 逐字节相同，修后 `cp nanchan-light.html ../index.html`，两者逐字节相同。几何未动，没有重跑 `--audit`。
+
+```sh
+NODE_PATH="$(npm root -g)" node nanchan-temple/tools/duet-check.cjs http://127.0.0.1:8784/nanchan-temple/ <截图目录>   # 修前 exit 1（6 FAIL），修后 exit 0（7 PASS）
+NODE_PATH="$(npm root -g)" node nanchan-temple/tools/browser-check.cjs http://127.0.0.1:8784/nanchan-temple/ <输出目录> # 修后 124/124 PASS，exit 0
+```
+
+真手机、Safari 未测。

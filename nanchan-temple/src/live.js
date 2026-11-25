@@ -292,7 +292,7 @@ function setFen(value) {
   const scale = fen / D.fen;
   house.setAttribute("transform", Math.abs(scale - 1) < 1e-6 ? "" : `translate(${anchor[0]} ${anchor[1]}) scale(${scale.toFixed(4)}) translate(${-anchor[0]} ${-anchor[1]})`);
   fenOut.textContent = `${fen.toFixed(1)} mm`;
-  fenNote.textContent = Math.abs(fen - D.fen) < 0.01 ? "实测（张荣 2022）" : "假想：换一把尺子";
+  fenNote.textContent = Math.abs(fen - D.fen) < 0.01 ? "推算（张荣 2022）" : "假想：换一把尺子";
   const c = D.chips;
   const cmOf = (f) => (f * fen) / 10;
   chip("fen").textContent = `1 分 = ${fen.toFixed(1)} mm`;

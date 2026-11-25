@@ -97,6 +97,7 @@ export function buildInset({ k, G, M, AZIMUTH, ELEVATION }) {
 ;(() => {
   const box = document.querySelector("[data-inset]");
   if (!box) return;
+  const wait = document.querySelector("[data-inset-wait]");
   const order = ${JSON.stringify(M.LOAD_PATH.map((l) => l.id))};
   const parts = [...box.querySelectorAll("[data-load]")];
   const rows = [...box.querySelectorAll("[data-load-step]")];
@@ -108,8 +109,8 @@ export function buildInset({ k, G, M, AZIMUTH, ELEVATION }) {
     rows.forEach((r) => r.dataset.loadStep === id ? r.setAttribute("data-on", "") : r.removeAttribute("data-on"));
   }
   window.__ncInset = {
-    start() { if (timer) return; box.hidden = false; if (still.matches) { show(order.length - 1); return; } i = -1; const step = () => { i = (i + 1) % (order.length + 2); if (i < order.length) show(i); else show(-1); timer = setTimeout(step, i < order.length ? 900 : 700); }; step(); },
-    stop(hide) { clearTimeout(timer); timer = 0; show(-1); if (hide) box.hidden = true; },
+    start() { if (timer) return; box.hidden = false; if (wait) wait.hidden = true; if (still.matches) { show(order.length - 1); return; } i = -1; const step = () => { i = (i + 1) % (order.length + 2); if (i < order.length) show(i); else show(-1); timer = setTimeout(step, i < order.length ? 900 : 700); }; step(); },
+    stop(hide) { clearTimeout(timer); timer = 0; show(-1); if (hide) { box.hidden = true; if (wait) wait.hidden = false; } },
   };
 })();
 `;

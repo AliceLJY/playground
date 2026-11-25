@@ -897,7 +897,9 @@ const LABEL = "山西五台南禅寺大殿（唐建中三年 782 年重建）的
 const svgMain = k.figureSvg({ width: W, height: H, label: LABEL, body: [back.join(""), `<g class="nc-house">${halo.join("")}${groups.join("")}</g>`, front.join("")], className: "nc-svg" });
 
 const STEPS = M.STEPS.map((s) => ({ id: s.id, name: s.name, hint: s.hint, sound: s.sound, part: s.part }));
-const sayText = Object.fromEntries(M.STEPS.map((s) => [s.id, [12, 14, 16.5, 18, 20].map((mm) => [mm, s.say(mm)])]));
+// 滑杆 12–20 mm、步长 0.5：每一档都预算，读数才跟得上尺子
+const FEN_STOPS = Array.from({ length: 17 }, (_, i) => 12 + i * 0.5);
+const sayText = Object.fromEntries(M.STEPS.map((s) => [s.id, FEN_STOPS.map((mm) => [mm, s.say(mm)])]));
 const unitV = (v) => {
   const o = at([0, 0, 0]);
   const p = at(v);
@@ -954,7 +956,7 @@ const controls = `<aside class="nc-side">
   <div class="nc-mode nc-theme" role="group" aria-label="白天或黑夜"><button type="button" data-theme-set="light" aria-pressed="${THEME === "light"}">白天</button><button type="button" data-theme-set="dark" aria-pressed="${THEME === "dark"}">黑夜</button></div>
   <details class="nc-directory"><summary>11 步目录</summary><div class="nc-steps">${buttons}</div></details>
   <a href="#" class="nc-reset" data-reset>从头来</a>
-  <details class="nc-cutaway"><summary>斗栱剖视窗</summary>${inset.html}</details>
+  <details class="nc-cutaway"><summary>斗栱剖视窗</summary><p class="nc-inset-wait" data-inset-wait>搭到第 4 步斗栱，这里放大看一朵柱头铺作。</p>${inset.html}</details>
 </aside>`;
 const chips = `<div class="nc-chips" data-chips>
   <span class="nc-chip"><b>当前</b><i data-chip="part">台基</i></span>
@@ -964,7 +966,7 @@ const chips = `<div class="nc-chips" data-chips>
   <span class="nc-chip"><b>出檐</b><i data-chip="eave">142 分 = 2.34 m · 示意</i></span>
   <span class="nc-chip"><b>举高</b><i data-chip="ju">130 分 = 2.15 m · 1:5.34</i></span>
 </div>`;
-const slider = `<label class="nc-slider"><span>换一把尺子：1 分 =</span><input type="range" min="12" max="20" step="0.5" value="16.5" data-fen aria-label="分值，毫米"><output data-fen-out>16.5 mm</output><em data-fen-note>实测（张荣 2022）</em></label>`;
+const slider = `<label class="nc-slider"><span>换一把尺子：1 分 =</span><input type="range" min="12" max="20" step="0.5" value="16.5" data-fen aria-label="分值，毫米"><output data-fen-out>16.5 mm</output><em data-fen-note>推算（张荣 2022）</em></label>`;
 const corners = `<div class="iso-plate-corners" aria-hidden="true"><span class="iso-plate-corner" data-corner="fig">Fig 1</span><span class="iso-plate-corner" data-corner="title">南禅寺大殿 · 唐 782</span><span class="iso-plate-corner" data-corner="hint">按左边亮着的那一步</span><span class="iso-plate-corner" data-corner="readout" data-readout>还是一块空地</span></div>`;
 const stage = `<div class="nc-stage" tabindex="0" role="group" aria-label="南禅寺大殿搭建演示。按下一步逐层搭建；空格键按下一步。">
   <div class="nc-current" data-current aria-live="polite">当前：空地</div>

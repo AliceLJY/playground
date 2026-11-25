@@ -89,6 +89,8 @@
 .nc-sound[data-pop]{animation:nc-pop 1.5s ease-out forwards}
 @keyframes nc-pop{0%{opacity:0;transform:translate(-50%,-30%) rotate(-7deg) scale(.7)}14%{opacity:1;transform:translate(-50%,-50%) rotate(-7deg) scale(1.08)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-80%) rotate(-7deg) scale(1)}}
 .nc-inset{position:relative;margin-top:6px;background:var(--anatomy-card);border:1px solid var(--nc-btn-line);border-radius:10px;padding:6px 8px 8px;box-shadow:0 2px 0 var(--nc-btn-line)}
+.nc-inset-wait{font:12px/1.5 "Noto Serif SC",serif;color:var(--anatomy-muted);margin:6px 0 0}
+.nc-inset-wait[hidden]{display:none}
 .nc-inset-win{border-radius:8px;overflow:hidden;background:var(--anatomy-face)}
 .nc-inset-cap{font:12px/1.45 "Noto Serif SC",serif;color:var(--anatomy-text);margin-top:4px}
 .nc-inset-cap b{display:block;font-weight:600;color:var(--anatomy-strong);margin-bottom:2px}
@@ -133,6 +135,7 @@
   .nc-side{position:static;width:100%}
   .nc-steps{flex-direction:row;flex-wrap:wrap}
   .nc-step{font-size:13px;padding:4px 10px 4px 4px;min-height:44px}
+  .nc-reset{display:flex;align-items:center;min-height:44px;font-size:14px}
   .nc-num{width:20px;height:20px}
   .nc-inset{position:static;width:auto;display:grid;grid-template-columns:120px 1fr;gap:8px;margin-top:6px}
   .nc-inset[hidden]{display:none}

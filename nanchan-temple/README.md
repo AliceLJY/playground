@@ -11,7 +11,7 @@ The Great Hall of Nanchan Temple in Wutai, Shanxi, rebuilt in 782 under the Tang
 - Day or night colours. Both choices are remembered in the browser.
 - On phones the model comes first, with a fixed next-step button and expandable step list and cut-away. Landscape places the model beside its explanation. Completion unlocks bracket, beam frame, exploded and assembled views with an explicit current-state label; starting over restores the guided order.
 - The cut-away enlarges one column-top bracket set and lights up, layer by layer, how the roof's weight runs from the tiles down into the column.
-- A slider sets how many millimetres one *fen* (the module unit) is worth; the whole hall rescales and every reading is recomputed. 16.5 mm is the surveyed value, the rest are hypothetical.
+- A slider sets how many millimetres one *fen* (the module unit) is worth; the whole hall rescales and every reading is recomputed. 16.5 mm is the value Zhang Rong et al. (2022) derived from survey measurements; the rest are hypothetical.
 
 The line under the figure: the whole hall can be measured with one ruler, the *cai* module. Measuring a Tang building with the module system of the Song *Yingzao Fashi* (1103) is a modern method of analysis, not a Tang drawing.
 
