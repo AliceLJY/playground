@@ -109,4 +109,12 @@ node --test tests/*.test.cjs
 - 结论：成立。按钮本身粘在底部（验收 6「不用滚动就够得到」），但只有按钮一块不透明，旁边的字照样从按钮两侧滚过去，看起来就是按钮浮在正文上。
 - 改法：`index.html` 里「关闭」外面包一层 `.foot`，粘住的改成这一整条底栏（说明页同色不透明底、上沿一条细线，`bottom:-14px` 贴住说明页下沿），正文从底栏下面滚过去；按钮本身不再单独粘。`tools/browser-check.cjs` 里校准「按钮不粘底的旧写法」那一条，注入的样式相应改成把 `.foot` 还原成不粘（否则校准抓不到旧写法）。
 - 检查：`NODE_PATH="$(npm root -g)" node tools/info-scroll-check.cjs <输出目录> <页面地址>`，改之前退出码 1、四档 FAIL，改之后退出码 0、四档 ok、`textBesideClose` 为空，滚到底「关闭」仍在说明页可见范围内、点中心点到的是它、点了能关。
-- 全套复跑：`node --test tests/*.test.cjs` 36 条全过；`tools/b3-check.cjs` 20 项全过；`tools/browser-check.cjs` 433 项里 432 过，没过的一项是「calibration fold: the first breakpoint (narrow only below 700 px) is flagged as crowded」。这一项在未改动的 aaf1c1b 上用它自己的检查脚本跑也是同样 432/433、同一项不过，是原有失败（B3 改副标题后 720 宽顶栏不再拥挤，旧断点那条校准失去了抓手），不是这次改的。没有修它，留待单独处理。
+- 全套复跑：`node --test tests/*.test.cjs` 36 条全过；`tools/b3-check.cjs` 20 项全过；`tools/browser-check.cjs` 433 项里 432 过，没过的一项是「calibration fold: the first breakpoint (narrow only below 700 px) is flagged as crowded」。这一项在未改动的 aaf1c1b 上用它自己的检查脚本跑也是同样 432/433、同一项不过，是原有失败（B3 改副标题后 720 宽顶栏不再拥挤，旧断点那条校准失去了抓手），不是这次改的。已在下面「后续」一节查清并修掉。
+
+### 后续：原有的 fold 校准失败（同日查清）
+
+- 查证：这条校准在 720×800 上去掉 `narrow`、`compact` 两个类，模拟「宽度 < 700 才算窄屏」的最初断点，要求间距检查报出拥挤。用一个临时探针在 700–900 宽逐档对比三种版面：现行版面各宽度都不拥挤；只退回旧断点、副标题用现在的短句「先看红点，再点返修后」，也不拥挤；退回旧断点、副标题换回 B3（95723b0，2026-11-03）之前的长句「dsh 一次写出的齿轮页，和它自己返修后的版本」，720 宽下标题—徽标、徽标—版本切换间距都是 4 px（700 宽 -6 px），和本文件第 62 行当初记的 4 px 一致。
+- 结论：页面没有问题，是检查过期。B3 把副标题换短以后，只去掉断点已经重现不了当初那个挤的版面，校准失去了抓手；间距检查本身仍然能抓到拥挤。
+- 改法：只改 `tools/browser-check.cjs` 的这条校准，去掉断点的同时把旧副标题放回去，重现当初那个已知是坏的版面。页面没动。
+- 检查：改之前 `tools/browser-check.cjs` 432/433（就是这一项不过）；改之后 433/433，这一项报出 `{"a":"titles","b":"SPAN","gap":4}`、`{"a":"SPAN","b":"ver","gap":4}`。
+- 全套复跑：`node --test tests/*.test.cjs` 36 条全过；`tools/b3-check.cjs` 20 项全过；`tools/info-scroll-check.cjs` 4 档全过；`tools/browser-check.cjs` 433/433。

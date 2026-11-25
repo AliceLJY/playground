@@ -177,9 +177,11 @@ const barGaps = (page) => page.evaluate(() => {
   }
 
   {   // 校准：720 宽时最初的断点（宽度 < 700 才算窄屏）下，标题、徽标、版本切换挤在一起，间距只有 4 px，这条检查必须抓到
+    // 当时挤的那一版还带着旧副标题「dsh 一次写出的齿轮页，和它自己返修后的版本」；B3（2026-11-03）换成短副标题后，
+    // 只去掉断点已经挤不起来，所以校准要把旧副标题一起放回去，重现那个已知是坏的版面（2026-11-25 查清）
     const { ctx, page } = await open('?view=hero', 'fold');
     const okGaps = await barGaps(page);
-    await page.evaluate(() => document.body.classList.remove('narrow', 'compact'));
+    await page.evaluate(() => { document.body.classList.remove('narrow', 'compact'); document.getElementById('sub').textContent = 'dsh 一次写出的齿轮页，和它自己返修后的版本'; });
     const badGaps = await barGaps(page);
     check('calibration fold: current layout has no crowded neighbours', okGaps.length === 0, okGaps);
     check('calibration fold: the first breakpoint (narrow only below 700 px) is flagged as crowded', badGaps.length >= 2 && badGaps.every((g) => g.gap < 8), badGaps);
