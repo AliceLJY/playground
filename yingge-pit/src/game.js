@@ -242,7 +242,9 @@ function muteBox(){const v=L.vis;return{x:v.x1-170,y:v.y0+24,w:150,h:64};}
 // Landscape only shows world y 200-1790, so the choices move into the side margins (always ≥300 wide), level with 「点一下开始」.
 function modeBoxes(){if(L.land){const cu=dpr/L.scale,h=Math.max(104,48*cu),w=Math.max(270,Math.min(96*cu,-L.vis.x0-30)),y=1608-h/2;
   return[{x:-20-w,y,w,h,mode:'solo'},{x:1100,y,w,h,mode:'duo'}];}
-  return[{x:250,y:1790,w:270,h:104,mode:'solo'},{x:560,y:1790,w:270,h:104,mode:'duo'}];}
+  // Portrait: at least 48 CSS px tall, kept above the bottom edge; the captions above them move up with them (see drawTitle).
+  const cu=dpr/L.scale,h=Math.max(104,48*cu),y=Math.min(1790,L.vis.y1-Math.max(14,8*cu)-h);
+  return[{x:250,y,w:270,h,mode:'solo'},{x:560,y,w:270,h,mode:'duo'}];}
 const inBox=(p,b)=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;
 function laneAt(p){
   for(const pad of L.pads)if(inBox(p,pad))return{lane:pad.lane,player:pad.player<0?0:pad.player};
@@ -595,9 +597,10 @@ function drawTitle(t){
   text('袖子鼓起看哪一道，铁枝一亮就点那一道',540,756,34,COLOR.cream,'center',800,'banner');
   for(const b of modeBoxes()){const on=mode===b.mode;ctx.save();rr(b.x,b.y,b.w,b.h,30);ctx.fillStyle=on?COLOR.gold:'rgba(30,16,8,0.8)';ctx.fill();ctx.lineWidth=4;ctx.strokeStyle=COLOR.gold;ctx.stroke();ctx.restore();
     text(b.mode==='solo'?'单人':'双人',b.x+b.w/2,b.y+b.h/2,44,on?'#1b120c':COLOR.gold,'center',900,'ui');}
-  text(mode==='duo'?'同一台手机：阿爸管左半边，心远管右半边':'一个人管三道，两只手一起上',540,1700,mode==='duo'?32:34,COLOR.cream,'center',800,'banner');
-  if(mode==='duo')text('中间那道谁先点算谁的',540,1746,30,COLOR.cream,'center',800,'banner');
-  ctx.save();ctx.globalAlpha=0.6+0.4*Math.sin(t*4);text('点一下开始',540,1610,58,COLOR.gold,'center',900,'ui');ctx.restore();
+  const by=L.land?1790:modeBoxes()[0].y;   // captions sit a fixed distance above the portrait choices (1790 before they grew)
+  text(mode==='duo'?'同一台手机：阿爸管左半边，心远管右半边':'一个人管三道，两只手一起上',540,by-90,mode==='duo'?32:34,COLOR.cream,'center',800,'banner');
+  if(mode==='duo')text('中间那道谁先点算谁的',540,by-44,30,COLOR.cream,'center',800,'banner');
+  ctx.save();ctx.globalAlpha=0.6+0.4*Math.sin(t*4);text('点一下开始',540,Math.min(1610,by-180),58,COLOR.gold,'center',900,'ui');ctx.restore();
 }
 function drawResult(t){
   const s=game.state,r=s.result,k=ease(Math.min(1,resultT*3)),v=L.vis;
