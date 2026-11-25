@@ -55,6 +55,6 @@ button.map-card{padding:8px;border:0;cursor:pointer;color:#516c59;font-family:in
 @media(max-width:700px) and (orientation:portrait){.intro-panel{top:auto;bottom:calc(53% + 10px)}}
 @media(max-width:700px) and (orientation:portrait) and (max-height:760px){.intro-panel h1{font-size:44px;margin:10px 0}.intro-panel p{margin-bottom:14px}}
 @media(max-width:700px) and (orientation:portrait) and (max-height:600px){.intro-panel .eyebrow{display:none}.intro-panel h1{font-size:36px;margin:0 0 8px}.intro-panel p{font-size:12px;line-height:1.6;margin-bottom:10px}}
-/* Ride HUD (2026-11-25 follow-up): touch screens drop the keyboard hint under the boost bar; on narrow screens that keep it, the speed readout moves up to clear the taller boost meter. */
-@media(pointer:coarse){.boost-meter small{display:none}}
+/* Ride HUD (2026-11-25 follow-up): touch screens drop every keyboard hint (key caps, the key line, the hint under the boost bar); on narrow screens that keep it, the speed readout moves up to clear the taller boost meter. */
+@media(pointer:coarse){kbd,.keyboard-help,.boost-meter small{display:none}}  /* every keyboard hint, at any width */
 @media(max-width:700px) and (pointer:fine){.speed-readout{bottom:232px}}

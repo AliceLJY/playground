@@ -43,10 +43,18 @@ const lum=c=>{const m=c.match(/[\d.]+/g).map(Number);return .2126*m[0]+.7152*m[1
    const hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y,bad=[];
    for(let i=0;i<parts.length;i++){for(let j=i+1;j<parts.length;j++)if(hit(parts[i],parts[j]))bad.push([parts[i].name,parts[j].name]);for(const o of others)if(hit(parts[i],o))bad.push([parts[i].name,o.name]);}
    const hint=q('.boost-meter small'),shown=!!hint&&!!hint.getClientRects().length&&getComputedStyle(hint).visibility!=='hidden';
-   return {bad,hintShown:shown,hintText:hint?.textContent,parts};});
+   // every keyboard hint: key caps (bottom-bar 扶正 R, 停下来看看 E — that one sits in a hidden panel, so judge the cap's own style), the key line, the boost hint
+   const capStyle=e=>{const cs=getComputedStyle(e);return cs.display!=='none'&&cs.visibility!=='hidden';};
+   const caps=[...document.querySelectorAll('kbd')].map(e=>({in:e.parentElement.id||e.parentElement.className,text:e.textContent,styled:capStyle(e),onScreen:!!e.getClientRects().length}));
+   const keyLine=q('.keyboard-help'),keyLineShown=!!keyLine&&!!keyLine.getClientRects().length&&capStyle(keyLine);
+   const barCaps=[...document.querySelectorAll('.bottom-bar button')].map(b=>({button:b.id,caps:[...b.querySelectorAll('kbd')].filter(k=>k.getClientRects().length&&capStyle(k)).map(k=>k.textContent)}));
+   return {bad,hintShown:shown,hintText:hint?.textContent,parts,caps,keyLineShown,barCaps};});
   check(tag,'speed and boost readouts overlap nothing',hud.bad.length===0,hud);
-  if(touch)check(tag,'touch screens do not show the keyboard hint',!hud.hintShown,hud);
-  else check(tag,'keyboard screens still show the keyboard hint',hud.hintShown&&/Shift/.test(hud.hintText),hud);
+  if(touch){check(tag,'touch screens do not show the keyboard hint',!hud.hintShown,hud);
+   check(tag,'touch: no bottom-bar button shows a key cap',hud.barCaps.every(b=>b.caps.length===0),hud.barCaps);
+   check(tag,'touch: no key cap is styled visible and no key line is shown',hud.caps.every(c=>!c.styled)&&!hud.keyLineShown,{caps:hud.caps,keyLine:hud.keyLineShown});}
+  else{check(tag,'keyboard screens still show the keyboard hint',hud.hintShown&&/Shift/.test(hud.hintText),hud);
+   if(w>700)check(tag,'desktop keeps the key caps and the key line',hud.barCaps.some(b=>b.caps.includes('R'))&&hud.keyLineShown,{barCaps:hud.barCaps,keyLine:hud.keyLineShown});}
   check(tag,'zero page errors',errors.length===0,errors);await ctx.close();
  }
  await browser.close();console.log(`${total-failed}/${total} passed`);process.exitCode=failed?1:0;
