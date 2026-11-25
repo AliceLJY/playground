@@ -1,6 +1,7 @@
 'use strict';
 // 煤球下班 · 微信小游戏版。玩法与数值照搬 ../index.html，界面改为全部画在画布上（横屏）。
 const W = 960, H = 540, ROUND = 60, PLAYER_Y = 461, BEST_KEY = 'sooty-office-best-v1', SOUND_KEY = 'sooty-office-sound-v1';
+const ADD_TIP_KEY = 'sooty-office-addtip-v1', ADDED_KEY = 'sooty-office-added-v1', ADD_TIP_MAX = 3, MY_MINIPROGRAM_SCENES = [1103, 1104];
 const info = (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync());
 const SW = info.windowWidth, SH = info.windowHeight, DPR = info.pixelRatio || 2;
 const safe = info.safeArea && info.safeArea.width ? info.safeArea : {left: 0, top: 0, right: SW, bottom: SH, width: SW, height: SH};
@@ -94,10 +95,51 @@ function pad3(n) { return String(n).padStart(3, '0'); }
 function timerText() { const s = Math.max(0, Math.ceil(ROUND - elapsed)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
 function comboText() { return combo ? `${combo} 连击 · ${Math.min(3, 1 + Math.floor(combo / 5))}× COFFEE` : 'LET\'S MAKE IT TO 18:00'; }
 function releaseControls() { keys.clear(); sideTouches.clear(); pointerId = null; pointerTarget = null; player.moving = false; }
-function showCard(tag, title, lines, button, hint) { card = {tag, title, lines, button, hint}; }
+// 结算卡带「分享战绩」时主按钮左移让位；两颗按钮之间留够空，触控外扩区不重叠。
+const SHARE_BUTTON = {x: 570, y: 292, w: 140, h: 74};
+function showCard(tag, title, lines, button, hint, share = false) {
+  card = {tag, title, lines, button, hint, share: share && canShare};
+  CARD_BUTTON.x = card.share ? 250 : 320; CARD_BUTTON.w = card.share ? 290 : 320;
+}
+
+// —— 分享：右上角 ··· 的转发、朋友圈，加结算卡上的主动分享。标题只讲战绩，不许诺奖励（诱导分享过不了审）。——
+let lastResult = null;
+function shareTitle() {
+  if (!lastResult) return '煤球下班：接住咖啡，撑到 18:00 准点走人';
+  return lastResult.win ? `我接住 ${lastResult.caught} 杯咖啡准点下班了，你能撑到 18:00 吗？` : `小煤球没撑到下班，换你来试试？`;
+}
+const canShare = typeof wx.shareAppMessage === 'function';
+try { wx.showShareMenu && wx.showShareMenu({withShareTicket: false, menus: ['shareAppMessage', 'shareTimeline']}); } catch (_) {}
+try { wx.onShareAppMessage && wx.onShareAppMessage(() => ({title: shareTitle()})); } catch (_) {}
+try { wx.onShareTimeline && wx.onShareTimeline(() => ({title: shareTitle()})); } catch (_) {}
+function share() { try { wx.shareAppMessage({title: shareTitle()}); } catch (_) { /* 分享不可用也能玩 */ } }
+
+// —— 「添加到我的小程序」气泡：一局结束后在右上角胶囊下方出现，箭头指着 ···，点一下收起。
+// 每次启动最多一次、累计最多 ADD_TIP_MAX 次；从「我的小程序」进来的说明已经加过，永不再出。——
+let addTip = null, addTipShownThisRun = false, addTipCount = 0, added = false;
+try { addTipCount = Math.max(0, Math.floor(Number(wx.getStorageSync(ADD_TIP_KEY)) || 0)); added = wx.getStorageSync(ADDED_KEY) === 'yes'; } catch (_) {}
+function noteScene(scene) { if (MY_MINIPROGRAM_SCENES.includes(Number(scene))) { added = true; addTip = null; try { wx.setStorageSync(ADDED_KEY, 'yes'); } catch (_) {} } }
+try { wx.getLaunchOptionsSync && noteScene(wx.getLaunchOptionsSync().scene); } catch (_) {}
+try { wx.onShow && wx.onShow(res => noteScene(res && res.scene)); } catch (_) {}
+function menuRect() { try { const m = wx.getMenuButtonBoundingClientRect && wx.getMenuButtonBoundingClientRect(); return m && m.width > 0 && m.height > 0 ? m : null; } catch (_) { return null; } }
+function maybeShowAddTip() {
+  if (added || addTipShownThisRun || addTipCount >= ADD_TIP_MAX) return;
+  const m = menuRect(); if (!m) return;
+  const w = 268, h = 40, x = Math.max(4, Math.min(m.right, SW - 4) - w), y = Math.max(m.bottom + 12, HUD.pause.y + HUD.pause.h + 8); // 横屏胶囊和读数栏同高，气泡落到读数栏下沿以下，不挡声音、暂停键
+  addTip = {x, y, w, h, arrowX: Math.max(x + 18, Math.min(x + w - 18, m.left + m.width * .25))};
+  addTipShownThisRun = true; addTipCount++; try { wx.setStorageSync(ADD_TIP_KEY, String(addTipCount)); } catch (_) {}
+}
+function drawAddTip(g) {
+  if (!addTip) return;
+  const t = addTip;
+  g.fillStyle = 'rgba(38,57,47,.94)'; roundRect(g, t.x, t.y, t.w, t.h, 10); g.fill();
+  g.beginPath(); g.moveTo(t.arrowX - 8, t.y + 1); g.lineTo(t.arrowX, t.y - 9); g.lineTo(t.arrowX + 8, t.y + 1); g.closePath(); g.fill();
+  text(g, '点 ··· 添加到我的小程序，下次好找', t.x + t.w / 2 - 10, t.y + 26, 14, '#fff9dc', 'center');
+  text(g, '×', t.x + t.w - 16, t.y + 26, 16, '#c8d8b8', 'center', 'normal');
+}
 function start() {
   mode = 'playing'; elapsed = 0; score = 0; combo = 0; caught = 0; lives = 3; items = []; particles = []; popups = []; spawnIn = .55; spawnCount = 0; shake = 0; player = {x: 480, invincible: 0, moving: false}; releaseControls();
-  card = null; lastTime = Date.now(); if (soundOn) enableAudio();
+  card = null; addTip = null; lastTime = Date.now(); if (soundOn) enableAudio();
 }
 function pause() {
   if (mode === 'playing') { mode = 'paused'; releaseControls(); showCard('TAKE A LITTLE BREAK', '摸鱼时间', ['喘口气，咖啡和 bug 都会等你。'], '继续 →', '倒计时也在休息'); }
@@ -107,7 +149,8 @@ function finish(win) {
   mode = 'over'; releaseControls(); const record = score > best;
   if (record) { best = score; try { wx.setStorageSync(BEST_KEY, String(best)); } catch (_) {} }
   showCard(win ? '18:00 · 今日工位已关闭' : 'LOW BATTERY · 休息一下也没关系', win ? '准点下班！' : '小煤球需要充电',
-    [`接住 ${caught} 杯咖啡，获得 ${score} 分。`, record ? '刷新个人最佳！' : win ? '把工作留在工位，快乐带回家。' : '下次一定能顺利下班。'], '再来一局 →', '');
+    [`接住 ${caught} 杯咖啡，获得 ${score} 分。`, record ? '刷新个人最佳！' : win ? '把工作留在工位，快乐带回家。' : '下次一定能顺利下班。'], '再来一局 →', '', true);
+  lastResult = {win, caught, score}; maybeShowAddTip();
   tone(win ? 880 : 150, .3, 'triangle', .08);
 }
 function burst(x, y, color) { for (let i = 0; i < 12; i++) particles.push({x, y, vx: (Math.random() - .5) * 160, vy: -50 - Math.random() * 120, life: .6, color}); }
@@ -153,7 +196,9 @@ function drawStage() {
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath(); }
 function text(g, s, x, y, size, color, align = 'left', weight = 'bold', family = 'sans-serif') { g.fillStyle = color; g.font = `${weight} ${size}px ${family}`; g.textAlign = align; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); }
 // 读数栏里的两个小按钮用屏幕坐标；卡片用舞台坐标。
-const HUD = {sound: {x: stageLeft + stageW - 94, y: barY + 4, w: 44, h: 38}, pause: {x: stageLeft + stageW - 44, y: barY + 4, w: 44, h: 38}};
+// 横屏时微信右上角胶囊可能落进读数栏，胶囊会吃掉点击：两颗键碰到它就左移让开。
+const hudMenu = menuRect(), hudRight = hudMenu && hudMenu.bottom > barY && hudMenu.top < barY + BAR ? Math.min(stageLeft + stageW, hudMenu.left - 6) : stageLeft + stageW;
+const HUD = {sound: {x: hudRight - 94, y: barY + 4, w: 44, h: 38}, pause: {x: hudRight - 44, y: barY + 4, w: 44, h: 38}};
 const CARD = {x: 190, y: 92, w: 580, h: 356}, CARD_BUTTON = {x: 320, y: 292, w: 320, h: 74};
 function drawHud(g) {
   const top = barY, left = stageLeft, right = stageLeft + stageW;
@@ -186,7 +231,13 @@ function drawCard(g) {
   card.lines.forEach((line, i) => text(g, line, 480, c.y + 138 + i * 32, 22, '#5f6e55', 'center', 'normal'));
   const b = CARD_BUTTON; g.fillStyle = '#344e3e'; g.fillRect(b.x, b.y + 5, b.w, b.h); g.fillStyle = pressedCard ? '#f5b97c' : '#efaa68'; g.fillRect(b.x, b.y + (pressedCard ? 4 : 0), b.w, b.h);
   g.strokeStyle = '#344e3e'; g.lineWidth = 3; g.strokeRect(b.x, b.y + (pressedCard ? 4 : 0), b.w, b.h);
-  text(g, card.button, 480, b.y + 47 + (pressedCard ? 4 : 0), 28, '#26392f', 'center');
+  text(g, card.button, b.x + b.w / 2, b.y + 47 + (pressedCard ? 4 : 0), 28, '#26392f', 'center');
+  if (card.share) {
+    const s = SHARE_BUTTON, d = pressedShare !== false ? 4 : 0;
+    g.fillStyle = '#344e3e'; g.fillRect(s.x, s.y + 5, s.w, s.h); g.fillStyle = d ? '#eef3e4' : '#fffdf0'; g.fillRect(s.x, s.y + d, s.w, s.h);
+    g.strokeStyle = '#344e3e'; g.lineWidth = 3; g.strokeRect(s.x, s.y + d, s.w, s.h);
+    text(g, '分享战绩', s.x + s.w / 2, s.y + 46 + d, 24, '#26392f', 'center');
+  }
   text(g, card.hint || (sideButtons ? '两侧方向键，或手指拖动小煤球' : '手指拖动小煤球左右走'), 480, c.y + 318, 16, '#8c967d', 'center', 'normal');
   text(g, `个人最佳 ${pad3(best)}  ·  © 我的AI小木屋`, 480, c.y + 343, 14, '#a3ab95', 'center', 'normal');
 }
@@ -196,7 +247,7 @@ function drawSideButton(side) {
   const cx = b.x + b.w / 2, cy = b.y + b.h / 2, d = side === 'L' ? -1 : 1, a = Math.min(18, b.w * .28);
   g.strokeStyle = '#26392f'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx - d * a, cy); g.lineTo(cx + d * a, cy); g.moveTo(cx + d * a * .2, cy - a * .8); g.lineTo(cx + d * a, cy); g.lineTo(cx + d * a * .2, cy + a * .8); g.stroke(); g.lineCap = 'butt';
 }
-let pressedCard = false;
+let pressedCard = false, pressedShare = false;
 function render() {
   drawStage();
   const g = screen;
@@ -208,6 +259,7 @@ function render() {
   g.save(); g.beginPath(); g.rect(0, 0, W, H); g.clip(); drawStageText(g); drawCard(g); g.restore();
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
   drawHud(g);
+  drawAddTip(g);
   if (sideButtons) { drawSideButton('L'); drawSideButton('R'); }
 }
 function frame() {
@@ -228,8 +280,9 @@ function syncKeys() { keys.clear(); for (const s of sideTouches.values()) keys.a
 function onTouchStart(e) {
   for (const t of e.changedTouches || []) {
     const p = toStage(t), raw = {x: t.clientX, y: t.clientY};
+    if (addTip && inBox(raw, addTip, 4)) { addTip = null; continue; }
     if (inBox(raw, HUD.sound, 4)) { toggleSound(); continue; }
-    if (card) { if (inBox(p, CARD_BUTTON, 18)) pressedCard = t.identifier; continue; }
+    if (card) { if (inBox(p, CARD_BUTTON, 18)) pressedCard = t.identifier; else if (card.share && inBox(p, SHARE_BUTTON, 8)) pressedShare = t.identifier; continue; }
     if (inBox(raw, HUD.pause, 4)) { pause(); continue; }
     if (mode !== 'playing') continue;
     const side = sideOf(t);
@@ -246,11 +299,12 @@ function onTouchMove(e) {
 function onTouchEnd(e) {
   for (const t of e.changedTouches || []) {
     if (pressedCard !== false && t.identifier === pressedCard) { pressedCard = false; if (inBox(toStage(t), CARD_BUTTON, 18)) { if (mode === 'paused') pause(); else start(); } }
+    if (pressedShare !== false && t.identifier === pressedShare) { pressedShare = false; if (card && card.share && inBox(toStage(t), SHARE_BUTTON, 8)) share(); }
     if (t.identifier === pointerId) { pointerId = null; pointerTarget = null; }
     if (sideTouches.delete(t.identifier)) syncKeys();
   }
 }
-function onTouchCancel(e) { pressedCard = false; for (const t of e.changedTouches || []) { if (t.identifier === pointerId) { pointerId = null; pointerTarget = null; } sideTouches.delete(t.identifier); } syncKeys(); }
+function onTouchCancel(e) { pressedCard = false; pressedShare = false; for (const t of e.changedTouches || []) { if (t.identifier === pointerId) { pointerId = null; pointerTarget = null; } sideTouches.delete(t.identifier); } syncKeys(); }
 wx.onTouchStart(onTouchStart); wx.onTouchMove(onTouchMove); wx.onTouchEnd(onTouchEnd); wx.onTouchCancel(onTouchCancel);
 wx.onHide(() => { releaseControls(); if (mode === 'playing') pause(); });
 showCard('17:59 · 下班前的最后一分钟', '煤球下班', ['小煤球，开工啦！接住咖啡，避开 bug。', '守住 3 颗小红心，撑到下班！'], '开始上班 →', '');

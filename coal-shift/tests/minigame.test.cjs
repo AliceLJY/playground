@@ -9,9 +9,10 @@ const vm = require('node:vm');
 const dir = path.join(__dirname, '..', 'minigame');
 const source = fs.readFileSync(path.join(dir, 'game.js'), 'utf8');
 
-function environment({storageBlocked = false, stored = '0', screen = {w: 844, h: 390, safe: {left: 47, top: 0, right: 797, bottom: 369}}, audio = false} = {}) {
+function environment({storageBlocked = false, stored = '0', screen = {w: 844, h: 390, safe: {left: 47, top: 0, right: 797, bottom: 369}}, audio = false, shareApi = false, menu = false, scene = 1001, extraStorage = {}} = {}) {
   const handlers = {};
-  const storage = new Map([['sooty-office-best-v1', stored]]);
+  const storage = new Map([['sooty-office-best-v1', stored], ...Object.entries(extraStorage)]);
+  const shared = [];
   const draw = new Proxy({}, {get: (t, k) => (k in t ? t[k] : () => {}), set: (t, k, v) => { t[k] = v; return true; }});
   const safe = {...screen.safe, width: screen.safe.right - screen.safe.left, height: screen.safe.bottom - screen.safe.top};
   const wx = {
@@ -23,8 +24,15 @@ function environment({storageBlocked = false, stored = '0', screen = {w: 844, h:
     onTouchEnd: fn => { handlers.end = fn; }, onTouchCancel: fn => { handlers.cancel = fn; },
     onHide: fn => { handlers.hide = fn; }, vibrateShort() {},
   };
+  if (shareApi) Object.assign(wx, {
+    showShareMenu: o => { shared.push({menu: o}); }, onShareAppMessage: fn => { handlers.shareMsg = fn; }, onShareTimeline: fn => { handlers.shareTimeline = fn; },
+    shareAppMessage: o => { shared.push(o); },
+  });
+  // 横屏胶囊：贴右上角，宽 87 高 32，离安全区顶 7。
+  if (menu) wx.getMenuButtonBoundingClientRect = () => ({left: screen.w - 94, right: screen.w - 7, top: screen.safe.top + 7, bottom: screen.safe.top + 39, width: 87, height: 32});
+  wx.getLaunchOptionsSync = () => ({scene}); wx.onShow = fn => { handlers.show = fn; };
   if (audio) wx.createWebAudioContext = () => ({state: 'running', currentTime: 0, destination: {}, createOscillator: () => ({frequency: {}, connect() {}, start() {}, stop() {}}), createGain: () => ({gain: {setValueAtTime() {}, exponentialRampToValueAtTime() {}}, connect() {}})});
-  const context = vm.createContext({console, wx, requestAnimationFrame() {}, Date, Math, assert, handlers, storage});
+  const context = vm.createContext({console, wx, requestAnimationFrame() {}, Date, Math, assert, handlers, storage, shared});
   vm.runInContext(source, context);
   return context;
 }
@@ -36,6 +44,9 @@ const touchHelpers = `
   function move(t){ handlers.move({changedTouches:[t]}); }
   function up(t){ handlers.end({changedTouches:[t]}); }
   function tapCard(){ const b=CARD_BUTTON, t=tp(99, b.x+b.w/2, b.y+b.h/2); down(t); up(t); }
+  function tapShare(){ const b=SHARE_BUTTON, t=tp(98, b.x+b.w/2, b.y+b.h/2); down(t); up(t); }
+  function lose(){ start(); spawnIn=99; for(let i=0;i<3;i++){ player.invincible=0; items=[{type:'bug',x:player.x,y:455,speed:150}]; update(.016); } assert.equal(mode,'over'); }
+  function win(n){ start(); spawnIn=99; caught=n; elapsed=59.98; update(.05); assert.equal(mode,'over'); }
 `;
 const run = (ctx, code) => vm.runInContext(touchHelpers + code, ctx);
 
@@ -116,4 +127,87 @@ test('小游戏版：开始卡片和游玩画面都写着游戏名「煤球下�
   assert.match(source, /label\('煤球下班'/, '游玩画面左下角缺游戏名');
   const c = environment();
   run(c, "assert.equal(card.title, '煤球下班', '开始卡片大标题必须就是游戏名（11-21 备案曾因大标题写「小煤球，开工啦！」被判名称不一致）');");
+});
+
+const SCREENS = [
+  {w: 844, h: 390, safe: {left: 47, top: 0, right: 797, bottom: 369}},
+  {w: 667, h: 375, safe: {left: 0, top: 0, right: 667, bottom: 375}},
+  {w: 915, h: 412, safe: {left: 0, top: 24, right: 915, bottom: 412}},
+  {w: 1024, h: 768, safe: {left: 0, top: 0, right: 1024, bottom: 768}},
+];
+
+test('分享：右上角转发与朋友圈都打开，标题讲战绩、全中文、不许诺奖励', () => {
+  const c = environment({shareApi: true});
+  run(c, `
+    assert.deepEqual([...shared[0].menu.menus].sort(), ['shareAppMessage','shareTimeline']);
+    const t0 = handlers.shareMsg().title; assert.match(t0, /煤球下班/);
+    win(17); assert.equal(handlers.shareMsg().title, '我接住 17 杯咖啡准点下班了，你能撑到 18:00 吗？');
+    assert.equal(handlers.shareTimeline().title, handlers.shareMsg().title);
+    lose(); assert.match(handlers.shareMsg().title, /没撑到下班/);
+    for (const t of [t0, handlers.shareMsg().title]) { assert.doesNotMatch(t, /[A-Za-z]/, '审核打回过画面英文，分享标题也只用中文'); assert.doesNotMatch(t, /奖励|领取|复活|道具|红包/, '分享不许诺奖励（诱导分享）'); }
+  `);
+});
+
+test('分享：结算卡上「分享战绩」发出主动分享，「再来一局」照常开局；开始卡和暂停卡没有分享键', () => {
+  const c = environment({shareApi: true});
+  run(c, `
+    assert.equal(card.share, false); assert.equal(CARD_BUTTON.x, 320);
+    tapCard(); pause(); assert.equal(card.share, false); tapCard(); assert.equal(mode, 'playing');
+    win(5); assert.equal(card.share, true); render();
+    const before = shared.length; tapShare(); assert.equal(shared.length, before + 1); assert.match(shared.at(-1).title, /接住 5 杯/); assert.equal(mode, 'over');
+    const b=SHARE_BUTTON; down(tp(97, b.x+10, b.y+10)); up(tp(97, b.x+10, b.y+200)); assert.equal(shared.length, before + 1, '按下后滑出不触发');
+    tapCard(); assert.equal(mode, 'playing'); assert.equal(card, null);
+  `);
+});
+
+test('分享：没有分享接口的环境不画分享键，主按钮回到居中', () => {
+  const c = environment();
+  run(c, "win(3); assert.equal(card.share, false); assert.equal(CARD_BUTTON.x, 320); assert.equal(CARD_BUTTON.w, 320); render(); tapCard(); assert.equal(mode,'playing');");
+});
+
+test('添加到我的小程序：结束一局后出一次气泡，点了收起，开局也收起；每次启动最多一次、累计最多三次', () => {
+  const c = environment({menu: true});
+  run(c, `
+    assert.equal(addTip, null, '开局前不打扰');
+    tapCard(); assert.equal(addTip, null);
+    lose(); assert.ok(addTip, '结束一局后出现'); render();
+    assert.equal(storage.get('sooty-office-addtip-v1'), '1');
+    const t = raw(50, addTip.x + addTip.w / 2, addTip.y + addTip.h / 2); down(t); up(t); assert.equal(addTip, null); assert.equal(mode, 'over', '点气泡只收起，不开局');
+    tapCard(); lose(); assert.equal(addTip, null, '同一次启动不再出');
+  `);
+  const c2 = environment({menu: true, extraStorage: {'sooty-office-addtip-v1': '1'}});
+  run(c2, "lose(); assert.ok(addTip); tapCard(); assert.equal(addTip, null, '开局就收起，不挡右侧方向键'); assert.equal(storage.get('sooty-office-addtip-v1'), '2');");
+  run(environment({menu: true, extraStorage: {'sooty-office-addtip-v1': '3'}}), "lose(); assert.equal(addTip, null, '累计三次后不再出');");
+});
+
+test('添加到我的小程序：从「我的小程序」进来就记为已添加，永不再出；拿不到胶囊位置就不出', () => {
+  const c = environment({menu: true, scene: 1104});
+  run(c, "assert.equal(storage.get('sooty-office-added-v1'), 'yes'); lose(); assert.equal(addTip, null);");
+  run(environment({menu: true, extraStorage: {'sooty-office-added-v1': 'yes'}}), "lose(); assert.equal(addTip, null);");
+  const hot = environment({menu: true});
+  run(hot, "lose(); assert.ok(addTip); handlers.show({scene: 1103}); assert.equal(addTip, null); assert.equal(storage.get('sooty-office-added-v1'), 'yes');");
+  run(environment(), "lose(); assert.equal(addTip, null); render();");
+});
+
+test('结算卡两颗按钮与引导气泡：各屏都在屏幕内，彼此及读数栏按钮不重叠，触控区够大', () => {
+  for (const screen of SCREENS) {
+    const c = environment({screen, shareApi: true, menu: true});
+    run(c, `
+      lose();
+      const S = b => ({x: stageLeft + b.x*scale, y: stageTop + b.y*scale, w: b.w*scale, h: b.h*scale});
+      const pad = (b, n) => ({x: b.x-n, y: b.y-n, w: b.w+2*n, h: b.h+2*n});
+      const apart = (a, b) => a.x+a.w <= b.x || b.x+b.w <= a.x || a.y+a.h <= b.y || b.y+b.h <= a.y;
+      assert.ok(apart(pad(CARD_BUTTON, 18), pad(SHARE_BUTTON, 8)), '两颗结算按钮的触控区重叠');
+      assert.ok(SHARE_BUTTON.x + SHARE_BUTTON.w <= CARD.x + CARD.w && CARD_BUTTON.x >= CARD.x, '按钮出了卡片');
+      assert.ok(SHARE_BUTTON.h*scale >= 40 && SHARE_BUTTON.w*scale >= 40, '分享键太小');
+      const t = addTip; assert.ok(t, '${screen.w}x${screen.h} 没出气泡');
+      assert.ok(t.x >= 0 && t.x + t.w <= ${screen.w} && t.y >= 0 && t.y + t.h <= ${screen.h}, '气泡出屏');
+      assert.ok(t.arrowX > t.x && t.arrowX < t.x + t.w, '箭头不在气泡上');
+      assert.ok(apart(t, S(CARD)), '气泡压住结算卡 ${screen.w}x${screen.h}');
+      const r = wx.getMenuButtonBoundingClientRect(), m = {x: r.left, y: r.top, w: r.width, h: r.height};
+      for (const b of [HUD.sound, HUD.pause]) { assert.ok(apart(b, m), '读数栏按钮被胶囊盖住（胶囊会吃点击）${screen.w}x${screen.h}'); assert.ok(b.x >= stageLeft - 0.01, '读数栏按钮挤出了读数栏'); }
+      assert.ok(HUD.sound.x - 84 > stageLeft + stageW / 2 + 40, '三颗心挤到了倒计时上');
+      for (const b of [HUD.sound, HUD.pause, S(CARD_BUTTON), S(SHARE_BUTTON)]) assert.ok(apart(pad(t, 4), b), '气泡挡住了按钮 ${screen.w}x${screen.h}');
+    `);
+  }
 });

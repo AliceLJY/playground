@@ -22,6 +22,9 @@ window.wx = {
   onTouchStart: f => { shimHandlers.start = f; }, onTouchMove: f => { shimHandlers.move = f; },
   onTouchEnd: f => { shimHandlers.end = f; }, onTouchCancel: f => { shimHandlers.cancel = f; },
   onHide: f => { shimHandlers.hide = f; }, vibrateShort() {},
+  // 横屏右上角胶囊（宽 87 高 32、离安全区顶 7），分享接口记一笔不真分享。
+  getMenuButtonBoundingClientRect: () => { const t = (shimSafe ? shimSafe.top : 0) + 7; return {left: innerWidth - 94, right: innerWidth - 7, top: t, bottom: t + 32, width: 87, height: 32}; },
+  showShareMenu() {}, onShareAppMessage: f => { shimHandlers.shareMsg = f; }, shareAppMessage: o => { (window.__shared = window.__shared || []).push(o); },
 };
 window.__wx = shimHandlers;
 const shimTouch = e => ({changedTouches: [{identifier: e.pointerId, clientX: e.clientX, clientY: e.clientY}]});
@@ -30,4 +33,10 @@ addEventListener('pointermove', e => { if (e.buttons) shimHandlers.move(shimTouc
 addEventListener('pointerup', e => shimHandlers.end(shimTouch(e)));
 </script>
 <script src="../game.js"></script>
+<script>
+// 画出胶囊位置，截图时能看出气泡箭头指没指对。
+const shimMenu = document.createElement('div'); const m = wx.getMenuButtonBoundingClientRect();
+Object.assign(shimMenu.style, {position: 'fixed', left: m.left + 'px', top: m.top + 'px', width: m.width + 'px', height: m.height + 'px', border: '1px solid #ccc', borderRadius: '16px', background: 'rgba(255,255,255,.7)', font: '16px sans-serif', textAlign: 'center', lineHeight: '30px', pointerEvents: 'none'});
+shimMenu.textContent = '··· | ◎'; document.body.appendChild(shimMenu);
+</script>
 </body>
