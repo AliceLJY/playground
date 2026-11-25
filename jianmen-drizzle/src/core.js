@@ -24,7 +24,7 @@ const FEEL={
 
 const TARGETS=[
   {id:'path', yaw:8,   pitch:-40, r:16, line:0, text:'衣上征尘杂酒痕', hint:'低头，看看来时的路', mark:'路'},
-  {id:'far',  yaw:-90, pitch:-5,  r:20, line:1, text:'远游无处不消魂', hint:'往左望，云海那边', mark:'云'},
+  {id:'far',  yaw:-90, pitch:-5,  r:20, line:1, text:'远游无处不消魂', hint:'往{side}望，云海那边', mark:'云'},
   {id:'back', yaw:180, pitch:10,  r:30, line:2, text:'此身合是诗人未', hint:'转过身去', note:'这一面，高剑父没有画', mark:'身后'},
   {id:'gate', yaw:19,  pitch:47,  r:11,  line:3, text:'细雨骑驴入剑门', hint:'抬头，关楼在雨里', mark:'关'}
 ];
@@ -57,7 +57,7 @@ function step(s,look,dt){
     if(s.order.length===TARGETS.length){s.phase='ending';s.endAt=s.t+FEEL.endDelay;ev.push({type:'ending'});}
     else if(!s.hint&&s.t-s.lastFind>=FEEL.hintAfter){
       const g=nearestUnfound(s,look);
-      s.hint=g.id; ev.push({type:'hint',id:g.id,text:g.hint});
+      s.hint=g.id; ev.push({type:'hint',id:g.id,text:hintText(g.id,look)});
     }
   }else if(s.phase==='ending'&&s.t>=s.endAt+FEEL.endTurn){
     s.phase='done';s.doneAt=s.t;ev.push({type:'done'});
@@ -70,6 +70,9 @@ function nearestUnfound(s,look){
   for(const g of TARGETS){if(s.found[g.id])continue;const d=angle(look.yaw,look.pitch,g.yaw,g.pitch);if(d<bd){bd=d;best=g;}}
   return best;
 }
+
+// Hint text for a target as seen from `look`: {side} becomes 左 or 右, whichever way is the shorter turn.
+function hintText(id,look){const g=TARGETS.find(t=>t.id===id);return g.hint.replace('{side}',wrap(g.yaw-look.yaw)<0?'左':'右');}
 
 // Progress of the dwell ring for whatever target the view is on (0..1), or 0.
 function ring(s){let m=0;for(const g of TARGETS)if(!s.found[g.id])m=Math.max(m,s.dwell[g.id]/FEEL.dwell);return m;}
@@ -105,7 +108,7 @@ function shaker(sigma,rnd){
 
 function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
 
-const api={STEP,FEEL,TARGETS,clamp,wrap,dir,angle,create,step,ring,nearestUnfound,compass,autopilot,shaker,rng};
+const api={STEP,FEEL,TARGETS,clamp,wrap,dir,angle,create,step,ring,nearestUnfound,hintText,compass,autopilot,shaker,rng};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 else root.JianmenCore=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

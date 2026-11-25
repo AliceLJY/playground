@@ -108,3 +108,21 @@ test('方位条：转头时标记朝反方向移动，身后的那处钉在边�
   for (let i = 0; i < 1.2 / STEP; i++) C.step(s, { yaw: 180, pitch: 10 }, STEP);
   assert.equal(at(0, 0).back.found, true);
 });
+
+test('提示的左右跟着当前朝向（2026-11-25 Duet：转身后提示说往左、箭头却指右）', () => {
+  assert.equal(typeof C.hintText, 'function', '没有按朝向生成提示的函数');
+  const far = TARGETS.find((g) => g.id === 'far');
+  assert.match(C.hintText('far', { yaw: 0, pitch: 0 }), /往左/, '面朝前方时云海在左边');
+  assert.match(C.hintText('far', { yaw: 180, pitch: 10 }), /往右/, '转过身后云海在右边');
+  assert.match(C.hintText('far', { yaw: far.yaw + 30, pitch: 0 }), /往左/);
+  assert.match(C.hintText('far', { yaw: far.yaw - 30, pitch: 0 }), /往右/);
+  // 25 秒提示事件里的文字也要按当时朝向算
+  const s = C.create(); const ev = [];
+  const back = TARGETS.find((g) => g.id === 'back');
+  for (let i = 0; i < 1.2 / STEP; i++) ev.push(...C.step(s, { yaw: back.yaw, pitch: back.pitch }, STEP));
+  for (let i = 0; i < 26 / STEP; i++) ev.push(...C.step(s, { yaw: back.yaw, pitch: back.pitch }, STEP));
+  const hint = ev.find((e) => e.type === 'hint');
+  assert.ok(hint, '没出提示');
+  if (hint.id === 'far') assert.match(hint.text, /往右/, '面朝身后时提示应说往右');
+  for (const g of TARGETS) assert.ok(!/\{|\}/.test(C.hintText(g.id, { yaw: 0, pitch: 0 })), `${g.id} 的提示里留着占位符`);
+});

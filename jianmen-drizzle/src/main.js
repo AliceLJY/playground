@@ -151,6 +151,9 @@ canvas.addEventListener('wheel', (e) => { if (!started) return; e.preventDefault
 const keys = new Set();
 addEventListener('keydown', (e) => { keys.add(e.code); if (started) hideHow(); });
 addEventListener('keyup', (e) => keys.delete(e.code));
+// 切走窗口或切后台时收不到 keyup，按着的方向键要当作松开，否则回来一直在转
+addEventListener('blur', () => keys.clear());
+document.addEventListener('visibilitychange', () => { if (document.hidden) keys.clear(); });
 function keyLook(dt) {
   if (!started || endingTurn) return;
   const s = 70 * dt * look.fov / 72;
@@ -204,6 +207,8 @@ function updateArrow() {
   if (!hintId) return;
   const g = TARGETS.find((t) => t.id === hintId), dy = C.wrap(g.yaw - look.yaw), dp = g.pitch - look.pitch;
   $('arrow').style.transform = `rotate(${Math.atan2(-dp, dy) * 180 / Math.PI}deg)`;
+  const text = C.hintText(hintId, look); // 「往左 / 往右」跟着当前朝向，和箭头一致
+  if ($('hint').textContent !== text) $('hint').textContent = text;
 }
 let howShown = false;
 function hideHow() { if (howShown) { $('how').classList.remove('on'); howShown = false; } }

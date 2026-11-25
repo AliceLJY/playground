@@ -99,3 +99,30 @@ Alice 看了竖屏演示说「可以，配音乐就行」。按她定过的默�
 - Node 8/8 通过；`node tools/build.mjs` 重建后测 `dist/`，Chrome 156 / ANGLE Metal Apple M4，零页面错误。截图位于本次外部验收目录 `out-B6/jianmen-green/`。无独立 lint 配置，检查 `git diff --check`。
 - 复跑：`NODE_PATH="$(npm root -g)" node tools/return-check.cjs <输出目录> <静态服务下的 dist/ 地址>`。
 - 未测真手机、陌生人盲玩、声音听感或性能余量；未发布、未作线上复验。隐藏方位的二刷和诗笺保存不在本批范围。
+
+## 2026-11-25 Duet 展页巡检复核
+
+外部测试员 Duet 修理单第 11 节逐条复核。`npm ci --ignore-scripts && npm rebuild esbuild && node tools/build.mjs`（同 CI）构建 `dist/`，仓根 `python3 -m http.server 8784` 服务，Playwright 驱动本机 Chrome（`--use-angle=metal`），1440×900 与 390×664（hasTouch true / false）。
+
+| # | Duet 说法 | 复现 / 查证 | 结论 | 怎么改的 |
+|---|---|---|---|---|
+| 1 | 先转身找到「身后」再不动等 25 秒：提示「往左望，云海那边」，箭头和罗盘「云」却在右 | 复现（三个视口都是）：朝向偏航 180° 时 far 在 +90°，箭头指右，文字写死「往左」 | 成立已修 | `core.js` 的 far 提示改为 `往{side}望`，新增 `hintText(id, look)` 按较近一侧填「左 / 右」；`main.js` 每帧随箭头一起刷新提示文字，转头后也跟着换边 |
+| 2 | 左上「声」38×38 | 复现 | 成立已修 | 改 44×44；下面「原画」按钮下移 6px，两者间距不变 |
+| 3 | SPEC.md:26 写「声」在右上 | 复现，README_CN 与实际都在左上 | 成立已修（文档） | SPEC 操作表改左上角；目标表的 far 提示同步写明按朝向取左右 |
+| 4 | 按住方向键时切走窗口，blur 不清按键 | 复现：按住 → 派发 window blur，之后 0.6 秒偏航又转了 35–42° 且一直在转 | 成立已修 | `main.js` 在 window `blur` 和页面隐藏时清空按键 |
+
+检查与红绿：
+
+```sh
+cd jianmen-drizzle && node --test tests/*.test.cjs
+# 修前（只加新测试）：9 条 8 过 1 败（「提示的左右跟着当前朝向」），exit 1；修后 9/9，exit 0
+NODE_PATH="$(npm root -g)" node tools/duet-check.cjs http://127.0.0.1:8784/jianmen-drizzle/dist/ <截图目录>
+# 修前 dist：15 项 9 FAIL，exit 1；修后 15/15 PASS，exit 0
+NODE_PATH="$(npm root -g)" node tools/check.cjs  http://127.0.0.1:8784/jianmen-drizzle/dist/ <输出目录>   # 12 条判定全过，exit 0
+NODE_PATH="$(npm root -g)" node tools/layout.cjs http://127.0.0.1:8784/jianmen-drizzle/dist/ <输出目录>   # 10 视口全过，exit 0
+NODE_PATH="$(npm root -g)" node tools/return-check.cjs <输出目录> http://127.0.0.1:8784/jianmen-drizzle/dist/  # 17 PASS，exit 0
+NODE_PATH="$(npm root -g)" node tools/first30.cjs http://127.0.0.1:8784/jianmen-drizzle/dist/ <输出目录>  # exit 0，零报错
+git diff --check   # 无输出
+```
+
+`duet-check.cjs` 第一版量 blur 时没扣掉视线缓动（松键后还要追上已转到的位置），修后仍报 5° 位移；改为等 0.6 秒追完再量 0.6 秒，在修前 dist 上重跑仍是 9 FAIL（之后 0.6 秒又转 34–42°）。真手机、Safari 未测；声音未听测。
