@@ -206,3 +206,27 @@ index.html module: node --input-type=module --check: exit 0
 ### 浏览器实测与阈值校准（2026-11-11，Chrome，Apple Metal）
 
 `tools/shots.cjs` 连跑两遍，三个机位都定格在第 48 个模拟秒，两份报告的轴角和机位逐项一致。材质检查第一次跑报「great sample region is clipped」：广角机位里主轮下缘出画，取样改成只取屏幕内的部分。按实测读数校准阈值：亮度范围（p95 − p05）出货版主轮 87.8、中心轮 58.8；纯色材质 0、0；去掉环境贴图 19.0、43.4，阈值定 50。出货画面没有像素亮度到 190，高光占比分不开好坏，改为只记录不要求。校准后 `tools/browser-check.cjs` 45 条全过，两个坏版本都被拒绝。中心轮的余量不大（58.8 对 50 对 43.4），换机位或调灯后要重新校准。
+
+## 2026-11-25 Duet 展页巡检复核
+
+外部测试员 Duet 修理单第 9 节逐条复核。仓根 `python3 -m http.server 8784`，Playwright 驱动本机 Chrome（`channel: 'chrome'`，同本目录其他脚本），1440×900 与 390×664（hasTouch true / false 各一次）。新增 `tools/duet-check.cjs`：原代码 13 项 FAIL（exit 1），修后 20/20 PASS（exit 0）。
+
+| # | Duet 说法 | 复现 / 查证 | 结论 | 怎么改的 |
+|---|---|---|---|---|
+| 1 | 「隐藏/显示标注」文字不变，无 aria-pressed | 复现：点击后标注消失，按钮名始终「隐藏或显示标注」（固定 aria-label），手机只显示「标注」 | 成立已修 | 按钮写按下去会做的事：「隐藏标注」↔「显示标注」，去掉固定 aria-label，名字跟文字走 |
+| 2a | 手机面板仍写鼠标说明 | hasTouch=true 时 `pointer: coarse` 成立，显示「单指拖动…」、鼠标行隐藏；只有窄窗口且无触屏（Duet 的 iframe 情形）才显示鼠标说明，那时确实是鼠标 | 不成立 | — |
+| 2b | 手机第二级标注贴右缘 | 复现：390 宽第二、三级标注右缘 = 390，离边 0px | 成立已修 | `updateLabels` 在 ≤600px 时按锚点位置收窄 max-width，右缘留 8px（修后 gap 8） |
+| 3 | 倍率滑杆 16px 高，无名字 | 复现：390 宽 190×16，无 aria-label / label | 成立已修 | 加 `aria-label="演示时间倍率"`；窄屏和 `pointer: coarse` 下高 44px |
+| 4 | 60× 时「一步 · 0.25 秒」看起来没反应 | 实测（`?debug=1` 快照，暂停后点一次）：模拟时间 +0.25 s，擒纵轮转 1.5°、摆轮 2.8°、中心轮 0.025°，有动但很小。按钮推进的是模拟时间，与倍率无关（README 写明） | 设计取舍 | 未改。要不要把一步加大或在按钮上写「模拟」，留作者定 |
+| 5 | 「演示时间倍率: 60x」半角冒号和 x | 复现 | 成立已修 | 改「：」和「×」，JS 两处更新文字同步 |
+| 6 | 摆轮与擒纵轮同轴 | README 写明擒纵等偏差「保留生成时的原样」 | 存疑未改 | 留作者确认 |
+| 7 | 600× 可能频闪倒转 | 软件渲染判断，未核 | 存疑未改 | 留作者决定要不要加注 |
+
+```sh
+NODE_PATH="$(npm root -g)" node clockwork/tools/duet-check.cjs http://127.0.0.1:8784/clockwork/ <截图目录>    # 修前 exit 1（13 FAIL），修后 exit 0（20 PASS）
+cd clockwork && node --test tests/*.test.cjs                                                                  # 8/8 pass
+NODE_PATH="$(npm root -g)" node clockwork/tools/browser-check.cjs http://127.0.0.1:8784/clockwork/ <输出目录> # 45 PASS，exit 0
+NODE_PATH="$(npm root -g)" node clockwork/tools/shots.cjs http://127.0.0.1:8784/clockwork/ <输出目录>         # 两次各 PASS wide/close/phone，exit 0
+```
+
+真手机、Safari、真实触屏手感未测。

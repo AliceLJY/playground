@@ -83,15 +83,15 @@
         @media (pointer: coarse) {
             .mouse-hint { display: none; }
             .touch-hint { display: block; }
+            input[type="range"] { height: 44px; }
         }
         @media (max-width: 600px), (max-height: 400px) {
             #ui-panel { top: 10px; left: 10px; right: 10px; padding: 12px; max-height: calc(100dvh - 44px); overflow-y: auto; }
             .control-row { gap: 8px; }
-            input[type="range"] { min-width: 0; flex: 1; }
+            input[type="range"] { min-width: 0; flex: 1; height: 44px; }
             .button-rows { display: flex; gap: 6px; }
             .btn-group { flex: 1; min-width: 0; gap: 6px; }
             .btn-group button { padding: 5px 3px; font-size: 11px; }
-            .button-label-long { display: none; }
             .button-label-short { display: inline; }
         }
         /* 标签靠动画循环定位；循环还没跑（或跑不起来）时先藏着，免得三个堆在左上角 */
@@ -144,15 +144,15 @@
     <p class="mouse-hint">🖱️ 左键拖动：旋转视角 | 右键：平移 | 滚轮：缩放</p>
     <p class="touch-hint">单指拖动：旋转 · 双指捏合：缩放 · 双指拖动：平移</p>
     <div class="control-row">
-        <span>演示时间倍率: <strong id="speed-val">60x</strong></span>
-        <input type="range" id="speed-slider" min="1" max="600" value="60">
+        <span>演示时间倍率：<strong id="speed-val">60×</strong></span>
+        <input type="range" id="speed-slider" min="1" max="600" value="60" aria-label="演示时间倍率">
     </div>
     <div class="button-rows"><div class="btn-group">
         <button id="pause" aria-pressed="false">暂停</button>
         <button id="step" disabled>一步<br class="button-label-short"> · 0.25 秒</button>
     </div>
     <div class="btn-group">
-        <button id="toggle-labels" aria-label="隐藏或显示标注"><span class="button-label-long">隐藏/显示</span>标注</button>
+        <button id="toggle-labels">隐藏标注</button>
         <button id="reset-cam">复位视角</button>
     </div></div>
 </div>
@@ -778,12 +778,14 @@ stepButton.addEventListener('click', () => { if (paused) pendingStep += 0.25; })
 
 slider.addEventListener('input', (e) => {
     timeScale = parseFloat(e.target.value);
-    speedVal.textContent = `${timeScale}x`;
+    speedVal.textContent = `${timeScale}×`;
 });
 
 const labelsContainer = document.getElementById('labels-container');
-document.getElementById('toggle-labels').addEventListener('click', () => {
-    labelsContainer.style.display = labelsContainer.style.display === 'none' ? 'block' : 'none';
+document.getElementById('toggle-labels').addEventListener('click', (e) => {
+    const hide = labelsContainer.style.display !== 'none';
+    labelsContainer.style.display = hide ? 'none' : 'block';
+    e.currentTarget.textContent = hide ? '显示标注' : '隐藏标注'; // 按钮写的是按下去会做的事
 });
 
 document.getElementById('reset-cam').addEventListener('click', () => {
@@ -807,6 +809,12 @@ function updateLabels() {
         const y = -(projected.y * halfH) + halfH;
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
+        // 窄屏：标注右缘留 8px，不贴屏幕边（宽度按内容盒算，扣掉左右内边距和边框）
+        if (window.innerWidth <= 600) {
+            const cs = getComputedStyle(el);
+            const chrome = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+            el.style.maxWidth = `${Math.max(60, Math.min(window.innerWidth * 0.34, window.innerWidth - x - 8 - chrome))}px`;
+        } else el.style.maxWidth = '';
     });
     labelsContainer.style.visibility = 'visible';   // 位置算好了才露面
 }
@@ -877,7 +885,7 @@ if (new URLSearchParams(location.search).get('debug') === '1') {
         pendingStep = 0;
         timeScale = speed;
         slider.value = String(speed);
-        speedVal.textContent = `${speed}x`;
+        speedVal.textContent = `${speed}×`;
         pauseButton.textContent = '继续';
         pauseButton.setAttribute('aria-pressed', 'true');
         stepButton.disabled = false;
