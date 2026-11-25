@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // 三层记忆：形状参数 beta（<1 起步慢、>1 起步快）和地板 floor（分数倍率最低掉到这里）
+  // 三层记忆：形状参数 beta（同一半衰期下，>1 前期掉得比指数慢、过了半衰期更快；<1 前期更快、后期更慢）和地板 floor（分数倍率最低掉到这里）
   const TIERS = {
     peripheral: { beta: 1.3, floor: 0.45, zh: '边缘层' },
     working:    { beta: 1.0, floor: 0.65, zh: '工作层' },

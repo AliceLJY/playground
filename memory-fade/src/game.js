@@ -81,6 +81,7 @@
     $('pastshade').setAttribute('width', Math.max(0, px(mem.age) - PLOT.x0));
     $('pastlabel').style.display = mem.age > 40 ? '' : 'none';
     $('pastlabel').setAttribute('x', PLOT.x0 + 4);
+    $('pastlabel').setAttribute('y', PLOT.y1 - 1.5);   // 左下角、地板线之下：写入不到两个月的记忆掉不到这么低，样本点和曲线都不会落在这里
     const bands = $('bands'); bands.textContent = '';
     const marks = mem.recalls.slice();
     if (mem.history && mem.history.last !== null) marks.push(mem.history.last);
@@ -122,7 +123,7 @@
       case 'procedural': return '这是一条做法：会做的事不随时间忘，只在前提变了时作废，所以不掉分。';
       case 'pinned': return '钉住了：不管过多久都不掉分。';
       case 'core': return '重要性到了 0.95，算核心记忆：永远不掉分。';
-      case 'recent': return `${s.since === 0 ? '今天' : s.since + ' 天前'}刚被想起：7 天内整条不掉分，还剩 ${F.RECENT_DAYS - s.since} 天。`;
+      case 'recent': return `${s.since === 0 ? '今天刚' : s.since + ' 天前'}被想起：7 天内整条不掉分，还剩 ${F.RECENT_DAYS - s.since} 天。`;
       case 'reinforced':
         if (Math.round(s.halfLife) <= F.BASE_HALF_LIFE + 1) return `被想起过 ${s.count} 次，但最后一次已是 ${s.since} 天前，加成淡得差不多了，按${tz}的曲线往下掉，最低 ${s.floor} 倍。`;
         return `被想起过 ${s.count} 次，半衰期从 ${F.BASE_HALF_LIFE} 天拉长到 ${Math.round(s.halfLife)} 天，掉得慢了；${tz}最低掉到 ${s.floor} 倍。`;
@@ -174,7 +175,7 @@
   }
 
   function recall() {
-    if (!F.canRecall(mem, day)) return;
+    if (!F.canRecall(mem, day)) { toast('同一天只算想起一次，换一天再试'); return; }
     mem.recalls.push(day); mem.recalls.sort((a, b) => a - b);
     card.v -= reduced ? 0 : 520;            // 被想起时往上一蹿，弹簧再把它拉回落点
     drawPlot(); update(true);
@@ -305,7 +306,7 @@
   // 库的概况
   const M = LIB.meta;
   $('libnote').textContent = `点是我自己的记忆库 ${M.date} 那天随机抽的 ${M.sampled} 条（库里在用的共 ${M.active} 条），只取了数字，没有内容。绿色的今天不掉分。点一个点，上面的卡片就换成它。`;
-  $('cliffnote').textContent = `被想起后的 7 天一过，倍率会直接跌回曲线上，中间没有过渡。真实库里眼下有 ${M.recentOnly} 条正处在这 7 天里，等豁免结束，倍率中位数是 ${M.dropMedian}，跌破 0.7 的只有 ${M.dropBelow07} 条。跌得不多，名次却会变：11-03 拿那之前一周 578 条真实检索重放，前 5 名里有这类记忆的 95 条查询，豁免一结束有 26 条前 5 名换了人，因为前几名分数本来就挨得很近。把悬崖改成缓坡也免不了这次换位，只是换到坡上另一天，所以没改。为了让这类记忆看得到，抽样里它们多抽了 ${M.recentSampled} 条，图上的比例比真实库高。`;
+  $('cliffnote').textContent = `被想起后的 7 天一过，倍率会直接跌回曲线上，中间没有过渡。真实库里眼下有 ${M.recentOnly} 条正处在这 7 天里，等豁免结束，倍率中位数是 ${M.dropMedian}，跌破 0.7 的只有 ${M.dropBelow07} 条。跌得不多，名次却会变：2026-11-03 拿那之前一周 578 条真实检索重放，前 5 名里有这类记忆的 95 条查询，豁免一结束有 26 条前 5 名换了人，因为前几名分数本来就挨得很近。把悬崖改成缓坡也免不了这次换位，只是换到坡上另一天，所以没改。为了让这类记忆看得到，${M.sampled} 条抽样里专门给它们留了 ${M.recentSampled} 条，图上的比例比真实库高。`;
 
   drawAxes(); drawLibrary();
   // 开场：挑一条还在往下掉、又被想起过的记忆，让时间自己往前走一段

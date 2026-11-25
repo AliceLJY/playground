@@ -27,7 +27,7 @@
     switch (intent.type) {
       case 'day':
         if (!Number.isInteger(intent.day) || intent.day < 0 || intent.day >= END) return message('请选择第 0–179 天。');
-        return { ...state, day: intent.day, message: `选中第 ${intent.day} 天，按「放一枚」安排想起。` };
+        return { ...state, day: intent.day, message: `选中第 ${intent.day} 天，按「第 ${intent.day} 天放一枚」安排想起。` };
       case 'add': {
         if (state.days.length >= BUDGET) return message('三枚已用完，可以揭晓或撤回后重排。');
         const absoluteDay = state.memory.age + state.day;
