@@ -213,6 +213,35 @@ async function extra(browser) {
     await ctx.close();
   }
 
+  // ---- S1 选座行的「对手」「你叫」不折行（2026-11-25 外部试玩：320 宽时「对手」折成两行）----
+  // 几种窄屏宽度下，每个座位行的标签字只占一行；标签字、名字框、服务商下拉框互不重叠、都在座位行里；页面不横向溢出。
+  for (const [w, h] of [[390, 664], [375, 667], [360, 640], [320, 568]]) {
+    const { ctx, page, log } = await newPage(browser, { width: w, height: h }, { touch: true });
+    await page.goto(`${BASE}?seed=7`);
+    await ready(page);
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.seat')].map((s) => {
+      const nm = s.querySelector('.nm'), t = [...nm.childNodes].find((n) => n.nodeType === 3), rg = document.createRange();
+      rg.selectNodeContents(t);
+      const box = (r) => ({ l: r.left, r: r.right, t: r.top, b: r.bottom });
+      const parts = [['label', box(rg.getBoundingClientRect())], ['name', box(nm.querySelector('input').getBoundingClientRect())]];
+      const sel = s.querySelector('.s-kind');
+      if (sel) parts.push(['kind', box(sel.getBoundingClientRect())]);
+      const row = box(s.getBoundingClientRect());
+      const clash = [];
+      for (let a = 0; a < parts.length; a++) for (let b = a + 1; b < parts.length; b++) {
+        const x = parts[a][1], y = parts[b][1];
+        if (Math.min(x.r, y.r) - Math.max(x.l, y.l) > 1 && Math.min(x.b, y.b) - Math.max(x.t, y.t) > 1) clash.push(parts[a][0] + '/' + parts[b][0]);
+      }
+      return { seat: s.dataset.seat || 'me', label: t.data.trim(), labelLines: new Set([...rg.getClientRects()].map((q) => Math.round(q.top))).size,
+        clash, outside: parts.filter(([, x]) => x.l < row.l - 1 || x.r > row.r + 1).map(([n]) => n), nameWidth: Math.round(parts[1][1].r - parts[1][1].l) };
+    }));
+    const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const bad = rows.filter((r) => r.labelLines !== 1 || r.clash.length || r.outside.length);
+    check(`S1-${w}`, `选座行标签「对手 / 你叫」各占一行，标签、名字框、下拉框不重叠不出行，页面不横向溢出（${w}×${h}）`, rows.length === 4 && !bad.length && pageOverflow <= 0 && !log.errors.length, { bad, nameWidths: rows.map((r) => r.nameWidth), pageOverflow, errors: log.errors });
+    await page.screenshot({ path: path.join(OUT, `seats-${w}x${h}.png`) });
+    await ctx.close();
+  }
+
   // ---- M1 迟到的点击不许误买（第二轮复测：掷骰后约 1 秒再点同一位置，落在刚出现的「买下 ¥280」上买下了）----
   // 固定种子 11：第一手点「掷两颗」掷 5+5 停在沙面（可买）。点完后在 100ms…1600ms 每隔 100ms 在同一坐标补点一次（每个延迟各开一局），
   // 补点不是冲着新按钮来的，所有延迟都不许买下；等按钮放开后 50ms 的点击必须马上买下。桌面用鼠标，手机用真 tap。
