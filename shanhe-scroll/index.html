@@ -95,6 +95,9 @@
     position:relative;width:22px;height:22px;cursor:pointer;
     display:grid;place-items:center;
   }
+  /* 点按区放大到 44×44，圆点和标签位置不变 */
+  .node::after{content:"";position:absolute;inset:-11px}
+  .node:focus-visible{outline:2px solid var(--seal);outline-offset:6px;border-radius:50%}
   .dot{
     width:9px;height:9px;border-radius:50%;background:var(--seal);
     transition:.25s;box-shadow:0 0 0 0 rgba(157,41,51,.35);
@@ -118,7 +121,7 @@
   /* 卡片：头和「走入场景」固定，只有正文滚动
      —— 原来整卡 overflow-y:auto，内容一长按钮就沉到滚动区外面够不着 */
   #card{
-    position:fixed;z-index:70;width:390px;
+    position:fixed;z-index:70;width:min(390px,calc(100vw - 32px));
     background:var(--paper);border:1px solid var(--line);
     box-shadow:0 18px 48px rgba(60,45,25,.22);
     padding:0;display:none;flex-direction:column;overflow:hidden;
@@ -132,8 +135,8 @@
   }
   .card-hd h3{font-size:15px;letter-spacing:.14em;font-weight:normal;color:var(--seal)}
   .card-close{
-    margin-left:auto;cursor:pointer;color:var(--ink-soft);font-size:16px;
-    background:none;border:none;line-height:1;
+    margin:-12px -12px -12px auto;cursor:pointer;color:var(--ink-soft);font-size:16px;
+    background:none;border:none;line-height:1;min-width:44px;min-height:44px;
   }
   .card-meta{
     padding:8px 16px 0;font-size:11px;color:var(--ink-soft);letter-spacing:.1em;
@@ -150,7 +153,7 @@
   }
   .btn{
     font:inherit;font-size:12.5px;letter-spacing:.14em;cursor:pointer;
-    padding:7px 16px;border-radius:2px;transition:.2s;border:1px solid var(--seal);
+    padding:7px 16px;min-height:44px;border-radius:2px;transition:.2s;border:1px solid var(--seal);
   }
   .btn-solid{background:var(--seal);color:#fff}
   .btn-solid:hover{background:#84212a}
@@ -163,7 +166,7 @@
     background:var(--paper);
   }
   #scene.show{display:block}
-  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   #gl.dragging{cursor:grabbing}
   /* 关键视觉手法：场景下缘渐隐到宣纸，文字落在纸上 */
   /* 渐隐遮罩：文字区必须够实，否则浅色调全景图上小字读不出来
@@ -422,7 +425,11 @@ function buildRail(){
         `<span class="dot"></span>` +
         `<span class="node-label">${n.name}</span>` +
         `<span class="node-year">${n.year}</span>`;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', `${n.year} ${n.name}，打开史料`);
       el.addEventListener('click', () => openCard(n, el));
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCard(n, el); } });
       wrap.appendChild(el);
     });
     sec.appendChild(wrap);
@@ -444,6 +451,7 @@ function openCard(node, el){
   el.classList.add('current');
 
   $('crumb').textContent = node.chapter.title + ' · ' + node.name;
+  $('card-seal').textContent = CN[CHAPTERS.indexOf(node.chapter)] || '';
   $('card-title').textContent = node.name;
   $('card-meta').textContent = node.card.dateline + '　|　' + node.card.place;
   $('card-body').textContent = node.card.body;
@@ -453,9 +461,10 @@ function openCard(node, el){
   const c = $('card');
   c.classList.add('show');
 
-  // 横向：贴着节点放，但不越出视口
+  // 横向：贴着节点放，但不越出视口（窄屏上卡片宽度跟着屏幕缩）
+  const cw = c.offsetWidth;
   let left = r.left + 30;
-  if (left + 390 > innerWidth - 16) left = r.left - 390 - 30;
+  if (left + cw > innerWidth - 16) left = r.left - cw - 30;
   if (left < 16) left = 16;
   c.style.left = left + 'px';
 
@@ -523,7 +532,10 @@ addEventListener('pointermove', e => {
   lon = dragLon - (e.clientX - dragX) * 0.14;
   lat = Math.max(-72, Math.min(72, dragLat + (e.clientY - dragY) * 0.14));
 });
-addEventListener('pointerup', () => { drag = false; cv.classList.remove('dragging'); });
+// 手指被系统手势接走时只来 pointercancel、不来 pointerup，也要松开
+const endDrag = () => { drag = false; cv.classList.remove('dragging'); };
+addEventListener('pointerup', endDrag);
+addEventListener('pointercancel', endDrag);
 cv.addEventListener('wheel', e => {
   e.preventDefault();
   targetFov = Math.max(38, Math.min(96, targetFov + e.deltaY * 0.045));
@@ -731,7 +743,7 @@ $('btn-menu').onclick = () => {
   const open=$('topbar').classList.toggle('menu-open');$('btn-menu').setAttribute('aria-expanded',String(open));
 };
 $('tools').addEventListener('click',closeMenu);
-addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
+addEventListener('keydown',e=>{if(e.key==='Escape'){closeMenu();$('card').classList.remove('show');}});
 $('btn-reset').onclick = reset;
 $('fin-again').onclick = reset;
 

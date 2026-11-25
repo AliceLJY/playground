@@ -28,3 +28,10 @@ test('distinct nodes score separately and reset clears remembered answers',()=>{
  p.reset();assert.equal(p.score(),0);p.build(p.node);assert.ok(p.$('opts').children.every(b=>!b.disabled));
  p.$('opts').children[1].onclick();assert.equal(p.score(),40);
 });
+test('all-correct scroll reaches the top title (2026-11-25 Duet: 570 points, top title needed 600)',async()=>{
+ const {CHAPTERS,TITLES}=await import(require('node:path').join(__dirname,'../data/timeline.js'));
+ const nodes=CHAPTERS.flatMap(c=>c.nodes),best=nodes.reduce((s,n)=>s+n.score.correct,0);
+ const top=TITLES.reduce((a,t)=>t.min>a.min?t:a);
+ assert.ok(top.min<=best,`top title「${top.name}」needs ${top.min}, but answering every question right gives only ${best}`);
+ for(const n of nodes)assert.ok(n.score.correct>n.score.wrong,`${n.id}: a right answer must outscore a wrong one`);
+});

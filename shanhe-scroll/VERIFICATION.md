@@ -28,3 +28,33 @@ NODE_PATH="$(npm root -g)" node tools/browser-check.cjs /tmp/shanhe-check http:/
 ## 未覆盖
 
 真手机、Safari、真人环视手感和屏幕阅读器没有实测；本作没有声音。未重审史料与全景素材。没有增加线索热点或卷终选择回顾，未调整难度或原评分数值。
+
+## 2026-11-25 Duet 展页巡检复核
+
+外部测试员 Duet 修理单第 12 节逐条复核（线上路径 `/playground/shanhe/`，本地 `/shanhe-scroll/`）。仓根 `python3 -m http.server 8784`，Playwright 驱动本机 Chrome，1440×900 与 390×664（hasTouch true / false）。
+
+| # | Duet 说法 | 复现 / 查证 | 结论 | 怎么改的 |
+|---|---|---|---|---|
+| 1 | 四题全对只有 570 分，最高称号「洞见世变」门槛 600 拿不到 | 复现：120+100+150+200 = 570 | 成立已修 | `data/timeline.js` 最高称号门槛改 570（全对正好拿到）；其余分值、档位不动 |
+| 2 | 手机卡片宽固定 390，右出屏 16px，× 被切 | 复现：390 宽卡片 16→406 | 成立已修 | 卡片宽 `min(390px, 100vw - 32px)`，定位按实测宽度算 |
+| 3 | 卡片印章永远「一」 | 复现：江南机器制造总局、南湖红船都是「一」 | 成立已修 | 打开卡片时印章写所在章序号（二、三） |
+| 4 | × 9×16、按钮 27–33px、红点 22px | 复现：× 9×16，卡片两按钮与「继续前行」33px，红点四周 18px 处点不到 | 成立已修 | × 44×44（负外边距，卡片头高度不变）；`.btn` 最小高 44；红点用伪元素把点按区放到 44×44，圆点与标签位置不变 |
+| 5 | 不进场景一路「继续前行」0 分也能到卷终 | 代码如此（`markVisited` 不看是否作答） | 设计取舍，未改 | 留作者定是否要求答题 |
+| 6 | 键盘 Tab 不到红点，Esc 不关卡片 | 复现：Tab 只到滚动区；Esc 只收菜单 | 成立已修 | 红点 `tabindex=0`、`role=button`、带名字，回车 / 空格打开；Esc 同时关卡片 |
+| 7 | 手指拖动环视可能被页面滚动吃掉、drag 卡住 | 用 CDP 触摸事件在 390×664 模拟：#gl `touch-action:auto`，手指抬起后画布仍是 `dragging`（drag 卡在 true） | 成立已修 | #gl 加 `touch-action:none`，`pointercancel` 与 `pointerup` 一样松开 |
+| 8 | 三元里卡「道光二十一年五月」配「五月二十九日至三十日」，后者是公历 | 查证：英文维基 Sanyuanli incident 记 1841-05-29/30（https://en.wikipedia.org/wiki/Sanyuanli_incident ）；用 ICU 中国历（Node `Intl`，`zh-CN-u-ca-chinese`）换算 1841-05-29/30 = 辛丑年四月初九 / 初十，同法换算虎门销烟 1839-06-03 = 四月廿二，与本卡片「四月二十二日起」一致，说明换算口径对得上 | 成立已修 | dateline 改「道光二十一年四月」；正文改「四月初九至初十（公历 1841 年 5 月 29 日至 30 日）」。农历日是计算所得，没找到直接写「四月初九 / 初十」的中文原始文献 |
+| 9 | 「中学为体，西学为用」放在 1865 年，明确说法多见于 1890 年代 | 查证：英文维基 Chinese Learning as Substance, Western Learning for Application（https://en.wikipedia.org/wiki/Chinese_Learning_as_Substance,_Western_Learning_for_Application ）说思想由冯桂芬 1861 年《校邠庐抗议》提出，张之洞 1898 年《劝学篇》阐发；没查到 1896 年沈寿康一说的出处。思想 1865 年前已有，八字口号是否晚出没能定论 | 存疑未改 | 留作者核；可改的写法如「以中国伦常名教为原本，辅以诸国富强之术」（冯桂芬语） |
+| 10 | 「执辩」疑为「置辩」 | 查证：汉典无「执辩」词条；「置辩」释「加以申辩、辩论」（https://www.zdic.net/hans/置辯 ） | 成立已修 | 题干改「你当如何置辩？」 |
+
+检查与红绿：
+
+```sh
+cd shanhe-scroll && node --test tests/*.test.cjs
+# 修前（只加新测试）：4 条 3 过 1 败（all-correct scroll reaches the top title），exit 1；修后 4/4，exit 0
+NODE_PATH="$(npm root -g)" node tools/duet-check.cjs http://127.0.0.1:8784/shanhe-scroll/ <截图目录>
+# 修前 30 FAIL，exit 1；修后 35/35 PASS，exit 0
+NODE_PATH="$(npm root -g)" node tools/browser-check.cjs <输出目录> http://127.0.0.1:8784/shanhe-scroll/
+# 修后 53/53 ok，exit 0（原「四个节点答完结算 570」照旧）
+```
+
+触屏那条的「画面转了」采样指标修前修后都过（修前也能转一点再被接走），真正变红变绿的是「松手后不再卡在拖动状态」。真手机、Safari、屏幕阅读器未测。
