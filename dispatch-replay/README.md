@@ -13,7 +13,7 @@ It is drawn as a starfield: the star in the middle is the dispatcher, the small 
 
 - It plays in 1.5 minutes by default, or 3 minutes. Space pauses, the arrow keys skip, and you can drag the timeline at the bottom.
 - Click a subagent to see its own numbers: model, run time, tools used, context peak, report length.
-- Each caption slows the replay down long enough to read it; the clock in the top right then carries a slow-motion marker. The clock itself always shows real time.
+- Each caption slows the replay down long enough to read it; the clock in the top right then carries a slow-motion marker (screens narrower than 560 px have no room for the clock and do not show it). The clock itself always shows real time.
 - Fixed views: `?view=hero` (the most executors running at once), `?view=wide`, `?view=end`, `?t=<real seconds>`; `?d=yingge-1021` picks a dataset, the first one by default.
 
 The first screen explains that stars open details and the bottom line can be scrubbed. Selecting a task pauses playback and shows its full name and current state. The task-list button also works on cramped screens; the end summary keeps a task-list entry so final statistics can be inspected without restarting.

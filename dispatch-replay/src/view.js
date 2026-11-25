@@ -16,7 +16,7 @@
   const FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif';
   const MONO = '"SF Mono","JetBrains Mono",Menlo,Consolas,monospace';
 
-  let model, L, playback = C.DEFAULT_PLAYBACK, clock = null, endT = 0;
+  let model, L, playback = ['90', '180'].includes(qs.get('p')) ? Number(qs.get('p')) : C.DEFAULT_PLAYBACK, clock = null, endT = 0;
   let t = 0, playing = false, last = 0, dragging = false, wasPlaying = false, selected = -1, dpr = 1;
   const drawTimes = [];   // ms per draw(), last 240 frames, read by the browser check
   const hook = { ready: false };
@@ -99,7 +99,7 @@
       sel.appendChild(o);
     });
     sel.hidden = false;
-    sel.onchange = () => { location.search = '?d=' + encodeURIComponent(sel.value); };
+    sel.onchange = () => { location.search = '?d=' + encodeURIComponent(sel.value) + (playback !== C.DEFAULT_PLAYBACK ? '&p=' + playback : ''); };
   }
 
   // ---- time -------------------------------------------------------------------------------------
@@ -140,9 +140,19 @@
     $('play').onclick = () => setPlaying(!playing);
     $('restart').onclick = () => { seek(0); setPlaying(true); };
     $('speed').onchange = (e) => { setPlayback(Number(e.target.value)); seek(t); };
+    // Space and the arrows drive the replay even while a button keeps the focus from a mouse click or tap; a button reached
+    // with the keyboard keeps its own Space. A focused button fires its click when Space comes back up, so swallow that one.
+    let pointerButton = null, spaceTookAt = -1e9;
+    document.addEventListener('pointerdown', (e) => { pointerButton = e.target.closest ? e.target.closest('button') : null; }, true);
+    document.addEventListener('focusin', (e) => { if (e.target !== pointerButton) pointerButton = null; });
+    document.addEventListener('click', (e) => {
+      if (e.detail === 0 && performance.now() - spaceTookAt < 1000 && e.target.closest && e.target.closest('button')) { e.preventDefault(); e.stopImmediatePropagation(); spaceTookAt = -1e9; }
+    }, true);
     window.addEventListener('keydown', (e) => {
-      if (e.target && e.target.closest('select,button,dialog')) return;
-      if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+      const el = e.target && e.target.closest ? e.target : null, btn = el && el.closest('button');
+      if (el && el.closest('select,dialog[open]')) return;
+      if (e.code === 'Space' && btn && btn !== pointerButton) return;
+      if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); if (btn) spaceTookAt = performance.now(); }
       if (e.code === 'ArrowRight') seek(t + endT * 0.03);
       if (e.code === 'ArrowLeft') seek(t - endT * 0.03);
     });
@@ -167,7 +177,7 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) cancel(); });
     $('detail-close').onclick = () => { selected = -1; draw(); };
     $('tasks').onclick = $('end-tasks').onclick = openTasks;
-    $('tasks-close').onclick = () => $('task-dialog').close();
+    $('tasks-close').onclick = (e) => { $('task-dialog').close(); if (e.detail > 0) pointerButton = document.activeElement; };
   }
   const phaseNames = { idle:'待派出', dispatching:'派出中', working:'进行中', collapsing:'交回中', returning:'交回中', done:'已交回' };
   function selectTask(i) {
@@ -744,7 +754,7 @@
       if (ext) add('', '会话记录里看不到它读了什么、调了什么');
       else add('', '工具：' + toolLine);
       add('', s.phase === 'idle' ? '尚未派出' : done ? (ext ? '总调度读回 ' : '交回报告 ') + C.fmtInt(a.handbackChars) + ' 字' : '还在干活');
-      add('d-hint', t >= endT ? '已结束 · 点再看一遍可重播' : '已暂停 · 点播放可继续');
+      add('d-hint', t >= endT ? '已结束 · 点再看一遍可重播' : playing ? '回放中 · 数字随播放更新' : '已暂停 · 点播放可继续');
       d.hidden = false;
     } else d.hidden = true;
   }
