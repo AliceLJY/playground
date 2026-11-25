@@ -57,7 +57,8 @@ function pathTo(a,b){
   if(parent[goal]===-1)return[];
   const path=[];for(let i=goal;i!==start;i=parent[i])path.push(gridPoint(i));return path.reverse();
 }
-const names=['你','阿晴','小满','汽水','阿树','奶盖','橘子','风铃','薄荷','夏至','西瓜','海盐'];
+// Bot names must not echo the team names (海盐蓝队 / 橘子橙队): a bot called 橘子 on the blue team read as a defector.
+const names=['你','阿晴','小满','汽水','阿树','奶盖','冰棍','风铃','薄荷','夏至','西瓜','凉茶'];
 function actor(id,team){return{id,team,name:names[id],x:0,y:0,z:0,yaw:0,pitch:0,vy:0,hp:100,alive:true,crouch:false,grounded:true,kills:0,deaths:0,weapon:0,ammo:weapons.map(w=>w.capacity),reload:0,cooldown:0,protect:0,respawn:0,bombs:2,path:[],repath:0,think:0,target:null,moving:0};}
 function spawn(s,a){
   const p=arena.spawns[a.team],slot=Math.floor(a.id/2),offsets=[0,-2,2,-4,4,-6];

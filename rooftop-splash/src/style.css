@@ -33,3 +33,12 @@
  #touch-jump{grid-column:1;grid-row:1}#touch-bomb{grid-column:2;grid-row:1}#touch-switch{grid-column:3;grid-row:1}
  #touch-aim{grid-column:1;grid-row:2}#touch-reload{grid-column:2;grid-row:2}#touch-fire{grid-column:3;grid-row:2}
 }
+
+/* Duet 2026-11-25. Narrow windows without touch keep a word after every key cap. */
+@media(max-width:760px){.menu-footer>span kbd:nth-child(2):after{content:' 瞄准 / 开火'}.menu-footer>span kbd:nth-child(3):after{content:' 补水'}}
+/* Results: the table scrolls inside the panel so 「再来一场」 is on the first screen; short screens tighten the header. */
+.result-panel{display:flex;flex-direction:column}.result-panel>*{flex:none}#result-table{flex:0 1 auto;min-height:0;overflow:auto}
+@media(max-height:530px){
+ .result-panel{padding:18px 26px}.result-panel .eyebrow{display:none}.result-panel h2{font-size:22px;margin:0 0 2px}#result-score{font-size:30px;padding:0}
+ .result-panel p{margin:2px 0 6px;line-height:1.5}.result-panel .primary{margin-top:10px;padding:11px 18px}.result-panel>.text-button{margin-top:2px}
+}

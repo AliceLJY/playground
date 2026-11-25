@@ -81,3 +81,10 @@ test('seeded full matches finish, score through actual bot fire, and stay collis
     assert.equal(s.phase,'result');assert.ok(s.score[0]+s.score[1]>5);assert.ok(s.score.every(n=>n<=s.target));
   }
 });
+test('no player shares a word with either team name (Duet 2026-11-25)',()=>{
+  const html=require('node:fs').readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8');
+  const teams=[...html.matchAll(/<small>([^<]*(?:蓝队|橙队))<\/small>/g)].map(m=>m[1]);
+  assert.deepEqual(teams,['海盐蓝队','橘子橙队']);
+  for(const teamSize of [3,4,6])for(const team of [0,1])for(const a of match({teamSize,team}).actors)
+    for(const t of teams)assert.ok(!t.includes(a.name),`${a.name} (team ${a.team}) collides with ${t}`);
+});

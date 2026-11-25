@@ -1,3 +1,27 @@
+# 2026-11-25 Duet 小游戏巡检复核
+
+外部 AI 测试员 Duet 报了四条（它在 MacBook Chrome 里测，手机是不带触屏的模拟框）。每条先在本机 Playwright + Google Chrome（真 Apple M4 GPU，`--use-angle=metal`）复现，成立才改。新检查 `tools/results-check.cjs` 用页面里包一层 `SplashCore.create` 把一局缩到 1.5 秒，真打完一局走到真结算面板，不改游戏代码。
+
+| Duet 说法 | 真浏览器复现 | 结论 | 怎么改的 |
+| --- | --- | --- | --- |
+| 计分表显示「你（你）」 | 成立：所有视口的结算表第一行都是「你（你）」（玩家本来就叫「你」，表格又补了一个后缀） | 文案错误，修 | `src/game.js` 表格只写名字，本人那行原有的高亮底色保留 |
+| 机器人「橘子」「海盐」与队名撞名，还分在对方队 | 成立：默认选蓝队时「橘子」在蓝队（4v4 起就出场），6v6 时「海盐」在橙队；选橙队时两人正好在同名队里，不撞 | 状态显示易误读，修 | `src/core.js` 改名：橘子 → 冰棍，海盐 → 凉茶。名字只用于显示，不影响任何规则 |
+| 手机结算第一屏看不到「再来一场」 | 部分成立：390×844 竖屏能看到；390×664 的 6v6、844×390 与 844×340 横屏（4v4、6v6）按钮在面板外，要先在面板里滚动；1365×900 正常 | 排版遮挡，修 | `src/style.css`：结算面板改成纵向弹性布局，名单在面板内部滚动，按钮始终在第一屏；矮屏（≤530 px）收紧标题、比分和留白，隐藏英文小标题 |
+| 窄窗无触屏时页脚按键没有文字说明 | 成立：≤760 px 宽、无触屏时页脚只剩「WASD 移动」，「鼠标」「R」后面没字（原 CSS 只给第一个键补了说明）；有触屏时页脚换成「左手移动 · 右手转头」，不受影响 | 文案缺失，修 | `src/style.css`：窄窗下第二、三个键补上「瞄准 / 开火」「补水」 |
+
+## 红与绿
+
+```sh
+node --test tests/*.test.cjs
+NODE_PATH="$(npm root -g)" node tools/results-check.cjs http://127.0.0.1:8781/rooftop-splash/ /tmp/rooftop-results
+```
+
+- Node：`tests/core.test.cjs` 新增「队员名不与队名重字」，改前 **26/27**（`橘子 (team 0) collides with 橘子橙队`），改后 **27/27**。
+- 浏览器：改前在未改动的 aaf1c1b 上 **27/45**（「你（你）」10 处、「再来一场」不在第一屏 5 处、窄窗缺键位说明 3 处；按钮点不到的视口不再测「点了能开新局」，所以总数少）；改后源码入口和 `python3 build.py` 打出的单文件各 **50/50**，包括真点「再来一场」开出新局、零页面报错，窄窗 320×568 页脚换成两行但不出窗。
+- 已有检查：`tools/mobile-check.cjs` 源码与单文件各 **28/28**；五个 `node --check` 通过；`python3 build.py` 成功（单文件仍由 `.gitignore` 忽略、CI 现场生成，不提交）。
+
+截图逐张看过：结算面板在 844×340 只露出两行名单，其余在面板内滚动，按钮和「回到天台入口」都在；桌面 1365×900 面板外观与改前一致。没测真手机、Safari，也没有线上复验。
+
 # Mobile layout fixes — 2026-11-03 (B4)
 
 Only CSS changed: compact phone introduction spacing keeps Start above the footer; short landscape uses a two-column introduction, a 70 × 86 CSS px radar frame beside the score, and two rows of 48 × 44 px action buttons. Jump, balloon and weapon switch share the upper row; aim, refill and fire share the lower row. Movement, shooting, refill, difficulty and scoring rules are unchanged.

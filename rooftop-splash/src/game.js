@@ -171,7 +171,7 @@ function radar(){
 function table(container){
   const t=document.createElement('table');t.className='score-table';const head=t.createTHead().insertRow();for(const text of ['队员','打湿','归队']){const th=document.createElement('th');th.textContent=text;head.append(th);}
   const body=t.createTBody();for(const a of [...state.actors].sort((a,b)=>a.team-b.team||b.kills-a.kills)){
-    const row=body.insertRow();if(a.id===0)row.className='you';const name=row.insertCell(),dot=document.createElement('span');dot.className='team-dot '+(a.team?'orange':'blue');name.append(dot,document.createTextNode(a.name+(a.id===0?'（你）':'')));row.insertCell().textContent=a.kills;row.insertCell().textContent=a.deaths;
+    const row=body.insertRow();if(a.id===0)row.className='you';const name=row.insertCell(),dot=document.createElement('span');dot.className='team-dot '+(a.team?'orange':'blue');name.append(dot,document.createTextNode(a.name));row.insertCell().textContent=a.kills;row.insertCell().textContent=a.deaths;
   }container.replaceChildren(t);
 }
 function updateHUD(){
