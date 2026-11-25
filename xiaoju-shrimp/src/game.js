@@ -13,7 +13,7 @@ const COL={bg:'#1e1915',floor:'#2a2d3e',wood:'#4a3c30',woodLine:'#3d3127',rug:'#
 const TXT=[
   {hitWord:'被哈',hit:'哈！被三花看见了，吓回猫窝。',back:'再来。看准三花背对你的时候走，目标是右上角的出口。',sub:'走廊 ↑'},
   {hitWord:'被抱',hit:'抱住啦！孩子把小橘放回客厅门口。',back:'再来。等玩具响起来再过木地板，目标是右上角的出口。',sub:'饭厅 ↑'},
-  {hitWord:'被发现',hit:'去！被主人赶回窗台。',back:'再来。她低头吃饭时走，筷子一停就站住。',sub:'← 跳下'}
+  {hitWord:'被赶回',hit:'去！被主人赶回窗台。',back:'再来。她低头吃饭时走，筷子一停就站住。',sub:'← 跳下'}
 ];
 const params=new URLSearchParams(location.search),view=params.get('view');
 let LV=Math.max(0,Math.min(C.LEVELS.length-1,(parseInt(params.get('level'),10)||1)-1));
@@ -249,7 +249,7 @@ function draw(f){
     ctx.fillStyle='#1e1915e0';ctx.beginPath();ctx.roundRect(bx,dyp-cell*.2,cell*1.45,cell*.4,cell*.1);ctx.fill();
     label(text,bx+cell*.72,dyp,Math.max(11,cell*.22),COL.door);
   }
-  if(k>0){ // title over the shot, in screen space
+  if(k>0&&S.phase!=='cleared'){ // title over the shot, in screen space; once cleared the win card carries it (Duet 2026-11-25: it ghosted through the card)
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.globalAlpha=Math.min(1,k*2);ctx.fillStyle='#1e1915b0';ctx.fillRect(0,H*.38,W,H*.2);
     label(L.def.exitText,W/2,H*.46,Math.min(W*.11,46),COL.cat);label(`第 ${LV+1} 关完成`,W/2,H*.53,Math.min(W*.05,20),COL.text);ctx.globalAlpha=1;
