@@ -14,7 +14,7 @@ test('验收 10 每行只有七个字段：类别、四个数、层级字母、�
     assert.equal(r.length, 7);
     const [c, imp, age, ac, since, tier, pin] = r;
     assert.ok(CATS.has(c), `类别 ${c}`);
-    assert.ok(imp >= 0 && imp <= 1 && Number.isInteger(age) && age >= 0 && age <= F.DAYS && Number.isInteger(ac) && ac >= 0);
+    assert.ok(imp >= 0 && imp <= 1 && Number.isInteger(age) && age >= 0 && Number.isInteger(ac) && ac >= 0);
     assert.ok(since === null || (Number.isInteger(since) && since >= 0 && since <= age + 1));
     assert.ok(['c', 'w', 'p'].includes(tier) && (pin === 0 || pin === 1));
   }

@@ -97,3 +97,12 @@ NODE_PATH="$(npm root -g)" node tools/shoot.cjs http://127.0.0.1:8792/memory-fad
 | 10 | 页面写「满 3 次升工作、满 10 次升核心」，RecallNest `evaluateTierChange` 还要重要性 ≥0.5／≥0.8 | RecallNest 有两条路径：`decay-engine.ts` 给没写明层级的条目用启发式（重要性 ≥0.95 或次数 ≥10 → 核心；≥0.8 或 ≥3 → 工作），本页照搬的就是这条；`access-tracker.ts` 被访问时调 `evaluateTierChange` 写明层级，那条要次数和重要性同时够 | 存疑未改 | 讲解要不要补第二条路径留给作者 | — |
 
 `tools/duet-check.cjs`：改前 6 项全红，改后 6 项全过。改后全部检查：Node 21 条全过；`tools/shoot.cjs` 49/49；`tools/experiment-check.cjs` 25/25；`tools/entry-check.cjs` 28/28。
+
+### 同日后续
+
+**上表第 9 条：写入超过一年的记忆（作者 11-25 定为改）**
+
+- 原因：`src/game.js` 选中一条记忆时把时间滑块的 `min` 设成它的写入天数，`max` 固定 365（`index.html`），横轴、曲线、播放头也都按 `F.DAYS`＝365 画。写入超过 365 天的记忆一被选中，滑块 `min > max`，曲线循环一次都不跑（空曲线），播放头落到图外（400 天时 x＝375.9、520 天时 478.5，图框是 34–346）；正好 365 天的那条滑块和曲线只剩一个点，动不了。
+- 改法（只改页面，不动每日刷新的 `src/library.js`）：`game.js` 用本地 `DAYS` 代替 `F.DAYS`：抽样里最老那条不到 365 天时仍是 365（今天的数据正是这样，画面、横轴刻度 0/60/…/300/365 与改前完全一样）；满 365 天时放长到最老那条再往后至少 60 天、按 60 天取整（如最老 520 天 → 横轴 0–600，刻度每 120 天一格；不超过 480 天时每 60 天一格），滑块 `max` 由脚本按它设。`core.js` 的 `DAYS` 和实验（固定 180 天）没有动。SPEC 写明这条横轴规则；`tests/library.test.cjs` 去掉「写入天数 ≤ 365」这一条数据约束（否则哪天抽到一年以上的记忆，每日刷新会让 Node 测试红，而页面已经能画）。
+- 红→绿：新增 `tools/old-memory-check.cjs <页面地址>`，用 Playwright 拦截 `src/library.js` 的响应，在抽样前面插三条写入 365、400、520 天的工作层记忆（文件本身不改），1440×900 和 390×664（触屏）各查：滑块 min ≤ max、开局在「今天」、能往后拖到「N 天后」、曲线和播放头／样本点都在图框内、零页面错误。改前 34 项中 20 项 FAIL（例：`age 400: slider min <= max {"min":400,"max":365}`；曲线 0 个点；播放头 x 375.9），exit 1；改后 34 项全过，exit 0（520 天那条：min 520、max 600，拖到末端显示「80 天后」，曲线 81 个点落在 304.4–346）。注入后的曲线截图（两个视口）看过：横轴 0–600，样本点、选中环和曲线都在框内。
+- 改后已有检查：Node 21 条全过；`tools/shoot.cjs` 49/49；`tools/duet-check.cjs` 6/6；`tools/experiment-check.cjs` 25/25；`tools/entry-check.cjs` 28/28（均 exit 0）。真手机、Safari 未测。

@@ -20,6 +20,10 @@
     };
   }
   const library = LIB.rows.map(fromRow);
+  // 时间轴默认一年（F.DAYS）。抽样里有写入满一年的记忆时，放长到最老那条再往后至少 60 天（按 60 天取整），
+  // 否则滑块的 min（写入至今天数）会大于 max，曲线也画到图外。
+  const oldest = library.reduce((a, m) => Math.max(a, m.age), 0);
+  const DAYS = oldest >= F.DAYS ? Math.ceil((oldest + 60) / 60) * 60 : F.DAYS;
 
   let mem = null;
   let day = 0;
@@ -50,7 +54,7 @@
 
   // ---------- 曲线：倍率随天数 ----------
   const PLOT = { x0: 34, x1: 346, y0: 14, y1: 150, lo: 0.4 };
-  const px = (d) => PLOT.x0 + (d / F.DAYS) * (PLOT.x1 - PLOT.x0);
+  const px = (d) => PLOT.x0 + (d / DAYS) * (PLOT.x1 - PLOT.x0);
   const py = (f) => PLOT.y1 - ((f - PLOT.lo) / (1 - PLOT.lo)) * (PLOT.y1 - PLOT.y0);
   const plot = $('plot');
 
@@ -61,7 +65,7 @@
     for (const m of library) {
       const s = F.stateAt(m, m.age);
       const jitter = s.factor === 1 ? ((m.index * 37) % 7) - 3 : 0;   // 不掉分的那一大批叠在顶线上，错开一点看得出有多少
-      const x = px(Math.min(F.DAYS, m.age)), y = py(s.factor) + jitter;
+      const x = px(Math.min(DAYS, m.age)), y = py(s.factor) + jitter;
       dotPos.push({ m, x, y });
       const c = document.createElementNS(NS, 'circle');
       c.setAttribute('cx', x.toFixed(1)); c.setAttribute('cy', y.toFixed(1)); c.setAttribute('r', 2.1);
@@ -73,10 +77,10 @@
   function drawPlot() {
     // 写入之前的日子库里没记全（只存了被想起几次和最后一次），不画曲线，只画今天往后
     const pts = [];
-    for (let d = mem.age; d <= F.DAYS; d++) pts.push(`${pts.length ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).factor).toFixed(1)}`);
+    for (let d = mem.age; d <= DAYS; d++) pts.push(`${pts.length ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).factor).toFixed(1)}`);
     $('curve').setAttribute('d', pts.join(' '));
     let fl = '';
-    for (let d = mem.age; d <= F.DAYS; d++) fl += `${d > mem.age ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).floor).toFixed(1)} `;
+    for (let d = mem.age; d <= DAYS; d++) fl += `${d > mem.age ? 'L' : 'M'}${px(d).toFixed(1)},${py(F.stateAt(mem, d).floor).toFixed(1)} `;
     $('floorline').setAttribute('d', fl);
     $('pastshade').setAttribute('width', Math.max(0, px(mem.age) - PLOT.x0));
     $('pastlabel').style.display = mem.age > 40 ? '' : 'none';
@@ -88,7 +92,7 @@
     for (const r of marks) {
       const b = document.createElementNS(NS, 'rect');
       b.setAttribute('x', px(r)); b.setAttribute('y', PLOT.y0);
-      b.setAttribute('width', Math.max(1, px(Math.min(F.DAYS, r + F.RECENT_DAYS)) - px(r)));
+      b.setAttribute('width', Math.max(1, px(Math.min(DAYS, r + F.RECENT_DAYS)) - px(r)));
       b.setAttribute('height', PLOT.y1 - PLOT.y0); b.setAttribute('class', 'band');
       bands.appendChild(b);
       const t = document.createElementNS(NS, 'path');
@@ -109,7 +113,9 @@
       l.setAttribute('x1', PLOT.x0); l.setAttribute('x2', PLOT.x1); l.setAttribute('y1', py(f)); l.setAttribute('y2', py(f));
       l.setAttribute('class', 'grid'); g.appendChild(l);
     }
-    for (const d of [0, 60, 120, 180, 240, 300, 365]) {
+    const step = DAYS <= 480 ? 60 : 120;
+    const ticks = DAYS === F.DAYS ? [0, 60, 120, 180, 240, 300, 365] : Array.from({ length: Math.floor(DAYS / step) + 1 }, (_, i) => i * step);
+    for (const d of ticks) {
       const t = document.createElementNS(NS, 'text');
       t.setAttribute('x', px(d)); t.setAttribute('y', PLOT.y1 + 22); t.setAttribute('text-anchor', 'middle');
       t.textContent = d; g.appendChild(t);
@@ -221,8 +227,8 @@
   // 曲线：横拖选日、纵划交给浏览器滚页；没拖动且点在散点旁边才换记忆。
   let press = null;
   const scrubTo = (e) => {
-    const d = Math.round(((svgX(plot, e) - PLOT.x0) / (PLOT.x1 - PLOT.x0)) * F.DAYS);
-    setDay(Math.max(mem.age, Math.min(F.DAYS, d)));
+    const d = Math.round(((svgX(plot, e) - PLOT.x0) / (PLOT.x1 - PLOT.x0)) * DAYS);
+    setDay(Math.max(mem.age, Math.min(DAYS, d)));
   };
   plot.addEventListener('pointerdown', (e) => {
     plot.setPointerCapture(e.pointerId); stopPlay();
@@ -275,7 +281,7 @@
   let playAcc = 0;
   function stopPlay() { playing = false; $('play').textContent = '让时间走'; $('play').setAttribute('aria-pressed', false); }
   function startPlay() {
-    if (day >= F.DAYS) setDay(mem.age);
+    if (day >= DAYS) setDay(mem.age);
     playing = true; playAcc = day; $('play').textContent = '停'; $('play').setAttribute('aria-pressed', true);
   }
   $('play').addEventListener('click', () => (playing ? stopPlay() : startPlay()));
@@ -286,9 +292,9 @@
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (playing) {
       playAcc += dt * 30;
-      const d = Math.min(F.DAYS, Math.floor(playAcc));
+      const d = Math.min(DAYS, Math.floor(playAcc));
       if (d !== day) setDay(d);
-      if (d >= F.DAYS) stopPlay();
+      if (d >= DAYS) stopPlay();
     }
     if (!dragging) F.springStep(card, dt);
     F.springStep(ledge, dt);
@@ -308,6 +314,7 @@
   $('libnote').textContent = `点是我自己的记忆库 ${M.date} 那天随机抽的 ${M.sampled} 条（库里在用的共 ${M.active} 条），只取了数字，没有内容。绿色的今天不掉分。点一个点，上面的卡片就换成它。`;
   $('cliffnote').textContent = `被想起后的 7 天一过，倍率会直接跌回曲线上，中间没有过渡。真实库里眼下有 ${M.recentOnly} 条正处在这 7 天里，等豁免结束，倍率中位数是 ${M.dropMedian}，跌破 0.7 的只有 ${M.dropBelow07} 条。跌得不多，名次却会变：2026-11-03 拿那之前一周 578 条真实检索重放，前 5 名里有这类记忆的 95 条查询，豁免一结束有 26 条前 5 名换了人，因为前几名分数本来就挨得很近。把悬崖改成缓坡也免不了这次换位，只是换到坡上另一天，所以没改。为了让这类记忆看得到，${M.sampled} 条抽样里专门给它们留了 ${M.recentSampled} 条，图上的比例比真实库高。`;
 
+  $('scrub').max = DAYS;
   drawAxes(); drawLibrary();
   // 开场：挑一条还在往下掉、又被想起过的记忆，让时间自己往前走一段
   const first = library.find((m) => m.history && m.history.count >= 2 && F.stateAt(m, m.age).why === 'reinforced' && m.age < 120) || library[0];
@@ -323,7 +330,7 @@
     if (q.get('recalls')) mem.recalls = q.get('recalls').split(',').map((d) => mem.age + Number(d)).sort((a, b) => a - b);
     if (q.has('imp')) { mem.importance = +q.get('imp'); $('importance').value = mem.importance; }
     if (q.has('pin')) mem.pinned = q.get('pin') === '1';
-    drawPlot(); setDay(Math.min(F.DAYS, mem.age + (+q.get('ahead') || 0)));
+    drawPlot(); setDay(Math.min(DAYS, mem.age + (+q.get('ahead') || 0)));
     card.x = yOf(F.stateAt(mem, day).factor); card.v = 0; ledge.x = ledge.target;
   }
   // ---------- 可选实验：不修改 mem / library，关闭后丢弃全部计划 ----------
