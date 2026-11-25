@@ -46,7 +46,9 @@ body[data-version=repaired] #readout b.hot{color:var(--good)}
 #info h2{margin:0 0 6px;font-size:16px}
 #info p{margin:0 0 8px}
 #info b{color:var(--gold)}
-#info .close{position:sticky;bottom:0;display:block;margin:10px 0 0 auto;background:#1b212b;box-shadow:0 0 0 6px rgba(14,17,23,.97)}
+/* 「关闭」粘在说明页底部；粘住的是整条不透明的底栏，正文从它下面滚过去，不会在按钮旁边露出半行字 */
+#info .foot{position:sticky;bottom:-14px;z-index:1;display:flex;justify-content:flex-end;margin:10px -18px -14px;padding:8px 18px 14px;background:#0e1117;border-top:1px solid var(--line)}
+#info .close{background:#1b212b}
 
 body.compact #sub{display:block}
 body.compact #top h1{font-size:16px}
@@ -110,7 +112,7 @@ body.short button{min-height:34px}
   <p>作者没有替它改。任务书里只写了症状（齿越往外越宽）、两种查法（二维齿廓相交、啮合处特写截图）和「问题出在齿形生成那部分」，具体错在哪、怎么改，让它自己找。它改了三处齿形，另外修了轴的朝向和手机竖屏。</p>
   <p><b>怎么看：</b>点右上角「原版 / 返修后」切换。红点是穿模的地方：一条齿廓的顶点落进了另一个轮子里，或者两条齿廓线交叉。「标红」可以关掉红点，直接看两个轮子叠在一起；「慢放」放到 0.2 倍；「A–B 特写」「C–D 特写」把镜头推到啮合处。顶上那一行是一个齿周期取 60 帧的检测结果，和测试用的是同一份代码。</p>
   <p><b>两版的区别：</b>齿形函数各自保留 dsh 的原文；轴的朝向也跟着版本走。竖屏构图、说明面板、本地 three.js 是展示页统一加的，两版一样。</p>
-  <button type="button" class="close" id="info-close">关闭</button>
+  <div class="foot"><button type="button" class="close" id="info-close">关闭</button></div>
 </section>
 
 <script src="src/gear-profile.js"></script>

@@ -190,7 +190,7 @@ const barGaps = (page) => page.evaluate(() => {
     const { ctx, page } = await open('?view=hero', 'phone');
     await page.evaluate(() => window.__gearRepair.openInfo(true));
     const now = infoProblems(await infoRects(page));
-    await page.addStyleTag({ content: '#info .close{position:static !important;box-shadow:none !important}' });
+    await page.addStyleTag({ content: '#info .foot{position:static !important;margin:10px 0 0 !important;padding:0 !important;border:0 !important}' });
     const old = infoProblems(await infoRects(page));
     check('calibration phone: current info sheet keeps 关闭 inside its visible box', now.length === 0, now);
     check('calibration phone: the first version (按钮 not sticky) is flagged, 关闭 only reachable by scrolling', old.some((p) => p.includes('关闭')), old);
