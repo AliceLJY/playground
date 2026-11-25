@@ -52,3 +52,23 @@ Checks, each red on the previous build:
 - `NODE_PATH="$(npm root -g)" node tools/stuck-check.cjs <url> <out-dir>`: a visitor who never steers, 50 s on the real map, Chrome with Metal, 1365 × 900. Before: 1 fall, then 40.5 s at 0 km/h, 33 m travelled. After (source and rebuilt single file): 5 falls, longest standstill 1 s, 176–226 m travelled.
 
 Not verified: phones, and whether five falls in 50 s reads as acceptable for a visitor who never steers; that is the existing "navigation off by default" design, not changed here.
+
+## 2026-11-25 Duet 小游戏巡检复核
+
+外部 AI 测试员 Duet 报了两条（它在 MacBook Chrome 里测，手机是不带触屏的模拟框）。先用本机 Playwright + Google Chrome（真 Apple M4 GPU，`--use-angle=metal`）复现，成立才改。新检查 `tools/duet-check.cjs`，十个视口：竖屏手机 390×844、414×896、390×664、375×667、360×740、320×568（触屏），横屏 844×390、844×300（触屏），桌面 1365×900、1440×900。
+
+- **「自动前行」「自动导航」开关颜色固定，关的像开、开的像关**
+  - 复现：成立。`#cruise` 不论开关都是深绿底，`#assist` 不论开关都是浅绿底；开局（前行开、导航关）看着正常，把前行关掉、导航打开后，十个视口全部是「关的深、开的浅」。
+  - 改法：`src/style.css` 去掉按按钮写死的两条颜色，改成按 `aria-pressed` 着色（开＝深绿 `#345b49`，关＝浅绿 `#dbe4cf`），与小橘逛花城 11-22 的同名修法一致。`game.js` 本来就随状态更新 `aria-pressed`，没动。
+- **手机开场「和阿橘出发」按钮盖住猫头**
+  - 复现：成立，所有竖屏手机都压到。开场机位把猫头顶放在画面高度约 47.4% 处，而开场文字从 17% 往下排，按钮顶边落在画面高度的 45%（390×844）到 57%（320×568）。按猫头（含耳朵、胡须）的屏幕外接框算，六个竖屏视口按钮全和猫头相交；390×664 时按钮 y 343–393、猫头从 y 315 开始。横屏和桌面不压。
+  - 改法：只改竖屏窄屏（≤700 px 宽、竖向）的开场排版：文字块改为从下往上挂在猫头上方（底边在 53% + 10 px），矮屏（≤760 px 高）标题由 58 px 缩到 44 px，更矮（≤600 px 高）再缩到 36 px 并隐藏小眉题。没有改 3D 机位和构图，横屏、桌面不变。为了让检查能量到猫头，`window.__ride` 加了只读的 `catHead`（猫头在屏幕上的外接框）。
+- **红与绿**：先只加 `catHead` 钩子和检查、不改样式跑一遍：**44/60**（开关「翻转后颜色跟状态走」10 个视口全红；「按钮不压猫头」6 个竖屏全红）。改样式后源码入口、`python3 build.py` 打出的单文件各 **60/60**。截图逐张看过：竖屏按钮在猫耳上方、留有空隙；开关翻转后「自动导航 · 开」深色、「自动前行 · 关」浅色。
+- **已有检查**：`node --test tests/*.test.cjs` **31/31**；两个 `node --check` 通过；`tools/mobile-check.cjs` 源码与单文件各 **60/60**；`tools/stuck-check.cjs` 源码与单文件均通过（50 秒内摔 5 次、走 226 m、最长停 0.75–1 s）。按本作品惯例，重新生成的 `阿橘的广州慢游.html` 随本次提交。
+- **顺带看到、没改**：触屏手机骑行界面里，速度读数旁的「街头骑士」与冲刺条的「100%」叠在一起，冲刺条下还写着键盘提示「Shift / B · 松开恢复」；改前截图里就有，Duet 没报，留给 Alice 定。
+
+```sh
+NODE_PATH="$(npm root -g)" node tools/duet-check.cjs http://127.0.0.1:8781/aju-guangzhou-ride/ /tmp/aju-duet
+```
+
+没测真手机、Safari，没有线上复验。
