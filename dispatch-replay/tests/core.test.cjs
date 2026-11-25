@@ -21,6 +21,9 @@ function loadData() {
 const SETS = loadData();
 // bare screens plus phones with the browser's own bars taken off (AGENTS.md §3): iPhone Safari, Android Chrome, landscape
 const VIEWPORTS = [[1280, 720], [1920, 1080], [390, 844], [844, 390], [720, 800], [540, 960], [390, 664], [412, 700], [844, 340]];
+// Header height the page actually measures on each viewport (Chrome, 2026-11-25). Since B3 the controls are 44 px
+// tall; on upright screens narrower than 560 px they wrap below the title, two rows, 157 px.
+const HEADER = { '1280x720': 81, '1920x1080': 81, '390x844': 157, '844x390': 60, '720x800': 114, '540x960': 157, '390x664': 157, '412x700': 157, '844x340': 60 };
 const PHASE_RANK = Object.fromEntries(C.PHASES.map((p, i) => [p, i]));
 
 test('every palette colours every model family, external AI and tool group; index.js names real palettes (spec §4)', () => {
@@ -135,9 +138,10 @@ for (const { slug, src, data } of SETS) {
     const overlap = (a, b) => a.x < b.x + b.w - E && b.x < a.x + a.w - E && a.y < b.y + b.h - E && b.y < a.y + a.h - E;
     const circleBox = (c, r, below) => ({ x: c.x - r, y: c.y - r, w: 2 * r, h: 2 * r + (below || 0) });
     for (const [W, H] of VIEWPORTS) {
-      const L = C.layout(model, W, H, { picker: SETS.length > 1 }), tag = `${W}×${H}`;
+      const L = C.layout(model, W, H, { picker: SETS.length > 1, headerHeight: HEADER[`${W}x${H}`] }), tag = `${W}×${H}`;
       const stageBottom = L.stage.y + L.stage.h - L.captionH;
-      assert.ok(L.rUnit >= 14, `spec §9.6: ${tag} largest bubble radius ${L.rUnit.toFixed(1)} px < 14`);
+      const minR = HEADER[`${W}x${H}`] >= 150 ? 11 : 14;   // spec §9.6: two-row header on upright phones, 11 px floor
+      assert.ok(L.rUnit >= minR, `spec §9.6: ${tag} largest bubble radius ${L.rUnit.toFixed(1)} px < ${minR}`);
       assert.ok(L.font >= C.MIN_FONT, `spec §9.6: ${tag} label font ${L.font} px < ${C.MIN_FONT}`);
       L.cells.forEach((c, i) => {
         assert.ok(c.x >= -0.5 && c.y >= L.stage.y - 0.5 && c.x + c.w <= W + 0.5 && c.y + c.h <= stageBottom + 0.5, `spec §9.6: ${tag} cell ${i} leaves the stage`);
