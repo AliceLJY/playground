@@ -63,6 +63,31 @@ const mapPick = page => page.evaluate(() => { const s = window.__ride.state, C =
     await page.screenshot({ path: `${out}/667x375-${tag}-ride.png` });
     await ctx.close();
   }
+  // 3. Selected place name on the big map stays whole inside the canvas, for every destination (Duet follow-up: 「搭台 · 茶楼早」 was cut at the right edge),
+  //    and 4. the selected choice is scrolled into view when the map opens (it sat in 骑楼段, below the fold).
+  for (const [w, h, hasTouch] of [[1365, 800, false], [667, 375, true], [667, 375, false], [844, 390, true], [390, 664, true]]) {
+    const { ctx, page } = await open(browser, { viewport: { width: w, height: h }, hasTouch, isMobile: hasTouch, deviceScaleFactor: 2 });
+    await page.evaluate(() => { // record selected-name draws on the route overview, in canvas bitmap pixels
+      window.__labels = []; const orig = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y) { if (this.canvas.id === 'route-overview' && /^600 /.test(this.font)) { const m = this.measureText(text), t = this.getTransform(), al = this.textAlign; const x0 = al === 'right' || al === 'end' ? x - m.width : al === 'center' ? x - m.width / 2 : x; window.__labels.push({ text, l: t.a * x0 + t.e, r: t.a * (x0 + m.width) + t.e, t: t.d * (y - m.actualBoundingBoxAscent) + t.f, b: t.d * (y + m.actualBoundingBoxDescent) + t.f, cw: this.canvas.width, ch: this.canvas.height }); } return orig.apply(this, arguments); };
+    });
+    await depart(page);
+    if (hasTouch) await page.tap('#route-map'); else await page.click('#route-map'); await sleep(400);
+    const seen = await page.evaluate(() => { const v = document.getElementById('dialog-content').getBoundingClientRect(), b = document.querySelector('.route-choices button[aria-pressed=true]').getBoundingClientRect(); return { id: document.querySelector('.route-choices button[aria-pressed=true]').dataset.place, button: { t: Math.round(b.top), b: Math.round(b.bottom) }, view: { t: Math.round(v.top), b: Math.round(v.bottom) }, visible: b.top >= v.top - 1 && b.bottom <= v.bottom + 1 }; });
+    check(`${w}x${h} map opens with the selected choice in view`, seen.visible, seen);
+    const first = await page.evaluate(() => window.__labels.at(-1));
+    const vis = await page.evaluate(lab => { const c = document.getElementById('route-overview'), r = c.getBoundingClientRect(), v = document.getElementById('dialog-content').getBoundingClientRect(), s = Math.min(r.width / c.width, r.height / c.height), ox = r.left + (r.width - c.width * s) / 2, oy = r.top + (r.height - c.height * s) / 2; const css = { l: ox + lab.l * s, r: ox + lab.r * s, t: oy + lab.t * s, b: oy + lab.b * s }; return { css, inView: css.l >= 0 && css.r <= innerWidth && css.t >= 0 && css.b <= innerHeight, inDialogView: css.t >= v.top - 1 && css.b <= v.bottom + 1 }; }, first);
+    check(`${w}x${h} default selected name is whole inside the map and visible in the dialog when the map opens`, first && first.l >= 0 && first.r <= first.cw && first.t >= 0 && first.b <= first.ch && vis.inView && vis.inDialogView, { label: first?.text, ...vis });
+    await page.screenshot({ path: `${out}/map-${w}x${h}-${hasTouch ? 'touch' : 'mouse'}.png` });
+    const bad = [];
+    for (const id of await page.evaluate(() => [...document.querySelectorAll('.route-choices button')].map(b => b.dataset.place))) {
+      await page.evaluate(id => { window.__labels = []; document.querySelector(`.route-choices button[data-place="${id}"]`).click(); }, id);
+      const lab = await page.evaluate(() => window.__labels.at(-1));
+      if (!lab || lab.l < 0 || lab.r > lab.cw || lab.t < 0 || lab.b > lab.ch) bad.push(lab ? { id, text: lab.text, l: Math.round(lab.l), r: Math.round(lab.r), t: Math.round(lab.t), cw: lab.cw } : { id, missing: true });
+    }
+    check(`${w}x${h} every destination's selected name stays inside the map`, bad.length === 0, bad);
+    await ctx.close();
+  }
   await browser.close();
   fs.writeFileSync(`${out}/duet-recheck-report.json`, JSON.stringify(results, null, 1));
   console.log(failed ? `${failed} FAILED` : 'ALL PASS'); process.exit(failed ? 1 : 0);

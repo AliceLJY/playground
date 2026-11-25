@@ -1,5 +1,5 @@
 // NODE_PATH="$(npm root -g)" node tools/stuck-check.cjs <source-or-built-url> <out-dir> [seconds=50]
-// A visitor who never steers: Start, tell the calico "今天只想兜风", then touch nothing. Auto-forward is on, navigation is
+// A visitor who never steers: back from one doorway, Start, tell the calico "今天只想兜风", then touch nothing. Auto-forward is on, navigation is
 // off, so the bike rides straight into the first building. It may fall; what it may not do is stand at 0 km/h afterwards.
 // Samples every 250 ms on the real map with the real colliders and fails on any ride-phase standstill longer than 3 s.
 // Written 2026-11-11 against a build that stood against the arcade wall for good after its first fall.
@@ -8,7 +8,13 @@ const [base,out,secs='50']=process.argv.slice(2);if(!base||!out)throw Error('URL
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-gpu','--ignore-gpu-blocklist','--use-angle=metal']});
  const ctx=await browser.newContext({viewport:{width:1365,height:900}}),p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(String(e)));
- await p.goto(base);await p.waitForFunction(()=>window.__ride?.ready,null,{polling:100});await p.locator('#start').click();
+ // Since 2026-11-22 the calico only invites a race after the first doorway, so the visitor here has already been through one:
+ // seed exactly the save that entering 搭台 writes (placed back at the start line), reload, and take 「回到刚才的地方」.
+ await p.goto(base);await p.waitForFunction(()=>window.__ride?.ready,null,{polling:100});
+ await p.evaluate(()=>{const C=window.RideCore,s=C.at(C.MAIN,0);localStorage.setItem('xiaoju-city/v1',JSON.stringify({x:s.x,z:s.z,heading:s.heading,visits:['datai-teahouse'],cruising:true,assist:false,id:'datai-teahouse',savedAt:Date.now()}));});
+ await p.reload();await p.waitForFunction(()=>window.__ride?.ready,null,{polling:100});await p.locator('#start').click();await p.waitForTimeout(300);
+ if(await p.isVisible('#modal')&&(await p.evaluate(()=>__ride.state.phase))!=='challenge')await p.locator('#dialog-action').click();
+ const resumed=await p.evaluate(()=>__ride.state.visits);
  const samples=[];let stuck=0,worst=0,worstAt=null,declined=false,shot=false;const t0=Date.now();
  while(Date.now()-t0<Number(secs)*1000){
   await p.waitForTimeout(250);const s=await p.evaluate(()=>__ride.state),t=(Date.now()-t0)/1000;
@@ -19,7 +25,7 @@ const [base,out,secs='50']=process.argv.slice(2);if(!base||!out)throw Error('URL
  await p.screenshot({path:`${out}/end.png`});
  const last=samples.at(-1),falls=last.collisions,moved=samples.reduce((d,s,i)=>i?d+Math.hypot(s.x-samples[i-1].x,s.z-samples[i-1].z):0,0);
  const checks=[
-  ['the calico was met and declined',declined],
+  ['the calico was met and declined (after one doorway, as the current rule wants)',declined&&resumed.includes('datai-teahouse'),{visits:resumed}],
   ['the run contains at least one real fall',falls>=1,{falls}],
   ['never stands at 0 km/h in the ride phase for 3 s',worst<3,{worst,worstAt}],
   ['still rolling in the last 10 s',samples.filter(s=>s.t>Number(secs)-10).some(s=>s.speed>3)],

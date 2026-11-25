@@ -79,3 +79,8 @@ button.map-card{padding:8px;border:0;cursor:pointer;color:#516c59;font-family:in
 }
 /* Duet 1: the edition line collided with the footer line on desktop; it repeated what the footer says. */
 .intro-panel .edition{display:none}
+/* 2026-11-25: short landscape map dialog has ~150px of content height, too little for map and choices one above the other.
+   Map left (stays put while the choices scroll), choices right, so the pre-selected choice and its place on the map are both in view. */
+@media(pointer:coarse) and (orientation:landscape) and (max-height:440px),(max-width:700px) and (orientation:landscape) and (max-height:440px){
+ .route-planner{grid-template-columns:1fr 1fr;align-items:start}#route-overview{position:sticky;top:0}#route-summary{grid-column:1}
+}
