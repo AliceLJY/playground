@@ -76,6 +76,15 @@ body.touchy .touch-keys{display:grid}
 .pad-right .big{right:0;bottom:0;width:92px;height:92px;font-size:28px;border-color:var(--gong);background:rgba(217,164,65,.28)}
 .pad-right .mid{right:104px;bottom:10px;width:72px;height:72px}
 .pad-right .small{right:24px;bottom:104px;width:60px;height:60px;font-size:17px}
+/* phones narrower than 380 (320 and 360 wide held upright): both pads shrink so ▶ and 「槌」 keep a thumb's gap */
+@media (max-width:380px){
+  .pad-left{gap:10px}
+  .pad-left button{width:56px;height:56px;font-size:20px}
+  .pad-right{width:170px;height:150px}
+  .pad-right .big{width:80px;height:80px;font-size:24px}
+  .pad-right .mid{right:90px;bottom:8px;width:60px;height:60px;font-size:18px}
+  .pad-right .small{right:18px;bottom:90px;width:52px;height:52px;font-size:15px}
+}
 .orientation{display:none}
 body.touchy .touch{display:block}
 /* phone held sideways: the same rail, in the gap between the two pads */

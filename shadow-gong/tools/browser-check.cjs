@@ -5,9 +5,10 @@
 // Writes screenshots and report.json into <output-dir>. --full also plays a whole match in real time (about 3 minutes).
 // --align-only checks that the picture agrees with the verdict (hero facing, weapon on the gong, sparks on the gong,
 // standing room, hints clear of the action, touch buttons); it prints PASS/FAIL lines and exits 1 on any failure.
+// --pads-only runs just its last part: the touch buttons on narrow phones, upright and sideways.
 const {chromium}=require('playwright');
 const fs=require('fs'),path=require('path');
-const args=process.argv.slice(2),full=args.includes('--full'),orientationOnly=args.includes('--orientation-only'),alignOnly=args.includes('--align-only'),pos=args.filter(a=>!a.startsWith('--'));
+const args=process.argv.slice(2),full=args.includes('--full'),orientationOnly=args.includes('--orientation-only'),padsOnly=args.includes('--pads-only'),alignOnly=padsOnly||args.includes('--align-only'),pos=args.filter(a=>!a.startsWith('--'));
 const out=pos[0]||'browser-check',base=pos[1]||'http://127.0.0.1:8917/index.html',origin=new URL(base).origin;
 fs.mkdirSync(out,{recursive:true});
 const shot=name=>path.join(out,name+'.png');
@@ -68,6 +69,7 @@ const shot=name=>path.join(out,name+'.png');
     const band=a=>({left:a.rest.cloth.left,right:a.rest.cloth.right,top:a.rest.floorY-4.4*a.rest.unit,bottom:a.rest.floorY+2});
     const frozen=async(page,ms=120000)=>{const t0=Date.now();while(Date.now()-t0<ms){if(await page.evaluate(()=>window.__duel.frozen))return true;await page.waitForTimeout(100);}return false;};
     {const {ctx,page}=await open('?view=hero');report.gpu=await page.evaluate(()=>__duel.metrics.gpu);await ctx.close();console.log('renderer: '+report.gpu);}
+    if(!padsOnly){
 
     // 1. perfect parries from the right and from the left, at the reporter's desktop viewport (1280x521)
     for(const [name,wave,kind,from] of [['moth-from-right',0,'moth',1],['moth-from-left',0,'moth',-1],['blade-from-right',1,'scissors',1],['blade-from-left',1,'scissors',-1],['ratking',3,'rat',0]]){
@@ -200,6 +202,26 @@ const shot=name=>path.join(out,name+'.png');
         check(`ticket ${touch?'touch':'keyboard'} ${col==='dt'?'labels':'keys'}: first glyphs line up within 2 px`,rows.length===4&&spread<=2,{spreadPx:n1(spread),lines:rows.map(e=>`${e.text} +${n1(e.ink-lo)}`)});
       }
       await page.screenshot({path:shot('align-ticket-'+(touch?'touch':'keyboard'))});await ctx.close();
+    }
+    }
+    // 7. 2026-11-25 report: on a 320-wide touch screen ▶ and 「槌」 sat on top of each other. On narrow phones, upright
+    //    and sideways, the five buttons are each at least 44 px, at least 8 px apart (a thumb between two of them must
+    //    not land on both), inside the viewport, off the readouts, and the centre of each one is that button
+    for(const [width,height] of [[320,568],[360,640],[375,667],[390,664],[568,320],[640,360],[667,375],[844,390]]){
+      const tag=`${width}x${height} touch`;
+      const {ctx,page}=await open('?view=hero&seed=11',{viewport:{width,height},deviceScaleFactor:2,hasTouch:true,isMobile:true});
+      await page.waitForTimeout(200);
+      const a=await page.evaluate(()=>__duel.align()),bs=a.buttons,size=b=>`${b.key} ${n1(b.right-b.left)}x${n1(b.bottom-b.top)}`;
+      const clash=[],gaps=[];
+      for(let i=0;i<bs.length;i++)for(let j=i+1;j<bs.length;j++){if(hits(bs[i],bs[j]))clash.push(bs[i].key+'/'+bs[j].key);
+        gaps.push(Math.max(bs[j].left-bs[i].right,bs[i].left-bs[j].right,bs[j].top-bs[i].bottom,bs[i].top-bs[j].bottom));}
+      const small=bs.filter(b=>b.right-b.left<44||b.bottom-b.top<44),out=bs.filter(b=>b.left<0||b.top<0||b.right>width||b.bottom>height);
+      const onTop=await page.evaluate(bs=>bs.filter(b=>{const el=document.elementFromPoint((b.left+b.right)/2,(b.top+b.bottom)/2);return !el||el.dataset.key!==b.key;}).map(b=>b.key),bs);
+      check(`${tag}: five touch buttons, none overlapping another and at least 8 px apart`,bs.length===5&&!clash.length&&Math.min(...gaps)>=8,{clash,nearestGapPx:gaps.length?n1(Math.min(...gaps)):null});
+      check(`${tag}: every touch button at least 44 px and inside the viewport`,bs.length===5&&!small.length&&!out.length,{buttons:bs.map(size),outside:out.map(b=>b.key)});
+      check(`${tag}: the centre of every touch button is that button, and no button covers a readout`,!onTop.length&&!bs.some(k=>a.hud.some(r=>hits(k,r))),{covered:onTop,readouts:a.hud.map(k=>k.name)});
+      report.runs.push({name:'pads '+tag,buttons:bs});
+      await page.screenshot({path:shot(`align-pads-${width}x${height}`)});await ctx.close();
     }
     report.checks=checks;await browser.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,1));
     console.log(`${checks.length-failures}/${checks.length} alignment checks passed`);process.exitCode=failures?1:0;return;
