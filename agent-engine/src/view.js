@@ -220,7 +220,6 @@
   $('#prev').addEventListener('click', () => userGo(S.cur - 1));
   $('#next').addEventListener('click', () => userGo(S.cur + 1));
   document.addEventListener('keydown', (e) => {
-    if (e.target.closest && e.target.closest('.fc')) return;
     if (e.key === 'ArrowRight') userGo(S.cur + 1);
     else if (e.key === 'ArrowLeft') userGo(S.cur - 1);
   });

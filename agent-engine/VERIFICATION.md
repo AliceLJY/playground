@@ -120,3 +120,20 @@ python3 -I tools/mutate-node.py
 - 新检查：`NODE_PATH="$(npm root -g)" node tools/b3-check.cjs <输出目录> <页面地址>`。在 390×664、1365×900、320×568、844×340 下，检查第 2/3/6 幕暂停 2 秒事件不变、恢复不重播、剩余事件时间及换幕时间、长幕滚动中标题和前后键可达。旧发布文件 55 项中 31 项红；修复后 58 项全绿（新增导航存在后另验 3 次真实切幕）。截图实际打开检查过。
 - Node 29 条全过；原有浏览器脚本 `AE_SIZES=desktop,phone AE_ONLY=fixed,interact` 404 项全过，涵盖深浅主题、六幕和真实点击。Chrome 156.0.8078.80，本轮专项 DPR 1，正常渲染，无 three.js、无构建步骤；本地静态发布文件零页面错误。
 - 未验证：真手机、Safari、屏幕阅读器及陌生访客的阅读体验；无音频。本批不做急救题或权限门新玩法，不推送发布。
+
+## 2026-11-25 Duet 展页巡检复核
+
+外部测试员 Duet 的修理单（第 1 节，8 条）逐条在 Playwright Chromium 里复现或查证后处理。视口 1440×900（无触屏）与 390×664（触屏）。
+
+| # | Duet 说法 | 复现／查证 | 结论 | 怎么改 | 检查 |
+|---|---|---|---|---|---|
+| 1 | 镜头 6 页脚注「左右两栏里的判词…按左边那句请求」，实际都在右栏 | `?view=6` 量出两栏 x=219／727，判词在 x=750；请求是右栏第一格；手机两栏上下叠 | 成立 | 改成「「加一层『世界状态』之后」那一栏里的判词、余额和转述，是本页自带的规则闸按这一栏第一格那句请求当场算出来的」，不依赖左右 | 纯文案，桌面与手机截图看过 |
+| 2 | 镜头 3 注「环和右边的 messages[]」，窄屏在下方 | 390 宽 messages[] 在环下方（y=646 对 395） | 成立 | 改成「环和 messages[] 列表」 | 纯文案 |
+| 3 | 镜头 3「循环什么时候停…是模型自己不再要工具了」漏了轮数上限 | Agent SDK「How the agent loop works」：正常停在不带工具请求的回复；另有 `max_turns` / `max_budget_usd` 两个可选上限，默认 No limit（https://code.claude.com/docs/en/agent-sdk/agent-loop）；本页 `core.js` `runLoop` 默认 `maxTurns` 8 | 成立（补充） | 原句后补「引擎还可以另设轮数或花费上限兜底（SDK 默认不设），本页的迷你引擎设的是 8 圈。」 | 纯文案 |
+| 4 | 「（外部自述，没有逐家核源码）概括得很准」前后矛盾 | 原文如此 | 成立 | 「概括得很准」改成「是这样概括的」 | 纯文案 |
+| 5 | deepseek/DeepSeek、pi/Pi 写法不一，「CC」首次出现没交代 | 正文 4 处小写 | 成立 | 正文统一 DeepSeek、Qwen、Pi；「CC」改「Claude Code」。甲路线里「agy / kimi 的 CLI」是命令名，保留 | 纯文案 |
+| 6 | 点一张失败卡后焦点留在卡上，← / → 不翻镜头 | `tools/keys-check.cjs` 改前 2 项红：两种尺寸点卡后按 → 仍在镜头 4 | 成立 | `src/view.js` 方向键处理去掉「焦点在卡上就不管」那一行；回车翻卡不受影响 | `NODE_PATH="$(npm root -g)" node tools/keys-check.cjs <页面地址>`：改前 2 failed，改后 10 项全过 |
+| 7 | 「闸门是规则，决策是 LLM，上限是规则」两处「规则」疑似笔误 | 作者的研究笔记里记的就是白艾莉原话，原样引用 | 不成立 | 不改 | — |
+| 8 | 迷你引擎 read_file 结果显示成 `"# playground\n…` 像乱码 | `core.js` 的 `formatMessage` 特意用 `clipJson` 把工具结果显示成 JSON 字符串，messages[] 演示的就是原始消息 | 不改（有意如此） | — | — |
+
+改后全部检查：Node 29 条全过；`tools/browser-check.cjs` 717 项全过；`tools/b3-check.cjs` 58 项全过；`tools/keys-check.cjs` 10 项全过。

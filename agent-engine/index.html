@@ -46,7 +46,7 @@
     <div><b>平时用 Claude Code</b>harness 是自己的，引擎借 Claude Code</div>
     <div><b>TG bridge / etwin / dsh</b>作者自己的壳。借 CLI 当引擎，自己不写循环</div>
     <div><b>白艾莉</b>自己写了引擎，再套 20 家模型</div>
-    <div><b>连接型</b>不写引擎，把 CC、Codex、Pi 三家连起来</div>
+    <div><b>连接型</b>不写引擎，把 Claude Code、Codex、Pi 三家连起来</div>
    </div>
   </div>
   <div class="panel">
@@ -64,7 +64,7 @@
   <div class="chat" id="chat"></div>
   <div class="panel">
    <h2 id="t2">只有 API 的时候</h2>
-   <p>拿 deepseek 或 qwen 的 key 直接调接口，问一句闲话没问题。但一旦问「帮我看看目录」，模型只能礼貌地说<strong>「我想调用 list_files」</strong>，然后停住。那句话是一个 JSON，不是一次执行。</p>
+   <p>拿 DeepSeek 或 Qwen 的 key 直接调接口，问一句闲话没问题。但一旦问「帮我看看目录」，模型只能礼貌地说<strong>「我想调用 list_files」</strong>，然后停住。那句话是一个 JSON，不是一次执行。</p>
    <p>要让它真的动起来，必须有一段代码接住这个 JSON：去跑命令、把结果塞回对话、再问模型一次。<strong>这段代码就是引擎的起点</strong>。有 key 解决的是「能不能问」，解决不了「谁来做」。</p>
   </div>
  </div>
@@ -89,9 +89,9 @@
  </div>
  <div class="panel" style="margin-top:14px">
   <h2 id="t3">加上循环，它就成了 agent</h2>
-  <p>Anthropic 官方文档对这个循环的定义只有一句：<strong>模型评估、请求工具、拿到结果、再评估，直到它给出一个不带工具请求的回复</strong>。每转一圈叫一个 turn。循环什么时候停，不是定时也不是字数，是模型自己不再要工具了。</p>
+  <p>Anthropic 官方文档对这个循环的定义只有一句：<strong>模型评估、请求工具、拿到结果、再评估，直到它给出一个不带工具请求的回复</strong>。每转一圈叫一个 turn。循环什么时候停，不是定时也不是字数，是模型自己不再要工具了。引擎还可以另设轮数或花费上限兜底（SDK 默认不设），本页的迷你引擎设的是 8 圈。</p>
   <p>常听人说 Claude Code 就是个 while 循环。这话没错，但循环只占很小一部分：这一镜头先演这一小部分，循环之外的那些留给下一镜头。</p>
-  <p class="note">环和右边的 messages[] 是本页自带的迷你引擎当场跑出来的：一个只会返回文字或工具请求的假模型，三个工具，一道权限门。</p>
+  <p class="note">环和 messages[] 列表是本页自带的迷你引擎当场跑出来的：一个只会返回文字或工具请求的假模型，三个工具，一道权限门。</p>
  </div>
 </section>
 
@@ -111,7 +111,7 @@
  <div class="panel" style="margin-top:14px">
   <h2 id="t4">循环是 1%，围着它的工程是 99%</h2>
   <p>每一张卡都是一个曾经让产品崩掉的下午。<strong>引擎的难点不在「能转起来」，在「转一千圈不出事」</strong>。白艾莉自述十万行代码里，大头就是这些。</p>
-  <p><strong>六家引擎，骨架一样，差在把复杂度放哪。</strong>小红书「风儿轻轻er」10-14 那篇 570 赞的对照（外部自述，没有逐家核源码）概括得很准：</p>
+  <p><strong>六家引擎，骨架一样，差在把复杂度放哪。</strong>小红书「风儿轻轻er」10-14 那篇 570 赞的对照（外部自述，没有逐家核源码）是这样概括的：</p>
   <div class="six">
    <div><b>Pi</b>求极简。循环只留几个回调，压缩、重试、路由都挂在外面</div>
    <div><b>oh my pi</b>重纠偏。插话能打断工具，加流内规则和重复调用拦截</div>
@@ -127,8 +127,8 @@
 <section class="scene" data-title="三条路" aria-labelledby="t5">
  <div class="roads">
   <div class="road pick"><h4>甲 · 借引擎</h4><dl><dt>怎么做</dt><dd>壳调 Claude Code / Codex / agy / kimi 的 CLI，或 Claude Agent SDK</dd><dt>成本</dt><dd>零。作者所有的壳都是这条</dd><dt>限制</dt><dd>模型跟着引擎走；订阅条款面向个人使用，对外服务一般要走 API</dd></dl><div class="ex">etwin、TG bridge、dsh 都在这里。要 etwin 更像白艾莉，不需要换引擎，缺的是下一镜头那个规则层。</div></div>
-  <div class="road"><h4>乙 · 现成开源引擎 + 自己的 key</h4><dl><dt>怎么做</dt><dd>OpenAI Agents SDK、pi、smolagents 这类，接 deepseek / qwen</dd><dt>成本</dt><dd>一两天接通；以后跟它的升级</dd><dt>限制</dt><dd>那 99% 它替你做了一部分，剩下的仍要自己补</dd></dl><div class="ex">适合「想换模型、想自己掌握循环，但不想从零写」。</div></div>
-  <div class="road"><h4>丙 · 自己写最小循环</h4><dl><dt>怎么做</dt><dd>deepseek + 三个工具 + 一道权限问询，OpenAI 兼容格式</dd><dt>成本</dt><dd>跑通一个周末；可靠起来月级</dd><dt>限制</dt><dd>那 99% 全是你的</dd></dl><div class="ex">只有一个正当理由：搞懂引擎长什么样。产物当教材，别当产品。</div></div>
+  <div class="road"><h4>乙 · 现成开源引擎 + 自己的 key</h4><dl><dt>怎么做</dt><dd>OpenAI Agents SDK、Pi、smolagents 这类，接 DeepSeek / Qwen</dd><dt>成本</dt><dd>一两天接通；以后跟它的升级</dd><dt>限制</dt><dd>那 99% 它替你做了一部分，剩下的仍要自己补</dd></dl><div class="ex">适合「想换模型、想自己掌握循环，但不想从零写」。</div></div>
+  <div class="road"><h4>丙 · 自己写最小循环</h4><dl><dt>怎么做</dt><dd>DeepSeek + 三个工具 + 一道权限问询，OpenAI 兼容格式</dd><dt>成本</dt><dd>跑通一个周末；可靠起来月级</dd><dt>限制</dt><dd>那 99% 全是你的</dd></dl><div class="ex">只有一个正当理由：搞懂引擎长什么样。产物当教材，别当产品。</div></div>
  </div>
  <div class="panel" style="margin-top:14px">
   <h2 id="t5">三条路都通，该走哪条看需求</h2>
@@ -161,7 +161,7 @@
   <h2 id="t6">「有自己的日子」不是让它独立出去</h2>
   <p>要让 etwin 有自己的日子，是不是得给它单独的登录口？不是。<strong>它还挂在 TG 上，TG 只是渠道层</strong>，白艾莉的朋友圈、来信、微信桥也都是渠道。「有自己的日子」说的是中间多一块<strong>独立于模型的世界状态</strong>：它现在在哪、有什么、答应过什么，由规则判定哪些事真的发生了，模型只能提请求、只能转述通过了的事。</p>
   <p>这就是「闸门是规则，决策是 LLM，上限是规则」。小红书上有人自己做「AI 版微信」，补上了人格文件、关系记忆、手机身体层和主动轮询，和 etwin 是同一代做法；<strong>再往前走一步，要补的就是这块规则层</strong>。</p>
-  <p class="note">左右两栏里的判词、余额和转述，是本页自带的规则闸按左边那句请求当场算出来的。</p>
+  <p class="note">「加一层『世界状态』之后」那一栏里的判词、余额和转述，是本页自带的规则闸按这一栏第一格那句请求当场算出来的。</p>
  </div>
 </section>
 
