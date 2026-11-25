@@ -463,7 +463,39 @@
     g.fillStyle = '#c9a063'; g.beginPath(); g.ellipse(Wc / 2 - 10, 326, 28, 13, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#f7f3ea'; g.beginPath(); g.ellipse(Wc / 2 + 30, 318, 22, 20, 0, 0, Math.PI * 2); g.fill(); g.stroke();
     g.fillStyle = '#2a2118'; g.font = '44px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'left';
-    lines.forEach((ln, i) => { let fs = 44; g.font = `${fs}px "Noto Serif SC", "Songti SC", serif`; while (g.measureText(ln).width > Wc - 240 && fs > 26) { fs -= 2; g.font = `${fs}px "Noto Serif SC", "Songti SC", serif`; } g.fillText(ln, 120, 470 + i * 96); });
+    // 每行先在 44→30 px 里缩到一行装得进；装不进（多是点了很多样的点心那行）就在「、」处分成两行（34→26 px）；
+    // 还放不下先省掉档位字；十几样全拿、两行仍放不下时，第二行末尾画成「…等 N 样」。只是画不下的省掉，茶单数据（billLines）不变。
+    const font = (n) => `${n}px "Noto Serif SC", "Songti SC", serif`, maxW = Wc - 240;
+    const wid = (t, n) => { g.font = font(n); return g.measureText(t).width; };
+    lines.forEach((ln, i) => {
+      const y = 470 + i * 96;
+      for (let fs = 44; fs >= 30; fs -= 2) if (wid(ln, fs) <= maxW) { g.font = font(fs); g.fillText(ln, 120, y); return; }
+      let parts = ln.split('、');
+      const twoRows = (ps) => {
+        for (let fs = 34; fs >= 26; fs -= 2) {
+          let best = null;
+          for (let k = 1; k < ps.length; k++) {
+            const a = ps.slice(0, k).join('、') + '、', b = ps.slice(k).join('、'), m = Math.max(wid(a, fs), wid(b, fs));
+            if (m <= maxW && (!best || m < best.m)) best = { a, b, m };
+          }
+          if (best) { g.font = font(fs); g.fillText(best.a, 120, y - fs * 0.62); g.fillText(best.b, 120, y + fs * 0.62); return true; }
+        }
+        return false;
+      };
+      if (twoRows(parts)) return;
+      // 还放不下：先省掉点心的档位字（「虾饺 顶点 ×3」写成「虾饺 ×3」），样样都还在
+      const tierRe = new RegExp(' (' + Object.values(D.TIERS).map((x) => x.zh).join('|') + ') ×');
+      parts = parts.map((x) => x.replace(tierRe, ' ×'));
+      if (twoRows(parts)) return;
+      const fs = 24, rows = ['', ''];
+      let k = 0;
+      while (k < parts.length && wid(rows[0] + parts[k] + '、', fs) <= maxW) rows[0] += parts[k++] + '、';
+      const more = () => `…等 ${parts.length} 样`;
+      while (k < parts.length && wid(rows[1] + parts[k] + '、' + more(), fs) <= maxW) rows[1] += parts[k++] + '、';
+      rows[1] = k < parts.length ? rows[1].replace(/、$/, '') + more() : rows[1].replace(/、$/, '');
+      if (!rows[0]) { let t = ln; while (t.length > 1 && wid(t + '…', fs) > maxW) t = t.slice(0, -1); rows[0] = t + '…'; rows[1] = ''; }
+      g.font = font(fs); g.fillText(rows[0], 120, y - (rows[1] ? fs * 0.62 : 0)); if (rows[1]) g.fillText(rows[1], 120, y + fs * 0.62);
+    });
     // 红章：落在最后一行「合计」旁边、礼数那行下面（那行常被压到满宽，章的上沿要低过它的字脚）
     g.save(); g.translate(Wc - 230, Hc - 190); g.rotate(-0.18); g.strokeStyle = 'rgba(199,83,47,.85)'; g.lineWidth = 8; g.strokeRect(-80, -80, 160, 160);
     g.fillStyle = 'rgba(199,83,47,.85)'; g.font = '600 64px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('多謝', 0, -2); g.restore();

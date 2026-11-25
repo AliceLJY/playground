@@ -1,6 +1,7 @@
 // 茶单红章不压字（2026-11-25 Duet 巡检）：离席出的那张茶单图上，「多謝」红章的外框（含线宽）不许碰到任何一行字。
 // 在页面里拦下画茶单那张画布的 fillText / strokeRect，按当时的变换矩阵算出每行字的包围盒和红章四个角，再判相交。
-// 跑三种账：最少（刚坐下就走）、开局走查那样、礼数和笼数都多（行最长、字号被压到最小）。
+// 跑五种账：最少（刚坐下就走）、开局走查那样、礼数和笼数都多、九种点心、十四样全拿且数字都是两位（最长的一行）。
+// 另查每行字都在纸的内框里（内框 58–1022），字与字之间不相交（2026-11-25 后续：九种点心那行曾超出纸边）。
 //   NODE_PATH="$(npm root -g)" node tools/bill-check.cjs <page-url> [out-dir]
 const { chromium } = require('playwright');
 const fs = require('node:fs'), path = require('node:path');
@@ -11,6 +12,8 @@ const fs = require('node:fs'), path = require('node:path');
   const TALLIES = {
     light: { pours: 0, lids: 0, knocksGiven: 0, knocksGot: 0, pages: 0, pieces: {}, baskets: {} },
     walkthrough: { pours: 5, lids: 1, knocksGiven: 1, knocksGot: 2, pages: 1, pieces: { siu: 1, har: 1 }, baskets: { siu: 1, rice: 1, har: 1 } },
+    nine: { pours: 30, lids: 8, knocksGiven: 20, knocksGot: 25, pages: 14, pieces: { har: 9 }, baskets: { har: 3, siu: 2, bao: 2, feet: 1, rib: 1, roll: 1, cake: 1, tart: 2, ham: 1 } },
+    all14: { pours: 99, lids: 40, knocksGiven: 99, knocksGot: 99, pages: 99, pieces: { har: 99 }, baskets: { har: 12, siu: 11, bao: 10, feet: 10, rib: 10, roll: 10, cake: 10, tart: 10, rice: 10, turnip: 10, lava: 10, beef: 10, spring: 10, ham: 10 } },
     heavy: { pours: 24, lids: 6, knocksGiven: 18, knocksGot: 23, pages: 12, pieces: { har: 4, siu: 4, bao: 3, feet: 3, rib: 3, roll: 3, cake: 2, tart: 2 }, baskets: { har: 3, siu: 2, bao: 2, feet: 1, rib: 1, roll: 1, cake: 1, tart: 2, ham: 1 } },
   };
   const b = await chromium.launch();
@@ -61,9 +64,11 @@ const fs = require('node:fs'), path = require('node:path');
     const stampText = r.draws.find((d) => d.kind === 'text' && d.s === '多謝');
     const texts = r.draws.filter((d) => d.kind === 'text' && d.s !== '多謝');
     const under = texts.filter((d) => hits(d.poly, stamp.poly)).map((d) => d.s);
-    const ok = !!stamp && !!stampText && r.bill && r.bill.length === 6 && under.length === 0 && errors.length === 0;
+    const outside = texts.filter((d) => d.poly.some(([x, y]) => x < 60 || x > 1020 || y < 60 || y > 1120)).map((d) => d.s);
+    const clash = []; for (let i = 0; i < texts.length; i++) for (let j = i + 1; j < texts.length; j++) if (hits(texts[i].poly, texts[j].poly)) clash.push(texts[i].s + ' / ' + texts[j].s);
+    const ok = !!stamp && !!stampText && r.bill && r.bill.length === 6 && under.length === 0 && outside.length === 0 && clash.length === 0 && errors.length === 0;
     const sb = stamp ? stamp.poly.map(([x, y]) => [Math.round(x), Math.round(y)]) : null;
-    console.log(`${ok ? '✔' : '✖'} ${name}: 红章外框角 ${JSON.stringify(sb)}${under.length ? '，压住了：' + under.map((s) => '「' + s + '」').join('') : '，没压字'}${errors.length ? '，报错 ' + errors.join(' | ') : ''}`);
+    console.log(`${ok ? '✔' : '✖'} ${name}: 红章外框角 ${JSON.stringify(sb)}${under.length ? '，压住了：' + under.map((s) => '「' + s + '」').join('') : '，没压字'}${outside.length ? '，出纸边：' + outside.map((s) => '「' + s + '」').join('') : '，都在纸内'}${clash.length ? '，字叠字：' + clash.join('；') : ''}${errors.length ? '，报错 ' + errors.join(' | ') : ''}`);
     if (!ok) fail++;
     await ctx.close();
   }
