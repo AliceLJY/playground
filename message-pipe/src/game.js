@@ -94,9 +94,9 @@ canvas.addEventListener('pointerdown',e=>{
   const idx=r*S.def.cols+c;if(S.tap(idx)){anim[idx]=performance.now();hud();}
   e.preventDefault();
 });
-$('again').addEventListener('click',()=>{if(!S||cardMode||frozen)return;seed++;start(S.level,seed);});
+$('again').addEventListener('click',()=>{if(!S||cardMode||frozen||S.phase==='cleared')return;seed++;start(S.level,seed);});   // a cleared level waits for its card
 $('go').addEventListener('click',()=>{if(S&&!cardMode&&!frozen&&S.dispatch())hud();});
-addEventListener('keydown',e=>{if(e.key==='Enter'&&!cardMode&&S&&document.activeElement!==$('go')){if(S.dispatch())hud();}if(e.key==='Escape'&&!cardMode&&S&&!VIEW)pause();});
+addEventListener('keydown',e=>{if(e.key==='Enter'&&!cardMode&&S&&document.activeElement!==$('go')){if(document.activeElement===$('again'))e.preventDefault();if(S.dispatch())hud();}if(e.key==='Escape'&&!cardMode&&S&&!VIEW)pause();});
 function pause(){if(!S||cardMode||frozen||S.phase==='cleared'||S.phase==='timeout')return;paused=true;showCard('pause');}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 addEventListener('blur',pause);
