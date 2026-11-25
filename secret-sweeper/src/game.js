@@ -26,13 +26,34 @@ function resize(){
 }
 addEventListener('resize',resize);addEventListener('orientationchange',resize);
 function place(el,r){el.style.left=r.x+'px';el.style.top=r.y+'px';el.style.width=r.w+'px';el.style.height=r.h+'px';}
+// Landscape result card: first a spot off the board where it fits whole — under the board (SPEC 3), the side panel between
+// the readout and the buttons, or the column right of the board; only when none fits (phone landscape) does it sit at the
+// bottom of the board area over the board, where the ✕ puts it away to see the board (SPEC 1). Needs the card shown to measure.
+function placeCardLand(){
+  const card=$('card'),b=lay.board,a=lay.area,m=8,full=Math.min(380,lay.w-24),MIN_W=240;
+  card.style.transform='none';card.style.top='auto';card.style.bottom='auto';card.style.maxHeight='none';
+  const height=(w)=>{card.style.width=w+'px';return card.offsetHeight;};
+  const below=Math.min(full,a.w),panelTop=lay.readout.y+lay.readout.h+m,right=Math.min(full,a.x+a.w-(b.x+b.w+m));
+  const slots=[
+    {x:Math.max(a.x,Math.min(a.x+a.w-below,b.x+b.w/2-below/2)),y:b.y+b.h+m,w:below,room:a.y+a.h-(b.y+b.h+m)},
+    {x:m,y:panelTop,w:lay.hud.w-2*m,room:Math.min(lay.btn.mode.y,lay.btn.sound.y)-m-panelTop},
+    {x:b.x+b.w+m,y:null,w:right,room:a.h},
+  ];
+  if(!card.hidden)for(const sl of slots){
+    if(sl.w<MIN_W)continue;
+    const hh=height(sl.w);
+    if(hh>0&&hh<=sl.room){card.style.left=sl.x+'px';card.style.top=(sl.y==null?a.y+a.h-hh:sl.y)+'px';return;}
+  }
+  card.style.width='';card.style.transform='';card.style.top='auto';
+  card.style.left=(a.x+a.w/2)+'px';card.style.bottom='12px';card.style.maxHeight=(lay.h-24)+'px';
+}
 function placeDom(){
   const bar=$('bar'),b=lay.btn;
   bar.style.left='0';bar.style.top='0';bar.style.width='0';bar.style.height='0';bar.style.padding='0';
   for(const k of ['mode','restart','menu','sound']){const el=$(k);el.style.position='fixed';place(el,b[k]);}
   const card=$('card');
-  if(lay.land){card.style.left=(lay.area.x+lay.area.w/2)+'px';card.style.top='auto';card.style.bottom='12px';card.style.maxHeight=(lay.h-24)+'px';}
-  else{card.style.left='50%';card.style.top='auto';card.style.bottom=(lay.h-lay.btn.mode.y+8)+'px';card.style.maxHeight=(lay.btn.mode.y-lay.hud.h-16)+'px';}
+  if(lay.land)placeCardLand();
+  else{card.style.width='';card.style.transform='';card.style.left='50%';card.style.top='auto';card.style.bottom=(lay.h-lay.btn.mode.y+8)+'px';card.style.maxHeight=(lay.btn.mode.y-lay.hud.h-16)+'px';}
   card.style.overflow='auto';
   const pk=$('peek');pk.style.left=(lay.land?lay.area.x+lay.area.w/2-60:lay.w/2-60)+'px';pk.style.width='120px';pk.style.top=(lay.land?lay.h-60:lay.btn.mode.y-56)+'px';
   const t=$('title');if(lay.land){t.style.top='auto';t.style.bottom='12px';t.style.left=(lay.hud.w+(lay.w-lay.hud.w)/2)+'px';}else{t.style.top=Math.round(lay.h*0.3)+'px';t.style.bottom='auto';t.style.left='50%';}
@@ -123,6 +144,7 @@ function showCard(){
     body.append(p,n);
   }
   card.hidden=cardHidden;$('peek').hidden=!cardHidden;
+  if(lay.land)placeCardLand();
 }
 
 // ---------- input: tap = open, hold = flag, right click = flag ----------
