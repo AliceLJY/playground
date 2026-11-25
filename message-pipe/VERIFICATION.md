@@ -65,3 +65,12 @@
 | 8 | 第 5 关寓意「先拉最新，防的是把别人刚做完的东西盖掉」；普通 push 遇非快进会被拒；「跑测试→拉最新→推送」推上去那版没测过 | GitHub 文档：别人先推了同一分支时，Git 无法在不丢提交的前提下更新，会拒绝这次推送，解决办法是先拉再推（https://docs.github.com/en/get-started/using-git/dealing-with-non-fast-forward-errors）；只有强推才会盖掉别人的提交。顺序问题属实 | 存疑未改 | 寓意措辞和站点顺序都牵涉关卡设计，留给作者 | — |
 
 `tools/duet-check.cjs`：改前 8 项全红（两种尺寸各 4 项），改后 8 项全过。改后全部检查：Node 11 条全过；`tools/browser-check.cjs` 114 项全过。
+
+### 同日后续
+
+**上表第 7 条：页面禁止缩放（作者 11-25 定为改）**
+
+- 原因：`index.html` 的 viewport 是 `maximum-scale=1,user-scalable=no`，整页不能双指放大，与 WCAG 1.4.4 相悖。游戏区本来就有自己的防护：`#board` 是 `touch-action:none`，按钮是 `touch-action:manipulation`（不响应双击缩放）。
+- 改法：viewport 改成 `width=device-width,initial-scale=1,viewport-fit=cover`，去掉 `maximum-scale=1` 和 `user-scalable=no`。棋盘和按钮的 `touch-action` 原样保留，没有另加。
+- 红→绿：新增 `tools/zoom-check.cjs <页面地址>`，390×664 触屏模拟，双指和点按走 CDP 的触摸输入（`Input.synthesizePinchGesture`／`synthesizeTapGesture`，`touch-action` 照常生效；不是真手机）。改前 exit 1：viewport 含禁止缩放、在标题卡上双指放大 `visualViewport.scale` 仍是 1（2 FAIL）；改后 exit 0、6 项全过：标题卡上放大到 2.5；开局后在棋盘上双指 scale 仍为 1；对一节管道双击转了 2 下、scale 为 1；对 ↻ 双击 scale 为 1；零页面错误。后三项在改前也是过的（那时整页都不能缩放），改后仍过，说明放开整页缩放没有把游戏区的手势让给浏览器。
+- 改后已有检查：Node 11 条全过；`tools/browser-check.cjs` 114 项全过；`tools/duet-check.cjs` 8 项全过（均 exit 0）。真手机、iOS Safari 未测（Safari 对双击缩放和 `touch-action` 的处理以真机为准）。
