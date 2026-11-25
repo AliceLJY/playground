@@ -33,7 +33,7 @@ function ask(i){
     b.onclick=()=>{
       if(box.dataset.lock)return;box.dataset.lock='1';b.classList.add('hit');
       st.answers[i]=k;
-      setTimeout(()=>{delete box.dataset.lock;i+1<QUESTIONS.length?ask(i+1):finish();},220);
+      st.pending=setTimeout(()=>{delete box.dataset.lock;i+1<QUESTIONS.length?ask(i+1):finish();},220);
     };
     box.appendChild(b);
   });
@@ -55,7 +55,7 @@ function result(id,peek){
   st.result=id;
   document.documentElement.style.setProperty('--pc',p.color);
   $('you').textContent=peek?'这一柱是':'你是';
-  $('rname').textContent=p.name;$('rlabel').textContent=p.label;
+  $('rname').textContent=p.name;$('rname').classList.toggle('long',[...p.name].length>3);$('rlabel').textContent=p.label;
   drawPillars(document.querySelector('#stage1 .pillars'),id);
   const v=$('viewing');
   if(peek&&st.mine&&st.mine!==id){v.textContent=`你在看「${p.name}」的介绍。你自己测出来的是「${C.pillar(st.mine).name}」。`;v.classList.add('on');}
@@ -88,7 +88,7 @@ function sources(){
   $('srcs').innerHTML=Object.entries(SOURCES).map(([k,s])=>{
     const t=s.url?`<a href="${s.url}" target="_blank" rel="noopener">${s.t}</a>`:s.t;
     return `<li>${t}${s.org?'，'+s.org:''}</li>`;
-  }).join('')+`<li style="list-style:none;margin-left:-18px;margin-top:6px">${C.ROLE_SOURCE}</li>`;
+  }).join('')+`<li style="list-style:none;margin-left:-18px;margin-top:6px">${C.ROLE_SOURCE.replace(/\b([SR]\d+)\b/g,(k)=>SOURCES[k]?'第 '+(Object.keys(SOURCES).indexOf(k)+1)+' 条':k)}</li>`;   // 列表按序号显示，这里也换成序号
 }
 
 function start(){st.answers=[];drawPillars(document.querySelector('#stage0 .pillars'),null);show('s-start');}
@@ -121,7 +121,8 @@ function card(){
     [...q.name].forEach((ch,j)=>g.fillText(ch,x+pw/2,top+38+j*30));
   });
   g.textAlign='left';
-  g.fillStyle='#FFF7E6';g.font=`900 40px ${serif}`;g.fillText('我是撑起粤剧团的',70,110);
+  const own=st.mine===p.id;   // 看的是别人的柱（朋友链接或点了别的柱）就不说「我是」
+  g.fillStyle='#FFF7E6';g.font=`900 40px ${serif}`;g.fillText(own?'我是撑起粤剧团的':'撑起粤剧团的这一柱是',70,110);
   g.font=`900 210px ${kai}`;g.fillText(p.name,62,320);
   g.font=`900 46px ${serif}`;g.fillText(p.label,70,405);
   // 正文区：有插画时插画靠右、文字走左栏；冷知识框通栏放在两者下面。放不下就缩字，各块位置记进 st.cardLayout 供验收。
@@ -139,7 +140,7 @@ function card(){
   pl.forEach((t,k)=>g.fillText(t,70,top0+48+k*plh));
   const portraitBottom=top0+48+(pl.length-1)*plh;
   const roleTop=portraitBottom+70;
-  g.fillStyle=p.color;g.font=`900 34px ${serif}`;g.fillText('在《帝女花》里，我是',70,roleTop+34);
+  g.fillStyle=p.color;g.font=`900 34px ${serif}`;g.fillText(own?'在《帝女花》里，我是':'在《帝女花》里，这一柱演',70,roleTop+34);
   let rs=70;for(;;){g.font=`900 ${rs}px ${kai}`;if(g.measureText(p.role).width<=colW||rs<=40)break;rs-=4;}
   g.fillText(p.role,70,roleTop+34+20+rs);
   const roleBottom=roleTop+34+20+rs+16,roleRight=70+g.measureText(p.role).width;
@@ -164,10 +165,12 @@ function card(){
 }
 
 $('go').onclick=()=>{st.answers=[];ask(0);};
-$('back').onclick=()=>{if(st.i>0)ask(st.i-1);};
+$('back').onclick=()=>{clearTimeout(st.pending);if(st.i>0)ask(st.i-1);};   // 选完 220ms 内点上一题，以上一题为准
 $('again').onclick=()=>{st.answers=[];try{history.replaceState(null,'',location.pathname);}catch(e){}ask(0);};
 $('card').onclick=card;
 $('close').onclick=()=>$('modal').classList.remove('on');
+$('modal').addEventListener('click',(e)=>{if(e.target===$('modal'))$('modal').classList.remove('on');});   // 点暗色背景关
+addEventListener('keydown',(e)=>{if(e.key==='Escape')$('modal').classList.remove('on');});
 sources();
 
 const qs=new URLSearchParams(location.search),r=qs.get('r'),view=qs.get('view');
