@@ -464,8 +464,8 @@
     g.fillStyle = '#f7f3ea'; g.beginPath(); g.ellipse(Wc / 2 + 30, 318, 22, 20, 0, 0, Math.PI * 2); g.fill(); g.stroke();
     g.fillStyle = '#2a2118'; g.font = '44px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'left';
     lines.forEach((ln, i) => { let fs = 44; g.font = `${fs}px "Noto Serif SC", "Songti SC", serif`; while (g.measureText(ln).width > Wc - 240 && fs > 26) { fs -= 2; g.font = `${fs}px "Noto Serif SC", "Songti SC", serif`; } g.fillText(ln, 120, 470 + i * 96); });
-    // 红章
-    g.save(); g.translate(Wc - 230, Hc - 230); g.rotate(-0.18); g.strokeStyle = 'rgba(199,83,47,.85)'; g.lineWidth = 8; g.strokeRect(-80, -80, 160, 160);
+    // 红章：落在最后一行「合计」旁边、礼数那行下面（那行常被压到满宽，章的上沿要低过它的字脚）
+    g.save(); g.translate(Wc - 230, Hc - 190); g.rotate(-0.18); g.strokeStyle = 'rgba(199,83,47,.85)'; g.lineWidth = 8; g.strokeRect(-80, -80, 160, 160);
     g.fillStyle = 'rgba(199,83,47,.85)'; g.font = '600 64px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('多謝', 0, -2); g.restore();
     g.fillStyle = 'rgba(42,33,24,.5)'; g.font = '28px "Noto Serif SC", "Songti SC", serif'; g.textAlign = 'center'; g.fillText('© 我的AI小木屋 · 小试AI', Wc / 2, Hc - 100);
     billImg.src = c.toDataURL('image/png');
