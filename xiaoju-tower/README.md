@@ -42,6 +42,7 @@ node --test tests/*.test.cjs
 python3 build.py                                   # single-file 小橘爬塔.html
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/ shots
 NODE_PATH="$(npm root -g)" node tools/town-check.cjs http://127.0.0.1:8765/index.html shots   # chapter 2
+NODE_PATH="$(npm root -g)" node tools/town-readable-check.cjs http://127.0.0.1:8765/index.html shots   # chapter 2: arrow glyph and hint line breaks
 ```
 
 `tools/build-city.py` cuts the city out of the OpenStreetMap Guangdong extract (needs osmium-tool), 4.2 km around the tower. `tools/build-town.py` cuts the chapter-2 street grid from the same extract, 1 m per cell (needs Pillow: `uv run --with pillow python tools/build-town.py`). `tools/key-sprites.py` keys the character frames out of a green-screen sheet. Measured numbers and gaps are in [VERIFICATION.md](VERIFICATION.md).

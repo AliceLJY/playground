@@ -42,6 +42,7 @@ node --test tests/*.test.cjs
 python3 build.py                                   # 生成单文件 小橘爬塔.html
 NODE_PATH="$(npm root -g)" node tools/browser-check.cjs http://127.0.0.1:8765/ shots
 NODE_PATH="$(npm root -g)" node tools/town-check.cjs http://127.0.0.1:8765/index.html shots   # 第二章
+NODE_PATH="$(npm root -g)" node tools/town-readable-check.cjs http://127.0.0.1:8765/index.html shots   # 第二章：箭头形状、提示折行
 ```
 
 城市数据由 `tools/build-city.py` 从 OSM 广东分省包切出来（需要 osmium-tool），以广州塔为原点，取半径 4.2 公里。第二章的街区网格由 `tools/build-town.py` 从同一个包切出（1 米一格，需要 Pillow：`uv run --with pillow python tools/build-town.py`）。角色贴图由 `tools/key-sprites.py` 从绿幕动作表抠出。实测数字和没覆盖到的项目见 [VERIFICATION.md](VERIFICATION.md)。

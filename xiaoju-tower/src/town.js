@@ -384,12 +384,14 @@
   // key names follow the device: a phone has the 扫车 / 锁车 button, not an E key (Duet round 3)
   const TOUCH = window.matchMedia && matchMedia('(hover: none)').matches;
   const scanKey = TOUCH ? '点<b>「扫车」</b>' : '按 <b>E</b> ', lockKey = TOUCH ? '点<b>「锁车」</b>' : '按 <b>E</b> ';
+  // each clause is kept whole, so a hint only wraps after its punctuation, never inside a word (Duet 11-25: 开局提示在词中间折行)
+  const nw = t => `<span class="nw">${t}</span>`;
   const hints = {
-    start: TOUCH ? '按住右下 <b>↑</b> 跑，左下 <b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱' : '按住 <b>↑</b> 跑，<b>← →</b> 转弯。打卡点是小地图上的红点、街上的红光柱',
-    dock: `这是共享单车点：${scanKey}扫一辆，路上快很多`,
-    ride: TOUCH ? '骑车松手会溜、转弯要早；<span class="nw">随时点<b>「锁车」</b>下车</span>' : '骑车松手会溜、转弯要早；按 <b>E</b> 随时锁车',
-    nobike: `海心桥不让骑车：<span class="nw">${lockKey}，走过去</span>`,
-    grass: `前面一大片草地，骑车比跑还慢：<span class="nw">${lockKey}下来跑更快</span>`,
+    start: TOUCH ? nw('按住右下 <b>↑</b> 跑，') + nw('左下 <b>← →</b> 转弯。') + nw('打卡点是小地图上的红点、') + nw('街上的红光柱') : nw('按住 <b>↑</b> 跑，') + nw('<b>← →</b> 转弯。') + nw('打卡点是小地图上的红点、') + nw('街上的红光柱'),
+    dock: nw('这是共享单车点：') + nw(`${scanKey}扫一辆，`) + nw('路上快很多'),
+    ride: nw('骑车松手会溜、') + nw('转弯要早；') + (TOUCH ? nw('随时点<b>「锁车」</b>下车') : nw('按 <b>E</b> 随时锁车')),
+    nobike: nw('海心桥不让骑车：') + nw(`${lockKey.trim()}，走过去`),
+    grass: nw('前面一大片草地，') + nw('骑车比跑还慢：') + nw(`${lockKey}下来跑更快`),
     stop: '跑进红圈就盖章'
   };
   function showHint(id) { if (hintDone[id] || hintNow === id) return; hintNow = id; hintSince = T.time; const el = $('hint'); el.innerHTML = hints[id]; el.hidden = false; }
