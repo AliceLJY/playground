@@ -97,6 +97,7 @@ body.touch .ammo b { font-size: 30px; }
 body.touch .cans { justify-content: flex-start; }
 body.touch .ammo .bar { width: 96px; }
 body.touch .prompt kbd { display: none; }
+body.touch .kb, body:not(.touch) .tc { display: none; }
 body:not(.touch) #touch { display: none; }
 body:not(.touch) #b-pause { display: none; }
 
@@ -248,7 +249,7 @@ dl.stats dd { margin: 2px 0 0; font-size: 24px; font-weight: 800; font-variant-n
         <header><div class="tabs" role="tablist"><button class="tab" role="tab" data-tab="help" aria-selected="true">怎么玩</button><button class="tab" role="tab" data-tab="settings" aria-selected="false">设置</button></div><button class="btn" data-act="close">关闭</button></header>
         <div class="help" data-pane="help">
           <h3>要做什么</h3>
-          <p>街上有三个冒绿光的沙井口。走到旁边按住「封」，把井盖推回去；三个都盖好，跑到南边渡口上船。</p>
+          <p>街上有三个冒绿光的沙井口。走到旁边按住<span class="kb"> <kbd>E</kbd>或<kbd>L</kbd> </span><span class="tc">「封」</span>，把井盖推回去；三个都盖好，跑到南边渡口上船。</p>
           <h3>三种蟑螂</h3>
           <p>爬的：一顿一顿地冲过来，抬起前身就是要咬了，这时拍它或者退开。<br>飞的：先停在半空、眼睛变红，然后直线俯冲，横着走一步就躲开了。<br>带壳的：正面喷不动。它会蓄力直冲，让它撞上柱子翻了肚，再打。</p>
           <h3>手里两样东西</h3>

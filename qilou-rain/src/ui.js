@@ -51,7 +51,7 @@ export function createUI(settings, quality) {
     hit(kill) { el.cross.classList.toggle('kill', !!kill); el.cross.classList.toggle('hit', !kill); hitT = kill ? 0.3 : 0.12; },
     hurt(rel) { dmgA = 1; dirA = 1; el.dir.style.transform = `rotate(${rel}rad)`; },
     hud(sim, camera, w, h, dt, touch) {
-      const p = sim.player, obj = objective(sim), n = sealedCount(sim);
+      const p = sim.player, n = sealedCount(sim), ended = sim.state !== 'play', obj = ended ? { text: sim.state === 'won' ? '已上船' : '行动结束', id: null } : objective(sim);
       if (obj.text !== lastText) { lastText = obj.text; el.text.textContent = obj.text; }
       const sub = n < 3 ? n + '/3' : '';
       if (sub !== lastSub) { lastSub = sub; el.sub.textContent = sub; el.pips.forEach((q, i) => q.classList.toggle('on', i < n)); }
@@ -62,8 +62,8 @@ export function createUI(settings, quality) {
       el.cross.classList.toggle('on', !!p.aimOn);
       el.state.textContent = p.reloadT > 0 ? '换罐中' : p.tank <= 0 ? (p.cans > 0 ? (touch ? '点「换罐」' : '按 R 换罐') : '没药了 · 用凉拖') : '';
       // 目标标记：投到屏幕上，出了画面就贴边
-      const targets = sim.drains.filter(d => !d.sealed).map(d => [d.id, d.x, d.z]);
-      if (sim.extractOpen) targets.push(['X', EXTRACT.x, EXTRACT.z]);
+      const targets = ended ? [] : sim.drains.filter(d => !d.sealed).map(d => [d.id, d.x, d.z]);
+      if (!ended && sim.extractOpen) targets.push(['X', EXTRACT.x, EXTRACT.z]);
       for (const k in marks) marks[k].hidden = true;
       for (const [id, x, z] of targets) {
         const m = marks[id]; m.hidden = false;
