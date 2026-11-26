@@ -1,4 +1,5 @@
 // Bundle src/main.js with Three.js into one self-contained page: dist/index.html.
+// `node tools/build.mjs agy` builds the AGY preview (agy/src/main.js → dist/agy/index.html) from the same template and deck.
 // Usage: npm ci && node tools/build.mjs      (same recipe as diorama-walk/tools/build.mjs)
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -8,8 +9,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const VARIANT = process.argv[2] === 'agy' ? 'agy' : '';
 const out = await build({
-  entryPoints: [path.join(root, 'src/main.js')],
+  entryPoints: [path.join(root, VARIANT ? VARIANT + '/src/main.js' : 'src/main.js')],
   bundle: true, minify: true, format: 'iife', target: 'es2020', write: false, legalComments: 'none', logLevel: 'warning',
 });
 const js = out.outputFiles[0].text.replace(/<\/script/g, '<\\/script');
@@ -22,6 +24,7 @@ const notice = `<!--\nBundles Three.js (MIT):\n${threeLicense}\n-->\n`;
 const html = withCsp(template).replace('<head>', () => '<head>\n' + notice).replace(marker, () => '<script>\n' + js + '\n</script>');
 // an empty data: icon is allowed; it stops the browser asking the server for /favicon.ico
 if (/<script[^>]+src=|<link[^>]+href="(?!data:)/.test(html)) throw new Error('the page must not load anything from outside itself');
-mkdirSync(path.join(root, 'dist'), { recursive: true });
-writeFileSync(path.join(root, 'dist/index.html'), html);
-console.log('dist/index.html', Buffer.byteLength(html), 'bytes', createHash('sha256').update(html).digest('hex').slice(0, 16));
+const outDir = path.join(root, 'dist', VARIANT);
+mkdirSync(outDir, { recursive: true });
+writeFileSync(path.join(outDir, 'index.html'), html);
+console.log(path.relative(root, path.join(outDir, 'index.html')), Buffer.byteLength(html), 'bytes', createHash('sha256').update(html).digest('hex').slice(0, 16));

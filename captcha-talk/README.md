@@ -30,6 +30,10 @@ NODE_PATH="$(npm root -g)" node tools/phone-check.cjs http://127.0.0.1:8951/inde
 
 The spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese).
 
+## Preview: the AGY remake
+
+`agy/` is a version whose visuals were remade by AGY (Gemini) on 2026-11-27 from the same script: every scene change is an object turning into the next world, and the worlds gained sky, fog and reflections. The script and widget drawing are shared with `src/`; `agy/src/` holds only its playback and scene files. Build it with `node tools/build.mjs agy`; online it lives at `captcha-talk/agy/`. Three fixes made during review are marked `CC 11-27` in the code.
+
 ## Where the numbers come from
 
 Every number comes from a primary source: 99.8% is a paper's result on synthetic distorted text, hardest category; 17,600 books is from the 2008 reCAPTCHA paper in Science, and the height of the stack assumes 3 cm per book; "about 70%" is what China's railway ticketing site 12306 said in 2015; 1.4 seconds is a value the 2023 USENIX paper cites from other work, while the human 3.1–4.9 seconds is its own measurement; the GPT-4 line is from a controlled test on an early version described in OpenAI's report; the agent's line comes from a user's screenshot reported by the press. The score in the corner is illustrative. Full sources are on the last page of the talk.
