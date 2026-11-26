@@ -31,7 +31,7 @@ button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 #intro .go{display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap}#intro button{height:46px;padding:0 22px;font-size:15px}
 #intro .seal{display:inline-block;font:12px var(--serif);color:var(--red);border:1px solid var(--red);padding:2px 8px;letter-spacing:.2em;margin-bottom:14px}
 #intro img{width:min(360px,70vw);border-radius:6px;border:3px solid #fff;box-shadow:0 4px 18px #0003;margin:8px 0 2px}
-@media (max-width:520px){#title{font-size:13px}#title small{display:none}#stats{font-size:10px;min-width:0;padding:4px 7px}#where{top:44px}#ref{width:52vw;top:74px}}
+@media (max-width:520px){#title{font-size:13px}#title small{display:none}#stats{font-size:10px;min-width:0;padding:4px 7px}#where{top:44px}#ref{width:52vw;top:74px}.row{flex-wrap:wrap;overflow:visible;justify-content:center}.row .sep{display:none}.row button{height:36px}#hint{bottom:98px}}
 </style></head><body>
 <canvas id="scene"></canvas>
 <div class="hud" id="title">岭南园林一角<small>照一张图搭出来的可走场景 · 纯代码</small></div>
@@ -51,8 +51,8 @@ button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   <p>先查了岭南园林和别处园林不一样的地方，再照查到的写提示词，让 AI 画了一张图（就是「对照原图」里那张，不是照片，也不是哪座真实的园子），最后把图里看得见的东西一样样用代码搭成能走进去的三维场景。没有用模型文件和贴图素材，纹理是程序现画的；那张图只用来对照，没有贴进场景里。</p>
   <p>这是取几座名园的典型做法拼成的示意一角，不是任何一座园子的复原。</p>
   <h3>依据</h3>
-  <p><b>查过两个以上来源的：</b>规模小、用建筑把庭院围起来；水池多是规则形状、石砌池岸（番禺余荫山房是一口长方荷池加一口八角池，池中立八角亭，两池之间一座廊桥）；青砖墙、麻石勒脚、灰瓦，整体偏灰，鲜艳的颜色只在屋脊、山墙和门窗上；叠山以英石为主，也用黄蜡石；满洲窗（余荫山房深柳堂是六角细格嵌蓝白玻璃、中间红花）；不画彩画而用灰塑；蚝壳磨成薄片嵌在横披上透光；敞厅、连廊、窄巷通风；荔枝、木棉、炮仗花、大树菠萝、榔榆盆景。</p>
-  <p><b>只有一个来源或来源不一致，当示意的：</b>贴墙的英石壁山做法、远处那座可登高的砖楼（示意东莞可园邀山阁一类，高度各处说法不一）、墙外邻屋的镬耳山墙（查到的园林资料里没有提园内用镬耳墙）、麻石条板铺地、芭蕉、廊桥的长短。</p>
+  <p><b>查过两个以上来源的：</b>规模小、用建筑把庭院围起来；水池多是规则形状、石砌池岸（番禺余荫山房是一口长方荷池加一口八角池，池中立八角亭，两池之间一座廊桥）；青砖墙、麻石勒脚、灰瓦，整体偏灰，鲜艳的颜色只落在屋脊、山墙、檐下、墙头这些重点部位；叠山以英石为主；满洲窗（余荫山房深柳堂是六角细格嵌蓝白玻璃、中间红花）；不画彩画而用灰塑；蚝壳磨成薄片嵌在横披上透光；敞厅、连廊、窄巷通风；荔枝、木棉、炮仗花、大树菠萝、榔榆盆景。</p>
+  <p><b>只有一个来源或来源不一致，当示意的：</b>黄蜡石散置（只查到一条搜索摘要）、贴墙的英石壁山做法、远处那座可登高的砖楼（示意东莞可园邀山阁一类，高度各处说法不一）、墙外邻屋的镬耳山墙（查到的园林资料里没有提园内用镬耳墙）、麻石条板铺地、芭蕉、窄巷里的夹墙竹、廊桥的长短。</p>
   <p><b>没查到来源所以没放的：</b>鸡蛋花、白兰、蒲葵、杨桃、铁花栏杆、绿琉璃瓦。清晖园的船厅查到了，但这一角放不下，没有硬塞。</p>
   <h3>照着图搭的</h3>
   <p>临长方荷池的敞厅（灰瓦两坡、博古脊和山墙上的灰塑、青砖山墙、木柱、通花挂落、八樘满洲窗、蚝壳横披）、檐廊西头的炮仗花、廊桥和石拱、八角池与八角亭、贴墙的英石壁山和跌水、北墙上的麻石门、花基上的三盆榔榆盆景、石桌石鼓、大陶缸、两块黄蜡石、荔枝、木棉、芭蕉、竹、墙外的砖楼和邻屋。</p>

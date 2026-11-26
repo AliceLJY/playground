@@ -66,7 +66,9 @@ const { chromium } = require('playwright');
   { const ctx = await browser.newContext({ viewport: { width: 390, height: 664 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true }); const page = await open(ctx);
     const lay = await page.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); const all = [...document.querySelectorAll('#top button')].map(b => b.getBoundingClientRect()).filter(b => b.width); return { overflow: document.documentElement.scrollWidth > innerWidth, btnIn: all.every(b => b.left >= 0 && b.right <= innerWidth + 0.5 && b.top >= 0 && b.bottom <= innerHeight), minH: Math.min(...all.map(b => b.height)), cap: r('cap'), stage: r('stage') }; });
     ok(!lay.overflow && lay.btnIn, 'P01 顶栏按钮都在屏幕里、无横向溢出'); ok(lay.minH >= 28, 'P02 按钮够高', lay.minH + 'px'); ok(lay.cap.bottom <= lay.stage.bottom + 1 && lay.cap.right <= 390, 'P03 说明卡片不出画');
-    await page.tap('#drawerBtn'); await page.waitForTimeout(400); await page.tap('#tabs button[data-zone="in"]'); await page.tap('#list button[data-view="nave"]'); await settle(page);
+    const foot = await page.evaluate(() => { const f = document.getElementById('foot'); return { sw: f.scrollWidth, cw: f.clientWidth }; }); ok(foot.sw <= foot.cw, 'P11 底部统计行不被截', `${foot.sw}/${foot.cw}px`);
+    await page.tap('#drawerBtn'); await page.waitForTimeout(400);
+    const lh = await page.evaluate(() => document.getElementById('list').getBoundingClientRect().height); ok(lh >= 190, 'P12 抽屉里视点列表够高（至少露出三项）', `${Math.round(lh)}px`); await page.tap('#tabs button[data-zone="in"]'); await page.tap('#list button[data-view="nave"]'); await settle(page);
     let s = await snap(page); ok(s.zone === 'in' && s.mode === 'walk', 'P04 抽屉里点视点能进中殿'); ok(!(await page.evaluate(() => document.getElementById('side').classList.contains('open'))), 'P05 选完抽屉自动收起');
     // 摇杆：左下角按住往上推
     const cdp = await ctx.newCDPSession(page), z0 = s.fp.z, T = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });

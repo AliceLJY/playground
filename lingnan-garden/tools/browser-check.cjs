@@ -118,6 +118,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail
   await page.tap('#bCard'); await page.waitForTimeout(2600); s = await snap(page);
   check('竖屏明信片机位把纵向视角放大', s.fov > PC.fov + 5, s.fov + '°');
   check('手机帧率 ≥ 30（桌面芯片上的模拟视口）', s.fps >= 30, `${s.fps} fps / ${s.calls} 次绘制`);
+  check('手机底栏七个按钮全在屏幕内（不靠横滑）', await page.evaluate(() => [...document.querySelectorAll('#bar button')].every(b => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; })));
   check('手机没有横向溢出', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.tap('#bRef'); await page.waitForTimeout(200); await page.screenshot({ path: path.join(out, 'phone-card-with-ref.png') });
   check('手机上对照图不超出屏幕', await page.evaluate(() => { const r = document.getElementById('ref').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }));

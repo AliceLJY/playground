@@ -327,7 +327,7 @@ function step(dt) {
   stat.calls = renderer.info.render.calls; stat.tris = renderer.info.render.triangles;
 }
 function hud() {
-  $('stats').innerHTML = `<b>${stat.fps} fps</b> · ${stat.calls} 次绘制 · ${(stat.tris / 10000).toFixed(1)} 万三角面 · ${S.zone === 'in' ? '内部' : '外部'} · ${{ orbit: '轨道', walk: '漫游', fly: '飞行' }[S.mode]} · ${C.LIGHTS[S.light].cn}`;
+  $('stats').innerHTML = `<b>${stat.fps} fps</b> · <i class="wide">${stat.calls} 次绘制 · ${(stat.tris / 10000).toFixed(1)} 万三角面 · </i>${S.zone === 'in' ? '内部' : '外部'} · ${{ orbit: '轨道', walk: '漫游', fly: '飞行' }[S.mode]} · ${C.LIGHTS[S.light].cn}`;
 }
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now; step(dt);
