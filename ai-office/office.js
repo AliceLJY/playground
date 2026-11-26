@@ -1644,11 +1644,15 @@
     const note = $('#treat-note'), buttons = [...document.querySelectorAll('#treat-menu button')];
     buttons.forEach(b => { b.disabled = true; });
     try {
+      // Demo (?demo=1, or the page fell back to the demo): the treat plays on this page only; no request goes anywhere.
+      if (demo) { const at = new Date(now()).toISOString(); seenTreats.add(at); sim.treat(kind, at); note.textContent = `${TREAT_NAMES[kind]}送出去了（演示 · 只在这页播放）`; }
+      else {
       const r = await fetch(target, { method: 'POST', mode: 'cors', cache: 'no-store', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, v: visitorTag }), signal: AbortSignal.timeout(6000) });
-      if (r.status === 429) { note.textContent = '一分钟送一次就够啦，他们还没喝完'; }
+      if (r.status === 429) { note.textContent = `一分钟送一次就够啦，他们还没${kind === 'milktea' || kind === 'coffee' ? '喝' : '吃'}完`; }
       else if (!r.ok) throw new Error(String(r.status));
       else { const { at } = await r.json(); seenTreats.add(at); if(!replay)sim.treat(kind, at); note.textContent = `${TREAT_NAMES[kind]}送出去了，看他们走过去`; }
-    } catch { note.textContent = demo ? '演示模式里送不出去，等办公室醒着再来' : '没送到，办公室这会儿没接上'; }
+      }
+    } catch { note.textContent = '没送到，办公室这会儿没接上'; }
     $('#treat-menu').hidden = true; $('#treat-toggle').setAttribute('aria-expanded', false);
     setTimeout(() => { buttons.forEach(b => { b.disabled = false; }); note.textContent = ''; }, 60_000);
   }

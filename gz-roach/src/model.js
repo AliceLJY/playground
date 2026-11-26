@@ -2,12 +2,12 @@
 // 单位：长度 mm，时间 s，速度 m/s，频率 Hz，力 mN。坐标：X 朝前，Y 朝上，Z 朝右；地面 y = 0。
 // 数字与出处见 SPEC.md「数字与来源」：标〔实测〕的来自 Full & Tu 1991（J Exp Biol 156:215），其余是本展品的估值或模型。
 
-export const SPEED_MAX = 1.5;            // 〔实测〕美洲大蠊最高奔跑速度约 1.5 m/s，≈ 50 体长/秒
+export const SPEED_MAX = 1.5;            // 〔实测〕美洲大蠊最高奔跑速度约 1.5 m/s，≈ 50 体长/秒（文献口径；本页体长取 35 mm，折算约 43）
 export const BODY_LENGTH = 35;           // mm，美洲大蠊成虫体长 28–44 mm，取 35
 export const MASS_G = 1.0;               // g，成虫约 1 g
 export const WEIGHT_MN = MASS_G * 9.81;  // mN
-export const SCALE = 85;
-export const SLOW = 1 / 25;            // 页面慢放：真实 27 Hz 的步频看不清，放慢 25 倍                 // 展品放大倍数：35 mm → 2.98 m（「三米高的小强」）
+export const SCALE = 85;                // 展品放大倍数：35 mm × 85 ≈ 2.98 m（体长三米，不是三米高）
+export const SLOW = 1 / 25;            // 页面慢放：真实 27 Hz 的步频看不清，放慢 25 倍
 export const FREQ_MAX = 27;              // 〔实测〕高速时步频接近飞行翅频 27 Hz
 export const HIP_H = 7.0;                // mm，站立时髋关节离地高度（估）
 export const GAIT_ZONES = [              // 〔实测〕1.0–1.5 m/s 时改用四足与二足奔跑

@@ -197,7 +197,7 @@ export function createPlan2D({ getStyle, onChange }) {
         <div class="actions"><button class="btn" data-a="reset">恢复原样</button><button class="btn danger" data-a="clear">清空布置</button></div></section>
       <section><h3>${COARSE ? '触屏操作' : '键盘快捷键'}</h3><div class="kbd">${COARSE
         ? '<kbd>家具库</kbd><span>点一下放到画面中央，或按住拖到指定位置</span><kbd>点家具</kbd><span>选中后拖动；拖圆点旋转、拖方块改尺寸</span><kbd>单指 / 双指</kbd><span>空白处平移 / 捏合缩放</span>'
-        : '<kbd>拖拽</kbd><span>左侧家具拖入平面图</span><kbd>R</kbd><span>旋转 90°（Shift 反向）</span><kbd>方向键</kbd><span>微调 10 mm（Shift 100 mm）</span><kbd>⌘/Ctrl D</kbd><span>复制</span><kbd>Delete</kbd><span>删除</span><kbd>⌘/Ctrl Z</kbd><span>撤销（加 Shift 重做）</span><kbd>F</kbd><span>适应窗口</span><kbd>T</kbd><span>切换 2D / 3D</span><kbd>Esc</kbd><span>取消选择</span>'}</div></section>
+        : '<kbd>拖拽</kbd><span>左侧家具拖入平面图</span><kbd>R</kbd><span>旋转 90°（Shift 反向）</span><kbd>方向键</kbd><span>微调 10 mm（Shift 100 mm）</span><kbd>⌘/Ctrl D</kbd><span>复制</span><kbd>Delete</kbd><span>删除</span><kbd>⌘/Ctrl Z</kbd><span>撤销（加 Shift 重做）</span><kbd>F</kbd><span>适应窗口</span><kbd>T</kbd><span>切换 2D / 3D</span><kbd>C</kbd><span>换木色</span><kbd>Esc</kbd><span>取消选择</span>'}</div></section>
       <section class="muted">家具图例、家具库清单与三维家具模型移植自 <a href="https://github.com/wy51ai/floorplan-3d" target="_blank" rel="noopener">floorplan-3d</a>（MIT）。户型图来自 Wikimedia Commons，公有领域。</section>`;
     p.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => act(b.dataset.a); });
   }

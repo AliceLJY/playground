@@ -442,7 +442,7 @@ function lookBy(dx, dy) {
 const labelEls = C.house.rooms.map((r) => {
   const el = document.createElement('div');
   el.className = 'room3';
-  el.innerHTML = `<b>${r.name_zh}</b><span>${r.area_m2.toFixed(1)} ㎡</span>`;
+  el.innerHTML = `<b>${r.name_zh}</b><span>${r.area_m2.toFixed(1)} m²</span>`;
   $('labels').appendChild(el);
   return { el, v: new THREE.Vector3(C.toX(r.center_px[0]), 0.4, C.toZ(r.center_px[1])) };
 });

@@ -139,3 +139,11 @@ test('F3-5: 中足说明也明确 1.25 m/s 是展品换档点', async () => {
   const [M] = await load();
   assert.match(M.SUBSYSTEMS.find((s) => s.id === 'legs1').note, /这里设在\s*1\.25\s*m\/s\s*换档/);
 });
+
+test('首句字幕：85 倍放大后的 35 mm 体长≈3 m，说「三米长」不是「三米高」', async () => {
+  const [M, T] = await load();
+  assert.ok(Math.abs((M.BODY_LENGTH * M.SCALE) / 1000 - 3) < 0.05);
+  const caption = T.tourAt(0.1).caption;
+  assert.match(caption, /三米长/);
+  assert.doesNotMatch(caption, /三米高/);
+});
