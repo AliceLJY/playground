@@ -750,6 +750,17 @@ jobs:
           mkdir -p ../_site/tidal-disruption
           cp dist/index.html ../_site/tidal-disruption/index.html
 
+      - name: Check, bundle and assemble Captcha Talk
+        working-directory: captcha-talk
+        run: |
+          # 我不是机器人：一份会自己改自己的网页演讲，9 场 23 步，每场一个 Three.js 世界；打成单文件（Three.js 许可在文件开头注释里）
+          for f in src/*.js; do node --check "$f"; done
+          npm ci
+          node tools/build.mjs
+          node --test tests/*.test.cjs
+          mkdir -p ../_site/captcha-talk
+          cp dist/index.html ../_site/captcha-talk/index.html
+
       - name: Check, bundle and assemble Sky Citadel
         working-directory: sky-citadel
         run: |

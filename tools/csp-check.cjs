@@ -18,6 +18,7 @@ const all = [
   ['prehistoric-island', 'prehistoric-island/dist/'],
   ['painterly-peacock', 'painterly-peacock/dist/'],
   ['gummy-bears', 'gummy-bears/dist/'],
+  ['captcha-talk', 'captcha-talk/dist/'],
   ['snowline-cabin', 'snowline-cabin/dist/'], ['thirteen-hongs', 'thirteen-hongs/dist/index.html'],
   ['thirteen-webgpu', 'thirteen-hongs/dist/webgpu.html'], ['tidal-disruption', 'tidal-disruption/dist/'],
 ];

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>我不是机器人 · 一场会自己改自己的演讲</title><link rel="icon" href="data:,">
+<style>
+:root{--sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Noto Sans SC",sans-serif}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#05060A}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:manipulation;outline:none}
+.hd{position:fixed;left:5.2vw;top:7.5vh;max-width:min(78vw,1400px);pointer-events:none;will-change:opacity,transform}
+.hd h1{margin:0;font-weight:500;font-size:clamp(28px,4.3vw,82px);line-height:1.18;letter-spacing:.01em}
+.hd p{margin:.9em 0 0;font-size:clamp(12px,1.02vw,18px);line-height:1.5;opacity:.72}
+.hd.only-s{top:auto;bottom:7vh}.hd.only-s p{margin:0}
+.hd.dark{color:#16181C}.hd.light{color:#F4F5F7;text-shadow:0 2px 18px rgba(0,0,0,.75),0 0 3px rgba(0,0,0,.5)}.hd.hide{display:none}
+.score{position:fixed;right:2.2vw;bottom:2.4vh;font:500 clamp(11px,.85vw,14px)/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;letter-spacing:.04em;pointer-events:none}
+.score.dark{color:#8A9099}.score.light{color:#9AA3AD}.score.ai{color:#3CC6EA}
+#labels .lab{position:fixed;left:0;top:0;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;will-change:transform}
+.lab.num{font-weight:500;font-size:clamp(16px,1.9vw,34px)}.lab.tag{font-size:clamp(12px,1vw,17px);opacity:.8}
+.lab.light{color:#FFFFFF;text-shadow:0 1px 10px rgba(0,0,0,.55)}.lab.dark{color:#16181C}
+#notes{position:fixed;left:50%;bottom:2.5vh;transform:translateX(-50%);width:min(92vw,960px);max-height:38vh;overflow:auto;padding:16px 20px;border-radius:10px;background:rgba(10,12,18,.88);color:#E9ECF1;font-size:17px;line-height:1.75;z-index:5}
+#notes .idx{font-size:12px;color:#8E96A3;margin-bottom:6px;letter-spacing:.05em}
+#hint{position:fixed;left:2.2vw;bottom:2.4vh;font-size:12px;color:#8A9099;pointer-events:none}
+#sources{position:fixed;inset:0;overflow:auto;padding:8vh 8vw;color:#1D1F22;background:#F6F6F3}
+#sources h2{font-weight:500;font-size:clamp(24px,2.6vw,40px);margin:0 0 1em}
+#sources ol{margin:0;padding-left:1.4em;max-width:62em;font-size:clamp(13px,1.05vw,17px);line-height:1.7}
+#sources li{margin:0 0 .8em}#sources li b{font-weight:500;display:block}#sources li span{color:#5D636B}
+#sources .fine{margin-top:2em;color:#8A9099;font-size:13px}
+#fail{position:fixed;inset:0;display:grid;place-content:center;padding:40px;background:#F6F6F3;color:#1D1F22;line-height:1.9;font-size:16px}
+[hidden]{display:none!important}
+@media (max-width:700px){.hd{left:6vw;top:5vh;max-width:88vw}.hd h1{font-size:clamp(24px,7.4vw,40px)}.hd p{font-size:12px}#notes{font-size:15px}}
+</style></head><body>
+<canvas id="stage" tabindex="0" aria-label="演讲画面。按右方向键或点右侧翻到下一步，按 N 看讲稿"></canvas>
+<div class="hd dark" id="hd" aria-live="polite"><h1 id="h"></h1><p id="s"></p></div>
+<div id="labels"></div>
+<div class="score dark" id="score" aria-hidden="true">0.9</div>
+<div id="hint">→ 或点右侧翻页 · N 讲稿 · F 全屏</div>
+<aside id="notes" hidden></aside>
+<section id="sources" hidden></section>
+<div id="fail" hidden></div>
+<!--BUNDLE-->
+</body></html>
