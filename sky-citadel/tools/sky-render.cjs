@@ -13,7 +13,7 @@ async function renderSkyScenarios({base, out}) {
       ['default', 'default', 2], ['hero', 'hero', 2], ['wide', 'wide', 2],
       ['dawn', 'hero', 0], ['noon', 'hero', 1], ['night', 'night', 3]
     ]) {
-      const context = await browser.newContext({viewport: {width: 1440, height: 900}, deviceScaleFactor: 1});
+      const context = await browser.newContext({viewport: {width: 1440, height: 900}, deviceScaleFactor: 1, bypassCSP: true});
       const page = await context.newPage();
       page.on('pageerror', e => report.errors.push(e.message));
       page.on('console', m => { if (m.type() === 'error') report.errors.push(m.text()); });

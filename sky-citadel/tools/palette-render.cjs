@@ -15,7 +15,7 @@ async function capture(pg,dir,name){
 }
 async function renderViews({base,out,query='',views=['hero','night','wide'],periods=false}){
  const browser=await chromium.launch({channel:'chrome',headless:true});const report={date:new Date().toISOString(),browser:browser.version(),base,query,views:[],errors:[]};
- try{for(const view of views){const ctx=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1}),pg=await ctx.newPage();pg.on('pageerror',e=>report.errors.push(e.message));pg.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
+ try{for(const view of views){const ctx=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1,bypassCSP:true}),pg=await ctx.newPage();pg.on('pageerror',e=>report.errors.push(e.message));pg.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
   const url=new URL(base);url.searchParams.set('debug','1');url.searchParams.set('view',view);for(const[k,v]of new URLSearchParams(query))url.searchParams.set(k,v);
   await pg.goto(url.href);await pg.waitForFunction(()=>window.__PLAYTEST__?.ready,null,{polling:100,timeout:60000});await pg.waitForTimeout(650);
   const metrics=await capture(pg,out,view),snapshot=await pg.evaluate(()=>window.__PLAYTEST__.snapshot());report.views.push({view,metrics,snapshot});
