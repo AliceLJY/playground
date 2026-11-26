@@ -49,6 +49,8 @@ Twelve points along the walk were also screenshotted and looked at, at 390×844 
 
 These show it behaves as specified. Whether it is beautiful, whether the four paintings read as one mountain, and whether it calls the poem to mind, is for people to judge.
 
+The English title "Wangchuan, Lying Down" renders the Chinese term "wo you" (travelling a landscape while lying down, through a painting). It is kept on purpose, even though on its own it can read as "Wangchuan lying down".
+
 ## Licence
 
 Code is MIT with the rest of this repository. The reference works are in the public domain; none of their images are included in the page.
