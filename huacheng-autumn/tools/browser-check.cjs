@@ -5,8 +5,10 @@ const {chromium}=require('playwright'),fs=require('fs'),path=require('path');
 const coverage=require('./flower-coverage.cjs');
 const refinement=require('./refinement-check.cjs'),{inspectLayout,sampleFrames}=require('./layout.cjs');
 const out=path.resolve(process.argv[2]||'shots/r5/browser'),base=process.argv[3]||'file://'+path.resolve(__dirname,'../dist/index.html');
-const auditBase=process.argv[4]||'file://'+path.resolve(__dirname,'../shots/r6/audit.html');
 fs.mkdirSync(out,{recursive:true});
+// B7 compares the shipped page with the audit build pixel by pixel, so the audit build must come from the SAME source as dist/.
+// A stored shots/r6/audit.html (gitignored, built 2026-11-02) goes stale as soon as any visible UI changes; build a fresh one unless a URL is passed.
+const auditBase=process.argv[4]||(()=>{const f=path.join(out,'audit.html');require('child_process').execFileSync(process.execPath,[path.join(__dirname,'flower-audit.mjs'),path.resolve(__dirname,'..'),f],{stdio:'ignore'});return 'file://'+f;})();
 const contains=b=>b.front&&b.x0>=0&&b.x1<=1&&b.y0>=0&&b.y1<=1;
 const overlaps=(a,b)=>a.x0<b.x1&&a.x1>b.x0&&a.y0<b.y1&&a.y1>b.y0;
 (async()=>{
