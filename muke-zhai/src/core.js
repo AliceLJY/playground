@@ -194,7 +194,7 @@
   function setupStage(g, n, first) {
     g.stage = n; g.phase = 'play';
     g.tut = null; g.timeScale = 1; g.hand = null;
-    g.qi = QI_MAX; g.helmets = 3; g.meter = 0; g.shi = 0; g.shiFull = false; g.loose = 0; g.ult = null; g.gateUntil = 0; g.heavyGateUntil = 0;
+    g.qi = QI_MAX; g.helmets = 3; g.meter = 0; g.shi = 0; g.shiFull = false; g.ultHintOn = false; g.loose = 0; g.ult = null; g.gateUntil = 0; g.heavyGateUntil = 0;
     g.fade = 0; g.script.length = 0; g.fx.length = 0; g.floats.length = 0;
     g.finT = 0; g.finStep = 0; g.endT = -1; g.victoryAt = -1; g.dingCool = 0;
     g.buf.attack = g.buf.guard = g.buf.dodge = -9999;
@@ -249,7 +249,7 @@
       if (g.t - g.pressT[other] <= ULT_WINDOW) { startUlt(g); return; }
     }
     if (g.phase === 'retry') { retryStage(g); return; }
-    if (g.phase === 'end' && g.endT > 1200) { restartAll(g); return; }
+    if (g.phase === 'end' && g.endT > 1200 && !g.sub) { restartAll(g); return; }   // 结尾两句念完才响应（和「再来一遍」出现的条件一致）
     g.buf[name] = g.t;
     if (g.tut) tutOnPress(g, name);
   }

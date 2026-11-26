@@ -333,3 +333,20 @@ test('S17 第一场心动第一次上涨时出「杨宗保在看。」，只出�
     assert.equal(g.zSeen, true);
   }
 });
+
+test('S18 结尾两句念完前不响应重开；重开后「势满提示」清掉', () => {
+  const g = M.create(CLIPS, { seed: 2 });
+  const d = M.makeDriver('precise', 2);
+  while (!(g.phase === 'end' && g.endT > 1300)) { d.think(g); M.advance(g, M.STEP); }
+  assert.ok(g.sub, '此时第二句还在念');
+  g.ultHintOn = true; g.shi = 100;
+  M.tap(g, 'attack', 40);
+  for (let i = 0; i < 6; i++) M.advance(g, M.STEP);
+  assert.equal(g.phase, 'end', '念句子时按 J 不重开');
+  while (g.sub) M.advance(g, M.STEP);
+  M.tap(g, 'attack', 40);
+  for (let i = 0; i < 6; i++) M.advance(g, M.STEP);
+  assert.equal(g.phase, 'play', '句子念完后按 J 重开');
+  assert.equal(g.shi, 0);
+  assert.equal(g.ultHintOn, false, '重开后势为 0，不再提示同时按架和刺');
+});

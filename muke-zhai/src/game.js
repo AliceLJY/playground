@@ -693,7 +693,7 @@
     return T.glow === 'move' ? ['left', 'right'] : T.glow ? [T.glow] : [];
   }
   // 势第一次满了：「架」和「刺」一起亮，放出一次后不再亮
-  function ultGlow() { return !demo && !g.tut && g.ultHintOn ? ['guard', 'attack'] : []; }
+  function ultGlow() { return !demo && !g.tut && g.phase === 'play' && g.ultHintOn ? ['guard', 'attack'] : []; }
   function litKeys() {
     if (!demo && !autoDriver) return [];
     const out = [];
@@ -748,6 +748,10 @@
     const w = Math.max(2, Math.round(r.width * dpr)), h = Math.max(2, Math.round(r.height * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     scale = r.width / VW;
+    // 引子页的细框会从静音钮底下穿过：框离角太近时，把钮挪进内框里（别处不动）
+    const inset = portrait ? 14 : 36, mb = document.getElementById('mute');
+    const off = g && g.intro && inset * scale < 50 ? Math.ceil((inset + 5.5) * scale) + 4 : 6;
+    mb.style.top = mb.style.right = off + 'px';
   }
   let noGhost = false, noFlash = false;
   function render(opts) {
@@ -1172,9 +1176,10 @@
       const mine = !demo && (downNow.has(k) || nowMs - (flashAt[k] || -1e9) < 200);
       b.classList.toggle('lit', lit.includes(k) || mine);
     });
-    padEl.classList.toggle('full', g.shi >= 100 && !g.tut);
+    const ultOk = g.shi >= 100 && !g.tut && g.phase === 'play';   // 只有能放的时候才亮
+    padEl.classList.toggle('full', ultOk);
     const ub = padEl.querySelector('[data-k="ult"]');
-    if (ub) ub.classList.toggle('ready', g.shi >= 100 && !g.tut);
+    if (ub) ub.classList.toggle('ready', ultOk);
     syncTools();
   }
   let last = performance.now();
