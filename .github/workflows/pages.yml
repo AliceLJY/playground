@@ -819,8 +819,8 @@ jobs:
       - name: Show what will be published
         run: find _site -type f | sort
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       # deploy-pages@v4 caps timeout at 600000 ms (10 min); a larger value is ignored with a warning.
@@ -830,7 +830,7 @@ jobs:
       - name: Deploy
         id: deployment
         continue-on-error: true
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
         with:
           timeout: 600000
       # Run 44812998348 (11-21): the artifact uploaded fine, but deploy-pages looked it up under a second
@@ -841,6 +841,6 @@ jobs:
       - name: Deploy (retry after timeout)
         id: deploy_retry
         if: steps.deployment.outcome == 'failure'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
         with:
           timeout: 600000
