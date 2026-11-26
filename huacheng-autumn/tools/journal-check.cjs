@@ -54,6 +54,7 @@ const out=path.resolve(process.argv[2]),base=process.argv[3];
    check(`real-moving-tram-${label}`,!b.state.frozen&&b.state.t>a.state.t+.5&&Math.abs(b.bounds.min[0]-a.bounds.min[0])>1&&JSON.stringify(a.state.cam)===JSON.stringify(b.state.cam),{a,b});
    await shot('tram-window');await press('[data-journal=capture]');
    check(`capture-${label}`,!!(await state()).journal.moment,await state());
+   {const title=await page.locator('#journal-title').textContent();check(`title-after-capture-${label}`,title!=='等一班花电车',title);}
    if(first==='bridge')await visit('pagoda');
    check(`two-stamps-${label}`,(await state()).journal.stamps.join(',')===[first,first==='bridge'?'pagoda':'bridge'].join(','),await state());
    await press('[data-hour="1000"]');check(`early-night-${label}`,(await state()).journal.phase==='night',await state());

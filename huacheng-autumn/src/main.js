@@ -643,7 +643,7 @@ function updateJournal(intent='tick'){
  const key=JSON.stringify([journal,available,prompt]);if(key===journalUI)return;journalUI=key;
  document.body.classList.toggle('journal-active',active);$('journal').hidden=!active;$('journal-start').hidden=active;
  $('journal-start').setAttribute('aria-expanded',String(active));
- $('journal-title').textContent=done?'我的秋岸游记':journal.stamps.length?'等一班花电车':'秋岸游记';
+ $('journal-title').textContent=done?'我的秋岸游记':journal.stamps.length&&!journal.moment?'等一班花电车':'秋岸游记';
  $('journal-stamps').hidden=!journal.stamps.length;
  $('journal-stamps').textContent=journal.stamps.length?journal.stamps.map(p=>'✓ '+JOURNAL_PLACES[p].name).join(' → ')+(done?'':' · '+JOURNAL_PLACES[journal.stamps.at(-1)].note):'花桥 / 塔下 · 两处秋花';
  $('journal-goal').textContent=prompt;

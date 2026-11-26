@@ -31,13 +31,13 @@ body.capture .hud,body.capture #labels,body.capture #intro,body.capture #joy,bod
 #hint{left:50%;bottom:118px;transform:translateX(-50%);font-size:12px;background:var(--glass);border-radius:12px;padding:5px 12px;border:1px solid var(--line);opacity:0;transition:opacity .4s;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 #hint.show{opacity:1}
 #info{position:fixed;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:80vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;font-size:13px;line-height:1.8;display:none;box-shadow:0 10px 40px #0004;user-select:text;-webkit-user-select:text}
-#info h2{font:600 17px var(--serif);margin:0 0 6px}#info h3{font:600 13px var(--sans);margin:12px 0 2px;color:var(--red)}#info p{margin:4px 0}#info button{margin-top:12px}
+#info h2{font:600 17px var(--serif);margin:0 0 6px}#info h3{font:600 13px var(--sans);margin:12px 0 2px;color:var(--red)}#info p{margin:4px 0}#info button{margin-top:12px}#info #infoClose{position:sticky;top:0;float:right;margin:0 0 0 8px;z-index:1}
 #intro{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;background:radial-gradient(#f3ecd9e8,#e4d9bdf2);text-align:center;padding:20px}
 #intro h1{font:600 clamp(30px,7vw,54px)/1.2 var(--serif);letter-spacing:.2em;margin:0 0 8px;text-indent:.2em}
 #intro p{font-size:13px;line-height:1.9;margin:6px auto;max-width:30em;opacity:.85}
 #intro .go{display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap}#intro button{height:46px;padding:0 24px;font-size:15px}
 #intro .seal{display:inline-block;font:12px var(--serif);color:var(--red);border:1px solid var(--red);padding:2px 8px;letter-spacing:.2em;margin-bottom:14px}
-@media (max-width:520px){#title{font-size:13px}#title small{display:none}#stats{font-size:10px;min-width:0;padding:4px 7px}#labels div{font-size:10px;padding:0 3px}#where{top:44px}}
+@media (max-width:520px){#title{font-size:13px}#title small{display:none}#stats{font-size:10px;min-width:0;padding:4px 7px}#labels div{font-size:10px;padding:0 3px}#where{top:58px}}
 </style></head><body>
 <canvas id="scene"></canvas>
 <div id="labels"></div>
@@ -58,22 +58,22 @@ body.capture .hud,body.capture #labels,body.capture #intro,body.capture #joy,bod
   </div>
 </div>
 <div id="info">
+  <button id="infoClose">关闭</button>
   <h2>哪些有依据，哪些是示意</h2>
   <h3>有来源的</h3>
-  <p>十三座商馆自西向东的排列与中文馆名、行名；靖远街（Old China Street）与新豆栏（Hog Lane）夹在馆与馆之间；商馆两三层、砖墙瓦顶、西式立面、底层作货仓；馆前有围起来的空地；约 1805 年一幅外销玻璃画上挂着丹麦、西班牙、美国、瑞典、英国、荷兰六面旗；茶叶装箱过秤后由驳艇运往黄埔上大船。法兰西馆的檐廊、新英国馆的门廊两种外廊样式见建筑史论文。</p>
+  <p>十三座商馆自西向东的排列与中文馆名、行名；两条巷（Old China Street、Hog Lane）夹在馆与馆之间；商馆两三层、砖墙瓦顶、西式立面、底层作货仓；馆前有围起来的空地；约 1805 年一幅外销玻璃画上挂着丹麦、西班牙、美国、瑞典、英国、荷兰六面旗；茶叶装箱过秤后由驳艇运往黄埔上大船。法兰西馆的檐廊、新英国馆的门廊两种外廊样式见建筑史论文。</p>
   <h3>示意的</h3>
-  <p>每座馆的颜色、开间、高矮，空地的尺寸，花园、税口小屋、摊档、货场的位置，人物的衣着配色，江面宽度，对岸与城里的屋顶，全是按外销画的大致印象搭的，不是复原。远处下游的三艘洋船只是桅影示意：当年外洋大船泊在黄埔，并不开到馆前。</p>
+  <p>两条巷的中文名（靖远街、新豆栏）与英文名的对应，目前只找到一处来源；每座馆的颜色、开间、高矮，空地的尺寸，花园、税口小屋、摊档、货场的位置，人物的衣着配色，江面宽度，对岸与城里的屋顶，全是按外销画的大致印象搭的，不是复原。远处下游的三艘洋船只是桅影示意：当年外洋大船泊在黄埔，并不开到馆前。</p>
   <h3>声音</h3>
   <p>水声、人声底噪、橹声、锣与钟都是浏览器现场合成；叫卖是照粤语声调走向做的拟声，听不出字句。</p>
   <p style="opacity:.7">全部形体与声音由代码生成，没有模型、图片和音频文件。© 我的AI小木屋</p>
   <p><a id="alt" href="webgpu.html" style="color:var(--red)">换成 WebGPU 版看看</a></p>
-  <button id="infoClose">关闭</button>
 </div>
 <div id="intro"><div>
   <span class="seal">纯代码 · 无素材</span>
   <h1>十三行江岸</h1>
   <p>约 1805 年前后，珠江北岸的广州商馆区。一排西式立面的商馆，馆前空地、旗杆、码头石阶，江上是疍家艇、西瓜扁和帆船。</p>
-  <p>电脑：拖动转头，WASD 走动，滚轮缩放。手机：左下摇杆走动，其余地方拖动转头，双指缩放。</p>
+  <p>电脑：拖动转头，WASD 走动（按住 Shift 快走），滚轮缩放，1 / 2 键切换俯瞰与步行。手机：左下摇杆走动，其余地方拖动转头，双指缩放。</p>
   <div class="go"><button id="goTop" class="on">先从空中看</button><button id="goWalk">走进去</button></div>
 </div></div>
 <!--BUNDLE-->

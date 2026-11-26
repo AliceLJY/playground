@@ -272,8 +272,9 @@ function tick(now) {
     displayedView = userOrbit ? 'orbit' : camAnim ? '→' + liveView : liveView;
     // 特写标注按剧本时间走；拆到底停 6 秒后出总结卡
     const tNotes = liveS >= M.CLOSEUP ? Math.min(OUTRO_AT - 0.1, timeAt(liveS)) : tT;
-    drawFrame(liveS, tNotes, { view: null, cursor: null, caption: cap.text, captionAt: liveS >= M.S_MAX - 1e-6 ? cap.at - (OUTRO_AT - 0) * 0 : cap.at, summary: ease((liveDwell - 6.5) / 0.7) });
-    $('#narr').style.opacity = cap.text ? 1 : 0;
+    const liveSummary = ease((liveDwell - 6.5) / 0.7);
+    drawFrame(liveS, tNotes, { view: null, cursor: null, caption: cap.text, captionAt: liveS >= M.S_MAX - 1e-6 ? cap.at - (OUTRO_AT - 0) * 0 : cap.at, summary: liveSummary });
+    $('#narr').style.opacity = cap.text ? (1 - liveSummary).toFixed(3) : 0; // 总结卡出来时旁白退场，和导览里一样
     if (idle > IDLE_BACK) backToTour();
   }
   requestAnimationFrame(tick);

@@ -72,6 +72,7 @@
   #resume[hidden] { display: none; }
   #resume { margin-top: 8px; width: 100%; color: var(--dim); }
   .badge { right: 40px; top: 228px; font-size: 11px; letter-spacing: .1em; color: var(--dim); }
+  .mnote { display: none; }
   .foot { left: 40px; bottom: 8px; font-size: 10.5px; color: #9a958c; white-space: nowrap; }
 
   #callouts { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -107,6 +108,7 @@
     .title h1 { font-size: 26px; margin-top: 4px; }
     .title p { display: none; }
     .desc, .side, .foot, .ramnote { display: none; }
+    .mnote { display: block; position: absolute; left: 16px; right: 16px; top: 148px; font-size: 10.5px; color: #8e897f; letter-spacing: .02em; pointer-events: none; }
     .badge { right: 16px; top: 14px; font-size: 10px; }
     .cards { top: 86px; bottom: auto; left: 12px; right: 12px; transform: none; gap: 6px; }
     .stat { flex: 1; width: auto; padding: 7px 8px 6px; }
@@ -125,6 +127,7 @@
     .btncol { flex-direction: row-reverse; flex: 1; justify-content: space-around; }
     .btncol button { flex: 1; }
     #resume { margin-top: 0; width: auto; position: absolute; right: 8px; top: -54px; background: var(--card); }
+    body:has(#resume:not([hidden])) .stepbar { padding-right: 104px; box-sizing: border-box; }
     .tag { font-size: 12px; max-width: 180px; }
     .summary { left: 50%; right: auto; top: 49%; padding: 18px 20px 16px; }
     .summary h2 { font-size: 18px; }
@@ -136,6 +139,7 @@
   body.film-tall .title { top: 90px; left: 30px; right: 30px; }
   body.film-tall .kicker { font-size: 13px; }
   body.film-tall .title h1 { font-size: 40px; margin-top: 6px; }
+  body.film-tall .mnote { display: none; }
   body.film-tall .badge, body.film-tall .dialbox, body.film-tall #cursor { display: none; }
   body.film-tall .cards { top: 200px; left: 30px; right: 30px; gap: 8px; }
   body.film-tall .stat { padding: 9px 10px 8px; }
@@ -166,7 +170,7 @@
     <h1>Mac mini 换硬盘</h1>
     <p>我没敢走的那条路，在 3D 里替我拆一遍。</p>
   </div>
-  <div class="desc">按 iFixit 换 SSD 指南的 <b>21 步</b>拆到底：底盖、内板、风扇，最后拔出 SSD 模块。屏幕上的每个数都来自 iFixit 原文；零件的尺寸和位置是示意。拖右下角的旋钮，或按 ← →，自己一步步拆。</div>
+  <div class="desc">按 iFixit 换 SSD 指南的 <b>21 步</b>拆到底：底盖、内板、风扇，最后拔出 SSD 模块。步骤和各项计数都来自 iFixit 原文；零件的尺寸和位置是示意。拖右下角的旋钮，或按 ← →，自己一步步拆。</div>
   <div class="badge" id="badge">自动导览 · 点一下就交给你</div>
 
   <div class="cards">
@@ -188,6 +192,7 @@
     </div>
     <button id="resume" hidden>继续导览</button>
   </div>
+  <div class="mnote">模型为示意 · 步骤据 iFixit 指南 180199</div>
   <div class="foot" id="foot">拆解步骤按 iFixit 指南 180199，模型为示意，尺寸按官方规格 · 刷机一句据第三方小板厂商的刷机教程 · 「为什么没拆」据作者 2026-09 扩容调研</div>
 
   <div class="tag card" id="tag1"></div>

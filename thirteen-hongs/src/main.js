@@ -255,7 +255,7 @@ function step(real) {
   }
 }
 function hud() {
-  $('stats').innerHTML = `${stat.fps} fps · ${stat.calls} 次绘制 · ${G.backend}<br>${(stat.tris / 10000).toFixed(1)} 万三角面 · ${sim.agents.length} 人 ${sim.boats.length} 船`;
+  $('stats').innerHTML = `${stat.fps} fps · ${stat.calls} 次绘制 · ${G.backend}<br>${(stat.tris / 10000).toFixed(1)} 万三角面 · ${sim.agents.length} 人 ${sim.boats.filter(b => !b.land).length} 船`;
   const e = sim.event, total = { wait: C.EVENT.wait, inspect: C.EVENT.inspect, hoist: C.EVENT.hoist }[e.stage];
   const prog = e.stage === 'load' ? e.loaded / C.EVENT.chests : total ? e.t / total : e.stage === 'arrive' ? Math.min(1, e.t / 50) : Math.min(1, e.t / 85);
   $('event').querySelector('span').textContent = `${innerWidth < 520 ? '名场面' : '名场面 · 茶箱落艇'}｜${C.STAGE_CN[e.stage]}${e.stage === 'load' ? ` ${e.loaded}/${C.EVENT.chests}` : ''}`;

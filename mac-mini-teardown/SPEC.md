@@ -62,7 +62,7 @@ Mac mini 硬盘满了，有人直接拆机换大容量。我不敢，那就在 3
 
 ## 固定机位
 
-`?view=open|cover|plate|fan|ssd|ram|pull|show|side|done`：导览推进到那一刻定格（时刻见 `src/tour.js` 的 `SHOTS`）。`?at=秒` 定格任意时刻，`?s=进度` 直接摆到某个拆解进度。`?capture` 录片模式。`?idle=秒` 只给验收脚本缩短交还等待。钩子 `window.__mini`：`ready`、`render(t)`、`state()`（`mode`、实际 `s`、`view`、读数）、`info()`、`box()`（机器主体在屏幕上的范围）、`beats()`；统一试玩钩子 `window.__PLAYTEST__`。
+`?view=open|cover|plate|fan|ssd|ram|pull|show|back|swap|screw|outro|done`：导览推进到那一刻定格（时刻见 `src/tour.js` 的 `SHOTS`）。`?at=秒` 定格任意时刻，`?s=进度` 直接摆到某个拆解进度。`?capture` 录片模式。`?idle=秒` 只给验收脚本缩短交还等待。钩子 `window.__mini`：`ready`、`render(t)`、`state()`（`mode`、实际 `s`、`view`、读数）、`info()`、`box()`（机器主体在屏幕上的范围）、`beats()`；统一试玩钩子 `window.__PLAYTEST__`。
 
 ## 验收
 
