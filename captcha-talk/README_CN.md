@@ -2,7 +2,7 @@
 
 一份会自己改自己的网页演讲。开场是一页平平无奇的人机验证，讲者说「先过个验证」；接着这一页自己改了抬头：「这场演讲，就是一道验证码。」之后每一场出一道「证明你是人」的题——认字、认图、点一下、说一句「我不是机器人」——每一道都有一个青色的光标抢先答对，验证页一场比一场伤得重，直到它自己点了那个勾，整页碎成玻璃。最后回到开场那一页。
 
-按 → 或点画面右侧翻到下一步，← 退回；N 打开讲稿，F 全屏，A 自动播放，Home / End 回到开头 / 收尾。讲完再按一下 → 是资料页。
+按 → 或点画面右侧翻到下一步，← 退回；手机上左右滑、或用底部的 ‹ › 也行；N 打开讲稿，F 全屏，A 自动播放，Home / End 回到开头 / 收尾。讲完再按一下 → 是资料页。
 
 ## 本地运行
 
@@ -25,6 +25,7 @@ node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html shots/wide 1920x1080
 NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html shots/phone 390x664
 NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html shots/keys 1280x720 --keys
+NODE_PATH="$(npm root -g)" node tools/phone-check.cjs http://127.0.0.1:8951/index.html
 ```
 
 规格与验收条目见 [SPEC.md](SPEC.md)。

@@ -10,16 +10,23 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
 .hd{position:fixed;left:5.2vw;top:7.5vh;max-width:min(78vw,1400px);pointer-events:none;will-change:opacity,transform}
 .hd h1{margin:0;font-weight:500;font-size:clamp(28px,4.3vw,82px);line-height:1.18;letter-spacing:.01em}
 .hd p{margin:.9em 0 0;font-size:clamp(12px,1.02vw,18px);line-height:1.5;opacity:.72}
-.hd.only-s{top:auto;bottom:7vh}.hd.only-s p{margin:0}
+.hd.only-s{top:auto;bottom:max(7vh,78px)}.hd.only-s p{margin:0}
 .hd.dark{color:#16181C}.hd.light{color:#F4F5F7;text-shadow:0 2px 18px rgba(0,0,0,.75),0 0 3px rgba(0,0,0,.5)}.hd.hide{display:none}
 .score{position:fixed;right:2.2vw;bottom:2.4vh;font:500 clamp(11px,.85vw,14px)/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;letter-spacing:.04em;pointer-events:none}
 .score.dark{color:#8A9099}.score.light{color:#9AA3AD}.score.ai{color:#3CC6EA}
 #labels .lab{position:fixed;left:0;top:0;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums;will-change:transform}
 .lab.num{font-weight:500;font-size:clamp(16px,1.9vw,34px)}.lab.tag{font-size:clamp(12px,1vw,17px);opacity:.8}
 .lab.light{color:#FFFFFF;text-shadow:0 1px 10px rgba(0,0,0,.55)}.lab.dark{color:#16181C}
-#notes{position:fixed;left:50%;bottom:2.5vh;transform:translateX(-50%);width:min(92vw,960px);max-height:38vh;overflow:auto;padding:16px 20px;border-radius:10px;background:rgba(10,12,18,.88);color:#E9ECF1;font-size:17px;line-height:1.75;z-index:5}
+#notes{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);width:min(92vw,960px);max-height:38vh;overflow:auto;padding:16px 20px;border-radius:10px;background:rgba(10,12,18,.88);color:#E9ECF1;font-size:17px;line-height:1.75;z-index:5}
 #notes .idx{font-size:12px;color:#8E96A3;margin-bottom:6px;letter-spacing:.05em}
 #hint{position:fixed;left:2.2vw;bottom:2.4vh;font-size:12px;color:#8A9099;pointer-events:none}
+#nav{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:3px;border-radius:999px;background:rgba(20,22,28,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:6;transition:opacity .4s}
+#nav button{width:44px;height:44px;border:0;border-radius:50%;background:transparent;color:#F4F5F7;font:500 22px/1 var(--sans);cursor:pointer;touch-action:manipulation}
+#nav button:hover,#nav button:focus-visible{background:rgba(255,255,255,.16);outline:none}#nav button:disabled{opacity:.3;cursor:default}
+#nav .pos{min-width:64px;text-align:center;color:#D9DDE3;font:500 13px/1 ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+body.idle #nav{opacity:0;pointer-events:none}body.headless #nav,body.headless #hint{display:none}
+#sources .again{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 2em}#sources{padding-bottom:90px}#sources .again button{min-height:44px;padding:0 20px;border-radius:999px;border:1px solid #C9CDD2;background:#fff;color:#1D1F22;font:500 15px/1 var(--sans);cursor:pointer}#sources .again button.primary{background:#1D1F22;color:#fff;border-color:#1D1F22}
+@media (pointer:coarse){#hint{display:none}}
 #sources{position:fixed;inset:0;overflow:auto;padding:8vh 8vw;color:#1D1F22;background:#F6F6F3}
 #sources h2{font-weight:500;font-size:clamp(24px,2.6vw,40px);margin:0 0 1em}
 #sources ol{margin:0;padding-left:1.4em;max-width:62em;font-size:clamp(13px,1.05vw,17px);line-height:1.7}
@@ -34,6 +41,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
 <div id="labels"></div>
 <div class="score dark" id="score" aria-hidden="true">0.9</div>
 <div id="hint">→ 或点右侧翻页 · N 讲稿 · F 全屏</div>
+<nav id="nav" aria-label="翻页"><button type="button" data-nav="prev" aria-label="上一步">‹</button><span class="pos" id="pos" aria-live="polite">1 / 23</span><button type="button" data-nav="next" aria-label="下一步">›</button></nav>
 <aside id="notes" hidden></aside>
 <section id="sources" hidden></section>
 <div id="fail" hidden></div>

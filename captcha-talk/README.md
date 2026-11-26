@@ -2,7 +2,7 @@
 
 A web talk that edits itself. It opens on a dull human-verification page, and the speaker says "first, a quick check". Then the page rewrites its own header: "This talk is a CAPTCHA." Each scene poses one way to prove you are human (read a word, pick the pictures, tick a box, say "I'm not a robot"), and each time a cyan cursor answers first. The verification page takes more damage scene by scene until the cursor ticks the box itself and the page shatters like glass. The talk ends back on the opening page.
 
-Press → or tap the right side of the screen for the next step, ← to go back; N shows the speaker notes, F goes fullscreen, A plays automatically, Home / End jump to the start / the ending. One more → after the ending opens the sources page. The talk itself is in Chinese.
+Press → or tap the right side of the screen for the next step, ← to go back (on a phone, swipe or use the ‹ › bar at the bottom); N shows the speaker notes, F goes fullscreen, A plays automatically, Home / End jump to the start / the ending. One more → after the ending opens the sources page. The talk itself is in Chinese.
 
 ## Run locally
 
@@ -25,6 +25,7 @@ node --test tests/*.test.cjs
 NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html shots/wide 1920x1080
 NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html shots/phone 390x664
 NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html shots/keys 1280x720 --keys
+NODE_PATH="$(npm root -g)" node tools/phone-check.cjs http://127.0.0.1:8951/index.html
 ```
 
 The spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese).

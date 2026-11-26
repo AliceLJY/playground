@@ -95,7 +95,8 @@ const next = () => go(cur + 1), prev = () => go(cur - 1, true);
 
 // ---------- 屏上的字 ----------
 const hd = $('hd'), h1 = $('h'), sm = $('s'), score = $('score'), notes = $('notes'), hint = $('hint'), labelsEl = $('labels'), src = $('sources');
-src.innerHTML = '<h2>资料</h2><ol>' + SOURCES.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join('') + '</ol><p class="fine">数字的口径、能说与不能说的话，讲稿（按 N）里逐条写了。</p>';
+src.innerHTML = '<h2>资料</h2><div class="again"><button type="button" class="primary" data-nav="restart">↺ 从头再看</button><button type="button" data-nav="prev">← 回到收尾</button></div><ol>'
+  + SOURCES.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join('') + '</ol><p class="fine">数字的口径、能说与不能说的话，讲稿（按 N）里逐条写了。</p>';
 const pool = [];
 function setLabels(list, cam, ink) {
   while (pool.length < list.length) { const d = document.createElement('div'); labelsEl.appendChild(d); pool.push(d); }
@@ -132,6 +133,7 @@ function frame() {
   setLabels(out.labels || [], w.camera, w.ink === 'light' ? 'light' : 'dark');
   src.hidden = s.scene !== 'sources';
   hint.hidden = advanced || HEADLESS;
+  pos.textContent = `${cur + 1} / ${STEPS.length}`; navPrev.disabled = cur === 0; navNext.disabled = cur === STEPS.length - 1;
   if (notesOn) { const sc = SCENES[s.si]; notes.hidden = false; notes.innerHTML = `<div class="idx">${cur + 1} / ${STEPS.length} · 第 ${s.si + 1} 场 ${sc.id} · 第 ${s.beat + 1} 拍</div><div>${s.notes}</div>`; } else notes.hidden = true;
   if (auto && bt > (s.dur || 9)) next();
 }
@@ -157,7 +159,25 @@ addEventListener('keydown', e => {
   else if (k === 'a' || k === 'A') auto = !auto;
   else if (k === 'n' || k === 'N') notesOn = !notesOn;
 });
-canvas.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.button !== 0) return; (e.clientX > innerWidth * .3 ? next : prev)(); });
+// 点：右侧七成下一步、左侧三成上一步；手指左右滑：往左滑下一步、往右滑上一步
+let downX = null;
+canvas.addEventListener('pointerdown', e => { downX = e.clientX; });
+canvas.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const dx = downX == null ? 0 : e.clientX - downX; downX = null;
+  if (Math.abs(dx) > 40) (dx < 0 ? next : prev)(); else (e.clientX > innerWidth * .3 ? next : prev)();
+});
+// 翻页按钮（底部那条，和资料页上的「从头再看」「回到收尾」）
+const pos = $('pos'), navPrev = document.querySelector('#nav [data-nav="prev"]'), navNext = document.querySelector('#nav [data-nav="next"]');
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-nav]'); if (!b) return;
+  const k = b.dataset.nav; if (k === 'next') next(); else if (k === 'prev') prev(); else if (k === 'restart') go(0);
+  b.blur();
+});
+// 电脑上鼠标两秒半不动就把翻页条藏起来（讲者放映时不碍眼）；触屏一直留着
+let idleT; const wake = e => { if (e && e.pointerType && e.pointerType !== 'mouse') return; document.body.classList.remove('idle'); clearTimeout(idleT); if (!matchMedia('(pointer: coarse)').matches) idleT = setTimeout(() => document.body.classList.add('idle'), 2500); };
+addEventListener('pointermove', wake); wake();
+if (HEADLESS || qs.get('clean') === '1') document.body.classList.add('headless');
 
 // ---------- 时间 ----------
 const api = {
