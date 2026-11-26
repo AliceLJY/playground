@@ -131,6 +131,8 @@ function resize(){renderer.setPixelRatio(Math.min(devicePixelRatio,mobile()?1.25
 home();resize();addEventListener('resize',()=>{resize();if(fixed&&!focused&&!follow)home();});
 const hourInput=document.querySelector('#hour'),timeValue=document.querySelector('#timeValue'),flightButton=document.querySelector('#flight'),motionButton=document.querySelector('#motion');
 const tintA=new THREE.Color();
+// label by clock range, not by nearest keyframe (nearest-keyframe rounding called 09:00 "noon" and 15:00 "dusk"); slider 0..3 = 06:00..24:00
+const periodName=h=>h<.3?'黎明':h<.75?'上午':h<1.25?'正午':h<1.85?'午后':h<2.2?'黄昏':h<2.8?'余晖':'深夜';
 function setHour(v){
  hour=clamp(Number(v)||0,0,3);const t=timeState(hour,selectedPalette),mix=(key,color)=>color.set(t.a[key]).lerp(tintA.set(t.b[key]),t.t),lerp=key=>THREE.MathUtils.lerp(t.a[key],t.b[key],t.t);
  const horizon=fillSkyRamp(t,skyData);skyTexture.needsUpdate=true;
@@ -141,20 +143,24 @@ function setHour(v){
  for(const [key,uniform]of [['cloudLight','uColor'],['cloudShade','uShade']])clouds.material.uniforms[uniform].value.setRGB(...atmosphereColor(t.a[key],t.b[key],t.t),THREE.SRGBColorSpace);
  {const u=cloudMesh.material.uniforms;u.uColor.value.setRGB(...atmosphereColor(t.a.cloudLight,t.b.cloudLight,t.t),THREE.SRGBColorSpace);u.uShade.value.setRGB(...atmosphereColor(t.a.cloudShade,t.b.cloudShade,t.t),THREE.SRGBColorSpace);u.uHaze.value.copy(scene.fog.color);u.uSun.value.copy(sun.position).normalize();}
  clouds.material.uniforms.uAlpha.value=lerp('cloudAlpha');clouds.material.uniforms.uMistColor.value.copy(scene.fog.color);
- hourInput.value=hour;const names=['黎明','正午','黄昏','深夜'];const j=Math.round(hour),minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=(hour>2.2&&hour<2.8?'余晖':names[j])+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;
+ hourInput.value=hour;const minutes=Math.round((6+hour*6)*60)%1440;timeValue.textContent=periodName(hour)+' / '+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');document.querySelectorAll('[data-time]').forEach(el=>el.classList.toggle('active',Math.abs(Number(el.dataset.time)-hour)<.15));shadowDirty=true;
 }
 setHour(hour);hourInput.addEventListener('input',()=>{setHour(hourInput.value);interact();});document.querySelectorAll('[data-time]').forEach(el=>el.addEventListener('click',()=>{setHour(el.dataset.time);interact();}));
 function interact(){manualAt=uiTime;flightTween=null;}
 controls.addEventListener('start',()=>{interact();if(follow)toggleFollow(false);});
+const placeEl=document.querySelector('#place'),locationEl=document.querySelector('#location'),descriptionEl=document.querySelector('#description');
+const intro={place:placeEl.textContent,location:locationEl.textContent,description:descriptionEl.innerHTML};   // opening copy, restored when a landmark or the flight ends
+function showIntro(){placeEl.textContent=intro.place;locationEl.textContent=intro.location;descriptionEl.innerHTML=intro.description;}
 const descriptions={palace:['01 / THE HIGH SANCTUM','主殿 · 穹顶之上','金色肋线托起青铜穹顶，拱窗把暮色留在城里。'],waterfall:['02 / THE CLOUD FALL','瀑布 · 水的去处','泉水穿过石渠，在岛边碎成水雾，落入没有尽头的云。'],bridge:['03 / THE SKYWAY','空桥 · 两岸之间','一格格石栏连起守望小岛，下方只有风与云海。'],island:['04 / THE QUIET GARDEN','花园岛 · 风的来信','小屋、松树和一盏灯，守着云海旁一处安静的角落。']};
 function showPlace(id){document.body.dataset.focused=id;const d=descriptions[id];document.querySelector('#place').textContent=d[0];document.querySelector('#location').textContent=d[1];document.querySelector('#description').textContent=d[2];}
-function focusLandmark(id){if(!descriptions[id])return;if(follow)toggleFollow(false);interact();focused=id;showPlace(id);const dest=new THREE.Vector3(...world.meta.landmarks[id]),off=new THREE.Vector3(19,13,23);if(id==='palace')off.set(23,13,29);if(mobile())off.multiplyScalar(1.18);flightTween={from:camera.position.clone(),targetFrom:controls.target.clone(),to:dest.clone().add(off),target:dest,start:uiTime};}
+function focusLandmark(id){if(!descriptions[id])return;if(follow)toggleFollow(false);interact();focused=id;showPlace(id);const dest=new THREE.Vector3(...world.meta.landmarks[id]),off=new THREE.Vector3(19,13,23);if(id==='palace')off.set(23,13,29);if(mobile())off.multiplyScalar(1.18);if(innerHeight>innerWidth)dest.y-=6;   // phone portrait: the cards cover the lower half, so aim lower to lift the landmark into the open sky above them
+flightTween={from:camera.position.clone(),targetFrom:controls.target.clone(),to:dest.clone().add(off),target:dest,start:uiTime};}
 document.querySelectorAll('[data-landmark]').forEach(b=>b.addEventListener('click',()=>focusLandmark(b.dataset.landmark)));
-function toggleFollow(force){const next=force??!follow;if(next===follow)return;interact();if(next){document.body.dataset.focused='flight';savedCam.copy(camera.position);savedTarget.copy(controls.target);focused='';}else{delete document.body.dataset.focused;camera.position.copy(savedCam);controls.target.copy(savedTarget);}follow=next;controls.enabled=!follow;flightButton.textContent=follow?'↙ 返回自由视角':'✧ 登上飞艇';flightButton.setAttribute('aria-pressed',String(follow));if(follow){document.querySelector('#location').textContent='巡航中 · 云的另一面';document.querySelector('#description').textContent='再点一下飞艇，或点「返回自由视角」，回到小城。';}else if(!focused){document.querySelector('#location').textContent='在云端，停留片刻';document.querySelector('#description').textContent='转动小城，寻找一扇亮起的窗。';}}
+function toggleFollow(force){const next=force??!follow;if(next===follow)return;interact();if(next){document.body.dataset.focused='flight';savedCam.copy(camera.position);savedTarget.copy(controls.target);focused='';}else{delete document.body.dataset.focused;camera.position.copy(savedCam);controls.target.copy(savedTarget);}follow=next;controls.enabled=!follow;flightButton.textContent=follow?'↙ 返回自由视角':'✧ 登上飞艇';flightButton.setAttribute('aria-pressed',String(follow));if(follow){placeEl.textContent='05 / THE AIRSHIP';locationEl.textContent='巡航中 · 云的另一面';descriptionEl.textContent='再点一下飞艇，或点「返回自由视角」，回到小城。';}else if(!focused)showIntro();}
 flightButton.addEventListener('click',()=>toggleFollow());
 function setPaused(value){paused=value;motionButton.textContent=paused?'▷ 继续流动':'Ⅱ 暂停流动';motionButton.setAttribute('aria-pressed',String(paused));}
 motionButton.addEventListener('click',()=>{setPaused(!paused);interact();});
-function reset(){if(follow)toggleFollow(false);focused='';delete document.body.dataset.focused;flightTween=null;simTime=fixed?12:0;uiTime=0;manualAt=-100;setPaused(fixed);setHour(view==='night'?3:2);home();document.querySelector('#location').textContent='在云端，停留片刻';document.querySelector('#description').textContent='转动小城，寻找一扇亮起的窗。';}
+function reset(){if(follow)toggleFollow(false);focused='';delete document.body.dataset.focused;flightTween=null;simTime=fixed?12:0;uiTime=0;manualAt=-100;setPaused(fixed);setHour(view==='night'?3:2);home();showIntro();}
 document.querySelector('#reset').addEventListener('click',reset);
 const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),hits=[];let downX=0,downY=0,dragged=false,pointers=new Set();
 canvas.addEventListener('pointerdown',e=>{downX=e.clientX;downY=e.clientY;dragged=false;pointers.add(e.pointerId);interact();});canvas.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-downX,e.clientY-downY)>7)dragged=true;});

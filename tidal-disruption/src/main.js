@@ -274,9 +274,15 @@ function setPanel(open) {
 }
 $('#physics').addEventListener('click', () => setPanel(panel.hidden));
 $('#close-panel').addEventListener('click', () => setPanel(false));
+// A button that got focus from a mouse or finger click must not swallow Space (it would re-press that button instead of pausing);
+// a button reached with the keyboard still keeps Space for itself.
+let pointerFocus = false;
+addEventListener('pointerdown', () => { pointerFocus = true; }, true);
 addEventListener('keydown', event => {
+  if (event.code !== 'Space') pointerFocus = false;
   if (event.code === 'Escape') setPanel(false);
-  if (['INPUT', 'SELECT', 'BUTTON'].includes(document.activeElement.tagName)) return;
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || (tag === 'BUTTON' && !pointerFocus)) return;
   if (event.code === 'Space') { event.preventDefault(); togglePlay(); }
   if (event.code === 'ArrowRight') seek(time + 5);
   if (event.code === 'ArrowLeft') seek(time - 5);

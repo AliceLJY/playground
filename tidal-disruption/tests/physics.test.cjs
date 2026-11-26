@@ -76,3 +76,9 @@ test('A7 alternating load does not oscillate or accumulate nonconsecutive failur
   for (let i = 0; i < 2000; i++) quality.sample(i % 2 ? 50 : 12, i * 34);
   assert.equal(quality.tier, 1);
 });
+
+test('stage 1 text puts the tidal difference across the star, not across the black hole', async () => {
+  const { STAGES } = await physics;
+  assert.ok(!/黑洞两侧/.test(STAGES[0][3]), STAGES[0][3]);
+  assert.match(STAGES[0][3], /恒星近侧与远侧/);
+});

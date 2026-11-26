@@ -43,7 +43,7 @@ node tools/performance-check.cjs
 
 检查器查找本机 Playwright，启动独立 Chrome 和临时本地服务器，截图与报告保存在 `shots/`。可附页面地址复验带子路径的产物，`--record` 加录正常入口的 30 秒操作。GPU 检查顺序执行。额外测量控制仅在 `?test` 下开放，统一 `window.__PLAYTEST__` 回报实际渲染指标并提供重置、种子和步进方法。
 
-清晰度检查在 82 秒的 hero、edge 两机位读取真实最终画布，逐帧与光线比例 1.0、密度图 1024² 的同帧参考比较；光子环与盘内缘的梯度能量须分别保留至少 65%。Node 测试也实际运行这项 GPU 检查。`r3-compare.cjs` 需要 `shots/` 中保留的前后截图，输出左右对照与 3 倍局部图。性能脚本应等其他 GPU 检查结束后单独运行，并记录 Chrome 进程负载与实际 GPU timer 样本。
+清晰度检查在 82 秒的 hero、edge 两机位读取真实最终画布，逐帧与光线比例 1.0、密度图 1024² 的同帧参考比较；光子环与盘内缘的梯度能量须分别保留至少 65%。这项检查要真浏览器与 GPU，不在 `npm test` 里，文件是 `tests/clarity.browser.cjs`，手动跑：`NODE_PATH="$(npm root -g)" node --test tests/clarity.browser.cjs`。`r3-compare.cjs` 需要 `shots/` 中保留的前后截图，输出左右对照与 3 倍局部图。性能脚本应等其他 GPU 检查结束后单独运行，并记录 Chrome 进程负载与实际 GPU timer 样本。
 
 具体实测和覆盖范围见 [VERIFICATION.md](VERIFICATION.md)。渲染占空比经过限制，设备温度与长时间热稳定性仍需硬件测量。
 

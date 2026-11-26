@@ -230,9 +230,9 @@ $('ray').onclick = () => { rayOn = !rayOn; };
 let toastTimer = 0;
 function toast(html, ms = 5200) { const t = $('toast'); t.innerHTML = html; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), ms); }
 const FOUND_MSG = {
-  focus: '光斑缩成最小最亮的一点，这一点就是<b>焦点</b>。它离透镜 <b>10 cm</b>：焦距 f = 10 cm。',
+  focus: '光斑缩成最小最亮的一点，这一点就是<b>焦点</b>。它离透镜 <b class="nw">10 cm</b>：<span class="nw">焦距 f = 10 cm</span>。',
   far: '找到了！<b>倒立、缩小的实像</b>。照相机就是这样把远处的景物拍小的。',
-  two: '<b>倒立、等大</b>：物距、像距都是 2f = 20 cm，像和蜡烛一样大。',
+  two: '<b>倒立、等大</b>：物距、像距都是 <span class="nw">2f = 20 cm</span>，像和蜡烛一样大。',
   mid: '<b>倒立、放大的实像</b>，而且像跑得更远了。投影仪就是这样。',
   focal: '光屏怎么移都接不到像：从焦点发出的光经过透镜变成<b>平行光</b>，聚不到一起。',
   near: '光屏上接不到，透过透镜却看得见：<b>正立、放大的虚像</b>。这就是放大镜。',
@@ -265,7 +265,9 @@ function updatePanel() {
   guessEl.hidden = !(S.id === 'guess' || st.predicted != null && step <= 2);
   [...guessEl.children].forEach((b, i) => b.classList.toggle('picked', st.predicted === i));
   $('guessNote').hidden = S.id !== 'guess' && S.id !== 'far';   // shown while the guess is being tested (step 3); it returns on the answer card
-  $('answer').hidden = S.id !== 'answer';
+  { const ans = $('answer'), wasHidden = ans.hidden; ans.hidden = S.id !== 'answer';
+    // the answer card sits below the table; bring it into view the moment it appears (it landed under the fold on a 900 px desktop)
+    if (wasHidden && !ans.hidden) requestAnimationFrame(() => ans.scrollIntoView({ block: 'nearest', behavior: 'smooth' })); }
   if (S.id === 'answer' && st.predicted != null) $('answerGuess').textContent = `你一开始猜蜡烛放远时是「${C.GUESS[st.predicted]}」，实验结果是「倒立、缩小」：${st.predicted === C.GUESS_RIGHT ? '猜对了。' : '没猜中，现在知道为什么了。'}`;
   const nearNow = key === 'near' && !st.sun;
   $('eye').disabled = !nearNow; $('eye').title = nearNow ? '' : '蜡烛放到焦点以内才用得上';
@@ -275,16 +277,16 @@ function updatePanel() {
   if (slHeld !== 'screen') sl.screen.value = st.screen;
   $('candleOut').textContent = st.sun ? '—' : `${fmt(st.candle)} cm`; $('screenOut').textContent = `${fmt(st.screen)} cm`;
   $('uLabel').textContent = st.sun ? '光源' : '物距 u（蜡烛到透镜）';
-  $('u').textContent = st.sun ? '平行光（像来自很远处）' : `${fmt(u)} cm${key === 'two' ? '（= 2f）' : key === 'focal' ? '（= f）' : ''}`;
+  $('u').textContent = st.sun ? '平行光（光源在很远处）' : `${fmt(u)} cm${key === 'two' ? '（= 2f）' : key === 'focal' ? '（= f）' : ''}`;
   let v = st.sun ? '—' : '对清楚后显示', status = '', cls = '', bar = 0;
   if (st.sun) {
     const d = C.sunSpot(s); bar = 1 / (1 + d * 1.2);
     status = d < C.SHARP ? '光斑最小最亮！这里就是焦点' : `光斑直径 ${fmt(d)} cm，把光屏往${s > F ? '左' : '右'}移`; cls = d < C.SHARP ? 'ok' : '';
   } else if (st.eye) {
     if (im.kind === 'virtual') { status = '透过透镜看：一个正立、放大的虚像'; cls = 'ok'; v = `${fmt(-im.v)} cm（在蜡烛这一侧）`; }
-  } else if (key === 'focal') { v = '没有像'; const d = C.sweepDone(st); status = st.found.has('focal') ? '怎么移都接不到像：出来的光是平行的' : `光屏上接不到清晰的像。已来回移了 ${fmt(Math.min(d, C.SWEEP_NEED))} / ${C.SWEEP_NEED} cm`; cls = 'warn'; }
+  } else if (key === 'focal') { v = '没有像'; const d = C.sweepDone(st); status = st.found.has('focal') ? '怎么移都接不到像：出来的光是平行的' : `光屏上接不到清晰的像。已扫过 ${fmt(Math.min(d, C.SWEEP_NEED))} / ${C.SWEEP_NEED} cm 的范围`; cls = 'warn'; }
   else if (key === 'near') { v = '光屏上没有'; status = '光屏上接不到像。试试「用眼睛看」'; cls = 'warn'; }
-  else if (!scr.reachable) { v = `${fmt(scr.v)} cm（够不着）`; status = `像在 ${fmt(scr.v)} cm 外，光屏够不着，把蜡烛挪远一点`; cls = 'warn'; }
+  else if (!scr.reachable) { v = `${fmt(scr.v)} cm（够不着）`; status = `像在透镜后 ${fmt(scr.v)} cm，光屏够不着，把蜡烛挪远一点`; cls = 'warn'; }
   else {
     bar = 1 / (1 + scr.blur * 1.5);
     if (scr.sharp) { status = `清晰！${C.describe(key)}${Math.abs(s - scr.v) > 0.05 ? `（光屏离正好的位置差 ${fmt(Math.abs(s - scr.v))} cm，眼睛已经看不出糊）` : ''}`; cls = 'ok'; v = `${fmt(scr.v)} cm`; }

@@ -567,6 +567,7 @@ moonLight.castShadow = true; moonLight.shadow.mapSize.set(2048, 2048);
 Object.assign(moonLight.shadow.camera, { left: -30, right: 30, top: 30, bottom: -24, near: 10, far: 170 }); moonLight.shadow.bias = -0.0012; moonLight.shadow.normalBias = 0.09;
 scene.add(moonLight, moonLight.target);
 const hemi = new THREE.HemisphereLight(0x4f69ad, 0x0d1018, 0.6); scene.add(hemi);
+const skyWordEl = document.getElementById('skyWord');
 let hour = -1;
 function applyHour(h) {
   if (h === hour) return; hour = h;
@@ -577,6 +578,7 @@ function applyHour(h) {
   hemi.intensity = k.hemi; hemi.color.setRGB(k.mid[0] * 6 + 0.1, k.mid[1] * 6 + 0.12, k.mid[2] * 5 + 0.2);
   moon.material.opacity = k.moon; stars.material.opacity = 0.75 * k.stars;
   for (let i = 0; i < windows.length; i++) dayOn[i] = windowOn(i, h) ? 1 : 0;
+  skyWordEl.textContent = h < 0.2 ? '黄昏' : h > 0.8 ? '日出' : '月光';   // the corner readout follows the slider
 }
 
 // ---------------- render pipeline: bloom only reaches what is brighter than white ----------------

@@ -135,7 +135,9 @@ const isExternal = (u) => !(u.startsWith('data:') || u.startsWith('blob:')) && (
       `upper sky luminance dusk ${hs2[0].lum.toFixed(3)} / night ${hs2[0.5].lum.toFixed(3)} / dawn ${hs2[1].lum.toFixed(3)}; red-to-blue ratio ${hs2[0].rb.toFixed(2)} / ${hs2[0.5].rb.toFixed(2)} / ${hs2[1].rb.toFixed(2)}`);
     const { ctx, page } = await open('', 1280, 720); const box = await page.locator('#hour').boundingBox();
     await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2); await page.waitForTimeout(300); const hv = await page.evaluate(() => window.__cabin.state().hour);
-    check('B11b', 'dragging the slider towards dusk changes the hour', hv < 0.25, `hour after a click at 10% of the slider: ${hv.toFixed(2)}`); await ctx.close(); }
+    check('B11b', 'dragging the slider towards dusk changes the hour', hv < 0.25, `hour after a click at 10% of the slider: ${hv.toFixed(2)}`);
+    const words = {}; for (const h of [0.05, 0.5, 0.95]) { await page.evaluate((h) => window.__cabin.setHour(h), h); await page.waitForTimeout(250); words[h] = await page.textContent('#skyWord'); }
+    check('B11c', 'the corner readout names the light of the chosen hour (dusk / moonlight / sunrise)', words[0.05] === '黄昏' && words[0.5] === '月光' && words[0.95] === '日出', JSON.stringify(words)); await ctx.close(); }
 
   // B12 inside
   for (const [w, h, dpr, tag] of [[1280, 720, 1, 'desktop'], [390, 844, 2, 'phone']]) {

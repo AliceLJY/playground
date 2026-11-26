@@ -91,12 +91,22 @@ const L = 40, F = 10, Y0 = 18;
     check('B4', 'the whole lesson completes with real drags and clicks and ends on the answer', s.step === 7 && s.focusFound && s.predicted === 1 && answer, `step ${s.step + 1}/8, focus ${s.focusFound}, guess ${s.predicted}, answer visible ${answer}; focus toast "${(toastFocus || '').slice(0, 24)}…"`);
     const rows = await page.$$eval('#table tr td.q', (t) => t.length);
     check('B4t', 'the table is completely filled', rows === 0, `${rows} empty cells`);
+    await page.waitForTimeout(900);   // the answer card scrolls itself into view when the last step is done (it used to sit under the fold)
+    const ansBox = await page.evaluate(() => { const r = document.getElementById('answer').getBoundingClientRect(), a = document.querySelector('aside').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, ab: a.bottom }; });
+    check('R13', 'the answer card is fully in view once the lesson ends', ansBox.bottom <= ansBox.ab + 1 && ansBox.top >= 0, `card ${ansBox.top.toFixed(0)}–${ansBox.bottom.toFixed(0)}, panel bottom ${ansBox.ab.toFixed(0)}`);
     const noteLater = await page.isVisible('#guessNote');
     check('R12', 'the "guess noted" line shows while the guess is tested (step 3), not on every later step', noteNow && !noteLater, `on step 3 ${noteNow}, at the end ${noteLater}`);
     await page.screenshot({ path: path.join(out, 'desktop-answer.png') });
     const info = await page.evaluate(() => window.__lens.info());
     check('B6', 'draw calls within 120', info.calls <= 120, `${info.calls} calls, ${info.tris} triangles, renderer ${info.renderer}`);
     report.renderer = info.renderer;
+    await ctx.close();
+  }
+  // R14: a disabled button on the phone stage is solid, the 3D scene must not show through its label
+  {
+    const { ctx, page } = await open('?view=mid', 390, 664, 1, true);
+    const o = await page.evaluate(() => { const e = document.getElementById('eye'); return { dis: e.disabled, op: getComputedStyle(e).opacity }; });
+    check('R14', 'the disabled "look with the eye" button is opaque', o.dis && o.op === '1', `disabled ${o.dis}, opacity ${o.op}`);
     await ctx.close();
   }
   // R3, R2: grabbing at the flame moves the candle even with the screen behind it; a focused slider keeps up with 3D drags

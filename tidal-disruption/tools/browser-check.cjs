@@ -185,6 +185,11 @@ async function main() {
   check('A5 speed control', (await snapshot(page)).speed === 2);
   await page.locator('[data-view=wide]').click();
   check('A5 view controls preserve time', Math.abs((await snapshot(page)).time - 64.8) < 1.5 && (await snapshot(page)).view === 'wide');
+  // Space pauses/resumes even right after a mouse click left focus on a button (it used to re-press that button instead)
+  await page.keyboard.press('Space');
+  const spaceOn = (await snapshot(page)).playing;
+  await page.keyboard.press('Space');
+  check('A5 Space toggles playback after clicking a view button', spaceOn === true && (await snapshot(page)).playing === false, { afterFirstSpace: spaceOn });
   const cameraBefore = (await snapshot(page)).camera;
   await page.mouse.move(790,350); await page.mouse.down(); await page.mouse.move(900,400,{steps:8}); await page.mouse.up();
   await page.mouse.wheel(0,150);
