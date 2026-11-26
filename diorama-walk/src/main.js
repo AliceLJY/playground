@@ -40,6 +40,7 @@ body.noui #hint,body.noui #dbg{display:none}
 #card .go{margin-top:12px;color:${C.COLORS.accent}}
 #card a{display:inline-block;margin-top:16px;color:rgba(214,222,234,.6);font-size:13px;text-decoration:underline;text-underline-offset:3px}
 #noteHint{position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100% - 24px);box-sizing:border-box;padding:8px 14px;border-radius:18px;background:rgba(12,14,18,.72);color:#E8E0CC;font:14px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;white-space:nowrap;cursor:pointer;display:none;z-index:5}
+#noteHint.up{bottom:auto;top:calc(16px + env(safe-area-inset-top))}
 #note{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,5,8,.72);z-index:15;cursor:pointer;touch-action:none}
 #note .paper{box-sizing:border-box;width:min(86vw,380px);padding:22px 22px 24px;background:#E9E0C9;color:#2A2420;box-shadow:0 8px 30px rgba(0,0,0,.65);transform:rotate(-2.5deg);font-family:"Kaiti SC","STKaiti","KaiTi",serif;font-size:max(16px,min(4.6vw,21px));line-height:1.75}
 #note .paper h2{margin:0 0 8px;font-size:1.35em;font-weight:600;text-align:center;letter-spacing:.2em}
@@ -632,7 +633,10 @@ function sync() {
   figAisle.visible = !figureHidden && V.aisle !== null; if (V.aisle !== null) placeAt(figAisle, C.aisleSpot(C.GROCERY.aisles[V.aisle]));
   figWarn.visible = !figureHidden && !!V.rule1; if (V.rule1) placeAt(figWarn, V.rule1);   // round 9: rule 1
   { const on = new Map(V.foot.map((f) => [f.i, f.alpha])); footMeshes.forEach((m, i) => { const a = on.get(i); m.visible = !footHidden && a !== undefined; if (a !== undefined) m.material.opacity = 0.92 * a; }); }
-  { const show = !!V.note && !noteOpen() && !cardOpen() && S.mode === 'walk'; noteHintEl.style.display = show ? 'block' : 'none'; }
+  { const show = !!V.note && !noteOpen() && !cardOpen() && S.mode === 'walk'; noteHintEl.style.display = show ? 'block' : 'none';
+    // the hint sits at the bottom, but the paper on the till is low in the frame: when it would cover the paper, move it to the top
+    if (show) { camera.updateMatrixWorld(); v3.copy(noteMesh.position).project(camera); const ny = ((1 - v3.y) / 2) * cssH, hb = noteHintEl.getBoundingClientRect(), cover = ny > hb.top - 70 && ny < hb.bottom + 70;
+      noteHintEl.classList.toggle('up', cover || noteHintEl.classList.contains('up') && ny > cssH * 0.5); } }
   leafPivot.rotation.y = -C.leafAngle(V.back);
   // round 8 lights: bulbs and tube (E0/E5 darkness, E2 one by one, the tube's flicker), the TV, the glow on the pavement
   bulbTill.intensity = LIGHT.bulbTill * V.bulbs[0]; bulbAisle.intensity = LIGHT.bulbAisle * V.bulbs[1]; tubeLight.intensity = LIGHT.tube * V.tube;

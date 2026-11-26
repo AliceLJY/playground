@@ -138,6 +138,12 @@ test('landing rules: footprint goes to the door, outside is clamped, solids are 
   assert.ok(L3.x <= 11.5 && L3.z <= 11.5, `clamped into the walkable square: ${L3.x}, ${L3.z}`);
   const L4 = C.landingFor({ kind: 'ground', x: 11, z: -6 }, 0);                 // back lot beside the store
   assert.ok(L4.z >= C.FACADE_Z, `back lot pulled to the street side: z=${L4.z}`);
+  // open-ground landing: facing a bare wall (the default hero view, zoomed at the centre) turns to the nearer shop door; a facing that already has a door in view is kept
+  const toward = (L, b) => Math.abs(Math.atan2(Math.sin(Math.atan2(-(b.door.cx - L.x), -(b.z1 - L.z)) - L.yaw), Math.cos(Math.atan2(-(b.door.cx - L.x), -(b.z1 - L.z)) - L.yaw)));
+  const Lh = C.landingFor({ kind: 'ground', x: 1.9, z: 4.3 }, C.HERO.theta);
+  assert.ok(toward(Lh, C.STORE) < 0.01, `hero-centre landing faces the store door (off by ${toward(Lh, C.STORE)})`);
+  const Lk = C.landingFor({ kind: 'ground', x: 1.9, z: 4.3 }, Math.atan2(-(C.STORE.door.cx - 1.9), -(C.STORE.z1 - 4.3)) + 0.2);
+  assert.ok(Math.abs(Lk.yaw - (Math.atan2(-(C.STORE.door.cx - 1.9), -(C.STORE.z1 - 4.3)) + 0.2)) < 1e-9, 'a facing with the door already in view is kept');
   for (const [x, z] of [[6.9, 0.9], [-1.5, 3.1], [1.0, 0.8], [10.5, 0.45], [5.0, 0.45]]) {
     const L = C.landingFor({ kind: 'ground', x, z }, 0);
     const clear = Math.min(...C.walkBoxes(null).map((b) => C.boxDist(L.x, L.z, b)));

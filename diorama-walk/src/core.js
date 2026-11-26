@@ -406,8 +406,13 @@ export function landingFor(hit, yaw) {
   if (hit.kind === 'building') return doorLanding(hit.b);
   const gx = hit.kind === 'ground' ? hit.x : 0, gz = hit.kind === 'ground' ? hit.z : 6.8;
   const [x, z] = pushClear(clamp(gx, OUTDOOR.x0, OUTDOOR.x1), clamp(gz, OUTDOOR.z0, OUTDOOR.z1), 0.4);
-  return { x, z, yaw, building: null };
+  // Open-ground landing keeps the orbit's facing, unless that leaves both shop doors out of view (a centre-of-screen zoom on the
+  // default hero view lands facing a bare wall): then turn to the nearer door. The entry path already blends the yaw in.
+  const doors = [STORE, NEXT].map((b) => ({ d: Math.hypot(b.door.cx - x, b.z1 - z), yaw: Math.atan2(-(b.door.cx - x), -(b.z1 - z)) }));
+  const seen = doors.some((q) => Math.abs(wrapAngle(q.yaw - yaw)) <= DOOR_IN_VIEW);
+  return { x, z, yaw: seen ? yaw : doors.reduce((a, q) => (q.d < a.d ? q : a)).yaw, building: null };
 }
+const DOOR_IN_VIEW = 0.3;   // rad: a door this near the facing is inside even the narrowest view (phone portrait, 45 deg across)
 export const bez = (p0, p1, p2, t) => [0, 1, 2].map((i) => (1 - t) * (1 - t) * p0[i] + 2 * t * (1 - t) * p1[i] + t * t * p2[i]);
 // Is a camera point clear of every solid by `margin`, and above the ground? `skipLift` names a building whose
 // roof, fascia and lintel are hidden (rising out of it).
