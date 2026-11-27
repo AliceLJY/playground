@@ -107,6 +107,7 @@
 - 页面、README、提交说明里不写能联系到作者现实身份的信息（真名、单位、学历、经历年份、称号等），署名用公众号「我的AI小木屋」或 GitHub @AliceLJY。
 - 加新玩意按 README「加一个新玩意」的三步：子目录、`pages.yml` 里的检查与拷贝、首页对应那一排的卡片。
 - 每个玩意的 README（中英各自）末尾有「谁会点开、AI 素材」一节：一句写给可能点开的人，一行写清哪些图、模型、动作、声音、代码是 AI 生成或 AI 协作的，没有就写没有。新玩意照加（2026-10-21 起，起因是「供给成本归零、观众没变」和平台的 AI 披露要求）。
+- 搬进微信小游戏：2D 纯画布照 `coal-shift/minigame/` 的做法。3D（three.js）或用了网页元素做界面的，先读 ZSeven-W/dsh-game-studio 的导出代码当参考（MIT，[`src/wechat.ts@7d7630b`](https://github.com/ZSeven-W/dsh-game-studio/blob/7d7630b/src/wechat.ts)：第 254 行起的适配层，第 228 行的导出前检查）；本机有原样副本和逐段导读 `~/repo-analyses/dsh-game-studio-20261127/README.md`。只拿写法，不装插件。
 - 本仓有多个制作者，分别经本地 git 和 GitHub 接口提交；动手前先取最新的 `main`，别在旧版本上改。
 
 ## 8. 手感与界面
