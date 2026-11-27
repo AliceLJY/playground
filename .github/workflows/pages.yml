@@ -754,15 +754,12 @@ jobs:
         working-directory: captcha-talk
         run: |
           # 我不是机器人：一份会自己改自己的网页演讲，9 场 23 步，每场一个 Three.js 世界；打成单文件（Three.js 许可在文件开头注释里）
-          for f in src/*.js agy/src/*.js; do node --check "$f"; done
+          for f in src/*.js; do node --check "$f"; done
           npm ci
           node tools/build.mjs
-          node tools/build.mjs agy
           node --test tests/*.test.cjs
-          mkdir -p ../_site/captcha-talk/agy
+          mkdir -p ../_site/captcha-talk
           cp dist/index.html ../_site/captcha-talk/index.html
-          # 预览：AGY 重做画面的一版（同一份讲稿），首页不挂卡片，选定后再决定替不替换
-          cp dist/agy/index.html ../_site/captcha-talk/agy/index.html
 
       - name: Check, bundle and assemble Sky Citadel
         working-directory: sky-citadel

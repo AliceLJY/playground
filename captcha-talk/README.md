@@ -28,11 +28,11 @@ NODE_PATH="$(npm root -g)" node tools/walk.cjs http://127.0.0.1:8951/index.html 
 NODE_PATH="$(npm root -g)" node tools/phone-check.cjs http://127.0.0.1:8951/index.html
 ```
 
-The spec and acceptance items are in [SPEC.md](SPEC.md) (Chinese).
+The spec and acceptance items are in [SPEC.md](SPEC.md), and the step-by-step visual design (camera moves, and which object becomes which world at each scene change) is in [DESIGN.md](DESIGN.md); both are in Chinese.
 
-## Preview: the AGY remake
+## How this version came about
 
-`agy/` is a version whose visuals were remade by AGY (Gemini) on 2026-11-27 from the same script: every scene change is an object turning into the next world, and the worlds gained sky, fog and reflections. The script and widget drawing are shared with `src/`; `agy/src/` holds only its playback and scene files. Build it with `node tools/build.mjs agy`; online it lives at `captcha-talk/agy/`. Three fixes made during review are marked `CC 11-27` in the code.
+The script, numbers, widget drawing and playback were made first by Claude (2026-11-26). The author found the visual changes less gripping than the original's, so on 2026-11-27 the materials and requirements went to AGY (Gemini), which remade the scenes and transitions: every scene change is now an object becoming the next world, and the worlds gained sky, fog and reflections. Three fixes made during Claude's review are marked `CC 11-27` in the code. The author chose this version; the first version's scene code lives only in git history.
 
 ## Where the numbers come from
 
@@ -47,4 +47,4 @@ The Three.js MIT licence is kept in the bundled HTML. Credit: WeChat account 我
 ## Who opens this, and AI assets
 
 - Who opens this: anyone who ticks "I'm not a robot" every day and wonders who that box still stops; also anyone curious how a web page can be the talk itself.
-- AI assets: the code and script were written in collaboration with AI; everything on screen is drawn by code. No AI-generated images, models or sounds are used.
+- AI assets: the script and playback were written with Claude; the scenes and transitions were remade by AGY (Gemini) and reviewed by Claude. Everything on screen is drawn by code. No AI-generated images, models or sounds are used.
