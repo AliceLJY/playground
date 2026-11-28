@@ -10,7 +10,7 @@ const out=process.argv[2]||'check-out',base=process.argv[3]||'http://127.0.0.1:8
 const page0=new URL(base),dir=page0.pathname.replace(/[^/]*$/,'');
 const rel=u=>{const x=new URL(u);return x.origin===page0.origin&&x.pathname.startsWith(dir)?x.pathname.slice(dir.length):null;};
 const STATES={stand:['purr','look','warn','bite','lick'],belly:['purr','look','warn','bite','lick'],sleep:['drowsy','awake','purr','look','warn','bite','lick']};
-const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js',
+const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js','src/core.js?v=20261128c','src/cat-data.js?v=20261128c','src/game.js?v=20261128c',
   ...Object.entries(STATES).flatMap(([p,ss])=>[`assets/${p}/cat-base.webp`,`assets/${p}/cat-masks.png`,...ss.map(s=>`assets/${p}/cat-${s}.webp`)])]);
 fs.mkdirSync(out,{recursive:true});
 // interaction runs at 1× pixels: on a software renderer (SwiftShader) 3× makes one stroke take ~8 s, far from a person's pace
