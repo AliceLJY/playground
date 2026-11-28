@@ -10,7 +10,8 @@ const out=process.argv[2]||'check-out',base=process.argv[3]||'http://127.0.0.1:8
 const page0=new URL(base),dir=page0.pathname.replace(/[^/]*$/,'');
 const rel=u=>{const x=new URL(u);return x.origin===page0.origin&&x.pathname.startsWith(dir)?x.pathname.slice(dir.length):null;};
 const STATES={stand:['purr','look','warn','bite','lick'],belly:['purr','look','warn','bite','lick'],sleep:['drowsy','awake','purr','look','warn','bite','lick']};
-const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js','src/core.js?v=20261128c','src/cat-data.js?v=20261128c','src/game.js?v=20261128c',
+const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js','src/core.js?v=20261128d','src/cat-data.js?v=20261128d','src/game.js?v=20261128d',
+  'assets/sfx/meow-cute.mp3','assets/sfx/meow-ask.mp3','assets/sfx/meow-startle.mp3','assets/sfx/meow-wake.mp3','assets/sfx/meow-bite.mp3','assets/sfx/hiss.mp3',
   ...Object.entries(STATES).flatMap(([p,ss])=>[`assets/${p}/cat-base.webp`,`assets/${p}/cat-masks.png`,...ss.map(s=>`assets/${p}/cat-${s}.webp`)])]);
 fs.mkdirSync(out,{recursive:true});
 // interaction runs at 1× pixels: on a software renderer (SwiftShader) 3× makes one stroke take ~8 s, far from a person's pace
@@ -37,6 +38,8 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     return{ctx,page,errors,stray};
   }
   const probe=p=>p.evaluate(()=>window.__lumao.probe());
+  // which real recordings the page actually started (meows, hiss); it only counts what went to the speakers with sound on
+  const sounds=p=>p.evaluate(()=>window.__lumao.sounds());
   const box=(p,sel)=>p.evaluate(s=>{const e=document.querySelector(s);if(!e||e.hidden)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};},sel);
   // fur units (x across the side back→belly, y along head→tail) → css px, through the page's own mapping
   const toCss=(page,x,y)=>page.evaluate(([x,y])=>{const p=window.__lumao.coreToCss(x,y);return{X:p[0],Y:p[1]};},[x,y]);
@@ -79,6 +82,9 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     check('real drag: the back is flatter and shinier',after.backMess<before.backMess-0.05&&after.backShine>before.backShine+0.1,{before:[before.backMess,before.backShine],after:[after.backMess,after.backShine]});
     check('real drag: nine strokes with the grain make her happy (eyes shut)',after.happy&&after.state==='happy'&&after.head==='purr',[after.state,after.head]);
     check('real drag: hair stuck to the hand',after.hairsCore>0,after.hairsCore);
+    let snd=await sounds(page);
+    check('sound: all six recordings load after the first touch',snd.loaded===6,snd);
+    check('sound: she meows once when the purring starts',snd.played.filter(n=>n==='meow-cute').length===1,snd.played);
     await page.waitForTimeout(1800);
     const landed=await probe(page);
     check('loose hair flies to the hand in the corner',landed.hairsShown>0&&landed.hairsShown<=landed.hairsCore,{shown:landed.hairsShown,core:landed.hairsCore});
@@ -86,6 +92,7 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     await page.mouse.click(l.hand.x+l.hand.w*0.5,l.hand.y+l.hand.h*0.6);await page.waitForTimeout(150);
     const clap=await probe(page);
     check('tapping the hand claps the hair off',clap.hairsShown===0&&clap.hairsCore===0&&clap.airborne>0,{shown:clap.hairsShown,core:clap.hairsCore,airborne:clap.airborne});
+    snd=await sounds(page);check('sound: the clap startles a meow out of her',snd.played.at(-1)==='meow-startle',snd.played);
     await page.screenshot({path:`${out}/clap-real.png`});
     check('with-the-grain page: no page errors',!errors.length,errors);
     await ctx.close();
@@ -98,6 +105,7 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     await page.waitForTimeout(400);
     const pr=await probe(page);
     check('real drag against the grain: fur stands up and she looks back',pr.look&&pr.head==='look'&&pr.backMess>0.25,{look:pr.look,state:pr.state,mess:pr.backMess});
+    const ask=await sounds(page);check('sound: looking back at you comes with a questioning 喵？, just once',ask.played.filter(n=>n==='meow-ask').length===1,ask.played);
     await page.screenshot({path:`${out}/against-real.png`});
     await page.keyboard.press('Space');await page.waitForTimeout(700);
     const k=await probe(page);
@@ -124,6 +132,7 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     await page.mouse.click(l.hand.x+l.hand.w*0.5,l.hand.y+l.hand.h*0.6);await page.waitForTimeout(100);
     const after=await page.evaluate(()=>window.__vib);
     check('haptics: clapping the hair off buzzes',after.length>vib.length,{before:vib.length,after:after.length});
+    const quiet=await sounds(page);check('sound off: not a single meow or hiss plays',quiet.played.length===0,quiet.played);
     check('haptics page: no page errors',!errors.length,errors);await ctx.close();
   }
   // the pose buttons switch her; asleep, gentle real strokes wake her through half-awake; one stroke against the grain wakes her at once
@@ -139,6 +148,7 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     check('asleep: two gentle strokes and she is still asleep',pr.state==='sleep',[pr.state,pr.sleep]);
     for(let i=0;i<10&&['sleep','drowsy'].includes((await probe(page)).state);i++){await drag(page,l,0.1+(i%3)*0.06,0.12,0.1+(i%3)*0.06,0.9,18);const q=await probe(page);seen.add(q.state);if(q.state==='drowsy')await page.screenshot({path:`${out}/sleep-drowsy-real.png`});}
     pr=await probe(page);
+    const wk=await sounds(page);check('sound: woken gently she gives a soft meow (and no purr-meow while asleep)',wk.played.includes('meow-wake')&&!wk.played.includes('meow-startle'),wk.played);
     check('asleep: more gentle strokes wake her, through half-awake',seen.has('drowsy')&&!['sleep','drowsy'].includes(pr.state)&&pr.sleep<0.15,{seen:[...seen],state:pr.state,sleep:pr.sleep});
     await page.screenshot({path:`${out}/sleep-awake-real.png`});
     check('sleep page: no page errors',!errors.length,errors);
@@ -149,6 +159,7 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     await drag(page,l,0.12,0.9,0.12,0.15,16);await page.waitForTimeout(300);
     const pr=await probe(page);
     check('asleep: one stroke against the grain wakes her at once',pr.sleep<0.15&&!['sleep','drowsy'].includes(pr.state),[pr.state,pr.sleep]);
+    const rw=await sounds(page);check('sound: woken rudely she gives a startled meow',rw.played.includes('meow-startle'),rw.played);
     check('rude-wake page: no page errors',!errors.length,errors);await ctx.close();
   }
   // on her back the belly is a trap: real non-stop strokes get her purring, then the warning, then the grab
@@ -158,6 +169,8 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
       if(q.state==='warn'&&!warnShot){warnShot=true;await page.screenshot({path:`${out}/belly-warn-real.png`});}}
     const pr=await probe(page);
     check('belly: purrs first, warns, then grabs',seen.has('purred')&&seen.has('warn')&&pr.bites>=1,{seen:[...seen],bites:pr.bites});
+    const bs=(await sounds(page)).played,hi=bs.indexOf('hiss'),bi=bs.indexOf('meow-bite');
+    check('sound: when she gets angry she hisses, before the bite meow',hi>=0&&bi>hi,bs);
     await page.screenshot({path:`${out}/belly-after-real.png`});
     check('belly page: no page errors',!errors.length,errors);await ctx.close();
   }

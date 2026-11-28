@@ -14,7 +14,7 @@ Details of how it plays:
 - **She always warns before she bites.** Ears back, a crouch, a lashing tail and a stare, with a "……" by her head. Stop for three seconds and she will not bite.
 - Keyboard: Space or the right arrow strokes with the grain, the left arrow against it, C claps.
 
-Made for a phone held upright, one thumb swiping sideways, sound off. The purr, the brushing sound and the clap are synthesised in code; there are no audio files. On Android phones the purr also buzzes gently.
+Made for a phone held upright, one thumb swiping sideways, sound off. The purr, the brushing sound and the clap are synthesised in code; the meows and the hiss are real cat recordings: a meow when she starts purring, a questioning meow when she looks back at you, a hiss when she gets angry, a meow-wow when she bites, and a startled or sleepy meow when you clap or wake her. On Android phones the purr also buzzes gently.
 
 ## How it works
 
@@ -40,4 +40,4 @@ Poses: `?pose=stand|belly|sleep`. Fixed views: `?view=hero` (fresh), `smooth` (s
 ## Who will open it, AI material
 
 - Who will open it: anyone who has stroked a cat, been nipped and kept stroking, or never owns a sweater without cat hair on it.
-- AI material: the cat pictures are AI-generated. The three full-body pictures (standing, belly up, asleep on her side) were made by Codex from photos of the author's own cat, and the expressions by Grok editing only the head of the same picture (plus the front paws for the belly-up bite); the photos themselves are not in the repository or the page. The fur motion, wall, floor, hand and sounds are drawn and synthesised in code. Code written by a person working with AI.
+- AI material: the cat pictures are AI-generated. The three full-body pictures (standing, belly up, asleep on her side) were made by Codex from photos of the author's own cat, and the expressions by Grok editing only the head of the same picture (plus the front paws for the belly-up bite); the photos themselves are not in the repository or the page. The fur motion, wall, floor and hand are drawn in code, and the purr, brushing and clap sounds synthesised; the meows and the hiss are not AI-generated but real cat recordings from Wikimedia Commons marked public domain or CC0 (Meow of a pleading cat, 2015-11-24 νιαούρισμα by Tsester, Black cat sound begging the foods, Cat hissing - Zabuhailo), trimmed and levelled into `assets/sfx/`. Code written by a person working with AI.

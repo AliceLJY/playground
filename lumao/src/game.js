@@ -277,26 +277,28 @@ function clap(){
   for(const p of P)if(p.phase!=='off'){p.phase='off';p.t=0;p.vy=-60;}
   hand.stuck.length=0;hand.shown=0;hand.clapT=0;
   // the clap startles her: a little hop and a look at you
-  if(S.cat.state!=='bite'){M.hopV+=POSE==='stand'?95:45;M.startle=0.8;}
+  if(S.cat.state!=='bite'){M.hopV+=POSE==='stand'?95:45;M.startle=0.8;audio.play('meow-startle',0.8,2.5);}
 }
 
 // ---------- mood → body language ----------
-let lastState='idle',purrPulse=0,wakeSeen=0;
+let lastState='idle',purrPulse=0,wakeSeen=0,wasHappy=false;
 function setVariant(name,dur){if(name===M.cur)return;M.prev=M.fade<0.5?M.prev:M.cur;M.cur=name;M.fade=0;M.fadeDur=dur||0.15;}
 function animate(dt,t){
   const cat=S.cat,st=cat.state,k=1-Math.exp(-dt*7),slow=1-Math.exp(-dt*3),fast=1-Math.exp(-dt*20);
   if(st!==lastState){
-    if(st==='bite'){bubble.text='啊呜！';bubble.t=1.1;hand.flinch=0.5;audio.bite();vibe(HAPTIC.bite);}
+    if(st==='bite'){bubble.text='啊呜！';bubble.t=1.1;hand.flinch=0.5;audio.bite();audio.play('meow-bite',0.9);vibe(HAPTIC.bite);}
     if(st==='lick'){bubble.text='舔舔';bubble.t=1.4;}
-    if(st==='warn'){bubble.text='……';bubble.t=1.6;vibe(HAPTIC.warn);}
+    if(st==='warn'){bubble.text='……';bubble.t=1.6;audio.play('hiss',0.85);vibe(HAPTIC.warn);}   // angry: she hisses at you
     if(st==='drowsy'&&lastState==='sleep'){bubble.text='嗯……？';bubble.t=1.4;}
     lastState=st;
   }
-  for(;wakeSeen<cat.events.length;wakeSeen++){const e=cat.events[wakeSeen];if(e.type==='wake'){bubble.text=e.rude?'喵！？':'醒啦';bubble.t=1.3;if(e.rude){M.hopV+=40;vibe(HAPTIC.startle);}}}
-  if(st!=='bite'&&st!=='lick'&&cat.look&&!bubble.lookShown){bubble.text='喵？';bubble.t=1.0;bubble.lookShown=true;}
+  for(;wakeSeen<cat.events.length;wakeSeen++){const e=cat.events[wakeSeen];if(e.type==='wake'){bubble.text=e.rude?'喵！？':'醒啦';bubble.t=1.3;audio.play(e.rude?'meow-startle':'meow-wake');if(e.rude){M.hopV+=40;vibe(HAPTIC.startle);}}}
+  if(st!=='bite'&&st!=='lick'&&cat.look&&!bubble.lookShown){bubble.text='喵？';bubble.t=1.0;bubble.lookShown=true;audio.play('meow-ask',1,1.5);}
   if(!cat.look)bubble.lookShown=false;
   const onBack=finger&&!finger.head&&maskAt(finger.x,finger.y)>0;
   const happy=cat.happy&&st!=='warn'&&st!=='bite'&&st!=='lick';
+  // the first purr of a good stroking session gets a little meow (awake only, not more than once every 12 s)
+  if(happy&&!wasHappy&&st==='happy'&&S.cat.sleep<0.15)audio.play('meow-cute',0.8,12);wasHappy=happy;
   // targets (body numbers in picture pixels of the 1024-high original, angles in radians)
   let arch=0,butt=0,crouch=0,twitch=0,headRot=0.02*Math.sin(t*0.4),headOff=[0,0],tailAng=0.05*Math.sin(t*1.5),tailTip=0.12*Math.sin(t*0.9),breath=1.6*Math.sin(t*2.2),pressZ=0;
   const V=VARS[POSE],standing=POSE==='stand',asleep=st==='sleep'||st==='drowsy';
@@ -413,8 +415,9 @@ function drawPalm(c,lvl){
   if(lvl>=4){c.fillStyle='#e9959e';c.beginPath();c.ellipse(hand.w*0.51,hand.h*0.72,hand.w*0.16,hand.h*0.1,0,0,Math.PI*2);c.fill();}
 }
 
-// ---------- sound (synthesised, no files) ----------
-const audio={on:true,ctx:null,purrG:null,rubG:null,
+// ---------- sound: purr, rub, bite and clap synthesised; meows and the hiss are real recordings (assets/sfx, CC0 / public domain, see README) ----------
+const SFX=['meow-cute','meow-ask','meow-startle','meow-wake','meow-bite','hiss'];
+const audio={on:true,ctx:null,purrG:null,rubG:null,sfx:{},sfxT:{},played:[],
   init(){if(this.ctx||!this.on)return;try{const ctx=new (window.AudioContext||window.webkitAudioContext)();this.ctx=ctx;
     const n=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate),d=n.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;this.noise=n;
     const src=ctx.createBufferSource();src.buffer=n;src.loop=true;const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=260;
@@ -422,7 +425,13 @@ const audio={on:true,ctx:null,purrG:null,rubG:null,
     this.purrG=ctx.createGain();this.purrG.gain.value=0;src.connect(lp).connect(chop).connect(this.purrG).connect(ctx.destination);src.start();lfo.start();
     const s2=ctx.createBufferSource();s2.buffer=n;s2.loop=true;const bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2600;bp.Q.value=0.7;
     this.rubG=ctx.createGain();this.rubG.gain.value=0;s2.connect(bp).connect(this.rubG).connect(ctx.destination);s2.start();
+    // fetched only after the first tap; the callback form of decodeAudioData is the one old iOS Safari understands
+    for(const n of SFX)fetch(`assets/sfx/${n}.mp3`).then(r=>r.arrayBuffer()).then(b=>new Promise((ok,no)=>ctx.decodeAudioData(b,ok,no))).then(buf=>{this.sfx[n]=buf;}).catch(()=>{});
   }catch(e){this.ctx=null;}},
+  // one recording; pitch varies ±6% so repeats do not sound canned; gap = seconds before the same one may play again
+  play(name,vol=1,gap=0){if(!this.ctx||!this.on||!this.sfx[name])return false;const ctx=this.ctx,t=ctx.currentTime;if(gap&&t<(this.sfxT[name]??-1e9)+gap)return false;
+    if(ctx.state==='suspended')ctx.resume();const s=ctx.createBufferSource();s.buffer=this.sfx[name];s.playbackRate.value=0.94+Math.random()*0.12;
+    const g=ctx.createGain();g.gain.value=vol;s.connect(g).connect(ctx.destination);s.start(t);this.sfxT[name]=t;this.played.push(name);return true;},
   purr(level){if(!this.ctx)return;const t=this.ctx.currentTime,br=0.6+0.4*Math.sin(t*6.2832*0.9);this.purrG.gain.setTargetAtTime(this.on?level*0.5*br:0,t,0.08);},
   rub(len){if(!this.ctx||!this.on)return;const t=this.ctx.currentTime;this.rubG.gain.cancelScheduledValues(t);this.rubG.gain.setTargetAtTime(Math.min(0.12,len*3),t,0.02);this.rubG.gain.setTargetAtTime(0,t+0.06,0.08);},
   burst(f,dur,vol){if(!this.ctx||!this.on)return;const ctx=this.ctx,s=ctx.createBufferSource();s.buffer=this.noise;const b=ctx.createBiquadFilter();b.type='bandpass';b.frequency.value=f;b.Q.value=1.2;
@@ -503,7 +512,7 @@ function catBox(){
 }
 function backStats(){return C.regionStats(S.fur,0.03,0.25,0.3,0.9);}
 window.__lumao={get ready(){return started&&loaded&&viewDone&&!switching&&!!S;},view:VIEW,setPose,
-  hapticCalls:()=>haptics.calls.slice(),
+  hapticCalls:()=>haptics.calls.slice(),sounds:()=>({loaded:Object.keys(audio.sfx).length,played:audio.played.slice()}),
   probe(){const st=backStats();return{view:VIEW,state:S.cat.state,happy:S.cat.happy,look:S.cat.look,bites:S.cat.bites,content:+S.cat.content.toFixed(3),over:+S.cat.over.toFixed(3),annoy:+S.cat.annoy.toFixed(3),
     hairsCore:S.fur.hand.hairs,hairsShown:hand.shown,airborne:P.length,handLevel:C.handLevel({hairs:hand.shown}),backMess:+st.mess.toFixed(3),backShine:+st.shine.toFixed(3),hint:!hintEl.hidden,frozen,layers:LAYERS,
     pose:POSE,sleep:+S.cat.sleep.toFixed(3),head:M.cur,arch:+M.arch.toFixed(2),butt:+M.butt.toFixed(2),crouch:+M.crouch.toFixed(2),tailAng:+M.tailAng.toFixed(3),hop:+M.hop.toFixed(2),
