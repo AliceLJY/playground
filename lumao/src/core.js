@@ -13,10 +13,10 @@ const CFG={
   lift:1.6,looseCap:1,          // going against the grain loosens undercoat
   hairsPerUnit:0.65,            // hairs on the hand per unit of loose fur taken off the map (summed over texels): about 5 per stroke
   relaxMess:25,relaxDir:40,     // seconds: untouched fur slowly settles back
-  baseMess:0.22,
+  baseMess:0.14,
   trailN:8,trailTau:0.12,trailHz:3.2,minMove:0.004,
   // mood
-  contentGain:0.45,contentDecay:0.06,happyOn:0.8,happyOff:0.45,
+  contentGain:0.45,contentDecay:0.06,contentHold:1.2,happyOn:0.8,happyOff:0.45,
   annoyGain:1.2,annoyDecay:0.15,lookOn:0.5,lookOff:0.25,lookMin:1.2,
   overWith:0.08,overAgainst:0.35,overAcross:0.15,overRest:0.1,overRestWarn:0.2,restAfter:0.4,
   warnOn:0.7,biteAt:1.0,warnMin:1.5,biteDur:0.9,biteLock:0.6,lickDur:1.6,biteCool:4,
@@ -38,7 +38,7 @@ function createFur(opt){
     K[k]=inside;F[k*2]=f[0];F[k*2+1]=f[1];
     const a=(r()-0.5)*0.5;const c=Math.cos(a),s=Math.sin(a);
     D[k*2]=f[0]*c-f[1]*s;D[k*2+1]=f[0]*s+f[1]*c;
-    M[k]=inside?o.baseMess+r()*0.18:0;
+    M[k]=inside?o.baseMess+r()*0.1:0;
     L[k]=inside?0.45+r()*0.4:0;
   }
   const fur={o,nx,ny,n,cell,F,D,M,L,K,picked:0,lifted:0,looseStart:0,trail:[],t:0,lastMove:-1e9,dirty:null,
@@ -153,7 +153,8 @@ function setState(cat,s){if(cat.state===s)return;cat.state=s;cat.stateT=0;cat.ev
 function tick(cat,dt,fur){
   const o=cat.o;cat.t+=dt;cat.stateT+=dt;cat.biteCool=Math.max(0,cat.biteCool-dt);cat.locked=Math.max(0,cat.locked-dt);
   const resting=cat.t-cat.lastStroke>o.restAfter;
-  cat.content=Math.max(0,cat.content-o.contentDecay*dt);cat.annoy=Math.max(0,cat.annoy-o.annoyDecay*dt);
+  // contentment only fades once the hand has been away a moment: slow, long strokes are what cats like best
+  if(cat.t-cat.lastStroke>o.contentHold)cat.content=Math.max(0,cat.content-o.contentDecay*dt);cat.annoy=Math.max(0,cat.annoy-o.annoyDecay*dt);
   if(resting)cat.over=Math.max(0,cat.over-(cat.state==='warn'?o.overRestWarn:o.overRest)*dt);
   if(cat.state==='bite'){if(cat.stateT>=o.biteDur)setState(cat,'lick');return;}
   if(cat.state==='lick'){if(cat.stateT>=o.lickDur){if(fur)groom(fur,0.55);cat.over=0.2;cat.content=0.3;cat.annoy=0;cat.biteCool=o.biteCool;setState(cat,'idle');}return;}

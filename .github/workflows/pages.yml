@@ -183,6 +183,13 @@ jobs:
           for f in src/*.js tools/*.cjs; do node --check "$f"; done
           node --test tests/*.test.cjs
 
+      - name: Check Lumao (fur all over my hand)
+        working-directory: lumao
+        run: |
+          # 撸猫撸了一手毛：core.js、body.js、game.js 都是普通脚本
+          for f in src/*.js tools/*.cjs; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Sui Sui Ping An
         working-directory: suisui
         run: |
@@ -498,6 +505,13 @@ jobs:
           mkdir -p _site/tear-calendar
           cp tear-calendar/index.html _site/tear-calendar/index.html
           cp -R tear-calendar/src _site/tear-calendar/
+
+      - name: Assemble Lumao
+        run: |
+          # 撸猫撸了一手毛：原生 WebGL 加 Canvas 2D，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/lumao
+          cp lumao/index.html _site/lumao/index.html
+          cp -R lumao/src _site/lumao/
 
       - name: Assemble Sui Sui Ping An
         run: |

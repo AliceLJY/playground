@@ -13,7 +13,7 @@ test('spec 1: stroking with the grain combs the fur flat, along its grain, and m
   const a=C.regionStats(s.fur,...BACK);
   assert.ok(a.mess<0.15,`messiness ${a.mess.toFixed(3)} after 20 strokes, want < 0.15`);
   assert.ok(a.align>0.9,`alignment with the grain ${a.align.toFixed(3)}, want > 0.9`);
-  assert.ok(a.shine>before.shine*2&&a.shine>0.5,`shine ${before.shine.toFixed(3)} -> ${a.shine.toFixed(3)}`);
+  assert.ok(a.shine>before.shine+0.25&&a.shine>0.8,`shine ${before.shine.toFixed(3)} -> ${a.shine.toFixed(3)}`);
   assert.ok(s.log.some(r=>r.kind==='with')&&!s.log.some(r=>r.kind==='against'),'head-to-tail strokes read as with the grain');
 });
 
@@ -116,6 +116,14 @@ test('spec 7: eight strokes with the grain in six seconds make her happy (eyes s
   // and not before: two strokes alone do not do it
   const q=C.createSession();for(let i=0;i<2;i++){down(q,0.4);C.rest(q,0.35);}
   assert.notEqual(q.cat.state,'happy','two strokes were enough (the threshold is too low)');
+});
+
+test('spec 7c: slow, long strokes (2 s each) make her happy too, within ten strokes',()=>{
+  const s=C.createSession();let n=0;
+  for(;n<10&&s.cat.state!=='happy';n++){down(s,2.0);C.rest(s,0.4);}
+  assert.equal(s.cat.state,'happy',`not happy after ${n} slow strokes, content ${s.cat.content.toFixed(2)}`);
+  // and leaving her alone for a while lets it fade
+  C.rest(s,30);assert.notEqual(s.cat.state,'happy','still purring 30 s after the last stroke');
 });
 
 test('spec 7b: a bitten hand flinches: strokes during the lock write nothing',()=>{
