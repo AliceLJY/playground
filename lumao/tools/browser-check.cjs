@@ -9,7 +9,8 @@ const fs=require('fs');
 const out=process.argv[2]||'check-out',base=process.argv[3]||'http://127.0.0.1:8972/index.html';
 const page0=new URL(base),dir=page0.pathname.replace(/[^/]*$/,'');
 const rel=u=>{const x=new URL(u);return x.origin===page0.origin&&x.pathname.startsWith(dir)?x.pathname.slice(dir.length):null;};
-const ALLOWED=new Set(['','index.html','src/core.js','src/body.js','src/game.js']);
+const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js','assets/cat-base.webp','assets/cat-masks.png',
+  ...['purr','look','warn','bite','lick'].map(s=>`assets/cat-${s}.webp`)]);
 fs.mkdirSync(out,{recursive:true});
 // interaction runs at 1× pixels: on a software renderer (SwiftShader) 3× makes one stroke take ~8 s, far from a person's pace
 const SIZES={iphone1x:{viewport:{width:390,height:664},deviceScaleFactor:1,hasTouch:true,isMobile:true},android1x:{viewport:{width:412,height:700},deviceScaleFactor:1,hasTouch:true,isMobile:true},
@@ -36,10 +37,10 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
   }
   const probe=p=>p.evaluate(()=>window.__lumao.probe());
   const box=(p,sel)=>p.evaluate(s=>{const e=document.querySelector(s);if(!e||e.hidden)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};},sel);
-  // body units → css px, with the same spine bow as the page (BEND 0.07)
-  const toCss=(l,x,y)=>({X:l.ox+(x+0.07*Math.sin(Math.PI*Math.min(1,Math.max(0,(y-0.05)/0.9))))*l.Lc,Y:l.oy+y*l.Lc});
+  // fur units (x across the side back→belly, y along head→tail) → css px, through the page's own mapping
+  const toCss=(page,x,y)=>page.evaluate(([x,y])=>{const p=window.__lumao.coreToCss(x,y);return{X:p[0],Y:p[1]};},[x,y]);
   async function drag(page,l,x0,y0,x1,y1,steps,shot){
-    const a=toCss(l,x0,y0),b=toCss(l,x1,y1);await page.mouse.move(a.X,a.Y);await page.mouse.down();
+    const a=await toCss(page,x0,y0),b=await toCss(page,x1,y1);await page.mouse.move(a.X,a.Y);await page.mouse.down();
     for(let k=1;k<=steps;k++){const t=k/steps;await page.mouse.move(a.X+(b.X-a.X)*t,a.Y+(b.Y-a.Y)*t);await page.waitForTimeout(16);
       if(shot&&k===Math.round(steps*0.66))await page.screenshot({path:shot});}
     await page.mouse.up();await page.waitForTimeout(120);
@@ -64,13 +65,14 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
   {
     const {ctx,page,errors}=await open('','iphone1x');
     const l=(await probe(page)).layout,before=await probe(page);
-    await drag(page,l,0.28,0.33,0.28,0.7,18,`${out}/drag-mid.png`);
+    check('fresh page: she stands in profile, calm',before.head==='base'&&before.state==='idle',[before.head,before.state]);
+    await drag(page,l,0.14,0.12,0.14,0.9,18,`${out}/drag-mid.png`);
     const one=await probe(page);
     check('real drag: the hint goes away after the first stroke',!one.hint,one.hint);
-    for(let i=0;i<8;i++)await drag(page,l,0.25+(i%3)*0.03,0.33,0.25+(i%3)*0.03,0.7,18);
+    for(let i=0;i<8;i++)await drag(page,l,0.1+(i%3)*0.06,0.12,0.1+(i%3)*0.06,0.9,18);
     const after=await probe(page);
     check('real drag: the back is flatter and shinier',after.backMess<before.backMess-0.05&&after.backShine>before.backShine+0.1,{before:[before.backMess,before.backShine],after:[after.backMess,after.backShine]});
-    check('real drag: nine strokes with the grain make her happy',after.happy&&after.state==='happy',after.state);
+    check('real drag: nine strokes with the grain make her happy (eyes shut)',after.happy&&after.state==='happy'&&after.head==='purr',[after.state,after.head]);
     check('real drag: hair stuck to the hand',after.hairsCore>0,after.hairsCore);
     await page.waitForTimeout(1800);
     const landed=await probe(page);
@@ -87,10 +89,10 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
   {
     const {ctx,page,errors}=await open('','android1x');
     const l=(await probe(page)).layout;
-    for(let i=0;i<3;i++)await drag(page,l,0.24,0.7,0.24,0.34,16);
+    for(let i=0;i<2;i++)await drag(page,l,0.12,0.9,0.12,0.15,16);
     await page.waitForTimeout(400);
     const pr=await probe(page);
-    check('real drag against the grain: fur stands up and she looks back',pr.look&&pr.backMess>0.25,{look:pr.look,state:pr.state,mess:pr.backMess});
+    check('real drag against the grain: fur stands up and she looks back',pr.look&&pr.head==='look'&&pr.backMess>0.25,{look:pr.look,state:pr.state,mess:pr.backMess});
     await page.screenshot({path:`${out}/against-real.png`});
     await page.keyboard.press('Space');await page.waitForTimeout(700);
     const k=await probe(page);
@@ -99,7 +101,8 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     await ctx.close();
   }
   // fixed views report the state they were asked for
-  const want={hero:p=>p.state==='idle',smooth:p=>p.state==='happy'&&p.backShine>0.6,ruffle:p=>p.look&&p.backMess>0.3,warn:p=>p.state==='warn',bite:p=>p.state==='bite',
+  const want={hero:p=>p.state==='idle'&&p.head==='base',smooth:p=>p.state==='happy'&&p.head==='purr'&&p.backShine>0.6,rump:p=>p.butt>20&&p.arch>10,ruffle:p=>p.look&&p.head==='look'&&p.backMess>0.25,
+    warn:p=>p.state==='warn'&&p.head==='warn'&&p.crouch>5,bite:p=>p.state==='bite'&&p.head==='bite',
     furry:p=>p.handLevel>=3,clap:p=>p.hairsShown===0&&p.airborne>0};
   for(const v of Object.keys(want)){
     const {ctx,page,errors}=await open('?view='+v,'iphone');const pr=await probe(page);

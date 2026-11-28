@@ -508,10 +508,11 @@ jobs:
 
       - name: Assemble Lumao
         run: |
-          # 撸猫撸了一手毛：原生 WebGL 加 Canvas 2D，没有构建步骤，页面和源码原样发布
+          # 撸猫撸了一手毛：原生 WebGL 加 Canvas 2D，没有构建步骤，页面、源码和猫的图层（assets/）原样发布
           mkdir -p _site/lumao
           cp lumao/index.html _site/lumao/index.html
           cp -R lumao/src _site/lumao/
+          cp -R lumao/assets _site/lumao/
 
       - name: Assemble Sui Sui Ping An
         run: |

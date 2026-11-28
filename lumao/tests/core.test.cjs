@@ -2,8 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const C=require('../src/core.js');
 const SP=0.28;                                    // the spine, in body units (map is 0.56 wide)
-const DOWN=[[SP,0.3],[SP,0.65]],UP=[[SP,0.65],[SP,0.3]];   // head→tail is with the grain
-const BACK=[SP-0.05,0.36,SP+0.05,0.6];            // the stroked strip, away from the stroke ends
+const DOWN=[[SP,0.15],[SP,0.9]],UP=[[SP,0.9],[SP,0.15]];   // head→tail is with the grain; a full stroke down the back
+const BACK=[SP-0.05,0.3,SP+0.05,0.75];            // the stroked strip, away from the stroke ends
 const down=(s,dur)=>C.petLine(s,DOWN[0],DOWN[1],dur||0.35);
 const up=(s,dur)=>C.petLine(s,UP[0],UP[1],dur||0.35);
 

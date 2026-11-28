@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#e6d9c4">
 <link rel="icon" href="data:,">
 <title>撸猫撸了一手毛</title>
-<meta name="description" content="小橘趴在你腿上。顺毛撸它眯眼打呼噜，逆毛撸毛炸起来它回头看你，撸过头轻咬一口；每撸一下手上粘几根毛，最后拍拍手抖掉。">
+<meta name="description" content="一只橘猫侧身站在你面前。顺毛撸它眯眼打呼噜，逆毛撸毛炸起来它回头看你，撸过头轻咬一口；每撸一下手上粘几根毛，最后拍拍手抖掉。">
 <style>
 html,body{margin:0;height:100%;background:#e6d9c4;overflow:hidden;overscroll-behavior:none}
 canvas{position:fixed;left:0;top:0;display:block}
@@ -24,13 +24,13 @@ canvas{position:fixed;left:0;top:0;display:block}
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
 <canvas id="gl" aria-hidden="true"></canvas>
-<canvas id="fx" tabindex="0" aria-label="橘猫小橘趴在腿上：从头往尾巴撸是顺毛，往回撸是逆毛；左上角的手粘了毛，点一下拍掉。键盘按空格顺毛撸一下，上方向键逆毛撸一下，C 拍手"></canvas>
+<canvas id="fx" tabindex="0" aria-label="一只橘猫侧身站着：沿着背从头往尾巴撸是顺毛，往回撸是逆毛；左上角的手粘了毛，点一下拍掉。键盘按空格或右方向键顺毛撸一下，左方向键逆毛撸一下，C 拍手"></canvas>
 <button id="sound" class="ui btn" type="button" aria-pressed="true">声音 开</button>
 <div id="hint" class="ui" hidden></div>
 <div id="nogl" class="ui" hidden>这台设备的浏览器画不了猫毛（不支持 WebGL）。</div>
 <noscript><div class="ui" style="inset:0;display:grid;place-items:center">撸猫需要打开 JavaScript。</div></noscript>
 <script src="src/core.js"></script>
-<script src="src/body.js"></script>
+<script src="src/cat-data.js"></script>
 <script src="src/game.js"></script>
 </body>
 </html>

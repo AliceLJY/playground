@@ -15,10 +15,10 @@ const CFG={
   relaxMess:25,relaxDir:40,     // seconds: untouched fur slowly settles back
   baseMess:0.14,
   trailN:8,trailTau:0.12,trailHz:3.2,minMove:0.004,
-  // mood
-  contentGain:0.45,contentDecay:0.06,contentHold:1.2,happyOn:0.8,happyOff:0.45,
-  annoyGain:1.2,annoyDecay:0.15,lookOn:0.5,lookOff:0.25,lookMin:1.2,
-  overWith:0.08,overAgainst:0.35,overAcross:0.15,overRest:0.1,overRestWarn:0.2,restAfter:0.4,
+  // mood (per body length of stroke; a full stroke down the back is about 0.75 body lengths)
+  contentGain:0.25,contentDecay:0.06,contentHold:1.2,happyOn:0.8,happyOff:0.45,
+  annoyGain:0.6,annoyDecay:0.15,lookOn:0.5,lookOff:0.25,lookMin:1.2,
+  overWith:0.05,overAgainst:0.2,overAcross:0.1,overRest:0.1,overRestWarn:0.2,restAfter:0.4,
   warnOn:0.7,biteAt:1.0,warnMin:1.5,biteDur:0.9,biteLock:0.6,lickDur:1.6,biteCool:4,
 };
 
