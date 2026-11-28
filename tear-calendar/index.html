@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#d9cbb2">
+<link rel="icon" href="data:,">
+<title>手撕日历 · 广州老黄历</title>
+<meta name="description" content="墙上一本老式手撕日历，翻到今天。捏住页脚往下拽，沿齿孔撕下来，露出明天。">
+<style>
+html,body{margin:0;height:100%;background:#d9cbb2;overflow:hidden;overscroll-behavior:none}
+canvas{position:fixed;left:0;top:0;display:block}
+#gl{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:grab}
+#gl:active{cursor:grabbing}
+.ui{position:fixed;font:500 15px "PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",system-ui,sans-serif;color:#4a4036}
+#hint{left:50%;transform:translateX(-50%);bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px));padding:10px 18px;border-radius:999px;background:rgba(40,28,20,0.78);color:#fff6e6;white-space:nowrap;pointer-events:none}
+#count{left:max(14px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));padding:6px 2px;font-variant-numeric:tabular-nums}
+.btn{top:max(8px,env(safe-area-inset-top));min-height:40px;padding:0 14px;border:1px solid rgba(74,64,54,0.35);border-radius:999px;background:rgba(246,241,228,0.85);color:#4a4036;font:inherit;cursor:pointer;touch-action:manipulation}
+#sound{right:max(12px,env(safe-area-inset-right))}
+#today{right:calc(max(12px,env(safe-area-inset-right)) + 92px);background:#c3262b;color:#fff6e6;border-color:#c3262b}
+#toast{left:50%;top:42%;transform:translateX(-50%);padding:10px 18px;border-radius:10px;background:rgba(40,28,20,0.85);color:#fff6e6;pointer-events:none}
+#nogl{inset:0;display:grid;place-items:center;padding:24px;text-align:center}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<canvas id="gl" tabindex="0" aria-label="广州老黄历手撕日历：捏住页脚往下拽，把今天这页撕下来；键盘按空格或下方向键自动撕一页"></canvas>
+<div id="count" class="ui" hidden></div>
+<button id="today" class="ui btn" type="button" hidden>回到今天</button>
+<button id="sound" class="ui btn" type="button" aria-pressed="true">声音 开</button>
+<div id="hint" class="ui" hidden></div>
+<div id="toast" class="ui" hidden></div>
+<div id="nogl" class="ui" hidden>这台设备的浏览器画不了这本日历（不支持 WebGL）。</div>
+<noscript><div class="ui" style="inset:0;display:grid;place-items:center">这本日历需要打开 JavaScript 才能撕。</div></noscript>
+<script src="src/almanac.js"></script>
+<script src="src/core.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>

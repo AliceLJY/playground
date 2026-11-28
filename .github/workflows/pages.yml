@@ -176,6 +176,13 @@ jobs:
           node --check src/game.js
           node --test tests/*.test.cjs
 
+      - name: Check Tear Calendar
+        working-directory: tear-calendar
+        run: |
+          # 手撕日历：almanac.js 由 tools/gen-almanac.cjs 预先生成，core.js、game.js 都是普通脚本
+          for f in src/*.js tools/*.cjs; do node --check "$f"; done
+          node --test tests/*.test.cjs
+
       - name: Check Sui Sui Ping An
         working-directory: suisui
         run: |
@@ -484,6 +491,13 @@ jobs:
           mkdir -p _site/later-whack
           cp later-whack/index.html _site/later-whack/index.html
           cp -R later-whack/src _site/later-whack/
+
+      - name: Assemble Tear Calendar
+        run: |
+          # 手撕日历：原生 WebGL 加 Canvas 2D，没有构建步骤，页面和源码原样发布
+          mkdir -p _site/tear-calendar
+          cp tear-calendar/index.html _site/tear-calendar/index.html
+          cp -R tear-calendar/src _site/tear-calendar/
 
       - name: Assemble Sui Sui Ping An
         run: |
