@@ -20,6 +20,9 @@ const CFG={
   annoyGain:0.6,annoyDecay:0.15,lookOn:0.5,lookOff:0.25,lookMin:1.2,
   overWith:0.05,overAgainst:0.2,overAcross:0.1,overRest:0.1,overRestWarn:0.2,restAfter:0.4,
   warnOn:0.7,biteAt:1.0,warnMin:1.5,biteDur:0.9,biteLock:0.6,lickDur:1.6,biteCool:4,
+  overMul:1,contentMul:1,      // how touchy this spot is: the belly is a trap (overMul 3)
+  // sleep: 1 = fast asleep. Gentle strokes wake her slowly, one stroke against the grain wakes her at once
+  sleepWith:0.22,sleepAcross:0.6,sleepAgainst:2.6,drowsyAt:0.6,awakeAt:0.15,dozeAfter:12,dozeRate:0.07,sleepOver:0.3,
 };
 
 function rng(seed){let s=(seed>>>0)||1;return()=>{s^=s<<13;s>>>=0;s^=s>>>17;s^=s<<5;s>>>=0;return s/4294967296;};}
@@ -133,16 +136,22 @@ function clap(fur){const n=fur.hand.hairs;fur.hand.hairs=0;fur.events.push({type
 // ---------- the cat ----------
 function createCat(opt){
   const o=Object.assign({},CFG,opt||{});
-  return{o,content:0,annoy:0,over:0,state:'idle',stateT:0,warnT:0,lookT:0,lastStroke:-1e9,t:0,biteCool:0,locked:0,bites:0,events:[],look:false,happy:false};
+  const asleep=!!o.asleep;
+  return{o,content:0,annoy:0,over:0,state:asleep?'sleep':'idle',stateT:0,warnT:0,lookT:0,lastStroke:asleep?0:-1e9,t:0,biteCool:0,locked:0,bites:0,events:[],look:false,happy:false,
+    sleep:asleep?1:0,canDoze:asleep,wakes:0};
 }
 // Feed one stroke result into the mood.
 function feel(cat,res){
   if(!res||res.kind==='still'||res.kind==='off')return;
   const o=cat.o,L=res.len;cat.lastStroke=cat.t;
   if(cat.state==='bite'||cat.state==='lick')return;
-  if(res.kind==='with'){cat.content+=L*o.contentGain;cat.annoy=Math.max(0,cat.annoy-L*0.5);cat.over+=L*o.overWith;}
-  else if(res.kind==='against'){cat.annoy+=L*o.annoyGain;cat.content=Math.max(0,cat.content-L*0.8);cat.over+=L*o.overAgainst;}
-  else{cat.over+=L*o.overAcross;}
+  // a sleeping cat is woken by the hand: slowly when stroked with the grain, at once against it
+  const dozy=cat.sleep>=o.awakeAt,om=o.overMul*(dozy?o.sleepOver:1);
+  if(cat.sleep>0){const was=cat.sleep;cat.sleep=Math.max(0,cat.sleep-L*(res.kind==='with'?o.sleepWith:res.kind==='against'?o.sleepAgainst:o.sleepAcross));
+    if(was>=o.awakeAt&&cat.sleep<o.awakeAt){cat.wakes++;cat.events.push({type:'wake',t:cat.t,rude:res.kind==='against'});}}
+  if(res.kind==='with'){cat.content+=L*o.contentGain*o.contentMul;cat.annoy=Math.max(0,cat.annoy-L*0.5);cat.over+=L*o.overWith*om;}
+  else if(res.kind==='against'){cat.annoy+=L*o.annoyGain;cat.content=Math.max(0,cat.content-L*0.8);cat.over+=L*o.overAgainst*om;}
+  else{cat.over+=L*o.overAcross*om;}
   cat.content=Math.min(cat.content,1.6);cat.annoy=Math.min(cat.annoy,1.5);
   // a bite only ever comes out of a stroke, and only after the warning has been on long enough to be seen
   if(cat.state==='warn'&&cat.warnT>=o.warnMin&&cat.over>=o.biteAt&&cat.biteCool<=0)setState(cat,'bite');
@@ -158,6 +167,12 @@ function tick(cat,dt,fur){
   if(resting)cat.over=Math.max(0,cat.over-(cat.state==='warn'?o.overRestWarn:o.overRest)*dt);
   if(cat.state==='bite'){if(cat.stateT>=o.biteDur)setState(cat,'lick');return;}
   if(cat.state==='lick'){if(cat.stateT>=o.lickDur){if(fur)groom(fur,0.55);cat.over=0.2;cat.content=0.3;cat.annoy=0;cat.biteCool=o.biteCool;setState(cat,'idle');}return;}
+  // left alone long enough after waking, a cat that was asleep dozes off again
+  if(cat.canDoze&&cat.sleep<1&&cat.t-cat.lastStroke>o.dozeAfter&&cat.over<o.warnOn)cat.sleep=Math.min(1,cat.sleep+o.dozeRate*dt);
+  if(cat.sleep>=o.awakeAt){
+    if(cat.content>=o.happyOn)cat.happy=true;else if(cat.content<o.happyOff)cat.happy=false;
+    cat.look=false;setState(cat,cat.sleep>=o.drowsyAt?'sleep':'drowsy');return;
+  }
   // looking back: on when annoyed, held at least lookMin
   if(cat.annoy>=o.lookOn&&!cat.look){cat.look=true;cat.lookT=0;cat.events.push({type:'look',t:cat.t});}
   if(cat.look){cat.lookT+=dt;if(cat.annoy<o.lookOff&&cat.lookT>=o.lookMin)cat.look=false;}

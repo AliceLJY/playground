@@ -9,8 +9,9 @@ const fs=require('fs');
 const out=process.argv[2]||'check-out',base=process.argv[3]||'http://127.0.0.1:8972/index.html';
 const page0=new URL(base),dir=page0.pathname.replace(/[^/]*$/,'');
 const rel=u=>{const x=new URL(u);return x.origin===page0.origin&&x.pathname.startsWith(dir)?x.pathname.slice(dir.length):null;};
-const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js','assets/cat-base.webp','assets/cat-masks.png',
-  ...['purr','look','warn','bite','lick'].map(s=>`assets/cat-${s}.webp`)]);
+const STATES={stand:['purr','look','warn','bite','lick'],belly:['purr','look','warn','bite','lick'],sleep:['drowsy','awake','purr','look','warn','bite','lick']};
+const ALLOWED=new Set(['','index.html','src/core.js','src/cat-data.js','src/game.js',
+  ...Object.entries(STATES).flatMap(([p,ss])=>[`assets/${p}/cat-base.webp`,`assets/${p}/cat-masks.png`,...ss.map(s=>`assets/${p}/cat-${s}.webp`)])]);
 fs.mkdirSync(out,{recursive:true});
 // interaction runs at 1× pixels: on a software renderer (SwiftShader) 3× makes one stroke take ~8 s, far from a person's pace
 const SIZES={iphone1x:{viewport:{width:390,height:664},deviceScaleFactor:1,hasTouch:true,isMobile:true},android1x:{viewport:{width:412,height:700},deviceScaleFactor:1,hasTouch:true,isMobile:true},
@@ -31,7 +32,7 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     // Chromium refuses navigator.vibrate until the first tap; that console line is expected, everything else counts
     page.on('console',m=>{if(m.type()==='error'&&!/vibrate/.test(m.text()))errors.push(m.text());});
     page.on('request',r=>{const u=r.url();if(u.startsWith('data:'))return;const p=rel(u);if(p==null||!ALLOWED.has(p))stray.push(u);});
-    await page.goto(url(query));
+    await page.goto(url(query),{waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>window.__lumao&&window.__lumao.ready,null,{polling:100,timeout:30000});
     return{ctx,page,errors,stray};
   }
@@ -47,17 +48,21 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
   }
 
   // layout on three viewports: the whole cat inside the visible area; hand + label, hint and sound button clear of her
-  for(const size of ['iphone','android','desktop']){
-    const {ctx,page,errors,stray}=await open('?view=hero',size);
+  for(const pose of ['stand','belly','sleep'])for(const size of ['iphone','android','desktop']){
+    const {ctx,page,errors,stray}=await open(`?pose=${pose}&view=hero`,size);
     const pr=await probe(page),l=pr.layout,cat=l.cat;
-    check(`${size}: whole cat inside the viewport`,inside(cat,l.VW,l.VH,4),cat);
-    check(`${size}: hand and its label clear of the cat`,!overlap(l.hand,cat)&&!overlap(l.label,cat)&&inside(l.label,l.VW,l.VH,2),{hand:l.hand,label:l.label,cat});
-    const hint=await box(page,'#hint'),snd=await box(page,'#sound');
-    check(`${size}: hint shown on a fresh page and below the cat`,pr.hint&&hint&&hint.y>=cat.y+cat.h-6,{hint,catBottom:cat.y+cat.h});
-    check(`${size}: sound button clear of the cat`,!overlap(snd,cat),{snd,cat});
-    report[size]={renderer:await page.evaluate(()=>window.__lumao.renderer()),cat,hand:l.hand,Lc:l.Lc};
-    await page.screenshot({path:`${out}/hero-${size}.png`});
-    check(`${size}: no page errors`,!errors.length,errors);check(`${size}: no outside requests`,!stray.length,stray);
+    const tag=`${pose}/${size}`;
+    check(`${tag}: reports the pose it was asked for`,pr.pose===pose,pr.pose);
+    check(`${tag}: whole cat inside the viewport`,inside(cat,l.VW,l.VH,4),cat);
+    check(`${tag}: hand and its label clear of the cat`,!overlap(l.hand,cat)&&!overlap(l.label,cat)&&inside(l.label,l.VW,l.VH,2),{hand:l.hand,label:l.label,cat});
+    const hint=await box(page,'#hint'),snd=await box(page,'#sound'),bar=await box(page,'#poses');
+    check(`${tag}: hint shown on a fresh page and below the cat`,pr.hint&&hint&&hint.y>=cat.y+cat.h-6,{hint,catBottom:cat.y+cat.h});
+    check(`${tag}: sound button clear of the cat`,!overlap(snd,cat),{snd,cat});
+    check(`${tag}: pose buttons inside the viewport, clear of the cat and the hint`,bar&&inside(bar,l.VW,l.VH,2)&&!overlap(bar,cat)&&!overlap(bar,hint),{bar,hint});
+    check(`${tag}: she starts as she should (${pose==='sleep'?'asleep':'awake, calm'})`,pose==='sleep'?pr.state==='sleep'&&pr.head==='base':pr.state==='idle'&&pr.head==='base',[pr.state,pr.head]);
+    report[tag]={renderer:await page.evaluate(()=>window.__lumao.renderer()),cat,hand:l.hand,Lc:l.Lc};
+    await page.screenshot({path:`${out}/hero-${pose}-${size}.png`});
+    check(`${tag}: no page errors`,!errors.length,errors);check(`${tag}: no outside requests`,!stray.length,stray);
     await ctx.close();
   }
 
@@ -100,15 +105,54 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     check('against-the-grain page: no page errors',!errors.length,errors);
     await ctx.close();
   }
+  // the pose buttons switch her; asleep, gentle real strokes wake her through half-awake; one stroke against the grain wakes her at once
+  {
+    const {ctx,page,errors}=await open('','iphone1x');
+    await page.click('#poses button[data-pose="sleep"]');
+    await page.waitForFunction(()=>window.__lumao.ready&&window.__lumao.probe().pose==='sleep',null,{polling:100,timeout:30000});
+    let pr=await probe(page);const l=pr.layout;
+    check('pose button: 睡着 switches to the sleeping cat, asleep',pr.pose==='sleep'&&pr.state==='sleep'&&pr.head==='base'&&pr.hint,[pr.pose,pr.state,pr.head]);
+    const seen=new Set();
+    for(let i=0;i<2;i++){await drag(page,l,0.12+i*0.06,0.12,0.12+i*0.06,0.9,18);seen.add((await probe(page)).state);}
+    pr=await probe(page);
+    check('asleep: two gentle strokes and she is still asleep',pr.state==='sleep',[pr.state,pr.sleep]);
+    for(let i=0;i<10&&['sleep','drowsy'].includes((await probe(page)).state);i++){await drag(page,l,0.1+(i%3)*0.06,0.12,0.1+(i%3)*0.06,0.9,18);const q=await probe(page);seen.add(q.state);if(q.state==='drowsy')await page.screenshot({path:`${out}/sleep-drowsy-real.png`});}
+    pr=await probe(page);
+    check('asleep: more gentle strokes wake her, through half-awake',seen.has('drowsy')&&!['sleep','drowsy'].includes(pr.state)&&pr.sleep<0.15,{seen:[...seen],state:pr.state,sleep:pr.sleep});
+    await page.screenshot({path:`${out}/sleep-awake-real.png`});
+    check('sleep page: no page errors',!errors.length,errors);
+    await ctx.close();
+  }
+  {
+    const {ctx,page,errors}=await open('?pose=sleep','android1x');const l=(await probe(page)).layout;
+    await drag(page,l,0.12,0.9,0.12,0.15,16);await page.waitForTimeout(300);
+    const pr=await probe(page);
+    check('asleep: one stroke against the grain wakes her at once',pr.sleep<0.15&&!['sleep','drowsy'].includes(pr.state),[pr.state,pr.sleep]);
+    check('rude-wake page: no page errors',!errors.length,errors);await ctx.close();
+  }
+  // on her back the belly is a trap: real non-stop strokes get her purring, then the warning, then the grab
+  {
+    const {ctx,page,errors}=await open('?pose=belly','iphone1x');const l=(await probe(page)).layout;const seen=new Set();let warnShot=false;
+    for(let i=0;i<30&&(await probe(page)).bites===0;i++){await drag(page,l,0.1+(i%3)*0.06,0.12,0.1+(i%3)*0.06,0.9,12);const q=await probe(page);seen.add(q.state);if(q.happy)seen.add('purred');
+      if(q.state==='warn'&&!warnShot){warnShot=true;await page.screenshot({path:`${out}/belly-warn-real.png`});}}
+    const pr=await probe(page);
+    check('belly: purrs first, warns, then grabs',seen.has('purred')&&seen.has('warn')&&pr.bites>=1,{seen:[...seen],bites:pr.bites});
+    await page.screenshot({path:`${out}/belly-after-real.png`});
+    check('belly page: no page errors',!errors.length,errors);await ctx.close();
+  }
   // fixed views report the state they were asked for
   const want={hero:p=>p.state==='idle'&&p.head==='base',smooth:p=>p.state==='happy'&&p.head==='purr'&&p.backShine>0.6,rump:p=>p.butt>20&&p.arch>10,ruffle:p=>p.look&&p.head==='look'&&p.backMess>0.25,
     warn:p=>p.state==='warn'&&p.head==='warn'&&p.crouch>5,bite:p=>p.state==='bite'&&p.head==='bite',
     furry:p=>p.handLevel>=3,clap:p=>p.hairsShown===0&&p.airborne>0};
-  for(const v of Object.keys(want)){
-    const {ctx,page,errors}=await open('?view='+v,'iphone');const pr=await probe(page);
-    check(`view ${v}: reached`,pr.view===v&&want[v](pr),{state:pr.state,look:pr.look,mess:pr.backMess,shine:pr.backShine,hand:pr.handLevel,shown:pr.hairsShown,air:pr.airborne});
-    await page.waitForTimeout(200);await page.screenshot({path:`${out}/view-${v}.png`});
-    check(`view ${v}: no page errors`,!errors.length,errors);await ctx.close();
+  want['sleep:hero']=p=>p.state==='sleep'&&p.head==='base';want['sleep:drowsy']=p=>p.state==='drowsy'&&p.head==='drowsy';
+  want['sleep:awake']=p=>!['sleep','drowsy'].includes(p.state)&&p.sleep<0.15;want['sleep:ruffle']=p=>p.look&&p.head==='look';
+  want['belly:warn']=p=>p.state==='warn'&&p.head==='warn';want['belly:bite']=p=>p.state==='bite'&&p.head==='bite';
+  for(const key of Object.keys(want)){
+    const [pose,v]=key.includes(':')?key.split(':'):['stand',key];
+    const {ctx,page,errors}=await open(`?pose=${pose}&view=${v}`,'iphone');const pr=await probe(page);
+    check(`view ${key}: reached`,pr.view===v&&pr.pose===pose&&want[key](pr),{state:pr.state,look:pr.look,mess:pr.backMess,shine:pr.backShine,hand:pr.handLevel,shown:pr.hairsShown,air:pr.airborne});
+    await page.waitForTimeout(200);await page.screenshot({path:`${out}/view-${pose}-${v}.png`});
+    check(`view ${key}: no page errors`,!errors.length,errors);await ctx.close();
   }
   await browser.close();
   report.failed=failed;fs.writeFileSync(`${out}/report.json`,JSON.stringify(report,null,2));

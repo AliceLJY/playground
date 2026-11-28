@@ -144,3 +144,42 @@ test('spec 8: one stroke step costs under 0.5 ms on the full map',()=>{
   const t1=process.hrtime.bigint();for(let i=0;i<120;i++)C.relax(f,1/60);
   const rm=Number(process.hrtime.bigint()-t1)/1e6/120;assert.ok(rm<0.5,`${rm.toFixed(3)} ms per relax`);
 });
+
+test('spec 12: asleep, gentle strokes purr her awake slowly: still asleep after two, awake within eight, never warns while dozy',()=>{
+  const s=C.createSession({asleep:true});const states=[];
+  for(let i=0;i<8&&s.cat.sleep>=s.cat.o.awakeAt;i++){down(s);C.rest(s,0.3);states.push(s.cat.state);
+    assert.ok(!['warn','bite'].includes(s.cat.state),`state ${s.cat.state} while still dozy`);}
+  assert.equal(states[0],'sleep','one stroke already woke her');assert.equal(states[1],'sleep','two strokes already woke her');
+  assert.ok(states.includes('drowsy'),'she never went through half-awake: '+states.join(','));
+  assert.ok(s.cat.sleep<s.cat.o.awakeAt,`still dozy after ${states.length} strokes (sleep ${s.cat.sleep.toFixed(2)})`);
+  const w=s.cat.events.find(e=>e.type==='wake');assert.ok(w&&!w.rude,'woken gently');
+  C.rest(s,0.2);assert.ok(!['sleep','drowsy'].includes(s.cat.state),'awake cat still shows a sleeping state');
+});
+
+test('spec 12b: one stroke against the grain wakes her at once, grumpy; a second makes her look',()=>{
+  const s=C.createSession({asleep:true});up(s);C.rest(s,0.1);
+  const w=s.cat.events.find(e=>e.type==='wake');assert.ok(w&&w.rude,'one stroke against the grain did not wake her');
+  up(s);C.rest(s,0.4);assert.ok(s.cat.look,'woken rudely twice and not even a look');
+});
+
+test('spec 12c: left alone after waking she dozes off again; a cat that was never asleep does not',()=>{
+  const s=C.createSession({asleep:true});for(let i=0;i<10&&s.cat.sleep>=s.cat.o.awakeAt;i++){down(s);C.rest(s,0.3);}
+  assert.ok(s.cat.sleep<s.cat.o.awakeAt,'could not wake her (empty test)');
+  C.rest(s,10);assert.ok(!['sleep','drowsy'].includes(s.cat.state),'dozed off within 10 s');
+  C.rest(s,25);assert.equal(s.cat.state,'sleep','not asleep again 35 s after the last stroke');
+  const q=C.createSession();for(let i=0;i<3;i++){down(q);C.rest(q,0.3);}C.rest(q,40);assert.notEqual(q.cat.state,'sleep','a standing cat fell asleep');
+});
+
+test('spec 13: the belly is a trap: it bites sooner than the back, still after the full warning',()=>{
+  const time=opt=>{const s=C.createSession(opt);let biteAt=null,warn=null;
+    for(let i=0;i<300&&biteAt==null;i++){down(s,0.3);s.step(0.05);for(const e of s.cat.events){if(e.type==='warn'&&warn==null)warn=e.t;if(e.type==='bite')biteAt=e.t;}}
+    return{biteAt,warn:s.cat.events.filter(e=>e.type==='warn'&&e.t<=biteAt).pop()};};
+  const back=time(),belly=time({overMul:3});
+  assert.ok(back.biteAt&&belly.biteAt,'no bite in one of the runs');
+  assert.ok(belly.biteAt<back.biteAt*0.6,`belly bite at ${belly.biteAt.toFixed(1)} s vs back ${back.biteAt.toFixed(1)} s`);
+  assert.ok(belly.biteAt-belly.warn.t>=1.5,`belly warning only ${(belly.biteAt-belly.warn.t).toFixed(2)} s`);
+  // she purrs first: the belly gets happy before it gets dangerous
+  const s=C.createSession({overMul:3});let happyAt=null,warnAt=null;
+  for(let i=0;i<40&&warnAt==null;i++){down(s,0.4);C.rest(s,0.3);if(happyAt==null&&s.cat.happy)happyAt=s.t;if(s.cat.state==='warn')warnAt=s.t;}
+  assert.ok(happyAt!=null&&warnAt!=null&&happyAt<warnAt,`belly: happy at ${happyAt}, warning at ${warnAt}`);
+});

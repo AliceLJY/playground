@@ -4,13 +4,17 @@
 // untouched fur is the picture itself. The fur state lives in core.js. Numbers are in SPEC.md.
 (function(){
 'use strict';
-const C=window.LumaoCore,K=window.LumaoCat;
+const C=window.LumaoCore,POSES=window.LumaoCat.poses;
 const qs=new URLSearchParams(location.search);
+// three poses: standing side-on, on her back (belly up, a trap), asleep on her side (stroke her awake)
+const POSE_OPT={stand:{},belly:{overMul:3},sleep:{asleep:true}};   // on her back she purrs first, then the trap shuts
+const POSE_NAME={stand:'站着',belly:'躺着',sleep:'睡着'};
+let POSE=POSES[qs.get('pose')]?qs.get('pose'):'stand',K=POSES[POSE];
 const VIEW=qs.get('view')||'',LAYERS=qs.get('q')==='low'?6:10;
 const $=id=>document.getElementById(id);
 const bg=$('bg'),gl_c=$('gl'),fx=$('fx'),hintEl=$('hint'),soundBtn=$('sound');
 const bx=bg.getContext('2d'),fc=fx.getContext('2d'),hc=document.createElement('canvas').getContext('2d');   // hc: hit tests in hand units
-const AT=K.aspect,T0=K.torso.p0,T1=K.torso.p1,ACROSS=0.56;
+let AT=K.aspect,T0=K.torso.p0,T1=K.torso.p1;const ACROSS=0.56;
 let DPR=Math.min(2,window.devicePixelRatio||1),VW=0,VH=0,cw=0,ch=0,ox=0,oy=0;   // css: the cat picture's rect
 let seed=Number(qs.get('seed'))||7;
 let S,frozen=false,viewDone=!VIEW,started=false,stroked=false,loaded=false;
@@ -21,6 +25,7 @@ const c2t=(cx,cy)=>[T0[0]+cy*(T1[0]-T0[0]),T0[1]+cx/ACROSS*(T1[1]-T0[1])];
 // fur grain on a cat's side: backward, and a little downward lower on the flank
 function flow(x){const f=0.32*(x/ACROSS),m=Math.hypot(f,1);return[f/m,1/m];}
 const maskAt=(x,y)=>{const i=Math.floor(x/ACROSS*56),j=Math.floor(y*100);return(i<0||j<0||i>=56||j>=100)?0:+(K.mask[j][i]==='1');};
+function usePose(p){POSE=p;K=POSES[p];AT=K.aspect;T0=K.torso.p0;T1=K.torso.p1;}
 
 // ---------- WebGL ----------
 const gl=gl_c.getContext('webgl',{premultipliedAlpha:false,alpha:true,antialias:false});
@@ -39,23 +44,26 @@ uniform float u_vmix,u_aBase,u_bBase,u_time,u_layers;
 uniform vec4 u_torso;uniform vec2 u_tailPivot,u_neckPivot;uniform float u_tailLen;
 uniform float u_tailAng,u_tailTip,u_headRot;uniform vec2 u_headOff;
 uniform float u_arch,u_butt,u_crouch,u_hop,u_breath,u_twitch,u_sway;uniform vec3 u_press;
-uniform vec4 u_trail[8];uniform vec3 u_finger;
-const float AT=${AT.toFixed(5)},ACROSS=${ACROSS.toFixed(3)},DENS=150.,FL=0.03,R=0.08,PY=1./1024.;
+uniform vec4 u_trail[8];uniform vec3 u_finger;uniform float u_at,u_py,u_floor,u_bellyY;
+#define AT u_at
+#define PY u_py
+const float ACROSS=${ACROSS.toFixed(3)},DENS=150.,FL=0.03,R=0.08;
 float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
 // how the body is pushed around, in picture units (positive y = down). Paws stay planted: the weight fades out below the belly.
 vec2 disp(vec2 t){
-  float wv=smoothstep(0.975,0.70,t.y);
-  float along=clamp((t.x-0.18)/0.66,0.,1.);
+  float tw=u_torso.z-u_torso.x;
+  float wv=smoothstep(u_floor,u_bellyY,t.y);
+  float along=clamp((t.x-u_torso.x+0.03)/(tw+0.06),0.,1.);
   float y=0.;
   y-=u_arch*wv*sin(3.14159*along);
-  y-=u_butt*wv*smoothstep(0.55,0.86,t.x);
+  y-=u_butt*wv*smoothstep(u_torso.x+0.56*tw,u_torso.z+0.035,t.x);
   y+=u_crouch*wv;
-  y-=u_breath*wv*smoothstep(0.75,0.5,t.y)*sin(3.14159*along);
+  y-=u_breath*wv*smoothstep(u_bellyY+0.05,u_bellyY-0.2,t.y)*sin(3.14159*along);
   vec2 dp=(t-u_press.xy)*vec2(AT,1.);
   y+=u_press.z*wv*exp(-dot(dp,dp)/0.0036);
-  y+=u_twitch*sin(t.x*95.-u_time*24.)*smoothstep(0.52,0.4,t.y)*smoothstep(0.25,0.35,t.x)*smoothstep(0.84,0.74,t.x);
+  y+=u_twitch*sin(t.x*95.-u_time*24.)*smoothstep(u_torso.y+0.125,u_torso.y+0.005,t.y)*smoothstep(u_torso.x+0.05,u_torso.x+0.15,t.x)*smoothstep(u_torso.z+0.015,u_torso.z-0.085,t.x);
   return vec2(u_sway*wv,y*PY-u_hop*PY);
 }
 vec2 rot(vec2 v,float a){float c=cos(a),s=sin(a);return vec2(v.x*c-v.y*s,v.x*s+v.y*c);}
@@ -133,7 +141,7 @@ const prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));gl.a
 if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));
 gl.useProgram(prog);
 const U={};for(const n of ['u_res','u_org','u_sz','u_base','u_va','u_vb','u_masks','u_map','u_kmask','u_vmix','u_aBase','u_bBase','u_time','u_layers','u_torso','u_tailPivot','u_neckPivot','u_tailLen',
-  'u_tailAng','u_tailTip','u_headRot','u_headOff','u_arch','u_butt','u_crouch','u_hop','u_breath','u_twitch','u_sway','u_press','u_trail','u_finger','u_rect'])U[n]=gl.getUniformLocation(prog,n);
+  'u_tailAng','u_tailTip','u_headRot','u_headOff','u_arch','u_butt','u_crouch','u_hop','u_breath','u_twitch','u_sway','u_press','u_trail','u_finger','u_rect','u_at','u_py','u_floor','u_bellyY'])U[n]=gl.getUniformLocation(prog,n);
 const qb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,qb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,1,1]),gl.STATIC_DRAW);
 const al=gl.getAttribLocation(prog,'a');gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
 gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
@@ -142,15 +150,17 @@ function texFrom(src,unit,w,h,fmt){gl.activeTexture(gl.TEXTURE0+unit);const t=gl
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   if(w)gl.texImage2D(gl.TEXTURE_2D,0,fmt||gl.RGBA,w,h,0,fmt||gl.RGBA,gl.UNSIGNED_BYTE,src);else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src);return t;}
 // texture units: 0 base, 1 head A, 2 head B, 3 masks (r head region, g tail, b head without the chest), 4 fur map, 5 fur-map mask
-const kmask=new Uint8Array(56*100);for(let j=0;j<100;j++)for(let i=0;i<56;i++)kmask[j*56+i]=K.mask[j][i]==='1'?255:0;
-gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);texFrom(kmask,5,56,100,gl.LUMINANCE);gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);
-const TEX={};let maskPix=null;
+function kmaskTex(k){const a=new Uint8Array(56*100);for(let j=0;j<100;j++)for(let i=0;i<56;i++)a[j*56+i]=k.mask[j][i]==='1'?255:0;
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);const t=texFrom(a,5,56,100,gl.LUMINANCE);gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);return t;}
+const TEX={},PT={};let maskPix=null;   // PT[pose]: that pose's textures and CPU masks, loaded on first use
 function loadImg(src){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('missing '+src));i.src=src;});}
 
 // ---------- the cat's body language (presentation on top of core's mood) ----------
-const M={arch:0,butt:0,crouch:0,hop:0,hopV:0,breath:0,twitch:0,sway:0,swayV:0,press:[0,0,0],tailAng:0,tailTip:0,headRot:0,headOff:[0,0],
+const M={dream:4,dreamT:0,arch:0,butt:0,crouch:0,hop:0,hopV:0,breath:0,twitch:0,sway:0,swayV:0,press:[0,0,0],tailAng:0,tailTip:0,headRot:0,headOff:[0,0],
   cur:'base',prev:'base',fade:1,fadeDur:0.15,blink:0,blinkNext:2.5,startle:0,purr:0};
-const VAR={idle:'base',happy:'purr',look:'look',warn:'warn',bite:'bite',lick:'lick'};
+const VARS={stand:{idle:'base',happy:'purr',look:'look',warn:'warn',bite:'bite',lick:'lick',blink:'purr'},
+  belly:{idle:'base',happy:'purr',look:'look',warn:'warn',bite:'bite',lick:'lick',blink:'purr'},
+  sleep:{sleep:'base',drowsy:'drowsy',idle:'awake',happy:'purr',look:'look',warn:'warn',bite:'bite',lick:'lick',blink:'drowsy'}};
 const lerp=(a,b,k)=>a+(b-a)*k;
 let finger=null,lastFinger={x:0.5,y:0.5};
 const P=[];
@@ -161,8 +171,8 @@ const bubble={text:'',t:0,lookShown:false};
 function layout(){
   VW=window.innerWidth;VH=window.innerHeight;DPR=Math.min(2,window.devicePixelRatio||1);
   for(const c of [bg,gl_c,fx]){c.width=Math.round(VW*DPR);c.height=Math.round(VH*DPR);c.style.width=VW+'px';c.style.height=VH+'px';}
-  cw=Math.min(VW*0.98,(VH-200)*AT,760);ch=cw/AT;
-  ox=(VW-cw)/2;oy=Math.min(Math.max(70,(VH-ch)*0.56),VH-96-K.floor*ch);
+  cw=Math.min(VW*0.98,(VH-250)*AT,760);ch=cw/AT;
+  ox=(VW-cw)/2;oy=Math.min(Math.max(96,(VH-ch)*0.5),VH-150-K.floor*ch);
   hand.w=Math.min(64,VW*0.17);hand.h=hand.w*1.15;hand.x=14;hand.y=12;hand.path=handPath(hand.w,hand.h);
   paintBg();
 }
@@ -175,6 +185,7 @@ function handPath(w,h){
 }
 let room=null;
 function paintBg(){
+  if(POSE!=='stand')return paintBed();
   const w=bg.width,h=bg.height,fy=Math.round((oy+K.floor*ch)*DPR);bx.setTransform(1,0,0,1,0,0);
   // warm wall, window light from the top left
   const g=bx.createLinearGradient(0,0,0,fy);g.addColorStop(0,'#f1e6d4');g.addColorStop(1,'#e3d2b8');bx.fillStyle=g;bx.fillRect(0,0,w,fy);
@@ -187,13 +198,31 @@ function paintBg(){
   for(let i=-8;i<=8;i++){bx.beginPath();bx.moveTo(w/2+i*w*0.09,fy);bx.lineTo(w/2+i*w*0.3,h);bx.stroke();}
   room=bx.getImageData(0,0,w,h);
 }
+// lying down: a cream fleece blanket on the bed fills most of the screen, a strip of warm wall above it
+function paintBed(){
+  const w=bg.width,h=bg.height,ey=Math.round(Math.max(40,oy-ch*0.35)*DPR);bx.setTransform(1,0,0,1,0,0);
+  const g=bx.createLinearGradient(0,0,0,ey);g.addColorStop(0,'#f1e6d4');g.addColorStop(1,'#e6d6bd');bx.fillStyle=g;bx.fillRect(0,0,w,ey);
+  const f=bx.createLinearGradient(0,ey,0,h);f.addColorStop(0,'#f2e7d3');f.addColorStop(1,'#dccbb0');bx.fillStyle=f;bx.fillRect(0,ey,w,h-ey);
+  // fleece: lots of tiny soft curls
+  let r=12345;const rnd=()=>{r=(r*1103515245+12345)&0x7fffffff;return r/0x7fffffff;};
+  bx.filter=`blur(${1.2*DPR}px)`;
+  for(let i=0;i<w*(h-ey)/(140*DPR*DPR);i++){const x=rnd()*w,y=ey+rnd()*(h-ey),s=(2+rnd()*3)*DPR;bx.fillStyle=rnd()<0.5?'rgba(255,252,244,0.22)':'rgba(150,120,85,0.05)';bx.beginPath();bx.arc(x,y,s,0,Math.PI*2);bx.fill();}
+  bx.filter='none';
+  // a few soft folds
+  for(let k=0;k<5;k++){const y=ey+(0.15+k*0.19)*(h-ey),sg=bx.createLinearGradient(0,y-30*DPR,0,y+30*DPR);sg.addColorStop(0,'rgba(120,90,60,0)');sg.addColorStop(0.5,'rgba(120,90,60,0.08)');sg.addColorStop(1,'rgba(255,250,240,0.10)');
+    bx.fillStyle=sg;bx.beginPath();bx.moveTo(0,y-30*DPR);bx.bezierCurveTo(w*0.3,y-60*DPR,w*0.7,y+40*DPR,w,y-10*DPR);bx.lineTo(w,y+50*DPR);bx.bezierCurveTo(w*0.7,y+90*DPR,w*0.3,y-10*DPR,0,y+30*DPR);bx.fill();}
+  bx.fillStyle='rgba(150,110,70,0.25)';bx.fillRect(0,ey,w,2*DPR);
+  room=bx.getImageData(0,0,w,h);
+}
 
 // ---------- session ----------
 function newSession(){
-  S=C.createSession({flow,mask:maskAt,seed});
+  if(!PT[POSE])return;
+  S=C.createSession(Object.assign({flow,mask:maskAt,seed},POSE_OPT[POSE]));
   TEX.mapBuf=C.packRGBA(S.fur);if(TEX.map)gl.deleteTexture(TEX.map);TEX.map=texFrom(TEX.mapBuf,4,S.fur.nx,S.fur.ny);
-  P.length=0;hand.shown=0;hand.stuck.length=0;hand.clapT=-1;stroked=false;hintEl.hidden=false;hintEl.textContent='从头往尾巴，顺着毛撸撸它';
-  M.cur=M.prev='base';M.fade=1;
+  stroked=false;hintEl.hidden=false;hintEl.textContent=POSE==='sleep'?'它睡着了，轻轻顺着毛撸':POSE==='belly'?'摸摸肚皮……小心':'从头往尾巴，顺着毛撸撸它';
+  M.cur=M.prev=VARS[POSE][S.cat.state]||'base';M.fade=1;Object.assign(M,{arch:0,butt:0,crouch:0,hop:0,hopV:0,twitch:0,headRot:0,headOff:[0,0],tailAng:0,tailTip:0});lastState=S.cat.state;wakeSeen=0;
+  if(PT[POSE])maskPix=PT[POSE].pix;
 }
 // screen css ↔ picture units, including the body's current push, so the fur under the finger is the fur you see
 const sm=(a,b,x)=>{const k=Math.max(0,Math.min(1,(x-a)/(b-a)));return k*k*(3-2*k);};
@@ -248,11 +277,11 @@ function clap(){
   for(const p of P)if(p.phase!=='off'){p.phase='off';p.t=0;p.vy=-60;}
   hand.stuck.length=0;hand.shown=0;hand.clapT=0;
   // the clap startles her: a little hop and a look at you
-  if(S.cat.state!=='bite'){M.hopV+=95;M.startle=0.8;}
+  if(S.cat.state!=='bite'){M.hopV+=POSE==='stand'?95:45;M.startle=0.8;}
 }
 
 // ---------- mood → body language ----------
-let lastState='idle',purrPulse=0;
+let lastState='idle',purrPulse=0,wakeSeen=0;
 function setVariant(name,dur){if(name===M.cur)return;M.prev=M.fade<0.5?M.prev:M.cur;M.cur=name;M.fade=0;M.fadeDur=dur||0.15;}
 function animate(dt,t){
   const cat=S.cat,st=cat.state,k=1-Math.exp(-dt*7),slow=1-Math.exp(-dt*3),fast=1-Math.exp(-dt*20);
@@ -260,28 +289,33 @@ function animate(dt,t){
     if(st==='bite'){bubble.text='啊呜！';bubble.t=1.1;hand.flinch=0.5;audio.bite();vibe(60);}
     if(st==='lick'){bubble.text='舔舔';bubble.t=1.4;}
     if(st==='warn'){bubble.text='……';bubble.t=1.6;}
+    if(st==='drowsy'&&lastState==='sleep'){bubble.text='嗯……？';bubble.t=1.4;}
     lastState=st;
   }
+  for(;wakeSeen<cat.events.length;wakeSeen++){const e=cat.events[wakeSeen];if(e.type==='wake'){bubble.text=e.rude?'喵！？':'醒啦';bubble.t=1.3;if(e.rude){M.hopV+=40;}}}
   if(st!=='bite'&&st!=='lick'&&cat.look&&!bubble.lookShown){bubble.text='喵？';bubble.t=1.0;bubble.lookShown=true;}
   if(!cat.look)bubble.lookShown=false;
   const onBack=finger&&!finger.head&&maskAt(finger.x,finger.y)>0;
   const happy=cat.happy&&st!=='warn'&&st!=='bite'&&st!=='lick';
   // targets (body numbers in picture pixels of the 1024-high original, angles in radians)
   let arch=0,butt=0,crouch=0,twitch=0,headRot=0.02*Math.sin(t*0.4),headOff=[0,0],tailAng=0.05*Math.sin(t*1.5),tailTip=0.12*Math.sin(t*0.9),breath=1.6*Math.sin(t*2.2),pressZ=0;
-  let variant=VAR[st]||'base';
-  if(onBack&&cat.locked<=0){pressZ=8;if(cat.content>0.35)arch=18;     // the hand pushes the back down; once she likes it she pushes up into it
-    if(finger.y>0.74&&cat.content>0.25&&st!=='warn')butt=36;}          // stroked near the root of the tail: the rump goes up
+  const V=VARS[POSE],standing=POSE==='stand',asleep=st==='sleep'||st==='drowsy';
+  let variant=V[st]||'base';
+  if(onBack&&cat.locked<=0){pressZ=8;if(cat.content>0.35&&!asleep)arch=standing?18:8;   // the hand pushes the back down; once she likes it she pushes up into it
+    if(standing&&finger.y>0.74&&cat.content>0.25&&st!=='warn')butt=36;}   // stroked near the root of the tail: the rump goes up
   if(happy){headRot=0.07+0.015*Math.sin(t*1.1);tailAng=-0.06;tailTip=0.05*Math.sin(t*55);breath=2.4*Math.sin(t*5.6);}
   if(cat.look&&st!=='bite'&&st!=='lick'){tailAng=0.22*Math.sin(t*4.4);tailTip=0.3*Math.sin(t*4.4-0.8);twitch=0.6;}
-  if(st==='warn'){crouch=9;twitch=1.3;headRot=-0.04;const w=Math.sin(t*10.5);tailAng=0.38*w*Math.abs(w);tailTip=0.35*Math.sin(t*10.5-1.1);}
+  if(asleep){headRot=0;breath=3.2*Math.sin(t*1.5);tailAng=0.02*Math.sin(t*0.5);tailTip=finger?0.25*Math.sin(t*7):0.03*Math.sin(t*0.7);   // slow deep breaths; the tip flicks when touched
+    M.dream-=dt;if(M.dream<=0&&!finger){M.dream=5+Math.random()*5;M.dreamT=0.45;}if(M.dreamT>0){M.dreamT-=dt;twitch=1.4;tailTip=0.3*Math.sin(t*20);}}   // a little twitch in her dream
+  if(st==='warn'){crouch=standing?9:0;twitch=1.3;headRot=-0.04;const w=Math.sin(t*10.5);tailAng=0.38*w*Math.abs(w);tailTip=0.35*Math.sin(t*10.5-1.1);}
   if(st==='bite'){const nk=K.neckPivot,dx=(lastFinger.x-nk[0])*AT,dy=lastFinger.y-nk[1],m=Math.hypot(dx,dy)||1,reach=Math.min(0.028,m*0.3),ph=Math.min(1,cat.stateT/0.15);
-    headOff=[dx/m*reach*ph/AT,dy/m*reach*ph];headRot=-0.1*Math.sign(dy)*ph;crouch=6;tailAng=0.3*Math.sin(t*12);}
+    headOff=[dx/m*reach*ph/AT,dy/m*reach*ph];headRot=standing?-0.1*Math.sign(dy)*ph:0;crouch=standing?6:0;tailAng=0.3*Math.sin(t*12);}
   if(st==='lick'){headRot=-0.05;tailAng=0.06*Math.sin(t*2);}
-  if(M.startle>0&&st!=='bite'){variant='look';tailAng=-0.1;}
-  // blink when idle
+  if(M.startle>0&&st!=='bite'&&!asleep){variant='look';tailAng=-0.1;}
+  // blink when idle and awake
   M.blinkNext-=dt;if(M.blinkNext<=0){M.blink=0.14;M.blinkNext=2.5+Math.random()*3.5;}
-  if(M.blink>0){M.blink-=dt;if(variant==='base')variant='purr';}
-  setVariant(variant,variant==='purr'&&M.blink>0?0.06:st==='bite'?0.08:0.16);
+  const blinking=M.blink>0&&variant===V.idle;if(M.blink>0){M.blink-=dt;if(blinking)variant=V.blink;}
+  setVariant(variant,blinking?0.06:st==='bite'?0.08:asleep?0.45:0.16);
   M.fade=Math.min(1,M.fade+dt/M.fadeDur);
   M.arch=lerp(M.arch,arch,slow);M.butt=lerp(M.butt,butt,1-Math.exp(-dt*5));M.crouch=lerp(M.crouch,crouch,k);M.twitch=lerp(M.twitch,twitch,k);
   M.press=[lastFinger.x,lastFinger.y,lerp(M.press[2],pressZ,1-Math.exp(-dt*14))];
@@ -298,7 +332,7 @@ function vibe(ms){try{if(navigator.vibrate&&audio.on&&navigator.userActivation&&
 
 // ---------- drawing ----------
 const trailU=new Float32Array(32);
-function bindHead(unit,name){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,name==='base'?TEX.base:TEX[name]);return name==='base'?1:0;}
+function bindHead(unit,name){const T=PT[POSE].tex;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,T[name]||T.base);return name==='base'?1:0;}
 function draw(t){
   if(room)bx.putImageData(room,0,0);
   const L=DPR;
@@ -306,11 +340,12 @@ function draw(t){
   const fy=(oy+K.floor*ch)*L,lift=Math.min(1,M.hop/30);
   bx.save();const sg=bx.createRadialGradient(0,0,0,0,0,1);sg.addColorStop(0,`rgba(70,40,15,${0.32*(1-lift*0.6)})`);sg.addColorStop(1,'rgba(70,40,15,0)');
   bx.translate((ox+cw*0.52)*L,fy);bx.scale(cw*0.42*L*(1-lift*0.15),ch*0.045*L);bx.fillStyle=sg;bx.beginPath();bx.arc(0,0,1,0,Math.PI*2);bx.fill();bx.restore();
-  if(!loaded)return;
+  if(!loaded||!PT[POSE])return;const PTX=PT[POSE].tex;
   gl.viewport(0,0,gl_c.width,gl_c.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
   if(S.fur.dirty){C.packRGBA(S.fur,TEX.mapBuf);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,TEX.map);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,S.fur.nx,S.fur.ny,gl.RGBA,gl.UNSIGNED_BYTE,TEX.mapBuf);S.fur.dirty=null;}
-  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,TEX.base);gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_2D,TEX.masks);
-  gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,TEX.map);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,PTX.base);gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_2D,PTX.masks);
+  gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,TEX.map);gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,PT[POSE].kmask);
+  gl.uniform1f(U.u_at,AT);gl.uniform1f(U.u_py,1/K.pxH);gl.uniform1f(U.u_floor,K.floor);gl.uniform1f(U.u_bellyY,K.belly);
   const ab=bindHead(1,M.prev),bb=bindHead(2,M.cur);
   for(const [n,u] of [['u_base',0],['u_va',1],['u_vb',2],['u_masks',3],['u_map',4],['u_kmask',5]])gl.uniform1i(U[n],u);
   gl.uniform1f(U.u_aBase,ab);gl.uniform1f(U.u_bBase,bb);gl.uniform1f(U.u_vmix,M.fade);
@@ -334,8 +369,9 @@ function drawFx(t){
   // purr marks under the chin
   if(M.purr>0.3){const [x,y]=tToCss(K.neckPivot[0]-0.13,K.neckPivot[1]-0.02),a=M.purr*(0.55+0.45*Math.sin(t*7.5));c.lineWidth=1.6;c.strokeStyle=`rgba(120,70,30,${0.55*a})`;
     for(let i=0;i<3;i++){const r=ch*(0.05+i*0.025+0.006*Math.sin(t*7.5));c.beginPath();c.arc(x,y,r,Math.PI*0.55,Math.PI*0.95);c.stroke();}}
-  const bt=bubble.t>0?bubble.text:M.purr>0.55?'呼噜呼噜':'';
-  if(bt){const [x,y]=tToCss(K.neckPivot[0]-0.08,K.neckPivot[1]-0.36);drawBubble(c,bt,Math.max(50,Math.min(VW-50,x)),Math.max(hand.y+hand.h+24,y),bubble.t>0?Math.min(1,bubble.t*3):0.55+0.45*M.purr);}
+  const zz=S.cat.state==='sleep';
+  const bt=bubble.t>0?bubble.text:M.purr>0.55?(zz?'呼噜……Zzz':'呼噜呼噜'):zz?'Zzz':'';
+  if(bt){const [x,y]=tToCss(K.neckPivot[0]-0.08,K.neckPivot[1]-0.36);drawBubble(c,bt,Math.max(60,Math.min(VW-60,x)),Math.max(hand.y+hand.h+24,y),bubble.t>0?Math.min(1,bubble.t*3):zz&&M.purr<0.55?0.55+0.2*Math.sin(t*1.5):0.55+0.45*M.purr);}
   for(const p of P){c.save();c.translate(p.x,p.y);c.rotate(p.a);c.globalAlpha=p.phase==='off'?Math.max(0,1-p.t/2.4):1;
     c.strokeStyle='rgba(90,45,15,0.35)';c.lineWidth=2.6;c.beginPath();c.moveTo(-p.len/2,0);c.quadraticCurveTo(0,p.bend*p.len,p.len/2,0);c.stroke();
     c.strokeStyle=p.col;c.lineWidth=1.5;c.beginPath();c.moveTo(-p.len/2,0);c.quadraticCurveTo(0,p.bend*p.len,p.len/2,0);c.stroke();c.restore();}
@@ -430,6 +466,7 @@ function update(dt){
 }
 function frame(now){
   const dt=Math.min(1/30,(now-last)/1000);last=now;
+  if(!S){requestAnimationFrame(frame);return;}
   if(!frozen)update(dt);
   draw(T);
   requestAnimationFrame(frame);
@@ -444,6 +481,8 @@ function goView(v){
   else if(v==='rump'){for(let i=0;i<7;i++){strokes([WITH(lane(i))]);sim(0.25);}strokes([Object.assign(WITH(0.12,0.5),{hold:true})]);sim(0.6);}
   else if(v==='ruffle'){strokes([WITH(0.14)]);sim(0.3);for(let i=0;i<4;i++){strokes([AGAINST(0.08+(i%2)*0.08,0.35)]);sim(0.1);}sim(0.35);}
   else if(v==='warn'){for(let i=0;i<160&&S.cat.state!=='warn';i++){strokes([WITH(lane(i),0.3)]);sim(0.05);}strokes([WITH(0.15,0.3)]);sim(0.25);}
+  else if(v==='drowsy'){for(let i=0;i<4&&S.cat.state!=='drowsy';i++){strokes([WITH(lane(i))]);sim(0.3);}sim(0.6);}
+  else if(v==='awake'){for(let i=0;i<12&&['sleep','drowsy'].includes(S.cat.state);i++){strokes([WITH(lane(i))]);sim(0.3);}sim(1.6);}
   else if(v==='bite'){for(let i=0;i<240&&S.cat.state!=='bite';i++){strokes([WITH(lane(i),0.3)]);sim(0.05);}sim(0.16);}
   else if(v==='furry'||v==='clap'){for(let i=0;i<34;i++){strokes([i%5===4?AGAINST(lane(i),0.35):WITH(lane(i),0.35)]);sim(0.6);if(S.cat.state==='bite'||S.cat.state==='lick')sim(2.6);}sim(2.2);
     if(v==='clap'){clap();sim(0.12);}}
@@ -458,24 +497,39 @@ function catBox(){
   return{x:x0,y:y0,w:x1-x0,h:y1-y0};
 }
 function backStats(){return C.regionStats(S.fur,0.03,0.25,0.3,0.9);}
-window.__lumao={get ready(){return started&&loaded&&viewDone;},view:VIEW,
+window.__lumao={get ready(){return started&&loaded&&viewDone&&!switching&&!!S;},view:VIEW,setPose,
   probe(){const st=backStats();return{view:VIEW,state:S.cat.state,happy:S.cat.happy,look:S.cat.look,bites:S.cat.bites,content:+S.cat.content.toFixed(3),over:+S.cat.over.toFixed(3),annoy:+S.cat.annoy.toFixed(3),
     hairsCore:S.fur.hand.hairs,hairsShown:hand.shown,airborne:P.length,handLevel:C.handLevel({hairs:hand.shown}),backMess:+st.mess.toFixed(3),backShine:+st.shine.toFixed(3),hint:!hintEl.hidden,frozen,layers:LAYERS,
-    head:M.cur,arch:+M.arch.toFixed(2),butt:+M.butt.toFixed(2),crouch:+M.crouch.toFixed(2),tailAng:+M.tailAng.toFixed(3),hop:+M.hop.toFixed(2),
+    pose:POSE,sleep:+S.cat.sleep.toFixed(3),head:M.cur,arch:+M.arch.toFixed(2),butt:+M.butt.toFixed(2),crouch:+M.crouch.toFixed(2),tailAng:+M.tailAng.toFixed(3),hop:+M.hop.toFixed(2),
     layout:{VW,VH,ox,oy,cw,ch,hand:{x:hand.x,y:hand.y,w:hand.w,h:hand.h},label:{x:hand.x+hand.w+8,y:hand.y+hand.h*0.22,w:130,h:36},cat:catBox(),floor:oy+K.floor*ch}};},
   coreToCss:(x,y)=>cToCss(x,y),stroke(dir){auto.push(dir==='against'?AGAINST(0.15):WITH(0.15));},clap,
   renderer(){const d=gl.getExtension('WEBGL_debug_renderer_info');return d?gl.getParameter(d.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);}};
-window.__PLAYTEST__={get ready(){return started&&loaded&&viewDone;},snapshot:()=>window.__lumao.probe(),reset(){newSession();frozen=false;},setSeed(n){seed=n|0||7;newSession();},step(ms){sim(ms/1000);}};
+window.__PLAYTEST__={get ready(){return started&&loaded&&viewDone&&!switching&&!!S;},snapshot:()=>window.__lumao.probe(),reset(){newSession();frozen=false;},setSeed(n){seed=n|0||7;newSession();},step(ms){sim(ms/1000);}};
 
-layout();newSession();started=true;requestAnimationFrame(frame);
-Promise.all(['base','masks',...K.states].map(n=>loadImg(n==='masks'?'assets/cat-masks.png':`assets/cat-${n}.webp`).then(img=>[n,img]))).then(list=>{
-  const units={base:0,masks:3};
-  for(const [n,img] of list)TEX[n]=texFrom(img,units[n]!=null?units[n]:1);
-  // CPU copies of the picture's alpha and the head region, for hit tests and the layout check
-  const cv=document.createElement('canvas');cv.width=K.size[0];cv.height=K.size[1];const cx=cv.getContext('2d',{willReadFrequently:true});
-  const im=list.find(l=>l[0]==='base')[1],mk=list.find(l=>l[0]==='masks')[1];
-  cx.drawImage(im,0,0);const a=cx.getImageData(0,0,cv.width,cv.height).data;cx.clearRect(0,0,cv.width,cv.height);cx.drawImage(mk,0,0);const d=cx.getImageData(0,0,cv.width,cv.height).data;
-  maskPix={w:cv.width,h:cv.height,a,d};loaded=true;
-  if(VIEW)goView(VIEW);
-}).catch(e=>{$('nogl').textContent='猫的图没加载出来，刷新一下试试。';$('nogl').hidden=false;console.error(e);});
+layout();started=true;requestAnimationFrame(frame);
+function loadPose(p){
+  if(PT[p])return Promise.resolve(PT[p]);
+  const k=POSES[p];
+  return Promise.all(['base','masks',...k.states].map(n=>loadImg(n==='masks'?`assets/${p}/cat-masks.png`:`assets/${p}/cat-${n}.webp`).then(img=>[n,img]))).then(list=>{
+    const tex={};const units={base:0,masks:3};
+    for(const [n,img] of list)tex[n]=texFrom(img,units[n]!=null?units[n]:1);
+    // CPU copies of the picture's alpha and the head region, for hit tests and the layout check
+    const cv=document.createElement('canvas');cv.width=k.size[0];cv.height=k.size[1];const cx=cv.getContext('2d',{willReadFrequently:true});
+    const im=list.find(l=>l[0]==='base')[1],mk=list.find(l=>l[0]==='masks')[1];
+    cx.drawImage(im,0,0);const a=cx.getImageData(0,0,cv.width,cv.height).data;cx.clearRect(0,0,cv.width,cv.height);cx.drawImage(mk,0,0);const d=cx.getImageData(0,0,cv.width,cv.height).data;
+    PT[p]={tex,kmask:kmaskTex(k),pix:{w:cv.width,h:cv.height,a,d}};return PT[p];
+  });
+}
+// switching pose keeps the hair on your hand; the cat (and her fur) start fresh
+let switching=false;
+function setPose(p,then){
+  if(switching||!POSES[p])return;switching=true;
+  loadPose(p).then(()=>{usePose(p);finger=null;pid=null;auto.length=0;autoCur=null;layout();newSession();
+    for(const b of poseBtns.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.pose===p));
+    switching=false;loaded=true;if(then)then();})
+  .catch(e=>{switching=false;$('nogl').textContent='猫的图没加载出来，刷新一下试试。';$('nogl').hidden=false;console.error(e);});
+}
+const poseBtns=$('poses');
+for(const b of poseBtns.querySelectorAll('button'))b.addEventListener('click',()=>{audio.init();if(b.dataset.pose!==POSE)setPose(b.dataset.pose);});
+setPose(POSE,()=>{if(VIEW)goView(VIEW);});
 })();
