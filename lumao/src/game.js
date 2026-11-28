@@ -272,7 +272,7 @@ function updateHairs(dt){
 }
 function clap(){
   if(hand.shown===0&&S.fur.hand.hairs===0)return;
-  C.clap(S.fur);audio.clap();
+  C.clap(S.fur);audio.clap();vibe(HAPTIC.clap);
   for(const s of hand.stuck){if(P.length>420)break;P.push({x:hand.x+s.x,y:hand.y+s.y,vx:(Math.random()-0.35)*260,vy:-120-Math.random()*160,a:s.a,va:(Math.random()-0.5)*9,len:s.len,bend:s.bend,col:s.col,t:0,phase:'off'});}
   for(const p of P)if(p.phase!=='off'){p.phase='off';p.t=0;p.vy=-60;}
   hand.stuck.length=0;hand.shown=0;hand.clapT=0;
@@ -286,13 +286,13 @@ function setVariant(name,dur){if(name===M.cur)return;M.prev=M.fade<0.5?M.prev:M.
 function animate(dt,t){
   const cat=S.cat,st=cat.state,k=1-Math.exp(-dt*7),slow=1-Math.exp(-dt*3),fast=1-Math.exp(-dt*20);
   if(st!==lastState){
-    if(st==='bite'){bubble.text='啊呜！';bubble.t=1.1;hand.flinch=0.5;audio.bite();vibe(60);}
+    if(st==='bite'){bubble.text='啊呜！';bubble.t=1.1;hand.flinch=0.5;audio.bite();vibe(HAPTIC.bite);}
     if(st==='lick'){bubble.text='舔舔';bubble.t=1.4;}
-    if(st==='warn'){bubble.text='……';bubble.t=1.6;}
+    if(st==='warn'){bubble.text='……';bubble.t=1.6;vibe(HAPTIC.warn);}
     if(st==='drowsy'&&lastState==='sleep'){bubble.text='嗯……？';bubble.t=1.4;}
     lastState=st;
   }
-  for(;wakeSeen<cat.events.length;wakeSeen++){const e=cat.events[wakeSeen];if(e.type==='wake'){bubble.text=e.rude?'喵！？':'醒啦';bubble.t=1.3;if(e.rude){M.hopV+=40;}}}
+  for(;wakeSeen<cat.events.length;wakeSeen++){const e=cat.events[wakeSeen];if(e.type==='wake'){bubble.text=e.rude?'喵！？':'醒啦';bubble.t=1.3;if(e.rude){M.hopV+=40;vibe(HAPTIC.startle);}}}
   if(st!=='bite'&&st!=='lick'&&cat.look&&!bubble.lookShown){bubble.text='喵？';bubble.t=1.0;bubble.lookShown=true;}
   if(!cat.look)bubble.lookShown=false;
   const onBack=finger&&!finger.head&&maskAt(finger.x,finger.y)>0;
@@ -326,9 +326,14 @@ function animate(dt,t){
   M.startle=Math.max(0,M.startle-dt);hand.flinch=Math.max(0,hand.flinch-dt);bubble.t-=dt;
   M.purr=lerp(M.purr,happy?1:0,1-Math.exp(-dt*2));
   audio.purr(M.purr);
-  if(M.purr>0.6&&finger){purrPulse-=dt;if(purrPulse<=0){purrPulse=0.83;vibe(14);}}
+  // a purring cat under your hand rumbles: a short train of buzzes on every breath (Android; iOS Safari has no vibration)
+  if(M.purr>0.6&&finger){purrPulse-=dt;if(purrPulse<=0){purrPulse=0.85;vibe(HAPTIC.purr);}}else purrPulse=0;
 }
-function vibe(ms){try{if(navigator.vibrate&&audio.on&&navigator.userActivation&&navigator.userActivation.hasBeenActive)navigator.vibrate(ms);}catch(e){}}
+// haptics do not follow the sound switch: people playing with the sound off are the ones who need them most.
+// Each buzz is at least 25 ms: many Android phones do not let you feel anything shorter.
+const HAPTIC={purr:[28,40,28,40,28,40,28],bite:[80,50,40],clap:[30,70,30],startle:45,warn:[25,90,25]};
+const haptics={calls:[]};
+function vibe(p){try{haptics.calls.push(p);if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.hasBeenActive))navigator.vibrate(p);}catch(e){}}
 
 // ---------- drawing ----------
 const trailU=new Float32Array(32);
@@ -498,6 +503,7 @@ function catBox(){
 }
 function backStats(){return C.regionStats(S.fur,0.03,0.25,0.3,0.9);}
 window.__lumao={get ready(){return started&&loaded&&viewDone&&!switching&&!!S;},view:VIEW,setPose,
+  hapticCalls:()=>haptics.calls.slice(),
   probe(){const st=backStats();return{view:VIEW,state:S.cat.state,happy:S.cat.happy,look:S.cat.look,bites:S.cat.bites,content:+S.cat.content.toFixed(3),over:+S.cat.over.toFixed(3),annoy:+S.cat.annoy.toFixed(3),
     hairsCore:S.fur.hand.hairs,hairsShown:hand.shown,airborne:P.length,handLevel:C.handLevel({hairs:hand.shown}),backMess:+st.mess.toFixed(3),backShine:+st.shine.toFixed(3),hint:!hintEl.hidden,frozen,layers:LAYERS,
     pose:POSE,sleep:+S.cat.sleep.toFixed(3),head:M.cur,arch:+M.arch.toFixed(2),butt:+M.butt.toFixed(2),crouch:+M.crouch.toFixed(2),tailAng:+M.tailAng.toFixed(3),hop:+M.hop.toFixed(2),

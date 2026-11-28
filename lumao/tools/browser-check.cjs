@@ -105,6 +105,27 @@ const overlap=(a,b)=>!!(a&&b&&a.x<b.x+b.w&&b.x<a.x+a.w&&a.y<b.y+b.h&&b.y<a.y+a.h
     check('against-the-grain page: no page errors',!errors.length,errors);
     await ctx.close();
   }
+  // haptics: with the sound switched off, a purring cat under a moving finger still buzzes, long enough to feel (>= 25 ms each)
+  {
+    const ctx=await browser.newContext(SIZES.android1x),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.addInitScript(()=>{window.__vib=[];navigator.vibrate=p=>{window.__vib.push(p);return true;};});
+    await page.goto(url(''),{waitUntil:'domcontentloaded',timeout:60000});
+    await page.waitForFunction(()=>window.__lumao&&window.__lumao.ready,null,{polling:100,timeout:60000});
+    await page.click('#sound');
+    const l=(await probe(page)).layout;
+    for(let i=0;i<8&&!(await probe(page)).happy;i++)await drag(page,l,0.12+(i%3)*0.06,0.12,0.12+(i%3)*0.06,0.9,12);
+    // keep the finger down and moving while she purrs
+    const a=await toCss(page,0.15,0.2),b=await toCss(page,0.15,0.85);await page.mouse.move(a.X,a.Y);await page.mouse.down();
+    for(let k=0;k<60;k++){const f=(k%20)/20;await page.mouse.move(a.X+(b.X-a.X)*f,a.Y+(b.Y-a.Y)*f);await page.waitForTimeout(30);}
+    await page.mouse.up();
+    const vib=await page.evaluate(()=>window.__vib);const purrs=vib.filter(p=>Array.isArray(p)&&p.length>=5);
+    check('haptics: sound off, purring under the finger still buzzes',purrs.length>=1,{calls:vib.length,purrs:purrs.length});
+    check('haptics: every buzz is at least 25 ms',vib.every(p=>(Array.isArray(p)?p.filter((_,i)=>i%2===0):[p]).every(ms=>ms>=25)),vib.slice(0,4));
+    await page.mouse.click(l.hand.x+l.hand.w*0.5,l.hand.y+l.hand.h*0.6);await page.waitForTimeout(100);
+    const after=await page.evaluate(()=>window.__vib);
+    check('haptics: clapping the hair off buzzes',after.length>vib.length,{before:vib.length,after:after.length});
+    check('haptics page: no page errors',!errors.length,errors);await ctx.close();
+  }
   // the pose buttons switch her; asleep, gentle real strokes wake her through half-awake; one stroke against the grain wakes her at once
   {
     const {ctx,page,errors}=await open('','iphone1x');
