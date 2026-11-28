@@ -17,18 +17,15 @@
   .top .where small { color: var(--dim); font-size: 11px; margin-left: 4px; }
   .top .right { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
   .top .right b { color: var(--gold2); font-weight: 600; }
-  .top button.info { font: inherit; font-size: 12px; color: var(--dim); background: none; border: 1px solid #4a3a2c; border-radius: 999px; width: 44px; height: 44px; flex-shrink: 0; padding: 0; text-align: center; cursor: pointer; }
-  .top button.gongbtn { font: inherit; font-size: 12px; color: var(--dim); background: none; border: 0; min-width: 44px; min-height: 44px; padding: 0; cursor: pointer; }
+  .top button.info { font: inherit; font-size: 12px; border: 1px solid; border-radius: 999px; width: 44px; height: 44px; flex-shrink: 0; padding: 0; text-align: center; cursor: pointer; }
+  .top button.gongbtn { font: inherit; font-size: 12px; border: 0; min-width: 44px; min-height: 44px; padding: 0; cursor: pointer; }
   .top button.gongbtn b { color: var(--gold2); }
   #scene { flex: 1 1 auto; display: block; width: 100%; min-height: 0; touch-action: none; }
   .hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(126px + env(safe-area-inset-bottom)); font-size: 12.5px; letter-spacing: .06em; color: var(--gold2); background: rgba(20,14,10,.9); border: 1px solid #5a4a3a; padding: 6px 14px; border-radius: 999px; pointer-events: none; opacity: 0; transition: opacity .3s; white-space: nowrap; max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis; }
   .hint.show { opacity: 1; }
   .bottom { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid #3a2a1f; }
-  .bottom button { font: inherit; font-size: 15px; letter-spacing: .1em; min-height: 46px; padding: 6px 4px; color: var(--ink); background: #241a13; border: 1px solid #4a3a2c; border-radius: 10px; cursor: pointer; }
-  .bottom button:disabled { color: rgba(243,233,214,.3); border-color: #2e241c; background: transparent; cursor: default; }
-  .bottom button.hot { border-color: var(--gold); color: var(--gold2); }
-  .bottom button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .bottom button.sub { font-size: 13px; color: var(--dim); letter-spacing: .04em; }
+  .bottom button { font: inherit; font-size: 15px; letter-spacing: .1em; min-height: 46px; padding: 6px 4px; border: 1px solid; border-radius: 10px; cursor: pointer; }
+  .bottom button.sub { font-size: 13px; letter-spacing: .04em; }
   @media (min-width: 700px) {
     .top .where { font-size: 17px; } .top .right { font-size: 14px; }
     .bottom { grid-template-columns: repeat(6, 1fr); max-width: 980px; width: 100%; margin: 0 auto; }
@@ -44,28 +41,167 @@
   .overlay h2 { margin: 0; font-size: 20px; color: var(--gold2); font-weight: 600; }
   .overlay p { margin: 0; font-size: 13px; color: var(--dim); text-align: center; line-height: 1.7; max-width: 420px; }
   .overlay img { max-width: 100%; max-height: min(62vh, calc(100dvh - 200px)); border-radius: 8px; border: 1px solid #5a4a3a; }
-  .overlay .close { margin-top: 4px; font: inherit; border: 1px solid var(--gold); background: none; color: var(--gold2); border-radius: 999px; min-width: 44px; min-height: 44px; flex-shrink: 0; padding: 8px 22px; font-size: 14px; cursor: pointer; }
-  .overlay .close:disabled { opacity: .3; cursor: default; }
+  .overlay .close { margin-top: 4px; font: inherit; border: 1px solid; border-radius: 10px; min-width: 44px; min-height: 44px; flex-shrink: 0; padding: 8px 22px; font-size: 14px; cursor: pointer; }
   /* 节目单：一本米色小册子，一页一页翻 */
   .book { width: min(360px, 100%); background: #efe6d2; color: #2a2118; border-radius: 6px; padding: 18px 18px 12px; box-shadow: 0 10px 40px rgba(0,0,0,.5); border-left: 6px solid #9b2d20; display: flex; flex-direction: column; gap: 8px; max-height: 78vh; }
   .book h3 { margin: 0; font-size: 18px; letter-spacing: .1em; font-weight: 600; font-family: "Songti SC", "STSong", "Noto Serif SC", serif; }
   .book .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
-  .book .head .close { margin: 0; padding: 8px 10px; color: #9b2d20; border-color: #9b2d20; }
+  .book .head .close { margin: 0; padding: 8px 10px; }
   .book .body { font-size: 14px; line-height: 1.75; overflow: auto; min-height: 0; }
   .book .body p { margin: 0 0 8px; text-align: justify; }
   .book .body p.big { font-size: 22px; letter-spacing: .12em; margin-top: 8px; font-family: "Songti SC", "STSong", "Noto Serif SC", serif; }
   .book .body p.small { font-size: 12px; color: rgba(42,33,24,.62); line-height: 1.6; }
-  .book .body .close { color: #9b2d20; border-color: #9b2d20; }
   .book .nav { display: flex; flex-shrink: 0; justify-content: space-between; align-items: center; border-top: 1px solid rgba(42,33,24,.18); padding-top: 8px; font-size: 12px; color: rgba(42,33,24,.6); }
-  .book .nav button { font: inherit; font-size: 14px; background: none; border: 1px solid rgba(42,33,24,.4); color: #2a2118; border-radius: 4px; min-width: 44px; min-height: 44px; padding: 5px 14px; cursor: pointer; }
-  .book .nav button:disabled { opacity: .3; cursor: default; }
+  .book .nav button { font: inherit; font-size: 14px; border: 1px solid; border-radius: 10px; min-width: 44px; min-height: 44px; padding: 5px 14px; cursor: pointer; }
   [hidden] { display: none !important; }
   .tea-note { position: fixed; top: calc(76px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); padding: 5px 10px; border: 1px solid #c9a24a; border-radius: 6px; background: #2a1e16; color: #f7dc9a; font-size: 12px; text-align: center; pointer-events: none; }
   .tea-note { display:flex; align-items:center; gap:10px; }
-  #giftSkip { pointer-events:auto; flex:none; min-width:44px; min-height:44px; padding:6px 10px; border:1px solid var(--gold); border-radius:6px; background:var(--bar); color:var(--gold2); font:inherit; cursor:pointer; }
+  #giftSkip { pointer-events:auto; flex:none; min-width:44px; min-height:44px; padding:6px 10px; border:1px solid; border-radius:10px; font:inherit; cursor:pointer; }
   .photo-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .curtain-box { display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .curtain-box .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  /* ===== 按钮：克制的实体键帽（2026-11-25）=====
+     五级按用途分：深色主 / 白色次 / 浅灰弱 / 透明 ghost / 下划线文字链接；分级理由见 VERIFICATION.md「按钮键帽」一节。
+     只换外观：尺寸、内边距、边框宽度、间距都沿用原来的，事件、文案、顺序、显示条件不动；只靠现有 id 和类名选中。
+     有填充的三级共用一套材质（上下微弱明度差、1px 边框、上沿内高光、下沿内暗线、接触 + 抬升两层外阴影），各级只换 --k-* 颜色变量。
+     阴影列表在默认 / 悬停 / 按下 / 禁用里固定为「内、内、外、外」四项，过渡才平滑。焦点用 outline + z-index，不进阴影列表，也不会被邻键的阴影盖住。
+     位移只用 transform，不挤动布局；系统开了「减少动态效果」时位移归零。悬停只在有指针悬停的设备上生效，触屏不会粘住悬停态。 */
+  :root {
+    --k-dur: 140ms; --k-up: -1px; --k-down: 1px; --k-radius: 10px; --k-focus: var(--gold);
+    --g-ink: var(--dim); --g-ink-hover: var(--ink); --g-line: #4a443d; --g-line-hover: #6d655c;
+    --g-fill-hover: rgba(255,246,230,.06); --g-fill-down: rgba(0,0,0,.22); --g-ink-off: rgba(160,143,120,.35); --g-line-off: #2c2722;
+    --l-ink: var(--dim); --l-ink-hover: var(--gold2); --l-ink-down: #8a7b67; --l-line: rgba(160,143,120,.5); --l-ink-off: rgba(160,143,120,.35);
+  }
+  @media (prefers-reduced-motion: reduce) { :root { --k-up: 0px; --k-down: 0px; } }
+  /* 米色节目单上的环境色：焦点环换成朱红，ghost 和链接换成墨色、朱红 */
+  .book {
+    --k-focus: #9b2d20;
+    --g-ink: #2a2118; --g-ink-hover: #1a140e; --g-line: rgba(42,33,24,.36); --g-line-hover: rgba(42,33,24,.6);
+    --g-fill-hover: rgba(42,33,24,.05); --g-fill-down: rgba(42,33,24,.11); --g-ink-off: rgba(42,33,24,.3); --g-line-off: rgba(42,33,24,.15);
+    --l-ink: #9b2d20; --l-ink-hover: #7d2218; --l-ink-down: #6a1d14; --l-line: rgba(155,45,32,.45); --l-ink-off: rgba(155,45,32,.35);
+  }
+
+  /* 一级 · 深色主按钮：底栏五个动作 */
+  .bottom button[data-act] {
+    --k-bg: #36332f; --k-bg-hover: #3e3a36; --k-bg-down: #2e2b28; --k-sheen: .05; --k-shade: .10;
+    --k-line: #0d0a08; --k-ink: var(--ink);
+    --k-hi: rgba(255,246,230,.11); --k-hi-down: rgba(255,246,230,.04); --k-lo: rgba(0,0,0,.32); --k-lo-down: rgba(0,0,0,.55);
+    --k-contact: rgba(0,0,0,.55); --k-lift: rgba(0,0,0,.42);
+    --k-bg-off: rgba(255,246,230,.025); --k-line-off: #2a241e; --k-ink-off: rgba(243,233,214,.3);
+  }
+  /* 门口提示先落座：原来的金边金字照旧，只换变量，不加发光 */
+  .bottom button[data-act].hot { --k-line: var(--gold); --k-ink: var(--gold2); }
+
+  /* 二级 · 白色次按钮：各覆盖层里「接着走 / 收起」的那一下 */
+  :is(#gongOverlay [data-close], #photoOverlay [data-close], #programmeOverlay [data-close], #nextShowBtn, #progPhoto) {
+    --k-bg: #efebe4; --k-bg-hover: #f6f3ee; --k-bg-down: #e4dfd7; --k-sheen: .35; --k-shade: .06;
+    --k-line: #bdb5aa; --k-ink: #2a2118;
+    --k-hi: rgba(255,255,255,.85); --k-hi-down: rgba(255,255,255,.3); --k-lo: rgba(70,55,40,.16); --k-lo-down: rgba(70,55,40,.3);
+    --k-contact: rgba(0,0,0,.5); --k-lift: rgba(0,0,0,.36);
+    --k-bg-off: rgba(239,235,228,.25); --k-line-off: rgba(189,181,170,.25); --k-ink-off: rgba(42,33,24,.45);
+  }
+  .book :is(#programmeOverlay [data-close], #progPhoto) {
+    --k-bg: #faf7f1; --k-bg-hover: #fffdf9; --k-bg-down: #eee8de;
+    --k-line: rgba(42,33,24,.32); --k-lo: rgba(70,55,40,.14); --k-contact: rgba(70,50,30,.22); --k-lift: rgba(70,50,30,.2);
+  }
+
+  /* 三级 · 浅灰弱按钮：主路旁边的岔路（看合影、再试、回到普通候场、直接候场） */
+  :is(#curtainPhotoBtn, #curtainGiftBtn, #photoGiftExit, #giftExit, #giftStart, #giftSkip) {
+    --k-bg: #d6d1c9; --k-bg-hover: #dedad3; --k-bg-down: #cbc5bc; --k-sheen: .25; --k-shade: .06;
+    --k-line: #aaa298; --k-ink: #4b4239;
+    --k-hi: rgba(255,255,255,.55); --k-hi-down: rgba(255,255,255,.18); --k-lo: rgba(70,55,40,.18); --k-lo-down: rgba(70,55,40,.32);
+    --k-contact: rgba(0,0,0,.45); --k-lift: rgba(0,0,0,.32);
+    --k-bg-off: rgba(214,209,201,.22); --k-line-off: rgba(170,162,152,.22); --k-ink-off: rgba(75,66,57,.5);
+  }
+  .book :is(#giftExit, #giftStart) {
+    --k-bg: #e2dcd1; --k-bg-hover: #e8e3d9; --k-bg-down: #d8d1c5;
+    --k-line: rgba(42,33,24,.26); --k-contact: rgba(70,50,30,.2); --k-lift: rgba(70,50,30,.16);
+  }
+
+  /* 有填充的三级：同一套材质 */
+  :is(.bottom button[data-act], #gongOverlay [data-close], #photoOverlay [data-close], #programmeOverlay [data-close], #nextShowBtn, #progPhoto,
+      #curtainPhotoBtn, #curtainGiftBtn, #photoGiftExit, #giftExit, #giftStart, #giftSkip) {
+    position: relative;
+    color: var(--k-ink);
+    background-color: var(--k-bg);
+    background-image: linear-gradient(to bottom, rgba(255,255,255,var(--k-sheen)), rgba(255,255,255,0) 55%, rgba(0,0,0,var(--k-shade)));
+    border-color: var(--k-line);
+    border-radius: var(--k-radius);
+    box-shadow: inset 0 1px 0 var(--k-hi), inset 0 -1px 0 var(--k-lo), 0 1px 0 var(--k-contact), 0 2px 4px -1px var(--k-lift);
+    transform: translateY(0);
+    transition: transform var(--k-dur) ease-out, box-shadow var(--k-dur) ease-out, background-color var(--k-dur) ease-out, border-color var(--k-dur) ease-out, color var(--k-dur) ease-out;
+  }
+  @media (hover: hover) {
+    :is(.bottom button[data-act], #gongOverlay [data-close], #photoOverlay [data-close], #programmeOverlay [data-close], #nextShowBtn, #progPhoto,
+        #curtainPhotoBtn, #curtainGiftBtn, #photoGiftExit, #giftExit, #giftStart, #giftSkip):hover:not(:disabled) {
+      background-color: var(--k-bg-hover);
+      transform: translateY(var(--k-up));
+      box-shadow: inset 0 1px 0 var(--k-hi), inset 0 -1px 0 var(--k-lo), 0 1px 0 var(--k-contact), 0 4px 6px -2px var(--k-lift);
+    }
+  }
+  :is(.bottom button[data-act], #gongOverlay [data-close], #photoOverlay [data-close], #programmeOverlay [data-close], #nextShowBtn, #progPhoto,
+      #curtainPhotoBtn, #curtainGiftBtn, #photoGiftExit, #giftExit, #giftStart, #giftSkip):active:not(:disabled) {
+    background-color: var(--k-bg-down);
+    transform: translateY(var(--k-down));
+    box-shadow: inset 0 1px 0 var(--k-hi-down), inset 0 -1px 0 var(--k-lo-down), 0 0 0 var(--k-contact), 0 1px 1px -1px var(--k-lift);
+  }
+  :is(.bottom button[data-act], #gongOverlay [data-close], #photoOverlay [data-close], #programmeOverlay [data-close], #nextShowBtn, #progPhoto,
+      #curtainPhotoBtn, #curtainGiftBtn, #photoGiftExit, #giftExit, #giftStart, #giftSkip):disabled {
+    cursor: default;
+    color: var(--k-ink-off);
+    background-color: var(--k-bg-off);
+    background-image: none;
+    border-color: var(--k-line-off);
+    box-shadow: inset 0 1px 0 transparent, inset 0 -1px 0 transparent, 0 1px 0 transparent, 0 2px 4px -1px transparent;
+  }
+
+  /* 四级 · 透明 ghost：合影、节目单入口「i」、翻页、声音开关 */
+  :is(#btnPhoto, #infoBtn, #soundBtn, #progPrev, #progNext) {
+    position: relative;
+    color: var(--g-ink);
+    background-color: transparent;
+    background-image: none;
+    border-color: var(--g-line);
+    border-radius: var(--k-radius);
+    box-shadow: none;
+    transform: translateY(0);
+    transition: transform var(--k-dur) ease-out, background-color var(--k-dur) ease-out, border-color var(--k-dur) ease-out, color var(--k-dur) ease-out;
+  }
+  #infoBtn { border-radius: 50%; }
+  @media (hover: hover) {
+    :is(#btnPhoto, #infoBtn, #soundBtn, #progPrev, #progNext):hover:not(:disabled) { color: var(--g-ink-hover); background-color: var(--g-fill-hover); border-color: var(--g-line-hover); }
+  }
+  :is(#btnPhoto, #infoBtn, #soundBtn, #progPrev, #progNext):active:not(:disabled) { color: var(--g-ink-hover); background-color: var(--g-fill-down); border-color: var(--g-line-hover); transform: translateY(var(--k-down)); }
+  :is(#btnPhoto, #infoBtn, #soundBtn, #progPrev, #progNext):disabled { cursor: default; color: var(--g-ink-off); border-color: var(--g-line-off); background-color: transparent; }
+
+  /* 五级 · 下划线文字链接：顶栏「锣」试听、节目单末页「清场」；仍是 button，用途不变 */
+  :is(#gongBtn, #progClear) {
+    position: relative;
+    color: var(--l-ink);
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    border-radius: 6px;
+    box-shadow: none;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--l-line);
+    transform: translateY(0);
+    transition: transform var(--k-dur) ease-out, color var(--k-dur) ease-out, text-decoration-color var(--k-dur) ease-out;
+  }
+  @media (hover: hover) {
+    :is(#gongBtn, #progClear):hover:not(:disabled) { color: var(--l-ink-hover); text-decoration-color: currentColor; }
+  }
+  :is(#gongBtn, #progClear):active:not(:disabled) { color: var(--l-ink-down); text-decoration-color: currentColor; transform: translateY(var(--k-down)); }
+  :is(#gongBtn, #progClear):disabled { cursor: default; color: var(--l-ink-off); text-decoration-color: var(--l-ink-off); }
+
+  /* 五级共用：键盘焦点。outline 不占位置；z-index 让焦点环压在邻键的阴影上面 */
+  :is(.bottom button[data-act], #gongOverlay [data-close], #photoOverlay [data-close], #programmeOverlay [data-close], #nextShowBtn, #progPhoto,
+      #curtainPhotoBtn, #curtainGiftBtn, #photoGiftExit, #giftExit, #giftStart, #giftSkip,
+      #btnPhoto, #infoBtn, #soundBtn, #progPrev, #progNext, #gongBtn, #progClear):focus-visible {
+    outline: 2px solid var(--k-focus); outline-offset: 2px; z-index: 1;
+  }
 </style>
 </head>
 <body>
@@ -107,7 +243,7 @@
     <div class="head"><h3 id="progTitle">节目单</h3><button class="close" id="soundBtn" aria-pressed="true">声音：开</button></div>
     <div class="body" id="progBody"></div>
     <div class="nav"><button id="progPrev" aria-label="上一页">‹ 上一页</button><span id="progNo">1 / 5</span><button id="progNext" aria-label="下一页">下一页 ›</button></div>
-    <button class="close" data-close="programmeOverlay" style="align-self:center;color:#9b2d20;border-color:#9b2d20">合上</button>
+    <button class="close" data-close="programmeOverlay" style="align-self:center">合上</button>
   </div>
 </div>
 <div class="overlay" id="curtainOverlay" role="dialog" aria-label="开演">
